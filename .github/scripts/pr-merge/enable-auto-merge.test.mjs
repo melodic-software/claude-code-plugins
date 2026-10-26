@@ -8,7 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -34,12 +34,16 @@ import {
   main,
   pythonRoom,
   pythonVerify,
+  ReaderRateLimited,
   costLine,
   ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
+  VERIFY_BUDGET_MS,
   readRoom,
   TRUST_REFUSALS,
+  FILES_CAPPED_REASON,
+  UNARMED_OUTPUT,
   verifyClears,
   verifyHold,
 } from "./enable-auto-merge.mjs";
@@ -235,11 +239,16 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
+  const output = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-")), "output");
+  writeFileSync(output, "");
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins };
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
+    // The `pr-merge/unarmed` statuses the run hands the status job.
+    const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
+    const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses };
   } finally {
     console.log = log;
   }
@@ -247,7 +256,9 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
 
 // The refusal note's two bodies, written out by hand: the gate's reasons
 // marker on its own line, the head named on the next, the reason fenced.
-const laneNote = (reason) =>
+// The run's clock, and so the time a lane comment first noted its head.
+const NOW = "2026-10-23T10:00:00.000Z";
+const laneNote = (reason, since = NOW) =>
   [
     "<!-- babysit-merge-risk -->",
     `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
@@ -255,6 +266,7 @@ const laneNote = (reason) =>
     "```text",
     reason,
     "```",
+      `<!-- pr-merge-unarmed-since head=${HEAD} at=${since} -->`,
   ].join("\n");
 const personNote = (reason) =>
   [
@@ -335,13 +347,19 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-test("an untrusted spec and the repeated-FAIL round cap are a person's verifier refusals; the rest are a lane's", async () => {
+// Owner rule 2026-10-26: a person only for intent, design, a CRITICAL
+// security issue or a hold no lane can clear. The gate's `needsHuman`
+// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec, the terminal
+// repeated-FAIL cap, a pull request too old to verify) decides, so a changed
+// spec is a lane's.
+test("only a verifier refusal the gate marks needsHuman is a person's; a changed spec is a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
-    pull(2, { verdict: refused("verify:spec-changed", true) }),
+    pull(2, { verdict: refused("verify:spec-changed", false) }),
     pull(3, { verdict: refused("verify:repeated-fail", true) }),
-    pull(4, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
+    pull(4, { verdict: refused("verify:too-old", true) }),
+    pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
   assert.deepEqual(notes, [
@@ -350,8 +368,21 @@ test("an untrusted spec and the repeated-FAIL round cap are a person's verifier 
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
     { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
     { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: personNote(refusing("verify:too-old")) } },
+    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
+});
+
+test("verifyClears reads the gate's needsHuman and reviewsPerson, not the refusal text", () => {
+  const at = (fields) => verifyClears({ head: HEAD, ineligible: null, reviews: null, refusal: null, ...fields }, HEAD);
+  assert.equal(at({ refusal: "verify:repeated-fail", needsHuman: true }), "person");
+  assert.equal(at({ refusal: "verify:untrusted-spec", needsHuman: false }), "lane");
+  assert.equal(at({ reviews: "security-finding: 1 open", reviewsPerson: false }), "lane");
+  assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound", reviewsPerson: true }), "person");
+  // An answer without the flag holds for a person, as an unknown does.
+  assert.equal(at({ refusal: "verify:fail" }), "person");
+  assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound" }), "person");
 });
 
 test("a refusal a lane clears is commented on, with no label", async () => {
@@ -359,6 +390,84 @@ test("a refusal a lane clears is commented on, with no label", async () => {
   assert.equal(code, 0);
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
 });
+
+// Owner rule 2026-10-26: a read that failed is never a person's; the next
+// run reads it again, and nothing that failed to read arms.
+// A listing past the page cap never reads whole, so its hold and cost paths
+// are never checked: a person's. A page that did not read is read again.
+test("a listing past the page cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
+  // Exactly 300 files is not past the cap: one more page reads empty, and
+  // it arms.
+  const exactly = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
+  const full = await run([pull(1, { files: exactly })]);
+  assert.deepEqual(full.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(full.notes, []);
+  const files = Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` }));
+  const { code, notes, writes } = await run([pull(1, { files })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(FILES_CAPPED_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files: null, filesCapped: false, verify: PASSED }), {
+    action: "none",
+    reason: "its changed files could not all be read",
+    clears: "lane",
+  });
+});
+
+test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes at the head, and an arm or a person's refusal a passing one", async () => {
+  // Timed from the first lane refusal at the head, so a reason whose detail
+  // changes every run does not restart it.
+  const standing = (since, said = MISSING_REASON) => pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(said, since))] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  const failing = [{ sha: HEAD, state: "failure", description: MISSING_REASON }];
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], {}, { now })).statuses, failing);
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z", "unreadable: RuntimeError: a detail that moves")], {}, { now })).statuses, failing);
+  assert.deepEqual((await run([standing("2026-10-23T10:01:00.000Z")], {}, { now })).statuses, []);
+  assert.deepEqual((await run([standing("2026-10-23T10:31:00.000Z")], { RISK_ESCALATION_MINUTES: "29" }, { now })).statuses, failing);
+  // A since line for another head starts the time again.
+  const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z").replace(`head=${HEAD}`, `head=${"c".repeat(40)}`))] } });
+  assert.deepEqual((await run([moved], {}, { now })).statuses, []);
+  // A lane's refusal that becomes a person's withdraws the failing status.
+  const escalated = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] } });
+  assert.deepEqual((await run([escalated], {}, { now })).statuses, [{ sha: HEAD, state: "success", description: "a person clears this hold: needs-human" }]);
+  const armed = await run([pull(3)], {}, { now });
+  assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
+  assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
+  // A lane's refusal that cleared while something else leaves it unarmed
+  // (here a member's veto) withdraws its failing status too.
+  const vetoed = pull(4, {
+    discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z")), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
+  });
+  const held = await run([vetoed], {}, { now });
+  assert.deepEqual(held.writes, []);
+  assert.deepEqual(held.statuses, [{ sha: HEAD, state: "success", description: "its lanes refusal no longer stands" }]);
+  // Report-only hands the status job nothing.
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
+});
+
+// A run that read nothing new about a standing lane refusal leaves its
+// failing status alone: no success that the next reading run turns back.
+test("an unread outcome withdraws no failing pr-merge/unarmed status", async () => {
+  const stood = (overrides = {}) => pull(1, { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] }, ...overrides });
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  // No time left: the clock passes the verify budget after the room read.
+  let calls = 0;
+  const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + 1);
+  const cases = [
+    ["no time left to read the verdict", await run([stood()], {}, { now: late })],
+    ["the hold paths did not read", await run([stood()], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" }, { now: () => at })],
+    ["the verdict read threw", await run([stood({ verdict: new Error("boom") })], {}, { now: () => at })],
+  ];
+  for (const [name, result] of cases) {
+    assert.deepEqual(result.writes, [], name);
+    assert.deepEqual(result.statuses, [], name);
+  }
+});
+
 
 const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt: at, actor: { __typename: typename, login: "someone" }, label: { name } });
 
@@ -397,21 +506,40 @@ test("a changed refusal edits the one comment instead of posting another", async
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-test("a risk hold is a person's only for a security finding, an aliasing path, a trusted-actor widening or a cost hold", async () => {
-  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
+test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
+  // reviewsPerson as babysit_risk.person_reasons answers for each code,
+  // read from the Python, the one list.
+  const codes = (reviews) => reviews.split("; ").map((part) => part.slice(0, part.indexOf(": ")));
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const answer = (reviews) => {
+    const python = spawnSync(
+      "python3",
+      ["-c", "import json,sys\nfrom babysit_risk import Reason, Risk, person_reasons\nprint(json.dumps(bool(person_reasons([Reason(c, Risk.HIGH, 'd') for c in json.load(sys.stdin)]))))"],
+      { cwd: scripts, input: JSON.stringify(codes(reviews)), encoding: "utf8" },
+    );
+    assert.equal(python.status, 0, python.stderr);
+    return JSON.parse(python.stdout);
+  };
+  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: answer(reviews) });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:docs/**: docs/a.md"];
+  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "unreadable: RuntimeError: boom"];
   const person = [
     "security-finding: 1 CRITICAL",
     "high-path:**: 'a' mode '120000' (symlink)",
     "files-incomplete: x; trust-gate:trusted-actors: entries added",
     "cost-review-required: infra/main.tf",
+    "high-path:docs/**: docs/a.md",
   ];
   for (const reviews of lane) {
-    // A lane's stays a lane's however long its comment has stood.
-    const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews)), "2026-01-01T00:00:00Z")] } });
-    assert.deepEqual((await run([stood])).notes, [], reviews);
-    assert.deepEqual((await run([pull(1, { verdict: risk(reviews) })])).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+    // A lane's stays a lane's however long its comment has stood: past
+    // merge.risk-escalation-minutes it gets a failing status, never a label.
+    const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews), "2026-01-01T00:00:00.000Z"))] } });
+    const late = await run([stood]);
+    assert.deepEqual(late.notes, [], reviews);
+    assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: holding(reviews).slice(0, 140) }], reviews);
+    const fresh = await run([pull(1, { verdict: risk(reviews) })]);
+    assert.deepEqual(fresh.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+    assert.deepEqual(fresh.statuses, [], reviews);
   }
   for (const reviews of person) {
     assert.deepEqual(
@@ -465,7 +593,7 @@ test("a lane's refusal over a person's comment still edits it, with no label", (
     { headRefOid: HEAD },
     [lanesSaid(personNote(HOLD_PATH_REASON))],
     { clears: "lane", reason: MISSING_REASON },
-    { bot: LANES.login, label: "needs-human" },
+    { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) },
   );
   assert.deepEqual(writes, { body: laneNote(MISSING_REASON), commentId: 77, label: null });
 });
@@ -704,6 +832,17 @@ test("each network trigger alone is sent again, and an error with another code i
   const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [coded("EPIPE_NOT_LISTED")] } });
   assert.equal(code, 1);
   assert.equal(writes.length, 1);
+});
+
+test("an arm GitHub answers with a rate limit is never sent again", async () => {
+  // GitHub answers a primary or secondary limit with 403 or 429; sending more
+  // while limited risks the integration's ban.
+  for (const status of [403, 429]) {
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [new GitHubError(status, "POST /graphql")] } });
+    assert.equal(code, 1);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(slept, []);
+  }
 });
 
 test("the resend warning names the arm and its pull request", async () => {
@@ -1018,7 +1157,8 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
 test("a manifest change arms only when the gate's risk score allows it", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const files = ["docs/a.md", ".claude-plugin/marketplace.json", "plugins/a/.claude-plugin/plugin.json"];
-  const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks" };
+  // Owner Q-FLOOR (B): the security lane, not a person, reviews a manifest.
+  const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", reviewsPerson: false };
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
     reason: "pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)",
@@ -1915,6 +2055,151 @@ test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a k
   assert.deepEqual(seen, [8 * 60_000]);
   assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
   assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
+});
+
+// A reader child that exits 75 stopped on a GitHub rate limit
+// (babysit_gh.RATE_LIMIT_EXIT); a later child would call GitHub again before
+// the reset, so the run sends nothing more and fails red naming the pool.
+
+// The gate's real exhausted-pool exit: the guard's ::error, then its call count.
+function stoppedReader(dir) {
+  const script = join(dir, "stopped.py");
+  writeFileSync(
+    script,
+    `import sys
+sys.path.insert(0, ${JSON.stringify(BABYSIT_SCRIPTS)})
+import babysit_gh as gh
+raise gh.RateLimitExhausted("core", 4102444800, "x-ratelimit-reset reset, HTTP 403")
+`,
+  );
+  return script;
+}
+
+test("a gate reader stopped on a rate limit ends the run: no later pull request is read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-stopped-"));
+  const env = { ...ENV, PATH: process.env.PATH, RUNNER_TEMP: "", VERIFY_EVIDENCE_SCRIPT: stoppedReader(dir) };
+  const pulls = [pull(1), pull(2)];
+  const { github, writes, calls, notes } = world(pulls);
+  const spawned = [];
+  let callsAtSpawn = null;
+  const spawn = (...args) => {
+    spawned.push(args[1].at(-2));
+    callsAtSpawn = calls.length;
+    return spawnSync(...args);
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env, github, verify: pythonVerify(env, { spawn }), room: room(), sleep: async () => {} });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(code, 1);
+  assert.deepEqual(spawned, ["1"]);
+  // Nothing after the stopped child: no detail read, verify or arm for #2.
+  assert.equal(calls.length, callsAtSpawn);
+  assert.deepEqual(writes(), []);
+  assert.deepEqual(notes, []);
+  // The stopped read's cost is still logged.
+  assert.ok(lines.some((line) => /^enable-auto-merge: #1 calls=/.test(String(line))), lines.join("\n"));
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /the core pool is exhausted/);
+  assert.match(errors[0], /2100-01-01T00:00:00Z/);
+});
+
+// A lane-room reader stopped on a rate limit: its child wrote `pool` to the
+// job's stop file before exiting 75.
+async function roomStoppedOn(pool, pulls) {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-stop-"));
+  const stopFile = join(dir, "stop");
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+  const stderr =
+    `::error title=GitHub rate limit::the ${pool} pool is exhausted (x-ratelimit-reset reset, HTTP 403); no GitHub call is sent before 2100-01-01T00:00:00Z\n` +
+    'babysit-gh-calls {"total": 1}';
+  const stopped = () => {
+    writeFileSync(stopFile, `${pool} 4102444800\n`);
+    return { status: 75, signal: null, stdout: "", stderr };
+  };
+  const { github, writes, calls, notes, verified } = world(pulls);
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify: world([]).verify, room: pythonRoom({ GITHUB_REPOSITORY: REPO }, stopped), sleep: async () => {}, latch });
+  } finally {
+    console.log = log;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  return { code, writes: writes(), calls, notes, verified, lines };
+}
+
+test("a lane-room reader stopped on the REST pool disarms each armed lanes pull request and arms nothing", async () => {
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { code, writes, notes, verified, lines } = await roomStoppedOn("core", [armed, pull(2)]);
+  assert.equal(code, 1);
+  // An unread room holds as a refusal does: #1 is disarmed, #2 not armed.
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(verified, []);
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /the core pool is exhausted/);
+  assert.match(errors[0], /each armed lanes App pull request is disarmed/);
+});
+
+test("a lane-room reader stopped on the GraphQL pool sends no disarm and fails naming each armed lanes pull request", async () => {
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { code, writes, calls, notes, lines } = await roomStoppedOn("graphql", [armed, pull(2)]);
+  assert.equal(code, 1);
+  assert.deepEqual(writes, []);
+  // Only the listing was sent.
+  assert.deepEqual(
+    calls.map(({ body }) => body?.query === PULLS_QUERY),
+    [true],
+  );
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => /^::error title=enable-auto-merge::#1 disarm not sent: GitHub's GraphQL rate limit is stopped until 2100-01-01T00:00:00/.test(String(line))), lines.join("\n"));
+  assert.ok(lines.some((line) => /^::error title=enable-auto-merge::.*still armed, its disarm failed, so the hold is not enforced: #1$/.test(String(line))), lines.join("\n"));
+});
+
+test("a verifier read stopped on a rate limit disarms the armed lanes pull requests after it and arms nothing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-verify-stop-"));
+  const stopFile = join(dir, "stop");
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+  const armed = { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } };
+  const { github, writes, notes } = world([pull(1), pull(2, armed), pull(3, armed)]);
+  const asked = [];
+  const verify = async ({ number }) => {
+    asked.push(number);
+    writeFileSync(stopFile, "core 4102444800\n");
+    throw new ReaderRateLimited(`#${number}'s verifier read`, "");
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify, room: room(), sleep: async () => {}, latch });
+  } finally {
+    console.log = log;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(code, 1);
+  // One verifier read; every armed lanes pull request is disarmed, none armed.
+  assert.equal(asked.length, 1);
+  assert.deepEqual(
+    writes().sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { mutation: "disarm", id: "PR_2" },
+      { mutation: "disarm", id: "PR_3" },
+    ],
+  );
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => String(line).startsWith("::error title=GitHub rate limit::")), lines.join("\n"));
 });
 
 // The gate holds on the security lane's open CRITICAL findings

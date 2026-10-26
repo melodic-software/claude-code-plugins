@@ -538,6 +538,7 @@ head:
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
+| `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, the repeated-fail cap, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
@@ -1028,7 +1029,12 @@ An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` 
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
-minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+minimum) escalates the refusal when a holding reason is one only a person clears
+(`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a high path, a
+trusted-actor widening, a cost hold, or a listing past the files API's cap, owner rule 2026-10-26);
+any other reason, such as review evidence not bound to the head, keeps its comment and is judged
+again each run. An escalation
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract))
 posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
 person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
 the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
@@ -1114,8 +1120,11 @@ while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
-in the same `actions/cache` entry as the carried verdict reads, so a forged entry can only repeat a
-refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
+in the same file as the carried verdict reads, the `pr-merge-run-cache` artifact a scheduled or
+hand-started run uploads and the next run reads from the newest such run on the default branch,
+found the way the head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`); it never passes
+through `actions/cache`, which any job in the default branch's cache scope can write. Even a forged
+file can only repeat a refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
 such as a demotion record, a ruleset, an edit to a comment older than the newest 50 or a gate import
 outside the keyed paths, delays re-gating by at most those limits; a skip never merges, enqueues or
 drops an escalation.
@@ -1183,11 +1192,19 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear: that hold line (owner decision Q-HOLDLINE), a
-configured denied path or a [path floor](#merge-authority) path, a cost hold, an untrusted spec,
-the repeated-FAIL round cap, a security finding or a trusted-actor widening. It puts the label
-back while the comment stands unless a person removed it since; a person's own hold text gets
-neither. GitHub then merges the pull request through the merge queue
+label only for a cause a person must clear (owner rule 2026-10-26: an intent or design change or a
+CRITICAL security issue, with cost and trust holds and a hold no lane can clear kept): that hold
+line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
+a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, the
+repeated-FAIL round cap, a pull request too old to verify, a security finding, a high path, a
+trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
+listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
+lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one
+noted there (the comment's `pr-merge-unarmed-since` line), the `unarmed-status` job posts a failing
+`pr-merge/unarmed` commit status on the head; arming, or the refusal becoming a person's, posts a
+passing one over it. The status is informational, not `ci-status`, and that job trusts only a status
+the GitHub Actions bot posted. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
@@ -1678,8 +1695,9 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
-`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human. While `merge.report-only` is false the lane escalates such a
+`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a human;
+`verify:spec-changed` holds for the lanes (owner rule 2026-10-26). While `merge.report-only` is
+false the lane escalates such a
 refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:repeated-fail` with a `fail` at the head quoting as data the first 1500 characters of
@@ -1907,11 +1925,19 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
   so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
-- **judge**, one model leg per unit, holds read permissions only, runs with `--setting-sources
-  user` and `--permission-mode dontAsk`, and has Read, Grep and Glob over its data and the main
-  checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
-  as data. It returns at most three findings, each citing at least one `path`, `line` and exact
-  `quote` from main.
+- **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
+  on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
+  dontAsk`, and has Read, Grep and Glob over its data and the main checkout and no shell. It takes
+  the `triage-issue` route's profile. CI logs and titles reach it as data. It returns at most three
+  findings, each citing at least one `path`, `line` and exact `quote` from main. A unit whose key
+  leg hands off (a credit stop, a 401 or 402, or an empty key) with no permission denial is judged
+  by **judge-subscription** on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`; with
+  `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a unit that leg hands off (a limit stop, a credit stop, a
+  401 or 402) is judged by **judge-fallback** on that token, which never hands off. Each leg is its
+  own job holding one credential. A leg that hands off uploads a marker artifact naming the unit and
+  the launcher's reason, and **judge-handoffs** and **judge-subscription-handoffs**, which hold no
+  secret, check each marker against a closed set and build the next leg's matrix
+  (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
   unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
   lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
@@ -2106,7 +2132,10 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. The read runner's callers
+with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
+role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
+started by a route job from the previous leg's handoff markers
+([The lane sweep](#the-lane-sweep)). The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and with
@@ -2165,6 +2194,13 @@ config themselves. A config the resolver refuses fails the two dispatchers befor
 the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
+In pr-merge, a rate limit that stops any of `post-merge-dispatch`'s GitHub calls (its post-merge
+check, its full-run dispatch or its re-run) fails that job red and goes to the `merge` and
+`enable-auto-merge` jobs as its `rate-limited` output, naming the pool and the reset. Each of them
+then ends red at its first step and sends nothing to GitHub. This holds for any pool and for the
+rest of that run, even once the reset has passed: a run is short and the next scheduled run starts
+the sweep again, so stopping is safe and costs at most one sweep.
+
 ## WIP cap
 
 The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP
@@ -2184,7 +2220,7 @@ label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status:
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
 | `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses. This repository sets 2026-10-22. |
 
-A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
+A held lane PR carries `needs-human` or `do-not-merge` in any case, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, at or over the queued cap, or with a held PR past the alarm age, the check

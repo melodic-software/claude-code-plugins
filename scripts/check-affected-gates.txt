@@ -47,7 +47,6 @@ vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <b
 portability-lint ci-only scripts/check-skill-portability.sh <base>
 cant-fail-scan ci-only scripts/check-cant-fail-scan.sh <base>
 evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
-listing-budget ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 precompute-compose ci-only whole-repo scanner, scripts/check-skill-precompute-compose.sh --all
 adr-numbers ci-only whole-repo scanner, scripts/check-adr-numbers.sh --check
@@ -63,7 +62,6 @@ detector-findings-crosswalk ci-only whole-repo scanner, scripts/check-detector-f
 discriminating-test-skips ci-only whole-repo scanner, scripts/check-discriminating-test-skips.sh
 docs-naming ci-only whole-repo scanner, scripts/check-docs-naming.sh --check
 docs-only-contract ci-only whole-repo scanner, scripts/check-docs-only-gate.sh --check
-drive-root-scan-noop ci-only whole-repo scanner, scripts/check-drive-root-litter.sh
 exec-form-windows-probe ci-only whole-repo scanner, scripts/check-exec-form-windows-probe.sh
 fixture-git-isolation ci-only whole-repo scanner, scripts/check-fixture-git-isolation.sh --check
 fleet-audit-doc-grammar ci-only whole-repo scanner, scripts/check-fleet-audit-doc-grammar.sh --check

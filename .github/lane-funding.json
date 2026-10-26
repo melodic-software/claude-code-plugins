@@ -93,10 +93,12 @@
       "secretPrefix": "AUTOMATIONS",
       "tokenSecret": "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "AUTOMATIONS_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "maintenance",
       "lanes": [
-        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "judge-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "audit", "workflow": "post-merge-test-mutation.yml", "launcher": "claude-code-action", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },

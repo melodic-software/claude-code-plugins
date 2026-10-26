@@ -1,7 +1,9 @@
 // Expected values come from pr-merge.yml: a job waiting in its concurrency
 // group starts after the running one, and it sweeps every candidate when its
 // run is scheduled or a listed human started it (the "Check who started the
-// run" step). Only schedule runs re-fire refused lane runs, and
+// run" step). superseded.mjs counts the starter and any re-runner as listed
+// humans only by account id, since a login can pass to another account. Only
+// schedule runs re-fire refused lane runs, and
 // pull_request_target runs start no full CI run, so a merge job is superseded
 // only by one that does at least what it does. Every enable-auto-merge run
 // disarms on a hold, and only a scheduled or hand-started one arms. GitHub
@@ -28,12 +30,14 @@ const LISTING = `/repos/${REPO}/actions/workflows/pr-merge.yml/runs?status=pendi
 const dir = mkdtempSync(join(tmpdir(), "superseded-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-// `actor` started the run and `rerunner` (its triggering_actor) last re-ran it.
-const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main" } = {}) => ({
+// `actor` started the run and `rerunner` (its triggering_actor) started
+// attempt `attempt`.
+const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main", attempt = 1 } = {}) => ({
   id,
   event,
   status: "pending",
   head_branch: branch,
+  run_attempt: attempt,
   actor,
   triggering_actor: rerunner,
 });
@@ -44,7 +48,7 @@ const waiting = (name = "merge", status = "pending") => [{ name, status }];
 let n = 0;
 // `jobs` maps a run id to its jobs read; a run missing from it has `job`
 // waiting. `jobsFail` is thrown by every jobs read.
-async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail } = {}) {
+async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail, env: extra = {} } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
   const calls = [];
@@ -73,6 +77,7 @@ async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}
         ...(job === undefined ? {} : { SUPERSEDED_JOB: job }),
         GITHUB_OUTPUT: output,
         TRUSTED_ACTORS_PATH: join(HERE, "fixtures/trusted-actors.json"),
+        ...extra,
       },
       actions,
     });
@@ -120,9 +125,27 @@ test("a pending run a bot started stops before its sweep, so it supersedes nothi
   assert.equal(run.superseded, false);
 });
 
-test("a listed id with another login does not count as the listed human", async () => {
-  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", { id: OWNER.id, login: "someone-else" })] });
-  assert.equal(run.superseded, false);
+test("a listed human's login held by a different id does not count as that human, as starter or re-runner", async () => {
+  const impostor = { id: 999001, login: OWNER.login };
+  for (const [actor, rerunner] of [[impostor, impostor], [OWNER, impostor], [impostor, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, false, `${actor.id} re-run by ${rerunner.id}`);
+  }
+});
+
+test("a listed human renamed since the list was written still counts, by id, as starter or re-runner", async () => {
+  const renamed = { id: OWNER.id, login: "renamed" };
+  for (const [actor, rerunner] of [[renamed, renamed], [OWNER, renamed], [renamed, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, true, `${actor.login} re-run by ${rerunner.login}`);
+  }
+});
+
+test("a run with no triggering actor id is not counted as a listed human's", async () => {
+  for (const rerunner of [{ login: OWNER.login }, { id: String(OWNER.id), login: OWNER.login }, null]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", OWNER, { rerunner })] });
+    assert.equal(run.superseded, false, JSON.stringify(rerunner));
+  }
 });
 
 test("a bot's run a listed human re-ran stops at the who step, so it supersedes nothing", async () => {
@@ -148,8 +171,10 @@ test("a hand-started run never supersedes a scheduled run, which alone re-fires 
 });
 
 test("a run of any other event, or with no actor, supersedes nothing", async () => {
-  const run = await check({ runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }] });
-  assert.equal(run.superseded, false);
+  for (const event of ["schedule", "pull_request_target"]) {
+    const run = await check({ event, runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }, pending(602, "workflow_run")] });
+    assert.equal(run.superseded, false, event);
+  }
 });
 
 test("a run whose listed status is not pending supersedes nothing", async () => {
@@ -245,4 +270,25 @@ test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a cond
     const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
     assert.equal(run.superseded, false);
   }
+});
+
+// A re-run keeps its event, and the who step lets a scheduled run's later
+// attempt on only when a listed human started that attempt; a scheduled run's
+// actor is whoever last changed the schedule, often a bot.
+test("a scheduled run counts on its first attempt, or on a later one a listed human started", async () => {
+  const first = await check({ runs: [pending(600, "schedule", QUEUE_BOT)] });
+  assert.equal(first.superseded, true);
+  const listed = await check({ runs: [pending(600, "schedule", QUEUE_BOT, { rerunner: OWNER, attempt: 2 })] });
+  assert.equal(listed.superseded, true);
+  const unlisted = await check({ runs: [pending(600, "schedule", QUEUE_BOT, { rerunner: LANES_BOT, attempt: 2 })] });
+  assert.equal(unlisted.superseded, false);
+  assert.deepEqual(unlisted.calls, [`GET ${LISTING}`]);
+  const unknown = await check({ runs: [pending(600, "schedule", OWNER, { rerunner: { login: OWNER.login }, attempt: 2 })] });
+  assert.equal(unknown.superseded, false);
+});
+
+test("a repository name GitHub cannot hold reads nothing and runs the job", async () => {
+  const run = await check({ runs: [pending(600, "schedule")], env: { GITHUB_REPOSITORY: "o/.." } });
+  assert.equal(run.superseded, false);
+  assert.deepEqual(run.calls, []);
 });
