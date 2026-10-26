@@ -1275,11 +1275,20 @@ at the head under any number, an earlier FAIL tied by number, commit or head bra
 record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploaded after
 `enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
 (`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
-`linkHold`. The same trusted approval of the head lifts it. The pass names come from the reader's
-listing. The reader starts from pr-merge's head-ref map and carried run cache, so it reads only
-what landed since pr-merge's last run: about 73 requests for one pull request, where a cold reader
-makes about 860 (measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A cache or map that
-does not read only leaves it cold. It reads with `ci-status`'s token, which holds no `issues`
+`linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
+it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
+with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
+names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
+run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
+on main (`carry-run-cache.mjs read`; `ci-status` restores no Actions cache), so it reads only what
+landed since that run: about 73 requests for one pull request, where a cold reader makes about 860
+(measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A head-ref map that does not read only
+leaves it reading more. With no carried run cache the step holds without starting the reader, since
+a cold read would spend most of the hour's planned `GITHUB_TOKEN` budget and could outrun the job's
+11 minutes. The artifact is kept for one day, so while pr-merge has had no successful scheduled or
+hand-started run for a day (the kill switch, a paused schedule, failing runs), every queued lanes
+App pull request is ejected, each ejection counts toward `merge.max-queue-ejections`, and at that
+cap the gate hands the pull request to a person. It reads with `ci-status`'s token, which holds no `issues`
 scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
 The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
