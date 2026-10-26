@@ -6,8 +6,9 @@
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
 # pull request without pr-merge's gate, so ci-status holds it on the holds
 # that gate honors: a body hold (a `Hold:` line or "do not merge"), a member's
-# newest comment saying not to merge, and a changed or renamed-from path
-# matching the merge lane's denied paths. It reads them live, on a pull
+# newest comment saying not to merge, a changed or renamed-from path
+# matching the merge lane's denied paths, and a trusted-actor list change that
+# adds or widens an entry. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
@@ -21,7 +22,8 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 . "$ROOT/scripts/lib/test-harness.sh"
 
 TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "$TMP_ROOT"' EXIT
+API_PID=
+trap '[[ -z "$API_PID" ]] || kill "$API_PID" 2>/dev/null; rm -rf "$TMP_ROOT"' EXIT
 
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
@@ -198,7 +200,7 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r GITHUB_API_URL=http://127.0.0.1:9 RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
     LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -289,36 +291,86 @@ STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
 expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
-STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
+STUB_FILES='[["docs/guide.md"],["docs/moved.md","docs/held/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a rename away from a denied path fails on its old path" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
-STUB_FILES='[["docs/guide.md"],[".github/actions/check-trusted-trigger/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a dot-prefixed file under a floor tree fails" 1 3 "it changes .github/actions/check-trusted-trigger/.x.mjs, a hold path"
-for held in CODEOWNERS docs/CODEOWNERS .gitmodules .github/standards/trusted-actors/README.md .github/actions/resolve-config/resolve.mjs; do
-  STUB_FILES="[[\"$held\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the merge gate's HIGH floor holds $held" 1 3 "it changes $held, a hold path"
+STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
+# Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): the narrow floor, with the
+# files that enforce it, holds with no denied path configured, a dot-prefixed
+# file and a renamed-from path included.
+for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
+  .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
+  .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/log-api-budget/rate-guard.mjs \
+  .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
+  .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py .github/workflows/pr-require-checks.yml \
+  .github/workflows/pr-merge.yml \
+  docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/address-feedback.mjs \
+  .github/scripts/pr-unblock/gate-source.mjs .github/scripts/pr-unblock/thread-scope.mjs \
+  .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done
-# The rest of .github merges on the review lanes; the lanes App's token never
-# carries the workflows permission, so no lanes App push changes a workflow.
-for path in .github/workflows/x.yml .github/scripts/pr-merge/merge-holds.mjs .github/actions/other/action.yml; do
+STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
+# Owner direction 2026-10-24: no other path holds for being trusted alone, and
+# a manifest change is the security lane's finding. The lanes App's token
+# never carries the workflows permission, so no lanes App push changes a
+# workflow.
+for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline/README.md \
+  plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-merge/gate-check.mjs .github/actions/other/action.yml \
+  .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "$path is no hold path" 0 3 "no hold path"
 done
-# A manifest is compared base against head, read from the contents API,
-# which this test does not answer, so a manifest change holds as unreadable;
-# test_merge_holds_sync.py checks each comparison against the gate's.
-STUB_FILES='[["plugins/p/.claude-plugin/plugin.json"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a manifest whose sides do not read holds" 1 3 "it changes plugins/p/.claude-plugin/plugin.json (contents unreadable), a manifest change that needs review"
 STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a removed manifest holds" 1 3 "it changes .claude-plugin/marketplace.json (removed manifest)"
-if grep -qF "[.filename, .previous_filename, .status]" <<<"$step" && grep -qxF "          export BASE_SHA" <<<"$step"; then
-  ok "the step hands merge-holds.mjs each file's status and the base commit"
+expect "a removed manifest is no hold" 0 3 "no hold path"
+# The trust gate: merge-holds.mjs reads the trusted-actor list at the base and
+# the head itself, through GITHUB_API_URL, and holds a change that adds or
+# widens an entry; one that only removes entries passes. A local server
+# answers those reads from $TMP_ROOT/list-<ref>, and 404 for anything else.
+cat >"$TMP_ROOT/api.mjs" <<'API'
+import { createServer } from "node:http";
+import { readFileSync, writeFileSync } from "node:fs";
+const [dir] = process.argv.slice(2);
+const server = createServer((request, response) => {
+  const ref = /^\/repos\/o\/r\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(request.url)?.[1];
+  let content;
+  try {
+    content = ref && readFileSync(`${dir}/list-${ref}`).toString("base64");
+  } catch {}
+  response.writeHead(content ? 200 : 404, { "content-type": "application/json" });
+  response.end(JSON.stringify(content ? { type: "file", encoding: "base64", content } : { message: "Not Found" }));
+});
+server.listen(0, "127.0.0.1", () => writeFileSync(`${dir}/port`, String(server.address().port)));
+API
+node "$TMP_ROOT/api.mjs" "$TMP_ROOT" &
+API_PID=$!
+for _ in $(seq 50); do
+  [[ ! -s "$TMP_ROOT/port" ]] || break
+  sleep 0.1
+done
+if [[ -s "$TMP_ROOT/port" ]]; then
+  api="http://127.0.0.1:$(cat "$TMP_ROOT/port")"
+  list() { jq -n --argjson actors "$1" '{version: 1, actors: $actors}'; }
+  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"}]' >"$TMP_ROOT/list-$BASE"
+  STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
+  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"},{"id":3,"login":"new","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list widening fails" 1 3 "it widens the trusted-actor list"
+  list '[{"id":1,"login":"kyle","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list removal passes" 0 3 "no hold path"
+  rm "$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list whose head does not read fails" 1 3 "contents unreadable"
 else
-  fail "the step does not hand merge-holds.mjs each file's status and the base commit"
+  fail "the local API server for the trusted-actor list reads did not start"
 fi
-STUB_FILES='[["docs/conventions/pr-pipeline.yaml"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "the pipeline config is held by the floor" 1 3 "it changes docs/conventions/pr-pipeline.yaml, a hold path"
+if grep -qF "[.filename, .previous_filename, .status]" <<<"$step"; then
+  ok "the step hands merge-holds.mjs each file's status"
+else
+  fail "the step does not hand merge-holds.mjs each file's status"
+fi
 STUB_FILES='[["docs/held/x.md"]]'
 KYLE_OK="$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")"
 STUB_REVIEWS="[$KYLE_OK]"
@@ -339,7 +391,7 @@ expect "an unreadable trusted-actor list fails closed" 1 0 "::error::could not r
 unset STUB_NO_ACTORS
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
-expect "a config with no denied paths still holds nothing outside the floor" 0 3 "no hold path"
+expect "a config with no denied paths holds no path" 0 3 "no hold path"
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**'
 expect "denied paths that are not a list fail closed" 1 3 "the hold paths could not be read"
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
@@ -427,9 +479,15 @@ expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Clos
 STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
 expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
-expect "in the merge queue, a body naming two Refs issues holds" 1 3 "it names no issue pr-merge's lane takes"
+# A link of several issues that still names the judged one passes; the fix
+# loop rewrites it. One that drops the judged issue, or is removed, holds.
+expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+STUB_PULL="$(pull '## Summary')"
+expect "in the merge queue, a body that drops its link holds" 1 3 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
 STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
-expect "in the merge queue, a body closing two issues holds" 1 3 "it does not close exactly one issue in this repository"
+expect "in the merge queue, a body closing the judged issue and another passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":2,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+expect "in the merge queue, a body closing two issues but not the judged one holds" 1 3 "it closes #2, #3, and the pass judged #1"
 STUB_CLOSING='' STUB_RECORD='{"verdict":"pass"}'
 expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
 STUB_RECORD='' STUB_NO_RECORD=1

@@ -123,7 +123,7 @@ jobs:
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
-          { . .base/.github/actions/log-api-budget/api-budget.bash && api_budget_wrap_gh github-token; } 2>/dev/null || true
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           # Every FAIL-shaped name, then the ones the readers take (the
           # grammar babysit_verify_evidence.NAME_RE holds, at most 194
           # characters, issues ascending and once each). A FAIL-shaped name
@@ -418,18 +418,30 @@ jobs:
           # completion exists only while the other lane is running, and
           # maintenance-reconcile-lost-runs leaves a run where only ci-status
           # failed alone). Any other failure is read three times, then fails.
-          waited=0
+          # A path read again (the poll below) is sent as a conditional GET
+          # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
+          # 200's body back, as request-budget.mjs does. Its reading is kept,
+          # so the notice shows whether GitHub counted it.
+          waited=0 etag_path='' etag='' etag_body=''
           read_api() {
-            local attempt out hdr status left reset after wait
+            local attempt out hdr status left reset after wait cond
             for attempt in 1 2 3; do
-              if out=$(gh api -i "$3"); then
+              cond=()
+              [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
+              if out=$(gh api -i "$3" "${cond[@]}"); then
                 budget "$out"
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
+                etag_path=$3 etag_body=${!1}
+                etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
                 return 0
               fi
               budget "$out"
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
+              if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
+                printf -v "$1" '%s' "$etag_body"
+                return 0
+              fi
               read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }
                 END { print h["x-ratelimit-remaining"] "-", h["x-ratelimit-reset"] "-", h["retry-after"] "-" }')
               left=${left%-} reset=${reset%-} after=${after%-}

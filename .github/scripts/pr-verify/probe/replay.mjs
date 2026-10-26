@@ -60,7 +60,7 @@ const REPOSITORY = "melodic-software/claude-code-plugins";
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
 // pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "d02b8697e092705153f0996549b05f95a446bb52";
+export const RUN_CLAUDE_CLI_PIN = "30b251532b2e9f7e0c4215e1dee5be0d3c688743";
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",

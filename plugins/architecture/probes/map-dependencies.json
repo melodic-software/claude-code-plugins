@@ -9,12 +9,6 @@
     "architecture:improve",
     "architecture:map-flow"
   ],
-  "competitor_dirs": {
-    "architecture:map-components": "plugins/architecture/skills/map-components",
-    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
-    "architecture:improve": "plugins/architecture/skills/improve",
-    "architecture:map-flow": "plugins/architecture/skills/map-flow"
-  },
   "queries": [
     {
       "id": "pos-train-01",

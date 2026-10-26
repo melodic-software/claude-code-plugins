@@ -30,7 +30,12 @@ from server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
+REPO = HERE.parents[2]
 BASH = shutil.which("bash")
+# The repository's locked install, else one on PATH; None when neither resolves.
+MARKDOWNLINT = shutil.which(
+    str(REPO / "node_modules" / ".bin" / "markdownlint-cli2")
+) or shutil.which("markdownlint-cli2")
 AT = "2026-09-24T10:00:00Z"
 
 
@@ -54,6 +59,19 @@ def question(qid, **extra):
 
 def event(seq, qid, kind, alt=None, text=""):
     return {"seq": seq, "id": qid, "kind": kind, "alt": alt, "text": text, "at": AT}
+
+
+# A confirmed restatement's goal and criteria: what a page export needs to pass the --brief
+# gate once a question is answered, for a test that grades the Brief for something else.
+RESTATED = {"goal": "Ship the build cache.", "acceptance": "- builds reuse the cache"}
+
+
+def confirmed(events, **sections):
+    """(events plus a Confirm of rev 1, [rev 1]); rev 1 holds RESTATED and sections."""
+    seq = max([e["seq"] for e in events] or [0]) + 1
+    confirm = {**event(seq, None, "confirm-understanding", "confirm"), "contentRev": 1}
+    rev = {"rev": 1, "at": AT, "sections": {**RESTATED, **sections}}
+    return [*events, confirm], [rev]
 
 
 class SessionCase(unittest.TestCase):
@@ -262,7 +280,7 @@ class TestExportLedger(SessionCase):
 class TestExportBrief(SessionCase):
     """AC28 and the Brief's sections."""
 
-    def deferred_session(self):
+    def deferred_session(self, restated=False):
         qs = [
             question("Q1", commits=["Unticked promise"]),
             question("Q2"),
@@ -273,14 +291,30 @@ class TestExportBrief(SessionCase):
             event(2, "Q2", "defer", text="after the pilot"),
             event(3, "Q3", "accept"),
         ]
-        self.session(qs, events)
+        if restated:
+            events, revs = confirmed(events)
+            self.session(qs, events, restatements=revs)
+        else:
+            self.session(qs, events)
 
     def test_deferred_questions_pass_the_brief_cross_check(self):
-        self.deferred_session()
+        self.deferred_session(restated=True)
         ledger, brief = self.export("ledger"), self.export("brief")
         rc, out = self.check("--ledger", ledger, "--brief", brief)
         self.assertEqual(rc, 0, out + brief.read_text(encoding="utf-8"))
         self.assertIn("brief=ok", out)
+
+    def test_an_unrestated_export_is_stamped_and_fails_the_gate(self):
+        self.deferred_session()
+        ledger, brief = self.export("ledger"), self.export("brief")
+        text = brief.read_text(encoding="utf-8")
+        tldr = text.split("### TLDR")[1].split("###")[0]
+        self.assertIn("- Restatement: UNCONFIRMED (no restatement posted)\n", tldr)
+        self.assertIn("- Page title: Export test\n", tldr)
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 1, out + text)
+        self.assertIn("brief=unconfirmed status=incomplete", out)
+        self.assertIn("UNCONFIRMED (no restatement posted)", out)
 
     def test_a_source_quote_in_facts_stays_out_of_the_brief_and_report(self):
         quote = "Exact words the decision rests on."
@@ -334,7 +368,7 @@ class TestExportBrief(SessionCase):
         )
 
     def test_exported_brief_passes_the_procedure_heading_check(self):
-        self.deferred_session()
+        self.deferred_session(restated=True)
         rc, out = self.check(
             "--ledger",
             self.export("ledger"),
@@ -346,6 +380,129 @@ class TestExportBrief(SessionCase):
         self.assertIn("procedure=ok", out)
         self.assertEqual(rc, 0, out)
 
+    PLAN_HEAD = "# Plan: export test\n\nNotes above the Brief stay as written.\n\n"
+    STALE = "## Brief\n\n### TLDR\n\n- a stale hand-merged Brief\n\n"
+    PLAN_TAIL = (
+        "## Plan\n\n1. First step.\n\n"
+        "```markdown\n## Brief\n\nA fenced heading is not the Brief.\n```\n"
+    )
+
+    def merged_plan(self, text):
+        """(ledger, PLAN.md) after `export-brief --ledger --into` ran on a PLAN.md holding text."""
+        self.deferred_session(restated=True)
+        ledger = self.export("ledger")
+        plan = self.tmp / "PLAN.md"
+        plan.write_bytes(text.encode("utf-8"))
+        rc, out = self.rp("export-brief", "--ledger", str(ledger), "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        return ledger, plan
+
+    def brief_section(self, ledger, nl="\n"):
+        """The `## Brief` section of the --out export, as --into writes it before a heading."""
+        out = self.tmp / "brief-section.md"
+        rc, text = self.rp("export-brief", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        full = out.read_text(encoding="utf-8")
+        brief = full[: full.rindex("\n## Plan\n")].rstrip("\n")
+        self.assertTrue(brief.startswith("## Brief\n"), brief)
+        return brief.replace("\n", nl) + nl + nl
+
+    def test_into_replaces_the_brief_section_and_keeps_every_other_byte(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        merged = plan.read_bytes().decode("utf-8")
+        self.assertNotIn("stale hand-merged", merged)
+        self.assertEqual(
+            merged, self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL
+        )
+        rc, out = self.check("--ledger", ledger, "--brief", plan, "--procedure")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_into_keeps_a_crlf_file_crlf(self):
+        head, stale, tail = (
+            x.replace("\n", "\r\n") for x in (self.PLAN_HEAD, self.STALE, self.PLAN_TAIL)
+        )
+        ledger, plan = self.merged_plan(head + stale + tail)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            head + self.brief_section(ledger, "\r\n") + tail,
+        )
+
+    def test_into_a_brief_at_the_end_of_the_file_ends_with_one_newline(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger)[:-1],
+        )
+
+    def test_into_keeps_a_scope_change_note_above_the_first_subheading(self):
+        heading = "## Brief\n\n"
+        note = "> 2026-10-25 scope change: started fresh because the goal moved.\n\n"
+        stale = heading + note + self.STALE[len(heading) :]
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + stale + self.PLAN_TAIL)
+        fresh = self.brief_section(ledger)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + heading + note + fresh[len(heading) :] + self.PLAN_TAIL,
+        )
+
+    def test_into_reads_fences_as_the_gate_does(self):
+        # A four-backtick fence quoting a three-backtick one and a tilde line: the fenced
+        # `## Plan` is content, and the section ends at the real one.
+        nested = "## Brief\n\n### TLDR\n\n````markdown\n```\n## Plan\n```\n~~~\n````\n\n"
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + nested + self.PLAN_TAIL)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL,
+        )
+
+    def test_into_refuses_a_plan_with_no_brief_heading_or_two(self):
+        self.deferred_session()
+        plan = self.tmp / "PLAN.md"
+        for text, why in (
+            (self.PLAN_HEAD + self.PLAN_TAIL, "no `## Brief` heading"),
+            (
+                self.PLAN_HEAD + self.STALE + self.STALE + self.PLAN_TAIL,
+                "2 `## Brief` headings",
+            ),
+            (
+                self.PLAN_HEAD + "## Brief\n\n```\nnever closed\n\n## Plan\n\n1. First step.\n",
+                "a fenced block that never closes",
+            ),
+        ):
+            with self.subTest(why=why):
+                plan.write_bytes(text.encode("utf-8"))
+                rc, out = self.rp("export-brief", "--into", str(plan))
+                self.assertEqual(rc, 1, out)
+                self.assertIn(why, out)
+                self.assertNotIn("Traceback", out)
+                self.assertEqual(plan.read_bytes().decode("utf-8"), text)
+
+    def test_into_a_missing_file_writes_the_whole_export(self):
+        self.deferred_session()
+        plan = self.tmp / "new" / "PLAN.md"
+        rc, out = self.rp("export-brief", "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            plan.read_text(encoding="utf-8"),
+            self.export("brief").read_text(encoding="utf-8"),
+        )
+
+    def test_merged_plan_passes_markdownlint(self):
+        if not MARKDOWNLINT:
+            self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
+        _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        # markdownlint-cli2 reads its config from its working directory.
+        shutil.copy(REPO / ".markdownlint-cli2.jsonc", self.tmp)
+        p = subprocess.run(
+            [MARKDOWNLINT, plan.name],
+            cwd=self.tmp,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
     def acceptance_section(self, acceptance, verdicts=("confirm",)):
         self.session(
             [question("Q1")],
@@ -354,7 +511,11 @@ class TestExportBrief(SessionCase):
                 {**event(2 + i, None, "confirm-understanding", alt), "contentRev": 1}
                 for i, alt in enumerate(verdicts)
             ],
-            restatement={"rev": 1, "at": AT, "sections": {"acceptance": acceptance}},
+            restatement={
+                "rev": 1,
+                "at": AT,
+                "sections": {"goal": RESTATED["goal"], "acceptance": acceptance},
+            },
         )
         text = self.export("brief").read_text(encoding="utf-8")
         return text, text.split("### Acceptance criteria")[1].split("###")[0]
@@ -429,13 +590,15 @@ class TestBriefIds(SessionCase):
 
     def gapped(self):
         """Page ids Q1, Q2 and Q5; the ledger also holds Q3 and Q4, deferred there only."""
-        self.session(
-            [question("Q1"), question("Q2"), question("Q5")],
+        events, revs = confirmed(
             [
                 event(1, "Q1", "accept"),
                 event(2, "Q2", "alt", alt="a"),
                 event(3, "Q5", "defer", text="the pilot"),
-            ],
+            ]
+        )
+        self.session(
+            [question("Q1"), question("Q2"), question("Q5")], events, restatements=revs
         )
         ledger = self.tmp / "hand-ledger.md"
         ledger.write_text(
@@ -567,13 +730,15 @@ class TestBriefIds(SessionCase):
         self.assertIn("- C2 (inherited):", constraints)
 
     def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
-        self.session(
-            [question("Q1"), question("Q3"), question("Q4")],
+        events, revs = confirmed(
             [
                 event(1, "Q1", "accept"),
                 event(2, "Q3", "defer", text="later"),
                 event(3, "Q4", "accept"),
-            ],
+            ]
+        )
+        self.session(
+            [question("Q1"), question("Q3"), question("Q4")], events, restatements=revs
         )
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
@@ -702,6 +867,7 @@ class TestBriefRestatements(SessionCase):
                 self.rev(
                     1,
                     goal="Ship it.",
+                    acceptance="- it ships",
                     deferred="\n".join(f"- {x}" for x in deferred),
                     planningOwned="\n".join(f"- {x}" for x in owned),
                     decisions="\n".join(decisions),
@@ -753,11 +919,51 @@ class TestBriefRestatements(SessionCase):
             ],
         )
 
-    def test_no_restatement_writes_no_stamp(self):
+    def test_no_restatement_is_stamped_unconfirmed_and_fails_the_gate(self):
         self.session([question("Q1")], [event(1, "Q1", "accept")])
-        self.assertNotIn(
-            "Restatement:", self.export("brief").read_text(encoding="utf-8")
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- Restatement: UNCONFIRMED (no restatement posted)", text)
+        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
         )
+        self.assertEqual(rc, 1, out)
+        self.assertIn("brief=unconfirmed status=incomplete", out)
+
+    def test_every_page_export_names_its_page_title(self):
+        restated = ([self.rev(1, goal="One.")], [self.confirm(2, 1)])
+        for revs, verdicts in (([], []), restated):
+            with self.subTest(restated=bool(revs)):
+                text = self.brief(revs, verdicts)
+                self.assertIn("- Page title: Export test", self.section(text, "TLDR"))
+
+    def gate(self):
+        return self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+
+    def test_a_confirmed_rev_without_a_goal_fails_the_gate_on_the_title_goal(self):
+        text = self.brief([self.rev(1, acceptance="- a")], [self.confirm(2, 1)])
+        self.assertIn("- Restatement: confirmed at rev 1,", text)
+        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        rc, out = self.gate()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("brief=placeholder status=incomplete", out)
+        self.assertIn("the Goal is the page title ('Export test'", out)
+
+    def test_a_confirmed_rev_without_criteria_fails_the_gate_on_the_placeholder(self):
+        text = self.brief([self.rev(1, goal="One.")], [self.confirm(2, 1)])
+        self.assertIn("- none recorded in the interview surface", text)
+        rc, out = self.gate()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("brief=placeholder status=incomplete", out)
+        self.assertIn("the acceptance criteria are the placeholder", out)
+
+    def test_a_confirmed_rev_with_a_goal_and_criteria_passes_the_gate(self):
+        self.brief([self.rev(1, goal="One.", acceptance="- a")], [self.confirm(2, 1)])
+        rc, out = self.gate()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok status=clean", out)
 
     def test_restated_goal_constraints_and_scope_cannot_add_a_heading_or_fence(self):
         text = self.brief(
@@ -780,7 +986,7 @@ class TestBriefRestatements(SessionCase):
         )
 
     def test_the_gate_fails_an_unconfirmed_brief_and_passes_a_confirmed_one(self):
-        revs = [self.rev(1, goal="One."), self.rev(2, goal="Two.")]
+        revs = [self.rev(1, goal="One."), self.rev(2, goal="Two.", acceptance="- two")]
         unconfirmed = self.brief(revs, [self.confirm(2, 1)])
         self.assertIn("UNCONFIRMED", unconfirmed)
         ledger = self.export("ledger")
@@ -816,11 +1022,12 @@ class TestBriefDecisionsOnce(SessionCase):
         self.session(qs, [*events, confirm], restatements=[rev])
         return self.export("brief").read_text(encoding="utf-8")
 
-    def gated(self, name, text):
-        rc, out = self.check(
+    def gated(self, name, text, rc=0, verdict="brief=ok"):
+        got, out = self.check(
             "--ledger", self.export("ledger"), "--brief", self.export("brief")
         )
-        self.assertEqual(rc, 0, out)
+        self.assertEqual(got, rc, out)
+        self.assertIn(verdict, out)
         return name, text
 
     def briefs(self, constraints=""):
@@ -845,10 +1052,11 @@ class TestBriefDecisionsOnce(SessionCase):
         events = [event(i, f"Q{i}", "accept") for i in range(1, 29)]
         events.append(event(29, "Q13", "confirm", alt="0"))
         self.session(qs, events)
-        out = [self.gated("no restatement", self.export("brief").read_text(encoding="utf-8"))]
+        brief = self.export("brief").read_text(encoding="utf-8")
+        out = [self.gated("no restatement", brief, 1, "brief=unconfirmed")]
         recap, fits = exporters.confirmation_recap(self.dir, 20000)
         self.assertTrue(fits)
-        sections = {"decisions": recap}
+        sections = {**RESTATED, "decisions": recap}
         if constraints:
             sections["constraints"] = constraints
         out.append(self.gated("restated", self.confirmed(qs, events, **sections)))

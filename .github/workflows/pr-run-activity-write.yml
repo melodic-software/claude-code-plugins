@@ -1391,7 +1391,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1644,7 +1644,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-

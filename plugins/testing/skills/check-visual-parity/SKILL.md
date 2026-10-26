@@ -35,7 +35,14 @@ re-captures it, and it never edits a capture harness or the app's styles to make
 1. **The repository's own visual suite first.** When the repository already runs a
    visual-regression suite (a Playwright `toHaveScreenshot` spec, a Storybook visual test, a
    screenshot test in its unit runner), run it at each checkpoint and report its verdict as the
-   result for the states it covers. Capture here only the states it does not cover.
+   result for the states it covers. Run it through the repository's own entry point when it has
+   one (its documented test command or runner script), not the test tool directly, and name that
+   command in the report. Capture here only the states it does not cover. A state the run did not
+   compare (the run stopped on a build, install or browser-launch error, or the state has no
+   baseline image) has no verdict: report the environment failure with the last lines of its
+   output, and give that state the gap report (the state, the command, and that it needs that
+   command to run to a verdict). Never move it to another route: the suite holds its baseline,
+   and another renderer's capture would measure the renderer change.
 2. **A driver that writes PNG files.** When `/app-control:drive` is among the available skills,
    capture each state with `/app-control:drive capture --kind screenshot --out <the baseline or
    after directory>`, and use the result only when drive reports a PNG file at that path that is
@@ -137,7 +144,8 @@ in a new directory, never by overwriting this one.
 
 Per checkpoint: the `pixel_tolerance` line from Step 2; each image's
 `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>` line; the diff image path for each
-failure; the visual suite's verdict when Step 1 ran one; the route that captured each state (drive, the
+failure; when route 1 ran the repository's visual suite, the command that ran it and its verdict,
+or its environment failure with its last lines; each gap report; the route that captured each state (drive, the
 Playwright CLI or the repository's harness); and the capture cost, as the number of
 images captured and the seconds the capture and compare took.
 

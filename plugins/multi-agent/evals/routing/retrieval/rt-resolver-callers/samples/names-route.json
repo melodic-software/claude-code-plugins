@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\n",
+      "why": "all three callers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "plugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\n",
+      "why": "route.sh missing"
+    },
+    {
+      "answer": "plugins/multi-agent/skills/route/SKILL.md\n",
+      "why": "names the skill file, not the script"
+    }
+  ]
+}

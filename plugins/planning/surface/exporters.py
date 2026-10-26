@@ -13,16 +13,19 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
                  Decisions section from its decisions recap and the Deferred questions entries
                  from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
-                 stamps it confirmed or UNCONFIRMED. An answered row's own Constraints line is
+                 stamps it confirmed or UNCONFIRMED (`UNCONFIRMED (no restatement posted)` with
+                 no rev) beside a `Page title:` line, the Goal's fallback without a confirmed
+                 goal; the --brief gate reads both. An answered row's own Constraints line is
                  left out when a restated constraints or decisions line names its Q<N> and
                  holds its whole current answer; a row a newer question in the register
                  superseded stays in the ledger, out of Out-of-scope and Captured assumptions,
                  and the decisions line its replacement leads ends `; replaces Q<N>`
+  merge_brief    a PLAN.md's text with only its `## Brief` section replaced by export_brief's
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
-round.py exposes them as export-ledger, export-brief, export-report, import-ledger and
-sync-ledger.
+round.py exposes them as export-ledger, export-brief (merge_brief behind its --into),
+export-report, import-ledger and sync-ledger.
 
 A row's round cell is read as the N of a leading `round <N>` (any case), else its first integer,
 else 1; import warns, naming the row, when the leading form is missing, and keeps each cell that
@@ -96,6 +99,7 @@ from server import (
     IMAGE_TYPES,
     MAX_VISUAL_FILE,
     load_json,
+    proposal_answer,
     read_visual_file,
     release_user_holds,
 )
@@ -431,11 +435,33 @@ def natural(qid):
     return (m.group(1), int(m.group(2) or 0), m.group(3))
 
 
+DECLINED = "the user declined Claude's proposal"
+
+
 def read(d):
+    """(doc, responses) as the exports see them. A proposed question the user has not answered
+    is left out, so it writes no register row, Brief line or report card, and its id is listed
+    in `pendingProposals` so the register numbers the rest as if it were there; a declined one
+    reads as archived, a withdrawn row."""
     d = Path(d)
     doc = load_json(d / "questions.json", {"questions": []})
     resp = load_json(d / "responses.json", EMPTY_RESPONSES)
     release_user_holds(doc, resp)
+    events, kept, pending = resp.get("events") or [], [], []
+    for q in doc.get("questions") or []:
+        answer = proposal_answer(q, events)
+        if answer == "pending":
+            pending.append(q["id"])
+            continue
+        if answer == "decline" and not q.get("archived"):
+            ats = [
+                e.get("at") or ""
+                for e in events
+                if e.get("id") == q["id"] and e.get("kind") == "proposal"
+            ]
+            q["archived"] = {"why": DECLINED, "at": max(ats, default="")}
+        kept.append(q)
+    doc["questions"], doc["pendingProposals"] = kept, pending
     return doc, resp
 
 
@@ -581,7 +607,8 @@ def register(doc, resp, extra=()):
     """One dict per question, in register order, with its Q<N> and settled status; `extra`
     names ledger-only ids that share the numbering."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
-    pos, contiguous = numbering([q["id"] for q in qs] + list(extra))
+    held = list(doc.get("pendingProposals") or [])
+    pos, contiguous = numbering([q["id"] for q in qs] + held + list(extra))
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -658,7 +685,7 @@ def merged_register(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    pos, contiguous = numbering(sorted(page_ids) + extra)
+    pos, contiguous = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -1029,7 +1056,7 @@ def export_brief(d, text=None):
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
     rows = register(doc, resp, extra)
-    pos, _ = numbering(sorted(page_ids) + extra)
+    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
@@ -1059,19 +1086,24 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    if latest is not None:
-        # The stamp the --brief gate reads. A Brief edited after a Confirm needs a new restate.
-        if restated and restated["rev"] == latest:
-            stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
-        elif restated:
-            stamp = (
-                f"UNCONFIRMED (latest rev {latest}); the sections below are from "
-                f"confirmed rev {restated['rev']}"
-            )
-        else:
-            stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
-        out.append(f"- Restatement: {stamp}")
+    # The stamp and page title the --brief gate reads; every page export carries both, so the
+    # gate tells it from a hand-written Brief. The gate judges confirmation by the stamp alone, so
+    # it cannot see a Brief edited after the Confirm; the skill's rule, not the gate, asks for a
+    # new restate.
+    if latest is None:
+        stamp = "UNCONFIRMED (no restatement posted)"
+    elif restated and restated["rev"] == latest:
+        stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
+    elif restated:
+        stamp = (
+            f"UNCONFIRMED (latest rev {latest}); the sections below are from "
+            f"confirmed rev {restated['rev']}"
+        )
+    else:
+        stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
+    out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out.append(f"- Page title: {para(title)}")
     unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
     out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
@@ -1146,6 +1178,73 @@ def export_brief(d, text=None):
         out.append("- none")
     out += ["", "## Plan", ""]
     return "\n".join(out)
+
+
+BRIEF_HEADING = re.compile(r"^##\s+brief\s*$", re.IGNORECASE)
+HEADING = re.compile(r"^(#{1,6})\s")
+# A fence delimiter and the rest of its line, read as scripts/check-open-questions.sh reads one.
+FENCE_RUN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+
+
+def merge_brief(plan, brief, where):
+    """PLAN.md's text with its `## Brief` section replaced by export_brief's. The section runs from
+    the `## Brief` heading to the next `#` or `##` heading outside a fenced block, or to the end.
+    Text between that heading and the section's first subheading, such as a start-fresh
+    scope-change note, stays as written, as does every byte outside the section; the new lines take
+    the file's line ending. A fence closes as the register gate closes one: on a run of its own
+    character at least as long, with nothing after it. Refuses a file with no `## Brief` heading,
+    more than one, or a fence that never closes, which would hide the headings after it."""
+    section = brief[: brief.rindex("\n## Plan\n")].rstrip("\n").split("\n")
+    # Lines split on \n alone, as the gate's awk splits them.
+    lines = [x for x in re.split(r"(?<=\n)", plan) if x]
+    heads, fence = [], None
+    for i, line in enumerate(lines):
+        bare = line.rstrip("\r\n")
+        run = FENCE_RUN.match(bare)
+        if run and fence is None:
+            fence = (run.group(1)[0], len(run.group(1)))
+            continue
+        if fence is not None:
+            if (
+                run
+                and run.group(1)[0] == fence[0]
+                and len(run.group(1)) >= fence[1]
+                and not run.group(2).strip()
+            ):
+                fence = None
+            continue
+        m = HEADING.match(bare)
+        if m:
+            heads.append((i, len(m.group(1)), bare))
+    if fence is not None:
+        refuse("a fenced block that never closes (it hides every heading after it)", where)
+    starts = [i for i, _, text in heads if BRIEF_HEADING.match(text)]
+    if not starts:
+        refuse("no `## Brief` heading outside a fenced block", where)
+    if len(starts) > 1:
+        refuse(
+            f"{len(starts)} `## Brief` headings (lines {', '.join(str(i + 1) for i in starts)})",
+            where,
+        )
+    start = starts[0]
+    after = [(i, level) for i, level, _ in heads if i > start]
+    stop = next((i for i, level in after if level <= 2), len(lines))
+    first = min([i for i, _ in after] + [stop])
+    nl = "\r\n" if "\r\n" in plan else "\n"
+    keep = lines[start + 1 : first]
+    if any(x.strip() for x in keep):
+        # The export's blank line after `## Brief` gives way to the kept text, which ends on a
+        # blank line before the export's first subheading.
+        keep[-1] = keep[-1] if keep[-1].endswith("\n") else keep[-1] + nl
+        if keep[-1].strip():
+            keep.append(nl)
+        head = section[0] + nl + "".join(keep)
+        section = section[2:]
+    else:
+        head = ""
+    # A blank line before the heading that follows; none after the file's last line.
+    block = head + nl.join(section) + nl + (nl if stop < len(lines) else "")
+    return "".join(lines[:start]) + block + "".join(lines[stop:])
 
 
 def esc(s):

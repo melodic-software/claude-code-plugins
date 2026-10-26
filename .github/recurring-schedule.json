@@ -88,6 +88,18 @@
       "next_due": "2026-11-24",
       "notes": "Run github-iac eng/ci-perf snapshot.sh capture/compare read-only with --raw-root under .work/; append the scored rows to github-iac eng/ci-perf/GOAL.md's Run log; file an issue per row over target (targets p50 5 min, p95 12 min). Spec: #3932.",
       "close_previous": true
+    },
+    {
+      "id": "pr-verify-denial-watch",
+      "title": "Check pr-verify verdicts lost to permission denials",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-26",
+      "next_due": "2026-11-26",
+      "notes": "Run gh run list -R melodic-software/claude-code-plugins --workflow pr-verify.yml --branch main --status failure -L 50 and read each failed run's log for ::error::no verdict: the run hit N permission denial(s) or ::error::no verdict: the run's legs hit N permission denial(s) (write-verdict.mjs); list the lane PRs the merge lane refused verify:missing behind those heads. A person decides, per denial, whether it was a benign read (the model reaching for a path outside pr-verify-data) or injected PR text. Injected PR text: the refusal worked; keep it and change nothing. Benign reads recurring (2 or more lane PRs refused verify:missing from benign-read denials in 30 days): file a fix issue, trying first an automatic pr-require-checks rerun on the stalled head, since it leaves the injection refusal intact, then a tighter prompt. Below that: comment the counts on the [Maintenance] issue and change nothing. Rejected for now (#8432): a fail verdict with the reason, which refuses that head verify:fail, holds the PR's later heads verify:earlier-fail until a later pass on a different change clears them, and counts toward the verify:repeated-fail cap; and ignoring denials, which lets an injected read still be judged. Spec: #8432.",
+      "close_previous": true
     }
   ]
 }
