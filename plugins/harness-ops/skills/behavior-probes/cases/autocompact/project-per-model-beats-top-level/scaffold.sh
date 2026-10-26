@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bash "${PROBE_LIB:?set by probe.py}/autocompact-project.sh" "${PROBE_WORKDIR:?set by probe.py}" 250000 400000

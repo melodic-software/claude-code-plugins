@@ -1,0 +1,17 @@
+{
+  "claim": "Under dontAsk with the write lane's tool lists, Read(//proc/**) denies a Glob for /proc/*/environ.",
+  "tags": ["Read rule", "deny rule", "Glob", "disallowedTools", "allowedTools", "dontAsk", "/proc"],
+  "permission_mode": "dontAsk",
+  "tool_rules": "lane-write-tools.json",
+  "verdict_only": true,
+  "platforms": ["linux"],
+  "requires": ["git"],
+  "target": {
+    "tool": "Glob",
+    "input_match": "\"pattern\": \"/proc/\\*/environ\"",
+    "example": { "pattern": "/proc/*/environ" }
+  },
+  "outcome": "deny",
+  "reason_type": "rule",
+  "control": "lane-permissions/grep-in-checkout-runs"
+}
