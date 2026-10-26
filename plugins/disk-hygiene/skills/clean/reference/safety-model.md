@@ -598,42 +598,38 @@ the two surfaces reach different lanes. The **always-on engine gate** enforces i
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
 the **skill-frontmatter belt** (`powershell_decision`), denied outright in audit-only, for the **rest of
-the process that invoked the skill**. Claude Code registers a skill's frontmatter `PreToolUse` hooks
-when the skill is invoked; the skills reference says they keep running "for the rest of the session"
-and does not mention resume. There is no harness-level "while the skill is active" window for hooks. The asymmetry
+the process that invoked the skill**. There is no "while the skill is active" window for the belt. The asymmetry
 is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowed-tools` grants DO clear
 on the user's next message, but its `hooks` do not, so "skill-scoped" is true of the tool grants and
 false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
 the same process (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
 retracted by finishing the cleanup.
 
-**The belt does not survive a resume.** `claude -p --resume <id>` starts a new process on the same
-session id, and in that process the belt is not registered: the same PowerShell delete that the belt
-prompted (and the headless run denied) inside one process ran unprompted after `--resume`, and the file
-was recycled. With the belt gone, the deny-by-default Bash lane and the PowerShell deletion prompts are
-gone too; only the always-on engine gate, the permission mode and the auto-mode classifier remain. The
-plugin answers this with a notice, not a gate: the `UserPromptExpansion` hook for `/disk-hygiene:clean`
-also writes a per-session marker (`clean-invoked/<session_id>.launched` under the plugin data
-directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source` is
-`resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
+**Treat a resumed process as one without the belt.** Our probe found the belt absent after
+`claude -p --resume`, so a resumed session has no deny-by-default Bash lane and no PowerShell deletion
+prompts from this plugin; the always-on engine gate, the permission mode and the auto-mode classifier
+remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for
+`/disk-hygiene:clean` also writes a per-session marker (`clean-invoked/<session_id>.launched` under the
+plugin data directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source`
+is `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
 tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
 registers the belt again. It relies on the model following the notice. The marker is written before
 the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
-later resume still warns; that errs toward no deletes. A forked session and `/clear`
-start a new session id, so the marker does not carry over and no notice fires; whether the belt itself
-survives `/clear` or compaction in the same process was not probed.
+later resume still warns; that errs toward no deletes. The marker is keyed on the session id, so a
+session that starts under a new id gets no notice.
 
-- **Verification record.** Claim: the belt holds within one process and is absent after
-  `claude -p --resume`. Basis: the Windows probe table (runs b, c and e) in
+- **Pointer**: the probe (runs b, c and e) in
   <https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6388935329> and
-  [#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853) (Claude Code 2.1.309,
-  native Windows, headless `--permission-mode auto`, PowerShell tool). Only headless `-p --resume` was
-  probed; interactive `claude --resume`, `--continue`, `/clear` and compaction were not. Doc pointer:
-  [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents) and
-  [SessionStart decision control](https://code.claude.com/docs/en/hooks#sessionstart-decision-control)
-  (a `SessionStart` hook can add context but cannot register a hook). As of: 2026-10-25. Recheck
-  trigger: either section changes how long a skill's hooks stay registered or what a `SessionStart`
-  hook can return, or a probe of interactive resume.
+  [#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853); only headless
+  `-p --resume` was probed, not interactive resume, `--continue`, `/clear` or compaction. For how long
+  a skill's hooks stay registered, read
+  [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents); for
+  what a `SessionStart` hook can return, read
+  [SessionStart decision control](https://code.claude.com/docs/en/hooks#sessionstart-decision-control).
+- **As of**: 2026-10-25.
+- **Recheck trigger**: either section changes, or a probe of interactive resume, `/clear` or
+  compaction.
+
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
 and `handoff-apply` and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
@@ -743,8 +739,8 @@ the person a prompt and ran the delete only after they approved it. So the guard
 does not depend on the permission mode: in each mode its `ask` reaches a person or is denied. On the
 Windows PowerShell tool, the belt's `ask` on a manual-lane delete held in one headless auto-mode process
 (the call was denied and the target survived) but was absent after `claude -p --resume`, where the
-delete ran unprompted ([#5609 probe](https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6388935329),
-Claude Code 2.1.309); the resume limit and the plugin's notice for it are stated under the kill
+delete ran unprompted ([#5609 probe](https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6388935329));
+the resume limit and the plugin's notice for it are stated under the kill
 switch's two surfaces above. **Basis:** the probe table in
 <https://github.com/melodic-software/claude-code-plugins/pull/5590> and
 <https://github.com/melodic-software/claude-code-plugins/pull/5590#issuecomment-5916629407>

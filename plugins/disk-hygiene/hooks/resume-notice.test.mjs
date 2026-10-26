@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -142,6 +142,23 @@ test('a launch through a symlinked plugin path still prints the notice', (t) => 
   })
   assert.equal(r.status, 0, r.stderr)
   assert.equal(JSON.parse(r.stdout).hookSpecificOutput.additionalContext, NOTICE)
+})
+
+test('a payload whose pipe stays open is handled without waiting for EOF', async (t) => {
+  const data = scratch(t)
+  mark(data, 'sess-open')
+  const child = spawn('node', [join(here, 'resume-notice.mjs'), '--marker-root', data], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  t.after(() => child.kill())
+  let stdout = ''
+  child.stdout.setEncoding('utf8').on('data', (c) => (stdout += c))
+  child.stdin.write(JSON.stringify({ session_id: 'sess-open', source: 'resume' }))
+  const started = Date.now()
+  const code = await new Promise((res) => child.on('exit', res))
+  assert.equal(code, 0)
+  assert.ok(Date.now() - started < 5000, 'exited well inside the 10 s hook timeout')
+  assert.equal(JSON.parse(stdout).hookSpecificOutput.additionalContext, NOTICE)
 })
 
 test('a malformed payload exits 0 and prints nothing', () => {

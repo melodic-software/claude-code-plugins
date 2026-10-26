@@ -19,7 +19,7 @@
 // On Windows the launcher's tmp fallback is a Git Bash path this script does
 // not resolve, so only the marker root counts there; with
 // ${CLAUDE_PLUGIN_DATA} expanded the launcher writes the marker root first.
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -53,16 +53,48 @@ export function decide(payload, ctx) {
   return { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: NOTICE } }
 }
 
-function main(argv) {
+export const MAX_STDIN_BYTES = 1 << 20
+export const STDIN_DEADLINE_MS = 2000
+
+// Read the payload without waiting for EOF: stop at the first chunk that
+// completes a JSON object, at the size cap, or at the deadline, so a pipe that
+// stays open cannot hold session start for the hook's whole timeout.
+export function readPayload(stream, { maxBytes = MAX_STDIN_BYTES, deadlineMs = STDIN_DEADLINE_MS } = {}) {
+  return new Promise((settle) => {
+    let text = ''
+    let done = false
+    const parse = () => {
+      try {
+        return JSON.parse(text)
+      } catch {
+        return undefined
+      }
+    }
+    const finish = (value) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      stream.pause()
+      settle(value)
+    }
+    const timer = setTimeout(() => finish(parse()), deadlineMs)
+    stream.setEncoding('utf8')
+    stream.on('data', (chunk) => {
+      text += chunk
+      if (text.length > maxBytes) return finish(undefined)
+      const value = parse()
+      if (value !== undefined) finish(value)
+    })
+    stream.on('end', () => finish(parse()))
+    stream.on('error', () => finish(undefined))
+  })
+}
+
+async function main(argv) {
   const at = argv.indexOf('--marker-root')
   const markerRoot = at >= 0 ? (argv[at + 1] ?? '') : ''
-  let payload
-  try {
-    payload = JSON.parse(readFileSync(0, 'utf8'))
-  } catch {
-    return
-  }
-  const out = decide(payload, { markerRoot, env: process.env, platform: process.platform })
+  const payload = await readPayload(process.stdin)
+  const out = payload ? decide(payload, { markerRoot, env: process.env, platform: process.platform }) : null
   if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
 }
 
@@ -76,9 +108,8 @@ function realPath(p) {
   }
 }
 if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
-  try {
-    main(process.argv.slice(2))
-  } catch {
-    // A failed notice must never break session start.
-  }
+  // A failed notice must never break session start; exit even if stdin stays open.
+  main(process.argv.slice(2))
+    .catch(() => {})
+    .finally(() => process.stdout.write('', () => process.exit(0)))
 }
