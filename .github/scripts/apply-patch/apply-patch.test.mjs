@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -31,6 +31,41 @@ function scratch(t) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
+
+// --- the REST client ---
+
+// A read, and a write that repeats to the same state, survives one dropped
+// socket; createRef is sent once, since a resend after a create that landed
+// answers 422.
+test("createGitHubApi sends a read and each repeatable write again after a dropped socket, and createRef once", async () => {
+  const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
+  const script = [dropped(), { number: 7 }, dropped(), { sha: "b" }, dropped(), { sha: "t" }, dropped(), { sha: "c" }, dropped(), {}, dropped()];
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method} ${url}`);
+    const answer = script.shift();
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return new Response(JSON.stringify(answer), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} });
+  assert.deepEqual(await api.getPull(7), { number: 7 });
+  assert.equal(await api.createBlob("Zm9v"), "b");
+  assert.equal(await api.createTree("base", []), "t");
+  assert.equal(await api.createCommit("m", "t", ["p"]), "c");
+  await api.updateRef("heads/x", "a".repeat(40), false);
+  await assert.rejects(api.createRef("refs/heads/x", "a".repeat(40)), TypeError);
+  const twice = (line) => [line, line];
+  assert.deepEqual(sent, [
+    ...twice("GET https://api/repos/o/r/pulls/7"),
+    ...twice("POST https://api/repos/o/r/git/blobs"),
+    ...twice("POST https://api/repos/o/r/git/trees"),
+    ...twice("POST https://api/repos/o/r/git/commits"),
+    ...twice("PATCH https://api/repos/o/r/git/refs/heads/x"),
+    "POST https://api/repos/o/r/git/refs",
+  ]);
+});
 
 // --- the refusal table: each refused path or mode, one case each ---
 

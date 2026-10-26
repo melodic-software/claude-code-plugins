@@ -314,8 +314,10 @@ class HighReasonTests(unittest.TestCase):
                 ".github/scripts/pr-unblock/address-feedback.mjs",
                 ".github/scripts/pr-unblock/gate-source.mjs",
                 ".github/scripts/pr-unblock/thread-scope.mjs",
+                ".github/scripts/pr-unblock/retry-fetch.mjs",
                 ".github/scripts/work-resolve-issue/report-outcome.mjs",
                 ".github/scripts/work-resolve-issue/limits.mjs",
+                ".github/scripts/work-resolve-issue/retry-fetch.mjs",
             ),
         )
         cases = [
@@ -343,8 +345,10 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
             (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
             (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
+            (".github/scripts/pr-unblock/retry-fetch.mjs", ".github/scripts/pr-unblock/retry-fetch.mjs"),
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
+            (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
         ]  # fmt: skip
         for path, glob in cases:
             for on in (True, False):
@@ -1197,8 +1201,10 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-unblock/address-feedback.mjs",
             ".github/scripts/pr-unblock/gate-source.mjs",
             ".github/scripts/pr-unblock/thread-scope.mjs",
+            ".github/scripts/pr-unblock/retry-fetch.mjs",
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
+            ".github/scripts/work-resolve-issue/retry-fetch.mjs",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))

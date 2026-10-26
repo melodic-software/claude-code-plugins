@@ -330,8 +330,10 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-unblock/address-feedback.mjs",
     ".github/scripts/pr-unblock/gate-source.mjs",
     ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/scripts/pr-unblock/retry-fetch.mjs",
     ".github/scripts/work-resolve-issue/report-outcome.mjs",
     ".github/scripts/work-resolve-issue/limits.mjs",
+    ".github/scripts/work-resolve-issue/retry-fetch.mjs",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
