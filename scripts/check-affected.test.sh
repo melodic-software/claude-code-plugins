@@ -21,6 +21,10 @@ repo="$tmp/repo"
 mkdir -p "$repo/scripts"
 git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
+# The real patterns file machine-specific-paths sources, committed at the base.
+patterns_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+mkdir -p "$repo/${patterns_lib%/*}"
+cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
   check-spoke-plugin-root check-changelog-parity check-changed-skills setup-env; do
@@ -80,9 +84,11 @@ check "every check passing exits 0 with the statement on stdout" \
 check "a diff with no skill file skips changed-skills" \
   '[[ $ERR == *"SKIP changed-skills (no changed skill file)"* && $ERR != *"check-changed-skills ran"* ]]'
 check "every hygiene gate the runner does not run is named CI only" \
-  '[[ $ERR == *"CI only: zizmor ("* && $ERR == *"CI only: machine-specific-paths ("* && $ERR == *"CI only: gitleaks ("* ]]'
+  '[[ $ERR == *"CI only: zizmor ("* && $ERR == *"CI only: actionlint ("* && $ERR == *"CI only: gitleaks ("* ]]'
 check "a gate the runner runs is not named CI only" \
-  '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* ]]'
+  '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* && $ERR != *"CI only: machine-specific-paths "* ]]'
+check "a diff with no file of a scanned type skips machine-specific-paths" \
+  '[[ $ERR == *"SKIP machine-specific-paths (no changed file of a type it scans)"* ]]'
 
 # The tree checked is the one holding the script, whatever the working
 # directory: run by path from another checkout whose HEAD is at its base (a main
@@ -139,6 +145,27 @@ run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
 check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
 check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAIL changelog-parity"* ]]'
+
+# machine-specific-paths scans the changed files with the committed patterns
+# file. Each home path is built at run time, so this file holds none.
+pre_paths="$(git_test_config "$repo" rev-parse HEAD)"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+git_test_config "$repo" add settings.json
+git_test_config "$repo" commit -q -m home-path
+run -- --base base
+check "a changed file holding a home path fails machine-specific-paths, naming the file" \
+  '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+excluded=plugins/autonomy/skills/setup/evals/fixtures/security-binding
+mkdir -p "$repo/$excluded"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/$excluded/case.json"
+printf '{"root": "/%s/.../project",\n"note": "/%s/alice/x machine-path:allow"}\n' home home >"$repo/placeholder.json"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m excluded-paths
+run -- --base base
+check "a home path in a file the workflow step excludes, a placeholder, or an allow-marked line passes" \
+  '[[ $RC == 0 && $ERR != *"FAIL machine-specific-paths"* && $ERR != *"SKIP machine-specific-paths"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
 
 run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base
 check "a failing check exits 1" '[[ $RC == 1 ]]'
@@ -292,6 +319,21 @@ check "a copy run elsewhere skips changed-skills, which runs the checked tree's 
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
+# machine-specific-paths loads the merge-base's patterns file, never the
+# branch's, whose own edit here would make a home path pass.
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+printf "HPP_LINUX_USER_BODY='never-matches'\n" >>"$repo/$patterns_lib"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m home-path
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere scans with the merge-base's patterns file, not the checked tree's" \
+  '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+run -- --base base
+check "an in-place run scans with the merge-base's patterns file, not the branch's" \
+  '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+git_test_config "$repo" reset -q --hard HEAD~1
+
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
   mkdir -p "$repo/docs"
@@ -347,7 +389,7 @@ chmod +x "$repo/scripts/validate-plugins.sh"
 run PATH="$tmp/bin:$PATH" -- --uncommitted
 check "--uncommitted validates a plugin that only untracked files touch" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
-rm -rf "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+rm -rf "$repo/plugins/demo" "$repo/scripts/validate-plugins.sh"
 # The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
 # refuses to add; it is skipped and the regular untracked file still checked.
 if bwrap --bind / / --dev /dev true 2>/dev/null; then
