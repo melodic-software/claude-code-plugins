@@ -340,6 +340,17 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
+// Owner decision Q26 option B: the gate holds an enforcement floor path as
+// `review-path:` until the security review binds clean to the head; the lanes
+// run that review, so the refusal gets the comment and no label.
+test("an enforcement floor path the gate holds for its security review is a lane's refusal", async () => {
+  const reviews = "review-path:.github/scripts/work-resolve-issue/limits.mjs: .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head clears it";
+  const verdict = { refusal: null, needsHuman: false, reviewsPerson: false, head: HEAD, ineligible: null, reviews };
+  const { writes, notes } = await run([pull(1, { files: [{ filename: ".github/scripts/work-resolve-issue/limits.mjs" }], verdict })]);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(`pr-merge's gate holds it on its risk score (${reviews})`) } }]);
+});
+
 test("an untrusted spec and the repeated-FAIL round cap are a person's verifier refusals; the rest are a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
@@ -405,14 +416,7 @@ test("a changed refusal edits the one comment instead of posting another", async
 test("a risk hold is a person's only for a security finding, an aliasing path, a trusted-actor widening or a cost hold", async () => {
   const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = [
-    "evidence-unbound:claude-review: no-marker",
-    "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks",
-    "high-path:docs/**: docs/a.md",
-    // Owner decision Q26 option B: an enforcement floor path waits on the
-    // security review, which the lanes run, so no person is asked.
-    "review-path:.github/scripts/work-resolve-issue/limits.mjs: .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head clears it",
-  ];
+  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:docs/**: docs/a.md"];
   const person = [
     "security-finding: 1 CRITICAL",
     "high-path:**: 'a' mode '120000' (symlink)",
