@@ -864,17 +864,6 @@ jobs:
             fi
           fi
           echo "globs=$globs" >>"$GITHUB_OUTPUT"
-      # The composite runs `npx --yes markdownlint-cli2@<pin>`, which downloads
-      # the package on every run; the npx cache keeps it. Keyed on the
-      # composite pin, which fixes the version.
-      - name: Restore the markdownlint download
-        id: npx_cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.npm/_npx
-            ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c
       - name: Lint markdown
         id: markdown
         continue-on-error: true
@@ -882,14 +871,6 @@ jobs:
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
-      - name: Save the markdownlint download
-        if: github.ref == 'refs/heads/main' && steps.npx_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.npm/_npx
-            ~/.npm/_cacache
-          key: ${{ steps.npx_cache.outputs.cache-primary-key }}
 
       # typos skips hidden directories; naming .changes checks the changelog
       # fragments without pulling in .github and .claude. The release branch
