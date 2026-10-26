@@ -395,6 +395,26 @@ test("live config: resolve-issue reads any host; review-dependency reads release
   assert.deepEqual(others, []);
 });
 
+// #8485 (owner decision (a), 2026-10-19; cutoffs, share and entry accepted
+// 2026-10-26): resolve-issue tidies a small single-area change in the run,
+// with the named quality skills only; no other activity tidies.
+test("live config: resolve-issue tidies within the small single-area cutoffs with the named quality skills; no other activity tidies", () => {
+  const tidy = selected("work-resolve-issue", "resolve-issue", ISSUE).tidy;
+  assert.equal(tidy.entry, "code-tidying:tidy-diff");
+  assert.deepEqual(tidy.passes, ["docs-hygiene:write-for-agents", "docs-hygiene:write-for-humans", "ai-slop:audit"]);
+  assert.equal(tidy["turn-share"], 25);
+  assert.deepEqual(
+    { files: tidy.cutoffs["max-files"], lines: tidy.cutoffs["max-lines"], areas: tidy.cutoffs["max-areas"] },
+    { files: 10, lines: 300, areas: 1 },
+  );
+  for (const path of [".github/", "scripts/", "docs/conventions/"]) assert.ok(tidy.cutoffs["shared-paths"].includes(path), path);
+  const doc = parse(FILES.config);
+  assert.deepEqual(
+    Object.keys(doc.activities).filter((name) => name !== "resolve-issue" && doc.activities[name].tidy),
+    [],
+  );
+});
+
 // The model run holds no write token; only the script that
 // commits its patch may write a branch.
 test("live config: resolve-issue holds no write token; apply-issue-patch may only write its branch; report-outcome may only write PRs and issues", () => {

@@ -1,0 +1,56 @@
+{
+  "skill_name": "tidy-diff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "edits-only-listed-lines",
+      "prompt": "Run tidy-diff on lines.tsv. It holds one row, `12\t4\tsrc/cache.py`. Lines 12-15 add `count = 0`, a loop that increments it per item, and `# increment count` above the increment; line 30, outside the row, has a duplicated helper call.",
+      "expected_output": "Works only on lines 12-15 of src/cache.py: proposes or applies a behavior-preserving simplification of the counting loop there and deletes the restating '# increment count' comment only behind a COMMENT-ONLY verdict from change-shape.sh. Line 30 is left unedited and at most named as a proposal outside the listed lines. Nothing is staged or committed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No edit lands outside lines 12-15 of src/cache.py",
+        "The '# increment count' deletion is tied to a change-shape.sh COMMENT-ONLY verdict, or reported as a proposal when no verdict is available",
+        "The output stages, commits and pushes nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "markdown-only-runs-markdown-passes",
+      "prompt": "Run tidy-diff on lines.tsv, whose only rows name docs/guide.md lines 5-20 and plugins/x/skills/y/SKILL.md lines 40-44.",
+      "expected_output": "Runs only the markdown passes: /docs-hygiene:write-for-humans on docs/guide.md, /docs-hygiene:write-for-agents on the SKILL.md, then /ai-slop:audit fix on each, keeping fixes inside the listed lines. The simplify and comment passes report none, since no code file is listed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The simplify and comment passes run on no file",
+        "docs/guide.md goes to write-for-humans and the SKILL.md to write-for-agents",
+        "Fixes outside the listed lines are undone or not applied"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "budget-stops-remaining-passes",
+      "prompt": "Run tidy-diff on lines.tsv with --turns 3. The rows name two Python files and one markdown file.",
+      "expected_output": "Stops starting passes once 3 turns are spent, finishes any edit in hand with its proof, names each pass not run as skipped for the budget, and does not report failure: running out of budget is a reported outcome.",
+      "files": [],
+      "expectations": [
+        "Passes left after the budget is spent are named as skipped for the budget",
+        "The run does not present the budget stop as an error or a failure",
+        "No file is left half-edited"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "drops-protected-and-outside-rows",
+      "prompt": "Run tidy-diff on lines.tsv, whose rows name .github/workflows/ci.yml lines 3-9, ../other/repo.py lines 1-4 and src/app.ts lines 10-12.",
+      "expected_output": "Drops the workflow row (GLOBAL HARD list) and the `..` row, naming each with its reason, and tidies only src/app.ts lines 10-12.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The .github/workflows row is dropped and named with the HARD-list reason",
+        "The row with a .. segment is dropped and named",
+        "Only src/app.ts lines 10-12 are tidied"
+      ]
+    }
+  ]
+}

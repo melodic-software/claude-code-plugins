@@ -1714,6 +1714,86 @@ test("run-claude-cli: web-access with a malformed host, or a research plugin mis
   }
 });
 
+// tidy on the launcher (#8485): an issue lane's patch skill gets the entry and
+// its passes and no other skill, their plugins under .lane/ beside its own, the
+// tidy scripts' rules, and the cutoffs and turn budget in the preamble.
+const TIDY = {
+  entry: "code-tidying:tidy-diff",
+  passes: ["docs-hygiene:write-for-agents", "ai-slop:audit"],
+  "turn-share": 25,
+  cutoffs: { "max-files": 10, "max-lines": 300, "max-areas": 1, "shared-paths": [".github/", "scripts/", "AGENTS.md"] },
+};
+function tidyBase() {
+  const dir = mkdtempSync(path.join(root, "base-tidy-"));
+  for (const skill of ["work-items/skills/work", "code-tidying/skills/tidy-diff", "docs-hygiene/skills/write-for-agents", "ai-slop/skills/audit"]) {
+    mkdirSync(path.join(dir, "plugins", skill), { recursive: true });
+    writeFileSync(path.join(dir, "plugins", skill, "SKILL.md"), "---\n---\n");
+  }
+  mkdirSync(path.join(dir, ".claude-plugin"));
+  writeFileSync(path.join(dir, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  return dir;
+}
+const tidyResolved = (tidy = TIDY, models = { "max-turns": 150 }) => launchResolved({ ...PATCH, tidy, models });
+const TIDY_SCRIPTS = `${WORKSPACE}/.lane/plugins/code-tidying/skills/tidy-diff/scripts`;
+
+test("run-claude-cli: tidy gives an issue lane's patch skill the tidy skills, their plugins and scripts, and the cutoffs and turn budget", () => {
+  const run = launch({ BASE_PATH: tidyBase(), ISSUE_NUMBER: "7", SKILL: "work-items:work", RESOLVED: tidyResolved() });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(
+    run.allowedTools.filter((rule) => rule.startsWith("Skill(")),
+    ["Skill(work-items:work)", "Skill(code-tidying:tidy-diff)", "Skill(docs-hygiene:write-for-agents)", "Skill(ai-slop:audit)"],
+  );
+  for (const rule of [`Bash(${TIDY_SCRIPTS}/change-shape.sh *)`, `Bash("${TIDY_SCRIPTS}/change-shape.sh" *)`, `Bash(${SLOP}/detect.sh *)`, "Bash(sha256sum *)"]) {
+    assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
+  }
+  for (const rule of [`Bash(${SLOP}/user-scope.sh *)`, "Bash(git *)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.equal(run.pluginDirs, ".lane/plugins/work-items\n.lane/plugins/code-tidying\n.lane/plugins/docs-hygiene\n.lane/plugins/ai-slop");
+  for (const plugin of ["code-tidying", "docs-hygiene", "ai-slop"]) {
+    assert.equal(readFileSync(path.join(run.stageDir, "plugins", plugin, ".mcp.json"), "utf8"), '{"mcpServers":{}}\n', plugin);
+  }
+  assert.ok(
+    run.preamble.includes(
+      "Tidy cutoffs: at most 10 changed files, 300 changed lines and 1 areas, and no change under these shared paths: .github/ scripts/ AGENTS.md. " +
+        "Tidy entry: code-tidying:tidy-diff; the skills it may call: docs-hygiene:write-for-agents ai-slop:audit. " +
+        "Tidy turn budget: 37 of this run's 150 turns.",
+    ),
+    run.preamble,
+  );
+});
+
+test("run-claude-cli: an issue lane's patch skill without tidy gets no tidy skill, plugin or preamble line", () => {
+  const run = launch({ BASE_PATH: tidyBase(), ISSUE_NUMBER: "7", SKILL: "work-items:work", RESOLVED: launchResolved(PATCH) });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.allowedTools.filter((rule) => rule.startsWith("Skill(")), ["Skill(work-items:work)"]);
+  assert.equal(run.pluginDirs, ".lane/plugins/work-items");
+  assert.doesNotMatch(run.preamble, /Tidy/);
+});
+
+test("run-claude-cli: tidy outside an issue lane's no-prepare patch skill, a tidy skill missing from the base, or no turn cap fails red before any output", () => {
+  for (const [overrides, message] of [
+    [{ RESOLVED: tidyResolved() }, /tidy: only an issue lane's skill/],
+    [{ ISSUE_NUMBER: "7", RESOLVED: launchResolved({ tidy: TIDY }) }, /tidy: only an issue lane's skill/],
+    [{ ISSUE_NUMBER: "7", RESOLVED: tidyResolved(), PREPARE: "merge-base" }, /tidy: only an issue lane's skill/],
+    [{ ISSUE_NUMBER: "7", RESOLVED: tidyResolved({ ...TIDY, passes: ["docs-hygiene:compress"] }) }, /tidy: docs-hygiene:compress is not in the base/],
+    [{ ISSUE_NUMBER: "7", RESOLVED: tidyResolved(TIDY, {}) }, /tidy: the turn share or the run's turn cap is missing/],
+    [{ ISSUE_NUMBER: "7", RESOLVED: tidyResolved(TIDY, { "max-turns": 3 }) }, /tidy: the turn share leaves tidy no turn/],
+  ]) {
+    const run = launch({ BASE_PATH: tidyBase(), SKILL: "work-items:work", ...overrides });
+    assert.notEqual(run.status, 0, JSON.stringify(overrides));
+    assert.match(run.stdout, message);
+    assert.deepEqual(run.tools, []);
+  }
+});
+
+test("claude-code-action: tidy fails red before any output", () => {
+  const run = stage({ RESOLVED: launchResolved({ tidy: TIDY }) });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /tidy: only an issue lane's skill/);
+  assert.equal(run.args, "");
+});
+
 // review-dependency on the launcher: Edit, Write and Agent with no Bash, the
 // context file staged read-only under .lane/dependency/ and denied to the file
 // tools, git and the shell read commands denied though no Bash is granted,

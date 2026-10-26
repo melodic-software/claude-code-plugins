@@ -1734,6 +1734,13 @@ for (const [why, edit] of [
   });
 }
 
+const TIDY = {
+  entry: "code-tidying:tidy-diff",
+  passes: ["ai-slop:audit"],
+  "turn-share": 25,
+  cutoffs: { "max-files": 10, "max-lines": 300, "max-areas": 1, "shared-paths": [".github/"] },
+};
+
 // Only the runner that stages a skill's edit tools grants these, and the read
 // runner does so only for applied-by.patch without ci-context.
 for (const [key, value] of [
@@ -1741,6 +1748,7 @@ for (const [key, value] of [
   ["self-checks", ["scripts/check-x.sh"]],
   ["verify-scripts", ["scripts/check-x.sh"]],
   ["web-access", { enabled: true, domains: "any" }],
+  ["tidy", TIDY],
 ]) {
   test(`${key} on a read skill that hands on a patch resolves and is carried`, () => {
     const config = appliedByEdit((doc) => {
@@ -1754,6 +1762,16 @@ for (const [key, value] of [
     assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
   });
 }
+
+// Only the launcher's no-prepare patch skill stages tidy, so a patch skill
+// with a prepare mode cannot ask for it.
+test("tidy on a read skill that hands on a patch with a prepare mode fails the schema", () => {
+  const config = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].prepare = "merge-base";
+    doc.activities["fix-ci"].tidy = TIDY;
+  });
+  assertRejected(() => unblock(config), "invalid-config");
+});
 
 test("applied-by-supported: an applying leaf fails on a key its runner does not name", () => {
   const selected = unblock(APPLIED_BY);

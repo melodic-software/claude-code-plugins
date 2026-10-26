@@ -64,6 +64,23 @@ dispatch, PR or babysit step. It works in place:
    passes on the PR") is not required of this run unless the runner's prompt or those rules
    require it: when you cannot run it here, add it to `not_done` as left to the PR's CI, with
    `"required": false`, and do not stop for it.
+   When the runner's prompt names `Tidy cutoffs`, tidy the change next, before any review, so the
+   review sees the final code. Measure it: `git-read diff --numstat HEAD` for tracked files, plus
+   each untracked file `git-read status --porcelain --untracked-files=all` lists, counted whole.
+   Count files, changed lines (added plus removed) and areas (`plugins/<name>` with its
+   `.changes/<name>`, `docs/<dir>`, else the path's first segment). Over any cutoff, or touching a
+   listed shared path (a path under a listed directory, or a listed file), the change is not
+   tidied. Otherwise write one `<start><TAB><count><TAB><path>` row per changed hunk to a lines
+   file in the scratchpad, from the `+<start>,<count>` hunk headers of
+   `git-read diff --unified=0 HEAD` (a header with no `,<count>` is one line; skip `,0`, a pure
+   deletion; an untracked file is one row from line 1 over its length). Keep enough turns to run
+   every check again, run the prep below and write `work-outcome.json`; invoke the named tidy
+   entry with that file and `--turns` set to the tidy turn budget or what is left after that
+   reserve, whichever is smaller, and skip tidy when nothing is left. Record `tidy` in `steps` as
+   `pass` when it ran every pass, else `skipped`, and put the reason it was not tidied, or which
+   passes it skipped, in `not_done` with `"required": false`; tidy never fails the run or changes
+   `exit`. Then run every check again and fix what fails, and add each file tidy changed to
+   `changes`.
    Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
    ready: only this plugin is loaded here, so use its stated fallback for each step. The review
    runs in one venue: when `review-venue.txt` in the same scratchpad directory (the runner writes

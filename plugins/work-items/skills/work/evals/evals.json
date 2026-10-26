@@ -212,6 +212,20 @@
         "Leaves part A, the delivered work, out of `remaining`",
         "Does not record part B in `not_done` in place of `remaining`"
       ]
+    },
+    {
+      "id": 16,
+      "name": "work-ci-mode-tidies-a-small-change-and-skips-a-wide-one",
+      "prompt": "/work-items:work --issue 650 --ci\n\nThe runner's prompt says: \"Tidy cutoffs: at most 10 changed files, 300 changed lines and 1 areas, and no change under these shared paths: .github/ scripts/. Tidy entry: code-tidying:tidy-diff; the skills it may call: ai-slop:audit. Tidy turn budget: 18 of this run's 75 turns.\" The run's change edits 3 files under plugins/alpha/ and adds one fragment under .changes/alpha/, 120 lines in all, and its checks pass. What does it do before the review? And what would it do had the change also edited scripts/check-x.sh?",
+      "expected_output": "The change is 4 files, 120 lines and one area (plugins/alpha with its .changes/alpha) and touches no shared path, so it writes a lines file of the changed hunks to the scratchpad, invokes code-tidying:tidy-diff with that file and --turns 18 (less only if fewer turns remain after keeping enough to finish), runs every check again, records `tidy` in `steps`, and only then runs the review. With scripts/check-x.sh in the change it touches a shared path, so it records `tidy` as `skipped`, names the shared path in `not_done` with `\"required\": false`, and goes on to the review untidied. Either way tidy does not change `exit`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Counts .changes/alpha in the same area as plugins/alpha and finds the change within the cutoffs",
+        "Invokes code-tidying:tidy-diff with a lines file and --turns of at most 18 before the review, then runs the checks again",
+        "With scripts/check-x.sh in the change, records `tidy` as `skipped`, names the shared path in `not_done`, and does not tidy",
+        "Does not change `exit` or fail the run because of tidy"
+      ]
     }
   ]
 }

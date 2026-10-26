@@ -514,6 +514,7 @@
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"],
+        "tidy": ["skill"],
         "applied-by": ["skill"],
         "permission-mode": ["skill"]
       },
@@ -524,6 +525,11 @@
         "checks": { "$ref": "#/$defs/edit-runner" },
         "self-checks": { "$ref": "#/$defs/edit-runner" },
         "verify-scripts": { "$ref": "#/$defs/edit-runner" },
+        "tidy": {
+          "required": ["effect", "applied-by"],
+          "properties": { "effect": { "const": "read" }, "applied-by": { "required": ["patch"] } },
+          "not": { "required": ["prepare"] }
+        },
         "prepare": {
           "oneOf": [
             {
@@ -629,6 +635,47 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
+        },
+        "tidy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entry", "passes", "turn-share", "cutoffs"],
+          "properties": {
+            "entry": {
+              "$ref": "#/$defs/skill",
+              "description": "The diff-scoped tidy skill the run invokes on its own change before its last check run."
+            },
+            "passes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/skill" },
+              "description": "The other quality skills the entry may invoke. The runner allows exactly the entry and these, and no other skill they could reach."
+            },
+            "turn-share": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "Percent of the run's turn cap tidy may spend, rounded down. At the cap the run skips the remaining tidy passes and hands its change on; tidy never fails the run."
+            },
+            "cutoffs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["max-files", "max-lines", "max-areas", "shared-paths"],
+              "properties": {
+                "max-files": { "type": "integer", "minimum": 1, "description": "Most changed files a tidied change may have." },
+                "max-lines": { "type": "integer", "minimum": 1, "description": "Most changed lines, added plus removed." },
+                "max-areas": { "type": "integer", "minimum": 1, "description": "Most areas the change may touch: plugins/<name> (with .changes/<name>), docs/<dir>, else the top-level path segment." },
+                "shared-paths": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?$" },
+                  "description": "Shared or high-impact paths: a change touching one (a directory ends in /, a file is named whole) is not tidied in the run."
+                }
+              },
+              "description": "The small single-area cutoffs: a change over any of them is not tidied in the run."
+            }
+          },
+          "description": "In-run tidy of the skill's own change before its last check run, on a read skill that hands on a patch with no prepare mode (the launcher also requires an issue lane): the runner loads the entry's and each pass's plugin, allows those skills and the scripts they run, and names the cutoffs and the turn budget to the run (pr-run-activity.md, Issue mode)."
         },
         "permission-mode": {
           "enum": ["dontAsk", "auto"],

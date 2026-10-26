@@ -89,7 +89,8 @@ inputs:
       only (ci-context included, and one that hands on a patch with no
       prepare mode, review-threads, dependency-review or merge-base), never
       a gate; checks, self-checks and verify-scripts only in a skill that
-      hands on a patch with no prepare mode, such as an issue lane's.
+      hands on a patch with no prepare mode, such as an issue lane's, and
+      tidy only in an issue lane's.
     required: false
     default: claude-code-action
 
@@ -306,6 +307,44 @@ runs:
             verify_prompt="$verify_prompt Run a test file only through $at/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
           fi
         }
+        # run-claude-cli: one more plugin loads from a read-only copy under
+        # .lane/plugins, like the skill's own. Each plugin dir is an
+        # --add-dir too, so it gets the empty server list the skill's own copy
+        # gets. Adds it to plugin_dirs.
+        stage_plugin() {
+          local name=$1 mcp
+          [ -d "$BASE_PATH/plugins/$name" ] || fail "the $name plugin is not in the base"
+          [ -d "$STAGE/plugins/$name" ] || cp -R "$BASE_PATH/plugins/$name" "$STAGE/plugins/"
+          mcp=$STAGE/plugins/$name/.mcp.json
+          [ -e "$mcp" ] || [ -L "$mcp" ] || printf '{"mcpServers":{}}\n' >"$mcp"
+          [ "$name" = "$plugin" ] || [[ " ${plugin_dirs[*]} " == *" .lane/plugins/$name "* ]] || plugin_dirs+=(".lane/plugins/$name")
+        }
+        # run-claude-cli, a skill that hands on a patch: each script the skill
+        # runs gets a rule for its absolute path, bare and double-quoted (its
+        # `!` line runs the quoted form), since a rule matches the words before
+        # its `*` as written. Its shebang fixes the interpreter, so no
+        # `bash <path>` rule.
+        skill_script_rules() {
+          local scripts script
+          case "$1" in
+            ai-slop:audit)
+              scripts=$lane/plugins/ai-slop/skills/audit/scripts
+              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
+                allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
+              done
+              # The fix flow's concurrent-edit guard digests each file into
+              # a state file under the scratch directory.
+              allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
+              # The user-scope target reads the runner's own config.
+              denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
+              ;;
+            code-tidying:tidy-diff)
+              # The token proof each comment deletion carries.
+              scripts=$lane/plugins/code-tidying/skills/tidy-diff/scripts
+              allowed+=("Bash($scripts/change-shape.sh *)" "Bash(\"$scripts/change-shape.sh\" *)")
+              ;;
+          esac
+        }
         [[ -z ${ISSUE_NUMBER:-} || $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the issue number is malformed"
         subject="a pull request"
         if [ -n "${ISSUE_NUMBER:-}" ]; then
@@ -357,6 +396,14 @@ runs:
         fi
         mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
         mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
+        # tidy stages on the launcher only, where an issue lane's patch skill
+        # with no prepare mode runs; anywhere else it would do nothing.
+        tidy=false
+        if jq -e '.selected.tidy != null' "$RESOLVED" >/dev/null; then
+          { [ "$LAUNCHER" = run-claude-cli ] && [ "$edits" = patch ] && [ -z "$PREPARE" ] && [ -n "${ISSUE_NUMBER:-}" ]; } ||
+            fail "tidy: only an issue lane's skill that hands on a patch with no prepare mode, on run-claude-cli, tidies"
+          tidy=true
+        fi
         # Read-only commands such as cat, echo and diff run with no allow
         # rule in every mode, until a deny rule names them
         # (https://code.claude.com/docs/en/permissions#read-only-commands).
@@ -463,23 +510,7 @@ runs:
             # directory, so that directory gets its own.
             allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
             denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}")
-            # Each script the skill runs gets a rule for its absolute path,
-            # bare and double-quoted (its `!` line runs the quoted form), since
-            # a rule matches the words before its `*` as written. Its shebang
-            # fixes the interpreter, so no `bash <path>` rule.
-            case "$SKILL" in
-              ai-slop:audit)
-                scripts=$lane/plugins/$plugin/skills/audit/scripts
-                for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
-                  allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
-                done
-                # The fix flow's concurrent-edit guard digests each file into
-                # a state file under the scratch directory.
-                allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
-                # The user-scope target reads the runner's own config.
-                denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
-                ;;
-            esac
+            skill_script_rules "$SKILL"
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes. Run each shell command as one plain command per call, a script by the absolute path the skill names: no variables, cd, ;, &&, a pipe, a command substitution or an interpreter, and redirect output only into $lane/scratch."
             # An issue lane's skill reads the work it resumes and checks its
             # own change with git, through git-read, a wrapper staged under
@@ -581,6 +612,36 @@ runs:
               done
               preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
             fi
+            # tidy: an issue lane's skill tidies its own change before its
+            # last check run, with the entry skill and its passes and no other
+            # skill. Each one's plugin loads read-only beside the skill's own,
+            # and each script a tidy skill runs gets its rules. The preamble
+            # names the cutoffs and the turn budget from the base config; the
+            # skill measures its change against them.
+            if [ "$tidy" = true ]; then
+              mapfile -t tidy_skills < <(jq -r '.selected.tidy | [.entry] + .passes | .[]' "$RESOLVED")
+              ((${#tidy_skills[@]})) || fail "tidy: the resolved config names no tidy skill"
+              for tidy_skill in "${tidy_skills[@]}"; do
+                [[ $tidy_skill =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "tidy: a skill must be <plugin>:<skill>"
+                [ -f "$BASE_PATH/plugins/${tidy_skill%%:*}/skills/${tidy_skill#*:}/SKILL.md" ] || fail "tidy: $tidy_skill is not in the base"
+                stage_plugin "${tidy_skill%%:*}"
+                allowed+=("Skill($tidy_skill)")
+                skill_script_rules "$tidy_skill"
+              done
+              [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a tidy skill's plugin holds a symbolic link"
+              share=$(jq -r '.selected.tidy["turn-share"]' "$RESOLVED")
+              max_turns=$(jq -r '.selected.models["max-turns"] // empty' "$RESOLVED")
+              [[ $share =~ ^[1-9][0-9]?$ && $max_turns =~ ^[1-9][0-9]*$ ]] || fail "tidy: the turn share or the run's turn cap is missing"
+              tidy_turns=$((max_turns * share / 100))
+              ((tidy_turns > 0)) || fail "tidy: the turn share leaves tidy no turn"
+              shared=$(jq -r '.selected.tidy.cutoffs["shared-paths"] | join(" ")' "$RESOLVED")
+              [[ $shared =~ ^[A-Za-z0-9_./\ -]*$ ]] || fail "tidy: a shared path has a name the prompt cannot carry"
+              cutoffs=$(jq -r '.selected.tidy.cutoffs | [.["max-files"], .["max-lines"], .["max-areas"]] | map(tostring) | join(" ")' "$RESOLVED")
+              [[ $cutoffs =~ ^[1-9][0-9]*\ [1-9][0-9]*\ [1-9][0-9]*$ ]] || fail "tidy: a cutoff is not a count"
+              read -r max_files max_lines max_areas <<<"$cutoffs"
+              passes="${tidy_skills[*]:1}"
+              preamble="$preamble Tidy cutoffs: at most $max_files changed files, $max_lines changed lines and $max_areas areas, and no change under these shared paths: ${shared:-none}. Tidy entry: ${tidy_skills[0]}; the skills it may call: ${passes:-none}. Tidy turn budget: $tidy_turns of this run's $max_turns turns."
+            fi
           fi
           # web-access with `any`: the research plugins load from .lane/ too,
           # read-only like the skill's own. The docs scripts are not staged,
@@ -591,13 +652,7 @@ runs:
             tools+=(WebFetch WebSearch)
             if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
               for research in discovery knowledge; do
-                [ -d "$BASE_PATH/plugins/$research" ] || fail "web-access: the $research plugin is not in the base"
-                [ -d "$STAGE/plugins/$research" ] || cp -R "$BASE_PATH/plugins/$research" "$STAGE/plugins/"
-                # Each plugin dir is an --add-dir too, so it gets the empty
-                # server list the skill's own copy gets.
-                mcp=$STAGE/plugins/$research/.mcp.json
-                [ -e "$mcp" ] || [ -L "$mcp" ] || printf '{"mcpServers":{}}\n' >"$mcp"
-                [ "$research" = "$plugin" ] || plugin_dirs+=(".lane/plugins/$research")
+                stage_plugin "$research"
               done
               [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a research plugin holds a symbolic link"
               allowed+=("WebFetch(domain:*)" WebSearch "Skill(discovery:read-docs)" "Skill(discovery:research)" "Skill(knowledge:docpage-digest)" "Skill(knowledge:map-corpus)")

@@ -1918,6 +1918,17 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
 - `resolve-config` reads the issue's labels now, for the hold labels. The read file passes
   `applied-by-supported: patch work-outcome`. The write file's token request sends
   `issue_number`.
+- With the activity's `tidy` ([README.md, Activities](README.md#activities)), `collect-base-activity`
+  stages the entry's and each pass's plugin read-only under `.lane/plugins` beside the skill's own,
+  allows `Skill(<plugin>:<skill>)` for each and no other skill, and allows the scripts each one runs:
+  `ai-slop:audit`'s get the rules `fix-docs` gets, and `code-tidying:tidy-diff`'s `change-shape.sh`
+  its bare and double-quoted path. The preamble names the cutoffs, the entry, its passes and the
+  tidy turn budget, `turn-share` percent of the run's turn cap rounded down. The skill measures its
+  own change against the cutoffs and tidies it only within them, before its last check run; at the
+  budget it skips the passes left and hands its change on. A tidy skill's `` !`...` `` line runs
+  under the same rules, so a pass is listed only when its pre-compute, if any, is a script these
+  rules allow. `tidy` anywhere but an issue lane's patch skill with no prepare mode on the launcher
+  fails the stage red.
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
   --find-prior`) runs after `resolve-config` and before any model turn, with the job's read-only
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on

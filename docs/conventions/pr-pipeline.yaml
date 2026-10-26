@@ -327,6 +327,32 @@ activities:
     web-access:
       enabled: true
       domains: any
+    # Tidies the run's own change before its last check run, so the PR reaches
+    # review already tidied, with no extra push or review round (#8485). Only
+    # a change within the cutoffs is tidied in the run; the cutoffs are a
+    # starting value for the lane baseline to retune. The runner allows the
+    # entry and the passes and no other skill.
+    tidy:
+      entry: code-tidying:tidy-diff
+      passes:
+        - docs-hygiene:write-for-agents
+        - docs-hygiene:write-for-humans
+        - ai-slop:audit
+      turn-share: 25
+      cutoffs:
+        max-files: 10
+        max-lines: 300
+        max-areas: 1
+        shared-paths:
+          - .github/
+          - .claude/
+          - .claude-plugin/
+          - scripts/
+          - lib/
+          - docs/conventions/
+          - docs/standards/
+          - AGENTS.md
+          - CLAUDE.md
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
