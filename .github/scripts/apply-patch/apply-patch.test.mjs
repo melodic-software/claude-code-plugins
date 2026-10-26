@@ -308,8 +308,8 @@ test("a patch over max-files is refused", async (t) => {
 });
 
 // Agent instructions, plugin hooks and manifests, MCP config and .claude
-// reach review on every row; settings files, submodules and code owners stay
-// refused on every row.
+// reach review on every row past its optional refusals; settings files,
+// submodules and code owners stay refused on every row.
 const INSTRUCTION_PATHS = [
   ["CLAUDE.md", []],
   ["AGENTS.md", []],
@@ -333,9 +333,117 @@ const INSTRUCTION_PATHS = [
 test("every row refuses the same instruction paths: settings, submodules and code owners only", () => {
   for (const [path, refusals] of INSTRUCTION_PATHS) {
     for (const name of Object.keys(RULES)) {
-      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), refusals, `${name} ${path}`);
+      const universal = RULES[name].refuse.filter((refusal) => !REFUSALS[refusal].optional);
+      assert.deepEqual(refusalsOf(entry(path), universal), refusals, `${name} ${path}`);
     }
   }
+});
+
+// --- the docs row: markdown only, nothing under skills/ and no SKILL.md ---
+
+test("refuses a path under a skills/ directory at any depth, in any case, and a SKILL.md anywhere, only where a row names them", () => {
+  for (const [path, refusals] of [
+    ["plugins/p/skills/s/SKILL.md", ["skills", "skill-md"]],
+    ["plugins/p/skills/s/reference/r.md", ["skills"]],
+    ["skills/x.md", ["skills"]],
+    ["plugins/p/Skills/s/notes.md", ["skills"]],
+    ["a/../skills/x.md", ["skills"]],
+    ["docs/skill.md", ["skill-md"]],
+    ["SKILL.md", ["skill-md"]],
+    ["docs/skills.md", []],
+    ["plugins/p/skillset/x.md", []],
+  ]) {
+    assert.deepEqual(refusalsOf(entry(path), ["skills", "skill-md"]), refusals, path);
+    assert.deepEqual(refusalsOf(entry(path), RULES.default.refuse), [], `default ${path}`);
+  }
+});
+
+test("only the docs row names the skills and skill-md refusals, and no row has to", () => {
+  for (const name of Object.keys(RULES)) {
+    const named = RULES[name].refuse.filter((refusal) => REFUSALS[refusal].optional);
+    assert.deepEqual(named, name === "docs" ? ["skills", "skill-md"] : [], name);
+  }
+  const refuse = RULES.docs.refuse.filter((name) => !REFUSALS[name].optional);
+  assert.doesNotThrow(() => checkRow(row("docs", { refuse })));
+  assert.throws(() => checkRow(row("docs", { refuse: refuse.filter((name) => name !== "codeowners") })), /does not refuse codeowners/);
+});
+
+test("the docs row allows markdown alone, refuses the universal set, and keeps the default row's cap, commit, moved-head path and reasons", () => {
+  const docs = row("docs");
+  const fallback = row("default");
+  assert.deepEqual(docs.allow, ["markdown"]);
+  assert.deepEqual(
+    docs.refuse.filter((name) => !REFUSALS[name].optional),
+    fallback.refuse,
+  );
+  for (const key of ["max-files", "requires", "commit", "reads-report", "skip-moved-head", "escalations"]) {
+    assert.deepEqual(docs[key], fallback[key], key);
+  }
+});
+
+const docsPush = (fix, api, extra = {}) => pushWith(fix, api, { row: row("docs"), lane: "pr-refine", activity: "fix-docs", ...extra });
+
+test("under the docs row a patch that edits only markdown outside skills/ pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "README.md"), "# fixed\n");
+    mkdirSync(join(repo, "docs"));
+    writeFileSync(join(repo, "docs/AGENTS.md"), "x\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await docsPush(fix, api), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-refine/fix-docs\n");
+});
+
+for (const [path, edit] of [
+  ["scripts/x.sh", (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n")],
+  ["config.json", (repo) => writeFileSync(join(repo, "config.json"), "{}\n")],
+  ["lib/x.mjs", (repo) => (mkdirSync(join(repo, "lib")), writeFileSync(join(repo, "lib/x.mjs"), "export {};\n"))],
+  ["GUIDE.MD", (repo) => writeFileSync(join(repo, "GUIDE.MD"), "x\n")],
+]) {
+  test(`under the docs row a patch that also edits the non-markdown ${path} is refused patch-protected-path before any API call`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => {
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+      edit(repo);
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+    assert.deepEqual(lines, [`not allowed by markdown: ${path}`]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+for (const [path, refusal] of [
+  ["plugins/p/skills/s/SKILL.md", "skills"],
+  ["plugins/p/skills/s/reference/r.md", "skills"],
+  ["docs/SKILL.md", "skill-md"],
+]) {
+  test(`under the docs row a patch that touches ${path} is refused patch-protected-path before any API call`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => {
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), "# changed\n");
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+    assert.deepEqual(lines, [`refused (${refusal}): ${path}`]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+test("under the docs row deleting a SKILL.md is refused patch-protected-path before any API call", async (t) => {
+  const path = "plugins/p/skills/s/SKILL.md";
+  const fix = repoWithPatch(t, (repo) => rmSync(join(repo, path)), {
+    head: (repo) => {
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), "# skill\n");
+    },
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await docsPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(api.calls, []);
 });
 
 // fix-docs hands on its patch with no prepare mode, so the default row holds

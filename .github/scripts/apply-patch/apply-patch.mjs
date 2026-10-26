@@ -111,9 +111,19 @@ const PATH_RULES = {
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
 
+// Path refusals a row may add to the universal set, in any case and through
+// any .. segment; rename-into-refused does not read them.
+const ROW_PATH_RULES = {
+  // A path under a skills/ directory at any depth.
+  skills: (s) => s.slice(0, -1).includes("skills"),
+  "skill-md": (s) => s.at(-1) === "skill.md",
+};
+const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
+
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and the `optional` ones, which apply only
+// to a row that names them; any match refuses the whole patch, and `kind`
+// picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
@@ -125,6 +135,8 @@ export const REFUSALS = {
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
+  skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
+  "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
 };
 
 // The names of the refusals that match one changed entry; by default all.
@@ -293,7 +305,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !REFUSALS[name].optional && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
