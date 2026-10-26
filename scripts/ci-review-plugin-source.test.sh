@@ -50,7 +50,7 @@ for (const file of ["pr-review-hosted.yml", "pr-review-security-hosted.yml"]) {
 }
 
 // The check itself rejects each shape it guards against.
-const sha = "ba7af78d291f10bd75651857a0db2357c23df0fe";
+const sha = "0123456789abcdef0123456789abcdef01234567";
 const call = (uses, inputs) => ({ review: { uses, with: inputs } });
 for (const [name, jobs] of [
   ["a tag ref", call(`${REUSABLE}v0.65.12`, {})],

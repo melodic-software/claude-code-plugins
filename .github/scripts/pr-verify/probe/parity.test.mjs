@@ -1,9 +1,8 @@
 // The replay must judge the way pr-verify.yml does. These tests read the
 // workflow and fail when its judge step, prompt step or model route drift
-// from replay.mjs's JUDGE, or when the ci-workflows pin moves: cliArgs,
-// LEG_ENV, CLI_VERSION and MANAGED_SETTINGS were read from run-claude-cli and
-// apply-claude-managed-settings at RUN_CLAUDE_CLI_PIN, so a new pin means
-// reading them again.
+// from replay.mjs's JUDGE, or when a run-claude-cli or
+// apply-claude-managed-settings pin differs from RUN_CLAUDE_CLI_PIN, the pin
+// the workflow gives run-claude-cli.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";

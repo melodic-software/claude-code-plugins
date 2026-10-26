@@ -457,12 +457,13 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)
   - invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)
+  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction sets no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row), so `native.docs_markers` lists gated and the changelog's native-drift pass does not compare it
+  - 2.1.296 recheck (2026-10-25, item #6885): the 2.1.265..2.1.296 changelog apply's native-drift pass extracted skill-doctor with model-invocation-disabled and no gated flag; the docs pointers below, reread, still state the same version and feature-flag gate, so gated stands
   - detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30
-  - docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
+  - docs pointers (read 2026-10-25, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
   - our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction of the installed native build; every lane ok, overall degraded only because 2.1.285 differs from the validated 2.1.287, so counts are floors) (2026-10-02)
-- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-02)
+- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-25)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
