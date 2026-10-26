@@ -376,10 +376,14 @@ const pathTokens = (text) =>
     )
     .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
 
-// The paths the task-list items in `body` name that apply-patch refuses under
-// `names` (issuePushRefusals), in order, each once. Pure.
+// The paths the task-list items in `body`, with their indented continuation
+// lines, name that apply-patch refuses under `names` (issuePushRefusals), in
+// order, each once. Pure.
 export function unpushablePaths(body, taskList, names) {
-  const paths = taskItems(body, taskList).flatMap(({ text }) => pathTokens(text).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))));
+  const lines = String(body ?? "").split("\n");
+  const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
+    pathTokens([text, ...more.map((index) => lines[index])].join("\n")).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+  );
   return [...new Set(paths)];
 }
 
