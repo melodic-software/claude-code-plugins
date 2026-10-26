@@ -184,9 +184,10 @@ the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
 where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
-`pr-contract` composite step (the SHA-pinned
-`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>` form, or
-ci-workflows' own local `./.github/actions/pr-contract`). A body the hook
+contract composite step, at its current path `pr-require-checks/check-contract`
+or its old path `pr-contract` (the SHA-pinned
+`melodic-software/ci-workflows/.github/actions/<path>@<sha>` form, or
+ci-workflows' own local `./.github/actions/<path>`). A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
