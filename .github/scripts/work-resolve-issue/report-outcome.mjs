@@ -23,7 +23,8 @@
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
-//             invalid outcome file is stopped.
+//             invalid outcome file is stopped; with a scan refusal marker
+//             (SCAN_REFUSED_DIR) the comment names the refusal instead.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -80,6 +81,9 @@
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
 //                       key), or empty
+//   SCAN_REFUSED_DIR    the read runner's scan-refusal markers for this run,
+//                       when its scan job refused the run's output and so
+//                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
 //                       the issue dimensions skipped the run
 //                       (work-resolve-issue.yml report-skip), else empty
@@ -96,8 +100,9 @@
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
-import { appendFileSync, readFileSync } from "node:fs";
+//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
+//                       (the attempt whose scan-refusal markers are read)
+import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -251,6 +256,36 @@ export function readHoldPaths(path) {
     return null;
   }
 }
+
+// The read runner's scan refusal markers, as address-feedback.mjs scanRefusal
+// reads them; the runner copies only this script's directory, so it cannot
+// import that one. `patch` when a marker names a patch over its cap, `output`
+// for any other, '' for none or an unreadable directory: a failed download
+// claims no refusal here, since the hand-back would name a false cause. Only
+// the current attempt's markers count (the download pattern spans every
+// attempt's), and with no readable attempt none does. A
+// marker's text only picks one of the fixed sentences below, so a forged one
+// puts nothing of its own in the comment.
+const ATTEMPT = /^[1-9][0-9]{0,4}$/;
+export function readScanRefusal(dir, attempt) {
+  if (!ATTEMPT.test(attempt ?? "")) return "";
+  const markerFile = new RegExp(`^scan-refused-${attempt}(-rung-up)?\\.txt$`);
+  let kinds;
+  try {
+    kinds = readdirSync(dir)
+      .filter((name) => markerFile.test(name) && lstatSync(join(dir, name)).isFile())
+      .map((name) => readFileSync(join(dir, name), "utf8").trim());
+  } catch {
+    return "";
+  }
+  return kinds.length === 0 ? "" : kinds.includes("patch") ? "patch" : "output";
+}
+
+// The scan job's refusals, as its decode step names them.
+export const SCAN_REFUSALS = {
+  patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
+  output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
+};
 
 // The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
@@ -1321,7 +1356,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const ran = readBranch(dir, issueNumber);
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
-    const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    // A run whose scan refused its output left no outcome: say so.
+    const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR, env.GITHUB_RUN_ATTEMPT) : "";
+    if (refusal) {
+      outcome = { ...stopped(SCAN_REFUSALS[refusal]), unread: true };
+    }
     const branch = reuse || ran;
     // A resumed run that finished with no commit of its own deleted its
     // branch; decide() marks it so, and hands a done run back naming the
