@@ -254,6 +254,7 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-kill-switch/**",
   ".github/actions/request-lane-token/**",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
   ".github/scripts/pr-merge/merge-holds.mjs",
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
@@ -282,8 +283,10 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
+  ".github/scripts/work-resolve-issue/retry-fetch.mjs",
 ]);
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`

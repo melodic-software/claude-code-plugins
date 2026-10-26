@@ -157,9 +157,12 @@ concurrency:
 # NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
 # to the registry after installing, and a stalled request held jobs for npm's
 # fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+# NPM'S FETCH TIMEOUT AND RETRIES ARE BOUNDED. .github/npm-fetch.npmrc sets them,
+# read as npm's global config by every npm call here, run-tests.sh's included.
 env:
   npm_config_audit: "false"
   npm_config_fund: "false"
+  npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -3109,9 +3112,9 @@ jobs:
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
       # gh-read.sh, so each step that sources that file reads through it.
-      # Its read floor and limit cap are pr-pipeline.schema.json's read-floor
-      # and github-token limit-cap defaults (log-api-budget.test.mjs checks),
-      # as this job has no schema checkout.
+      # Its read floor and limit cap are github-token's read-floor and
+      # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
+      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -3176,7 +3179,7 @@ jobs:
         #                               answer is a 2xx; under
         #                               API_BUDGET_READ_FLOOR of the planned budget
         #                               left, warns once (unset: no floor; ci-status
-        #                               sets it to the schema's read-floor default);
+        #                               sets it to the read-floor default);
         #                               the plan is the header's limit, at most
         #                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
         #                               sets github-token's limit-cap default)
@@ -4302,7 +4305,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1

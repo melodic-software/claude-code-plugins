@@ -1,0 +1,24 @@
+{
+  "claim": "CLAUDE_CODE_AUTO_COMPACT_WINDOW=150000 beats --autocompact 200000 and a project settings file's top-level autoCompactWindow of 250000: /autocompact with no argument reports 150k.",
+  "tags": [
+    "/autocompact",
+    "--autocompact",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+    "auto-compact window"
+  ],
+  "permission_mode": "default",
+  "model": "claude-sonnet-5-5",
+  "max_turns": 1,
+  "max_budget_usd": 0.25,
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "150000"
+  },
+  "cli_args": ["--autocompact", "200000"],
+  "target": {
+    "printed_match": "\\d",
+    "text_match": "(?i)\\b150(?:k|,000|000)\\b",
+    "example": "Auto-compact window: 150k"
+  },
+  "outcome": "prints",
+  "control": "autocompact/flag-beats-project-settings"
+}

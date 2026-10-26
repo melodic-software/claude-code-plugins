@@ -316,6 +316,7 @@ const FLOOR_FILES = [
   ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
   ".github/actions/check-kill-switch/check-kill-switch.mjs",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
   ".github/CODEOWNERS",
   "plugins/foo/codeowners",
   ".gitmodules",
@@ -330,8 +331,10 @@ const FLOOR_FILES = [
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
+  ".github/scripts/work-resolve-issue/retry-fetch.mjs",
 ];
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {

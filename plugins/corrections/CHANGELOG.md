@@ -3,6 +3,23 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-26
+
+### Added
+
+- `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` runs `buffer.sh read` and prints the findings buffer grouped by the named top-level fields (default `producer`): a first line naming the keys, then each group with its row count, its occurrence count (distinct `source_id`) and its members, most occurrences first. `--since` cuts exactly, fraction included, and row values print with control, format (bidirectional and zero-width included) and separator characters escaped.
+
+### Changed
+
+- `/corrections:codify group` takes `--by`, runs `group-findings.mjs`, shows the field groups, then groups by mistake, and names the keys of both groupings.
+
+## [0.7.2] - 2026-10-26
+
+### Fixed
+
+- `scripts/lib/yaml-subset.mjs` reads an empty sequence item (`-` alone) as `null` when the next line is another item at the same indent, instead of nesting the following items under it.
+- A quoted key may hold a doubled `''` in single quotes or a `\"` escape in double quotes; such a key no longer fails with `expected a mapping entry`.
+
 ## [0.7.1] - 2026-10-26
 
 ### Fixed
