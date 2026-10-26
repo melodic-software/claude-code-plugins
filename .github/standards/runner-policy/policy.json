@@ -438,6 +438,33 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@ba7af78d291f10bd75651857a0db2357c23df0fe": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "intake",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}",
+        "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -1217,6 +1244,28 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@78ee7a2609a84b0073c5e09dfe3bc59613e689dc": {
+      "routing": "hosted-only",
+      "fixedRunsOn": ["ubuntu-24.04"],
+      "allowedInputs": [
+        "lane",
+        "publish",
+        "role",
+        "model-args",
+        "allowed-bot-sender-ids",
+        "allowed-author-ids",
+        "docs-only-paths",
+        "incremental-review",
+        "cli-version",
+        "hold-label",
+        "hold-paths"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}",
+        "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@ba7af78d291f10bd75651857a0db2357c23df0fe": {
       "routing": "hosted-only",
       "fixedRunsOn": ["ubuntu-24.04"],
       "allowedInputs": [
