@@ -35,6 +35,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
+import test_babysit_review_evidence as evidence_tests
 import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
@@ -4319,6 +4320,83 @@ class HeadFile(unittest.TestCase):
         ):
             with self.subTest(name), self.assertRaises(RuntimeError):
                 self.read(proc, files)
+
+
+class HeadFileFailure(unittest.TestCase):
+    """A head-file read that fails, a rate limit included, is never sent
+    again in that bind, not for another thread and not for the carried
+    security pass (review_evidence._carried_blocking)."""
+
+    RATE_LIMITED = subprocess.CompletedProcess(
+        [], 1, "", "gh: API rate limit exceeded (HTTP 403)"
+    )
+
+    def test_a_failed_read_is_not_sent_again(self) -> None:
+        with mock.patch.object(
+            merge, "gh_capture", return_value=self.RATE_LIMITED
+        ) as capture:
+            read = merge._head_file("owner/repo", HEAD)
+            for path in ("app.py", "lib.py", "app.py"):
+                with self.subTest(path), self.assertRaises(RuntimeError):
+                    read(path, "b" * 40)
+        self.assertEqual(capture.call_count, 1)
+
+    def test_the_bind_and_its_carried_pass_send_one_read_after_a_rate_limit(
+        self,
+    ) -> None:
+        # claude-review binds at S and reads the head for its outdated
+        # thread; the security lane's newest marker names a later head whose
+        # review failed, so it unbinds and the carried pass judges S again,
+        # which would read the head for its own outdated thread.
+        ev_tests = evidence_tests
+        sec = "claude-security-review"
+        later = "c2" * 20
+        bot = {"__typename": "Bot", "login": "someone-else"}
+
+        def outdated(body: str) -> dict[str, Any]:
+            return ev_tests.thread(
+                body,
+                resolved=True,
+                resolved_by=bot,
+                outdated=True,
+                created="2025-12-31T00:00:00Z",
+            )
+
+        failed = ev_tests.run(
+            sec,
+            later,
+            attempts=[ev_tests.attempt(sec, later, 1, [], "failure")],
+            created="2026-01-02T00:00:00Z",
+        )
+        newer = {**ev_tests.marker(sec, later), "created_at": "2026-01-02T01:00:00Z"}
+        runs = [
+            ev_tests.whole("claude-review", ev_tests.S, n=1, k=1),
+            ev_tests.whole(sec, ev_tests.S, n=1, k=1),
+            failed,
+        ]
+        threads = [
+            outdated("a finding"),
+            outdated(f"finding\n\nseverity: CRITICAL\n`claude-lane: {sec}`"),
+        ]
+        with mock.patch.object(
+            merge, "gh_capture", return_value=self.RATE_LIMITED
+        ) as capture:
+            lanes = ev_tests.by_lane(
+                merge.review_evidence.bind(
+                    ev_tests.S,
+                    runs,
+                    [*ev_tests.both_markers(), newer],
+                    threads,
+                    is_human=ev_tests.is_human,
+                    changed_paths=(),
+                    head_file=merge._head_file("owner/repo", ev_tests.S),
+                )
+            )
+        self.assertTrue(lanes["claude-review"].bound)
+        self.assertEqual(lanes[sec].unbound_reason, "no-marker")
+        # The carried pass still ran and carried a blocking count.
+        self.assertGreater(lanes[sec].blocking_findings or 0, 0)
+        self.assertEqual(capture.call_count, 1)
 
 
 class HeadPushers(unittest.TestCase):

@@ -3120,12 +3120,27 @@ def _lane_evidence(
 def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
     """`bind()`'s `head_file`: a file's text at `head`, or None only when the
     comparison from the thread's commit lists it removed. A rename, a capped
-    file list or any other failure raises, so the thread keeps its human test."""
+    file list or any other failure raises, so the thread keeps its human test.
+    After the first failure every later call raises without a read: a refused
+    read, a rate limit included, is never sent again, however many threads or
+    candidate heads (review_evidence._carried_blocking) ask."""
     cache: dict[tuple[str, str], str | None] = {}
+    failed: list[str] = []
 
     def read(path: str, original: str) -> str | None:
         if (path, original) in cache:
             return cache[(path, original)]
+        if failed:
+            raise RuntimeError(f"head-file-not-read-after:{failed[0]}")
+        try:
+            text = _read_head_file(path, original)
+        except Exception as exc:
+            failed.append(str(exc))
+            raise
+        cache[(path, original)] = text
+        return text
+
+    def _read_head_file(path: str, original: str) -> str | None:
         proc = gh_capture(
             [
                 "api",
@@ -3155,7 +3170,6 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
             ):
                 raise RuntimeError(f"head-file-unproven:{path}")
             text = None
-        cache[(path, original)] = text
         return text
 
     return read

@@ -2125,13 +2125,11 @@ class CarriedBlockingTests(Base):
             attempts=[attempt(self.SEC, self.S2, 1, [], "failure")],
             created="2026-01-02T00:00:00Z",
         )
+        # Later than every marker at S, so it is the lane's newest.
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
         for name, extra_runs, extra_markers in (
             ("no review yet", [], []),
-            (
-                "a newer marker on a failed review",
-                [failed],
-                [marker(self.SEC, self.S2)],
-            ),
+            ("a newer marker on a failed review", [failed], [newer]),
         ):
             with self.subTest(name):
                 lanes = by_lane(
@@ -2148,6 +2146,19 @@ class CarriedBlockingTests(Base):
                 self.assertFalse(lanes[self.SEC].bound)
                 self.assertEqual(lanes[self.SEC].blocking_findings, 1)
                 self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_an_older_marker_naming_a_head_is_read_only_off_the_newest(
+        self,
+    ) -> None:
+        older = marker(self.SEC, S)
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
+        comments = [newer, older]
+        with self.assertRaises(ev.Unbound):
+            ev._require_marker(self.SEC, S, comments)
+        self.assertEqual(
+            ev._require_marker(self.SEC, S, comments, newest_only=False),
+            older["body"],
+        )
 
     def test_nothing_is_carried_without_a_blocking_finding(self) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
