@@ -30,7 +30,7 @@ in a session that has not committed yet.
 ## Input
 
 `<lines-file>` holds one row per changed hunk, `<start><TAB><count><TAB><path>`, the shape
-`scripts/added-lines.sh` in this plugin prints: `<path>` repository-relative, `<start>` the first
+`${CLAUDE_PLUGIN_ROOT}/scripts/added-lines.sh` prints: `<path>` repository-relative, `<start>` the first
 changed line in the current file and `<count>` how many follow. A new file is one row from line 1.
 A row with `<count>` 0 (a pure deletion) names no line to tidy and is skipped.
 
