@@ -202,6 +202,26 @@ test("a cancelled CI run on a PR's head is re-run once", async () => {
   assert.deepEqual(reruns, [101]);
 });
 
+// A fork PR that pushed the same commit lists its runs under the same head
+// SHA. Its newer run is neither re-run nor allowed to hide this repository's.
+test("a fork's newer run at the same head SHA is not re-run and does not hide the head's own run", async () => {
+  const fork = (id, opts) => ({ ...run(id, sha(1), { created: "2026-10-19T19:10:00Z", ...opts }), head_repository: { full_name: "someone/claude-code-plugins" } });
+  for (const [what, forkRun, own, expected] of [
+    ["a lost fork run", fork(102), run(101, sha(1)), { reruns: [101], failedJobReruns: [] }],
+    ["a passed fork run", fork(102, { conclusion: "success" }), run(101, sha(1)), { reruns: [101], failedJobReruns: [] }],
+    [
+      "a fork run going at attempt 2",
+      fork(102, { status: "in_progress", attempt: 2 }),
+      run(101, sha(1), { conclusion: "failure", jobs: INFRA_JOBS, updated: "2026-10-19T19:30:00Z" }),
+      { reruns: [], failedJobReruns: [101] },
+    ],
+  ]) {
+    const { code, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [own, forkRun] });
+    assert.equal(code, 0, what);
+    assert.deepEqual({ reruns, failedJobReruns }, expected, what);
+  }
+});
+
 test("timed_out and startup_failure count as lost; failure does not", async () => {
   const { reruns } = await reconcile({
     pulls: [pr(1), pr(2), pr(3)],
@@ -979,6 +999,20 @@ test("an infra-only run waits while npm or GitHub reports an incident, or either
     assert.equal(code, 0);
     assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
   }
+});
+
+// The status page's indicator reaches the log through `say`: a newline in it
+// must not start a line the runner reads as a workflow command.
+test("a status-page indicator holding a newline and a workflow command logs no command line", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const injected = "minor\n::set-output name=plan::x\r::warning::y";
+  const upstream = { [NPM_STATUS_URL]: { ...NPM_OK, status: { indicator: injected } }, [GITHUB_STATUS_URL]: GITHUB_OK };
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1))], upstream });
+  const lines = log.mock.calls.flatMap((c) => String(c.arguments[0]).split(/\r\n|\r|\n/));
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.deepEqual(lines.filter((l) => l.startsWith("::")), []);
+  assert.ok(lines.includes("reconcile: #1: run 101 (.github/workflows/pr-require-checks.yml) failed on infra only; waiting, status.npmjs.org shows minor ::set-output name=plan::x ::warning::y"));
 });
 
 test("an upstream incident does not hold back a lost run's re-run", async () => {

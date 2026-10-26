@@ -417,7 +417,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
           () => "unreadable",
         );
         if (indicator !== "none") {
-          return `${new URL(url).host} shows ${indicator ?? "no indicator"}`;
+          // The page's text is logged through `say`, so a newline in it must
+          // not start a workflow command line.
+          return `${new URL(url).host} shows ${escapeCommand(indicator ?? "no indicator")}`;
         }
       }
       return "";
@@ -435,7 +437,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      const { rerun, again, lane, inFlight: busy } = classify(listing.workflow_runs, since);
+      // A fork PR at the same head SHA lists its runs here too: re-running one
+      // spends this repository's minutes on the fork's code, and a newer one
+      // would hide this repository's run. Only this repository's runs count.
+      const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
+      const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
         say(`#${pull.number}: lane run ${r.id} (${r.path}) ended ${r.conclusion}; a re-run of this lane needs a person`);
@@ -453,7 +459,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       }
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
       const tested = [];
-      for (const runs of ciRunsByWorkflow(listing.workflow_runs)) {
+      for (const runs of ciRunsByWorkflow(own)) {
         tested.push(
           await testedRun(runs, async (r) => {
             const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
@@ -495,7 +501,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       // passed checks starts pr-verify, which judges it again (resolve-pr's
       // `spec-changed`). Attempt 1 only, so each passed checks run is re-run
       // at most once; a later edit or label starts a new attempt-1 run.
-      const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
+      const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
       // A read that fails here re-runs nothing and is no listing failure: the
       // next tick asks again. A rate limit still stops the run.
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
