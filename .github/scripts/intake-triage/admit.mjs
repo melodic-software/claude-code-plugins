@@ -1042,12 +1042,13 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // admission-deferred on an issue with neither, which the sweep admits.
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
-    await github("POST", `${base}/labels`, { labels: [decision.hold ? NEEDS_DECISION : CONFIRMED] });
+    const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
+    await github("POST", `${base}/labels`, { labels: [status] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
-    return { outcome: "refused", reasons: decision.reasons };
+    return { outcome: "refused", reasons: decision.reasons, status };
   }
   if (decision.verdict === "wait") {
     if (decision.pulls.length === 0) {

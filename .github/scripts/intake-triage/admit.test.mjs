@@ -121,7 +121,7 @@ describe("decide", () => {
     test("admit() reads the authors and parks an App-only spec at status: confirmed, as no person must answer it", async () => {
       const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
       const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
-      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC], status: CONFIRMED });
       const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
       assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [CONFIRMED] });
@@ -211,7 +211,7 @@ describe("decide", () => {
     ],
   ];
   for (const [name, input, reason] of refusals) {
-    test(`refuses for a person on ${name}`, () => {
+    test(`refuses on ${name}`, () => {
       const result = decide(facts(input));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join("; "), reason);
