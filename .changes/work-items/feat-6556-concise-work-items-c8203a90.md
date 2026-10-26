@@ -4,7 +4,7 @@ bump: patch
 
 ### Changed
 
-- Tighten the bodies of nine skills (attend-queue, decompose, onboard-adapter, scan-todos, ship, track, triage, work, work-loop): rationale, history notes and repeated lines are cut; every gate, stop, command and report line stays. Descriptions are unchanged.
+- Tighten the bodies of eight skills (attend-queue, decompose, onboard-adapter, scan-todos, ship, track, triage, work): rationale, history notes and repeated lines are cut; every gate, stop, command and report line stays. Descriptions are unchanged.
 
 ### Added
 
