@@ -344,6 +344,54 @@ test("the resolved limits set how many reset limit stops hold a head", async () 
   assert.deepEqual(dispatchedNumbers(one.api), []);
 });
 
+// The 2026-10-25 credential outage: every leg ended class=auth on a 401, and a
+// failure with no lane record was retried at once, so #9826's head spent its
+// three runs in 23 minutes and was recorded at the cap before the secrets were
+// re-set. A refused credential now waits out fallback-reset like a usage limit,
+// and the skip names the class and the reset.
+const authRun = (completed) => ({
+  ...failedRun(completed, null),
+  output: { title: "Failed", summary: "lane=pr-unblock activity=resolve-conflicts class=auth turns=1\n\nThe activity step failed." },
+});
+
+test("a head whose run was refused its credential waits out fallback-reset, logged with its class, and is not recorded", async () => {
+  const now = Date.parse("2026-10-25T22:03:00Z");
+  const refused = pr(41);
+  const reset = pr(42);
+  const unrecorded = pr(43);
+  const record = emptyRecord();
+  const { api, lines, run } = harness(
+    {
+      pages: [[refused, reset, unrecorded]],
+      checked: new Map([
+        [refused.headRefOid, [authRun("2026-10-25T21:44:25Z")]],
+        [reset.headRefOid, [authRun("2026-10-25T16:00:00Z")]],
+        [unrecorded.headRefOid, [failedRun("2026-10-25T21:44:25Z", null)]],
+      ]),
+    },
+    { now, record, maxDispatch: 9 },
+  );
+  await run();
+  // The unrecorded failure is retried at once, as before; the refused one waits.
+  assert.deepEqual(dispatchedNumbers(api), ["42", "43"]);
+  assert.ok(
+    lines.includes(
+      `::notice::#41: head ${refused.headRefOid}'s ${CHECK_NAME} stopped on class=auth; no resolve-conflicts before 2026-10-26T02:44:25.000Z`,
+    ),
+    lines.join("\n"),
+  );
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], []);
+});
+
+test("a head with a success beside an unreset stop is skipped as handled, not as waiting", async () => {
+  const now = Date.parse("2026-10-25T22:03:00Z");
+  const done = pr(44);
+  const { api, lines, run } = harness({ pages: [[done]], checked: new Map([[done.headRefOid, [authRun("2026-10-25T21:44:25Z"), SUCCESS_RUN]]]) }, { now });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.ok(!lines.some((line) => line.includes("stopped on class=")), lines.join("\n"));
+});
+
 // A failed resolve-conflicts run is retried on the same head until
 // limits.limit-stops-per-head (3 by default) failures stand on it.
 test("a failed run is retried until three failures stand on the head", async () => {
@@ -1127,6 +1175,16 @@ test("a head at the resolve-conflicts cap is warned about once, as it is recorde
   await second.run();
   assert.deepEqual(second.lines.filter((line) => line.startsWith("::warning::")), []);
   assert.deepEqual([second.api.calls.checks, second.api.calls.timeline, second.api.calls.runs], [[], [], []]);
+});
+
+test("a head capped by refused-credential stops names the class in its cap warning", async () => {
+  const capped = pr(64);
+  const stops = ["2026-10-25T21:44:25Z", "2026-10-26T02:50:00Z", "2026-10-26T08:00:00Z"].map((at) => authRun(at));
+  const { lines, run } = harness({ pages: [[capped]], checked: new Map([[capped.headRefOid, stops]]) }, { now: Date.parse("2026-10-26T14:00:00Z") });
+  await run();
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), [
+    `::warning::#64: head ${capped.headRefOid}'s ${CHECK_NAME} failed or was skipped while held 3 time(s), the most one head gets; no resolve-conflicts until a new push; the last run stopped on class=auth`,
+  ]);
 });
 
 test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns once, and reads nothing for it on the next run", async () => {

@@ -495,6 +495,13 @@ jobs:
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
       handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' }}
+      # The lane record's class and reset, for the report job's check run,
+      # which limit-stop.mjs reads, as pr-run-activity-write.yml's lane-class.
+      # A forged limit stop can only restart the lane after a reset
+      # limit-stop.mjs clamps to at least `limits.reset-clamp-min` hours away,
+      # at most `limits.limit-stops-per-head` times on one head.
+      record-class: ${{ steps.lane-record.outputs.failure-class }}
+      record-resets: ${{ steps.lane-record.outputs.resets-at }}
       # Set after head code ran, for the scan job alone: each payload's byte
       # count and the sealed bundle, never a workflow_call output.
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
@@ -3258,6 +3265,8 @@ jobs:
           not-run-reason: ${{ steps.head.outputs.not-run-reason }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
+          lane-class: ${{ needs.run.outputs.record-class }}
+          lane-resets: ${{ needs.run.outputs.record-resets }}
           head-sha: ${{ steps.head.outputs.sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
