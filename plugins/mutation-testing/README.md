@@ -1,8 +1,8 @@
 # mutation-testing
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. It measures whether a test
-suite can actually *detect* faults, not merely *execute* code. Three skills, one concern: proving the
-tests are checking something.
+suite can actually *detect* faults, not merely *execute* code. The three skills share one concern,
+proving the tests check something.
 
 | Skill | What it does |
 |---|---|
