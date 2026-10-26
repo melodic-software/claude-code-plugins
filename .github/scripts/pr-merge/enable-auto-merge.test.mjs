@@ -2471,7 +2471,8 @@ test("past the verify budget, serve answers an unarmed pull request only from a 
   const seen = [];
   const answer = (verdict) => (options) => (seen.push(options), verdict);
   const pulls = () => [pull(1, { verdict: answer(CACHED_MISSING) }), pull(2, { verdict: answer({ head: HEAD, cached: false }) })];
-  const served = await run(pulls(), { VERIFY_CACHE: "serve" }, { now: late() });
+  const files = { VERIFY_ANSWERS_IN: "/tmp/in.json", VERIFY_ANSWERS_OUT: "/tmp/out.json" };
+  const served = await run(pulls(), { VERIFY_CACHE: "serve", ...files }, { now: late() });
   assert.deepEqual(seen, [{ cacheOnly: true }, { cacheOnly: true }]);
   assert.deepEqual(served.writes, []);
   assert.ok(served.lines.includes(`enable-auto-merge: #1 left: ${MISSING_REASON}`), served.lines.join("\n"));
@@ -2480,11 +2481,44 @@ test("past the verify budget, serve answers an unarmed pull request only from a 
   seen.length = 0;
   let calls = 0;
   const past = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + CACHE_ONLY_WINDOW_MS + 1);
-  assert.deepEqual((await run(pulls(), { VERIFY_CACHE: "serve" }, { now: past })).verified, []);
+  assert.deepEqual((await run(pulls(), { VERIFY_CACHE: "serve", ...files }, { now: past })).verified, []);
   seen.length = 0;
-  const shadow = await run(pulls(), {}, { now: late() });
+  const shadow = await run(pulls(), files, { now: late() });
   assert.deepEqual(seen, []);
   assert.deepEqual(shadow.verified, []);
+});
+
+// Without a file to keep answers in, the reader is never given
+// --answers-only, so a read past the budget would be a full one, which can
+// run past the step's timeout.
+test("past the verify budget, serve with no answers file reads nothing", async () => {
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  let calls = 0;
+  const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + 1);
+  const seen = [];
+  const answer = (verdict) => (options) => (seen.push(options), verdict);
+  const pulls = [pull(1, { verdict: answer(CACHED_MISSING) })];
+  for (const env of [{ VERIFY_CACHE: "serve" }, { VERIFY_CACHE: "serve", VERIFY_ANSWERS_IN: "/tmp/in.json" }]) {
+    calls = 0;
+    const { lines, writes } = await run(pulls, env, { now: late });
+    assert.deepEqual(seen, [], JSON.stringify(env));
+    assert.deepEqual(writes, []);
+    assert.ok(lines.includes("enable-auto-merge: #1 left: no time left in this run to read its verifier verdict"), lines.join("\n"));
+  }
+});
+
+test("a cache-only read without an answers file never spawns a full read", async () => {
+  const spawned = [];
+  const spawn = (_cmd, args) => (spawned.push(args), { status: 0, stdout: `${JSON.stringify(MISSING)}\n`, stderr: "" });
+  const verify = pythonVerify({ ...ENV, VERIFY_CACHE: "serve" }, { spawn, clock: () => 0 });
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.deepEqual(await verify(pull(1), undefined, { cacheOnly: true }), { head: HEAD, cached: false });
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(spawned, []);
 });
 
 test("costLine shows whether a kept answer served the read, and cacheLine the shadow comparison", () => {

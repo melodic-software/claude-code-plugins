@@ -1030,6 +1030,8 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.ok(upload, "an answers upload");
   assert.match(upload, /^ {8}if: >-\n {10}always\(\) && steps\.arm\.outcome != 'skipped'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  // Bounded, so the job's timeout stays above the sum of its steps'.
+  assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
   assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));

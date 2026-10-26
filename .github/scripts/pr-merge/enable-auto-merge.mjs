@@ -754,7 +754,7 @@ export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "sha
 // run and compares it with the one the last run kept (VERIFY_ANSWERS_IN): a
 // kept refusal is served (`serve`) only to a pull request not armed, which is
 // always read in full, and never on `fresh`; `cacheOnly` reads only a kept
-// one, returning no `refusal` on a miss.
+// one, returning no `refusal` on a miss or when there is no file to read.
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
   const verify = async ({ number, headRefOid: head, baseRefOid: base, autoMergeRequest }, rung, { fresh = false, cacheOnly = false } = {}) => {
@@ -776,6 +776,10 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
       if (cacheOnly && serve) {
         args.push("--answers-only");
       }
+    }
+    if (cacheOnly && !args.includes("--answers-only")) {
+      // Never a full read in its place: one past the budget can outrun the step.
+      return { head, cached: false };
     }
     const started = clock();
     const timeout = args.includes("--answers-only") ? CACHE_ONLY_TIMEOUT_MS : VERIFY_TIMEOUT_MS;
@@ -1178,12 +1182,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         }
         ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
-      // Past the budget, under serve, an unarmed pull request is answered
-      // only from a kept refusal, which reads no more than its key, for
-      // CACHE_ONLY_WINDOW_MS.
+      // Past the budget, under serve with an answers file, an unarmed pull
+      // request is answered only from a kept refusal, which reads no more
+      // than its key, for CACHE_ONLY_WINDOW_MS.
       const at = now();
       const late = at > deadline;
-      const cacheOnly = late && at <= deadline + CACHE_ONLY_WINDOW_MS && serve && pull.autoMergeRequest == null;
+      const cacheOnly = late && at <= deadline + CACHE_ONLY_WINDOW_MS && serve && Boolean(env.VERIFY_ANSWERS_OUT) && pull.autoMergeRequest == null;
       if (action === "verify" && !reads) {
         ({ action, reason } =
           pull.autoMergeRequest != null

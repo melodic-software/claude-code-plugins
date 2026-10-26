@@ -991,7 +991,7 @@
           "type": "string",
           "enum": ["shadow", "serve"],
           "default": "shadow",
-          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms. Any other value is shadow."
+          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms."
         },
         "risk-escalation-minutes": {
           "type": "integer",

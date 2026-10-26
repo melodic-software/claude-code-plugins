@@ -1541,8 +1541,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (workflow.test.mjs checks it).
-    timeout-minutes: 30
+    # Above the sum of its steps' timeouts (31, workflow.test.mjs checks it),
+    # with a minute left for the steps that name none.
+    timeout-minutes: 32
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -1774,6 +1775,7 @@ jobs:
           always() && steps.arm.outcome != 'skipped'
           && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
+        timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-verify-answers

@@ -1996,8 +1996,11 @@ def lane_queue(
 # An entry is written only from a fresh read whose answer is a refusal of a
 # kind that holds until an input moves (`answer_cacheable`), never an allow,
 # so a kept answer can delay an arm but never cause one; armed pull requests
-# are never served one. It is served only while every input the read takes
-# hashes the same (`_answer_key`) and it has not expired (`_answer_expiry`).
+# are never served one. It is served only while the inputs the key hashes
+# hash the same (`_answer_key`) and it has not expired (the `expiresAt`
+# `_kept_report` sets). An input the key does not hash (an edit to a review's
+# body or an inline comment, who resolved a thread) can only keep a refusal
+# standing until it expires: a delay, never an arm.
 # pr-merge.yml keeps the file as the pr-merge-verify-answers artifact of a
 # scheduled or hand-started run of main (.github/scripts/pr-merge/
 # verify-answers.mjs); a file of another version, repository or code is no
@@ -2136,7 +2139,7 @@ def load_answers(
         return {}
     try:
         data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
-    except (OSError, ValueError):
+    except Exception:  # noqa: BLE001 - nested past the recursion limit included
         return {}
     entries = data.get("entries")
     if (
@@ -2252,9 +2255,10 @@ def _self_written(comment: dict[str, Any], bot: str | None) -> bool:
 def _answer_key(
     args: argparse.Namespace, reader: Reader
 ) -> tuple[str, datetime, datetime | None]:
-    """The key of every input the read takes (the pull request, its issues,
+    """The key of the inputs the read takes (the pull request, its issues,
     the verdict artifacts, the head's PASS runs, the config, rung and trust
-    files), when the pull request turns too old (`TOO_OLD_DAYS`), and the
+    files; not review-body or inline-comment edits, nor who resolved a
+    thread), when the pull request turns too old (`TOO_OLD_DAYS`), and the
     earliest expiry of a PASS artifact at the head (None without one).
     Raises `_ProbeFailed`, or any error of a read behind it."""
     parts: dict[str, Any] = {
@@ -2406,13 +2410,25 @@ def _answer_key(
     return key, created + timedelta(days=TOO_OLD_DAYS), expiry
 
 
-def _answered(
-    args: argparse.Namespace, reader: Reader, now: datetime
-) -> dict[str, Any]:
-    """`evidence` with kept answers (`main`): served under `serve` when the
-    key matches a kept refusal, else read in full, kept when cacheable, and
-    compared with the kept one in the `cache` object."""
-    serve = args.answers_mode == SERVE
+@dataclass
+class _Lookup:
+    """What `_answered` knows before the full read: the kept answers, the
+    key, and whether it matches the kept refusal for this pull request."""
+
+    code: str
+    kept: dict[int, dict[str, Any]]
+    key: str | None
+    too_old: datetime | None
+    pass_expiry: datetime | None
+    entry: dict[str, Any] | None
+    stored: dict[str, Any] | None
+    hit: bool
+    cache: dict[str, str]
+
+
+def _lookup(args: argparse.Namespace, reader: Reader, now: datetime) -> _Lookup:
+    """The kept answer for this pull request and the key it must match. A
+    probe that cannot key is a miss; any other error raises."""
     code = _code_digest()
     kept = load_answers(args.answers_in, args.repo, code, now)
     key: str | None = None
@@ -2432,40 +2448,98 @@ def _answered(
         and json_object(stored).get("head") == args.head
     )
     cache = {
-        "mode": SERVE if serve else SHADOW,
+        "mode": SERVE if args.answers_mode == SERVE else SHADOW,
         "key": "hit" if hit else "miss",
         "stored": answer_kind(stored) if hit else "none",
     }
-    if serve and hit:
-        _write_answers(args.answers_out, kept, args.repo, code, now, args.number, entry)
-        return json_object(stored) | {
-            "cached": True,
-            "cache": cache | {"fresh": "none", "agree": "n/a"},
-        }
-    if args.answers_only:
-        # No full read: a miss is no answer at all.
-        _write_answers(args.answers_out, kept, args.repo, code, now, args.number, entry)
-        return {"head": args.head, "cached": False, "cache": cache}
-    report = _evidence_report(args, reader)
+    return _Lookup(code, kept, key, too_old, pass_expiry, entry, stored, hit, cache)
+
+
+def _kept_report(
+    args: argparse.Namespace, now: datetime, look: _Lookup, report: dict[str, Any]
+) -> dict[str, Any]:
+    """`report`, kept for the next run when cacheable, with the `cache`
+    object comparing it with the kept one."""
     fresh = None
-    if key is not None and answer_cacheable(report):
+    if look.key is not None and answer_cacheable(report):
         # A pull request already too old stays so; any other answer is read
         # again once it turns too old.
-        limits = [now + ANSWER_TTL, pass_expiry]
-        limits.append(None if report.get("refusal") == TOO_OLD else too_old)
+        limits = [now + ANSWER_TTL, look.pass_expiry]
+        limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
         fresh = {
-            "key": key,
+            "key": look.key,
             "readAt": now.isoformat(),
             "expiresAt": min(t for t in limits if t is not None).isoformat(),
             "report": report,
         }
-    _write_answers(args.answers_out, kept, args.repo, code, now, args.number, fresh)
+    _write_answers(
+        args.answers_out, look.kept, args.repo, look.code, now, args.number, fresh
+    )
     agree = "n/a"
-    if hit:
-        agree = "yes" if _decides(json_object(stored)) == _decides(report) else "no"
+    if look.hit:
+        same = _decides(json_object(look.stored)) == _decides(report)
+        agree = "yes" if same else "no"
     return report | {
-        "cache": cache | {"fresh": answer_kind(report), "agree": agree},
+        "cache": look.cache | {"fresh": answer_kind(report), "agree": agree},
     }
+
+
+def _answered(
+    args: argparse.Namespace, reader: Reader, now: datetime
+) -> dict[str, Any]:
+    """`evidence` with kept answers (`main`): served under `serve` when the
+    key matches a kept refusal, else read in full, kept when cacheable, and
+    compared with the kept one in the `cache` object.
+
+    The cache never costs the read: any error of its own (an answers file
+    json cannot load, a module that cannot be hashed, a write that fails)
+    leaves the plain report, as without answers files, and under
+    `--answers-only` no answer at all. The probe's rate guard is not such an
+    error: a rate limit behind the key exits the process (`os._exit(75)`) as
+    any other read's does, the price of one GraphQL point a read."""
+    serve = args.answers_mode == SERVE
+    look: _Lookup | None = None
+    if serve:
+        # The lookup first, so a hit reads nothing more.
+        try:
+            look = _lookup(args, reader, now)
+            if look.hit:
+                _write_answers(
+                    args.answers_out,
+                    look.kept,
+                    args.repo,
+                    look.code,
+                    now,
+                    args.number,
+                    look.entry,
+                )
+                return json_object(look.stored) | {
+                    "cached": True,
+                    "cache": look.cache | {"fresh": "none", "agree": "n/a"},
+                }
+            if args.answers_only:
+                # No full read: a miss is no answer at all.
+                _write_answers(
+                    args.answers_out,
+                    look.kept,
+                    args.repo,
+                    look.code,
+                    now,
+                    args.number,
+                    look.entry,
+                )
+                return {"head": args.head, "cached": False, "cache": look.cache}
+        except Exception as exc:  # noqa: BLE001 - the cache never costs the read
+            print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
+            if args.answers_only:
+                return {"head": args.head, "cached": False}
+            return _evidence_report(args, reader)
+    report = _evidence_report(args, reader)
+    try:
+        return _kept_report(args, now, look or _lookup(args, reader, now), report)
+    except Exception as exc:  # noqa: BLE001 - the cache never costs the read
+        print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
+        return report
 
 
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
@@ -2503,8 +2577,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     serve` prints a kept refusal whose key still matches with `cached: true`
     and reads nothing more; any other mode (`shadow`) reads in full all the
     same and adds a `cache` object comparing the kept answer with the fresh
-    one. `--answers-only` (serve) prints a kept refusal or no answer at all,
-    never reading in full.
+    one. `--answers-only` (serve only; shadow ignores it) prints a kept
+    refusal or no answer at all, never reading in full.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now

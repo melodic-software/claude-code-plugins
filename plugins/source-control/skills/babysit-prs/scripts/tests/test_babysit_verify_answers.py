@@ -500,32 +500,39 @@ class AnsweredTest(unittest.TestCase):
         } | file
         self.answers_in.write_text(json.dumps(data), encoding="utf-8")
 
-    def run_main(self, *flags: str) -> dict[str, Any]:
+    def run_main(
+        self, *flags: str, lanes: bool = True, answers: bool = True, real: bool = False
+    ) -> dict[str, Any]:
         out = io.StringIO()
         self.world.calls.clear()
         argv = [
             "evidence",
             "--repo",
             REPO,
-            "--lane-link",
-            "--lane-reviews",
-            "--lane-queue",
+            *(["--lane-link", "--lane-reviews", "--lane-queue"] if lanes else []),
             "--shared-listing",
             "--base-sha",
             BASE,
             "--rung",
             "C2",
-            "--answers-in",
-            str(self.answers_in),
-            "--answers-out",
-            str(self.answers_out),
+            *(
+                ["--answers-in", str(self.answers_in), "--answers-out"]
+                + [str(self.answers_out)]
+                if answers
+                else []
+            ),
             *flags,
             str(PR),
             HEAD,
         ]
+        full = (
+            contextlib.nullcontext()
+            if real
+            else mock.patch.object(ve, "_evidence_report", side_effect=self.full_read)
+        )
         with (
             github(self.world),
-            mock.patch.object(ve, "_evidence_report", side_effect=self.full_read),
+            full,
             mock.patch.object(
                 ve.Reader, "listing", lambda r: copy.deepcopy(self.world.listing)
             ),
@@ -689,10 +696,75 @@ class AnsweredTest(unittest.TestCase):
         self.assertEqual(self.reads, 0)
         self.assertEqual(miss, {"head": HEAD, "cached": False, "cache": miss["cache"]})
         self.assertNotIn("refusal", miss)
-        # Under shadow a cache-only call reads nothing either.
+        # `--answers-only` is a serve flag: under shadow the read is in full.
         self.keep(MISSING)
-        self.assertNotIn("refusal", self.run_main("--answers-only"))
+        shadow = self.run_main("--answers-only")
+        self.assertEqual(self.reads, 1)
+        self.assertEqual(shadow["refusal"], "verify:missing")
+        self.assertEqual(shadow["cache"]["mode"], "shadow")
+
+    def test_a_corrupt_answers_file_still_reads_in_full(self) -> None:
+        # Nested past the interpreter's recursion limit: json raises
+        # RecursionError, not ValueError.
+        self.answers_in.write_text("[" * 200_000, encoding="utf-8")
+        for mode in ("shadow", "serve"):
+            with self.subTest(mode):
+                self.reads = 0
+                answer = self.run_main("--answers-mode", mode)
+                self.assertEqual(self.reads, 1)
+                self.assertEqual(answer["refusal"], "verify:missing")
+                self.assertNotIn("cached", answer)
+                # Such a file is no file: the fresh refusal is still kept.
+                self.assertEqual(answer["cache"]["key"], "miss")
+                self.assertEqual(self.written()[str(PR)]["key"], self.current_key())
+
+    def test_a_cache_error_falls_back_to_the_plain_read(self) -> None:
+        self.keep(MISSING)
+        for mode in ("shadow", "serve"):
+            for seam in ("_code_digest", "load_answers", "_write_answers"):
+                with (
+                    self.subTest(mode=mode, seam=seam),
+                    mock.patch.object(ve, seam, side_effect=OSError("disk")),
+                ):
+                    self.reads = 0
+                    answer = self.run_main("--answers-mode", mode)
+                    self.assertEqual(self.reads, 1)
+                    self.assertEqual(answer, MISSING)
+
+    def test_a_cache_error_under_answers_only_is_no_answer_and_no_read(self) -> None:
+        self.keep(MISSING)
+        with mock.patch.object(ve, "_code_digest", side_effect=OSError("disk")):
+            answer = self.run_main("--answers-mode", "serve", "--answers-only")
         self.assertEqual(self.reads, 0)
+        self.assertEqual(answer, {"head": HEAD, "cached": False})
+
+    def test_shadow_prints_the_plain_read_and_its_cache_object(self) -> None:
+        # The real full read, kept inside World: no lane flags, and no
+        # verdict artifact at all, so the read refuses verify:missing.
+        self.world.listing = []
+        pull = {"created_at": "2026-10-10T00:00:00Z", "head": {"ref": "f", "sha": HEAD}}
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull),
+            mock.patch.object(ve.Reader, "_commits", return_value=set()),
+            mock.patch.object(ve.Reader, "_listing", return_value=[]),
+        ):
+            plain = self.run_main(lanes=False, answers=False, real=True)
+            self.answers_in.unlink(missing_ok=True)
+            shadow = self.run_main(lanes=False, real=True)
+        self.assertEqual(plain["refusal"], "verify:missing", plain)
+        self.assertEqual(plain["head"], HEAD)
+        cache = shadow.pop("cache")
+        self.assertEqual(shadow, plain)
+        self.assertEqual(
+            cache,
+            {
+                "mode": "shadow",
+                "key": "miss",
+                "stored": "none",
+                "fresh": "verify:missing",
+                "agree": "n/a",
+            },
+        )
 
     def test_the_out_file_carries_the_last_runs_other_entries(self) -> None:
         self.keep(MISSING)

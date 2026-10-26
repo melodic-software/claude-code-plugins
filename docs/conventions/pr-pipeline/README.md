@@ -1227,23 +1227,36 @@ nothing.
 
 Each verifier read of a scheduled or hand-started run keeps its answer for the next run when it is
 a refusal of a stable kind (a verdict refusal other than `verify:unreadable`, a link refusal, a risk
-hold or a queue-ejection refusal, nothing in it unreadable), keyed by a hash of every input the read
-takes: the pull request's body, title, base, timeline count, comments (the lane's own refusal, pin
-and queue-ejection comments by id alone), review threads and head check suites, each linked issue's
-labels, edits, comments, timeline and closing pull requests, the verdict artifacts that can count
-against it, its PASS runs at the head, the config, the rung and main's trusted-actor and admission
-files. An allow is never kept. An entry expires an hour after its read, when the pull request turns
-too old to verify, or when a PASS artifact at the head expires, whichever comes first. The file
-crosses runs only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on
-main (`verify-answers.mjs`, as the head-ref map is read), and one of another version, repository or
-reader code is no file. `merge.verify-cache` (default `shadow`) decides what a kept answer does:
+hold or a queue-ejection refusal, nothing in it unreadable), keyed by a hash of the read's inputs:
+the pull request's body, title, base, timeline count, comments (the lane's own refusal, pin and
+queue-ejection comments by id alone), review threads (resolved or not, and their comment counts)
+and head check suites, each linked issue's labels, edits, comments, timeline and closing pull
+requests, the verdict artifacts that can count against it, its PASS runs at the head, the config,
+the rung and main's trusted-actor and admission files. The key does not witness an edit to a
+review's body or to an inline comment, or who resolved a thread. Those are liveness-only: since an
+allow is never kept, such a change can keep a kept refusal standing until the entry expires, which
+delays an arm and never causes one. An entry expires an hour after its read, when the pull request
+turns too old to verify, or when a PASS artifact at the head expires, whichever comes first. The
+file crosses runs only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run
+on main (`verify-answers.mjs`, as the head-ref map is read), and one that cannot be loaded or is of
+another version, repository or reader code is no file; any other error of the cache's own leaves the
+plain full read. `merge.verify-cache` (default `shadow`; any other value fails the schema, so
+resolve-config stops the run) decides what a kept answer does:
 under `shadow` every pull request is still read in full and the run logs one
 `verify-cache shadow: #<n> key=hit|miss stored=<kind> fresh=<kind> agree=yes|no|n/a` line per read,
 where `agree` compares only on `key=hit`; under `serve` an unarmed pull request whose kept refusal's
 key still matches is left unarmed on it with no further read (`cached=1` on its cost line), and one
-past the read budget is answered only from a kept refusal. An armed pull request is always read in
-full, so the disarm path stays as fresh as before, and a kept answer that holds nothing is read again
-in full and never arms.
+past the read budget is answered only from a kept refusal, or not read at all when the run has no
+answers file. An armed pull request is always read in full, so the disarm path stays as fresh as
+before, and a kept answer that holds nothing is read again in full and never arms.
+
+`merge.verify-cache` moves to `serve` only on shadow evidence: at least a day of scheduled runs
+whose `verify-cache shadow` lines hold 50 or more `key=hit` lines in all, 5 or more for each
+`stored=<kind>` that appears among them, and none with `agree=no`. A day with too few hits, or a
+kind seen fewer than 5 times, keeps the lane in `shadow` until more runs add to the count, so a
+quiet day cannot pass the check on zero hits. Basis: judgment. A disagreement in 1 hit in 20 shows
+at least once in 50 hits about 92% of the time (1 - 0.95^50), and 5 per kind keeps one rare refusal
+kind from passing on a single agreeing hit.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
