@@ -98,7 +98,8 @@ drive finds a control skill by its hub.
   answers, per the contract's "Environments".
 - **Integrated apps**, per the contract's section: a hub line each, steps included by reference,
   never copied, `pins.<app>` set to the other checkout's HEAD commit only as the contract's Pin
-  rule allows (reported with its subject), and nothing written into another checkout. One with no control skill is reported
+  rule allows (reported with its subject), and nothing written into another checkout beyond what
+  that rule lets its fetch write. One with no control skill is reported
   with `/app-control:map create` to run in its repository.
 - **Driver CLI**, per the contract's "Writing the driver CLI", and required when a seeded feature
   has a send, sign-in or write step. The CLI enforces the safety floors and refuses a loosening
