@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.7] - 2026-10-25
+
+### Fixed
+
+- **inventory:** `--reader=parser` no longer reads changed lists as `literal` in these cases:
+  - A destructured parameter's key default (`function f({cb=d})`) now counts when the argument's value may be undefined (`undefined`, `void 0`, a `var` read before its initializer runs, an imported binding).
+  - A numeric key matches its literal key.
+  - A key the literal lacks is read from `Object.prototype`, which the sink rule then watches.
+  - A literal that sets its prototype with `__proto__:` reads partial.
+  - `Function.prototype` is exempt from the code-built-from-a-string sink only while its member chain, past any call, cannot reach `constructor` and ends discarded, tested, compared or written.
+  - An export is followed into every module whose parsed import or re-export declaration takes the name, so a comment beside `from` no longer hides an importer.
+
+## [4.5.6] - 2026-10-25
+
+### Fixed
+
+- The parser reader's sink rule no longer counts every use of the global `Function` as code built from a string. A `Function(...)` or `new Function(...)` whose result is discarded (an expression statement, or a sequence operand other than the last, as in `try{return new Function(""),!0}catch(e){return!1}`) builds code it never runs, so it is no sink. A direct call of one whose every argument is a constant string, such as lodash's `Function("return this")()`, has the code those strings spell parsed and scanned the same way, and is a sink only when that code is. Code holding an HTML-like comment (`<!--`, `-->`) is not folded. Every other use still counts, and a write of `Function` (`Function=g`, `globalThis.Function=g`, or a definer such as `Reflect.set` given `"Function"`) is now a sink of its own, since the folded calls trust it.
+
+## [4.5.5] - 2026-10-25
+
+### Fixed
+
+- **The inventory's built-in plugin lane no longer reports a wrong value where it cannot read one.** A method gate (`isAvailable(){...}`) now reads `gated: true` with `gate_flags` unresolved and named in `partial`, instead of `gated: false`. A plugin the loader requires at several call sites combines them: any unguarded site makes it `unconditional`, and sites guarded differently leave `load` partial instead of keeping the first site's guards. A command name registered twice with different records keeps both and leaves `commands` partial. A `hooks` object holding a spread, or a key the reader cannot see, lists the keys it read and names `classic_hooks` in `partial`.
+
 ## [4.5.4] - 2026-10-25
 
 ### Changed

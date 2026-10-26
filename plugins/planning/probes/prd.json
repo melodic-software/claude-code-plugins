@@ -10,13 +10,6 @@
     "planning:questionnaire",
     "work-items:decompose"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:brainstorm": "plugins/planning/skills/brainstorm",
-    "planning:questionnaire": "plugins/planning/skills/questionnaire",
-    "work-items:decompose": "plugins/work-items/skills/decompose"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -9,12 +9,6 @@
     "harness-ops:observability",
     "harness-ops:audit-skill-visibility"
   ],
-  "competitor_dirs": {
-    "context-budget:setup": "plugins/context-budget/skills/setup",
-    "context-guard:check": "plugins/context-guard/skills/check",
-    "harness-ops:observability": "plugins/harness-ops/skills/observability",
-    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility"
-  },
   "queries": [
     {
       "id": "pos-train-01",

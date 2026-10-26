@@ -18,11 +18,12 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  holds its whole current answer; a row a newer question in the register
                  superseded stays in the ledger, out of Out-of-scope and Captured assumptions,
                  and the decisions line its replacement leads ends `; replaces Q<N>`
+  merge_brief    a PLAN.md's text with only its `## Brief` section replaced by export_brief's
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
-round.py exposes them as export-ledger, export-brief, export-report, import-ledger and
-sync-ledger.
+round.py exposes them as export-ledger, export-brief (merge_brief behind its --into),
+export-report, import-ledger and sync-ledger.
 
 A row's round cell is read as the N of a leading `round <N>` (any case), else its first integer,
 else 1; import warns, naming the row, when the leading form is missing, and keeps each cell that
@@ -1060,7 +1061,8 @@ def export_brief(d, text=None):
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
     if latest is not None:
-        # The stamp the --brief gate reads. A Brief edited after a Confirm needs a new restate.
+        # The stamp the --brief gate reads. The gate reads only this line, so it cannot see a
+        # Brief edited after the Confirm; the skill's rule, not the gate, asks for a new restate.
         if restated and restated["rev"] == latest:
             stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
         elif restated:
@@ -1146,6 +1148,73 @@ def export_brief(d, text=None):
         out.append("- none")
     out += ["", "## Plan", ""]
     return "\n".join(out)
+
+
+BRIEF_HEADING = re.compile(r"^##\s+brief\s*$", re.IGNORECASE)
+HEADING = re.compile(r"^(#{1,6})\s")
+# A fence delimiter and the rest of its line, read as scripts/check-open-questions.sh reads one.
+FENCE_RUN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+
+
+def merge_brief(plan, brief, where):
+    """PLAN.md's text with its `## Brief` section replaced by export_brief's. The section runs from
+    the `## Brief` heading to the next `#` or `##` heading outside a fenced block, or to the end.
+    Text between that heading and the section's first subheading, such as a start-fresh
+    scope-change note, stays as written, as does every byte outside the section; the new lines take
+    the file's line ending. A fence closes as the register gate closes one: on a run of its own
+    character at least as long, with nothing after it. Refuses a file with no `## Brief` heading,
+    more than one, or a fence that never closes, which would hide the headings after it."""
+    section = brief[: brief.rindex("\n## Plan\n")].rstrip("\n").split("\n")
+    # Lines split on \n alone, as the gate's awk splits them.
+    lines = [x for x in re.split(r"(?<=\n)", plan) if x]
+    heads, fence = [], None
+    for i, line in enumerate(lines):
+        bare = line.rstrip("\r\n")
+        run = FENCE_RUN.match(bare)
+        if run and fence is None:
+            fence = (run.group(1)[0], len(run.group(1)))
+            continue
+        if fence is not None:
+            if (
+                run
+                and run.group(1)[0] == fence[0]
+                and len(run.group(1)) >= fence[1]
+                and not run.group(2).strip()
+            ):
+                fence = None
+            continue
+        m = HEADING.match(bare)
+        if m:
+            heads.append((i, len(m.group(1)), bare))
+    if fence is not None:
+        refuse("a fenced block that never closes (it hides every heading after it)", where)
+    starts = [i for i, _, text in heads if BRIEF_HEADING.match(text)]
+    if not starts:
+        refuse("no `## Brief` heading outside a fenced block", where)
+    if len(starts) > 1:
+        refuse(
+            f"{len(starts)} `## Brief` headings (lines {', '.join(str(i + 1) for i in starts)})",
+            where,
+        )
+    start = starts[0]
+    after = [(i, level) for i, level, _ in heads if i > start]
+    stop = next((i for i, level in after if level <= 2), len(lines))
+    first = min([i for i, _ in after] + [stop])
+    nl = "\r\n" if "\r\n" in plan else "\n"
+    keep = lines[start + 1 : first]
+    if any(x.strip() for x in keep):
+        # The export's blank line after `## Brief` gives way to the kept text, which ends on a
+        # blank line before the export's first subheading.
+        keep[-1] = keep[-1] if keep[-1].endswith("\n") else keep[-1] + nl
+        if keep[-1].strip():
+            keep.append(nl)
+        head = section[0] + nl + "".join(keep)
+        section = section[2:]
+    else:
+        head = ""
+    # A blank line before the heading that follows; none after the file's last line.
+    block = head + nl.join(section) + nl + (nl if stop < len(lines) else "")
+    return "".join(lines[:start]) + block + "".join(lines[stop:])
 
 
 def esc(s):

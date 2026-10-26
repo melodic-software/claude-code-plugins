@@ -7,10 +7,6 @@
     "education:illustrate",
     "education:quiz-me"
   ],
-  "competitor_dirs": {
-    "education:illustrate": "plugins/education/skills/illustrate",
-    "education:quiz-me": "plugins/education/skills/quiz-me"
-  },
   "queries": [
     {
       "id": "pos-train-01",

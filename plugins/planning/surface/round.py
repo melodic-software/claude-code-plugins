@@ -24,7 +24,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   validate        check questions.json and responses.json against the shipped schemas
   export-ledger   write the interview ledger (decision tree and open-question register);
                   --ledger F merges into F's register, --diff F prints what that would change
-  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows
+  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows;
+                  --into PLAN replaces PLAN's `## Brief` section in place instead of writing --out
   export-report   write one self-contained HTML report
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
@@ -2266,10 +2267,21 @@ def cmd_export(d, a):
     if a.what == "brief":
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
+        if a.into and Path(a.into).exists():
+            # newline="" both ways, so a CRLF file keeps its endings outside the Brief.
+            plan = read_input(a.into, "plan", newline="")
+            merged = exporters.merge_brief(plan, text, a.into)
+            # A temp file renamed over PLAN.md, so a failed write never leaves it cut short.
+            tmp = Path(f"{a.into}.tmp")
+            tmp.write_text(merged, encoding="utf-8", newline="")
+            os.replace(tmp, a.into)
+            print(f"replaced the ## Brief section of {a.into}")
+            return
     else:
         text = exporters.export_report(d)
-    write_text(a.out, text)
-    print(f"wrote {a.out}")
+    out = getattr(a, "into", None) or a.out
+    write_text(out, text)
+    print(f"wrote {out}")
 
 
 def report_notes(notes, kinds):
@@ -2930,7 +2942,15 @@ def main(argv=None):
     s.set_defaults(fn=cmd_validate)
 
     s = sub.add_parser("export-brief", help="write the brief export")
-    s.add_argument("--out", required=True, help="output file")
+    dest = s.add_mutually_exclusive_group(required=True)
+    dest.add_argument("--out", help="output file")
+    dest.add_argument(
+        "--into",
+        metavar="PLAN",
+        help="replace this PLAN.md's `## Brief` section in place, up to the next `#` or `##` "
+        "heading, and leave every other byte as it was, text above the section's first "
+        "subheading included; a missing file gets the whole export",
+    )
     s.add_argument(
         "--ledger",
         help="number the questions as this ledger's register does and carry the deferred and "

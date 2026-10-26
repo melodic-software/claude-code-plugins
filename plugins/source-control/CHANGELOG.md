@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.3] - 2026-10-25
+
+### Changed
+
+- The babysit-loop promotion-evidence helper's settings reader, `skills/babysit-loop/scripts/operator-options.mjs`, is now generated from the repository's shared `lib/plugin-options.mjs`. `resolve-promotion-evidence.mjs` passes its five option keys to the reader, so which settings it reads, and when it fails closed, are unchanged.
+
+## [3.3.2] - 2026-10-25
+
+### Fixed
+
+- `/source-control:babysit-prs`'s merge gate posts an escalation to a person (its risk, verifier, held-major and shared-copy escalations, written with the human-gated label) as a new comment instead of editing its earlier one. An edit sent no notification and kept the comment's old date, so the label stood with no visible reason. A reasons comment that is not escalated is still edited in place, and an unchanged escalation is not posted again; a body that differs only in line endings or trailing whitespace counts as unchanged. Changed reasons on a comment already escalated at the same head post the new escalation instead of rewriting it without its escalation line while the label stays on.
+- The merge gate's automatic re-run of a failed AI review check also fires when the lane's review post hit GitHub's API rate limit, on exactly the annotations the review evidence accepts a second attempt after, so the re-run's attempt binds. It was re-run only after `class=rate-limit`, which left such a check failed until a person re-ran it.
+
+## [3.3.1] - 2026-10-25
+
+### Fixed
+
+- `/source-control:babysit-prs`: `babysit_verify_evidence.py evidence --lane-queue` (with `--lane-reviews` and `--base-sha`) adds a `queue` field to a line whose risk read holds nothing: the head's failed-check merge-queue removals since it last changed, the `merge.max-queue-ejections` limit, and at or over it the gate's refusal and its `<!-- babysit-merge-queue-ejections -->` comment body. A read that fails refuses as the gate's unreadable hold and names why in `readError`; a failed read of the failing runs keeps the refusal, with no comment and its error in `commentError`. The gate's unattended enqueue and this field share one function for the refusal and the comment body, `babysit_merge.queue_ejection_hold`.
+
+## [3.3.0] - 2026-10-25
+
+### Added
+
+- `lib/convention-key.sh`, the team-layer reader for the convention keys: `layer ROOT KEY` prints `yaml`, `legacy-md` or `none`, and `value` and `list` print the YAML value.
+
+### Changed
+
+- The commit and PR convention keys (`subject_pattern`, `type_list`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`, `pr_body_required_sections`, `branch_issue_pattern`) now take their team value from `docs/conventions/source-control.yaml`, validated by `schemas/source-control.schema.json`. `.claude/source-control.md` is read only for a key the YAML lacks, for one release, and a YAML the shared reader rejects stops the lookup instead of falling back. `/source-control:setup apply layer=team` writes the YAML and moves the convention keys out of the legacy file.
+- `parse-branch-issue.sh` reads `branch_issue_pattern` from the team YAML before the legacy markdown, and `--explain` prints the layer that supplied the pattern on stderr. Like `/source-control:commit`, it reads either team file only when git tracks it and notes an untracked one it skipped. The deprecation note for the `branch_issue_pattern` userConfig now points at the YAML.
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt when the first failed because posting the review hit GitHub's API rate limit: an annotation that opens with that lane's `failure-class=publish-failed` line whose detail opens with `API rate limit exceeded` or `You have exceeded a secondary rate limit`. Such a re-run was refused as `rerun-not-allowed`, which left later incremental reviews unbound (`incremental-gap`). Any other publish failure still refuses the re-run.
+
 ## [3.2.2] - 2026-10-25
 
 ### Fixed

@@ -11,14 +11,6 @@
     "planning:wayfind",
     "planning:audit-answers"
   ],
-  "competitor_dirs": {
-    "planning:prd": "plugins/planning/skills/prd",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:brainstorm": "plugins/planning/skills/brainstorm",
-    "planning:questionnaire": "plugins/planning/skills/questionnaire",
-    "planning:wayfind": "plugins/planning/skills/wayfind",
-    "planning:audit-answers": "plugins/planning/skills/audit-answers"
-  },
   "queries": [
     {
       "id": "pos-train-01",

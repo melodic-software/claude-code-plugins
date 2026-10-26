@@ -10,13 +10,6 @@
     "verification:measure",
     "planning:draft-goal-condition"
   ],
-  "competitor_dirs": {
-    "performance:target": "plugins/performance/skills/target",
-    "performance:snapshot": "plugins/performance/skills/snapshot",
-    "performance:verify": "plugins/performance/skills/verify",
-    "verification:measure": "plugins/verification/skills/measure",
-    "planning:draft-goal-condition": "plugins/planning/skills/draft-goal-condition"
-  },
   "queries": [
     {
       "id": "pos-train-01",
