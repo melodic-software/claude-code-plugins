@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"accept-cookies\", \"outcome\": \"skipped: optional\"},\n  {\"action\": \"click button Export\", \"id\": \"press-export\", \"outcome\": \"done\"}\n]\n```",
+      "why": "the run went on past the skipped step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"accept-cookies\", \"outcome\": \"failed\"},\n  {\"id\": \"press-export\", \"outcome\": \"not run\"}\n]\n```",
+      "why": "stopped the run at the optional step"
+    }
+  ]
+}

@@ -10,8 +10,8 @@
       "keyed": true,
       "category": "review",
       "lanes": [
-        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -23,7 +23,9 @@
       "category": "issue",
       "lanes": [
         { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
-        { "id": "resolve-issue-subscription", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "resolve-issue-subscription", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "resolve-issue-handoff", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "resolve-issue-fallback", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -34,7 +36,7 @@
       "keyed": true,
       "category": "intake",
       "lanes": [
-        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY", "INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY", "INTAKE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "claude-code-action", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
@@ -48,17 +50,29 @@
       "lanes": [
         { "id": "fix-ci", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "fix-ci-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-ci-handoff", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-ci-fallback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "fix-ci-rung-up", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "fix-ci-rung-up-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-ci-rung-up-handoff", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-ci-rung-up-fallback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "fix-docs", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "fix-docs-subscription", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-docs-handoff", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-docs-fallback", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "address-feedback-handoff", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "address-feedback-fallback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "adjudicate-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-dependency-handoff", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-dependency-fallback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
-        { "id": "resolve-conflicts-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "resolve-conflicts-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "resolve-conflicts-handoff", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "resolve-conflicts-fallback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -70,7 +84,8 @@
       "category": "pr-pipeline",
       "lanes": [
         { "id": "check-intent", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_API_KEY"] },
-        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "check-intent-fallback", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -78,10 +93,12 @@
       "secretPrefix": "AUTOMATIONS",
       "tokenSecret": "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "AUTOMATIONS_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "maintenance",
       "lanes": [
-        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "judge-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {

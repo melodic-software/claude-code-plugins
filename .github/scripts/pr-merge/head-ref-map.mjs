@@ -10,13 +10,14 @@
 // pr-merge-head-refs artifact; its map is checked and written to
 // HEAD_REFS_PATH. Only a run's own steps can upload its artifacts, so that
 // map was written by main's pr-merge.yml. A run's head_branch is a tag's name
-// for a run on a tag, so a run counts only when its head commit is on main
-// (`onMain`); a run that is not is passed over. The map never goes through
-// actions/cache, which any job in main's cache scope can write.
+// for a run on a tag, so a run counts only when no tag is named main and its
+// head commit is on main (`onMain`); a run that is not is passed over. The
+// map never goes through actions/cache, which any job in main's cache scope
+// can write.
 //
 // `write`, after the gate: that map's entries and the head refs this run
 // downloaded (the run cache's fail-head-ref section, which only this run's
-// gate writes: carry-run-cache.mjs restores carried-* sections alone), each
+// gate writes: carry-run-cache.mjs carries in carried-* sections alone), each
 // kept only while the run's saved artifact listing lists its id unexpired,
 // written to HEAD_REFS_OUT for actions/upload-artifact. With no listing file
 // (no candidates, or a listing the run could not read) the map read before
@@ -45,7 +46,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, readDefaultBranchTip, requireBehindTip } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const MAP_ARTIFACT = "pr-merge-head-refs";
@@ -82,12 +83,26 @@ function writeAtomic(path, text) {
   renameSync(`${path}.tmp`, path);
 }
 
-// Whether commit `sha` is main's head or an ancestor of it. The branch is
-// named in full: a bare `main` would also match a tag named main.
+// main's tip, read once per process by the first onMain call, and only while
+// no tag is named main (a run on one reports head_branch main;
+// check-trusted-trigger.mjs readDefaultBranchTip). A failed or refused read
+// is remembered too, so every later run in the process is refused.
+let mainTip;
+export function forgetMainTip() {
+  mainTip = undefined;
+}
+
+// Whether commit `sha` ran main's own code: that tip read held, and `sha` is
+// main's tip or behind it (requireBehindTip). Any failed read is a no.
 export async function onMain({ repo, actions, sha }) {
   if (!SHA.test(sha ?? "")) return false;
-  const compare = await actions("GET", `/repos/${repo}/compare/${sha}...refs/heads/main?per_page=1`);
-  return compare?.status === "identical" || compare?.status === "ahead";
+  mainTip ??= readDefaultBranchTip(actions, repo, "main", "off-main");
+  try {
+    await requireBehindTip(actions, repo, sha, await mainTip, "off-main");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // The newest trusted run's map, by id, or undefined when no run has one.

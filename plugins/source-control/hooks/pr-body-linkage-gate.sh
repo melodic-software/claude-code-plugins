@@ -28,9 +28,11 @@
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
 # runs only when one of the repo's `.github/workflows/*.yml` / `*.yaml` files
-# `uses:` the `pr-contract` composite step, in either fleet form (the
-# SHA-pinned `melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`,
-# or ci-workflows' own local `./.github/actions/pr-contract`). The first
+# `uses:` the contract composite step, at its current path
+# `pr-require-checks/check-contract` or its old path `pr-contract`, in either
+# fleet form (the SHA-pinned
+# `melodic-software/ci-workflows/.github/actions/<path>@<sha>`, or
+# ci-workflows' own local `./.github/actions/<path>`). The first
 # matching file, in sorted glob order, becomes GATE_FILE. A repo that does not
 # run the step is never gated, so the hook cannot drift away from what its
 # consumer actually enforces. This is deliberately NOT the
@@ -174,14 +176,16 @@ REPO_ROOT=""
 hook::repo_root_to REPO_ROOT "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || :
 
 # The consuming repo's own workflows are the authority: the gate runs only
-# where one of them wires in the `pr-contract` composite step. No step, no
+# where one of them wires in the contract composite step. No step, no
 # enforcement.
 GATE_FILE=""
 # Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
-# (`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`) and
-# ci-workflows' own local dogfood (`./.github/actions/pr-contract`). The
-# trailing class keeps a longer sibling directory (`pr-contract-foo`) out.
-gate_re='\.github/actions/pr-contract([@[:space:]]|$)'
+# (`melodic-software/ci-workflows/.github/actions/<path>@<sha>`) and
+# ci-workflows' own local dogfood (`./.github/actions/<path>`), at the
+# composite's current path `pr-require-checks/check-contract` or its old path
+# `pr-contract`, which older pins still use. The trailing class keeps a longer
+# sibling directory (`pr-contract-foo`) out.
+gate_re='\.github/actions/(pr-contract|pr-require-checks/check-contract)([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
   # An unmatched glob is left as its literal pattern; skipping non-files is the
   # local fix, because `shopt -s nullglob` would leak a shell option out of a

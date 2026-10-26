@@ -127,6 +127,37 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
   expectDispatched(w);
 });
 
+const PARKED = { id: 9, user: LANES_APP, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane: no trusted-human acceptance criteria." };
+
+test("a listed human's decision on an issue admission parked at status: confirmed sends it back to triage", async () => {
+  const w = world({
+    labels: ["status: confirmed", "priority: medium"],
+    comments: [PARKED, { id: 1, user: OWNER, body: DECISION }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("a decision on a verified status: confirmed issue admission never parked changes nothing", async () => {
+  for (const labels of [["status: confirmed"], ["status: confirmed", "agent-ready"]]) {
+    const w = world({ labels, comments: [...(labels.includes("agent-ready") ? [PARKED] : []), { id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await run(w, 1), 0);
+    assert.deepEqual([...w.labels()].sort(), [...labels].sort(), labels.join());
+    assert.equal(w.dispatches().length, 0, labels.join());
+  }
+});
+
+test("a plain comment on a status: confirmed issue changes nothing", async () => {
+  const w = world({
+    labels: ["status: confirmed"],
+    comments: [{ id: 1, user: OWNER, body: "Looking at this." }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["status: confirmed"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
 test("the outside author's reply on a needs-info issue moves it to needs-triage without a model run", async () => {
   const w = world({
     labels: ["status: needs-info", "needs-human"],

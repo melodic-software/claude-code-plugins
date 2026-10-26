@@ -1,0 +1,8 @@
+params:
+  field: Start
+  month: current
+steps:
+  - id: open-picker
+    action: click field "{field}"
+  - id: choose-month
+    action: select month "{month}"

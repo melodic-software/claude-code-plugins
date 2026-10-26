@@ -4127,6 +4127,9 @@ OWNER_ID = 153232337
 ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
 IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
 FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
+NOW_ISH = "2026-10-11T14:00:00Z"  # an hour after FRESH
+REMOVED = "2026-10-11T13:30:00Z"  # the queue removed the entry FRESH queued
+SEEN = "2026-10-11T12:50:00Z"  # the head first reached GitHub
 HEAD = "c" * 40
 
 
@@ -4157,6 +4160,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     FILES = LaneEligibility.FILES
     COMMENTS = LaneEligibility.COMMENTS
     COMMIT = f"repos/{REPO}/commits/{HEAD}"
+    SUITES = f"repos/{REPO}/commits/{HEAD}/check-suites?app_id=15368&per_page=100"
     issue_node = LaneEligibility.issue_node
     fake_lane = LaneEligibility.fake
 
@@ -4569,6 +4573,339 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         result = self.eligibility(pr, queued_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    # --- After a person's enqueue left the queue on failed checks ----------
+    # Owner decision Q-REQ (a): that person's enqueue of this head stands in
+    # for the idle wait; every other rule still applies.
+
+    def ejected(self, **changes: Any) -> dict[str, Any]:
+        enqueue = {
+            "__typename": "AddedToMergeQueueEvent",
+            "createdAt": FRESH,
+            "actor": {"__typename": "User", "databaseId": OWNER_ID},
+            "enqueuer": {"databaseId": OWNER_ID},
+        }
+        enqueue.update(changes.pop("enqueue", {}))
+        return {"enqueue": enqueue, "removedAt": REMOVED, "requeued": False, **changes}
+
+    def requeued(self, ejected: Any, **kwargs: Any) -> bool:
+        args: dict[str, Any] = {
+            "human_ids": (OWNER_ID,),
+            "head_last_seen": lambda: SEEN,
+            "queued_at_head": lambda: False,
+            "quiet_since": lambda when: True,
+        }
+        args.update(kwargs)
+        return policy.requeued_by_person(ejected, **args)
+
+    def test_a_persons_ejected_enqueue_at_this_head_requeues(self) -> None:
+        self.assertTrue(self.requeued(self.ejected()))
+        # The lane's own retry, queued at this head, keeps it adopted.
+        retry = self.ejected(requeued=True)
+        self.assertTrue(self.requeued(retry, queued_at_head=lambda: True))
+        self.assertFalse(self.requeued(retry))
+
+    def test_only_a_trusted_persons_enqueue_requeues(self) -> None:
+        app = {"__typename": "Bot", "databaseId": 337595936}
+        for label, enqueue, humans in (
+            ("an App actor", {"actor": app}, (OWNER_ID,)),
+            # GitHub types the lanes App's enqueuer a User: only the id counts.
+            (
+                "an App enqueuer typed User",
+                {"enqueuer": {"login": "agent-lanes[bot]", "databaseId": 337595936}},
+                (OWNER_ID,),
+            ),
+            ("a null enqueuer", {"enqueuer": None}, (OWNER_ID,)),
+            ("a null actor", {"actor": None}, (OWNER_ID,)),
+            (
+                "a person not on the list",
+                {
+                    "actor": {"__typename": "User", "databaseId": 77},
+                    "enqueuer": {"databaseId": 77},
+                },
+                (OWNER_ID,),
+            ),
+            ("a login and no id", {"enqueuer": {"login": OWNER_LOGIN}}, (OWNER_ID,)),
+            ("no people on the list", {}, ()),
+        ):
+            with self.subTest(label):
+                ejected = self.ejected(enqueue=enqueue)
+                self.assertFalse(self.requeued(ejected, human_ids=humans))
+
+    def test_a_head_pushed_after_the_enqueue_does_not_requeue(self) -> None:
+        # The server's newest check suite on the head, never a commit date: a
+        # backdated commit fast-forwarded after the removal, or a head staged
+        # before, reset away and pushed back, has a suite after the enqueue.
+        self.assertFalse(self.requeued(self.ejected(), head_last_seen=lambda: NOW_ISH))
+        self.assertTrue(self.requeued(self.ejected(), head_last_seen=lambda: FRESH))
+
+        def unreadable() -> str:
+            raise policy.PolicyReadError("502")
+
+        self.assertFalse(self.requeued(self.ejected(), head_last_seen=unreadable))
+        self.assertFalse(self.requeued(self.ejected(enqueue={"createdAt": None})))
+
+    def test_a_word_after_the_removal_stops_the_requeue(self) -> None:
+        seen: list[Any] = []
+
+        def quiet(when: Any) -> bool:
+            seen.append(when)
+            return False
+
+        self.assertFalse(self.requeued(self.ejected(), quiet_since=quiet))
+        # From the enqueue: a request to wait made then, before the run
+        # failed, still holds.
+        self.assertEqual(seen, [policy._time(FRESH)])
+
+        def unreadable(when: Any) -> bool:
+            raise policy.PolicyReadError("502")
+
+        self.assertFalse(self.requeued(self.ejected(), quiet_since=unreadable))
+        for removed in (None, "", "2026-10-11T13:30:00"):
+            with self.subTest(removed=removed):
+                self.assertFalse(self.requeued(self.ejected(removedAt=removed)))
+
+    def discussion_fake(self, **surfaces: list[dict[str, Any]]) -> GhFake:
+        gh = GhFake().install(self)
+        for kind in ("issues/7/comments", "pulls/7/reviews", "pulls/7/comments"):
+            key = kind.replace("/", "_")
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = surfaces.get(key, [])
+        return gh
+
+    def test_only_a_persons_word_after_the_removal_breaks_the_quiet(self) -> None:
+        removed = policy._time(REMOVED)
+        person = {"login": OWNER_LOGIN, "type": "User"}
+        lanes = {"login": IDENTITY, "type": "Bot"}
+        review_bot = {"login": "claude[bot]", "type": "Bot"}
+        before, after = "2026-10-11T13:00:00Z", "2026-10-11T14:00:00Z"
+        for label, surfaces, quiet in (
+            ("nothing said", {}, True),
+            (
+                "a person before the removal",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": before, "updated_at": before}
+                    ]
+                },
+                True,
+            ),
+            (
+                "a person asking to wait after it",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": after, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "an earlier comment edited after it",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": before, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "a person's review after it",
+                {"pulls_7_reviews": [{"user": person, "submitted_at": after}]},
+                False,
+            ),
+            (
+                "a person's inline comment after it",
+                {
+                    "pulls_7_comments": [
+                        {"user": person, "created_at": after, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "the lane identity after it",
+                {
+                    "issues_7_comments": [
+                        {"user": lanes, "created_at": after, "updated_at": after}
+                    ]
+                },
+                True,
+            ),
+            (
+                "a review bot after it",
+                {"pulls_7_reviews": [{"user": review_bot, "submitted_at": after}]},
+                True,
+            ),
+            (
+                "a person's item with no time",
+                {"issues_7_comments": [{"user": person}]},
+                False,
+            ),
+        ):
+            with self.subTest(label):
+                self.discussion_fake(**surfaces)
+                self.assertIs(
+                    policy._quiet_since("owner", "repo", 7, IDENTITY, removed), quiet
+                )
+
+    def test_an_unreadable_discussion_is_not_quiet(self) -> None:
+        gh = self.discussion_fake()
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = 502
+        with self.assertRaises(policy.PolicyReadError):
+            policy._quiet_since("owner", "repo", 7, IDENTITY, policy._time(REMOVED))
+
+    def suites(self, *suites: dict[str, Any], total: int | None = None) -> GhFake:
+        gh = GhFake().install(self)
+        gh.rest[self.SUITES] = {
+            "total_count": len(suites) if total is None else total,
+            "check_suites": list(suites),
+        }
+        return gh
+
+    def test_the_head_is_last_seen_at_its_newest_check_suite_here(self) -> None:
+        pr = owner_pr(head={"sha": HEAD, "ref": "feat/x"})
+        mine = {"head_branch": "feat/x", "created_at": "2026-10-11T12:40:00Z"}
+        later = {"head_branch": "feat/x", "created_at": "2026-10-11T12:55:00Z"}
+        elsewhere = {"head_branch": "other", "created_at": "2026-10-11T09:00:00Z"}
+        self.suites(mine, later, elsewhere)
+        self.assertEqual(
+            policy._head_last_seen("owner", "repo", pr), "2026-10-11T12:55:00Z"
+        )
+        for label, gh_setup in (
+            ("no suite on its branch", lambda: self.suites(elsewhere)),
+            ("more suites than one page", lambda: self.suites(mine, total=101)),
+            (
+                "an unreadable listing",
+                lambda: self.suites().rest.update({self.SUITES: 502}),
+            ),
+        ):
+            with self.subTest(label):
+                gh_setup()
+                with self.assertRaises(policy.PolicyReadError):
+                    policy._head_last_seen("owner", "repo", pr)
+
+    def test_no_ejected_enqueue_does_not_requeue(self) -> None:
+        for ejected in (None, {}, [], {"enqueue": None, "requeued": False}):
+            with self.subTest(ejected=ejected):
+                self.assertFalse(self.requeued(ejected))
+        self.assertFalse(self.requeued(self.ejected(requeued=None)))
+
+    def test_an_unreadable_queue_reads_no_ejected_enqueue(self) -> None:
+        import babysit_merge  # noqa: PLC0415
+
+        for queue, expected in (
+            ({"readError": "502", "ejectedEnqueue": self.ejected()}, None),
+            ({"readError": None, "ejectedEnqueue": self.ejected()}, self.ejected()),
+        ):
+            with self.subTest(queue=queue["readError"]):
+                with mock.patch.object(
+                    babysit_merge, "read_merge_queue", return_value=queue
+                ) as read:
+                    self.assertEqual(policy.ejected_enqueue(REPO, 7), expected)
+                read.assert_called_once_with(REPO, 7)
+
+    def requeue_fake(self, comments: list[dict[str, Any]] | None = None) -> GhFake:
+        gh = self.owner_fake(committed=FRESH)
+        gh.rest[self.SUITES] = {
+            "total_count": 1,
+            "check_suites": [{"head_branch": "feat/x", "created_at": SEEN}],
+        }
+        gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
+        gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
+        return gh
+
+    def test_a_fresh_owner_pr_a_person_enqueued_is_adopted(self) -> None:
+        self.requeue_fake()
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, policy.REQUEUE_ADOPTION)
+        self.assertTrue(result.body_is_intent)
+        for label, kwargs, reason in (
+            ("not ejected", {"ejected_enqueue": lambda: None}, "updated-fresh"),
+            ("no people", {"adoption_human_ids": ()}, "updated-fresh"),
+        ):
+            with self.subTest(label):
+                args = {
+                    "adoption_human_ids": (OWNER_ID,),
+                    "ejected_enqueue": self.ejected,
+                    **kwargs,
+                }
+                result = self.eligibility(pr, **args)
+                self.assertEqual(result.reason, f"not-adopted:{reason}")
+                self.assertIsNone(result.adoption)
+
+    def test_a_wait_comment_after_the_removal_keeps_the_idle_rule(self) -> None:
+        # AGENTS.md: a person's comment asking to wait stops the merge.
+        wait = {
+            "user": {"login": OWNER_LOGIN, "type": "User"},
+            "body": "hold on, looking at the flake",
+            "created_at": "2026-10-11T14:00:00Z",
+            "updated_at": "2026-10-11T14:00:00Z",
+        }
+        self.requeue_fake(comments=[wait])
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+        self.assertIsNone(result.adoption)
+
+    def test_a_wait_comment_before_the_run_failed_keeps_the_idle_rule(self) -> None:
+        # "Wait for me if this fails", posted after the enqueue and before the
+        # removal, still holds.
+        wait = {
+            "user": {"login": OWNER_LOGIN, "type": "User"},
+            "body": "wait for me if this fails",
+            "created_at": "2026-10-11T13:15:00Z",
+            "updated_at": "2026-10-11T13:15:00Z",
+        }
+        self.requeue_fake(comments=[wait])
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_a_check_suite_after_the_enqueue_keeps_the_idle_rule(self) -> None:
+        # The head staged before the enqueue, reset away, and pushed back
+        # after the removal: its newest suite is after the enqueue.
+        gh = self.requeue_fake()
+        gh.rest[self.SUITES] = {
+            "total_count": 2,
+            "check_suites": [
+                {"head_branch": "feat/x", "created_at": SEEN},
+                {"head_branch": "feat/x", "created_at": NOW_ISH},
+            ],
+        }
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_a_hold_or_an_idle_pr_never_reads_the_queue(self) -> None:
+        def unread() -> Any:
+            raise AssertionError("merge queue read")
+
+        self.owner_fake()
+        result = self.eligibility(
+            owner_pr(), adoption_human_ids=(OWNER_ID,), ejected_enqueue=unread
+        )
+        self.assertEqual(result.adoption, "idle-owner:24h")
+        for pr, reason in (
+            (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
+            (owner_pr(body="Hold: the owner merges"), "hold-body"),
+            (owner_pr(draft=True), "draft"),
+        ):
+            with self.subTest(reason):
+                pr["updated_at"] = FRESH
+                result = self.eligibility(
+                    pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=unread
+                )
+                self.assertEqual(result.reason, f"not-adopted:{reason}")
+
     def test_another_author_stays_not_lane_authored(self) -> None:
         self.owner_fake()
         pr = owner_pr(user={"login": OWNER_LOGIN, "id": 1, "type": "User"})
@@ -4756,8 +5093,9 @@ class ForeignPaths(unittest.TestCase):
                 )
 
     def test_some_paths_are_never_the_authors_own(self) -> None:
-        # The HIGH path floor always scores, even in a standards-sync PR whose
-        # every commit is its own; everything else is the author's own.
+        # The HIGH path floor (owner decision Q-FLOOR (B)) always scores, even
+        # in a standards-sync PR whose every commit is its own; everything
+        # else, the trusted-actor list included, is the author's own.
         changed = frozenset(
             {
                 ".github/workflows/pr-merge.yml",
@@ -4781,20 +5119,13 @@ class ForeignPaths(unittest.TestCase):
                 ".github/scripts/pr-verify/resolve-pr.mjs",
             }
         )
-        own = {
+        own = changed - {
             ".github/workflows/pr-merge.yml",
-            ".github/workflows/release-publish-plugins.yml",
-            ".claude/settings.json",
-            "config/settings.local.json",
-            "package.json",
-            "plugins/x/package-lock.json",
-            ".github/requirements-ci.txt",
-            "docs/x.md",
-            "plugins/x/skills/y/SKILL.md",
-            "AGENTS.md",
-            "plugins/x/hooks/h.sh",
-            "plugins/x/.claude-plugin/plugin.json",
-            ".github/scripts/pr-verify/resolve-pr.mjs",
+            ".github/actions/check-trusted-trigger/action.yml",
+            ".github/actions/resolve-config/resolve.mjs",
+            "CODEOWNERS",
+            "docs/CODEOWNERS",
+            ".gitmodules",
         }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},
@@ -4980,6 +5311,11 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
         # The people (kind human) and the configured Apps: whose body is intent.
         self.assertEqual(kwargs["spec_from_body_ids"], (5,))
+        # Q-REQ (a): the people may stand in for the idle wait, by the queue read.
+        self.assertEqual(kwargs["adoption_human_ids"], (5,))
+        with mock.patch.object(policy, "ejected_enqueue", return_value=None) as read:
+            self.assertIsNone(kwargs["ejected_enqueue"]())
+        read.assert_called_once_with(REPO, 1)
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
@@ -5860,6 +6196,23 @@ class SharedPostMergeAnswer(unittest.TestCase):
                 )
                 reads.assert_called_once()
                 self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+
+    def test_demotion_changed_is_reported_only_when_nothing_else_refuses(
+        self,
+    ) -> None:
+        # lane_room keeps an answer refused only as `demotion-changed` once a
+        # demotion read agrees, so a lane merge it does not count must not
+        # hide behind that reason.
+        gh = self.moved(merge_pages([[merged(7, bot("agent-lanes"), None)]]))
+        gh.rest[self.issues_since()] = [
+            {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
+        ]
+        self.flight()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(),
+            shared=self.shared(gate(), demotion=policy.Demotion(False, None, (12,))),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:new-merge:#7")
 
     def test_an_unrelated_issue_or_a_pull_request_leaves_the_answer_bound(
         self,

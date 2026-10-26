@@ -3,6 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-10-26
+
+### Added
+
+- **`/education:teach` remembers a closed mission.** Choosing close at the all-checks-met `resume` step writes a `Status: closed` line under the `MISSION.md` title. `list-workspaces.sh` marks that workspace `(closed)`, `status` shows it as closed, `explain` and `exercise` no longer treat it as active, and `resume` on it says the mission is closed and offers to reopen or revise it (deleting the line) or leave it closed, instead of offering close-or-revise again. New eval cases `resume-close-persists-status`, `status-closed-mission` and `resume-closed-mission` cover each behavior. ([#6408](https://github.com/melodic-software/claude-code-plugins/issues/6408))
+
+## [0.19.1] - 2026-10-26
+
+### Fixed
+
+- **`/education:illustrate` draws parts that hang off one center as a hub, even when each part has details.** The skill picks a diagram's kind by how its parts relate, not by how much each part says: a person's other bands are a `hub` with their details in `text`, and `compare` is only for options weighed against each other on the same points. ([#6169](https://github.com/melodic-software/claude-code-plugins/issues/6169))
+
 ## [0.19.0] - 2026-10-22
 
 ### Added

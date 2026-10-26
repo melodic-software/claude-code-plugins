@@ -1577,22 +1577,29 @@ function errorText(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function fetchCommitTree(repository, revision, fetchImpl, githubToken) {
-  const label = `${repository}@${revision}`;
+async function fetchGitHubJson(apiPath, fetchImpl, githubToken) {
   const headers = { accept: "application/vnd.github+json" };
   if (githubToken) {
     headers.authorization = `Bearer ${githubToken}`;
   }
+  const response = await fetchImpl(`${GITHUB_API_BASE}${apiPath}`, { headers });
+  if (!response.ok) {
+    throw Object.assign(new Error(`${response.status} ${response.statusText}`), {
+      status: response.status,
+    });
+  }
+  return response.json();
+}
+
+async function fetchCommitTree(repository, revision, fetchImpl, githubToken) {
+  const label = `${repository}@${revision}`;
   let body;
   try {
-    const response = await fetchImpl(
-      `${GITHUB_API_BASE}/repos/${repository}/git/trees/${revision}?recursive=1`,
-      { headers },
+    body = await fetchGitHubJson(
+      `/repos/${repository}/git/trees/${revision}?recursive=1`,
+      fetchImpl,
+      githubToken,
     );
-    if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
-    }
-    body = await response.json();
   } catch (error) {
     throw new ConfigurationError(`could not fetch the git tree of ${label}: ${errorText(error)}`);
   }
@@ -1927,13 +1934,51 @@ async function fetchReusableWorkflowSource(workflowPath, revision, fetchImpl) {
   return response.text();
 }
 
+// GitHub resolves a commit SHA from anywhere in a repository's fork network,
+// so a matching surface alone would carry a reviewed contract onto a
+// fork-only or unreleased commit. A candidate is eligible only when a tag of
+// its source repository, peeled through annotated tag objects, points at it
+// and that tag's release is published, immutable, and not a prerelease.
+async function isImmutableReleaseCommit(repository, revision, fetchImpl, githubToken) {
+  const fetchJson = (apiPath) => fetchGitHubJson(apiPath, fetchImpl, githubToken);
+  const refs = await fetchJson(`/repos/${repository}/git/matching-refs/tags/`);
+  if (!Array.isArray(refs)) {
+    throw new Error("the tag list is malformed");
+  }
+  for (const ref of refs) {
+    let object = ref?.object;
+    while (object?.type === "tag") {
+      object = (await fetchJson(`/repos/${repository}/git/tags/${object.sha}`))?.object;
+    }
+    if (object?.type !== "commit" || object.sha.toLowerCase() !== revision.toLowerCase()) {
+      continue;
+    }
+    let release;
+    try {
+      release = await fetchJson(
+        `/repos/${repository}/releases/tags/${encodeURIComponent(ref.ref.replace(/^refs\/tags\//, ""))}`,
+      );
+    } catch (error) {
+      if (error.status === 404) {
+        continue;
+      }
+      throw error;
+    }
+    if (release?.draft === false && release.prerelease === false && release.immutable === true) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Deterministic, non-LLM auto-approval: a new path@SHA reusable-workflow
 // reference that has no reviewed contract yet is eligible only when (a) the
 // exact same workflow path already has at least one reviewed contract at a
 // different SHA (i.e. the source is already trusted), and (b) fetching both
 // the previously approved SHA and the new SHA from the source repository and
 // structurally diffing workflow_call presence and validity, permissions,
-// workflow_call inputs/secrets, and job routing shows no change. If multiple
+// workflow_call inputs/secrets, and job routing shows no change, and (c) the
+// new SHA is a release commit (isImmutableReleaseCommit). If multiple
 // reviewed revisions match that fetched surface, their effective reviewed
 // contracts must also agree; contract ambiguity fails closed rather than
 // letting policy insertion order select the inherited authority. Every
@@ -2042,7 +2087,8 @@ async function resolveAutoApprovedContracts({
 
     const matchingBases = [];
     const basisFailures = [];
-    const declineReasons = [];
+    const surfaceDeclineReasons = [];
+    const objectDeclineReasons = [];
     for (const basis of [...bases].sort((left, right) =>
       left.revision.localeCompare(right.revision),
     )) {
@@ -2088,14 +2134,14 @@ async function resolveAutoApprovedContracts({
       }
       const diffField = securitySurfaceDiffField(basisSurface, candidateSurface);
       if (diffField) {
-        declineReasons.push(
+        surfaceDeclineReasons.push(
           `${diffField} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
         );
         continue;
       }
       const objectDiffPath = commitRelativeObjectDiffPath(basisObjects, candidateObjects);
       if (objectDiffPath) {
-        declineReasons.push(
+        objectDeclineReasons.push(
           `commit-relative reference ${objectDiffPath} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
         );
         continue;
@@ -2111,7 +2157,9 @@ async function resolveAutoApprovedContracts({
     if (matchingBases.length === 0) {
       diagnostics.set(
         reference,
-        declineReasons[0] ??
+        // A basis whose surface matched and failed only on an object diff is the closest.
+        objectDeclineReasons[0] ??
+          surfaceDeclineReasons[0] ??
           `no previously approved revision of ${parsed.workflow} could be diffed`,
       );
       continue;
@@ -2173,6 +2221,21 @@ async function resolveAutoApprovedContracts({
         reference,
         `${parsed.workflow} receives reviewed caller secrets on a caller-chosen runner; its steps cannot be proven unchanged by this surface diff, so auto-approval is declined`,
       );
+      continue;
+    }
+
+    let releaseDecline;
+    try {
+      if (
+        !(await isImmutableReleaseCommit(sourceRepository, parsed.revision, fetchImpl, githubToken))
+      ) {
+        releaseDecline = `is not the commit of an immutable, published, non-prerelease release tag of ${sourceRepository}`;
+      }
+    } catch (error) {
+      releaseDecline = `could not be checked against the release tags of ${sourceRepository}: ${errorText(error)}`;
+    }
+    if (releaseDecline) {
+      diagnostics.set(reference, `${reference} ${releaseDecline}, so auto-approval is declined`);
       continue;
     }
 

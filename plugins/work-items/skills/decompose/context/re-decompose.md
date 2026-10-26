@@ -50,7 +50,10 @@ edited spec, never hand-patched into meaning something the spec no longer says.
    draft the replacement items, present for approval (the gate is mandatory here exactly as for
    a fresh decomposition), then publish via the seam. `create-item` with
    `--parent "<container-id>"` (when the container exists) and `--blocked-by` wiring the new
-   native blocker edges. Replacement items are born triaged like any others.
+   native blocker edges. Replacement items are born triaged like any others. The criterion trace
+   counts a criterion an implemented child already carries as carried when the child's
+   `## Done when` holds that criterion's text unchanged; an id alone never matches, since step 3
+   may have edited the criterion behind it.
 5. **Continue.** The journey resumes on the updated frontier. With a container,
    `/work-items:ship` re-states position and routes the next item; a Brief-only journey
    continues straight to the next unblocked item (`/work-items:work`, or the Step 5 report's

@@ -15,6 +15,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
   archive         archive off-path questions with a reason (the server derives their state)
+  reconfirm       clear upstream-changed questions that stand as asked after an upstream answer
+                  changed (a revise clears the mark too)
   apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
                   watcher holds the lease
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
@@ -50,7 +52,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
   status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
-                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+                   commitments[]}], open[], archived[], superseded[], proposed[], waiting[{id, short, hold,
+                   waitsOn}]}],
+                   upstreamChanged[{id, changedBy[]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -112,9 +116,11 @@ from server import (  # noqa: E402
     SCHEMA_VERSION,
     Settings,
     check_alt,
+    derive_states,
     is_handled,
     load_json,
     open_prereqs,
+    proposal_answer,
     rebuild_responses,
     release_user_holds,
     repo_root,
@@ -154,7 +160,9 @@ LOGGED_OPS = {
     "revise",
     "add",
     "add-round",
+    "propose",
     "archive",
+    "reconfirm",
     "replace-visual",
     "archive-visual",
     "record-terminal",
@@ -833,6 +841,57 @@ def op_add(d, doc, a):
     return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
+def op_propose(d, doc, a):
+    """Add a question the user approves before it is asked: `id`, `title`, `short`, optional
+    `group` and `fromSeq` (the Ask it answers). It carries no recommendation, alternatives or
+    commitments, and `proposed` makes the server derive it `proposed`, so the page offers only
+    Accept, Edit and Not this, and the exports leave it out until the user accepts or edits it."""
+    q = {"id": a.id, "short": a.short, "title": a.title}
+    for req, gloss in REQUIRED_FIELDS:
+        if not q.get(req):
+            sys.exit(f"refused: propose {a.id or 'a question'} missing {req} ({gloss})")
+    checked_short(a.id, a.short)
+    capped(f"{a.id} title", a.title, LINE_CAP)
+    if any(x.get("id") == a.id for x in doc["questions"]):
+        sys.exit(f"duplicate id: {a.id} (refused; nothing was written)")
+    if a.group is not None:
+        if a.group not in {g["id"] for g in doc["groups"]}:
+            sys.exit(f"unknown group in {a.id}: {a.group} (add it with: round.py group)")
+        q["group"] = a.group
+    if a.fromSeq is not None:
+        events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
+        if not any(e.get("seq") == a.fromSeq and e.get("kind") == "ask" for e in events):
+            sys.exit(f"refused: propose {a.id} fromSeq {a.fromSeq} names no ask event")
+    newest = doc["questions"][-1] if doc["questions"] else {}
+    q["stage"] = newest.get("stage", "interview")
+    q["round"] = max(
+        [x.get("round", 1) for x in doc["questions"] if x.get("stage") == q["stage"]]
+        or [1]
+    )
+    at = now()
+    q["proposed"] = {"at": at, **({} if a.fromSeq is None else {"fromSeq": a.fromSeq})}
+    asked = "" if a.fromSeq is None else f" from your ask (#{a.fromSeq})"
+    q["history"] = [
+        {"at": at, "by": "claude", "kind": "propose", "text": f"Proposed{asked}."}
+    ]
+    doc.pop("finished", None)
+    doc["questions"].append(q)
+    return [q], f"proposed {a.id}"
+
+
+def require_accepted(d, q, what):
+    """Refuse `what` on a proposed question until the user accepts or edits the proposal."""
+    answer = proposal_answer(
+        q, load_json(d / "responses.json", EMPTY_RESPONSES).get("events")
+    )
+    if answer in ("pending", "decline"):
+        sys.exit(
+            f"refused: {q['id']} is a proposal the user "
+            f"{'declined' if answer == 'decline' else 'has not accepted yet'}; {what} waits "
+            "on their Accept or Edit"
+        )
+
+
 def checked_round_restate(restate):
     """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
     `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
@@ -1097,6 +1156,7 @@ def op_reply(d, doc, a):
             "rec; use revise --alt"
         )
     if a.rec:
+        require_accepted(d, q, "a recommendation")
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
         require_alt_review(a.id, a.alt, a.keepAlternatives)
@@ -1109,9 +1169,11 @@ def op_reply(d, doc, a):
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
         set_aside_own(snapshot, doc, q)
-        q["previousRecommendation"] = q.get("recommendation", "")
+        if q.get("recommendation") or not q.get("proposed"):
+            # An accepted proposal's first recommendation revises nothing.
+            q["previousRecommendation"] = q.get("recommendation", "")
+            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["recommendation"] = a.rec
-        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["contentRev"] = (q.get("contentRev") or 0) + 1
         if alts is not None:
             q["alternatives"] = alts
@@ -1176,6 +1238,8 @@ def op_revise(d, doc, a):
         for i, c in enumerate(commits, 1):
             capped(f"revise commitment {i}", c, LINE_CAP)
     affects = parse_affects(a.affects)
+    if a.rec is not None or a.alt is not None or commits is not None:
+        require_accepted(d, q, "a recommendation, alternatives or commitments")
     if a.rec is not None:
         require_affects(a.id, affects)
         require_alt_review(a.id, a.alt, a.keepAlternatives)
@@ -1206,9 +1270,11 @@ def op_revise(d, doc, a):
             changed.append(field)
     if a.rec is not None:
         set_aside_own(snapshot, doc, q)
-        q["previousRecommendation"] = q.get("recommendation", "")
+        if q.get("recommendation") or not q.get("proposed"):
+            # An accepted proposal's first recommendation revises nothing.
+            q["previousRecommendation"] = q.get("recommendation", "")
+            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["recommendation"] = a.rec
-        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         changed.append("recommendation")
         warn_rec_asks(a.id, a.rec)
     if alts is not None:
@@ -1253,13 +1319,13 @@ def op_revise(d, doc, a):
             or "Revised "
             + ", ".join(changed)
             + (" (alternatives kept)." if kept else "."),
+            "changed": list(changed),
         }
         if affects is not None:
             line["affects"] = affects
         if a.rec is not None:
             line["alternatives"] = "kept" if kept else "rewritten"
             line["pageSeq"] = snapshot.get("seq", 0)
-            line["rev"] = doc["rev"] + 1
         lines.append(line)
     if moved:
         lines.append(
@@ -1276,6 +1342,8 @@ def op_revise(d, doc, a):
             {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
         )
         changed.append(f"group ({regroup})")
+    for line in lines:  # a revision clears the question's upstream-changed mark (server.derive_states)
+        line.update(reviewSeq=snapshot.get("seq", 0), rev=doc["rev"] + 1)
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
@@ -1303,6 +1371,7 @@ def op_note_reply(d, doc, a):
 
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
+    require_accepted(d, q, "an answer")
     capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "hedged":
         if not (a.text or "").strip():
@@ -1360,6 +1429,37 @@ def op_archive(d, doc, a):
             {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
         )
     return qs, f"archived {', '.join(a.ids)}"
+
+
+def op_reconfirm(d, doc, a):
+    """Record that upstream-changed questions stand as asked after the answers they depend on
+    changed: a history line with `reviewSeq` (the page's seq now), which the server reads as
+    clearing the mark. Refuses a question that is not upstream-changed."""
+    why = capped("reconfirm why", (a.why or "").strip(), LINE_CAP)
+    if not why:
+        sys.exit("refused: reconfirm needs a why")
+    ids = list(dict.fromkeys(a.ids or []))
+    qs = [find(doc, qid) for qid in ids]
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    by = derive_states(doc, r)[3]
+    idle = [qid for qid in ids if qid not in by]
+    if idle:
+        sys.exit(
+            f"refused: {', '.join(idle)} not upstream-changed; nothing to reconfirm"
+        )
+    at = now()
+    for q in qs:
+        q.setdefault("history", []).append(
+            {
+                "at": at,
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": f"Reconfirmed after {', '.join(by[q['id']])} changed: {why}",
+                "reviewSeq": r.get("seq", 0),
+                "rev": doc["rev"] + 1,
+            }
+        )
+    return qs, f"reconfirmed {', '.join(ids)}"
 
 
 def op_bump(d, doc, a):
@@ -1802,6 +1902,10 @@ OP_ARGS = {
         },
     ),
     "add": (op_add, {"question": None, "repoint": False}),
+    "propose": (
+        op_propose,
+        {"id": None, "title": None, "short": None, "group": None, "fromSeq": None},
+    ),
     "add-round": (
         op_add_round,
         {
@@ -1825,6 +1929,7 @@ OP_ARGS = {
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
+    "reconfirm": (op_reconfirm, {"ids": None, "why": None}),
     "replace-visual": (op_replace_visual, {"visual": None}),
     "archive-visual": (op_archive_visual, {"ids": None, "why": None}),
     "record-terminal": (
@@ -1988,9 +2093,12 @@ def cmd_status(d, a):
     }
     for q in doc["questions"]:
         dec = effective(q, resp)
+        prop = proposal_answer(q, r.get("events"))
         state = (
             "archived"
-            if q.get("archived")
+            if q.get("archived") or prop == "decline"
+            else "proposed"
+            if prop == "pending"
             else "waiting"
             if q.get("waiting") and not q.get("supersededBy")
             else dec or ("superseded" if q.get("supersededBy") else "open")
@@ -2011,9 +2119,10 @@ def cmd_status(d, a):
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
         superseded = [i for i, _, st, _ in items if st == "superseded"]
+        proposed = [f"{i} {s}" for i, s, st, _ in items if st == "proposed"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
-        live = len(items) - len(archived) - len(superseded)
+        live = len(items) - len(archived) - len(superseded) - len(proposed)
         answered = live - len(opened) - len(waits)
         confirm = [
             (i, s, pending_commits[i])
@@ -2025,6 +2134,7 @@ def cmd_status(d, a):
             + (f"; {len(archived)} archived" if archived else "")
             + (f"; {len(superseded)} superseded" if superseded else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
+            + (f"; proposed, awaiting the user: {', '.join(proposed)}" if proposed else "")
         )
         lines.extend(waits)
         lines.extend(
@@ -2035,13 +2145,14 @@ def cmd_status(d, a):
                 "id": gid,
                 "title": title,
                 "total": len(items),
-                "closed": len(items) - len(opened) - len(waits),
+                "closed": len(items) - len(opened) - len(waits) - len(proposed),
                 "live": live,
                 "answered": answered,
                 "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
                 "superseded": superseded,
+                "proposed": [i for i, _, st, _ in items if st == "proposed"],
                 "waiting": [
                     {"id": i, "short": s, "hold": hold[i][0], "waitsOn": hold[i][1]}
                     for i, s, st, _ in items
@@ -2049,6 +2160,16 @@ def cmd_status(d, a):
                 ],
             }
         )
+    by = derive_states(doc, r)[3]
+    data["upstreamChanged"] = [
+        {"id": q["id"], "changedBy": by[q["id"]]}
+        for q in doc["questions"]
+        if q["id"] in by
+    ]
+    lines.extend(
+        f"upstream changed: {u['id']} ({', '.join(u['changedBy'])} changed); revise or reconfirm it"
+        for u in data["upstreamChanged"]
+    )
     data["meta"] = None
     if doc["questions"]:
         stamp = doc["meta"].get("setInRound")
@@ -2157,12 +2278,14 @@ def cmd_doctor(d, a):
     ]
     has_page = (d / "questions.json").is_file()
     doc = load(d) if has_page else {"questions": [], "meta": {}}
-    resp = load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    resp = r.get("responses", {})
     live = [
         q
         for q in doc["questions"]
         if not q.get("archived")
         and not q.get("supersededBy")
+        and proposal_answer(q, r.get("events")) in (None, "accept", "edit")
         and not effective(q, resp)
     ]
     for label, absent in (
@@ -2913,6 +3036,15 @@ def main(argv=None):
     s.add_argument("ids", nargs="+", metavar="id")
     s.add_argument("--why", required=True, help="why the questions left the path")
     s.set_defaults(fn=write_op(op_archive, "archive"))
+
+    s = sub.add_parser(
+        "reconfirm", help="clear upstream-changed: the questions stand as asked"
+    )
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.add_argument(
+        "--why", required=True, help="why each still stands after the upstream change"
+    )
+    s.set_defaults(fn=write_op(op_reconfirm, "reconfirm"))
 
     s = sub.add_parser(
         "apply",

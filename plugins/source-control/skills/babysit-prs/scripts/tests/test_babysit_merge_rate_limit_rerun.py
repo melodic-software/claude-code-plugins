@@ -1,8 +1,9 @@
 """A `--merge` run re-runs an AI review check that failed on the usage limit.
 
-The re-run fires only for a `class=rate-limit` annotation, only five hours
-after the failure, only on the pinned live head, and only on a run's first
-attempt. Network is stubbed through `babysit_merge`'s gh seams.
+The re-run fires only for a failure annotation the review evidence accepts a
+re-run after (`class=rate-limit`, or this lane's publish failure on GitHub's
+API rate limit), only five hours after the failure, only on the pinned live
+head, and only on a run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge as merge
 import test_babysit_merge as base
+import test_babysit_review_evidence as evidence_tests
 from repo_config_fake import RepoConfigFake
 
 HEAD = base.HEAD
@@ -43,6 +45,11 @@ RATE_LIMITED = (
     "Claude review exited with: failure class=rate-limit -- an infrastructure "
     "failure, not a code-quality signal"
 )
+SECURITY_CHECK = {
+    **CHECK,
+    "name": "pr-review-security / security-review",
+    "workflow_name": "pr-review-security-hosted",
+}
 
 
 def _job(**overrides: Any) -> dict[str, Any]:
@@ -65,9 +72,10 @@ class RerunRateLimitedReview(unittest.TestCase):
         self,
         *,
         job: dict[str, Any] | None = None,
-        annotations: list[str] = (RATE_LIMITED,),  # type: ignore[assignment]
+        annotations: list[str | dict[str, Any]] = (RATE_LIMITED,),  # type: ignore[assignment]
         now: str = "2026-10-09T15:00:00Z",
         check: dict[str, Any] = CHECK,
+        attempt_conclusion: str = "failure",
     ) -> tuple[dict[str, Any], list[list[str]]]:
         reads: list[list[str]] = []
         posts: list[list[str]] = []
@@ -77,7 +85,15 @@ class RerunRateLimitedReview(unittest.TestCase):
             if args[1] == f"repos/{REPO}/actions/jobs/{JOB_ID}":
                 return job if job is not None else _job()
             if args[1].startswith(f"repos/{REPO}/check-runs/{JOB_ID}/annotations"):
-                return [{"message": text} for text in annotations]
+                # The check-runs annotations payload carries each level.
+                return [
+                    a
+                    if isinstance(a, dict)
+                    else {"annotation_level": "failure", "message": a}
+                    for a in annotations
+                ]
+            if args[1] == f"repos/{REPO}/actions/runs/{RUN_ID}/attempts/1":
+                return {"run_attempt": 1, "conclusion": attempt_conclusion}
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         def capture(cmd: list[str]) -> Any:
@@ -101,6 +117,17 @@ class RerunRateLimitedReview(unittest.TestCase):
             posts, [["api", "-X", "POST", f"repos/{REPO}/actions/runs/{RUN_ID}/rerun"]]
         )
 
+    def test_a_failed_job_in_an_attempt_that_did_not_fail_is_not_rerun(self) -> None:
+        # The binding (review_evidence.rerun_binds) takes attempt 2 only
+        # after an attempt 1 that concluded failure, so a re-run of any other
+        # attempt would spend the one allowed attempt on a hold.
+        for conclusion in ("cancelled", "success"):
+            with self.subTest(conclusion):
+                report, posts = self._run(attempt_conclusion=conclusion)
+                self.assertFalse(report["rerun"])
+                self.assertIn(conclusion, report["reason"])
+                self.assertEqual(posts, [])
+
     def test_before_the_reset_waits_without_reading_annotations(self) -> None:
         report, posts = self._run(now="2026-10-09T14:59:00Z")
         self.assertFalse(report["rerun"])
@@ -115,6 +142,55 @@ class RerunRateLimitedReview(unittest.TestCase):
         ):
             report, posts = self._run(annotations=[text])
             self.assertFalse(report["rerun"])
+            self.assertEqual(posts, [], text)
+
+    def test_a_rate_limit_notice_is_not_a_failure_class(self) -> None:
+        report, posts = self._run(
+            annotations=[{"annotation_level": "notice", "message": RATE_LIMITED}]
+        )
+        self.assertFalse(report["rerun"])
+        self.assertEqual(posts, [])
+
+    def _publish_check(self, check: dict[str, Any]) -> dict[str, Any]:
+        return _job(name=check["name"], workflow_name=check["workflow_name"])
+
+    def test_a_publish_rate_limit_reruns_its_lane(self) -> None:
+        # The texts the review evidence binds attempt 2 after.
+        primary = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        secondary = evidence_tests.publish_failed(
+            "You have exceeded a secondary rate limit. Please wait a few minutes"
+        )["message"]
+        security = primary.replace("claude-review:", "claude-security-review:", 1)
+        for check, text in (
+            (CHECK, primary),
+            (CHECK, secondary),
+            (SECURITY_CHECK, security),
+        ):
+            report, posts = self._run(
+                job=self._publish_check(check), annotations=[text], check=check
+            )
+            self.assertTrue(report["rerun"], (check["name"], text, report))
+            self.assertEqual(len(posts), 1)
+
+    def test_a_publish_failure_the_evidence_refuses_is_never_rerun(self) -> None:
+        primary = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        for check, text in (
+            # Another lane's publish line.
+            (SECURITY_CHECK, primary),
+            # A publish failure that is not GitHub's rate limit.
+            (
+                CHECK,
+                evidence_tests.publish_failed("Resource not accessible by integration")[
+                    "message"
+                ],
+            ),
+            # The publish line not at the message start.
+            (CHECK, f"quoted: {primary}"),
+        ):
+            report, posts = self._run(
+                job=self._publish_check(check), annotations=[text], check=check
+            )
+            self.assertFalse(report["rerun"], (check["name"], text))
             self.assertEqual(posts, [], text)
 
     def test_a_rerun_attempt_is_not_rerun_again(self) -> None:
