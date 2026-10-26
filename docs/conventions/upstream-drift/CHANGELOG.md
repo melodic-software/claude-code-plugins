@@ -4,6 +4,17 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [4.0.0] - 2026-10-26
+
+Major under this contract's own rule: an enforceability verdict changes.
+
+A new section, "Daily Claude Code release issues", covers the `docs/upstream/claude-code.md` record,
+whose `changelog through` marker `scripts/check-upstream-drift.sh` skips. A daily workflow runs the
+`/harness-ops:changelog` status script and files one issue per release newer than the marker, or
+one beyond-the-replay-cap issue when the range is over the cap. A range the status script could
+not compute, or a missing marker, fails the run and files nothing. The "A trigger has fired" verdict
+becomes detect-then-judge for this record too.
+
 ## [3.0.0] - 2026-10-04
 
 Major under this contract's own rule: an enforceability verdict changes.

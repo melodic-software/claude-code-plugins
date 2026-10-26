@@ -1,0 +1,93 @@
+name: maintenance-file-claude-code-release-issues
+
+# Daily: files one issue per Claude Code release newer than the read marker in
+# docs/upstream/claude-code.md, so a release is noticed without someone first
+# running /harness-ops:changelog. It runs the changelog skill's
+# changelog-status.sh in its fetching mode, puts the status in the job summary,
+# and hands it to scripts/claude-code-release-issues.sh, which files
+# `Claude Code changelog: <version>` unless that title exists in any state, or,
+# over the replay cap, one `Claude Code changelog: unread releases beyond the
+# replay cap` issue unless one is open. A range the status script could not
+# compute, or a missing marker, fails the run and files nothing. It adds no
+# label: the issue proposes an apply, it never admits one.
+#
+# It runs no model and holds no lanes App token or secret: the job's own
+# GITHUB_TOKEN reads contents and writes only issues. Only the schedule and a
+# manual run with no inputs start it. Changelog text reaches the issue helper as
+# a file, never through a `${{ }}` expression.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+#
+# 08:27 UTC sits clear of the other scheduled runs here.
+
+on:
+  schedule:
+    - cron: "27 8 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-file-claude-code-release-issues
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  file-release-issues:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out the ledger and the scripts
+      issues: write # file the release issues
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
+
+      - name: Read the changelog status
+        if: steps.kill.outputs.proceed == 'true'
+        working-directory: .base
+        run: |
+          f="$RUNNER_TEMP/status.txt"
+          bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md >"$f"
+          {
+            echo "### Claude Code changelog status"
+            echo
+            echo '```text'
+            cat "$f"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: File release issues
+        if: steps.kill.outputs.proceed == 'true'
+        working-directory: .base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/claude-code-release-issues.sh "$RUNNER_TEMP/status.txt"
