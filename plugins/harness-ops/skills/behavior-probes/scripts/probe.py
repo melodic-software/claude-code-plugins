@@ -6,12 +6,14 @@ with --settings), prompt.md, expect.json and an optional scaffold.sh. The runner
 makes a temp directory per case, runs the scaffold there, launches
 `claude -p --output-format stream-json --verbose` with the case's settings and
 permission mode, reads the decision for the case's target tool call out of the
-stream, and gives one verdict per case:
+stream, and gives one verdict per case. A `prints` case judges the first line a
+slash command prints instead of a tool call:
 
-  pass          the target call's outcome matches expect.json
+  pass          the target call's outcome (or printed line) matches expect.json
   fail          it does not
-  inconclusive  the model never attempted the target call, the CLI produced no
-                init event, or a negative case's paired control did not pass
+  inconclusive  the model never attempted the target call, the command printed
+                nothing, the CLI produced no init event, or a case's paired
+                control did not pass
   error         the case or its scaffold is broken (a fixture failure)
   skipped       the platform, a required tool or the suite ceiling ruled it out
 
@@ -65,7 +67,8 @@ MIN_PYTHON = (3, 10)
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CASES = SKILL_DIR / "cases"
 
-OUTCOMES = ("allow", "deny", "ran", "refused")
+PRINTS = "prints"
+OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS)
 NEGATIVE = ("deny", "refused")
 SELECTS = ("first", "any", "all")
 DEFAULT_MODEL = "sonnet"
@@ -81,6 +84,13 @@ TOOL_LISTS = (
     ("allowed_tools", "--allowedTools"),
     ("disallowed_tools", "--disallowedTools"),
 )
+# The only flags a case's cli_args may pass, each with the shape its value must
+# have, so no case can widen the launch.
+CLI_FLAGS = {"--autocompact": r"auto|\d+[kKmM]?"}
+# Where a `prints` case looks for a slash command's output: a user message
+# wrapped in this tag, else the result event's text when no model turn ran.
+COMMAND_OUTPUT = re.compile(r"<local-command-stdout>(.*?)</local-command-stdout>", re.S)
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 # The user CLAUDE.md still loads under --setting-sources project,local, and it can
 # make the model refuse before the permission layer is asked. A refusal is
@@ -171,6 +181,78 @@ def discover(cases_dir: Path) -> list[dict]:
     ]
 
 
+def first_line(text: str) -> str:
+    """The first non-blank line of printed output, without terminal escapes."""
+    for line in ANSI.sub("", text).splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def cli_args_ok(args) -> bool:
+    """Flag-value pairs only, each flag in CLI_FLAGS and its value of that flag's shape."""
+    return (
+        isinstance(args, list)
+        and len(args) % 2 == 0
+        and all(
+            isinstance(flag, str)
+            and flag in CLI_FLAGS
+            and isinstance(value, str)
+            and re.fullmatch(CLI_FLAGS[flag], value) is not None
+            for flag, value in zip(args[::2], args[1::2])
+        )
+    )
+
+
+def controlled(case: dict) -> bool:
+    """A negative case always needs a passing control; a prints case when it names one."""
+    return case.get("outcome") in NEGATIVE or (
+        case.get("outcome") == PRINTS and "control" in case
+    )
+
+
+def print_problems(case: dict, target: dict, by_id: dict[str, dict]) -> list[str]:
+    cid = case["id"]
+    try:
+        pattern = re.compile(target.get("text_match") or "")
+        shape = re.compile(target.get("printed_match") or "")
+    except (re.error, TypeError) as exc:
+        return [f"{cid}: target.text_match or printed_match is not a regex: {exc}"]
+    problems = []
+    if not target.get("text_match"):
+        problems.append(f"{cid}: target.text_match is required")
+    example = target.get("example")
+    if not isinstance(example, str) or not first_line(example):
+        problems.append(
+            f"{cid}: target.example (the output the dry run prints) must be text"
+        )
+    elif not (pattern.search(first_line(example)) and shape.search(first_line(example))):
+        problems.append(
+            f"{cid}: target.example's first line does not match text_match "
+            "and printed_match"
+        )
+    if "control" in case:
+        control = by_id.get(str(case["control"]))
+        if control is None or control is case:
+            problems.append(f"{cid}: control {case['control']!r} is not another case")
+        elif control.get("outcome") != PRINTS:
+            problems.append(f"{cid}: control {control['id']} is not a prints case")
+        elif pattern.search(
+            first_line(str((control.get("target") or {}).get("example", "")))
+        ):
+            problems.append(
+                f"{cid}: control {control['id']} prints what this case expects"
+            )
+        seen, link = {cid}, control
+        while link is not None and "control" in link:
+            if link["id"] in seen:
+                problems.append(f"{cid}: its control chain loops at {link['id']}")
+                break
+            seen.add(link["id"])
+            link = by_id.get(str(link["control"]))
+    return problems
+
+
 def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     cid = case["id"]
     problems = []
@@ -180,16 +262,28 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     if case.get("outcome") not in OUTCOMES:
         problems.append(f"{cid}: outcome must be one of {', '.join(OUTCOMES)}")
     target = case.get("target") or {}
-    if not target.get("tool"):
-        problems.append(f"{cid}: target.tool is required")
-    if target.get("select", "first") not in SELECTS:
-        problems.append(f"{cid}: target.select must be one of {', '.join(SELECTS)}")
-    if not isinstance(target.get("example"), dict):
+    if case.get("outcome") == PRINTS:
+        problems += print_problems(case, target, by_id)
+    else:
+        if not target.get("tool"):
+            problems.append(f"{cid}: target.tool is required")
+        if target.get("select", "first") not in SELECTS:
+            problems.append(
+                f"{cid}: target.select must be one of {', '.join(SELECTS)}"
+            )
+        if not isinstance(target.get("example"), dict):
+            problems.append(
+                f"{cid}: target.example (the input the dry run emits) is required"
+            )
+        elif not re.search(
+            target.get("input_match", ""), json.dumps(target["example"])
+        ):
+            problems.append(f"{cid}: target.example does not match target.input_match")
+    if "cli_args" in case and not cli_args_ok(case["cli_args"]):
         problems.append(
-            f"{cid}: target.example (the input the dry run emits) is required"
+            f"{cid}: cli_args must be flag-value pairs, each flag one of "
+            f"{', '.join(CLI_FLAGS)}"
         )
-    elif not re.search(target.get("input_match", ""), json.dumps(target["example"])):
-        problems.append(f"{cid}: target.example does not match target.input_match")
     if not isinstance(case.get("tags"), list) or not case.get("tags"):
         problems.append(f"{cid}: tags must be a non-empty list")
     for field, _ in TOOL_LISTS:
@@ -261,6 +355,9 @@ def parse_stream(lines) -> dict:
         "denied": {},
         "denial_ids": set(),
         "cost": None,
+        "printed": [],
+        "result_text": None,
+        "model_turn": False,
     }
     for line in lines:
         try:
@@ -281,8 +378,16 @@ def parse_stream(lines) -> dict:
             cost = event.get("total_cost_usd")
             if isinstance(cost, (int, float)):
                 obs["cost"] = max(cost, obs["cost"] or 0.0)
+            if isinstance(event.get("result"), str):
+                obs["result_text"] = event["result"]
         elif event.get("type") in ("assistant", "user"):
             content = (event.get("message") or {}).get("content")
+            if event["type"] == "assistant":
+                obs["model_turn"] = True
+            else:
+                obs["printed"] += COMMAND_OUTPUT.findall(
+                    content if isinstance(content, str) else _text(content)
+                )
             for block in content if isinstance(content, list) else []:
                 if not isinstance(block, dict):
                     continue
@@ -357,6 +462,8 @@ def verdict(case: dict, obs: dict) -> dict:
             "verdict": "inconclusive",
             "note": "no init event: the CLI did not start a session",
         }
+    if case["outcome"] == PRINTS:
+        return print_verdict(case, obs, row)
     pattern = re.compile(target.get("input_match", ""))
     uses = [
         use
@@ -408,20 +515,59 @@ def verdict(case: dict, obs: dict) -> dict:
     }
 
 
+def print_verdict(case: dict, obs: dict, row: dict) -> dict:
+    """Judge the first line a slash command printed against target.text_match."""
+    outputs = obs["printed"] or (
+        [obs["result_text"]] if obs["result_text"] and not obs["model_turn"] else []
+    )
+    line = next((first_line(o) for o in outputs if first_line(o)), "")
+    if not line:
+        return {
+            **row,
+            "verdict": "inconclusive",
+            "note": "the command printed nothing"
+            + ("; a model turn answered instead" if obs["model_turn"] else ""),
+        }
+    if not re.search(case["target"].get("printed_match") or "", line):
+        # Not the output the case reads, such as an error or a dialog's text.
+        return {
+            **row,
+            "verdict": "inconclusive",
+            "note": "the first printed line is not of printed_match's shape",
+        }
+    passed = re.search(case["target"]["text_match"], line) is not None
+    return {
+        **row,
+        "observed": "printed",
+        "text": "" if case.get("verdict_only") else line[:TEXT_CLIP],
+        "verdict": "pass" if passed else "fail",
+        "note": "",
+    }
+
+
 def apply_controls(rows: list[dict], cases: dict[str, dict]) -> None:
-    """A negative case is only as good as its control: no passing control, no verdict."""
+    """A controlled case is only as good as its control: no passing control, no verdict.
+
+    Repeats until nothing changes, since a control can have a control of its own."""
     by_id = {row["id"]: row for row in rows}
-    for row in rows:
-        case = cases[row["id"]]
-        if case["outcome"] not in NEGATIVE or row["verdict"] != "pass":
-            continue
-        control = by_id.get(case.get("control"))
-        if control is None:
-            row["verdict"] = "inconclusive"
-            row["note"] = f"control {case.get('control')} not run in this suite"
-        elif control["verdict"] != "pass":
-            row["verdict"] = "inconclusive"
-            row["note"] = f"control {control['id']} did not pass ({control['verdict']})"
+    changed = True
+    while changed:
+        changed = False
+        for row in rows:
+            case = cases[row["id"]]
+            if not controlled(case) or row["verdict"] != "pass":
+                continue
+            control = by_id.get(str(case.get("control")))
+            if control is None:
+                row["verdict"] = "inconclusive"
+                row["note"] = f"control {case.get('control')} not run in this suite"
+                changed = True
+            elif control["verdict"] != "pass":
+                row["verdict"] = "inconclusive"
+                row["note"] = (
+                    f"control {control['id']} did not pass ({control['verdict']})"
+                )
+                changed = True
 
 
 # ---------------------------------------------------------------- runners
@@ -490,7 +636,7 @@ def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list
     for field, flag in TOOL_LISTS:
         if case.get(field):
             argv += [flag, ",".join(case[field])]
-    return argv
+    return argv + list(case.get("cli_args") or [])
 
 
 def live_runner(model: str, timeout: int, raw_dir: Path):
@@ -536,6 +682,27 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
 def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list[str]:
     """Emit the stream a case expects, so --dry-run exercises everything but `claude`."""
     target = case["target"]
+    if case["outcome"] == PRINTS:
+        printed = target["example"]
+        wrapped = f"<local-command-stdout>{printed}</local-command-stdout>"
+        return [
+            json.dumps(event)
+            for event in (
+                {
+                    "type": "system",
+                    "subtype": "init",
+                    "claude_code_version": DRY_RUN_VERSION,
+                },
+                {"type": "user", "message": {"content": wrapped}},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": printed,
+                    "total_cost_usd": 0.0,
+                    DENIALS: [],
+                },
+            )
+        ]
     outcome = "ran" if case["outcome"] == "allow" else case["outcome"]
     text = case.get("match") or "dry run"
     events: list[dict] = [
@@ -653,6 +820,8 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
     reason = skip_reason(case) if live else None
     if reason:
         return {**row, "verdict": "skipped", "note": reason}
+    if not cli_args_ok(case.get("cli_args") or []):
+        return {**row, "verdict": "error", "note": "cli_args is not allowed flag-value pairs"}
     workdir = Path(tempfile.mkdtemp(prefix="cc-probe-"))
     try:
         case_dir = case["dir"]
@@ -667,6 +836,7 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
                     "PROBE_WORKDIR": workdir.as_posix(),
                     "PROBE_CASE_DIR": case_dir.as_posix(),
                     "PROBE_LIB": (case_dir.parent.parent / "lib").as_posix(),
+                    "PROBE_MODEL": case.get("model", DEFAULT_MODEL),
                 }
             )
             done = subprocess.run(  # noqa: S603 - fixed argv
@@ -738,8 +908,13 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                 case.get("max_budget_usd", DEFAULT_BUDGET_USD),
                 args.max_cost_usd - spent,
             )
+            # The model the run uses, so a scaffold's PROBE_MODEL names the same one.
+            model = case.get("model", getattr(args, "model", DEFAULT_MODEL))
             row = run_case(
-                {**case, "max_budget_usd": budget}, runner, args.keep, args.live
+                {**case, "max_budget_usd": budget, "model": model},
+                runner,
+                args.keep,
+                args.live,
             )
             if row["verdict"] in ("pass", "fail", "inconclusive"):
                 runs += 1

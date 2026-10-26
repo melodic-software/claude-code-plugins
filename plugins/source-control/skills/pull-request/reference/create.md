@@ -7,7 +7,7 @@
 - [2.3 Stage and commit](#23-stage-and-commit)
 - [2.4 Push, create PR, and persist PR number](#24-push-create-pr-and-persist-pr-number)
 - [2.5 Record expected CI workflows](#25-record-expected-ci-workflows)
-- [2.6 Report and stop](#26-report-and-stop)
+- [2.6 Report and arm event delivery](#26-report-and-arm-event-delivery)
 - [2.7 `create --pushed`: PR-only entry for an orchestrated flow](#27-create---pushed-pr-only-entry-for-an-orchestrated-flow)
 
 ## 2.1 Pre-flight
@@ -579,9 +579,11 @@ Classify changed files → predict expected workflows by reading the repo's own 
 
 Record the expected set for comparison in Phase 3.
 
-## 2.6 Report and stop
+## 2.6 Report and arm event delivery
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: ready (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. Monitoring (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: ready (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates.
+
+End Phase 2 there, except in a standalone `create` whose session will keep acting on the PR (waiting on CI, answering review comments): when Phase 2.5 ran, its watch handoff ([watch-handoff.md](watch-handoff.md)) decides who watches; otherwise run Steps 1-3 of [SKILL.md](../SKILL.md)'s Monitor entry checklist for `<pr_number>` next and handle each event it delivers through Phase 3 ([monitor.md](monitor.md)), never with a foreground poll. Step 1 keeps a cloud session on §3.0.0 polling, and a later `monitor` reuses the Monitor watch this session armed (§3.0.1 step 2). Inside `full`, Phase 3 entry arms delivery instead ([full-lifecycle.md](full-lifecycle.md)).
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
@@ -635,6 +637,6 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
   **On a triangular flow, anchoring to the worktree is not enough.** Where the worker pushed to a fork and the PR targets an upstream base, the placeholders resolve against the worktree's own remotes, so the REST create can post to the **fork**, opening a PR that targets the fork's own default branch instead of upstream, with no error to notice. Name the base repository (the PR's target, not the push destination) explicitly and namespace `head` as `<fork-owner>:$BRANCH`, per §2.4.3. Resolve `$BASE` against that base repository too, never through the worktree-anchored form, which would read the fork's default branch. The provider reference holds each of these commands.
 
-- **§2.5 / §2.6:** unchanged: record expected workflows, report the PR URL + number, and stop.
+- **§2.5 / §2.6:** record expected workflows, report the PR URL + number, and stop. §2.6's arming step is skipped: the watch is session-scoped ([monitor.md](monitor.md) §3.0.1), so it belongs to the session that acts on the events.
 
-This mode is create-only: it never merges, and (like standalone `create`) it hands monitoring off to `/source-control:pull-request monitor` / `/source-control:pull-request full` or, in the orchestrated lane, back to the calling orchestrator.
+This mode is create-only: it never merges, and it hands monitoring back to the calling orchestrator, which arms event delivery for the returned PR number through [SKILL.md](../SKILL.md)'s Monitor entry checklist, in the session it monitors from.
