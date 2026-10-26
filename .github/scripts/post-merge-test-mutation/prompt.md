@@ -19,7 +19,11 @@ settings for this repository:
   config's `timeout-ms` and 1.5 times that file's measured baseline plus 5000 ms; a mutant run that
   exceeds it is a `timeout`.
 - **Mutants.** Apply each mutant with Edit, and revert it with `git restore -- <file>` before the
-  next one; the checkout starts clean. Never commit, stage, push or stash.
+  next one; the checkout starts clean. Never commit, stage, push or stash. The write regime is
+  in-tree per mutant: after every restore, compare `git status --porcelain` with the Phase 0
+  snapshot, and stop on the first difference. Every other exit path is covered by the job: the
+  checkout is discarded with the runner, and a workflow step that runs however this session ends
+  fails the run when a tracked file differs from the pushed head.
 - **Triage.** Phase 4's fresh-context reviewer runs through the Agent tool.
 - **Nothing to persist.** Do not pass `--persist-findings` or `--record-mutants`, and write no file
   outside the mutants themselves.

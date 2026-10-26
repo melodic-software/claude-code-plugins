@@ -258,17 +258,24 @@ jobs:
           # plugin's suppression lint. Read-only git forms run without an allow
           # rule, so the denies keep git diff on the checkout's own paths (no
           # --no-index, no path outside it) and from writing a file, and drop
-          # git log and git show, which the skill never runs.
-          allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit,Agent"
+          # git log and git show, which the skill never runs. Edit reaches only
+          # the checkout, less the paths the config's mutate list excludes,
+          # where no mutant lands. These rules bound the model's own tools;
+          # every mutant is code the covering tests run, so the token boundary
+          # is the env scrub, the contents: read token and the runner isolation.
+          # disallowedTools is single-quoted so the action's parse keeps `$`.
+          allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit(./**),Agent"
           allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *),Bash(git restore -- *)"
           allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *)"
           allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
           denied="Write,NotebookEdit,WebFetch,WebSearch"
           denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**),Edit(~/.*),Edit(~/.*/**)"
+          denied="$denied,Edit(./**/*.test.*),Edit(./**/test_*.py),Edit(./**/conftest.py),Edit(./**/tests/**)"
+          denied="$denied,Edit(./**/evals/**),Edit(./**/fixtures/**),Edit(./**/vendor/**)"
           denied="$denied,Read(//proc/**),Read(~/.*),Read(~/.*/**)"
           denied="$denied,Bash(git log *),Bash(git show *),Bash(git diff *--no-index*),Bash(git diff *--output*)"
-          denied="$denied,Bash(git diff *~*),Bash(git diff * /*),Bash(git diff *../*)"
-          args="--allowedTools \"$allowed\" --disallowedTools \"$denied\" --json-schema '$schema'"
+          denied="$denied,Bash(git diff *~*),Bash(git diff * /*),Bash(git diff *../*),Bash(git diff *\$*)"
+          args="--allowedTools \"$allowed\" --disallowedTools '$denied' --json-schema '$schema'"
           delimiter="prompt_$(openssl rand -hex 16)"
           {
             echo "plugins=mutation-testing@$marketplace"

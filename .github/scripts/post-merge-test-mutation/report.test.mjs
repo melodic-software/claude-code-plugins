@@ -203,7 +203,8 @@ test("the model's git reads stay in the checkout and its edits stay out of home 
   const { audit } = jobsOf(LANE);
   const allowed = /\n {10}allowed="\$allowed,Bash\(git status \*\)[^\n]*/.exec(audit)[0];
   assert.doesNotMatch(allowed, /git log|git show/, "the audit skill runs neither");
-  const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1]).join(",");
+  // `\$` is bash's escape for a literal `$` inside the double quotes.
+  const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1].replaceAll("\\$", "$")).join(",");
   for (const rule of [
     "Bash(git log *)",
     "Bash(git show *)",
@@ -212,10 +213,27 @@ test("the model's git reads stay in the checkout and its edits stay out of home 
     "Bash(git diff *~*)",
     "Bash(git diff * /*)",
     "Bash(git diff *../*)",
+    "Bash(git diff *$*)",
     "Edit(~/.*)",
     "Edit(~/.*/**)",
   ]) {
     assert.ok(denied.includes(rule), rule);
+  }
+  // Single quotes keep the action's shell-quote parse from expanding the `$`.
+  assert.match(audit, /--disallowedTools '\$denied'/);
+});
+
+test("the model edits only checkout files a mutant can land in", () => {
+  const { audit } = jobsOf(LANE);
+  const allowed = [...audit.matchAll(/\n {10}allowed="([^\n]*)"/g)].map((m) => m[1]).join(",").split(",");
+  assert.ok(allowed.includes("Edit(./**)"));
+  assert.ok(!allowed.includes("Edit"), "a bare Edit reaches files outside the checkout");
+  const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1]).join(",");
+  const config = readFileSync(new URL("../../../.claude/mutation-testing.md", import.meta.url), "utf8");
+  const excluded = [...config.split("\nmutate:\n")[1].split("\n\n")[0].matchAll(/^ {2}- "!([^"]+)"$/gm)].map((m) => m[1]);
+  assert.ok(excluded.length > 0);
+  for (const glob of excluded) {
+    assert.ok(denied.includes(`Edit(./${glob})`), glob);
   }
 });
 
