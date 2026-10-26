@@ -307,34 +307,54 @@ test("the sweep cost names both tokens' spend, the candidates, those reached and
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
 });
 
-test("the run cache starts from the last run's kept reads and saves this run's under a new key", () => {
-  const names = steps.map((s) => s.name);
-  const order = [
-    "Restore the verdict reads the last run kept",
-    "Start the run cache from them",
-    "Run the merge gate on each candidate",
-    "Keep the verdict reads that never change",
-    "Save them for the next run",
-  ].map((name) => names.indexOf(name));
-  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
-  const key = "pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}";
+// The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
+// jobs as the head-ref map does (#9416): read from the last trusted run's
+// pr-merge-run-cache artifact, and uploaded by scheduled and hand-started
+// merge jobs only, the runs a later read accepts. Neither job restores an
+// Actions cache, which any job in main's cache scope can write (#9455).
+test("both token-holding jobs read the carried reads from the last trusted run's artifact, never a cache", () => {
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
-  const restore = step("Restore the verdict reads the last run kept");
-  assert.match(restore, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(restore.includes(`key: ${key}\n`) && restore.includes("restore-keys: pr-merge-run-cache-\n"));
-  assert.ok(restore.includes(`path: ${carried}\n`));
-  const start = step("Start the run cache from them");
-  assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+  const read = "Read the verdict reads the last run kept";
+  for (const list of [steps, stepsOf(jobBlock("enable-auto-merge"))]) {
+    const names = list.map((s) => s.name);
+    assert.ok(names.indexOf(read) >= 0 && names.indexOf(read) < names.indexOf("Start the run cache from them"));
+    const block = step(read, list);
+    assert.match(block, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs read\n/);
+    assert.ok(block.includes(`CARRY_TO: ${carried}\n`) && block.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.match(block, /\n {8}timeout-minutes: 2\n/);
+    const start = step("Start the run cache from them", list);
+    assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+    assert.match(start, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs\n/);
+    for (const name of [read, "Start the run cache from them"]) {
+      assert.match(step(name, list), /\n {8}continue-on-error: true\n/, name);
+    }
+    for (const s of list) assert.doesNotMatch(s.block, /uses: actions\/cache[@/]/, s.name);
+  }
+  const names = steps.map((s) => s.name);
+  const order = [
+    read,
+    "Skip refusals whose inputs have not changed",
+    "Run the merge gate on each candidate",
+    "Keep the verdict reads that never change",
+    "Keep the refusals the next run may skip",
+    "Upload the verdict reads for the next run",
+  ].map((name) => names.indexOf(name));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
   assert.ok(step("Run the merge gate on each candidate").includes(`BABYSIT_RUN_CACHE: ${runCache}\n`));
   const keep = step("Keep the verdict reads that never change");
   assert.ok(keep.includes(`CARRY_FROM: ${runCache}\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
-  assert.match(keep, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
-  const save = step("Save them for the next run");
-  assert.match(save, /uses: actions\/cache\/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(save.includes(`key: ${key}\n`) && save.includes(`path: ${carried}\n`));
-  assert.match(save, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
-  for (const name of ["Restore the verdict reads the last run kept", "Start the run cache from them", "Keep the verdict reads that never change", "Save them for the next run"]) {
+  assert.ok(
+    keep.includes(
+      "always() && steps.gate.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload the verdict reads for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-run-cache\n") && upload.includes(`path: ${carried}\n`));
+  assert.ok(upload.includes("retention-days: 1\n"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
+  for (const name of ["Keep the verdict reads that never change", "Upload the verdict reads for the next run"]) {
     assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
   }
 });
@@ -1070,13 +1090,13 @@ test("a missing or malformed skip file adds no row and the gate still runs", () 
   }
 });
 
-test("the skip step runs just before the gate and its record between the carry and the save, neither able to fail the job", () => {
+test("the skip step runs just before the gate and its record between the carry and the upload, neither able to fail the job", () => {
   const names = steps.map((s) => s.name);
   const at = (name) => names.indexOf(name);
   assert.equal(at("Skip refusals whose inputs have not changed"), at("Run the merge gate on each candidate") - 1);
   assert.ok(at("Record a failed lane merge") < at("Skip refusals whose inputs have not changed"));
   assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
-  assert.equal(at("Save them for the next run"), at("Keep the refusals the next run may skip") + 1);
+  assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
   assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);
@@ -1193,10 +1213,17 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
 // Runs the re-run step against a fake gh that answers `attempts` in turn for
 // the run read, failing a read whose entry is "x" (a 502) and rate-limiting
 // one whose entry is "limited" (a 403 with the core pool spent until
-// 2100-01-01). `post` answers the re-run POST: "ok", "refuse" (a 403 that is
-// no rate limit) or "limited" (a 429 with a retry-after). Like gh, with -i it
+// 2100-01-01). `post` answers the re-run POST, or each POST in turn when a
+// list: "ok", "refuse" (a 403 that is no rate limit), "limited" (a 429 with a
+// retry-after) or "unsent" (a TLS handshake timeout, before the request left).
+// The "limited" read's stderr is RATE_LIMITED_STDERR. Like gh, with -i it
 // prints the status and headers before the body, the guard's shape.
-const LIMITED_403 = 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
+// gh's stderr for a call GitHub refused for a rate limit, as run 39906176584
+// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
+// 2026-10-23T05:30:57Z).
+const RATE_LIMITED_STDERR =
+  "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
+const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
 const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
   try {
@@ -1207,19 +1234,21 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
       `#!/usr/bin/env bash\ninc=; if [ "$2" = -i ]; then inc=1; set -- "$1" "\${@:3}"; fi\n` +
         `echo "$*" >>"${dir}/calls"\n` +
         `say() { if [ -n "$inc" ]; then printf "$1"; else printf "$1" | sed '1,/^\\r\\?$/d'; fi; }\n` +
-        `if [ "$3" = POST ]; then case ${post} in\n` +
+        `if [ "$3" = POST ]; then p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"\n` +
+        `case "\${p[$((s - 1))]:-\${p[-1]}}" in\n` +
         `  ok) say 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;\n` +
+        `  unsent) echo 'Post "https://api.github.com/repos/o/r/actions/runs/11/rerun-failed-jobs": net/http: TLS handshake timeout' >&2; exit 1 ;;\n` +
         `  refuse) say 'HTTP/2.0 403 Forbidden\\r\\n\\r\\n{"message": "Resource not accessible by integration"}\\n'; echo "HTTP 403" >&2; exit 1 ;;\n` +
         `  limited) say 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "HTTP 429" >&2; exit 1 ;;\n` +
         `esac; fi\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
         `if [ "$v" = x ]; then say 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "HTTP 502" >&2; exit 1; fi\n` +
-        `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\n` +
+        `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi\n` +
         `if [ "$v" = bare429 ]; then echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1; fi\n` +
         `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v\\n"\n`,
     );
-    writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
     symlinkSync(root, join(dir, ".base"));
@@ -1244,6 +1273,7 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
       calls: read("calls").split("\n").filter(Boolean),
       output: read("output"),
       record: read("rerun.json"),
+      slept: read("slept").split("\n").filter(Boolean).map(Number),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1285,6 +1315,34 @@ test("the re-run step records nothing when the re-run is refused or lands past a
     assert.doesNotMatch(run.output, /recorded=true/);
     assert.match(run.stdout, /^::warning::/m);
   }
+});
+
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), as the dispatch: a POST that never left is sent again; a refusal
+// GitHub answered is not, since the re-run may have started.
+test("a re-run POST that never left is sent again after a jittered wait, at most three times", () => {
+  const run = runRerun([1, 2], { post: ["unsent", "unsent", "ok"] });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST, POST, POST]);
+  assert.ok(run.slept[0] >= 1 && run.slept[0] <= 10, `${run.slept[0]}`);
+  assert.ok(run.slept[1] >= 1 && run.slept[1] <= 20, `${run.slept[1]}`);
+  assert.match(run.output, /^recorded=true$/m);
+  const spent = runRerun([1], { post: ["unsent"] });
+  assert.equal(spent.status, 0, spent.stdout);
+  assert.equal(spent.calls.filter((c) => c.includes("POST")).length, 3);
+  assert.equal(spent.record, "");
+  assert.match(spent.stdout, /::warning::the re-run of run 11 was refused after 3 attempt\(s\)/);
+  const refused = runRerun([1], { post: ["refuse", "ok"] });
+  assert.deepEqual(refused.calls.filter((c) => c.includes("POST")), [POST]);
+  assert.deepEqual(refused.slept, []);
+});
+
+test("a rate limit after a re-run POST that never left still stops red, with no further send", () => {
+  const run = runRerun([1], { post: ["unsent", "limited", "ok"] });
+  assert.equal(run.status, 1, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST, POST]);
+  assert.equal(run.record, "");
+  assert.match(run.output, /^rate-limited=true$/m);
 });
 
 test("the re-run step rides out failed reads after the re-run and records attempt 2", () => {
