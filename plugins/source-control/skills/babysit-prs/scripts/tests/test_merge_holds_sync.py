@@ -89,7 +89,8 @@ PY_RUN = re.compile(r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]""")
 
 def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "babysit_risk.py"]
-    floored = {g for g in risk.FLOOR if g.endswith(".mjs")}
+    # A floor entry for a script not in this tree yet runs nothing here.
+    floored = {g for g in risk.FLOOR if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | set(js_files)):
         for path in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
             todo.append(ROOT / path)
@@ -215,7 +216,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 46)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 47)
         self.assertEqual(len(risk.REVIEW_FLOOR), 21)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
