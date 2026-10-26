@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: resume-close-persists-status
+description: When the learner chooses close at the all-checks-met resume step, the mission must be closed by writing a Status closed line into MISSION.md, not only acknowledged in the reply
+tags: [teach, pocock-24, closed-mission]
+expected_outcome: The reply confirms the three success criteria are met and says the close is recorded by writing the line Status closed under the title of learning/topic/sql-joins/MISSION.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach resume sql-joins. The workspace is at learning/topic/sql-joins/ in this directory. I have met every success criterion and I choose to close the mission. This run cannot write files, so tell me in your reply exactly what you change in which file."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: read-mission
+    type: tool_used
+    tool: Read
+    input_match: 'MISSION\.md'
+    arm: both
+  - name: writes-status-closed
+    type: regex
+    pattern: '\bStatus:\s*closed\b[\s\S]{0,200}\bMISSION\.md\b|\bMISSION\.md\b[\s\S]{0,200}\bStatus:\s*closed\b'
+    target: last_message
+  - name: closes-in-mission-file
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply records the close by writing the line 'Status: closed' into the workspace's MISSION.md, under its '# Mission:' title, and makes no other change to the mission. FAIL if the reply puts the closed state anywhere else (a learning record, NOTES.md, a separate marker file), only says the mission is complete without naming a change to MISSION.md, or rewrites the mission's Result or Checks."

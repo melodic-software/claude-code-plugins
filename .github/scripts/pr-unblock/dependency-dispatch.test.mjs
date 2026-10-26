@@ -78,6 +78,24 @@ test("dispatches review-dependency for a review-tier Dependabot PR", async () =>
   });
 });
 
+test("a check-run read GitHub still answers 5xx after its retries skips that PR with a warning; any other error fails", async () => {
+  const api = fakeApi({ nodes: [pr(4), pr(5)] });
+  const listCheckRuns = api.listCheckRuns;
+  let error = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
+  api.listCheckRuns = async (query) => {
+    if (query.sha === pr(4).headRefOid) {
+      throw error;
+    }
+    return listCheckRuns(query);
+  };
+  const lines = [];
+  const skipped = await run(api, { log: (line) => lines.push(line) });
+  assert.deepEqual(skipped, { dispatched: [{ number: 5, workflowRunId: "7005" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#4:") && line.includes("502")));
+  error = Object.assign(new Error("GET check-runs returned 403"), { status: 403, rateLimited: true });
+  assert.equal((await run(api)).failed, 1, "a rate limit still fails");
+});
+
 test("leaves auto-tier bumps, other authors, drafts and forks alone", async () => {
   const api = fakeApi({
     nodes: [

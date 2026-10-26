@@ -12,6 +12,10 @@ async page => {
   await page.waitForSelector(".qbtn", {state: "attached"});
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+  // #7970: with no stored choice a wide screen opens the side panels pinned; this run was written for the overlay, so it stores Unpin first
+  await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
+  if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
+  await page.click("#flyClose"); await page.waitForTimeout(150);
 
   ok("first question that needs you is selected on load: stale Q9 comes before open N1", await sel() === "Q9" && /Stale/.test(await page.textContent('.qbtn[data-q="Q9"]')), await sel());
   const lock = await page.textContent('.sec[data-key="g:g10"] .lock').catch(() => "");

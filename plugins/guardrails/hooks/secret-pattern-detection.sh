@@ -780,11 +780,15 @@ spd_under_allowed_root() {
     held_homes+=("$held")
   done
   # The target, resolved without the cache so the file's own path never enters
-  # it: its nearest existing ancestor physically, the rest as spelled.
+  # it: its nearest existing ancestor physically, the rest as spelled. Only the
+  # ancestor goes to spd_cmp_to's cygpath: a resolver answer in a mount spelling
+  # (a junction into /tmp) gets its long names only for a path that exists, so
+  # the components below are joined after it.
   spd_exempt_anchor "$spd_et" || return 1
   hook::physical_path_to phys "$spd_ancestor" || return 1
   [[ "$phys" -ef "$spd_ancestor" ]] || return 1
-  spd_cmp_to t "${phys%/}$spd_sfx" || return 1
+  spd_cmp_to t "$phys" || return 1
+  spd_cmp_to t "${t%/}$spd_sfx" || return 1
   for c in "${cand[@]}"; do
     spd_canon_to r "$c" || continue
     [[ "$r" == / || "$r" =~ ^[A-Za-z]:/?$ || "$r" =~ ^/[A-Za-z]$ ]] && continue

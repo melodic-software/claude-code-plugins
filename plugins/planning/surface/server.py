@@ -55,9 +55,11 @@ REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
 # `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
 # Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
-# `confirm-understanding` carries `confirm` or `off`, and `accept-audit` the round id.
-WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit"}
+# `confirm-understanding` carries `confirm` or `off`, `accept-audit` the round id, and
+# `proposal` the user's answer to a proposed question (PROPOSAL), recording no decision.
+WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit", "proposal"}
 UNDERSTANDING = ("confirm", "off")
+PROPOSAL = ("accept", "edit", "decline")
 API = 2
 MAX_BODY = 64 * 1024
 # A file visual larger than this is neither served nor inlined.
@@ -337,8 +339,11 @@ def derive_states(doc, r):
     a live decision on it replays. A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
     upstream-pending, and upstream_stale maps it to every stale ancestor, nearest first and ties
-    by id; `archived` wins over all three, then stale, then upstream-changed. `revising` marks a
-    question with its own delivered, unhandled decision event; upstream effects stay in the states.
+    by id; `archived` wins over all three, then stale, then upstream-changed. A question the
+    propose op added is `proposed` until a live proposal event answers it, `archived` once the
+    latest one declines it, and derived as any other question once it accepts or edits it
+    (proposal_answer). `revising` marks a question with its own delivered, unhandled decision
+    event; upstream effects stay in the states.
     """
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict) and q.get("id")]
     deps = {q["id"]: list(q.get("dependsOn") or []) for q in qs}
@@ -462,7 +467,9 @@ def derive_states(doc, r):
                     waited.discard(qid)
                     if live.get(c):
                         stale.add(c)
-    archived = {q["id"] for q in qs if q.get("archived")}
+    answers = {q["id"]: proposal_answer(q, r.get("events")) for q in qs}
+    archived = {q["id"] for q in qs if q.get("archived") or answers[q["id"]] == "decline"}
+    proposed = {qid for qid, a in answers.items() if a == "pending"} - archived
     stale -= archived
     pending = {c: ids for c, ids in pending.items() if c not in archived}
 
@@ -486,6 +493,8 @@ def derive_states(doc, r):
     for qid in deps:
         if qid in archived:
             state = "archived"
+        elif qid in proposed:
+            state = "proposed"
         elif qid in stale:
             state = "stale"
         elif qid in pending:
@@ -626,14 +635,48 @@ def is_handled(doc, seq):
     return seq <= (doc.get("handledSeq") or 0) or seq in set(doc.get("handled") or [])
 
 
+def proposal_answer(q, events):
+    """For a question the propose op added: the `alt` of its latest live proposal event (accept,
+    edit or decline), or `pending` while none answers it. None for any other question."""
+    if not (isinstance(q, dict) and q.get("proposed")):
+        return None
+    alts = [
+        e.get("alt")
+        for e in sorted(events or [], key=lambda e: e.get("seq", 0))
+        if e.get("id") == q.get("id")
+        and e.get("kind") == "proposal"
+        and not e.get("withdrawn")
+    ]
+    return alts[-1] if alts else "pending"
+
+
+def check_proposal(q, alt, text, events):
+    """ValueError (400) or Conflict (409) for a proposal event on q: `alt` is accept, edit or
+    decline, an edit carries the reworded question in `text` (one line), and q is a proposed
+    question no proposal event has answered yet."""
+    answer = proposal_answer(q, events)
+    if answer is None:
+        raise ValueError("not a proposed question")
+    if alt not in PROPOSAL:
+        raise ValueError("proposal needs alt: accept, edit or decline")
+    if alt == "edit" and not text.strip():
+        raise ValueError("text required: the question as you would ask it")
+    if alt == "edit" and (len(text) > LINE_CAP or len(text.splitlines()) > 1):
+        raise ValueError(f"text must be one line of at most {LINE_CAP} characters")
+    if answer != "pending":
+        raise Conflict({"error": "proposal answered", "proposal": answer})
+
+
 def round_complete(doc, r, qid):
-    """True when every live question in qid's round has a decision in r (this accept included)."""
+    """True when every live question in qid's round has a decision in r (this accept included);
+    a proposed question the user has not accepted or edited is not a question yet."""
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
     rnd = next((q.get("round") for q in qs if q.get("id") == qid), None)
     return not any(
         q.get("round") == rnd
         and not q.get("archived")
         and not q.get("supersededBy")
+        and proposal_answer(q, r["events"]) in (None, "accept", "edit")
         and not (r["responses"].get(q.get("id")) or {}).get("decision")
         and not (q.get("terminal") or {}).get("decision")
         for q in qs
@@ -776,15 +819,22 @@ def check_accept_audit(msg):
 
 
 def open_prereqs(doc, r, q):
-    """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived or
-    superseded) and held, or with no decision that counts. Call release_user_holds first."""
+    """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived,
+    superseded or a declined proposal) and held, or with no decision that counts. Call
+    release_user_holds first."""
     from exporters import latest_decision  # exporters imports server at module top
 
     qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
     out = []
     for p in q.get("dependsOn") or []:
         x = qs.get(p)
-        if not x or x.get("archived") or x.get("supersededBy") or p in out:
+        if (
+            not x
+            or x.get("archived")
+            or x.get("supersededBy")
+            or p in out
+            or proposal_answer(x, r.get("events")) == "decline"
+        ):
             continue
         if x.get("waiting") or not (
             latest_decision(x, r.get("responses") or {}) or {}
@@ -1081,6 +1131,24 @@ class Hub(LoopbackWatcher):
             r = load_json(self.responses, EMPTY_RESPONSES)
             for k, v in EMPTY_RESPONSES.items():
                 r.setdefault(k, json.loads(json.dumps(v)))
+            if kind == "proposal":
+                check_proposal(qs[qid], alt, text, r["events"])
+            elif kind in DECISIONS and proposal_answer(qs[qid], r["events"]) in (
+                "pending",
+                "decline",
+            ):
+                raise ValueError(
+                    "a proposed question takes no decision: accept or edit the proposal first"
+                )
+            elif (
+                kind in ("accept", "hedged")
+                and qs[qid].get("proposed")
+                and not qs[qid].get("recommendation")
+            ):
+                raise ValueError(
+                    "no recommendation to accept yet: Claude writes it after the proposal's "
+                    "accept or edit"
+                )
             event = {
                 "seq": r["seq"] + 1,
                 "id": qid,
@@ -1133,7 +1201,7 @@ class Hub(LoopbackWatcher):
                         }
                     )
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
-            if kind in WITH_ALT and qid:
+            if kind in WITH_ALT and qid and kind != "proposal":
                 check_alt(qs[qid], kind, alt)
             if kind in DECISIONS - {"reopen"}:
                 release_user_holds(doc, r)
