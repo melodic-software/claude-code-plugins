@@ -23,9 +23,9 @@ git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-changelog-parity check-changed-skills setup-env; do
+  check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
-  printf '#!/usr/bin/env bash\necho "%s ran" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
+  printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
 printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
   >"$repo/scripts/sync-plugin-options-docs.py"
@@ -133,6 +133,18 @@ check "typos gets the config, the exclusions and the changed files" \
 run PATH="$(path_without typos)" -- --base base
 check "a missing typos is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP typos (typos not installed)"* ]]'
+run -- --base base
+# shellcheck disable=SC2034 # read by the eval in check
+base_sha="$(git_test_config "$repo" rev-parse base)"
+check "comment-hygiene gets the merge-base and the changed files" \
+  '[[ $RC == 0 && $ERR == *"check-comment-hygiene ran: $base_sha notes.txt"* ]]'
+check "comment-hygiene is not named CI only" '[[ $ERR != *"CI only: comment-hygiene "* ]]'
+run STUB_CHECK_COMMENT_HYGIENE=1 -- --base base
+check "a comment-hygiene violation fails the check, naming how to reproduce it" \
+  '[[ $RC == 1 && $ERR == *"FAIL comment-hygiene"* && $ERR == *"Reproduce: bash scripts/check-comment-hygiene.sh $base_sha notes.txt"* ]]'
+run STUB_CHECK_COMMENT_HYGIENE=2 -- --base base
+check "a comment-hygiene that could not fetch its patterns is a skip, not a failure" \
+  '[[ $RC == 0 && $ERR == *"SKIP comment-hygiene (could not run, exit 2"* ]]'
 run STUB_CHECK_SPOKE_PLUGIN_ROOT=1 -- --base base
 check "a failing spoke-plugin-root fails the check" '[[ $RC == 1 && $ERR == *"FAIL spoke-plugin-root"* ]]'
 run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
@@ -266,7 +278,7 @@ tools="$tmp/tools"
 mkdir -p "$tools/scripts"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-changelog-parity check-changed-skills; do
+  check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit 1\n' "$s" >"$tools/scripts/$s.sh"
 done
 printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(1)\n' \
@@ -279,6 +291,8 @@ check "a copy run elsewhere runs its own check scripts against the checked tree"
   '[[ $RC == 1 && $ERR == *"copy of check-shell-portability read $repo"* ]]'
 check "a copy run elsewhere points the spoke, options-docs and changelog-parity checks at the checked tree" \
   '[[ $ERR == *"copy of check-spoke-plugin-root read $repo"* && $ERR == *"copy of sync-plugin-options-docs read $repo"* && $ERR == *"copy of check-changelog-parity read $repo"* ]]'
+check "a copy run elsewhere runs its own comment-hygiene against the checked tree" \
+  '[[ $ERR == *"copy of check-comment-hygiene read $repo"* && $ERR != *"check-comment-hygiene ran"* ]]'
 check "a copy run elsewhere skips the checked tree's tests" \
   '[[ $ERR == *"SKIP tests"* && $ERR != *"copy of affected-tests"* ]]'
 

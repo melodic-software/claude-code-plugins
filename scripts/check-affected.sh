@@ -36,6 +36,9 @@
 #   - validate-plugins:    scripts/validate-plugins.sh --only <touched plugins>
 #   - ruff:                scripts/run-ruff.sh check on changed .py
 #   - typos:               typos --config _typos.toml on the changed files
+#   - comment-hygiene:     scripts/check-comment-hygiene.sh <merge-base> on the
+#                          changed files, which runs the pinned ci-workflows
+#                          action's own patterns library over their comments
 #   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
 #   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
 #   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
@@ -363,6 +366,16 @@ elif [[ ! -f "$typos_config" ]]; then
   skip typos "no _typos.toml"
 else
   run_check typos "typos --config _typos.toml ${changed[*]}" typos_check "$typos_config"
+fi
+
+# comment-hygiene: the patterns come from the ci-workflows SHA the merge-base's
+# workflow pins, fetched on each run; a failed fetch is the script's exit 2, a
+# SKIP with its reason. Run through bash, so a copy without the exec bit runs.
+if ((${#changed[@]} == 0)); then
+  skip comment-hygiene "no changed files"
+else
+  run_check comment-hygiene "bash scripts/check-comment-hygiene.sh $merge_base ${changed[*]}" \
+    bash "$tools/scripts/check-comment-hygiene.sh" "$merge_base" "${changed[@]}"
 fi
 
 run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \

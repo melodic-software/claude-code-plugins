@@ -24,12 +24,12 @@ changelog-parity-order run changelog-parity
 plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
 changed-skills run changed-skills
+comment-hygiene run comment-hygiene
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
 # or the command that runs it by hand.
 machine-specific-paths ci-only ci-workflows composite, run its entry script by hand: README.md "Running machine-specific-paths locally"
 actionlint ci-only ci-workflows composite
-comment-hygiene ci-only ci-workflows composite
 dependabot-schema ci-only ci-workflows composite: check-jsonschema
 editorconfig ci-only ci-workflows composite
 eol-renormalize ci-only ci-workflows composite

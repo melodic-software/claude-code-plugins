@@ -158,9 +158,10 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
+| `comment-hygiene` | `bash scripts/check-comment-hygiene.sh origin/main <files>` | In-repo wrapper; fetches the pinned `check-comment-markers` action's own patterns library at the SHA `origin/main`'s workflow pins, so it needs network. File paths are relative to the repository root. |
 | `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
-`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, `machine-specific-paths` and the whole-repo scanners included. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
+`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `plugin-options-docs`, `changelog-parity`, `comment-hygiene` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, `machine-specific-paths` and the whole-repo scanners included. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
 `scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
