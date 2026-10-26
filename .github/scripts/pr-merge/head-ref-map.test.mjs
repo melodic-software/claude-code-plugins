@@ -141,7 +141,7 @@ test("the next map keeps listed entries and adds this run's downloads", () => {
     repo: REPO,
   });
   // 50 has expired; 60 recorded no head ref; 70 is another repository's key;
-  // 80 came from the restored actions/cache entry, never a download; 90 was
+  // 80 came from the last run's carried run cache, never a download; 90 was
   // downloaded but is no longer listed.
   assert.deepEqual(refs, { 30: "feat/other", 40: "feat/x", 60: "" });
 });
