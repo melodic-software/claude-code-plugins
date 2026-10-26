@@ -1258,11 +1258,10 @@ kind seen fewer than 5 times, keeps the lane in `shadow` until more runs add to 
 quiet day cannot pass the check on zero hits. Basis: judgment. A disagreement in 1 hit in 20 shows
 at least once in 50 hits about 92% of the time (1 - 0.95^50), and 5 per kind keeps one rare refusal
 kind from passing on a single agreeing hit. A day with any `cache=error` line does not qualify,
-whatever its hits say: the cache failed on reads it would have served. The two modes also key in
-a different order. Shadow takes the key after its full read, while serve probes first and reads in
-full only on a miss, so an input that moves during a shadow read is hashed in while the kept report
-predates it. Shadow's `agree` figures therefore come from the other order than serve would run;
-the effect can only delay an arm, since only refusals are kept.
+whatever its hits say: the cache failed on reads it would have served. Both modes take the key
+before the full read, so a kept entry carries the key of the inputs the read saw: an input that
+moves during the read is a miss on the next run, never a hit on a stale refusal, and shadow's
+`agree` figures come from the same order serve runs.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate

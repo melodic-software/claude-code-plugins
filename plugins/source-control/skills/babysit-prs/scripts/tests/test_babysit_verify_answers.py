@@ -761,6 +761,34 @@ class AnsweredTest(unittest.TestCase):
         self.run_main("--answers-mode", "serve", "--answers-only")
         self.assertEqual([c[:2] for c in self.world.calls], [["api", "graphql"]])
 
+    def test_an_input_moving_during_the_read_is_never_kept_under_its_new_key(
+        self,
+    ) -> None:
+        # The read refuses on the inputs as they were; a title edit lands
+        # while it runs. The entry must carry the key of what was read, so a
+        # later serve sees the edit as a miss and reads again.
+        def moving_read(*_: Any) -> dict[str, Any]:
+            self.reads += 1
+            self.world.repository["pullRequest"]["title"] = "feat: y"
+            return copy.deepcopy(MISSING)
+
+        for mode in ("shadow", "serve"):
+            with self.subTest(mode):
+                self.world = World()
+                self.answers_in.unlink(missing_ok=True)
+                self.answers_out.unlink(missing_ok=True)
+                self.reads = 0
+                with mock.patch.object(self, "full_read", side_effect=moving_read):
+                    self.run_main("--answers-mode", mode)
+                self.assertEqual(self.reads, 1)
+                self.answers_in.write_text(
+                    self.answers_out.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+                self.reads = 0
+                later = self.run_main("--answers-mode", "serve")
+                self.assertEqual(later["cache"]["key"], "miss")
+                self.assertEqual(self.reads, 1)
+
     def test_shadow_prints_the_plain_read_and_its_cache_object(self) -> None:
         # The real full read, kept inside World: no lane flags, and no
         # verdict artifact at all, so the read refuses verify:missing.

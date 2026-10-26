@@ -2501,47 +2501,47 @@ def _answered(
     error: a rate limit behind the key exits the process (`os._exit(75)`) as
     any other read's does, the price of one GraphQL point a read."""
     serve = args.answers_mode == SERVE
-    look: _Lookup | None = None
     # What the run logs for a read the cache failed on (`cache=error`).
     failed = {"mode": SERVE if serve else SHADOW, "error": True}
-    if serve:
-        # The lookup first, so a hit reads nothing more.
-        try:
-            look = _lookup(args, reader, now)
-            if look.hit:
-                _write_answers(
-                    args.answers_out,
-                    look.kept,
-                    args.repo,
-                    look.code,
-                    now,
-                    args.number,
-                    look.entry,
-                )
-                return json_object(look.stored) | {
-                    "cached": True,
-                    "cache": look.cache | {"fresh": "none", "agree": "n/a"},
-                }
-            if args.answers_only:
-                # No full read: a miss is no answer at all.
-                _write_answers(
-                    args.answers_out,
-                    look.kept,
-                    args.repo,
-                    look.code,
-                    now,
-                    args.number,
-                    look.entry,
-                )
-                return {"head": args.head, "cached": False, "cache": look.cache}
-        except Exception as exc:  # noqa: BLE001 - the cache never costs the read
-            print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
-            if args.answers_only:
-                return {"head": args.head, "cached": False, "cache": failed}
-            return _evidence_report(args, reader) | {"cache": failed}
+    # The key first in both modes, so a kept entry carries the key of the
+    # inputs as they stood before the read: one that moves during it is a
+    # miss next run, never a hit on a stale refusal.
+    try:
+        look = _lookup(args, reader, now)
+        if serve and look.hit:
+            _write_answers(
+                args.answers_out,
+                look.kept,
+                args.repo,
+                look.code,
+                now,
+                args.number,
+                look.entry,
+            )
+            return json_object(look.stored) | {
+                "cached": True,
+                "cache": look.cache | {"fresh": "none", "agree": "n/a"},
+            }
+        if serve and args.answers_only:
+            # No full read: a miss is no answer at all.
+            _write_answers(
+                args.answers_out,
+                look.kept,
+                args.repo,
+                look.code,
+                now,
+                args.number,
+                look.entry,
+            )
+            return {"head": args.head, "cached": False, "cache": look.cache}
+    except Exception as exc:  # noqa: BLE001 - the cache never costs the read
+        print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
+        if serve and args.answers_only:
+            return {"head": args.head, "cached": False, "cache": failed}
+        return _evidence_report(args, reader) | {"cache": failed}
     report = _evidence_report(args, reader)
     try:
-        return _kept_report(args, now, look or _lookup(args, reader, now), report)
+        return _kept_report(args, now, look, report)
     except Exception as exc:  # noqa: BLE001 - the cache never costs the read
         print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
         return report | {"cache": failed}
