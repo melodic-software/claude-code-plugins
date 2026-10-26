@@ -6,11 +6,13 @@
 // post-merge-demotion-alert.yml share: a cancelled full run counts as red, so
 // no pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -657,3 +659,81 @@ test("a dispatch that failed skips the record and the wait", () => {
   const wait = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   assert.match(wait, /^ {8}if: github\.event_name == 'push' && steps\.dispatch\.outputs\.run-id != ''\n/);
 });
+
+// Each job's "Check who started the run" step, run under bash from a directory
+// whose .base is this checkout, with the step's own env (its github context
+// filled from the run below) and an API that serves this run attempt's record,
+// or answers 404 when record is null. Expected values come from GitHub's
+// workflow run record: actor is who started the run and triggering_actor who
+// started this attempt, each with a permanent account id, while a login can be
+// released and registered by someone else. The listed human is
+// trusted-actors.json's entry 153232337.
+const OWNER = { id: 153232337, login: "kyle-sexton" };
+async function runWho(jobId, { actor = OWNER, rerunner = actor, record = { id: 4242, run_attempt: 2, actor, triggering_actor: rerunner } } = {}) {
+  const step = /- name: Check who started the run\n([\s\S]*?)(?=\n {6}- name: )/.exec(job(jobId))[1];
+  const context = {
+    "github.event_name": "workflow_dispatch",
+    "github.actor_id": String(actor.id),
+    "github.triggering_actor": rerunner.login,
+    "github.token": "t",
+  };
+  const stepEnv = Object.fromEntries(
+    [...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e])]),
+  );
+  const block = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step);
+  const body = block ? block[1].split("\n").map((l) => l.slice(10)).join("\n") : /\n {8}run: (.*)/.exec(step)[1];
+  const reads = [];
+  const server = createServer((req, res) => {
+    reads.push(req.url);
+    const found = req.url === "/repos/o/r/actions/runs/4242" && record !== null;
+    res.writeHead(found ? 200 : 404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(found ? record : { message: "Not Found" }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-who-"));
+  try {
+    symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
+    writeFileSync(join(dir, "body.sh"), body);
+    const output = join(dir, "output");
+    const env = {
+      ...process.env,
+      ...stepEnv,
+      GITHUB_OUTPUT: output,
+      GITHUB_REPOSITORY: "o/r",
+      GITHUB_RUN_ID: "4242",
+      GITHUB_RUN_ATTEMPT: "2",
+      GITHUB_EVENT_NAME: "workflow_dispatch",
+      GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+      // .base is a link here, a checkout in CI: keep the script's own path.
+      NODE_OPTIONS: "--preserve-symlinks-main",
+    };
+    const status = await new Promise((resolve) => spawn("bash", ["-e", join(dir, "body.sh")], { cwd: dir, env, stdio: "ignore" }).on("close", resolve));
+    assert.equal(status, 0);
+    return { proceed: /^proceed=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1], reads };
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+for (const jobId of ["merge", "enable-auto-merge"]) {
+  test(`${jobId}: a listed human's id proceeds whatever its login now reads`, async () => {
+    const renamed = { id: OWNER.id, login: "kyle-renamed" };
+    const { proceed, reads } = await runWho(jobId, { actor: renamed });
+    assert.equal(proceed, "true");
+    assert.deepEqual(reads, ["/repos/o/r/actions/runs/4242"]);
+  });
+
+  test(`${jobId}: a re-runner holding a listed login under another id stops`, async () => {
+    assert.equal((await runWho(jobId, { rerunner: { id: 999, login: OWNER.login } })).proceed, "false");
+  });
+
+  test(`${jobId}: an unreadable run record stops`, async () => {
+    assert.equal((await runWho(jobId, { record: null })).proceed, "false");
+  });
+
+  test(`${jobId}: another attempt's record or a missing id stops`, async () => {
+    assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 1, actor: OWNER, triggering_actor: OWNER } })).proceed, "false");
+    assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: { login: OWNER.login } } })).proceed, "false");
+  });
+}
