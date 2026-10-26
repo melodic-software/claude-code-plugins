@@ -60,18 +60,15 @@
 // again at that head: the gate's reader (`evidence`, as enable-auto-merge
 // reads it, the room's rung cap passed as C3 so the scorer answers at the
 // config's rung) runs, and the label comes off as `refusal-cleared` when
-// nothing refuses. A recorded cause the lanes clear (every code on
-// LANE_CAUSES; a label set before it became a lane's) also comes off when the
-// answer was read whole and what refuses now is a lane's (verifyClears
-// `lane`) for the same cause: for a verifier reason a verdict, read once the
-// link passes, that is neither unreadable nor missing; for a risk reason a
-// risk score, which the reader computes only once the link and verdict pass.
-// An issue-link reason, and any recorded code off that list, an unknown one
-// included, come off only when nothing refuses. A person's refusal, an unread
-// answer and a failed read keep it; so does a hold or cost path, which no
-// reader answer clears. At most NATIVE_READS_PER_RUN reads a run, starting at
-// an offset that moves with the run number
-// (rotated), so labels past the cap are read on a later run.
+// nothing refuses. It also comes off when every code recorded and every code
+// refusing now is on LANE_CAUSES (a label set before its cause became a
+// lane's), and the reader got at least as far as the recorded cause: the link,
+// then the verdict, then the risk score, each read only once the one before
+// passes. An issue-link reason, and any code off that list, an unknown one
+// included, come off only when nothing refuses. An unread answer and a failed
+// read keep it; so does a hold or cost path, which no reader answer clears. At
+// most NATIVE_READS_PER_RUN reads a run, starting at an offset that moves with
+// the run number (rotated), so labels past the cap are read on a later run.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
@@ -109,7 +106,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { personBodies, pythonVerify, READER_HOLDS, REFUSAL_MARKER, rotated, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
+import { personBodies, pythonVerify, READER_HOLDS, REFUSAL_MARKER, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -140,32 +137,33 @@ export const CLEARS_PER_RUN = 5;
 // step's timeout-minutes (pr-merge.yml) allows this many (judgment).
 export const NATIVE_READS_PER_RUN = 3;
 const REFUSAL_CLEARED = "refusal-cleared";
-// babysit_verify_evidence.py's verdicts and risk answer for a read that did
-// not finish (UNREADABLE, MISSING, `reviews: "unreadable: …"`).
-const UNREAD = Object.freeze(["verify:unreadable", "verify:missing"]);
-const UNREAD_REVIEWS = /^unreadable:/;
-// The recorded causes the lanes clear, the only ones a lane-class answer may
-// lift; every other code, an unknown one included, is a person's. Risk codes
-// (an entry ending in ":" is a prefix): babysit_risk.py's holding MED codes
-// files-incomplete and evidence-unbound:<lane>, the manifest review, and the
-// reader's own unread score (babysit_verify_evidence.py lane_risk_refusal).
-// Verdicts: babysit_verify_evidence.py's refusals but untrusted-spec and
-// repeated-fail.
+// The causes the lanes clear, by READER_HOLDS kind: the only ones a
+// lane-class answer may lift, recorded or read now. Every other code, an
+// unknown one included, is a person's. babysit_risk.PERSON_CODES (#10249) is
+// to become the single source; until then the list is explicit, so it fails
+// closed.
+// - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
+//   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
+//   the manifest review (:598). Not the reader's `unreadable: …` score.
+//   files-incomplete and the manifest review join their items with "; ", so
+//   a reason with two or more items reads as unknown codes and stays.
+// - verdict: babysit_verify_evidence.py's FAIL, EARLIER_FAIL and SPEC_CHANGED,
+//   which a push clears. Not untrusted-spec or repeated-fail (a person's),
+//   too-old (it recurs at the same head; #10249 makes it a person's), missing
+//   or unreadable (no answer), or ineligible (always paired with a link
+//   answer, which verifyHold reads first).
+// - link: none; an issue link lifts only when nothing refuses.
 export const LANE_CAUSES = Object.freeze({
-  risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required", "unreadable"]),
-  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:missing", "verify:unreadable", "verify:too-old", "verify:spec-changed", "verify:ineligible"]),
+  link: Object.freeze([]),
+  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed"]),
+  risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required"]),
 });
 
-// Whether a `kind` refusal recorded as `reason` names only causes the lanes
-// clear: each "; "-separated risk code, or the verdict, on LANE_CAUSES. An
-// issue link is never one: it lifts only when nothing refuses.
+// Whether the `kind` reason (verifyHold's) names only causes the lanes clear:
+// each "; "-separated code on LANE_CAUSES[kind].
 function laneCause(kind, reason) {
-  const recorded = reason.slice(READER_HOLDS[kind].length, -1);
-  if (kind === "verdict") {
-    return LANE_CAUSES.verdict.includes(recorded);
-  }
-  const codes = recorded.split("; ").map((part) => part.split(": ")[0]);
-  return kind === "risk" && codes.every((code) => LANE_CAUSES.risk.some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
+  const codes = reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
+  return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
 }
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -239,22 +237,19 @@ function nativeRefusal(appComments, merged, label, head) {
 }
 
 // Whether the reader's `evidence` at `head` lifts the `kind` refusal recorded
-// as `reason`: nothing refuses, or, for a recorded cause the lanes clear (a
-// label set before that cause became a lane's), the answer was read whole and
-// what refuses is a lane's for the same cause. Any other recorded cause
-// (laneCause) lifts only when nothing refuses: an unbound review or a partial
-// file listing is a lane-class answer that never checked it, and the spec's
-// trust is checked only on a pass. The reader reads
-// the verdict only once the link passes, and the risk score only once the
-// verdict passes too, so a refusal of either hides what comes after it.
+// as `reason`: nothing refuses, or both the recorded cause and what refuses
+// now are the lanes' (laneCause), and the reader got at least as far as the
+// recorded cause. It reads the link, then the verdict, then the risk score
+// (READER_HOLDS order), each only once the one before passes, so a refusal
+// that stops earlier hides the recorded cause.
 function liftsRefusal(kind, reason, evidence, head) {
-  if (verifyHold(evidence, head) === null) {
+  const held = verifyHold(evidence, head);
+  if (held === null) {
     return true;
   }
-  if (!laneCause(kind, reason) || evidence.ineligible !== null || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
-    return false;
-  }
-  return kind === "verdict" || evidence.refusal === null;
+  const order = Object.keys(READER_HOLDS);
+  const now = order.find((key) => held.startsWith(READER_HOLDS[key]));
+  return order.indexOf(now) >= order.indexOf(kind) && laneCause(kind, reason) && laneCause(now, held);
 }
 
 // Whether the lanes App comment written last at or before `since` that carries

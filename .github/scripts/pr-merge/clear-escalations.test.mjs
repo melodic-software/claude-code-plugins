@@ -551,6 +551,8 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
     [SPEC_CHANGED, refusing("verify:earlier-fail")],
     // A risk label: a risk score read whole, now naming only lane causes.
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
+    // A lane verdict now passes, and the risk score it hid names only lane causes.
+    [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
@@ -593,6 +595,17 @@ test("a risk, verifier or issue-link label stays when the reader's answer no lon
     [SPEC_CHANGED, reviewsNow("unreadable: no agent identity")],
     [UNBOUND, refusing("verify:fail")],
     [SPEC_CHANGED, ineligible("not-agent-ready")],
+    // A link reason is never a lane's, the reader's own unread link included;
+    // a code is matched whole; a lane cause recorded never lifts a person's now.
+    ["pr-merge's lane does not take its issue link (unreadable: timed out)", reviewsNow("files-incomplete: the listing did not read whole")],
+    [risk("files-incomplete-x: d"), reviewsNow("files-incomplete: the listing did not read whole")],
+    [risk("trust-gate:trusted-actors: widens"), reviewsNow("files-incomplete: the listing did not read whole")],
+    ["pr-merge's gate refuses its verifier verdict (verify:fail-x)", refusing("verify:fail")],
+    [risk("files-incomplete: the listing did not read whole"), reviewsNow("high-path:infra/**: infra/main.tf")],
+    // Off the lane list: a refusal that recurs at the same head, or one the
+    // reader always pairs with a link answer.
+    ["pr-merge's gate refuses its verifier verdict (verify:too-old)", refusing("verify:fail")],
+    ["pr-merge's gate refuses its verifier verdict (verify:ineligible)", refusing("verify:fail")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
