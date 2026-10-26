@@ -210,11 +210,14 @@ CLI through it. Otherwise write a script in the language the repository already 
   then held to that kind's floors as well as its own;
 - loads code only from inside its control-skill folder, plus dependencies pinned by a lockfile
   inside that folder that carries an integrity hash for each and names no file, path or link
-  dependency;
-- writes nothing inside its control-skill folder (no bytecode, caches or temp files), and turns
-  bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True` before any import), so
-  the untracked check in [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop
-  a second run.
+  dependency. It installs them outside the folder, into a new directory for each run, with the
+  ecosystem's frozen install, which checks every hash (the install form in
+  `docs/conventions/on-demand-dependencies/README.md` in the marketplace repository); an install
+  kept between runs is code the pin check never sees;
+- writes nothing inside its control-skill folder (no installed dependencies, bytecode, caches or
+  temp files), and turns bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True`
+  before any import), so the folder stays exactly the pinned tree and the untracked check in
+  [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop a second run.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
