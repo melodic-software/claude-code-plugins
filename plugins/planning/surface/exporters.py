@@ -97,6 +97,7 @@ from server import (
     IMAGE_TYPES,
     MAX_VISUAL_FILE,
     load_json,
+    proposal_answer,
     read_visual_file,
     release_user_holds,
 )
@@ -432,11 +433,33 @@ def natural(qid):
     return (m.group(1), int(m.group(2) or 0), m.group(3))
 
 
+DECLINED = "the user declined Claude's proposal"
+
+
 def read(d):
+    """(doc, responses) as the exports see them. A proposed question the user has not answered
+    is left out, so it writes no register row, Brief line or report card, and its id is listed
+    in `pendingProposals` so the register numbers the rest as if it were there; a declined one
+    reads as archived, a withdrawn row."""
     d = Path(d)
     doc = load_json(d / "questions.json", {"questions": []})
     resp = load_json(d / "responses.json", EMPTY_RESPONSES)
     release_user_holds(doc, resp)
+    events, kept, pending = resp.get("events") or [], [], []
+    for q in doc.get("questions") or []:
+        answer = proposal_answer(q, events)
+        if answer == "pending":
+            pending.append(q["id"])
+            continue
+        if answer == "decline" and not q.get("archived"):
+            ats = [
+                e.get("at") or ""
+                for e in events
+                if e.get("id") == q["id"] and e.get("kind") == "proposal"
+            ]
+            q["archived"] = {"why": DECLINED, "at": max(ats, default="")}
+        kept.append(q)
+    doc["questions"], doc["pendingProposals"] = kept, pending
     return doc, resp
 
 
@@ -582,7 +605,8 @@ def register(doc, resp, extra=()):
     """One dict per question, in register order, with its Q<N> and settled status; `extra`
     names ledger-only ids that share the numbering."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
-    pos, contiguous = numbering([q["id"] for q in qs] + list(extra))
+    held = list(doc.get("pendingProposals") or [])
+    pos, contiguous = numbering([q["id"] for q in qs] + held + list(extra))
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -659,7 +683,7 @@ def merged_register(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    pos, contiguous = numbering(sorted(page_ids) + extra)
+    pos, contiguous = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -1030,7 +1054,7 @@ def export_brief(d, text=None):
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
     rows = register(doc, resp, extra)
-    pos, _ = numbering(sorted(page_ids) + extra)
+    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
