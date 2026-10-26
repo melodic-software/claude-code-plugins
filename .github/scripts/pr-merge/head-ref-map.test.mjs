@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { main, nextMap } from "./head-ref-map.mjs";
+import { forgetMainTip, main, nextMap, onMain } from "./head-ref-map.mjs";
 
 import { mainCall } from "./on-main.fixture.mjs";
 
@@ -37,6 +37,7 @@ let n = 0;
 // requests: each API call, and two per `gh run download` (it lists the run's
 // artifacts, then fetches the archive).
 async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
+  forgetMainTip();
   n += 1;
   const path = join(dir, `in-${n}.json`);
   const calls = [];
@@ -222,4 +223,28 @@ test("the gate reads the carried map", async () => {
   const run = spawnSync("python3", ["-c", load, out, REPO], { cwd: scripts, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(JSON.parse(run.stdout), { 30: "a", 31: "" });
+});
+
+// The tag named main and main's tip are read once per process, however many
+// runs are checked; a failed read is remembered too, and refuses every run.
+test("onMain reads the tag named main and main's tip once per process", async () => {
+  const calls = [];
+  const actions = async (method, url) => {
+    calls.push(url);
+    return mainCall(url);
+  };
+  forgetMainTip();
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), true);
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(8) }), true);
+  assert.equal(calls.filter((u) => u.endsWith("/git/ref/tags/main")).length, 1);
+  assert.equal(calls.filter((u) => u.endsWith("/git/ref/heads/main")).length, 1);
+  assert.equal(calls.filter((u) => u.includes("/compare/")).length, 2);
+  forgetMainTip();
+  const tagged = async (method, url) => {
+    calls.push(url);
+    return mainCall(url, { mainTag: true });
+  };
+  assert.equal(await onMain({ repo: REPO, actions: tagged, sha: sha(7) }), false);
+  // Still refused with a client that would answer 404: the refusal holds.
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), false);
 });

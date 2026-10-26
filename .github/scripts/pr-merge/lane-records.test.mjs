@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { main, nextRecords } from "./lane-records.mjs";
 
+import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -56,6 +57,7 @@ let n = 0;
 // requests: each API call, and two per `gh run download` (it lists the run's
 // artifacts, then fetches the archive).
 async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted } = {}) {
+  forgetMainTip();
   n += 1;
   const path = join(dir, `in-${n}.json`);
   if (planted !== undefined) writeFileSync(path, planted);

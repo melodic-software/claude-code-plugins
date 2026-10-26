@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { carry, main, read } from "./carry-run-cache.mjs";
+import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 
 const REPO = "example-org/example-repo";
@@ -190,6 +191,7 @@ const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
 });
 
 async function readRun(t, { pages = [[]], files = {}, offMain = [], fail, planted, mainTag = false } = {}) {
+  forgetMainTip();
   const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-read-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const to = join(dir, "pr-merge-carried.json");

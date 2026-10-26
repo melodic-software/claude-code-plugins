@@ -46,7 +46,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, requireOnDefaultBranch } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, readDefaultBranchTip, requireBehindTip } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const MAP_ARTIFACT = "pr-merge-head-refs";
@@ -83,13 +83,22 @@ function writeAtomic(path, text) {
   renameSync(`${path}.tmp`, path);
 }
 
-// Whether commit `sha` ran main's own code: no tag is named main (a run on
-// one reports head_branch main) and `sha` is main's tip or behind it
-// (check-trusted-trigger.mjs requireOnDefaultBranch). Any failed read is a no.
+// main's tip, read once per process by the first onMain call, and only while
+// no tag is named main (a run on one reports head_branch main;
+// check-trusted-trigger.mjs readDefaultBranchTip). A failed or refused read
+// is remembered too, so every later run in the process is refused.
+let mainTip;
+export function forgetMainTip() {
+  mainTip = undefined;
+}
+
+// Whether commit `sha` ran main's own code: that tip read held, and `sha` is
+// main's tip or behind it (requireBehindTip). Any failed read is a no.
 export async function onMain({ repo, actions, sha }) {
   if (!SHA.test(sha ?? "")) return false;
+  mainTip ??= readDefaultBranchTip(actions, repo, "main", "off-main");
   try {
-    await requireOnDefaultBranch(actions, repo, "main", sha, "off-main");
+    await requireBehindTip(actions, repo, sha, await mainTip, "off-main");
     return true;
   } catch {
     return false;
