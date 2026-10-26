@@ -544,7 +544,7 @@ test("a done outcome whose not_done holds a skipped required check is stopped", 
 
 // The lane runs no test runner (pr-pipeline.yaml resolve-issue verify-scripts),
 // and the PR's CI runs the suites. These not_done lines are the ones runs
-// 40112451984 (issue 9691) and 40113312256 (issue 9797) reported.
+// 40112451984 and 40113312256 reported.
 const LEFT_TO_CI = [
   "`python3 -m pytest plugins/planning/surface/test_exporters.py -q` was not run: this run's Bash allows only the named wrapper scripts, so the new and updated tests are unexecuted",
   "`bash scripts/affected-tests.sh --run` was not run for the same reason; check-affected did not execute the planning python tests",
