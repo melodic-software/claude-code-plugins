@@ -401,7 +401,13 @@ arms cover below `xhigh`. The judge prompt changed after the first commit to `la
 (the `holdout-only` line above), so every figure here is on the 29 `holdout` rows, and the
 `sonnet` and `opus` sweep files above predate that change. For a same-prompt control,
 `sonnet` `medium` and `opus` `medium` (the shipped default and fallback) were run again in the
-same session; their files are not kept, so the 78-row tables above still reproduce.
+same session. This round's files sit apart in `sweep-haiku-5-5/`, so `metrics.sh --table` over
+`sweep/` never pairs arms run on different prompts. To reprint the table below, copy `labels.tsv`
+into a directory inside the repository (holdout scoring applies only there), copy
+`sweep-haiku-5-5/` beside it as `sweep/`, and run `metrics.sh --table` on that copy of the labels.
+Cost per row is a list-price estimate: the CLI's reported cost of each judge run on the setup
+above, measured 2026-10-26 on Claude Code 2.1.310. Recheck it when the judge prompt or a
+judge model changes.
 
 | model | effort | accuracy | FLAG precision [95% CI] | FLAG recall [95% CI] | coverage | cost per row | wall per run, median | wall per run, p95 | wall per arm | McNemar p vs most accurate |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -421,7 +427,10 @@ Run-to-run variance over all 78 rows, the first run and two more (`metrics.sh --
 Decision: `haiku` is not a judge class. `low` and `high` are significantly less accurate than
 the most accurate arm (McNemar p 0.0078 and 0.0312). `medium` does not differ at 0.05 on 29 rows
 (p 0.2500), but it changed its verdict on a third of the rows across three runs, against 9% for
-the shipped default, which is the inconsistency #6044 reported. `/testing:audit`'s judge pass
-already picks only `sonnet` or `opus`; `judge-lib.sh` no longer falls back to `haiku` either.
+the shipped default, which is the inconsistency #6044 reported. Scored on all 78 rows, which the
+prompt change excludes from the protocol because tune rows can favor the classes the prompt was
+tuned with, every `haiku` arm is significantly less accurate than `sonnet` `medium` (p 0.0015 to
+0.0072), so the two readings agree. `/testing:audit`'s judge pass already picks only `sonnet` or
+`opus`; `judge-lib.sh` no longer walks to `haiku` or accepts it as the fallback.
 The default stays `sonnet` `medium`, fallback `opus` `medium`. Re-run these arms when a new
 Haiku version ships.

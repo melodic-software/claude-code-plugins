@@ -389,6 +389,22 @@ done
 # overview's Claude API ID) to the haiku class, as it does the alias.
 cls="$(bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && judge::class claude-haiku-5-5 && judge::class haiku' _ "$HERE/../../../../hooks")"
 assert_contains "judge::class resolves claude-haiku-5-5 and the alias to haiku" "$cls" $'haiku\nhaiku'
+# judge::pick never falls back to haiku (calibration.md, Haiku). Writers come
+# from transcripts: the main one at TPATH and each listed session's beside it.
+PK="$TMP/pick"
+mkdir -p "$PK"
+printf '{"type":"assistant","message":{"model":"claude-opus-5-5"}}\n' >"$PK/main.jsonl"
+printf '{"type":"assistant","message":{"model":"claude-sonnet-5-5"}}\n' >"$PK/s1.jsonl"
+pick() {
+  bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && TPATH="$2"
+    if judge::pick "$3"; then echo "picked:$MODEL"; else echo "none:$MODEL"; fi' _ "$HERE/../../../../hooks" "$@"
+}
+assert_contains "opus and sonnet both wrote: no judge class, not haiku" \
+  "$(pick "$PK/main.jsonl" '[{"sid":"s1","agent":""}]')" "none:"
+assert_contains "a configured haiku fallback is ignored for opus" \
+  "$(CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=sonnet CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL=haiku pick "$PK/s1.jsonl" '[]')" "picked:opus"
+assert_contains "a configured haiku model still runs, for the calibration sweep" \
+  "$(CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=haiku pick "$PK/none.jsonl" '[]')" "picked:haiku"
 assert_not_contains "the judge never sees the labels" "$args" "labels.tsv"
 assert_not_contains "the judge never sees a case id" "$args" "case-1"
 check "the judge reads the case under its real name" "grep -q 'Judge these test blocks in .*/add.test.ts (block' <<<\"\$args\""
