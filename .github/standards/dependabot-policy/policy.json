@@ -75,7 +75,7 @@
         "directory": "/plugins/harness-ops/skills/control-claude-code/driver",
         "dependency": "@microsoft/tui-test",
         "reviewed": "2026-10-24",
-        "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs:278 installs this lockfile on the user's machine, :453-455 load the engine and its per-platform native binary (package-lock.json:22-30) into the session holder and start claude in it after :99 clears the API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
+        "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs:245 installs this lockfile on the user's machine, :420-422 load the engine and its per-platform native binary (package-lock.json:22-30) into the session holder and start claude in it after :87 clears the API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       }
     ],
