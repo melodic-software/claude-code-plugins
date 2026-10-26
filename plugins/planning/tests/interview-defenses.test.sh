@@ -508,11 +508,12 @@ done
 # it changes how the option is read, not what any round resolves.
 # Idea-stage routing, brainstorm handoff, problem first, withheld why question
 # The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
+# AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "72c58f0a264dcc23b121bacd2b0dcba855f4e2df81dcd62a6b79262542e89d8b"
+  "8ea4330b14a92567717d7e6f29c5e235a0321f692a87c116b2fe6b29c83b4719"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -556,11 +557,12 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "6b0f094c39b858d405dd5c41418c9c28bde87f9cdd3bac774524fcb31149e228"
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
+# AC<n> ids prefix the criteria guidance and EARS examples; USER-RESERVED lines unchanged
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "12fb15b012ac1707d98278319f165f3ce2a23d45e1b4a6cb28c7e0329d7511a3"
+  "2d69b0df3cc740badbb42b75c0677251bb990de8e892d8448359eb13c485f883"
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.

@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.111.1] - 2026-10-26
+
+### Fixed
+
+- `check-open-questions.sh` no longer grades a register clean while question rows sit below a sub-heading inside it. Any unfenced `- Q<N> |` row outside the `## Open-question register` section now makes the ledger ungradeable (exit 2), and stderr names each such row's line. Rows inside a fenced block are still documentation. The `/planning:interview` ledger template now says to keep live rows above any heading in the register.
+
+## [0.111.0] - 2026-10-26
+
+### Added
+
+- `check-plan-outcome.sh` grades a new `criteria` criterion: each acceptance criterion id (`AC1:`) must be named on some phase's `**Satisfies:**` line. It fails an unmapped id (`unmapped=`), an id no criterion defines (`unknown=`), a criterion without an id beside ones with ids, and an id used twice. A plan whose criteria carry no id passes with a warning.
+
+### Changed
+
+- `/planning:interview` writes each Brief acceptance criterion with an id, `- AC<n>: <criterion>`, with an EARS tag after the id under the `ears` format.
+- `/planning:plan` numbers any Brief criteria that lack ids, gives a criterion it adds the next id, and has each phase name the ids it satisfies; its outcome gate maps them by script instead of by reading.
+
+## [0.110.0] - 2026-10-26
+
+### Added
+
+- `/planning:plan` publishes an approved plan at a reader depth: `step-by-step` (default, the whole PLAN.md), `standard` (the `## Brief`, the `## Design` section and a phase outline) or `guardrails` (the `## Brief` and the `## Design` section). The depth comes from a `--reader <depth>` argument, else the depth the plan recorded at its first publish, else the new `plan_reader` key in `docs/conventions/planning.yaml` or the plugin's user config, else `step-by-step`. A reduced depth renders a derived `PLAN.<depth>.md` that keeps the `Approval:` line and goes to `/work-items:track publish-plan` and the pull request paste; PLAN.md stays whole.
+- PLAN.md's `### Conventions followed` carries a `Net new:` line and a `Challenges a pattern:` line, which `/planning:design-handoff` fills.
+
 ## [0.109.1] - 2026-10-26
 
 ### Fixed
