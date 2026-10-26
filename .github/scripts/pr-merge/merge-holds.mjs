@@ -227,7 +227,9 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // option B): `trust`, what mints and scopes lane tokens and judges triggers
 // (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
 // and submodules; `gate`, the merge gate's own code (every pr-merge script,
-// the pr-merge and ci-status workflows, babysit_merge*, the rate guard) and
+// the pr-merge and ci-status workflows, babysit_merge*, babysit_risk.py and
+// babysit_review_evidence.py, which compute the review's clear condition,
+// the rate guard) and
 // the config the token broker loads (resolve-config, effect-grants.json
 // included, and the pipeline config); `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
@@ -257,7 +259,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
@@ -268,7 +270,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"],

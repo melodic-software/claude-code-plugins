@@ -197,7 +197,9 @@ class RiskResult:
 # - `gate`: the merge gate's own code and the config the token broker loads:
 #   resolve-config (which the broker runs from main in its signer process,
 #   effect-grants.json included), the rate guard, every pr-merge script and
-#   the workflow that wires them, babysit_merge*, the ci-status workflow and
+#   the workflow that wires them, babysit_merge*, babysit_risk.py and
+#   babysit_review_evidence.py (which compute the review's clear condition),
+#   the ci-status workflow and
 #   the pipeline config.
 # - `enforcement`: the rest of the modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
@@ -228,7 +230,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
     (".github/scripts/pr-merge/who.mjs", "gate"),
     (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
@@ -239,7 +241,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),

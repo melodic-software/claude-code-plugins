@@ -217,7 +217,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
         self.assertEqual(len(risk.FLOOR_CLASSES), 47)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 19)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -275,9 +275,15 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
-                # babysit_merge* is the gate's own code, a person's; the
-                # rest is enforcement, which a clean security review clears.
-                gate = pathlib.PurePosixPath(path).name.startswith("babysit_merge")
+                # babysit_merge*, and the scorer and binder that compute the
+                # security review's clear condition, are the gate's own code,
+                # a person's; the rest is enforcement, which a clean security
+                # review clears.
+                name = pathlib.PurePosixPath(path).name
+                gate = name.startswith("babysit_merge") or name in {
+                    "babysit_risk.py",
+                    "babysit_review_evidence.py",
+                }
                 self.assertEqual(held, gate)
                 self.assertEqual(path in risk.REVIEW_FLOOR, not gate)
         # Nothing else of that directory: the floor tracks the closure.

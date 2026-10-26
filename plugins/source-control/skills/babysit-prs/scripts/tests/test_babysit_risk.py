@@ -301,7 +301,7 @@ class HighReasonTests(unittest.TestCase):
                 (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
                 (".github/scripts/pr-merge/who.mjs", "gate"),
                 (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "enforcement"),
+                ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
@@ -312,7 +312,7 @@ class HighReasonTests(unittest.TestCase):
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "enforcement"),
+                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
@@ -1789,7 +1789,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 19)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
@@ -1822,7 +1822,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
             "no security lane": (),
             "two security entries": (_lane(security), _lane(security)),
         }
-        path = B + "babysit_risk.py"
+        path = B + "babysit_verify_evidence.py"
         for name, lanes in cases.items():
             with self.subTest(name):
                 result = self._score(path, lanes)
@@ -1879,7 +1879,7 @@ class UnbindableReviewPathTests(unittest.TestCase):
     also changes a lane source (`lane-source-changed`), is a person's
     reason; a review not yet run or not read stays a lane's."""
 
-    PATH = B + "babysit_risk.py"
+    PATH = B + "babysit_verify_evidence.py"
 
     def _score(self, security):
         lanes = (_lane("claude-review"), security)

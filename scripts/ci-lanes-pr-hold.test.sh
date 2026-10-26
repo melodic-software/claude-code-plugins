@@ -302,14 +302,15 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py .github/workflows/pr-require-checks.yml \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py .github/workflows/pr-require-checks.yml \
   .github/workflows/pr-merge.yml docs/conventions/pr-pipeline.yaml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done
 # Its enforcement entries are the merge gate's, which a clean security review
 # bound to the head clears; ci-status leaves them to it.
-for path in plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
   .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/work-resolve-issue/report-outcome.mjs \
   .github/scripts/work-resolve-issue/limits.mjs; do

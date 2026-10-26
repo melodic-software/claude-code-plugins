@@ -966,18 +966,15 @@ merge:
     mode: enforce
     majors: review
   # No path is held for being trusted alone (owner direction 2026-10-24)
-  # except the narrow HIGH path floor (babysit_risk.py HIGH_FLOOR, owner
-  # decision Q-FLOOR (B)): resolve-config, request-lane-token,
-  # check-trusted-trigger, check-kill-switch, the rate guard, CODEOWNERS,
-  # .gitmodules and the files that enforce the floor (owner decision
-  # Q-ENFORCE (A)): merge-holds, enable-auto-merge, superseded,
-  # clear-escalations, babysit_risk.py, pr-require-checks.yml, this file,
-  # every module those scripts import (pr-unblock's address-feedback,
-  # gate-source and thread-scope, work-resolve-issue's report-outcome and
-  # limits), and the babysit-prs Python that decides the holds
-  # (babysit_risk.py, babysit_verify_evidence.py, which enable-auto-merge
-  # runs, and every module they import), which test_merge_holds_sync.py
-  # derives and requires on the floor.
+  # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, owner
+  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B). Its `trust`
+  # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
+  # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
+  # guard, every pr-merge script, pr-merge.yml, pr-require-checks.yml, this
+  # file, babysit_merge*, babysit_risk.py, babysit_review_evidence.py) wait
+  # for a person. Its `enforcement` globs (the other modules the floored
+  # scripts import and the rest of the Python that decides the holds) wait
+  # for a clean security review bound to the head instead.
   # It holds whatever `high-path-floor` says. `high-path-floor:
   # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The

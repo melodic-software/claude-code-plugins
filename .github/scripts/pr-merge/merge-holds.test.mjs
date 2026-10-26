@@ -319,14 +319,15 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/rate-stop.bash",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   ".github/workflows/pr-require-checks.yml",
   ".github/workflows/pr-merge.yml",
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
