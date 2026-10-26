@@ -178,6 +178,17 @@ is "$(key bash_needs)" '{"0":"lefthook"}'
 check "the guardrails remote's end-to-end suite gets lefthook on whatever leg it lands" $?
 rm -rf "$repo/plugins/guardrails"
 
+# A lock bump selects the suite through its test-scope, so the leg installs the
+# lock it bumped and ffmpeg, and the suite cannot skip green (#8780).
+mk plugins/playwright/skills/demo-video/requirements.txt "numpy==2.5.4"
+mk plugins/playwright/skills/demo-video/scripts/demo-video.test.sh \
+  "# test-scope: plugins/playwright/skills/demo-video/scripts/* plugins/playwright/skills/demo-video/requirements.txt"
+plan -- plugins/playwright/skills/demo-video/requirements.txt
+is "$(key bash_plan)" '{"0":["plugins/playwright/skills/demo-video/scripts/demo-video.test.sh"]}' &&
+  is "$(key bash_needs)" '{"0":"demovideo"}'
+check "a demo-video requirements change puts the demovideo toolchain in its leg's needs" $?
+rm -rf "$repo/plugins/playwright"
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?

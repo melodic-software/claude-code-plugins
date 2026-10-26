@@ -9,7 +9,9 @@
 # and 39884296244: a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
-# listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
+# listed counts 5 s. demo-video.test.sh, which skipped on every leg until its
+# leg installed its toolchain, is one local run of 2026-10-26 until whole-tree
+# runs measure it. Wrong numbers cost leg balance, never coverage: every
 # selected suite runs on some leg whatever this file says.
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
@@ -455,6 +457,7 @@ plugins/playbooks/skills/repo-sweep/scripts/skill-version.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/state.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh 1
 plugins/playbooks/skills/skill-authoring/scripts/update.test.sh 1
+plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 134
 plugins/playwright/skills/demo-video/scripts/test_demo_video.py 1
 plugins/playwright/skills/playwright/scripts/update.test.sh 1
 plugins/plugin-quality/scripts/citation-contract-drift.test.sh 1

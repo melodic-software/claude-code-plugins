@@ -16,7 +16,8 @@
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
 #                             (the shared-page UI suite, which drives Chromium), lefthook
-#                             (the guardrails remote's end-to-end suite)
+#                             (the guardrails remote's end-to-end suite), demovideo (the
+#                             demo-video shell suite: its locked requirements and ffmpeg)
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
@@ -355,6 +356,7 @@ pack() {
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
         if (p == "plugins/planning/shared/tests/ui.test.sh") s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
+        if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s
       }
       {
@@ -391,6 +393,7 @@ pack() {
           if ((l, "visualcheck") in has) s = s " visualcheck"
           if ((l, "browser") in has) s = s " browser"
           if ((l, "lefthook") in has) s = s " lefthook"
+          if ((l, "demovideo") in has) s = s " demovideo"
           sub(/^ /, "", s)
           legsj = legsj (l ? "," : "") l
           planj = planj (l ? "," : "") "\"" l "\":[" items[l] "]"

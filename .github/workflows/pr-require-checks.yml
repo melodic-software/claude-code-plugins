@@ -2617,17 +2617,21 @@ jobs:
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy) and the inventory's parser packages go only on a leg whose suites
-      # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
-      # quiet: those suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
+      # inventory's parser packages go only on a leg whose suites need them,
+      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
+      # suites fail rather than skip without their dependency
+      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
+      # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # The animation lock must hold every pin its requirements.in declares, so an edit to
-          # the .in without regenerating the lock fails here instead of testing a stale lock.
-          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
-          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          # Each lock must hold every pin its requirements.in declares, so an edit to the .in
+          # without regenerating the lock fails here instead of testing a stale lock.
+          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+            stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
+                             <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
+            [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          done
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -2638,7 +2642,17 @@ jobs:
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
+          fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+          # hosted image does not carry; Ubuntu's signed archive provides both.
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            sudo apt-get -o Acquire::Retries=3 update -qq
+            sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
+            ffprobe -version | head -n 1
+          fi
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             node node_modules/playwright/cli.js install --only-shell chromium
@@ -2714,6 +2728,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
+          # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
+          DEMO_VIDEO_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
