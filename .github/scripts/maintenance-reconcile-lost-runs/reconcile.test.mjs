@@ -456,22 +456,32 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
   assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
-test("pr-verify still names its judge step as the reconciler reads it", () => {
+// pr-verify's jobs, each a leg (key, subscription, fallback), as name and body.
+const verifyLegs = () => {
   const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
-  const stepAt = (name) => {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return workflow.search(new RegExp(`^[ ]*- name: ${escaped}$`, "m"));
-  };
-  const judge = stepAt(JUDGE_STEP);
-  assert.ok(judge >= 0);
-  assert.ok(judge < stepAt("Upload the verdict"));
-  const names = [...workflow.matchAll(/^[ ]*- name: (.+)$/gm)].map((m) => m[1]);
-  assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
-  // Both jobs write the verdict only on the judge step's true outcome.
-  const writes = [...workflow.matchAll(new RegExp(`- name: ${WRITE_STEP}\\n(?:[ ]{8,}.*\\n)+`, "g"))].map((m) => m[0]);
-  assert.equal(writes.length, 2);
-  for (const step of writes) {
-    assert.match(step, /\n[ ]+if: steps\.judge\.outcome == 'success'\n/);
+  const jobs = workflow.slice(workflow.search(/^jobs:$/m));
+  return [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4,}.*\n|\s*\n)+)/gm)].map(([, name, body]) => ({ name, body }));
+};
+// A leg's steps, each its first line and the lines under it.
+const legSteps = (body) => body.split(/^(?= {6}- name: )/m).filter((s) => s.startsWith("      - name: "));
+
+// The reconciler reads every job's steps by name, so a leg whose judge step
+// another name hid would hide a lost run.
+test("pr-verify still names its judge step as the reconciler reads it, in every leg", () => {
+  const legs = verifyLegs();
+  assert.ok(legs.length > 1);
+  for (const { name, body } of legs) {
+    const steps = legSteps(body);
+    const names = steps.map((s) => s.match(/^ {6}- name: (.+)$/m)[1]);
+    const judge = steps.findIndex((s) => /^ {8}id: judge$/m.test(s));
+    assert.ok(judge >= 0, name);
+    assert.equal(names[judge], JUDGE_STEP, name);
+    assert.equal(names[judge - 1], JUDGE_PREDECESSOR, name);
+    assert.ok(judge < names.indexOf("Upload the verdict"), name);
+    // The verdict is written only on the judge step's true outcome.
+    const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
+    assert.equal(writes.length, 1, name);
+    assert.match(writes[0], /\n[ ]+if: steps\.judge\.outcome == 'success'\n/, name);
   }
 });
 
@@ -529,6 +539,48 @@ test("a verify run whose verdict write started is held with its reason, not re-r
   }
 });
 
+// A leg that hands off ends its judge step on a lane class, which fails the
+// launcher, so its verdict write skips (run-claude-cli lane.cjs handoffReason
+// needs a class; a class throws); the judge step lists success, being
+// continue-on-error. Only the fallback leg's own steps tell the runs apart.
+test("a verify run is read across all three legs: a fallback write held, a fallback loss re-run", async () => {
+  const handedOff = (name) => ({
+    name,
+    status: "completed",
+    conclusion: "success",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: JUDGE_PREDECESSOR, status: "completed", conclusion: "success" },
+      { name: JUDGE_STEP, status: "completed", conclusion: "success" },
+      { name: WRITE_STEP, status: "completed", conclusion: "skipped" },
+      { name: "Upload the verdict", status: "completed", conclusion: "skipped" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+  });
+  const fallback = (write, upload) => ({
+    name: "check-intent-fallback",
+    status: "completed",
+    conclusion: "failure",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: JUDGE_PREDECESSOR, status: "completed", conclusion: "success" },
+      { name: JUDGE_STEP, status: "completed", conclusion: "success" },
+      { name: WRITE_STEP, status: "completed", conclusion: write },
+      { name: "Upload the verdict", status: "completed", conclusion: upload },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+  });
+  const jobs = (last) => [handedOff("check-intent"), handedOff("check-intent-subscription"), last];
+  const held = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: jobs(fallback("success", "failure")) }] });
+  assert.equal(held.code, 0);
+  assert.deepEqual(held.reruns, []);
+  assert.deepEqual(records(held.outputs), ["", "", ""]);
+  const lost = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: jobs(fallback("skipped", "skipped")) }] });
+  assert.equal(lost.code, 0);
+  assert.deepEqual(lost.reruns, [201]);
+  assert.deepEqual(records(lost.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+});
+
 test("a verify run that failed on its first attempt is recorded and re-run once", async () => {
   const { code, reruns, outputs } = await reconcile({
     pulls: [],
@@ -564,13 +616,15 @@ test("a failed verify run's second attempt is never re-run", async () => {
   assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
-test("pr-verify fails a run the kill switch stopped, so the reconciler sees it", () => {
-  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
-  const reports = [...workflow.matchAll(/- name: Report the kill switch\n(?:[ ]{8,}.*\n)+/g)].map((m) => m[0]);
-  assert.equal(reports.length, 2);
-  for (const step of reports) {
-    assert.match(step, /::error::/);
-    assert.match(step, /\n[ ]+exit 1\n/);
+test("pr-verify fails a run the kill switch stopped in every leg, so the reconciler sees it", () => {
+  const legs = verifyLegs();
+  assert.ok(legs.length > 1);
+  for (const { name, body } of legs) {
+    const reports = legSteps(body).filter((s) => s.startsWith("      - name: Report the kill switch\n"));
+    assert.equal(reports.length, 1, name);
+    assert.match(reports[0], /\n[ ]+if: steps\.kill\.outputs\.proceed != 'true'\n/, name);
+    assert.match(reports[0], /::error::/, name);
+    assert.match(reports[0], /\n[ ]+exit 1\n/, name);
   }
 });
 

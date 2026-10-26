@@ -10,7 +10,7 @@
 - [Configuration](#configuration)
 - [License](#license)
 
-A Claude Code plugin for running Claude Code well over time. It ships eighteen
+A Claude Code plugin for running Claude Code well over time. It ships nineteen
 skills and a family of telemetry-emitter hooks, including a skill that diagnoses why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
@@ -46,6 +46,7 @@ Claude Code's native OTEL cannot see.
 | `/harness-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/harness-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`, with a clean PR whose head is behind its base marked `UNVERIFIED`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/harness-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane> --permission-mode auto`, plus `--permission-prompts none` on CLI 2.1.259 or later) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$HARNESS_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
+| `/harness-ops:control-claude-code` | The control skill `/app-control:drive` reads to run Claude Code's terminal UI with one plugin loaded and record screenshots, video and stream-json logs of its mods, skills, hooks, commands and permission dialog. Its driver launches `claude` restricted, with API-key and cloud-provider variables cleared, and Ready refuses a session whose `apiKeySource` is not `none`. For attended runs only; Claude Desktop is never driven, and is covered only through `claude plugin test`. User-invoked. |
 | `/harness-ops:check` | Read-only check that `node` and `jq` resolve for the hooks, with the install route for a missing tool. Model-invocable; never installs. |
 | `/harness-ops:prerequisites` | Read-only report of the external tools the enabled plugin fleet declares, and which of them are missing on this machine. Never installs. |
 | `/harness-ops:machine-profile` | Discovers this machine's facts and identity domains (each tree's git include, `gh` directory and verdicts), stores them as a re-runnable profile that records the observation behind every value, and reports drift between the stored profile and the host now. Actions: `profile` (default), `diff`, `explain <key>`, `apply --option <key>`. Read-only unless the operator confirms a write: `record --confirm` writes the profile document, and `apply --confirm` prints what to hand to each setup and writes nothing. Never installs and never reapplies a stored value on its own. Design: [machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md). |
@@ -405,7 +406,7 @@ instead of failing.
 
 The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
 `stdin_read_timeout` are documented under
-[Per-hook kill switches](#per-hook-kill-switches). Three further `userConfig`
+[Per-hook kill switches](#per-hook-kill-switches). These further `userConfig`
 options tune the skills:
 
 - **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
@@ -422,6 +423,11 @@ options tune the skills:
   Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are
   invalid; known-issues operations must stop and direct you to reconfigure
   rather than write outside the project.
+- **`lane_app_slug`** (string, optional). The GitHub App slug the `lanes` skill passes as
+  `--app-slug` to the restart consumer and to `telemetry-upsert.sh`, so both read telemetry
+  comments written by `<slug>[bot]` when the lanes run `gh` under that App's installation
+  token. Leave it unset under a personal or machine-user token. An empty value, or an
+  unrendered `${user_config.lane_app_slug}` placeholder, is treated as no slug.
 - **`skill_usage_scope`** (string, optional), where the `skill-usage-audit`
   second store lives. `repo` (default) keeps it in the project tree, with a
   machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
@@ -508,6 +514,7 @@ reads it from.
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
 | `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
+| `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
 
 ### How to set these
 
