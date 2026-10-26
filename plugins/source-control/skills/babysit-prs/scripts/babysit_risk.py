@@ -15,19 +15,16 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor holds only the takeover set, what could hand the
-repository to someone outside the org: the trusted-actor list and the
-trusted-trigger check that enforces it, code owners, submodules, and
-resolve-config, whose code the token broker runs from main in its signer
-process. Everything else, agent permission config, package manifests,
-workflows, this module, the merge gate, the review lanes, hooks, scripts and
-agent instructions included, merges on the two review lanes, which are the
-gate (owner direction 2026-10-23), except the cost and trusted-actor holds
-below. The configured `merge.diff-check.denied-paths` are joined to
-the floor, never in place of it. Every glob matches case-insensitively,
-because a lane host on a case-insensitive filesystem treats `Codeowners` as
-`CODEOWNERS`.
-A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
+configuration. The floor is narrow (owner decision Q-FLOOR (B)): the code
+main runs to mint and scope lane tokens and judge triggers, code owners and
+submodules, and it holds whatever the floor switch says. No other path rates
+HIGH for being trusted alone, and the two review lanes, which are the gate,
+judge it, except the cost and trusted-actor holds below. The configured
+`merge.diff-check.denied-paths` are joined to the floor. Every glob matches
+case-insensitively, because a lane host on a case-insensitive filesystem
+treats `Codeowners` as `CODEOWNERS`.
+With the floor switch on (`high_floor`), a
+plugins/<plugin>/.claude-plugin/plugin.json or the top-level
 .claude-plugin/marketplace.json is compared base against head instead, and a
 change that installs or runs something new rates HIGH as
 `manifest-review-required`: in plugin.json a differing `_EXECUTABLE_KEYS` value
@@ -39,8 +36,7 @@ or repeats a key, holds; an added plugin.json is compared with `{}`.
 A change that adds or widens an entry in the trusted-actor list
 (`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
 lane, whatever the floor switch and `floor_exempt` say, and waits for the
-owner. Base and head text are compared: only removing entries passes this
-check, though with the floor on the list's directory holds anyway; an
+owner. Base and head text are compared: only removing entries passes; an
 added or changed entry, any other key changed, a side that cannot be read or
 parsed or repeats a key, and an added, removed, renamed or copied file hold.
 
@@ -53,22 +49,21 @@ trusted-actor widening through `trust-gate:trusted-actors`.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
-2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep, the multi-agent
-role map) or file under a `RiskInput.pulumi_dirs` directory, and every file
-when `pulumi_dirs` is None (the base tree was not listed); a file renamed or
-copied into a workflow or `pr-pipeline.yaml` path from outside one; a
-`.github/workflows/` file whose patch adds a `_COST_WORKFLOW_LINE` (a `cron`
-key in any spelling, `--model`, `--max-turns`), or, unless `RiskInput.public`
-is True, a `runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`,
-a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, counted against the lines it
-removes so a move or repin is not new; that adds a `timeout-minutes` or
-`leg-timeout-minutes` above every one it removes, when its head text
-(`contents`) names a model leg or could not be read; or that gains a runner
-value (head text against base text, and added inline `runs-on:` lines) that
-is not `_FREE_RUNNER` on a public repository, or any on another; and a
-`pr-pipeline.yaml` change with any added or removed line off
-`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow or
-pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
+2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
+`RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
+(the base tree was not listed); a file renamed or copied into a workflow or
+`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
+patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
+`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
+or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
+`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
+is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
+one it removes, when its head text (`contents`) names a model leg or could not
+be read; or that gains a runner value (head text against base text, and added
+inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
+any on another; and a `pr-pipeline.yaml` change with any added or removed line
+off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
+or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
 decision the caller verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
@@ -186,16 +181,20 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-# What would hand the repository to someone outside the org: who is trusted
-# (the trusted-actor list and the check that enforces it), who owns review
-# (code owners), what code is pulled in from elsewhere (submodules), and the
-# code the token broker runs from main in its signer process (resolve-config,
-# owner decision Q51), with check-kill-switch, whose writeOutputs both of those
-# actions write their verdicts through, request-lane-token, which mints and
-# hands out the lanes App token in every privileged workflow, and the rate
-# guard check-trusted-trigger sends every call through.
+# What a lane pull request must not change unattended (owner decision
+# Q-FLOOR (B)): resolve-config, whose code the token broker runs from main in
+# its signer process, request-lane-token, which mints and hands out the lanes
+# App token, check-trusted-trigger and the rate guard it sends every call
+# through, check-kill-switch, whose writeOutputs both of those actions write
+# their verdicts through, code owners and submodules; and the files that
+# enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
+# enable-auto-merge, superseded and clear-escalations scripts, this module,
+# the ci-status workflow, the pr-merge workflow that wires those scripts,
+# the pipeline config, every module those scripts import, and the babysit-prs modules this module and the Python those
+# scripts run (babysit_verify_evidence.py) import (test_merge_holds_sync.py
+# derives both closures and requires them here). merge-holds.mjs
+# HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
 HIGH_FLOOR: tuple[str, ...] = (
-    ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
     "**/CODEOWNERS",
     "**/.gitmodules",
@@ -203,6 +202,36 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
+    ".github/workflows/pr-require-checks.yml",
+    ".github/workflows/pr-merge.yml",
+    "docs/conventions/pr-pipeline.yaml",
+    ".github/scripts/pr-unblock/address-feedback.mjs",
+    ".github/scripts/pr-unblock/gate-source.mjs",
+    ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/scripts/work-resolve-issue/report-outcome.mjs",
+    ".github/scripts/work-resolve-issue/limits.mjs",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
@@ -553,7 +582,7 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
-    for pattern in dict.fromkeys((*(HIGH_FLOOR if on else ()), *configured)):
+    for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
@@ -616,8 +645,6 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 COST_CODE = "cost-review-required"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
-    # The multi-agent role map: model and effort per role for every fan-out.
-    "plugins/multi-agent/reference/defaults.yaml",
     "**/Pulumi.yaml",
     "**/Pulumi.*.yaml",
     "**/*.tf",

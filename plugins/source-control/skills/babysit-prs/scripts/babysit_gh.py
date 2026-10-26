@@ -1613,7 +1613,8 @@ def collect_lane_runs(
     from a fresh `GET actions/runs/{id}` taken after the listing, and that
     response stands in for its latest attempt, so only earlier attempts are
     read from `attempts/{n}`; each attempt
-    carries its jobs, and each lane job its check run's annotations. Any read
+    carries its jobs, and each lane job its check run's annotations, as does
+    the succeeded `kill-switch` job of an attempt with no lane job. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
     RUN_SEARCH_CAP, which may be missing runs. `env_overrides` applies to
@@ -1675,8 +1676,19 @@ def collect_lane_runs(
                 # differ only in `jobs_url` and `logs_url`, which nothing reads.
                 attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
+                lane_jobs = [
+                    job
+                    for job in jobs
+                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix
+                ]
                 for job in jobs:
-                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
+                    # With no lane job, the kill-switch notice shows the review
+                    # never started (`babysit_review_evidence.rerun_binds`).
+                    if job in lane_jobs or (
+                        not lane_jobs
+                        and job.get("name") == "kill-switch"
+                        and job.get("conclusion") == "success"
+                    ):
                         job["annotations"] = pages(
                             f"repos/{repo}/check-runs/{job.get('id')}/annotations"
                             "?per_page=100",

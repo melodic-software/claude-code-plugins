@@ -46,7 +46,13 @@ class LaneAttemptReuseTests(unittest.TestCase):
         }
         self.assertEqual(differing, {"jobs_url", "logs_url"})
 
-    def collect(self, run: dict[str, Any], earlier: dict[int, Any]) -> Any:
+    def collect(
+        self,
+        run: dict[str, Any],
+        earlier: dict[int, Any],
+        jobs: dict[int, list[dict[str, Any]]] | None = None,
+        annotations: dict[int, list[dict[str, Any]]] | None = None,
+    ) -> Any:
         run_id = run["id"]
         base = f"repos/{self.REPO}/actions/runs/{run_id}"
         listing = (
@@ -57,9 +63,15 @@ class LaneAttemptReuseTests(unittest.TestCase):
         number = run["pull_requests"][0]["number"]
         answers: dict[str, Any] = {listing: [{"workflow_runs": [run]}], base: run}
         for n in range(1, run["run_attempt"] + 1):
-            answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [{"jobs": []}]
+            answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
+                {"jobs": (jobs or {}).get(n, [])}
+            ]
         for n, attempt in earlier.items():
             answers[f"{base}/attempts/{n}"] = attempt
+        for job_id, notes in (annotations or {}).items():
+            answers[
+                f"repos/{self.REPO}/check-runs/{job_id}/annotations?per_page=100"
+            ] = [notes]
         self.reads: list[str] = []
 
         def fake(args: list[str]) -> Any:
@@ -97,6 +109,35 @@ class LaneAttemptReuseTests(unittest.TestCase):
         base = f"repos/{self.REPO}/actions/runs/{self.run_record['id']}"
         self.assertIn(f"{base}/attempts/1", self.reads)
         self.assertNotIn(f"{base}/attempts/2", self.reads)
+
+    def test_an_earlier_attempts_kill_switch_notice_is_read(self) -> None:
+        # #10092's attempt 1: the kill-switch job wrote its notice and the
+        # reusable's caller job was skipped. The kill-switch job of an attempt
+        # that has a lane job, and one that did not succeed, cost no read.
+        rerun = {**self.run_record, "run_attempt": 2}
+        notice = {
+            "annotation_level": "notice",
+            "message": "a kill switch stops this review (lanes: kill-switch)",
+        }
+        jobs = {
+            1: [
+                {"id": 11, "name": "kill-switch", "conclusion": "success"},
+                {"id": 12, "name": "pr-review", "conclusion": "skipped"},
+            ],
+            2: [
+                {"id": 21, "name": "kill-switch", "conclusion": "success"},
+                {"id": 22, "name": "pr-review / claude-review-status"},
+            ],
+        }
+        runs = self.collect(rerun, {1: self.attempt}, jobs, {11: [notice], 22: []})
+        first, second = (a["jobs"] for a in runs[0]["attempts"])
+        self.assertEqual(first[0]["annotations"], [notice])
+        self.assertNotIn("annotations", first[1])
+        self.assertNotIn("annotations", second[0])
+        self.assertEqual(second[1]["annotations"], [])
+        failed = {1: [{"id": 13, "name": "kill-switch", "conclusion": "failure"}]}
+        self.collect(rerun, {1: self.attempt}, failed)
+        self.assertFalse(any("check-runs" in path for path in self.reads))
 
 
 if __name__ == "__main__":
