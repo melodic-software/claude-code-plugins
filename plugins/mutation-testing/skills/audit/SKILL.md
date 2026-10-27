@@ -45,7 +45,7 @@ Arguments: `$ARGUMENTS`
   does not start with `--`, so `--exercised --max 5` takes no test path. Mutually exclusive with
   `--full` and `--paths`: refuse the combination and name both flags.
 - **`--full`**: mutate the whole configured scope instead of the diff. Expensive and rarely correct,
-  state the estimated cost from `baseline-suite-ms` and confirm before running.
+  print the estimate line from [Phase 1](#phase-1-scope) step 5 and confirm before running.
 - **`--paths <globs>`**: mutate these paths regardless of the diff.
 - **`--max <n>`**: cap generated mutants for this run, overriding `max-mutants`.
 - **`--no-suppress`**: include mutants that the arid-node record would otherwise suppress, marked as
@@ -125,13 +125,12 @@ runner that only filters by name: refuse, naming `/mutation-testing:setup apply`
 **Phase 0, in this order:** config; tool availability; the test set; which files are tests; the
 mapping; runner and regime; the dirty-target stop, on the mapped files; the regime gate with its
 refusal rule; one baseline run of the test set alone, which replaces the full-suite baseline (red
-stops the run; its wall-clock is the cost base); then the Phase 0 snapshot. A red test outside the
+stops the run); then the Phase 0 snapshot. A red test outside the
 set cannot kill these mutants, so it does not stop the run.
 
 **Phase 1.** Steps 2 and 3 key on the mapped-line set instead of the changed lines, so an arid
 record on a mapped node still applies. Step 4's selection is the test set, not every covering test.
-The effort cap, `--max` and `max-mutants` apply unchanged, and the estimate is the restricted
-baseline times the mutant count.
+The effort cap, `--max` and `max-mutants` apply unchanged, and step 5 times the test set.
 
 **Phase 3.** Each mutant runs against the whole test set. There is no rerun after the loop; the
 flaky-test gotcha below states that limit.
@@ -253,8 +252,16 @@ Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as
    *target*, not per *mutant*; re-deriving it for each mutant is the difference between a run that
    finishes and one that does not.
 5. Report the scope before running: files, changed lines, mutants to be generated, suppressed count,
-   and the estimated wall-clock from `baseline-suite-ms × mutants`. If a cap truncates the set, say
-   what was dropped, a truncated run must never read as a clean one.
+   and the estimated wall-clock. A mutant can cost a rebuild as well as a test run, so time one
+   build plus test run of the selection step 4 cached (for a .NET test set, `dotnet test` over each
+   line `dotnet-test-selection.sh` prints for it, summed, since each mutant runs every line). Time
+   it as a mutant pays it: a build that reuses cached output recompiles nothing a mutant would, so
+   where the build cannot be made to recompile without editing tracked source, say the estimate is
+   a floor. Take the mutant count from the configured tool's dry run or mutant listing (under
+   `tool: manual`, the mutants Phase 2 will apply), and print the line
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/estimate-run.sh" --mutants <n> --seconds <s>` prints, with
+   `<s>` that timing in seconds to at most three decimal places. Never do the arithmetic yourself.
+   If a cap truncates the set, say what was dropped, a truncated run must never read as a clean one.
 
 ## Phase 2: Generate
 
