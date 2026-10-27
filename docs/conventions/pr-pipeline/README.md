@@ -354,6 +354,15 @@ at most `limits.fix-docs-per-run` per run, none for a PR whose `fix-docs` run is
 going, and the run ids join the dispatched-runs record. A PR that turns ready waits for the next
 push to the default branch.
 
+A `fix-docs` run whose run job emits an empty head posts no check (`post-decline: false`), so the
+dispatch record also keeps the `fix-docs` runs dispatched on each head. Once
+`limits.limit-stops-per-head` are kept, the dispatcher reads each one's status and jobs through
+the Actions API, and a head with that many runs whose `fix-docs / broker-allowed` job succeeded (a
+fact no run job can write) gets one `::warning::` and joins the record's handled heads until a new
+push. A run the broker refused, or one a hold skipped, ran no model turn: it does not count and
+leaves the list once it ends, as a run that is gone does. A head whose runs cannot be read is not
+dispatched. A lost record restarts the count, at most that many runs more.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -1179,7 +1188,7 @@ collaborator) whose newest comment, review or inline comment with text says "do 
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
 `HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
-run, and whose
+run, unless a person on the trusted-actor list approved that head as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1323,7 +1332,14 @@ request event and in the merge queue, where a red group removes the pull request
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
-body hold or veto, and arming still skips the pull request, so that person merges it.
+body hold or veto. `enable-auto-merge` reads the same approval (`pathLifters`) and stops holding
+the pull request on the hold path, and the gate's risk score (`evidence --lane-reviews`,
+`lane_risk_refusal`) drops its `high-path:` reasons for a path on `babysit_risk.HIGH_FLOOR` or in
+`merge.diff-check.denied-paths` on the same approval (`babysit_merge_policy.path_lifters`, which
+`test_merge_holds_sync.py` holds equal to `pathLifters`), so its other checks decide. The approval
+lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost, trust-gate,
+manifest, file-cap or review-lane hold, and a review list or trusted-actor list that does not read
+lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
@@ -2035,10 +2051,12 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   failed jobs, annotations and log tails; slice D, every run of each of the two lane workflows with
   the most runs, successes included, with sampled green runs' failed steps; slice C, ten open pull
   requests by listed authors per unit, with labels, ages and head check results. Runs from forks
-  never count. It lists the window workflow by workflow: one `per_page=1` call reads each workflow's
-  run count, and a range at the listing's 1,000-run cap is halved until each part fits, so every run
-  of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
-  so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
+  never count. It lists the window workflow by workflow, busiest first: each range's first page of
+  100 runs carries its run count, and a range at the listing's 1,000-run cap is halved until each
+  part fits, so every run of the 24 hours is read. It stops at 350 REST calls, keeping 184 of them
+  for the open pull request and issue reads and the units (the dearest mix: four slice A units and
+  four slice C units), and says so: a
+  workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
 - **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
   on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
@@ -2294,7 +2312,7 @@ with defaults.
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
-| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |

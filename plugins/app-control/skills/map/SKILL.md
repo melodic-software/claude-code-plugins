@@ -186,10 +186,10 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" check --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    A pending conversion, a feature id or a handed-in lesson runs regardless of a `skip` line.
 3. **Refuse** an attended-only control skill when unattended.
-4. **Source wave.** One read-only subagent per feature file, in waves capped at 6, each filled to
-   the cap before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy
-   map is converted first (an attended pass asks before), uncommitted on the upkeep branch, so
-   both passes read the control skill.
+4. **Source wave.** One `app-control:source-reader` agent (Read, Grep and Glob only) per feature
+   file, in waves capped at 6, each filled to the cap before the next starts: 8 features run as 6
+   then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
+   uncommitted on the upkeep branch, so both passes read the control skill.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each drive, and every
    evidence path checked after cleanup.

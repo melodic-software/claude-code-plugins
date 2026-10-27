@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## [5.19.5] - 2026-10-27
+
+### Fixed
+
+- The fix-docs dispatcher no longer dispatches a head again on every cycle when its runs post no check, as a run whose run job emits an empty head does under `post-decline: false` ([#9247](https://github.com/melodic-software/claude-code-plugins/issues/9247)). The dispatch record keeps the fix-docs runs dispatched on each head; once `limits.limit-stops-per-head` of them are kept, the dispatcher reads each one's status and jobs through the Actions API, and a head with that many whose `fix-docs / broker-allowed` job succeeded gets one warning and is recorded as handled until a new push. Broker-refused, held and deleted runs do not count, and a head whose runs cannot be read is not dispatched (`.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `dispatch-record.mjs`).
+
+## [5.19.4] - 2026-10-27
+
+### Changed
+
+- The collector reads each range's run count from its first page of 100 runs and keeps those runs, where it made a `per_page=1` count call and then read page 1 again, and it lists workflows busiest first, so a short budget leaves the smaller ones part-read (`.github/scripts/maintenance-audit-lane-runs/collect.mjs`).
+
+### Fixed
+
+- The lane sweep's collector keeps 184 calls for the open pull request and issue reads and the units, not 170: with four slice A units, no slice D unit and four slice C units they cost 4 + 4 × 5 × 7 + 4 × 10 calls, so that mix no longer runs out partway through its slice C units and marks the run incomplete ([#9339](https://github.com/melodic-software/claude-code-plugins/issues/9339)).
+
 ## [5.19.3] - 2026-10-27
 
 ### Changed
