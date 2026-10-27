@@ -2621,7 +2621,7 @@ jobs:
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt, DuckDB, ffmpeg and lefthook downloads are cached by version (four
+      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
       # red main runs in two weeks were these downloads failing), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
@@ -2631,7 +2631,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2-ffmpeg-n8.1.3-9-g29e619e767
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2
       - name: Install pinned shfmt
         env:
           SHFMT_VERSION: v3.14.1
@@ -2651,8 +2651,17 @@ jobs:
       # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
       # hosted image does not carry. Both come from BtbN's static GPL build (the
       # Linux static build ffmpeg.org links; GPL for libx264), a month-end tag BtbN
-      # keeps, checked against its published SHA-256 and cached like shfmt. The step
-      # timeout makes a stalled download fail here instead of spending the leg.
+      # keeps, checked against its published SHA-256 on every run. The archive is
+      # about 154 MB, so it has its own cache entry that only the demovideo leg
+      # restores and saves. The step timeout makes a stalled download fail here
+      # instead of spending the leg.
+      - name: Restore the pinned ffmpeg download
+        id: ffmpeg_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
       - name: Install ffmpeg for demo-video
         timeout-minutes: 2
         env:
@@ -2664,8 +2673,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           [[ "$leg_needs" == *demovideo* ]] || exit 0
           asset="ffmpeg-$FFMPEG_BUILD-linux64-gpl-8.1.tar.xz"
-          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools"
-          cached="$HOME/.cache/ci-tools/$asset"
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
+          cached="$HOME/.cache/ci-tools-ffmpeg/$asset"
           [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$cached" \
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$asset"
           echo "$FFMPEG_SHA256  $cached" | sha256sum -c - ||
@@ -2678,6 +2687,12 @@ jobs:
             echo "$line"
             [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
           done
+      - name: Save the pinned ffmpeg download
+        if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
