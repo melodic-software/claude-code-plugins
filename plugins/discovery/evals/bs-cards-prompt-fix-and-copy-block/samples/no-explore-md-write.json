@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/payments/refunds.py"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "notes.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "a write elsewhere is not this grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/partial-refunds/EXPLORE.md",
+            "content": "# Explore\n"
+          }
+        }
+      ],
+      "why": "writes the explore index"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/partial-refunds/EXPLORE-code-references.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "writes a sidecar"
+    }
+  ]
+}

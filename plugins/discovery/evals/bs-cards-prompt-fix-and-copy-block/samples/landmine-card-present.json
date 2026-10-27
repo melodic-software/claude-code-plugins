@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "### Card 1. Landmine\n- **Gap**: open_balance in src/ledger/reconcile.py returns 0 for any refunded order.\n- **Why it matters here**: a partial refund would zero the open balance.\n- **Prompt-fix**: Update open_balance to subtract refunded_cents instead of returning 0.\n\n### Card 2. History\n- **Gap**: amounts are integer cents since the April incident.\n- **Why it matters here**: a float partial amount repeats the rejected refunds.\n- **Prompt-fix**: Take the partial amount as integer cents via money.to_cents.\n\n----- COPY START -----\nAdd partial refunds to refund_order in src/payments/refunds.py. Take the amount as integer cents via money.to_cents. Update open_balance to subtract refunded_cents.\n----- COPY END -----\n\nScan scope: codebase lane only (src/payments, src/ledger, tests, git log); domain lane not run, no external docs fetched.",
+      "why": "Landmine card"
+    },
+    {
+      "answer": "**Type:** Missing concept\n**Gap:** refund ceiling\n**Why this matters:** a second partial refund could exceed the order total.\n**Prompt fix:** Reject a refund whose cumulative cents exceed total_cents.\n\n**Type:** Convention\n**Gap:** money.py\n**Why this matters:** every module routes amounts through it.\n**Prompt fix:** Use money.from_cents for display.\n\n<!-- copy-start -->\nAdd partial refunds; reject over-refunds; use money.py.\n<!-- copy-end -->\n\nScanned: the codebase lane (src/, tests/, git history). Not scanned: the domain lane.",
+      "why": "Missing concept card"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Risks: the ledger caller, the cents rule. Prompt-fix: handle both.",
+      "why": "no typed card"
+    },
+    {
+      "answer": "watch out for this landmine in the ledger",
+      "why": "lowercase prose, not a card type"
+    }
+  ]
+}
