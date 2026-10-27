@@ -54,7 +54,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    installs but cannot start is the common case and is worth distinguishing.
 3. **Test runner supported**. Confirm the project's runner is one the tool drives. Report the
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
-   so report it before anything about scores.
+   so report it before anything about scores. A supported runner also gets an INFO row naming what
+   it supports, decided as `apply` step 2 decides it: a name-filter-only runner (Maven `-Dtest`,
+   Gradle `--tests`) has no `audit --exercised` and no `/testing:cleanup` mutation gate, while the
+   diff, `--full` and `--paths` scopes still work.
 4. **Baseline suite is green**. Run the project's test command once, unmutated, and report the
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
    result is meaningful until this passes. Record the wall-clock; it is the input to the timeout
@@ -130,7 +133,16 @@ unambiguous; ask only where the answer is genuinely the user's.
    changes. Nothing is dropped without the user confirming.
 2. **Detect and propose the tool.** From the ecosystem, name the tool and the exact install command,
    and ask before installing anything. Installing a dependency into the consumer's project is the
-   user's decision, not this skill's. Propose, never install unprompted.
+   user's decision, not this skill's. Propose, never install unprompted. In the same message, before
+   any later question, name the detected test runner and what it supports, so the user can stop
+   here; read its kind from the audit skill's
+   [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
+   forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup`'s
+   mutation gate, which runs through it. A name-filter-only runner (Maven `-Dtest`, Gradle
+   `--tests`), or one that table does not list, supports neither: `audit --exercised` refuses
+   unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
+   need a path-list `test-command`, so it can offer only its cannot-fail-only mode. The diff,
+   `--full` and `--paths` scopes need no `test-command` and work for every runner the tool drives.
 3. **Settle the diff target.** Default to the repository's own default branch as resolved from
    `origin/HEAD`, not a hardcoded `main` or `master`. Confirm it resolves.
 4. **Settle the operator set.** Default to the tool's defaults, and say why: optional and
@@ -145,8 +157,8 @@ unambiguous; ask only where the answer is genuinely the user's.
    audit fills `{tests}` with each path quoted as its own argument. When the detected runner is
    `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test project, with
    `{tests}` replaced by that project and a name filter for the test files' classes. Propose nothing
-   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`) and say that
-   `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
+   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`); step 2 already said
+   what that costs. The forms and their sources are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
