@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, main, sweepReleased } from "./feedback-dispatch.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
@@ -1360,4 +1360,111 @@ test("a pass-only round's reply check after a finding-stands skip leaves the hea
   const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
   await sweepMain(t, api);
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+});
+
+// #10134 and #10224: lanes App PRs held by one github-actions[bot] lane thread
+// each, never dispatched. The thread itself is workable; the human gate at
+// the one trigger skipped it, and nothing revisits the head once the label
+// comes off.
+const PR_MERGE_ESCALATION = {
+  user: APP_USER,
+  body: "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge risk.",
+  created_at: "2026-10-18T09:59:59Z",
+  updated_at: "2026-10-18T09:59:59Z",
+};
+const LANE_FINDING = laneThread("**Advisory:** the goal claims a measurement.\n\nclaude-lane: claude-review");
+
+test("a github-actions[bot] lane thread on an ungated lanes App PR dispatches", async () => {
+  const api = fakeApi({ pulls: pull(), threads: [LANE_FINDING] });
+  assert.equal((await decide(api)).result?.number, 42);
+});
+
+test("a pr-merge escalation's needs-human gates a github-actions[bot] lane thread (#10134)", async () => {
+  const api = fakeApi({ pulls: humanGated(), comments: [...reviewed, PR_MERGE_ESCALATION], threads: [LANE_FINDING], labelEvents: [appLabeled] });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.ok(lines.at(-1).includes("is labeled needs-human (unknown: no lane escalation by the lanes App right after it added needs-human)"), lines.at(-1));
+});
+
+test("a review-lane hold at the head gates a github-actions[bot] lane thread (#10224)", async () => {
+  const api = fakeApi({
+    pulls: humanGated(),
+    comments: [...reviewed, holdComment()],
+    threads: [laneThread("severity: CRITICAL\nA person should confirm.\n\nclaude-lane: claude-security-review")],
+    labelEvents: [labelEvent("labeled", ACTIONS_USER, "2026-10-18T09:00:00Z")],
+  });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.ok(lines.at(-1).includes("is labeled needs-human (review-hold: "), lines.at(-1));
+});
+
+test("the sweep does not revisit a head the human gate skipped once the label is off", async () => {
+  // The skipped dispatch posted no reply check, so sweepOne finds no release.
+  const api = { ...fakeApi({ pulls: pull(), threads: [LANE_FINDING] }), listOpenPulls: async () => pull() };
+  const lines = [];
+  const result = await sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    log: (line) => lines.push(line),
+  });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+// A label coming off a PR starts pr-merge.yml on pull_request_target; its
+// completion carries the PR's head and decides it through the newest review
+// run there, so a head the human gate skipped dispatches once the label is off.
+const MERGE_RUN = upstreamRun({ id: 77, path: ".github/workflows/pr-merge.yml", event: "pull_request_target", conclusion: "skipped" });
+
+async function mergeMain(dir, api, run = MERGE_RUN) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, run),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+const mergeApi = (options = {}) => {
+  const api = fakeApi({ pulls: pull(), threads: [LANE_FINDING], ...options });
+  api.listCompletedRuns = async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" })] : []);
+  return api;
+};
+
+test("a needs-human unlabel dispatches a head the gate skipped, through its newest review run (#10134)", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const api = mergeApi();
+  const { output, lines } = await mergeMain(dir, api);
+  assert.equal(api.calls.dispatch.length, 1, lines.join("\n"));
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a pr-merge run on a head still gated, of another event, or with no review run dispatches nothing", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const gated = mergeApi({ pulls: humanGated(), comments: [...reviewed, PR_MERGE_ESCALATION], labelEvents: [appLabeled] });
+  assert.match((await mergeMain(dir, gated)).lines.at(-1), /is labeled needs-human \(unknown: /);
+  assert.deepEqual(gated.calls.dispatch, []);
+  const scheduled = mergeApi();
+  scheduled.listCompletedRuns = async () => assert.fail("a scheduled pr-merge run reads nothing");
+  assert.match((await mergeMain(dir, scheduled, { ...MERGE_RUN, event: "schedule" })).lines.at(-1), /not a pull_request_target run/);
+  const unreviewed = mergeApi();
+  unreviewed.listCompletedRuns = async () => [];
+  assert.match((await mergeMain(dir, unreviewed)).lines.at(-1), /no completed review run yet/);
+  assert.deepEqual([...scheduled.calls.dispatch, ...unreviewed.calls.dispatch], []);
 });
