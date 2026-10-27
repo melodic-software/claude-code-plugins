@@ -2818,7 +2818,7 @@ jobs:
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
