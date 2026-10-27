@@ -22,7 +22,7 @@ clause names no more than the paths or test filter they break, and that Phase `<
 turn those failures green. Report a declaration wider than its cause, or a span no phase closes,
 as a finding.
 
-A second check on every plan: report a Goal that does not serve the Brief's Problem, or a Brief
+A second check on every plan: report a phase that does not serve both the Brief's Problem and its Goal, or a Brief
 Captured assumption of the form `<assumption>: revisit if <trigger>` with no row in the
 Load-bearing assumptions table, as a finding. The Quality bar, Variation intent and
 standards-override lines are settings, not rows.
