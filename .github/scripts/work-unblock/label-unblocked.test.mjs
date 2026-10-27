@@ -245,7 +245,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -3091,6 +3091,18 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   assert.deepEqual(writes(at.calls), []);
 });
 
+// A manual intake re-dispatch skips intake-reenter, so a deferred issue can
+// carry the parked status: confirmed beside status: ready; admission lifts it.
+test("the sweep lifts a parked status: confirmed beside status: ready when it admits a deferred issue", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = deferredWorld({ labels: ["admission-deferred", "status: ready", "status: confirmed"] });
+  assert.equal(await sweep({ github: parked.github }, PAUSING), 0);
+  assert.deepEqual(writes(parked.calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
+  const ready = deferredWorld({ labels: ["admission-deferred", "status: ready"] });
+  assert.equal(await sweep({ github: ready.github }, PAUSING), 0);
+  assert.deepEqual(writes(ready.calls), [labeled(25), undeferred(25)]);
+});
+
 // A pull request in this repository that references the deferred issue, as the REST
 // timeline reports it, with the issue lane's Refs line unless `body` says otherwise.
 const namingPull = (state, body = "Refs: #25") => ({
@@ -3213,6 +3225,13 @@ test("a person's mark on an admissible decided issue runs the admission rules an
   assert.equal(fieldReads(calls), 1);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
+});
+
+test("a person's mark admitted with a parked status: confirmed beside status: ready lifts it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
 });
 
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
