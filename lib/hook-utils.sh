@@ -4587,6 +4587,14 @@ hook::bash_parse_segments() {
 #
 # A segment with redirections but no argv word (`> f` alone) invokes no
 # callback, so its redirections are not reported.
+#
+# Once the parse returns, HOOK_HEREDOC_BODIES holds one
+# `<start> <end> <quoted> <closed> <delimiter>` entry per here-doc body skipped,
+# in source order: the byte offsets in the command of the body's first byte and
+# of the byte just past its delimiter line; 1 when the delimiter was quoted or
+# escaped (`<<'EOF'`, `<<\EOF`), so bash expands nothing in the body; 1 when a
+# delimiter line ended the body, 0 when it ran to the end of the command; and
+# the delimiter, quotes removed, which may hold spaces.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 hook::bash_parse_segments_uncached() {
   local cmd="$1" cb="$2"
@@ -4615,10 +4623,10 @@ hook::bash_parse_segments_uncached() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
-  # heredoc body is the command's stdin, not commands — recorded when `<<`
-  # is seen and skipped wholesale at the command-line newline.
-  local -a hd_delims=() hd_strip=()
+  # Pending heredoc delimiters (FIFO), their `<<-` tab-strip flags and quoted
+  # flags. A heredoc body is the command's stdin, not commands — recorded when
+  # `<<` is seen and skipped wholesale at the command-line newline.
+  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=()
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
@@ -4757,7 +4765,7 @@ hook::bash_parse_segments_uncached() {
         while ((i + 1 < n)); do
           nx="${chars[i + 1]}"
           case "$nx" in
-          ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>') break ;;
+          ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')') break ;;
           "'")
             hquoted=1
             ((i++))
@@ -4792,6 +4800,7 @@ hook::bash_parse_segments_uncached() {
         done
         hd_delims+=("$delim")
         hd_strip+=("$hstrip")
+        hd_quoted+=("$hquoted")
         # The opener is a redirection whose target is the delimiter. A pending
         # operand ahead of it never arrived.
         hook::_bps_orphan_pending
@@ -4844,10 +4853,12 @@ hook::bash_parse_segments_uncached() {
       # stdin, so consume them without tokenizing. Delimiters match in FIFO
       # order; `<<-` strips leading tabs from body lines before comparing.
       if [[ "$c" == $'\n' ]] && ((${#hd_delims[@]})); then
-        local hidx line lc d strip
+        local hidx line lc d strip hstart hclosed
         for ((hidx = 0; hidx < ${#hd_delims[@]}; hidx++)); do
           d="${hd_delims[hidx]}"
           strip="${hd_strip[hidx]}"
+          hstart=$((i + 1))
+          hclosed=0
           while ((i + 1 < n)); do
             line=""
             while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
@@ -4859,11 +4870,13 @@ hook::bash_parse_segments_uncached() {
             if ((strip)); then
               while [[ "$lc" == $'\t'* ]]; do lc="${lc#?}"; done
             fi
-            [[ "$lc" == "$d" ]] && break
+            [[ "$lc" == "$d" ]] && hclosed=1 && break
           done
+          hd_bodies+=("$hstart $((i + 1)) ${hd_quoted[hidx]} $hclosed $d")
         done
         hd_delims=()
         hd_strip=()
+        hd_quoted=()
       fi
       ;;
     *)
@@ -4875,6 +4888,9 @@ hook::bash_parse_segments_uncached() {
   done
   ((have)) && hook::_bps_close_word
   hook::_bps_flush_segment
+  # Set last: a callback's own parse would overwrite it.
+  # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
+  HOOK_HEREDOC_BODIES=(${hd_bodies[@]+"${hd_bodies[@]}"})
 }
 
 # ============================================================================

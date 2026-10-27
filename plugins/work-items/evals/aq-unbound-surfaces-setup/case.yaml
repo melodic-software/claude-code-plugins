@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: aq-unbound-surfaces-setup
+description: 'Binding gate: /work-items:attend-queue in a checkout with no .work-item-tracker.json surfaces the two-way choice before any coordination verb (run /work-items:setup, or a deliberate gh-native mode that reads only, with no race-safe row lock), and does not claim, reclaim, mutate an item, or hand-write a binding. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+tags: [attend-queue, binding-gate, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run finds no tracker binding and, before any claim or reclaim, tells the operator the choice: run /work-items:setup to bind a provider, or proceed in gh-native mode for provider reads only, accepting that concurrent attended sessions get no race-safe row lock. It claims no row, runs no reclaim, edits no label, comment or item, and does not write .work-item-tracker.json itself.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:attend-queue'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 360
+graders:
+  - name: names-setup-and-read-only-mode
+    type: regex
+    pattern: '^(?![\s\S]*\b(?:do not|don''t|never|no need to)\s+(?:run|use|invoke)\s+`?/?work-items:setup)(?=[\s\S]*/?work-items:setup\b)(?=[\s\S]*(?:gh[- ]native|provider[- ]mechanic|read[- ]only|reads only|only reads|(?:no |without (?:a |any )?)(?:race-safe |concurrency )?(?:row )?(?:locks?|locking|claims?|leases?)\b))'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: no-coordination-or-mutation
+    type: tool_used
+    tool: Bash
+    input_match: '(?<![\w-])(?:re)?claim[ \t]+(?:\\?["''])?[a-z-]+:|(?<![\w-])release[ \t]+(?:\\?["''])?[a-z-]+:|\bgh[ \t]+(?:issue|pr)[ \t]+(?:edit|comment|close|reopen)\b|\bgh[ \t]+label[ \t]+create\b|\bgh[ \t]+api\b[^\n]*(?:-X|--method)[ \t]*(?:POST|PATCH|PUT|DELETE)|lane-telemetry-upsert|(?:>>?|\btee\b|\bcp\b|\bmv\b|\bpython3?\b|\bnode\b)[^|;&\n]*\.work-item-tracker\.json'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-binding
+    type: tool_used
+    tool: Write
+    input_match: 'work-item-tracker\.json|\.work-items/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit-binding
+    type: tool_used
+    tool: Edit
+    input_match: 'work-item-tracker\.json|\.work-items/'
+    min: 0
+    max: 0
+    arm: both

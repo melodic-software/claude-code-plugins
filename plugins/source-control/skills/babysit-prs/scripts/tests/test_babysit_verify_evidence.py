@@ -3506,7 +3506,10 @@ class TheConfigKey(unittest.TestCase):
             "version: 1\nmerge:\n  rung: C2\n  authority: pr-merge\n"
             "  agent-identity: agent-lanes[bot]\n" + line
         )
-        with mock.patch.object(policy, "_file_at", side_effect=[None, text]):
+        def file_at(owner: str, name: str, path: str, sha: str) -> str | None:
+            return text if path == policy.CONFIG_PATH else None
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
             return policy.read_config_at(REPO, "e" * 40)
 
     def test_absent_is_off_and_true_is_on(self) -> None:
@@ -4393,6 +4396,33 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
         fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
         self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
         self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_shared_listing_is_read_once_for_every_candidate(self) -> None:
+        # enable-auto-merge's run: every candidate allowed, the later ones
+        # well past LISTING_MAX_AGE, and still one listing in all, since
+        # ci-status's merge-queue step judges FAILs again at the head.
+        fake = passing()
+        start = datetime.now(UTC)
+        for n in range(5):
+            at = start + n * 2 * ve.LISTING_MAX_AGE
+            with mock.patch.object(ve, "_wall_clock", return_value=at):
+                self.assertIsNone(self.cli(fake, "--shared-listing")["refusal"])
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_shared_listing_does_not_see_a_fail_uploaded_since(self) -> None:
+        # The merge queue holds this one (ci-status runs this reader there).
+        self.assertIsNone(self.cli(passing(), "--shared-listing")["refusal"])
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        self.assertIsNone(self.cli(fake, "--shared-listing")["refusal"])
+        self.assertEqual(listings(fake), 0)
+
+    def test_a_shared_listing_dated_in_the_future_is_read_again(self) -> None:
+        self.cli(passing(), "--shared-listing")
+        fake = passing()
+        past = datetime.now(UTC) - ve.LISTING_MAX_AGE
+        with mock.patch.object(ve, "_wall_clock", return_value=past):
+            self.assertIsNone(self.cli(fake, "--shared-listing")["refusal"])
         self.assertEqual(listings(fake), 1)
 
     def cap(self, base_cap: int, main_cap: int) -> int:

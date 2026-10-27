@@ -59,7 +59,7 @@
 #                               answer is a 2xx; under
 #                               API_BUDGET_READ_FLOOR of the planned budget
 #                               left, warns once (unset: no floor; ci-status
-#                               sets it to the schema's read-floor default);
+#                               sets it to the read-floor default);
 #                               the plan is the header's limit, at most
 #                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
 #                               sets github-token's limit-cap default)

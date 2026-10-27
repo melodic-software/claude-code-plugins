@@ -3,7 +3,8 @@
 Expected values come from two sources the code does not compute: the shared
 decision vectors (.github/actions/log-api-budget/rate-guard.vectors.json, run
 by the JavaScript client too) and the `limits.api` shares in
-docs/conventions/pr-pipeline.yaml with their schema defaults. Canned gh output
+docs/conventions/pr-pipeline.yaml with their defaults in
+.github/actions/log-api-budget/rate-limits.json. Canned gh output
 follows GitHub's documented signals and `gh api -i`'s observed shape.
 """
 
@@ -32,12 +33,11 @@ REPO_ROOT = SCRIPTS.parents[4]
 VECTORS = (
     REPO_ROOT / ".github" / "actions" / "log-api-budget" / "rate-guard.vectors.json"
 )
-SCHEMA = REPO_ROOT / "docs" / "conventions" / "pr-pipeline" / "pr-pipeline.schema.json"
+RATE_LIMITS = REPO_ROOT / ".github" / "actions" / "log-api-budget" / "rate-limits.json"
 
 
-def schema_default(field: str) -> float:
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    return schema["$defs"]["api-pool"]["properties"][field]["default"]
+def file_default(field: str, pool: str = "lanes-app") -> float:
+    return json.loads(RATE_LIMITS.read_text(encoding="utf-8"))[pool][field]
 
 
 def head(status: int, **headers: str) -> str:
@@ -59,7 +59,7 @@ def core(remaining: int, limit: int = 5000, **extra: str) -> dict[str, str]:
 class SharedVectors(unittest.TestCase):
     def test_every_vector_in_the_shared_file(self) -> None:
         table = json.loads(VECTORS.read_text(encoding="utf-8"))
-        floor = schema_default("read-floor")
+        floor = file_default("read-floor")
         self.assertGreaterEqual(len(table["vectors"]), 26)
         for vector in table["vectors"]:
             with self.subTest(vector["name"]):
@@ -279,7 +279,7 @@ class HeadroomShares(GuardCase):
         assert not isinstance(limits, str), limits
         return limits
 
-    def test_a_set_share_is_read_and_an_unset_one_is_the_schema_default(self) -> None:
+    def test_a_set_share_is_read_and_an_unset_one_is_the_file_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = pathlib.Path(tmp, "pr-pipeline.yaml")
             config.write_text(
@@ -289,7 +289,7 @@ class HeadroomShares(GuardCase):
             with mock.patch.object(gh, "LIMITS_CONFIG", config):
                 shares = self.shares("lanes-app")
         self.assertEqual(shares["writer-pause"], 0.3)
-        self.assertEqual(shares["read-floor"], schema_default("read-floor"))
+        self.assertEqual(shares["read-floor"], file_default("read-floor"))
 
     def test_below_the_read_floor_report_only_reads_are_skipped(self) -> None:
         floor = self.shares("github-token")["read-floor"]
@@ -329,8 +329,23 @@ class HeadroomShares(GuardCase):
                 # The writer pause still reads the header's own numbers.
                 self.assertFalse(gh.writes_paused("github-token"))
 
+    def test_the_github_token_cap_is_read_from_the_defaults_file(self) -> None:
+        defaults = json.loads(RATE_LIMITS.read_text(encoding="utf-8"))
+        defaults["github-token"]["limit-cap"] = 2000
+        floor = self.shares("github-token")["read-floor"]
+        # Under the file's 1000 cap this reads low; under 2000 it does not.
+        remaining = 5000 - 1000 + int(floor * 1000) - 1
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp, "rate-limits.json")
+            path.write_text(json.dumps(defaults), encoding="utf-8")
+            with mock.patch.object(gh, "LIMITS_DEFAULTS", path):
+                gh.reset_rate_guard()
+                self.answer(0, head(200, **core(remaining)) + "{}")
+                gh.gh_capture(["api", "repos/o/r/pulls/1"])
+                self.assertFalse(gh.low_headroom("github-token"))
+
     def test_the_cap_is_github_token_only(self) -> None:
-        cap = 1000
+        cap = file_default("limit-cap", "github-token")
         floor = self.shares("lanes-app")["read-floor"]
         os.environ["API_BUDGET_TOKEN"] = "lanes-app"
         self.answer(0, head(200, **core(5000 - cap + int(floor * cap) - 1)) + "{}")
@@ -374,7 +389,7 @@ class AShallowInstallPath(unittest.TestCase):
             sys.modules["babysit_gh"] = module
             path = {str(source)!r}
             exec(compile(open(path, encoding="utf-8").read(), module.__file__, "exec"), module.__dict__)
-            print(module.LIMITS_CONFIG, module.LIMITS_SCHEMA)
+            print(module.LIMITS_CONFIG, module.LIMITS_DEFAULTS)
             module.warm_rate_guard()
             print(module.pool_limits("core") == module.NO_MARGINS)
             """
@@ -391,11 +406,12 @@ class AShallowInstallPath(unittest.TestCase):
 
 
 class NoRepoConfig(GuardCase):
-    """The installed-plugin layout: no pr-pipeline.yaml or schema beside it."""
+    """The installed-plugin layout: no pr-pipeline.yaml or rate-limits.json
+    beside it."""
 
     def setUp(self) -> None:
         super().setUp()
-        for name in ("LIMITS_CONFIG", "LIMITS_SCHEMA"):
+        for name in ("LIMITS_CONFIG", "LIMITS_DEFAULTS"):
             patcher = mock.patch.object(gh, name, REPO_ROOT / f"no-such-{name}")
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -465,10 +481,42 @@ class FailClosed(GuardCase):
         self.assertIn("fail closed", str(raised.exception))
         self.assertEqual(self.sent, [])
 
-    def test_an_unreadable_schema_sends_nothing(self) -> None:
-        with mock.patch.object(gh, "LIMITS_SCHEMA", REPO_ROOT / "no-such-schema.json"):
-            with self.assertRaises(gh.RateLimitExhausted):
+    def test_missing_rate_limit_defaults_send_nothing(self) -> None:
+        with mock.patch.object(
+            gh, "LIMITS_DEFAULTS", REPO_ROOT / "no-such-rate-limits.json"
+        ):
+            with self.assertRaises(gh.RateLimitExhausted) as raised:
                 gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertIn("fail closed", str(raised.exception))
+        self.assertEqual(self.sent, [])
+
+    def test_invalid_rate_limit_defaults_send_nothing(self) -> None:
+        valid = json.loads(RATE_LIMITS.read_text(encoding="utf-8"))
+        token = valid["github-token"]
+        cases = {
+            "not JSON": "{",
+            "the pool missing": json.dumps({"lanes-app": valid["lanes-app"]}),
+            "a share missing": json.dumps(
+                {"github-token": {k: v for k, v in token.items() if k != "read-floor"}}
+            ),
+            "a share past 1": json.dumps({"github-token": token | {"writer-pause": 2}}),
+            "a share as text": json.dumps(
+                {"github-token": token | {"read-floor": "0.1"}}
+            ),
+            "a fractional limit-cap": json.dumps(
+                {"github-token": token | {"limit-cap": 1.5}}
+            ),
+            "a limit-cap of 0": json.dumps({"github-token": token | {"limit-cap": 0}}),
+        }
+        for name, text in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                gh.reset_rate_guard()
+                path = pathlib.Path(tmp, "rate-limits.json")
+                path.write_text(text, encoding="utf-8")
+                with mock.patch.object(gh, "LIMITS_DEFAULTS", path):
+                    with self.assertRaises(gh.RateLimitExhausted) as raised:
+                        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+                self.assertIn("fail closed", str(raised.exception))
         self.assertEqual(self.sent, [])
 
 

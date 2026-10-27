@@ -15,8 +15,9 @@
 // the header's remaining and GitHub's refusals, never the plan.
 //
 // The margins are limits.api in pr-pipeline.yaml, read from resolve-config's
-// output (RESOLVED_CONFIG), over the defaults in pr-pipeline.schema.json,
-// which this module reads at load: the schema holds the only copy.
+// output (RESOLVED_CONFIG), over the defaults in rate-limits.json beside this
+// module: that file holds the only copy, and every hold list floors it, so a
+// change to a default waits for a person.
 // rate-guard.vectors.json pins classify's decisions for every port.
 
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
@@ -46,24 +47,39 @@ const MAX_RESET = 999_999_999_999;
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
-const SCHEMA = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
+const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
-const defaultsOf = (properties) =>
-  Object.fromEntries(
-    Object.entries(properties)
-      .filter(([, property]) => "default" in property)
-      .map(([key, property]) => [key, property.default]),
-  );
+// Each field's check: the shares, then the counts. per-minute and per-hour
+// belong to content-creation alone.
+const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
+const COUNT = (value) => Number.isInteger(value) && value >= 1;
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT };
+const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
+const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
-// limits.api with every unset field filled from the schema's defaults: the
-// pool's $defs entry, then the entry's own default (github-token's
-// limit-cap). Throws when the schema cannot be read.
-export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPath = SCHEMA } = {}) {
-  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
-  const defs = schema.$defs;
-  const entries = schema.properties.limits.properties.api.properties;
-  const pool = defaultsOf(defs["api-pool"].properties);
-  const content = { ...pool, ...defaultsOf(defs["api-content-pool"].properties) };
+// rate-limits.json, checked: every pool in API_POOLS and no other, each with
+// the four shares, and every field in its range. Throws on anything else.
+function readDefaults(path) {
+  const defaults = JSON.parse(readFileSync(path, "utf8"));
+  const pools = Object.keys(defaults ?? {});
+  if (Array.isArray(defaults) || pools.length !== API_POOLS.length || !API_POOLS.every((name) => pools.includes(name))) {
+    throw new Error(`${path}: the pools must be ${API_POOLS.join(", ")}`);
+  }
+  for (const name of API_POOLS) {
+    const fields = name === "content-creation" ? CONTENT_FIELDS : FIELDS;
+    const entry = defaults[name];
+    const bad = [...REQUIRED.filter((field) => !(field in (entry ?? {}))), ...Object.entries(entry ?? {}).filter(([field, value]) => !fields[field]?.(value)).map(([field]) => field)];
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry) || bad.length) {
+      throw new Error(`${path}: ${name} has a missing or invalid ${bad.join(", ") || "entry"}`);
+    }
+  }
+  return defaults;
+}
+
+// limits.api with every unset field filled from rate-limits.json. Throws when
+// that file cannot be read or fails readDefaults' check.
+export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, defaultsPath = DEFAULTS } = {}) {
+  const defaults = readDefaults(defaultsPath);
   let set = {};
   if (resolvedPath) {
     try {
@@ -73,7 +89,7 @@ export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPa
     }
   }
   return Object.fromEntries(
-    API_POOLS.map((name) => [name, { ...(name === "content-creation" ? content : pool), ...entries[name]?.default, ...(set[name] ?? {}) }]),
+    API_POOLS.map((name) => [name, { ...defaults[name], ...(set[name] ?? {}) }]),
   );
 }
 
@@ -311,7 +327,7 @@ export function createRateLimitLatch({
         config = limits();
       } catch {
         config = null;
-        log("::warning::rate guard: limits.api and its schema defaults could not be read; the read floor is not checked");
+        log("::warning::rate guard: limits.api and its defaults (rate-limits.json) could not be read; the read floor is not checked");
       }
     }
     const value = config?.[entryOf(pool, token)]?.[key];

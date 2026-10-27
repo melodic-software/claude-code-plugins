@@ -1,7 +1,7 @@
-// The judge job's last step: the model's structured output is untrusted
-// text, read from the environment, checked for shape, and written as the
-// leg's findings file. At most MAX_PER_UNIT findings survive.
-import { mkdirSync, writeFileSync } from "node:fs";
+// Each judge leg's last step: the model's structured output is untrusted
+// text, read from run-claude-cli's structured-output-file, checked for shape,
+// and written as the leg's findings file. At most MAX_PER_UNIT findings survive.
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -30,8 +30,9 @@ export function parseJudgeOutput(text) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const { STRUCTURED_OUTPUT, UNIT_ID, FINDINGS_PATH } = process.env;
-  const { findings, dropped } = parseJudgeOutput(STRUCTURED_OUTPUT ?? "");
+  const { STRUCTURED_OUTPUT_FILE, UNIT_ID, FINDINGS_PATH } = process.env;
+  // An empty path means the leg left no structured output: unparsable.
+  const { findings, dropped } = parseJudgeOutput(STRUCTURED_OUTPUT_FILE ? readFileSync(STRUCTURED_OUTPUT_FILE, "utf8") : "");
   mkdirSync(dirname(FINDINGS_PATH), { recursive: true });
   writeFileSync(FINDINGS_PATH, `${JSON.stringify({ unit: UNIT_ID, findings, dropped }, null, 2)}\n`);
   console.log(`write-findings: unit ${UNIT_ID}, kept ${findings.length}, dropped ${dropped.length}`);

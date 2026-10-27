@@ -60,6 +60,27 @@ for (const entry of ["scripts/x.sh; rm -rf /", "../scripts/x.sh", "scripts/x.sh 
   });
 }
 
+// A skill with an effect other than read runs in the write runner's run job,
+// which holds the lane token and id-token: write, so neither list may name a
+// script that runs the checkout's test files there.
+for (const entry of [
+  "scripts/affected-tests.sh --run",
+  "scripts/run-outside-node-suites.sh",
+  "scripts/selection-audit.sh",
+  "scripts/check-guardrails-ps-differential.sh --harvest",
+  "scripts/run-test-file.sh",
+]) {
+  for (const list of ["checks", "self-checks"]) {
+    test(`${list} naming ${JSON.stringify(entry)} on a write-effect skill fail the schema`, () => {
+      rejected(() => run({ [list]: [entry] }));
+    });
+  }
+}
+
+test("check-affected.sh --tests stays a check: from the base copy it skips the branch's tests", () => {
+  assert.deepEqual(run({ checks: ["scripts/check-affected.sh --tests"] }).selected.checks, ["scripts/check-affected.sh --tests"]);
+});
+
 // Only the runner that stages edit tools stages them, so a read skill that
 // hands on no patch would list them for nothing.
 test("self-checks with effect read and no applied-by.patch fail the schema", () => {
