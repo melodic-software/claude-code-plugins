@@ -4875,6 +4875,63 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(owner_pr(), adoption_owner_ids=ids)
                 self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    # Owner decision Q30: an untrusted account's hold still counts.
+
+    def test_an_untrusted_changes_requested_review_is_not_adopted(self) -> None:
+        review = {
+            "event": "reviewed",
+            "user": self.STRANGER,
+            "state": "changes_requested",
+            "body": "",
+            "submitted_at": FRESH,
+        }
+        self.owner_fake(timeline=[review])
+        result = self.eligibility(owner_pr())
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_an_untrusted_hold_phrase_comment_is_not_adopted(self) -> None:
+        thread = {
+            "event": "line-commented",
+            "comments": [
+                {"user": self.STRANGER, "created_at": FRESH, "body": "Do not merge."}
+            ],
+        }
+        for body in ("do not merge, this leaks X", "Don't merge yet", "Hold: see #1"):
+            comment = self.commented(self.STRANGER, FRESH)
+            comment["body"] = body
+            for event in (comment, {**comment, "event": "reviewed"}, thread):
+                with self.subTest(body=body, event=event["event"]):
+                    self.owner_fake(timeline=[event])
+                    result = self.eligibility(owner_pr())
+                    self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_other_untrusted_activity_leaves_an_owner_pr_idle(self) -> None:
+        comment = self.commented(self.STRANGER, FRESH)
+        comment["body"] = "Looks fine; the do-not-merge label is gone."
+        for event in (
+            comment,
+            {
+                "event": "reviewed",
+                "user": self.STRANGER,
+                "state": "commented",
+                "body": "a nit",
+                "submitted_at": FRESH,
+            },
+            {
+                "event": "reviewed",
+                "user": self.STRANGER,
+                "state": "approved",
+                "body": "",
+                "submitted_at": FRESH,
+            },
+            {"event": "labeled", "actor": self.STRANGER, "created_at": FRESH},
+        ):
+            with self.subTest(event=event["event"], body=event.get("body")):
+                self.owner_fake(timeline=[event])
+                result = self.eligibility(owner_pr())
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.adoption, "idle-owner:24h")
+
     def test_an_unreadable_timeline_or_actor_is_not_idle(self) -> None:
         for timeline in (
             502,

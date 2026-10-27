@@ -2594,6 +2594,17 @@ ACTIVITY_EVENTS = frozenset(
 )
 
 
+def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any]) -> bool:
+    """An act that holds the pull request whoever wrote it: a changes-requested
+    review, or a comment or review whose text carries a `BODY_MERGE_HOLD_RE`
+    phrase ("do not merge", a "Hold:" line)."""
+    if event.get("event") == "reviewed" and (
+        str(act.get("state") or "").lower() == "changes_requested"
+    ):
+        return True
+    return bool(BODY_MERGE_HOLD_RE.search(str(act.get("body") or "")))
+
+
 def trusted_activity(
     pr: Mapping[str, Any],
     timeline: Sequence[Any],
@@ -2607,11 +2618,14 @@ def trusted_activity(
     `submitted_at`. Commits and pushes are read apart (`_head_committed`,
     `_head_last_seen`); a body edit, which names no editor here, is not read,
     and a body hold refuses on its own.
-    Any other account's comment or review moves nothing, so it cannot keep
-    the pull request from going idle; the lane's own pin and reasons comments
-    do not count when `actor_ids` leaves the lane's identity out, as
-    `trusted_actors(exclude=...)` does. An event whose actor id, or a counted
-    one's time, cannot be read raises `PolicyReadError`, which is not idle."""
+    Any other account's activity moves nothing, so it cannot keep the pull
+    request from going idle, but for a hold (`_untrusted_hold`, owner decision
+    Q30): its changes-requested review or its comment or review carrying a
+    `BODY_MERGE_HOLD_RE` phrase counts like a trusted account's. The lane's
+    own pin and reasons comments do not count when `actor_ids` leaves the
+    lane's identity out, as `trusted_actors(exclude=...)` does. An event whose
+    actor id, or a counted one's time, cannot be read raises
+    `PolicyReadError`, which is not idle."""
     stamps = [_time(pr.get("created_at"))]
     for raw in timeline:
         event = json_object(raw)
@@ -2626,7 +2640,7 @@ def trusted_activity(
             uid = json_object(who).get("id")
             if type(uid) is not int:
                 raise PolicyReadError(f"{event.get('event')} event actor unreadable")
-            if uid not in actor_ids:
+            if uid not in actor_ids and not _untrusted_hold(event, act):
                 continue
             times = [
                 act.get(k)
