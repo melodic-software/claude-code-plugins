@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before I scan: what do you already know about refunds and about this codebase?",
+      "why": "intake only"
+    },
+    {
+      "answer": "Once you answer I will scan and return cards typed Landmine, History, Convention or Missing concept, each with a fix line you can copy. How familiar are you with src/payments?",
+      "why": "describes the card types in prose, no card yet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Landmine\n- Gap: ledger caller\n- Prompt-fix: subtract refunded cents",
+      "why": "a card with a prompt-fix line"
+    },
+    {
+      "answer": "**Prompt-fix:** use integer cents",
+      "why": "bold prompt-fix field"
+    },
+    {
+      "answer": "----- COPY START -----\nAdd partial refunds\n----- COPY END -----",
+      "why": "copy block"
+    },
+    {
+      "answer": "**Type: Landmine**\nThe reconcile caller zeroes balances.",
+      "why": "typed card heading"
+    }
+  ]
+}
