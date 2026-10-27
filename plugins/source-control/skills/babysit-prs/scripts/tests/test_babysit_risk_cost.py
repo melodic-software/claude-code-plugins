@@ -735,11 +735,26 @@ class ProbeShapes(unittest.TestCase):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
                 self.assertTrue(self._held(wf))
 
+    def test_the_whole_context_after_an_operator_holds(self):
+        for line in (
+            "+  ALL: ${{ toJSON(a && secrets) }}",
+            "+  ALL: ${{ toJSON(github.event_name == 'push' && secrets) }}",
+            "+  ALL: ${{ toJSON(inputs.x || secrets) }}",
+            "+  ALL: ${{ (x || secrets) }}",
+            "+  ALL: ${{ toJSON(x == secrets) }}",
+            "+  ALL: ${{ inputs.x && secrets }}",
+            "+  ALL: ${{ inputs.x || secrets }}",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertTrue(self._held(wf))
+
     def test_a_secret_reference_moved_within_a_file_does_not_hold(self):
         for ref in (
             "${{ secrets.API_KEY }}",
             "${{ secrets }}",
             "${{ contains(secrets, 'API_KEY') }}",
+            "${{ toJSON(a && secrets) }}",
         ):
             with self.subTest(ref=ref):
                 moved = _patch(f"-      KEY: {ref}", "   b:", f"+      KEY: {ref}")

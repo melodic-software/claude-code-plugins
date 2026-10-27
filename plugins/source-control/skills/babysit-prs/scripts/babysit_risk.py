@@ -876,12 +876,14 @@ _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
 # Any secrets reference: `secrets.NAME`, `secrets.*`, `secrets['NAME']`,
-# `secrets: inherit`, and the whole `secrets` context opening an expression or
-# argument (`${{ secrets }}`, `toJSON(secrets)`, `contains(secrets, ...)`) or a
-# line, ending one when a folded scalar splits a reference across lines.
+# `secrets: inherit`, and the whole `secrets` context before `)` or opening an
+# expression, argument or operand (`${{ secrets }}`, `toJSON(secrets)`,
+# `contains(secrets, ...)`, `a && secrets`) or a line, ending one when a folded
+# scalar splits a reference across lines.
 _SECRET_REF = re.compile(
     r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\s*:\s*inherit\b"
-    r"|(?:\$\{\{|[(,!]|^)\s*secrets\b(?:\s*[.\[])?(?=\s*(?:$|[),]|\}\}|[=!]=|&&|\|\|))",
+    r"|\bsecrets\b(?=\s*\))"
+    r"|(?:\$\{\{|[(,!&|]|^)\s*secrets\b(?:\s*[.\[])?(?=\s*(?:$|[),]|\}\}|[=!]=|&&|\|\|))",
     re.IGNORECASE,
 )
 # A model leg: a claude-code-* action or image, run-claude-cli, the Claude
