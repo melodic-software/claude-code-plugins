@@ -576,6 +576,9 @@ test("a required non-test gap that mentions a test runner is not deferred", () =
     "`pytest` was not run; the review subagent step was not run",
     "test suite, and check-changelog-fragments was not run",
     "`pytest` and `scripts/check-changelog-fragments.sh --check` were not run",
+    "`pytest` was not run. The review subagent step was not run.",
+    "`pytest` was not run, the review subagent step was not run",
+    "`pytest` was not run: `scripts/check-changelog-fragments.sh --check` was not run either",
   ]) {
     const plan = decideDone({ outcome: { ...done, notDone: [{ what, required: true }] } });
     assert.equal(plan.action, "hand-back", what);
