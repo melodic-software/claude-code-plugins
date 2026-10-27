@@ -49,7 +49,7 @@ name: pr-feedback-dispatch
 # skipped at its review completion has no other trigger, so the job decides
 # that head again, through its newest completed review run, with every gate as
 # before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
-# shares that head's concurrency group and dispatch record.
+# waits in that head's concurrency group and reads its dispatch record.
 #
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
@@ -73,7 +73,10 @@ permissions: {}
 
 # Both review lanes finish on the same head; one listing at a time per head.
 # A pr-verify run's head is main's, so each such run has a group of its own;
-# the sweeps share one.
+# the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
+# otherwise keeps one pending run per group and cancels it for a newer one,
+# so a pr-merge completion, or a review re-run's, could drop the later review
+# lane's run and with it the one rerun-ci-status after both lanes.
 concurrency:
   group: >-
     pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
@@ -81,6 +84,7 @@ concurrency:
     || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
     || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # A pr-verify run of main, which only steps of that run could upload to.

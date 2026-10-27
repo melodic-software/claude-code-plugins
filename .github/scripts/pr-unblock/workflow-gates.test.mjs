@@ -871,3 +871,11 @@ test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.
     assert.equal(isVerdictName(name), taken.includes(name), name);
   }
 });
+
+test("pr-feedback-dispatch.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const block = /\nconcurrency:\n((?: {2}.*\n)+)/.exec(text);
+  assert.ok(block, "the workflow sets top-level concurrency");
+  assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
+  assert.match(block[1], /^ {2}queue: max$/m);
+});
