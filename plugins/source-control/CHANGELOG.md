@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.14.0] - 2026-10-27
+
+### Added
+
+- The babysit merge gate now re-runs an AI review check whose run an outage lost (`cancelled` or `timed_out`), at once and once per run on the pinned live head. A lost run whose lane already reached its side effect is left to a person: its job carries the lane's completion record, or the lane's reviewed-head marker or another lane comment appeared after the run started. The review evidence binds the second attempt by the same rule, also checking the lane's review threads (#8524).
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
 ## [3.13.7] - 2026-10-27
 
 ### Changed
