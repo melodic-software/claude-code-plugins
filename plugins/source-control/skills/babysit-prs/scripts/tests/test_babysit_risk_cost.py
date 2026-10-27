@@ -558,6 +558,58 @@ class ProbeShapes(unittest.TestCase):
         wf = _file(WORKFLOW, patch=patch, contents=(base, head))
         self.assertTrue(self._held(wf))
 
+    def test_a_step_timeout_removed_beside_another_step_deleted_holds(self):
+        for base, head, patch in (
+            (
+                self._steps("5", ""),
+                self._steps(""),
+                _patch("-        timeout-minutes: 5", "-      - run: step1"),
+            ),
+            (
+                self._steps("5", "", "10"),
+                self._steps("", "10").replace("step1", "step2"),
+                _patch("-        timeout-minutes: 5", "-      - run: step1"),
+            ),
+        ):
+            with self.subTest(base=base):
+                wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+                self.assertTrue(self._held(wf))
+
+    def test_a_step_timeout_removed_from_an_edited_step_holds(self):
+        base = self._steps("5", "")
+        head = self._steps("").replace("step0", "step0 --fast")
+        patch = _patch(
+            "-      - run: step0",
+            "-        timeout-minutes: 5",
+            "-      - run: step1",
+            "+      - run: step0 --fast",
+        )
+        wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+        self.assertTrue(self._held(wf))
+
+    def test_an_untimed_step_added_beside_timed_steps_does_not_hold(self):
+        base, head = self._steps("5", "10"), self._steps("5", "10", "")
+        wf = _file(
+            WORKFLOW, patch=_patch("+      - run: step2"), contents=(base, head)
+        )
+        self.assertFalse(self._held(wf))
+
+    def test_a_commented_timeout_does_not_offset_an_unread_raise(self):
+        patch = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 200",
+            "-    # timeout-minutes: 300",
+            "+    # timeout-minutes: 5",
+        )
+        self.assertTrue(self._held(_file(WORKFLOW, patch=patch, contents=None)))
+        tail = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 200",
+            "-    runs-on: ubuntu-24.04 # timeout-minutes: 300",
+            "+    runs-on: ubuntu-24.04 # timeout-minutes: 5",
+        )
+        self.assertTrue(self._held(_file(WORKFLOW, patch=tail, contents=None)))
+
     def test_a_flow_style_timeout_raise_holds(self):
         def flow(value):
             return f"  a: {{runs-on: ubuntu-24.04, timeout-minutes: {value}}}"

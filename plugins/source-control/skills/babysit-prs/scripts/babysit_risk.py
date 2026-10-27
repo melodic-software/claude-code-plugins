@@ -1008,20 +1008,23 @@ def _key_of(body: str) -> tuple[str, str] | None:
 
 _ANCHOR = re.compile(r"(?:^|(?<=[\s\[{,:]))&([\w.-]+)\s+([^\s,}\]#]+)")
 _Path = tuple[str, ...]
+# A `steps` item: its lines other than its own block timeouts, and the
+# timeout values set on it.
+_Step = tuple[list[str], list[str]]
 
 
 def _timeouts(
     text: str,
-) -> tuple[dict[_Path, list[str]], set[_Path], Counter[_Path]]:
+) -> tuple[dict[_Path, list[str]], set[_Path], dict[_Path, list[_Step]]]:
     """Each timeout value in workflow text by its key path, every key path the
-    text holds, and the item count of each `steps` list. A job's steps share
+    text holds, and the items of each `steps` list. A job's steps share
     one path; a flow mapping's timeouts
     take their place on the line. A value on the lines below its key or behind
     an alias (the last anchor before it) is read there, and an expression's
     value also counts what it reads (`_feeds`)."""
     values: dict[_Path, list[str]] = {}
     paths: set[_Path] = set()
-    steps: Counter[_Path] = Counter()
+    steps: dict[_Path, list[_Step]] = {}
     stack: list[tuple[int, str]] = []
     anchors: dict[str, str] = {}
     lines = text.split("\n")
@@ -1034,8 +1037,22 @@ def _timeouts(
             stack.pop()
         path = tuple(key for _, key in stack)
         if path[-1:] == ("steps",) and line.lstrip(" ").startswith("-"):
-            steps[path] += 1
+            steps.setdefault(path, []).append(([], []))
+        step = next(
+            (
+                steps[path[:n]][-1]
+                for n in range(len(path), 0, -1)
+                if path[n - 1] == "steps" and path[:n] in steps
+            ),
+            None,
+        )
+        # The timeouts set on the step itself, when the line is one of its keys.
+        own = step[1] if step is not None and path in steps else None
         keyed = _key_of(body)
+        if step is not None and not (
+            own is not None and keyed and _TIMEOUT_KEY.fullmatch(keyed[0])
+        ):
+            step[0].append(body.split(" #", 1)[0].rstrip())
         rest = keyed[1] if keyed else body
         for name, value in _ANCHOR.findall(rest.split(" #", 1)[0]):
             anchors[name] = _scalar(value)
@@ -1058,14 +1075,40 @@ def _timeouts(
                     value = anchors.get(value[1:], value)
                 if value:
                     values.setdefault(path, []).append(value)
+                    if own is not None:
+                        own.append(value)
                 continue
         for n, (name, value) in enumerate(_TIMEOUT.findall(rest)):
             if _scalar(value):
                 values.setdefault((*path, f"{name}#{n}"), []).append(_scalar(value))
+                if own is not None and not keyed:
+                    own.append(_scalar(value))
     read: dict[str, list[str]] = {}
     for vals in values.values():
         vals += _feeds(text, vals, read)
     return values, paths, steps
+
+
+def _deleted_timed_steps(was: list[_Step], now: list[_Step]) -> int:
+    """How many items with a timeout a `steps` list lost: the ones whose
+    lines, timeouts aside, the head no longer holds, less one for each head
+    item with new lines, which may be one of them edited."""
+    old = Counter(tuple(lines) for lines, _ in was)
+    new = Counter(tuple(lines) for lines, _ in now)
+    untimed = Counter(tuple(lines) for lines, timed in was if not timed)
+    timed_gone = sum(max(0, n - untimed[s]) for s, n in (old - new).items())
+    return max(0, timed_gone - sum((new - old).values()))
+
+
+def _patch_timeouts(lines: list[str]) -> list[str]:
+    """The timeout values on patch lines, comments left out."""
+    return [
+        s
+        for line in lines
+        if not line.lstrip().startswith("#")
+        for _, v in _TIMEOUT.findall(line.split(" #", 1)[0])
+        if (s := _scalar(v))
+    ]
 
 
 def _timeout_gains(new: list[str], old: list[str]) -> list[str]:
@@ -1098,8 +1141,9 @@ def _raised_timeouts(
     with both sides read, the same per key path (`_timeouts`), plus a timeout
     removed while its job stays (the default is the longest). A key path new
     to the head whose values a vanished job's same key held (a renamed job) is
-    not a gain, and a step deleted with its timeout is not a removal. With a
-    side unread, a patch that removes more timeouts than it adds holds."""
+    not a gain, and a step deleted with its timeout is not a removal
+    (`_deleted_timed_steps`). With a side unread, a patch that removes more
+    timeouts than it adds holds. Comment lines and tails carry no timeout."""
     if f.status == "removed":
         return []
     contents = getattr(raw, "contents", None)
@@ -1109,16 +1153,17 @@ def _raised_timeouts(
         base = ""
     if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
         return []
-    new = [s for line in added for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))]
-    old = [
-        s for line in removed for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))
-    ]
+    new, old = _patch_timeouts(added), _patch_timeouts(removed)
     found = [f"timeout raised to {v}" for v in _timeout_gains(new, old)]
     if not (isinstance(base, str) and isinstance(head, str)):
         if len(old) > len(new):
             found.append("timeout removed")
         return found
     (was, _, steps_was), (now, kept, steps_now) = _timeouts(base), _timeouts(head)
+    deleted = {
+        p: _deleted_timed_steps(items, steps_now.get(p, []))
+        for p, items in steps_was.items()
+    }
     gone = [
         (p[-1], sorted(v))
         for p, v in was.items()
@@ -1135,8 +1180,10 @@ def _raised_timeouts(
             for v in _timeout_gains(now.get(path, []), was.get(path, []))
         ]
         lost = len(was.get(path, [])) - len(now.get(path, []))
-        if path[-2:-1] == ("steps",):
-            lost -= steps_was[path[:-1]] - steps_now[path[:-1]]
+        if lost > 0 and path[-2:-1] == ("steps",):
+            cut = min(lost, deleted.get(path[:-1], 0))
+            deleted[path[:-1]] = deleted.get(path[:-1], 0) - cut
+            lost -= cut
         if lost > 0 and _kept_parent(path, kept):
             found.append(f"timeout at {at} removed")
     return list(dict.fromkeys(found))
