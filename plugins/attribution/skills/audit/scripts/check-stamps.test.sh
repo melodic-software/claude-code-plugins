@@ -458,9 +458,27 @@ assert_contains "a value with no layer is attributed to the defaults" "$OUT" "bu
 printf '%s\n' '{"stamp_expiry_days": 45}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 OUT="$(run --show-config 2>&1)"
 assert_contains "--show-config attributes a value to its supplying layer" \
-  "$OUT" "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
-assert_contains "the attributed value is the effective one" "$OUT" "stamp_expiry_days=45"
+  "$OUT" "stamp_expiry_days=45 (from $CLAUDE_PROJECT_DIR/.claude/attribution.json)"
 assert_contains "an unset key is still attributed to the defaults" "$OUT" "trigger_less_stamp_check=false (bundled default)"
+
+# The YAML team layer (ADR 0075) replaces the JSON one whole when both exist: a
+# key only the JSON sets is not read.
+CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
+mkdir -p "$CONV"
+printf '%s\n' '{"stamp_expiry_days": 45, "trigger_less_stamp_check": true}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
+printf '%s\n' 'stamp_expiry_days: 60' >"$CONV/attribution.yaml"
+assert_eq "the YAML team layer sets the window" \
+  "$(run "$DIR/dated.md" 2>/dev/null | jq -r '.expiry_days')" "60"
+assert_eq "the JSON beside the YAML is not read" \
+  "$(run "$DIR/no-trigger.md" 2>/dev/null | jq -r '.trigger_less_check')" "false"
+OUT="$(run --show-config 2>&1)"
+assert_contains "--show-config attributes a YAML value to its layer" \
+  "$OUT" "stamp_expiry_days=60 (from $CONV/attribution.yaml)"
+printf '%s\n' 'trigger_less_stamp_check: true' >"$CONV/attribution.local.yaml"
+OUT="$(run --show-config 2>&1)"
+assert_contains "the YAML overlay refines the YAML team layer" \
+  "$OUT" "trigger_less_stamp_check=true (from $CONV/attribution.local.yaml)"
+rm -rf "$CLAUDE_PROJECT_DIR/docs"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 
 # The script alone, with no lib.sh beside it: the pre-computed --show-config
