@@ -45,6 +45,7 @@ condition and the sentence, rather than restating either:
 - [`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md): the intake sweep
 - Loop-lane standing prompts and lane-absorption skills: reconcile against this contract
 
-A reader that tells lane text from a person's by the prefix (the work-loop objection window) cannot
-rely on it while the setting resolves `false`, so it does not rest on the prefix alone: the
-objection window also reads the author and when the item was returned to the frontier.
+The prefix is provenance for readers, never evidence of who wrote a comment: it is absent while the
+setting resolves `false`, and anyone can type it. A reader that must tell lane text from a person's
+(the work-loop objection window) reads the author and when the item was returned to the frontier,
+never the prefix.

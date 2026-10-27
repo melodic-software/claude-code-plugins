@@ -25,10 +25,11 @@ a window. Check in this order:
    read), which that read reports as trusted; and its author is that application's `actor`. Any
    other comment in that span, from another person or after an older marker, is an objection. A
    person here is an
-   author that is not the seam's write identity, is not a bot account (the tracker reports its
-   user type as `Bot`, or its login ends in `[bot]`), and whose comment carries no AI disclaimer
-   (a lane adds one only when the setting in
-   [`../../../reference/ai-disclaimer.md`](../../../reference/ai-disclaimer.md) resolves `true`). Step 5 escalates the item as
+   author that is not the seam's write identity and is not a bot account (the tracker reports its
+   user type as `Bot`, or its login ends in `[bot]`). What a comment says never makes it not a
+   person's: an AI disclaimer in it
+   ([`../../../reference/ai-disclaimer.md`](../../../reference/ai-disclaimer.md)) is text anyone
+   can type, so it is never evidence of a lane author. Step 5 escalates the item as
    `kind=escalated`, whose one-line question names the objecting comment, and it leaves the
    autonomous frontier. The cycle report lists it as `objection: #<item> -> escalated`.
 2. **Window still open** (`<end>` after the cycle-start time): skip the candidate this cycle. It is

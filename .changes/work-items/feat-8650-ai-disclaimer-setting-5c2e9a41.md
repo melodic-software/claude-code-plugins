@@ -21,3 +21,6 @@ bump: minor
   window comment, the comment comes before the autonomous-eligible role label was last applied,
   and its author is the trusted labeler who applied it. An attend-queue answer without the
   disclaimer does not re-escalate the item; any other comment in that span is still an objection.
+- **The objection window no longer reads the AI disclaimer.** Who counts as a person rests on the
+  author alone (not the write identity, not a bot account): a comment carrying the prefix is still
+  a person's objection, since anyone can type it.
