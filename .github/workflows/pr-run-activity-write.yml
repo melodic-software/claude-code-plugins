@@ -280,7 +280,9 @@ on:
       patch-prepare:
         description: >-
           The patch-activity's prepare mode in the base config (ci-context for
-          fix-ci), which picks its patch-rules.json row; empty for none.
+          fix-ci), which picks its patch-rules.json row; docs for fix-docs,
+          which has no prepare mode and takes the markdown-only row; empty for
+          none.
         required: false
         type: string
         default: ""

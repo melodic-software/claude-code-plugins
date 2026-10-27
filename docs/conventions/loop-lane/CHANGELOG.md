@@ -5,13 +5,25 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## [12.8.0] - 2026-10-26
+## [12.9.0] - 2026-10-27
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
 
 - **Operator steering.** §7 documents the `eval: run` pull request label, which runs the changed
   plugins' eval suites when a listed human adds it, and refuses a plugin whose tree holds a
   symlink or submodule.
+
+## [12.8.0] - 2026-10-27
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **When work stops for the owner.** §2 quotes the owner's rule of 2026-10-27 and tables the four
+  reasons an item goes to a person (an intent or vision change, an implementation finding that
+  alters intent or the primary design, a HIGH or CRITICAL security issue such as a leaked token or
+  secret, an account compromise or real money at risk, and anything that can bill the owner), each
+  with its label and the lane that decides. It quotes the owner's standing direction on what is
+  and is not cost: model usage and promotional API credits are capacity, a breaker or kill switch
+  is a safety limit, and any other stop is a defect to fix.
 
 ## [12.7.0] - 2026-10-26
 

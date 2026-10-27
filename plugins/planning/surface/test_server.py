@@ -1539,6 +1539,28 @@ class TestStateFallback(unittest.TestCase):
         self.assertFalse(hub.read_state()[1])
 
 
+class TestSignatureWaiter(unittest.TestCase):
+    """A waiter arriving or leaving inside the listen grace, lease held, still changes the
+    signature, so the open page gets the frame that turns its header Live or back to working."""
+
+    def test_a_waiter_inside_the_grace_changes_the_signature(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-sig-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        with hub.cond:
+            hub.claim("w1")
+            hub.lease["inflight"] -= 1
+        hub.last_wait = time.time()
+        before = hub.signature()
+        hub.waiters = 1
+        self.assertEqual(hub.listener()["state"], "listening")
+        self.assertNotEqual(hub.signature(), before)
+        hub.waiters = 0
+        self.assertEqual(hub.signature(), before)
+
+
 class TestEventStreamCap(ServerCase):
     """At most MAX_STREAMS event streams at once: one more is 503 until a stream closes."""
 

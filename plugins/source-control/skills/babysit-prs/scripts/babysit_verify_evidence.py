@@ -78,8 +78,9 @@ from a completed, successful one. Any other artifact is ignored.
 
 Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
 person: the spec's provenance is a trust boundary. Every other refusal holds
-for the lanes (owner rule 2026-10-27: a person only for an intent or design
-change or a CRITICAL security issue), and enable-auto-merge.mjs shows
+for the lanes (when a person is needed:
+https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
+and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 waits for the lanes to judge the head again. `verify:repeated-fail` and
 `verify:too-old` never clear, so the gate never merges such a pull request
@@ -251,9 +252,9 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-# The refusals only a person clears (owner rule 2026-10-27: a person only
-# for an intent or design change or a CRITICAL security issue, with
-# trust holds kept): an untrusted spec (provenance). Every other refusal,
+# The refusals only a person clears (when a person is needed:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# with trust holds kept): an untrusted spec (provenance). Every other refusal,
 # the repeated-FAIL cap and an old pull request included, holds for the
 # lanes: it still refuses the merge, with no label. The one list the merge
 # gate and enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
@@ -2523,13 +2524,15 @@ def _answered(
         return report | {"cache": failed}
 
 
-def _settle(repo: str, path: str, code_sha: str) -> int:
+def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
     but never read again), as the lane's agent identity in the config there.
-    Changed check code refuses before any read. Prints `{"reuse", "reason"}`;
-    exit 0 when it stands, else 1, and the caller runs the check."""
+    With `idle`, the report is an earlier tick's, and it must also pass
+    `postmerge.idle_refusal`. Changed check code refuses before any read.
+    Prints `{"reuse", "reason"}`; exit 0 when it stands, else 1, and the
+    caller runs the check."""
     shared = postmerge.read_shared(path)
     reason: str | None = "post-merge answer missing or unreadable"
     if not merge_policy.check_code_unchanged(code_sha):
@@ -2552,6 +2555,14 @@ def _settle(repo: str, path: str, code_sha: str) -> int:
                         postmerge.pending_runs_unchanged(repo, answer, branch)
                     ),
                 )
+                if reason is None and idle:
+                    refusal = postmerge.idle_refusal(
+                        repo,
+                        shared,
+                        default,
+                        confirm_wait_minutes=config.confirm_wait_minutes,
+                    )
+                    reason = refusal and f"idle tick {refusal}"
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
     print(json.dumps({"reuse": reason is None, "reason": reason}))
@@ -2612,7 +2623,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
-    again (`_settle`)."""
+    again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
+    earlier tick's report, which must also pass `postmerge.idle_refusal`."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2642,9 +2654,12 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--repo", required=True)
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
+    settle.add_argument("--idle-tick", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "settle":
-        return _settle(args.repo, args.postmerge_result, args.code_sha)
+        return _settle(
+            args.repo, args.postmerge_result, args.code_sha, idle=args.idle_tick
+        )
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(
