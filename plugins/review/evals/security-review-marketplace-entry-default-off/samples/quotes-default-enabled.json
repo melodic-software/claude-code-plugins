@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The entry sets `\"defaultEnabled\": false` (.claude-plugin/marketplace.json:14), so it installs nothing until a user enables it.\n\ncritical-findings: 0",
+      "why": "quotes the defaultEnabled line"
+    },
+    {
+      "answer": "manifest plugins entry: flag, new bundle entry; defaultEnabled is false, so it is opt-in.\n\ncritical-findings: 0",
+      "why": "states the read value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The marketplace adds a new default-on bundle entry.\n\nseverity: CRITICAL\n\ncritical-findings: 1",
+      "why": "never reads the defaultEnabled line"
+    }
+  ]
+}
