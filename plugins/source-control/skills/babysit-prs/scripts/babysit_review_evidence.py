@@ -153,7 +153,7 @@ RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
 # Or on a rejected Claude credential: this lane's publish-review failure line
 # (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
 # attempt 1 then left no verdict, so a re-run cannot trade one review for
-# another. It binds a re-run but does not start one (rate_limited), since a
+# another. It binds a re-run but does not start one (GATE_RERUN_CLASSES), since a
 # re-run before the secret is fixed would spend the one allowed attempt. A
 # spent key needs no entry: publish.cjs reports it as `rate-limit`.
 AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
@@ -166,6 +166,15 @@ AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
 PUBLISH_RATE_LIMIT_RE = re.compile(
     r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
     r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
+)
+# Or when the runner isolation or the Claude Code CLI install failed before the
+# review ran: this lane's publish-review failure line (ci-workflows publish.cjs
+# `fail`) with class `install-failed`, which a failed `Isolate the runner` step
+# reports from ci-workflows v0.65.14 (ci-workflows#893). Attempt 1 then left no
+# verdict, often on a slow package mirror, so a re-run trades no review away.
+INSTALL_FAILED = "install-failed"
+INSTALL_FAILURE_RE = re.compile(
+    rf"(?P<lane>[\w-]+): failure-class={re.escape(INSTALL_FAILED)}: "
 )
 # Or when a kill switch stopped attempt 1 before the review started: the
 # caller's `kill-switch` job succeeded and its `Report the kill switch` step
@@ -771,25 +780,39 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
     return found is not None and found["lane"] == lane
 
 
-def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
-    return any(
-        RATE_LIMIT_CLASS_RE.search(m) or _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m)
-        for m in _failures(job)
+# The failure classes of a failed attempt 1 after which attempt 2 binds
+# (`rerun_binds`), each with its test of one failure annotation's message.
+RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
+    "rate-limit": lambda lane, m: RATE_LIMIT_CLASS_RE.search(m) is not None,
+    "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
+    "auth": lambda lane, m: _lane_line(AUTH_FAILURE_RE, lane, m),
+    INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
+}
+# The ones the merge gate re-runs itself (babysit_merge
+# `rerun_rate_limited_review`). A rejected credential is left to a person: a
+# re-run before the secret is fixed would spend the one allowed attempt.
+GATE_RERUN_CLASSES = frozenset({"rate-limit", "publish-rate-limit", INSTALL_FAILED})
+
+
+def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
+    """The `RERUN_CLASSES` a failure annotation of the lane's job names."""
+    failures = _failures(job)
+    return frozenset(
+        name
+        for name, test in RERUN_CLASSES.items()
+        if any(test(lane, m) for m in failures)
     )
 
 
 def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
     """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
-    failed on a rate limit or a rejected credential (AUTH_FAILURE_RE), or a
-    kill switch stopped it (`_kill_switch_stopped`)."""
+    failed on one of `RERUN_CLASSES`, or a kill switch stopped it
+    (`_kill_switch_stopped`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
     if first.get("conclusion") != "failure":
         return False
-    job = _lane_job(lane, run_id, first)
-    return rate_limited(lane, job) or any(
-        _lane_line(AUTH_FAILURE_RE, lane, m) for m in _failures(job)
-    )
+    return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
 
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:

@@ -109,7 +109,7 @@ MAIN_PATHS = (
 # run, which changes the check rollup); any other, a re-run still due
 # included, gates again.
 STABLE_RERUNS = (
-    "failure class is not rate-limit",
+    "failure class is not ",
     "already re-run on this head",
     "not a GitHub Actions job",
     "the job ran on another head",
