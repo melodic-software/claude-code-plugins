@@ -1,0 +1,4 @@
+{
+  "description": "The charge-word definition: words in an issue's title or body that name a metered or renewing charge, which admission refuses until the owner decides it. rule-admit.sh reads it, and so does intake admission in the marketplace repository (.github/scripts/intake-triage/admit.mjs). A regular expression valid in both jq (Oniguruma) and JavaScript, matched case-insensitively.",
+  "cost": "\\b(billing|billed|spending[- ]limits?|subscriptions?|skus?|retention|(larger|hosted|self-hosted)[- ]runners?|macos minutes|seats?|codespaces|paid (plans?|seats?)|top[- ]?ups?|auto[- ]?(renew(al|ed|ing)?s?|reload)|extra usage)\\b"
+}
