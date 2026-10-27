@@ -1801,6 +1801,45 @@ class TestQuestionShapeFlags(WaitCase):
         self.assertNotIn('"withheld"', raw)
 
 
+class TestSupersedeChain(WaitCase):
+    """G6: a question re-issued twice carries its whole supersede chain, derived in memory, so the
+    page can show every earlier id and count carried rounds from the first."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("Q5", round=2, stage="interview", supersededBy="Q35"),
+            question("Q35", round=4, stage="interview", supersedes="Q5", supersededBy="Q61"),
+            question("Q61", round=5, stage="interview", supersedes="Q35"),
+            question("L1", round=1, supersedes="L2"),
+            question("L2", round=1, supersedes="L1"),
+            question("U1", round=3, supersedes="nope"),
+        )
+
+    def test_a_three_link_chain_lists_both_earlier_questions_first_asked_first(self):
+        self.assertEqual(
+            self.q("Q61")["supersedesChain"],
+            [
+                {"id": "Q5", "round": 2, "stage": "interview"},
+                {"id": "Q35", "round": 4, "stage": "interview"},
+            ],
+        )
+        self.assertEqual(
+            self.q("Q35")["supersedesChain"], [{"id": "Q5", "round": 2, "stage": "interview"}]
+        )
+        self.assertNotIn("supersedesChain", self.q("Q5"))
+
+    def test_a_cycle_or_an_unknown_id_ends_the_walk(self):
+        self.assertEqual(self.q("L1")["supersedesChain"], [{"id": "L2", "round": 1}])
+        self.assertNotIn("supersedesChain", self.q("U1"))
+
+    def test_the_chain_stays_out_of_the_file(self):
+        self.q("Q61")
+        raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
+        self.assertNotIn("supersedesChain", raw)
+
+
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
 
