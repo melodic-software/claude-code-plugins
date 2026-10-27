@@ -98,20 +98,13 @@ Manuals, each record a pointer, as-of date and recheck trigger:
   2026-10-23. Recheck when the project moves to a newer LTS JDK.
 - .NET diagnostics tools:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace#dotnet-trace-collect>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>. As of
-  2026-10-23. Recheck on a .NET major release.
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>.
+  As of 2026-10-23. Recheck on a .NET major release.
 - Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
   <https://github.com/google/pprof>. As of 2026-10-23. Recheck on a Go minor release.
 - Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>. As of
   2026-10-04. Recheck when the host kernel's perf version changes.
 - heaptrack: <https://github.com/KDE/heaptrack>. As of 2026-10-04. Recheck on a new major release.
-- GDB `thread apply all`:
-  <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Threads.html#thread-apply-all>. As of
-  2026-10-23. Recheck on a GDB major release.
-- Go all-goroutine tracebacks (`GOTRACEBACK`):
-  <https://pkg.go.dev/runtime#hdr-Environment_Variables>. As of 2026-10-23. Recheck on a Go minor
-  release.
 - macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags as of 2026-10-23,
   so read the man pages on the host (`man sample`). Recheck on a macOS major release, or when an
   Apple docs page starts to cover these tools' flags.
