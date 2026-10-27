@@ -1723,11 +1723,17 @@
     const mNew = btn("vf-mnew"); mNew.hidden = true;
     mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
     // A reader at the newest message stays there when the list or its box changes size: an on-screen keyboard opening
-    // or closing, the message field growing a line, a message arriving. Shrinking a box never fires scroll, so the
-    // last scroll decides.
+    // or closing, the message field growing a line, a message arriving. Only a scroll that moves up leaves the newest
+    // message: the pin's own scroll event can arrive after the box shrank again (the keyboard still rising), and its
+    // gap then is the box's doing, not the reader's.
     const mGap = () => mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight;
-    let mStick = true;
-    on(mScroll, "scroll", () => { mStick = mGap() < 40; if (mStick) { mNew.hidden = true; ui.mNewFrom = null; } if (mScroll.scrollTop < EARLIER_PX) loadTop(); });
+    let mStick = true, mTop = 0;
+    on(mScroll, "scroll", () => {
+      const top = mScroll.scrollTop;
+      mStick = mGap() < 40 || (mStick && top >= mTop); mTop = top;
+      if (mStick) { mNew.hidden = true; ui.mNewFrom = null; }
+      if (top < EARLIER_PX) loadTop();
+    });
     // ---------- older chat: loaded when the reader nears the top, or from a Load earlier button ----------
     const EARLIER_PX = 300; // judgment: about five messages above the top edge
     /** A place in the chat: a message's id and time; `after` gives the messages newer than it. */

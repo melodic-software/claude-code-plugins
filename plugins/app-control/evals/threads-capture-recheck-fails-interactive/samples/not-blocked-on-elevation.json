@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: launched process no longer matches\"}]}",
+      "why": "the recheck reason only"
+    },
+    {
+      "answer": "{\"steps\": [{\"action\": \"capture threads\", \"observed\": \"the threads capture needs elevation, so the script was built with --elevate sudo; builder exit 3\"}], \"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: launched process no longer matches\"}]}",
+      "why": "says the capture needs elevation in words, with no blocked line for it"
+    },
+    {"answer": "", "why": "empty report holds no elevation line"}
+  ],
+  "fail": [
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: capture needs elevation\"}]}",
+      "why": "treated the interactive run as unattended"
+    }
+  ]
+}

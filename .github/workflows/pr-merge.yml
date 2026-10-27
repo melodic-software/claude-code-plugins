@@ -175,7 +175,24 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
+      # The post-merge report the last scheduled or hand-started run kept
+      # (its pr-merge-post-merge-report artifact), which the check below
+      # reuses while nothing it reads has moved. Read only from a trusted run
+      # on main, as the lane records are. Rules:
+      # .github/scripts/pr-merge/last-report.mjs. Any error leaves no report,
+      # and the check runs.
+      - name: Read the post-merge report the last run kept
+        if: steps.mode.outputs.live == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/last-report.mjs
 
       - name: Check earlier lane merges
         id: post-merge
@@ -186,11 +203,32 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          last=$RUNNER_TEMP/post-merge-last
+          scripts=.base/plugins/source-control/skills/babysit-prs/scripts
+          code='' code_sha=''
+          # An idle tick: the last run's report, from a check that passed
+          # (exit 0 or 5), stands while the lane room's reuse rule keeps it
+          # and nothing else the check reads has moved (settle --idle-tick).
+          # Its computedAt, code and commit are kept as they were, so the
+          # reuse ends SHARED_MAX_AGE after the check that made it.
+          if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
+            last_code=$(cat "$last/post-merge-code")
+            last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
+            if [[ $last_code =~ ^[05]$ ]] &&
+              python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
+                --postmerge-result "$last/post-merge.json" --code-sha "$last_sha"; then
+              cp "$last/post-merge.json" "$RUNNER_TEMP/post-merge.json"
+              code=$last_code code_sha=$last_sha
+              echo "::notice::the last run's post-merge check (exit $code) still stands: nothing it reads has moved; reused, not run again"
+            fi
+          fi
+          if [ -z "$code" ]; then
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            code=0
+            python3 "$scripts/babysit_postmerge.py" \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
@@ -225,6 +263,8 @@ jobs:
           cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
           echo "$code" >"$kept/post-merge-code"
           git -C .base rev-parse HEAD >"$kept/post-merge-code-sha" || true
+          # A reused report keeps the commit whose code made it.
+          [ -z "$code_sha" ] || echo "$code_sha" >"$kept/post-merge-code-sha"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
@@ -234,7 +274,8 @@ jobs:
       # lane room's reuse rule keeps it (babysit_verify_evidence.py settle)
       # and the check's code at that job's commit reads as at the kept one:
       # neither runs the check again then. They download it from this run
-      # only.
+      # only. The next run's post-merge-dispatch reads it too (the step
+      # above), and reuses it while it is younger than SHARED_MAX_AGE.
       - name: Keep the post-merge report for enable-auto-merge
         if: steps.post-merge.conclusion == 'success'
         continue-on-error: true
@@ -840,6 +881,23 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The artifact listing the last run saved (the pr-merge-verify-listing
+      # artifact, found the way the head-ref map is): the verdict reader lists
+      # only the pages uploaded since and keeps the result only when it holds
+      # GitHub's live artifact count, else lists every page. Any error leaves
+      # no file, and the reader lists every page. Rules:
+      # .github/scripts/pr-merge/listing-carry.mjs and
+      # babysit_verify_evidence.py `Reader._incremental`.
+      - name: Read the artifact listing the last run kept
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/listing-carry.mjs
+
       # The lane dispatch and re-run records earlier post-merge checks proved
       # (the pr-merge-lane-records artifact, found the way the cursor is):
       # each check below, the gate's included, answers those with no read and
@@ -1014,6 +1072,7 @@ jobs:
           API_BUDGET_OVERRIDE_TOKEN: github-token
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           REPO: ${{ github.repository }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
           MAX_MINUTES: ${{ steps.mode.outputs.skip-max-minutes }}
@@ -1075,6 +1134,8 @@ jobs:
           # candidate the saved listing would allow lists again before it is
           # allowed.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          # The listing the last run kept, which a listing builds on.
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           # The head-ref map read above, if any.
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The lane records read and added to above, for a gate that checks
@@ -1451,6 +1512,7 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: lanes-app
@@ -1458,6 +1520,23 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
+
+      # The next run's base for its first listing: the run's last saved
+      # listing, written only by a listing that read whole (every page, or
+      # the pages since a base, holding GitHub's live count). Only a
+      # scheduled or hand-started run's file is read back, so only one
+      # uploads it. Rules: .github/scripts/pr-merge/listing-carry.mjs.
+      - name: Keep the artifact listing for the next run
+        if: >-
+          always() && steps.gate.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-verify-listing
+          path: ${{ runner.temp }}/verify-listing.json
+          retention-days: 1
+          if-no-files-found: ignore
 
       - name: Log the API budget at job end
         id: budget-end
@@ -1669,6 +1748,15 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
+      - name: Read the artifact listing the last gate run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/listing-carry.mjs
+
       - name: Read the verdict reads the last run kept
         if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
@@ -1753,6 +1841,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           # The verifier answers read above, and the file this run keeps.

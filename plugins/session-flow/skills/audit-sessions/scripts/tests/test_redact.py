@@ -50,6 +50,23 @@ def test_mid_pattern_case_flag_survives_vendoring() -> None:
     )
 
 
+# The word after each token is 10+ characters, which generic-api-key takes after a placeholder
+# whose label holds one of its keywords.
+def test_bare_anthropic_oauth_token_is_redacted() -> None:
+    token = "".join(("sk-ant-", "oat01-", "Qx7_-" * 19, "AA"))
+    assert redact.load_redactor().redact(f"saw {token} successfully") == (
+        "saw <redacted:anthropic-oauth-token> successfully"
+    )
+
+
+def test_stateless_github_app_token_with_a_dot_is_redacted_whole() -> None:
+    # The dot comes after 36+ alphanumerics, so the vendored 36-character rule leaves a tail.
+    token = "".join(("ghs_", "Ab3" * 14, ".", "eyJ", "x9_-Qz"))
+    assert redact.load_redactor().redact(f"use {token} successfully") == (
+        "use <redacted:github-app-token> successfully"
+    )
+
+
 USER = "al" + "ice"
 BS = "\\"
 

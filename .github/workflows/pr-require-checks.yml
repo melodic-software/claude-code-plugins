@@ -3235,8 +3235,9 @@ jobs:
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six and the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25; its wall time is
-    # unmeasured, and a cold one can reach the cap, which fails red), about four
+    # reads and about 860 without them, measured 2026-10-25, up to 1,520 under
+    # the listing's caps; its wall time is unmeasured, and a cold one can reach
+    # the cap, which fails red), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
@@ -3244,7 +3245,9 @@ jobs:
     # (seconds; its retries replace the contents reads' 15 s each).
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
-    # calls), on top of the job's other reads.
+    # calls), and at most about 15 under the listing's caps (793 per-FAIL
+    # reads at 0.7 s, plus the whole listings' shared 300 s
+    # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
     timeout-minutes: 20
     env:
       # gh_read's wait budget: a rate-limit wait must end by
@@ -3883,7 +3886,8 @@ jobs:
       # image's default. The same checkout of the default branch holds the
       # merge queue's verdict reader as main has it: babysit_verify_evidence.py
       # with its sibling modules and its config parser, and the pr-merge
-      # scripts that start its run cache and read its head-ref map, with every
+      # scripts that start its run cache and read its head-ref map and
+      # carried artifact listing, with every
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
@@ -3900,6 +3904,7 @@ jobs:
             /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
+            /.github/scripts/pr-merge/listing-carry.mjs
             /.github/scripts/pr-merge/rotation.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
@@ -4489,7 +4494,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4803,7 +4808,9 @@ jobs:
       # so the lanes-hold step's reader reads only what landed since: about 73
       # requests for a lanes App pull request where a cold reader makes about
       # 860 (one run read and compare per FAIL and a download per untied
-      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. They
+      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
+      # most 1,520 under the listing's caps (the cold-read headroom check
+      # below states the derivation). They
       # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
       # finds it (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
@@ -4891,9 +4898,10 @@ jobs:
       # babysit_verify_evidence.py `evidence --base-sha <group base>` from
       # the .base checkout of main for the pull request at its head, the
       # reader enable-auto-merge armed it on, on a listing of its own (every
-      # page, saved to BABYSIT_VERIFY_LISTING) with pr-merge's head-ref map and
-      # carried run cache, so a FAIL uploaded after enable-auto-merge's one
-      # listing of its run still holds. Its report goes to merge-holds.mjs
+      # page, or the pages since pr-merge's last saved listing when they hold
+      # GitHub's live artifact count, saved to BABYSIT_VERIFY_LISTING) with
+      # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
+      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
@@ -4927,6 +4935,7 @@ jobs:
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -5071,12 +5080,29 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # pr-merge's last saved artifact listing: the reader lists only the
+            # pages since it and keeps that listing only when it holds GitHub's
+            # live artifact count, else lists every page, as with no file.
+            node "$PR_MERGE_SCRIPTS/listing-carry.mjs" || echo "::notice::no artifact listing from pr-merge's last run; the verdict reader lists every page."
             # A cold reader runs only with the headroom for it. With no carried
             # run cache, or one whose carried sections (carry-run-cache.mjs
-            # carry) are all empty, the reader reads every FAIL: about 860
-            # GITHUB_TOKEN requests, measured 2026-10-25, so a cold read costs
-            # 900. A missing cache is shared, so every entry the queue builds at
-            # once goes cold together: the cost counts max_entries_to_build of
+            # carry) are all empty, the reader reads every FAIL: 860
+            # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
+            # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
+            # listing is capped by babysit_verify_evidence.py: an incremental
+            # try on a carried listing (at most 13 pages, LISTING_CARRY_MAX_AGE),
+            # then LISTING_READS (3) whole listings, each up to
+            # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
+            # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
+            # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
+            # pages a whole listing (76 at the 7,522-artifact peak of
+            # 2026-10-27, plus one) a cold read costs at most
+            # 793 + 13 + 3 x (3 x 77 + 7) = 1,520; test_babysit_verify_evidence
+            # pins this figure to those caps. It covers this path only: an
+            # entry with a carried run cache but no carried listing pays the
+            # listing's part (up to 727) unguarded. A missing cache is shared,
+            # so every entry the queue builds at once goes cold together: the
+            # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
             # repos/<repo>/rules/branches/<base>, the largest any ruleset sets).
             # It runs when the core pool's remaining count, read once from
@@ -5105,12 +5131,12 @@ jobs:
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" \
-                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 900 * entries + int(floor * cap + 0.999999) }'); then
-                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (about 860 requests) is not started. Re-queue it."
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 1520 * entries + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to 1,520 requests) is not started. Re-queue it."
                 exit 1
               fi
               if [ "$remaining" -lt "$need" ]; then
-                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (900 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (1,520 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
                 exit 1
               fi
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."

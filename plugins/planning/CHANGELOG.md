@@ -3,6 +3,37 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.117.0] - 2026-10-27
+
+### Added
+
+- **Interview page: a re-issued question keeps its history across supersede chains (G6).** The server derives `supersedesChain` on a question that supersedes another, listing every earlier question of the chain, first asked first, with its round and, when set, its stage. It is never written to `questions.json`. The detail pane shows the whole chain, for example `Asked as Q5 in round 2, then Q35 in round 4`, where it used to link only the question it replaced.
+- **`add`, `add-round` and `apply` warn on a one-for-one mass supersede.** A write that supersedes three or more questions one for one names up to five of the pairs and points to `revise`, which keeps a question's id, thread and answer.
+
+### Changed
+
+- **The carried-rounds count starts from the chain's first question.** The `asked N rounds ago, unanswered` chip and the "Still open from earlier rounds" section count from the round the question was first asked in its stage. Before, a question re-issued in round 5 counted as new in round 5.
+- **"Still open from earlier rounds" is pinned in every view, not only Rounds.** Groups and Tree pin a copy at the top of the rail and keep each question in its group or its place in the tree.
+- **`archive` clears any hold on the questions it archives.** It removes `waiting`, `waitsOn`, `waitingBy` and `waitingSince` and adds a `No longer ...` history line, as `wait` with `clear` does. An archived question no longer carries a `waiting` hold.
+
+### Fixed
+
+- In the shared session page's chat on a phone, a reader at the newest message stays there as the on-screen keyboard opens, while typing and when a message arrives, instead of the list falling behind when the keyboard's steps arrive faster than the page draws.
+
+- Interview surface: the header now turns Live as soon as a watcher starts waiting, and leaves Live when the wait ends, even within 10 seconds of the previous wait. Before, the open page heard of a new wait only when some other change came along, so it could read Claude is working while a watcher was waiting.
+
+## [0.116.0] - 2026-10-27
+
+### Added
+
+- **`interview` page surface:** a `tldr` restate section, shown first on the page as `Scope (TLDR)`, so the user confirms scope before the export. `export-brief` writes its bullets at the head of the Brief's `### TLDR`, ahead of the counts and the stamp, and `restate` refuses a `tldr` line opening `Restatement:` or `Page title:`, the labels the `--brief` gate reads. A `tldr` over five lines warns ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+### Fixed
+
+- **`interview` page surface:** `export-brief` no longer lists each confirmed commitment under `### Captured assumptions` as `confirmed on Q<N>; revisit if Q<N> changes`. `/planning:plan` turned each of those lines into an assumption to revisit, but a confirmed commitment is a decision. It already sits on its decision's line, and a decision still open on unticked commitments now lists its ticked ones on a TLDR line, `- Q<N> confirmed so far: <commitments>`. Captured assumptions now holds unconfirmed commitments as named risks, plus each `needsAnswer` Notes line no user note answered, as `- asked in Notes, not answered: <text>`. That line is how an unanswered acceptance-criteria coverage prompt reaches the Brief ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `restate` refuses an `acceptance` line that asks the user something: a question mark, "tell me", "please confirm", or a line opening on say or choose. Before this, a question such as the coverage prompt could be exported and confirmed as a criterion ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `round.py` warns on `add`, `add-round`, `apply` and `revise` when a recommendation with no commitments points at a table, visual, diagram, chart or figure while the file holds a visual or the question's `facts` hold a markdown table. The Brief exports only the recommendation and its commitments, so criteria kept only in a visual never reached the planner ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
 ## [0.115.1] - 2026-10-27
 
 ### Fixed

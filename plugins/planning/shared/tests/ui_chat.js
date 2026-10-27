@@ -19,10 +19,12 @@ const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./b
 // (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
 // and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
 // offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
-// the last event; `pan` sets the pan outright. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
+// the last event; `pan` sets the pan outright. `tight` steps one frame apart, each resize landing after the page's
+// layout and before the scroll events that layout queued, as a busy phone (or a loaded CI runner running its 50 ms
+// timers back to back) delivers them. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
 // default keyboard height.
 const KB = 336;
-const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {}) => page.evaluate(async ([up, kb, stale, setPan]) => {
+const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, tight = false } = {}) => page.evaluate(async ([up, kb, stale, setPan, tight]) => {
   const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
   const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
   let pan = 0;
@@ -36,7 +38,7 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {})
   for (let i = 1; i <= 5; i++) {
     set(h0 + (h1 - h0) * i / 5, i === 1 ? top0 : top0 + (pan - top0) * i / 5);
     vv.dispatchEvent(new Event("resize"));
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => (tight ? requestAnimationFrame(() => setTimeout(r, 0)) : setTimeout(r, 50)));
   }
   set(h1, pan); vv.dispatchEvent(new Event("scroll"));
   if (stale) { set(h1, 0); vv.dispatchEvent(new Event("resize")); set(h1, pan); }
@@ -44,7 +46,7 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {})
   await new Promise(r => setTimeout(r, 100));
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
-}, [up, kb, stale, setPan]);
+}, [up, kb, stale, setPan, tight]);
 /** Two frames: a scroll set from script has fired its scroll event by then. */
 const frames = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 /** The chat list at rest: its scrollTop unchanged through 250 ms of frames (5 s at most). */
@@ -173,7 +175,7 @@ async function main() {
     }, text, 3000);
     const where = () => kia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"); return `${sc.scrollHeight - sc.scrollTop - sc.clientHeight} px below the list's bottom edge, visual viewport ${visualViewport.height}`; });
     await kia.locator(".vf-minput").tap();
-    await keyboard(kia, true);
+    await keyboard(kia, true, { tight: true });
     ok("390x844, 20+ messages, at the newest: with the keyboard up the newest message is whole above the field", n20 && kiaStill && await newest("More 2"), `${await where()}${kiaStill ? "" : ", not settled"}`);
     if (process.env.KBD_SHOTS) { const vv = await kia.evaluate(() => [visualViewport.offsetTop, visualViewport.height]); await kia.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "chat-390x844-keyboard.png"), clip: { x: 0, y: vv[0], width: 390, height: vv[1] } }); }
     await kia.keyboard.insertText("Line one\nLine two\nLine three");
