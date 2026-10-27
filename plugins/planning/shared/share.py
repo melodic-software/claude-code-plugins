@@ -348,6 +348,11 @@ def bring_up(d, a):
         if wanted is not None and resumed and ports.get("guest") not in (None, wanted):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
+        stale = s and bridge.stale_build(s)
+        if stale:  # a server started before a plugin update runs the old code: restart it on its ports, as `restart` does
+            stop_server(d, s)
+            s = start_server(d, ports.get("guest", 0), ports.get("control", s["port"]))
+            print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
         if s is None:
             over = ended_session(d)
             for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):  # after a reboot or a crash

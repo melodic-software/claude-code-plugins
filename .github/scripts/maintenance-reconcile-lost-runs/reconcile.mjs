@@ -469,7 +469,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           () => "unreadable",
         );
         if (indicator !== "none") {
-          return `${new URL(url).host} shows ${indicator ?? "no indicator"}`;
+          // The page's text is logged through `say`, so a newline in it must
+          // not start a workflow command line.
+          return `${new URL(url).host} shows ${escapeCommand(indicator ?? "no indicator")}`;
         }
       }
       return "";
@@ -487,7 +489,11 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      const { rerun, again, lane, inFlight: busy } = classify(listing.workflow_runs, since);
+      // A fork PR at the same head SHA lists its runs here too: re-running one
+      // spends this repository's minutes on the fork's code, and a newer one
+      // would hide this repository's run. Only this repository's runs count.
+      const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
+      const { rerun, again, lane, inFlight: busy } = classify(own, since);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
         say(`#${pull.number}: lane run ${r.id} (${r.path}) ended ${r.conclusion}; a re-run of this lane needs a person`);
@@ -514,7 +520,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
       };
       const tested = [];
-      for (const runs of ciRunsByWorkflow(listing.workflow_runs)) {
+      for (const runs of ciRunsByWorkflow(own)) {
         tested.push(await testedRun(runs, readJobs));
       }
       // A re-run still going under a newer failed contract-only run is in
@@ -543,7 +549,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
-      const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
+      const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
       // A lanes App PR whose newest checks run the kill switch failed: its
       // failed ci-status is re-run now that the switch is off.
       if (set.length === 0 && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && isFailedChecks(checks)) {

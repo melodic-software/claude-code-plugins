@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: ex-invalid-config-value-named
+description: 'explore SKILL.md "Reply shape: explore_output": docs/conventions/discovery.yaml holds the invalid value storyboard. The reply names that value with its file, drops the layer without falling through to a lower one, resolves auto to explain for a how-does-it-work question, and states the one explore_output line; the walkthrough cites path:line. Agent is not listed, so the run stays inline. A run needs --scaffold and --allow-tools Bash Write (the run writes its EXPLORE.md slice).'
+tags: [explore, reply-shape, config-precedence]
+plugins: ["../.."]
+expected_outcome: 'The reply carries a line of the form explore_output: explain (auto, from the default; how-does-it-work request), names the invalid value storyboard together with docs/conventions/discovery.yaml (and the key), never reports change-prep, and walks through how schedule moves a retry, citing src/retry/scheduler.py:<line>.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/discovery:explore how does the retry scheduler in src/retry work?'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: shape-line-explain
+    type: regex
+    pattern: '^[^\n]*`?explore_output`?\**\s*[:=]\s*[`*]*explain\b'
+    flags: 'm'
+    arm: both
+  - name: invalid-value-named
+    type: regex
+    pattern: '(?=[\s\S]*\bstoryboard\b)(?=[\s\S]*discovery\.yaml)'
+    arm: both
+  - name: not-change-prep
+    type: regex
+    pattern: '`?explore_output`?\**\s*[:=]\s*[`*]*change-prep\b'
+    match: not_contains
+    arm: both
+  - name: cites-scheduler-line
+    type: regex
+    pattern: 'src/retry/scheduler\.py:\d+'
+    arm: both

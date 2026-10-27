@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "This is one contested migration question, so it takes the deep tier.\n\nYou can run `/deep-research should we migrate from Celery to Dramatiq?` instead of or alongside this skill; it fans out web searches and votes on each claim.\n\nShall I dispatch the discovery researcher, or would you rather run /deep-research yourself?",
+      "why": "shall I ... or"
+    },
+    {
+      "answer": "Option: run /deep-research <question> yourself. Do you want me to proceed with the research skill instead?",
+      "why": "do you want me to proceed"
+    },
+    {
+      "answer": "Which would you prefer?",
+      "why": "which/prefer"
+    },
+    {
+      "answer": "Before I start, a few details would sharpen the run: your broker and the Celery features you rely on.\n\n**Reply with one of:**\n- **\"go\"**: I start the research agent now.\n- **\"go medium\"**: a lighter run.\n- **\"I'll use /deep-research\"**: I stop here.",
+      "why": "explicit choice request with no question mark"
+    },
+    {
+      "answer": "Let me know which you want: the deep tier here, or /deep-research yourself.",
+      "why": "let me know which"
+    },
+    {
+      "answer": "**Your options**\n1. Proceed with the dispatch.\n2. Run `/deep-research <question>` yourself, instead of this skill or alongside it.\n\nReply \"go\" to proceed as described, or give me adjustments.",
+      "why": "reply \"go\" to proceed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Dispatching the researcher now. /deep-research is also available.",
+      "why": "no question"
+    },
+    {
+      "answer": "Research complete. Summary: migrate.",
+      "why": "already ran"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I'll reply with the findings once the researcher finishes. /deep-research is another option.",
+      "why": "reply with, but no choice asked"
+    }
+  ]
+}

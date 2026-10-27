@@ -176,14 +176,15 @@ function world({
         const items = queuedIssues.map((number) => ({ number }));
         return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
       }
-      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+      // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
+      if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
           throw new Error(`${method} ${path} failed with status 403`);
         }
         const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
         return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
       }
-      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/[\w-]+ (merged|created):>=\S+$/);
       if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
@@ -2080,13 +2081,21 @@ async function afterSweeps(count, jobs, logs) {
   return history(bodies);
 }
 
-test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired an hour after it ended", async () => {
+test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired by the first sweep after it ended", async () => {
   const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
   assert.equal(await sweep({ github, actions }), 0);
   tripped(calls);
   assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
-  // Within the hour it waits.
-  const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  // No model ran and the sweep runs only with the switch off, so it does not
+  // wait limits.reset-clamp-min: a run that ended half an hour ago re-fires.
+  const recent = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
+});
+
+test("a breaker trip at a post-model mint still waits limits.reset-clamp-min after the run ended", async () => {
+  // The model ran, so a re-fire runs it again: the clamp stays.
+  const early = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED, ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
   assert.deepEqual(writes(early.calls), []);
 });
@@ -2283,6 +2292,10 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
   const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
   assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
   tripped(late.calls);
+  // No model ran, so the first sweep after it ended re-fires it.
+  const recent = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
 });
 
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
@@ -2296,6 +2309,20 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
     const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), [], name);
+  }
+});
+
+test("a broker-check breaker trip is not re-fired while the issue lane is paused over its cap", async () => {
+  for (const jobs of [BROKER_REFUSED, KILL_SKIPPED]) {
+    const { github, actions, calls } = stalledRun({
+      jobs,
+      logs: CHECK_KILLED,
+      conclusion: jobs === KILL_SKIPPED ? "success" : "failure",
+      ended: "2026-10-16T11:30:00Z",
+      openLanePrs: 2,
+    });
+    assert.equal(await sweep({ github, actions }, PAUSING), 0);
+    assert.deepEqual(writes(calls), []);
   }
 });
 
@@ -2909,7 +2936,7 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
 });
 
 // A degraded search answers a false empty (total_count 0, incomplete_results
-// true): past pause-from that admits nothing, where a failed read fails open.
+// true): that admits nothing, with or without pause-from.
 test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   for (const config of [PAUSING, {}]) {
@@ -2920,6 +2947,19 @@ test("an incomplete search answer defers a newly unblocked issue, with or withou
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #20 admission deferred: GitHub search answered incomplete results"), lines.join("\n"));
   assert.ok(!lines.some((line) => line.includes("at the queued cap")), lines.join("\n"));
+});
+
+// A queued count check-wip-cap could not read (admission_basis fail-open)
+// admits nothing either, as intake's admission defers on it.
+test("a queued count that could not be read defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const config of [PAUSING, {}]) {
+    const { github, calls } = world({ ...oneDependentWorld(), openLanePrs: null });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [deferredLabel(20)], JSON.stringify(config));
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: the issue lane's queued count could not be read"), lines.join("\n"));
 });
 
 test("at the queued cap the deferral names the queued cap", async (t) => {

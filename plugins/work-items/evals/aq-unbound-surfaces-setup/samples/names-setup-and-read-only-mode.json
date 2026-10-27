@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "This checkout has no `.work-item-tracker.json`, so there is no seam to claim rows through. Choose one:\n1. Setup was never run: run `/work-items:setup` to bind a provider.\n2. Deliberate gh-native mode: I proceed with provider-mechanic reads only, and concurrent attended sessions get no race-safe row lock.",
+      "why": "skill-shaped choice"
+    },
+    {
+      "answer": "No tracker binding found. Either run /work-items:setup, or tell me to continue gh-native (reads only; collisions with another attended session are on you).",
+      "why": "short form"
+    },
+    {
+      "answer": "Unbound repository. Options: bind it with /work-items:setup, or proceed read-only without a race-safe row lock. Which do you want?",
+      "why": "read-only phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The attention view is empty: no escalations, no intake.",
+      "why": "no binding choice"
+    },
+    {
+      "answer": "No binding found. I created .work-item-tracker.json for local-markdown and continued.",
+      "why": "self-bound, no setup choice"
+    },
+    {
+      "answer": "No binding. Run /work-items:setup first.",
+      "why": "omits the gh-native read-only option"
+    },
+    {
+      "answer": "No binding; gh-native mode is read-only, so don't run /work-items:setup.",
+      "why": "negated setup"
+    }
+  ]
+}

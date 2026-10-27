@@ -484,7 +484,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
     try {
-      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions });
+      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
