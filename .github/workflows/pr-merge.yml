@@ -556,6 +556,27 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
 
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
+
       # The off switch, checked before anything else.
       - name: Check the kill switch
         id: kill
@@ -1591,6 +1612,27 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
 
       - name: Check the kill switch
         id: kill

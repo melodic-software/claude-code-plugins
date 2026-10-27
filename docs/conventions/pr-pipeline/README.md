@@ -859,7 +859,12 @@ the rules that only tighten in
     `permissions:` read-only and set explicitly, no `pull_request_target`, `workflow_run` or
     `workflow_call` trigger, no `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal
     to its file stem. So `pr-merge.yml` (`pull_request_target`, write scopes) and `pr-require-checks.yml`
-    (write scopes) stay lane sources and a person still clears an edit to either.
+    (write scopes) stay lane sources and a person still clears an edit to either. The `merge` and
+    `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
+    that read; without it no workflow change clears. A lane comment the review reads (the
+    reviewed-head marker, a summary's `critical-findings:` line, an inline finding's first
+    comment) binds only while its last editor is its own author: anyone with write access can edit
+    a comment, so one edited by another identity unbinds the lane as `comment-edited`.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the

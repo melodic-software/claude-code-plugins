@@ -16,9 +16,12 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   (`actions/runs/{id}/attempts/{n}`), each attempt with its `jobs`
   (`.../attempts/{n}/jobs`), each job with its check run's `annotations`
   (`check-runs/{job id}/annotations`).
-- `comments`: the pull request's issue comments (REST).
+- `comments`: the pull request's issue comments (REST), each by
+  github-actions[bot] or the Claude App carrying an `edit` record: GraphQL's
+  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
-  or None when they could not be read.
+  whose comments carry `lastEditedAt` and `editor`, or None when they could
+  not be read.
 - `is_human`: the merge policy's test of one GraphQL actor (or None).
 - `head_file`: reads a file at the pinned head, given its path and the
   commit a thread was raised on: its text, None when that file was deleted
@@ -892,6 +895,8 @@ def _require_marker(
             continue
         first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
         match = MARKER_RE.match(first_line)
+        if match and match[1] == lane and _edited_by_another(user, comment.get("edit")):
+            raise Unbound("comment-edited")
         if not match or match[1] != lane or not (newest_only or match[2] == head):
             continue
         key = (
@@ -927,7 +932,11 @@ def _summary_comments(
             user.get("login") != MARKER_AUTHOR or user.get("type") != "Bot"
         ):
             continue
-        if _lane_comment(lane, user.get("login"), body) and created is not None:
+        if not _lane_comment(lane, user.get("login"), body):
+            continue
+        if _edited_by_another(user, comment.get("edit")):
+            raise Unbound("comment-edited")
+        if created is not None:
             found.append((created, body))
     return found
 
@@ -1181,6 +1190,35 @@ def _line_changed(
         return False
 
 
+def _edited_by_another(author: Mapping[str, Any], record: Any) -> bool:
+    """Whether a lane comment's text may not be its author's: anyone with
+    write access can edit a comment, and the last editor wrote the whole body
+    (GraphQL `editor`, "The actor who edited the comment", and
+    `lastEditedAt`, "The moment the editor made the last edit"). `record`
+    holds those two fields: a thread comment itself, or the `edit` record the
+    caller attaches to an issue comment. The lane producer edits its own
+    reviewed-head marker on each review (ci-workflows publish.cjs
+    `writeMarker`), so an edit by the author, a Bot, is its own text. A
+    record that is missing or unreadable is not proven unedited."""
+    if not isinstance(record, Mapping) or "lastEditedAt" not in record:
+        return True
+    if record["lastEditedAt"] is None:
+        return False
+    editor = record.get("editor")
+    return not (
+        isinstance(editor, Mapping)
+        and editor.get("__typename") == "Bot"
+        and _bare_login(editor.get("login")) == _bare_login(author.get("login"))
+    )
+
+
+def _bare_login(login: Any) -> str | None:
+    """A login without REST's `[bot]` suffix, which GraphQL drops."""
+    if not isinstance(login, str) or not login:
+        return None
+    return login.removesuffix("[bot]")
+
+
 def _time(value: Any) -> datetime | None:
     """An aware timestamp, or None when absent or unreadable."""
     if not isinstance(value, str):
@@ -1208,4 +1246,10 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
         return False
     if author.get("__typename") != "Bot":
         return False
-    return _lane_comment(lane, author.get("login"), str(first.get("body") or ""))
+    if not _lane_comment(lane, author.get("login"), str(first.get("body") or "")):
+        return False
+    # Judged by its author, never its edited text: an edit could drop the
+    # footer that makes it the lane's.
+    if _edited_by_another(author, first):
+        raise Unbound("comment-edited")
+    return True

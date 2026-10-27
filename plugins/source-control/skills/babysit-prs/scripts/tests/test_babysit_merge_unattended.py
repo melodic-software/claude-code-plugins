@@ -1769,9 +1769,7 @@ class DependabotLane(Unattended):
                 # The gate reads main's Dependabot inputs at the head its
                 # merge config came from; the recheck at the head read now.
                 self.assertEqual(self.dependabot_kwargs[0]["branch"], "main")
-                self.assertEqual(
-                    self.dependabot_kwargs[1]["main_sha"], self.main_head
-                )
+                self.assertEqual(self.dependabot_kwargs[1]["main_sha"], self.main_head)
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -4340,6 +4338,72 @@ class HeadFile(unittest.TestCase):
                 self.read(proc, files)
 
 
+class AttachEdits(unittest.TestCase):
+    """`_lane_evidence` gives each lane-author comment the edit record
+    `bind()` reads; one it cannot read gets none, which `bind()` holds."""
+
+    def comment(self, login: str, updated: str, node: str) -> dict[str, Any]:
+        return {
+            "user": {"login": login, "type": "Bot"},
+            "created_at": "2026-10-22T02:00:00Z",
+            "updated_at": updated,
+            "node_id": node,
+        }
+
+    def test_unedited_comments_need_no_read_and_edited_ones_get_graphql(self) -> None:
+        same = self.comment("github-actions[bot]", "2026-10-22T02:00:00Z", "IC_a")
+        edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
+        editor = {"__typename": "User", "login": "pusher"}
+        reply = {
+            "data": {
+                "nodes": [
+                    {
+                        "id": "IC_b",
+                        "lastEditedAt": "2026-10-22T03:00:00Z",
+                        "editor": editor,
+                    }
+                ]
+            }
+        }
+        with mock.patch.object(merge, "gh_json_graphql", return_value=reply) as read:
+            merge._attach_edits([same, edited, other], "#1")
+        self.assertEqual(same["edit"], {"lastEditedAt": None})
+        self.assertEqual(
+            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+        )
+        self.assertNotIn("edit", other)
+        args = read.call_args.args[0]
+        self.assertIn("ids[]=IC_b", args)
+        self.assertNotIn("ids[]=IC_a", args)
+
+    def test_a_failed_read_leaves_no_record(self) -> None:
+        edited = self.comment("claude[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        with mock.patch.object(
+            merge, "gh_json_graphql", side_effect=RuntimeError("HTTP 502")
+        ):
+            merge._attach_edits([edited], "#1")
+        self.assertNotIn("edit", edited)
+        lanes = merge.review_evidence.bind(
+            evidence_tests.S,
+            [
+                evidence_tests.whole(lane, evidence_tests.S)
+                for lane in evidence_tests.LANES
+            ],
+            [
+                {**marker, "edit": edited.get("edit")}
+                if "security" in marker["body"]
+                else marker
+                for marker in evidence_tests.both_markers()
+            ],
+            [],
+            is_human=evidence_tests.is_human,
+            changed_paths=(),
+        )
+        reasons = {lane.lane: lane.unbound_reason for lane in lanes}
+        self.assertEqual(reasons["claude-security-review"], "comment-edited")
+
+
 class HeadFileFailure(unittest.TestCase):
     """A head-file read that fails, a rate limit included, is never sent
     again in that bind, not for another thread and not for the carried
@@ -4670,6 +4734,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                         "id": 300 + i,
                         "user": {"login": "github-actions[bot]", "type": "Bot"},
                         "created_at": "2026-10-22T02:00:00Z",
+                        "updated_at": "2026-10-22T02:00:00Z",
                         "body": f"<!-- claude-lane-reviewed-head lane={lane}"
                         f" sha={HEAD} -->\n{lane} has reviewed this pull request"
                         f" through {HEAD}.",

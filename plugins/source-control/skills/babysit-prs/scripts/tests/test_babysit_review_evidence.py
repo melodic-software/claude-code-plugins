@@ -26,6 +26,11 @@ import babysit_risk as risk
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
+# The caller's edit record (babysit_merge._attach_edits): the recorded comments
+# were never edited.
+for _comment in PROBE["comments"]:
+    _comment["edit"] = {"lastEditedAt": None}
+UNEDITED = {"lastEditedAt": None}
 
 S = "5e1f" * 10  # pinned head
 S0 = "a0" * 20
@@ -177,6 +182,7 @@ def marker(lane: str, sha: str, login: str = "github-actions[bot]") -> dict[str,
         "id": next(_ids),
         "user": {"login": login, "type": "Bot"},
         "created_at": "2026-01-01T00:00:00Z",
+        "edit": UNEDITED,
         "body": f"<!-- claude-lane-reviewed-head lane={lane} sha={sha} -->\n"
         f"{lane} has reviewed this pull request through {sha}.",
     }
@@ -208,6 +214,8 @@ def thread(
                 "path": "app.py",
                 "diffHunk": hunk,
                 "originalCommit": {"oid": S1},
+                "lastEditedAt": None,
+                "editor": None,
             }
         ],
     }
@@ -2689,6 +2697,7 @@ class SeverityTests(Base):
                 "user": {"login": "claude[bot]", "type": "Bot"},
                 "created_at": at,
                 "body": body,
+                "edit": UNEDITED,
             }
 
         for body, at, blocking in (
@@ -2748,6 +2757,7 @@ class SeverityTests(Base):
                 "user": user or {"login": "github-actions[bot]", "type": "Bot"},
                 "created_at": "2026-01-01T00:30:00Z",
                 "body": body,
+                "edit": UNEDITED,
             }
 
         footed = f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}"
@@ -2827,3 +2837,102 @@ class CodeLaneOnCliTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EditedCommentTests(Base):
+    """Anyone with write access can edit a comment, and the last editor wrote
+    its whole body, so a lane comment whose last editor is not its own author
+    proves nothing and unbinds. The producer's own marker edits bind."""
+
+    SEC = "claude-security-review"
+    HUMAN_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "User", "login": "pusher"},
+    }
+    APP_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "Bot", "login": "melodic-lanes"},
+    }
+    OWN_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "Bot", "login": "github-actions"},
+    }
+
+    def markers(self, edit: Any) -> list[dict[str, Any]]:
+        found = both_markers()
+        for item in found:
+            if f"lane={self.SEC}" in item["body"]:
+                if edit is None:
+                    del item["edit"]
+                else:
+                    item["edit"] = edit
+        return found
+
+    def runs(self) -> list[dict[str, Any]]:
+        return [whole(lane, S) for lane in LANES]
+
+    def test_a_marker_edited_by_another_identity_unbinds_its_lane(self) -> None:
+        for name, edit in (
+            ("a person", self.HUMAN_EDIT),
+            ("another App", self.APP_EDIT),
+            ("no edit record", None),
+            ("an unreadable record", "edited"),
+            ("an editor that is not read", {"lastEditedAt": "2026-01-02T00:00:00Z"}),
+        ):
+            with self.subTest(name):
+                result = self.bind(self.runs(), self.markers(edit))
+                self.assertUnbound(result[self.SEC], "comment-edited")
+                self.assertTrue(result["claude-review"].bound)
+
+    def test_a_marker_the_producer_edited_still_binds(self) -> None:
+        # ci-workflows publish.cjs writeMarker updates the lane's marker on
+        # each later review; GraphQL names its editor without `[bot]`.
+        result = self.bind(self.runs(), self.markers(self.OWN_EDIT))
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+
+    def test_an_edited_summary_count_unbinds(self) -> None:
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:30:00Z",
+            "body": f"summary\n\ncritical-findings: 0\n\n`claude-lane: {self.SEC}`",
+            "edit": self.HUMAN_EDIT,
+        }
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1)]
+        result = self.bind(runs, [*both_markers(), summary])
+        self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_an_edited_thread_finding_fails_closed(self) -> None:
+        # A CRITICAL finding edited down to a SUGGESTION, or with its footer
+        # removed, would leave the count; it unbinds instead.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        for name, body in (
+            ("downgraded", f"x\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`"),
+            ("footer kept", f"x\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`"),
+        ):
+            with self.subTest(name):
+                item = thread(body)
+                item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+                item["comments"][0]["editor"] = {
+                    "__typename": "User",
+                    "login": "pusher",
+                }
+                result = self.bind(runs, threads=[item])
+                self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_thread_whose_edit_fields_were_not_read_fails_closed(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        item = thread(f"x\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`")
+        del item["comments"][0]["lastEditedAt"]
+        result = self.bind(runs, threads=[item])
+        self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_thread_its_author_edited_still_counts(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        item = thread(f"x\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`")
+        item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+        item["comments"][0]["editor"] = {"__typename": "Bot", "login": "claude"}
+        result = self.bind(runs, threads=[item])
+        self.assertTrue(result[self.SEC].bound)
+        self.assertEqual(result[self.SEC].blocking_findings, 1)
