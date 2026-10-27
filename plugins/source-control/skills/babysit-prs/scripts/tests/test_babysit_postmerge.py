@@ -1698,10 +1698,10 @@ class LaneAlerted(CheckCase):
             {"head_sha": OTHER_SHA},
         ):
             self.alerted(**sender)
-            self.assertEqual(self.cli(), 1, sender)
+            self.assertEqual(self.cli(), pm.EXIT_NOT_ALERTED, sender)
 
     def test_no_record_does_not_count(self) -> None:
-        self.assertEqual(self.cli(), 1)
+        self.assertEqual(self.cli(), pm.EXIT_NOT_ALERTED)
 
     def test_an_unreadable_record_or_sender_exits_3(self) -> None:
         self.alerted()
@@ -1709,6 +1709,11 @@ class LaneAlerted(CheckCase):
         self.assertEqual(self.cli(), 3)
         self.gh.fail_reads = {"artifacts?name=pr-merge-alerted-11"}
         self.assertEqual(self.cli(), 3)
+
+    def test_not_recorded_is_a_code_no_crash_or_refusal_produces(self) -> None:
+        # pr-merge.yml sends only on this code: an uncaught exception exits 1,
+        # argparse 2, a failed read 3 and a rate limit 75.
+        self.assertNotIn(pm.EXIT_NOT_ALERTED, (0, 1, 2, pm.EXIT_UNREADABLE, 75))
 
     def test_it_needs_a_branch(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):

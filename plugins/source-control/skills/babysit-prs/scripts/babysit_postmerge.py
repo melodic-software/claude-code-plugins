@@ -211,6 +211,9 @@ FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispa
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
+# `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
+# failed read (3) or rate limit (75) produces, so only it lets pr-merge.yml send.
+EXIT_NOT_ALERTED = 4
 
 IsHuman = Callable[[Any], bool]
 
@@ -3574,15 +3577,16 @@ def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) ->
 
 
 def _lane_alerted(repo: str, branch: str, run_id: int) -> int:
-    """`--lane-alerted`: 0 when `_Context.lane_alerted`, 1 when not, 3 when a
-    read failed. A rate limit exits 75 through babysit_gh."""
+    """`--lane-alerted`: 0 when `_Context.lane_alerted`, EXIT_NOT_ALERTED (4)
+    when not, 3 when a read failed. A rate limit exits 75 through babysit_gh,
+    and an uncaught exception exits 1: neither is 4, so neither sends."""
     try:
         owner, name = _split_repo(repo)
         alerted = _Context(owner, name, "", branch=branch).lane_alerted(run_id)
     except PostMergeReadError as exc:
         print(f"lane-alerted {run_id}: {exc}", file=sys.stderr)
         return EXIT_UNREADABLE
-    return 0 if alerted else EXIT_FAILURE
+    return 0 if alerted else EXIT_NOT_ALERTED
 
 
 def _judge_run(args: argparse.Namespace) -> int:
@@ -3741,7 +3745,7 @@ def main(argv: list[str] | None = None) -> int:
             "with --branch: exit 0 when pr-merge.yml's post-merge-dispatch on the "
             "branch already sent full run RUN_ID to post-merge-demotion-alert.yml "
             "(its pr-merge-alerted-<id> record, from a sender `_lane_sender` "
-            "accepts), 1 when not, 3 unreadable; read-only"
+            "accepts), 4 when not, 3 unreadable; read-only"
         ),
     )
     mode.add_argument(

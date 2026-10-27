@@ -599,13 +599,16 @@ jobs:
             # Already sent only when pr-merge.yml's own post-merge-dispatch on
             # main uploaded the record (_Context.lane_alerted, the sender rule
             # of the dispatch and re-run records): a same-name artifact any
-            # other run uploads is no record. 0 sent, 1 not, 75 a rate limit.
+            # other run uploads is no record. 0 sent, 4 not sent, 75 a rate
+            # limit. Only 4 sends: 1 (a crash), 3 (a failed read) and any other
+            # code leave the run to the next run, so a broken check never sends
+            # the same run again each tick.
             code=0
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
               --repo "$REPO" --branch main --lane-alerted "$id" </dev/null >/dev/null 2>"$err" || code=$?
             case $code in
               0) continue ;;
-              1) ;;
+              4) ;;
               75)
                 stopped "the record read of run $id"
                 echo "::error title=GitHub rate limit::the record read of run $id was rate limited (an unrecorded pool until its reset); nothing more is sent"

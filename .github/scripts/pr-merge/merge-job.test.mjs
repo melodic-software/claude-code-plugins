@@ -1522,7 +1522,7 @@ const ALERT_SENDER = {
 };
 const alertSend = (id, sha = ALERT_SHA) =>
   `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
-const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing } = {}) => {
+const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing, python } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-alert-"));
   try {
     const bin = join(dir, "bin");
@@ -1597,6 +1597,8 @@ jq -r "$filter" <<<"$v"
     writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
+    // `python`: a stand-in for babysit_postmerge.py's process, as a bash body.
+    if (python) writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\n${python}\n`, { mode: 0o755 });
     symlinkSync(root, join(dir, ".base"));
     const result = spawnSync("bash", ["-c", runScript("Send a red full run to the demotion alert", earlySteps())], {
       cwd: dir,
@@ -1700,6 +1702,24 @@ test("a same-name record from a run that is not pr-merge.yml's on main does not 
     assert.equal(run.status, 0, run.out);
     assert.deepEqual(run.sends, [alertSend(41)], JSON.stringify(forged));
   }
+});
+
+// Review finding on #10491 (claude-review): only --lane-alerted's "not
+// recorded" code (EXIT_NOT_ALERTED, 4) sends. An uncaught exception exits 1
+// with a traceback, and any code but 0, 4 and 75 leaves the run to the next
+// run, so a crashing check never sends the same run again each tick.
+test("a record check that crashes or answers an unknown code sends nothing", () => {
+  const traceback = 'echo "Traceback (most recent call last):" >&2; echo "TypeError: unexpected" >&2; exit 1';
+  for (const python of [traceback, "exit 2", "exit 3", "exit 5"]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }], python });
+    assert.equal(run.status, 0, run.out);
+    assert.deepEqual(run.sends, [], python);
+    assert.match(run.out, /::warning::the record read of run 41 failed \(exit \d\); the next run tries again/);
+    assert.equal(run.record, "");
+  }
+  // Control: the not-recorded code sends.
+  const missing = runAlert({ runs: [{ id: 41, conclusion: "failure" }], python: "exit 4" });
+  assert.deepEqual(missing.sends, [alertSend(41)], missing.out);
 });
 
 test("one run per job: the oldest red one unsent, the next on the next run", () => {
