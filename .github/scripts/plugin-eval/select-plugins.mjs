@@ -20,7 +20,7 @@
 //   and --head in the git repository --repo, every frontmatter key outside
 //   SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a frontmatter
 //   shape frontmatter() can read and with no YAML alias in those keys, and
-//   adds or changes no `!` shell-preprocessing line. Without --repo it cannot be read, so it
+//   adds or changes no `!` shell-preprocessing line or ```! block. Without --repo it cannot be read, so it
 //   is refused;
 // - no path is one git quoted (a leading `"`), whose real name is unknown;
 // - a selected plugin's tree at --head holds no symlink or submodule, since
@@ -55,9 +55,12 @@ export const SAFE_KEYS = new Set([
   "when_to_use",
 ]);
 
-// A line that runs a shell command when the skill loads: inline !`cmd`, or a
-// ```! fenced block.
-const PREPROCESS = /!`|^\s*```!/;
+// Shell preprocessing that runs when the skill loads: a line with an inline
+// !`cmd`, or a fenced block whose opening fence (three or more backticks, at
+// any position) is followed by `!`, through its closing fence.
+const INLINE = /!`/;
+const FENCE_OPEN = /```+!/;
+const FENCE_CLOSE = /^\s*```+\s*$/;
 
 export const selectPlugins = (paths) =>
   [...new Set(paths.map((path) => SUITE_PATH.exec(path)?.[1]).filter((name) => name && !name.startsWith(".")))]
@@ -114,12 +117,25 @@ export function frontmatter(text) {
   return null;
 }
 
-const preprocessLines = (text) =>
-  new Set(
-    String(text ?? "")
-      .split(/\r?\n/)
-      .filter((line) => PREPROCESS.test(line)),
-  );
+// Each inline line, and each fenced block as its whole text, so a changed
+// command inside a kept block is a new unit.
+const preprocessUnits = (text) => {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const units = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    if (FENCE_OPEN.test(lines[i])) {
+      let end = i + 1;
+      while (end < lines.length && !FENCE_CLOSE.test(lines[end])) {
+        end++;
+      }
+      units.add(lines.slice(i, end + 1).join("\n"));
+      i = end;
+    } else if (INLINE.test(lines[i])) {
+      units.add(lines[i]);
+    }
+  }
+  return units;
+};
 
 // Why a changed markdown file is refused, or null. `head` is null when the
 // file is deleted; `base` is null when it is new.
@@ -141,8 +157,8 @@ export function proseRefusal(base, head) {
   if (aliased.length) {
     return `uses a YAML alias in frontmatter ${aliased.join(", ")}`;
   }
-  const known = preprocessLines(base);
-  if ([...preprocessLines(head)].some((line) => !known.has(line))) {
+  const known = preprocessUnits(base);
+  if ([...preprocessUnits(head)].some((unit) => !known.has(unit))) {
     return "adds or changes a ! shell-preprocessing line";
   }
   return null;
@@ -186,8 +202,9 @@ export function refusals(paths, plugins, read = () => undefined) {
 }
 
 // `<path>: <reason>` for each symlink or submodule in a selected plugin's
-// tree. tree(plugin) returns its entries as { mode, path }, or undefined when
-// it cannot be read.
+// tree, and for a plugin whose root is not a directory or holds nothing.
+// tree(plugin) returns its entries as { mode, path }, or undefined when it
+// cannot be read.
 export function linkRefusals(plugins, tree = () => undefined) {
   const out = [];
   for (const plugin of plugins) {
@@ -196,7 +213,14 @@ export function linkRefusals(plugins, tree = () => undefined) {
       out.push(`${plugin}: its tree cannot be read to check for symlinks and submodules`);
       continue;
     }
+    if (!entries.length) {
+      out.push(`${plugin}: has no files at the head`);
+    }
     for (const { mode, path } of entries) {
+      if (path === plugin) {
+        out.push(`${path}: is not a directory`);
+        continue;
+      }
       if (mode === "120000") {
         out.push(`${path}: is a symlink`);
       } else if (mode === "160000") {
@@ -208,8 +232,10 @@ export function linkRefusals(plugins, tree = () => undefined) {
 }
 
 // Every entry under plugin at ref, submodules included, from `git ls-tree -r -z`.
+// The pathspec has no trailing slash, so a root that is itself a symlink or
+// submodule is listed as an entry at the plugin's own path.
 const gitTree = (repo, ref) => (plugin) =>
-  execFileSync("git", ["-C", repo, "ls-tree", "-r", "-z", "--full-tree", ref, "--", `${plugin}/`], {
+  execFileSync("git", ["-C", repo, "ls-tree", "-r", "-z", "--full-tree", ref, "--", plugin], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
     maxBuffer: 64 * 1024 * 1024,
@@ -229,15 +255,23 @@ const gitReader = (repo, refs) => {
   return (side, path) => gitShow(repo, refs[side], path);
 };
 
-const gitShow = (repo, ref, path) => {
+// The file's text, null only when git says the path is absent at ref, and
+// undefined for any other failure (too large for the buffer, a spawn error),
+// so an unread file is refused, not taken as deleted.
+export const gitShow = (repo, ref, path, maxBuffer = 64 * 1024 * 1024) => {
   try {
     return execFileSync("git", ["-C", repo, "show", `${ref}:${path}`], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer,
     });
   } catch {
-    return null;
+    try {
+      execFileSync("git", ["-C", repo, "cat-file", "-e", `${ref}:${path}`], { stdio: "ignore" });
+    } catch (error) {
+      return error.status === 128 ? null : undefined;
+    }
+    return undefined;
   }
 };
 
