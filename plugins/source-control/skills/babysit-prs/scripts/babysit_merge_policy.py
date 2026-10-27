@@ -58,7 +58,7 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    HIGH_FLOOR,
+    FLOOR,
     ChangedFile,
     glob_match,
     is_trusted_actors_path,
@@ -673,13 +673,14 @@ def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
         raise PolicyReadError(f"{path} at {sha} is unreadable: {exc}") from exc
 
 
-def _loop_merge(text: str) -> str | None:
-    """The one `## babysit_loop_merge` value, or None for none, two, or a file
-    the repository-config parser rejects."""
+def _loop_merge(text: str) -> tuple[str | None, bool]:
+    """(the one `## babysit_loop_merge` value or None when the file has no
+    such H2, whether the file can be trusted: False for a file the
+    repository-config parser rejects, two such H2s or an empty one)."""
     try:
         repo_config.parse_repo_config(text)
     except repo_config.RepoConfigError:
-        return None
+        return None, False
     values: list[str] = []
     current: list[str] | None = None
     in_fence = False
@@ -698,7 +699,62 @@ def _loop_merge(text: str) -> str | None:
                 values.append("")
         elif current is not None and raw.strip() and not values[-1]:
             values[-1] = raw.strip().strip("`").strip()
-    return values[0] if len(values) == 1 and values[0] else None
+    if not values:
+        return None, True
+    return (values[0], True) if len(values) == 1 and values[0] else (None, False)
+
+
+def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
+    """(`babysit_loop_merge` from the team YAML or None when it sets none,
+    a note when the file cannot be trusted). A file the shared reader
+    rejects, or an empty, non-scalar or unknown value, is a note."""
+    path = repo_config.YAML_CONFIG_PATH
+    values = _concern_values(text, [(LOOP_MERGE_KEY, False)])
+    if values is None:
+        return None, f"{path}: the shared YAML reader rejects it"
+    found = values[LOOP_MERGE_KEY]
+    if not found:
+        if re.search(rf"^{LOOP_MERGE_KEY}[ \t]*:", text, re.M):
+            return None, f"{path}: {LOOP_MERGE_KEY} is not a scalar value"
+        return None, None
+    if found[0] not in LOOP_MERGE_RUNG:
+        return None, f"{path}: {LOOP_MERGE_KEY} {found[0]!r} is not a known value"
+    return found[0], None
+
+
+def _resolve_loop_merge(
+    file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
+) -> str | None:
+    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
+    set the key, else None (off), so a raise needs both files; the result is
+    the lower of the two, or the legacy value when the YAML sets none. Either
+    file unreadable or untrustworthy yields None (off), never the other
+    file's value alone."""
+    try:
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
+        return None
+    legacy, trusted = _loop_merge(source) if source is not None else (None, True)
+    if not trusted:
+        return None
+    try:
+        team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{repo_config.YAML_CONFIG_PATH} unreadable: {exc}")
+        return None
+    team, note = _team_loop_merge(team_text) if team_text is not None else (None, None)
+    if note:
+        notes.append(note)
+        return None
+    if source is None:
+        # Off with no legacy file: the YAML alone never raises the gate. The
+        # cleanup slice that deletes the legacy file decides deliberately
+        # whether the YAML may then set the rung by itself.
+        return None
+    if legacy is None or team is None:
+        return legacy
+    return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
 
 
 def read_config_at(
@@ -707,7 +763,8 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through
+    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
+    and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
@@ -729,12 +786,7 @@ def read_config_at(
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
-    try:
-        source = file_at(SOURCE_CONTROL_PATH, base_sha)
-    except PolicyReadError as exc:
-        source = None
-        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-    loop_merge = _loop_merge(source) if source is not None else None
+    loop_merge = _resolve_loop_merge(file_at, base_sha, notes)
 
     text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
@@ -4151,8 +4203,9 @@ def foreign_paths(
 
 
 # Paths never a trusted author's own, whoever wrote them: the HIGH path floor
-# itself, so an adopted pull request's own lines hold there too.
-NEVER_FLOOR_EXEMPT = HIGH_FLOOR
+# itself, the entries a security review clears included, so an adopted pull
+# request's own lines hold there too.
+NEVER_FLOOR_EXEMPT = FLOOR
 
 
 # A model-driven App's own lines skip the denied paths and the manifest review
