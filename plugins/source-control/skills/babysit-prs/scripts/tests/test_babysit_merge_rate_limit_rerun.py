@@ -24,6 +24,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge as merge
+import babysit_merge_skip as skip
 import test_babysit_merge as base
 import test_babysit_review_evidence as evidence_tests
 from repo_config_fake import RepoConfigFake
@@ -143,6 +144,14 @@ class RerunRateLimitedReview(unittest.TestCase):
                 self.assertFalse(report["rerun"])
                 self.assertIn(conclusion, report["reason"])
                 self.assertEqual(posts, [])
+
+    def test_an_attempt_still_running_is_read_again_by_the_next_gate(self) -> None:
+        # A sibling job can keep attempt 1 open after the lane job failed; a
+        # stable reason here would freeze the skip before the run concludes.
+        report, posts = self._run(attempt_conclusion=None)  # type: ignore[arg-type]
+        self.assertFalse(report["rerun"])
+        self.assertEqual(posts, [])
+        self.assertFalse(report["reason"].startswith(skip.STABLE_RERUNS), report)
 
     def test_before_the_reset_a_rate_limit_waits(self) -> None:
         report, posts = self._run(now="2026-10-09T14:59:00Z")

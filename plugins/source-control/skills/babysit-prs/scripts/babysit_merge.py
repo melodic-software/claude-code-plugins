@@ -459,6 +459,11 @@ def rerun_rate_limited_review(
         report["reason"] = f"could not read the attempt: {type(exc).__name__}: {exc}"
         return report
     conclusion = first.get("conclusion")
+    # A lane job can finish while a sibling job keeps its run open; the gate
+    # reads the attempt again until it concludes.
+    if conclusion is None:
+        report["reason"] = "attempt 1 has not concluded yet"
+        return report
     if not (
         conclusion in review_evidence.LOST_CONCLUSIONS
         if lost
