@@ -100,7 +100,11 @@ error is read again after each of `LISTING_WAITS`, every read inside one gh
 timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
-whole queue rather than merging blind.
+whole queue rather than merging blind. `evidence --shared-listing`
+(enable-auto-merge.mjs's reader) takes the run's saved listing at any age and
+allows on it without listing again, so its run lists once: ci-status's
+merge-queue step runs this reader again, on a listing of its own, for a lanes
+App pull request at the head it merges.
 
 An untied FAIL's recorded head branch is read from the head-ref map pr-merge.yml
 names in `HEAD_REFS_ENV` before it is downloaded: artifact id to the head_ref
@@ -211,7 +215,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
-# The oldest listing any judgment uses, saved or in memory (see the bound).
+# The oldest listing a judgment uses, saved or in memory (see the bound),
+# unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
@@ -457,8 +462,8 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
-# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted run's
-# pr-merge-run-cache artifact. Each is still used only where it counts a FAIL;
+# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted runs'
+# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still used only where it counts a FAIL;
 # any other answer is read from GitHub.
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
@@ -529,12 +534,15 @@ def _wall_clock() -> datetime:
     return datetime.now(UTC)
 
 
-def _recent(fetched_at: datetime | None) -> bool:
-    """A listing begun at most `LISTING_MAX_AGE` ago; a time with no zone, or
-    one in the future, is not."""
+def _recent(
+    fetched_at: datetime | None, max_age: timedelta | None = LISTING_MAX_AGE
+) -> bool:
+    """A listing begun at most `max_age` ago (None: any time before now); a
+    time with no zone, or one in the future, is not."""
     if fetched_at is None or fetched_at.tzinfo is None:
         return False
-    return timedelta(0) <= _wall_clock() - fetched_at <= LISTING_MAX_AGE
+    age = _wall_clock() - fetched_at
+    return timedelta(0) <= age and (max_age is None or age <= max_age)
 
 
 def dependency_bot(user: Any) -> bool:
@@ -721,6 +729,9 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    # The oldest listing a judgment uses; None (`evidence --shared-listing`)
+    # takes the run's saved listing at any age.
+    listing_max_age: timedelta | None = LISTING_MAX_AGE
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -765,13 +776,15 @@ class Reader:
         return listing
 
     def _current_listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read at most `LISTING_MAX_AGE` before
+        """Every repository artifact, read at most `listing_max_age` before
         this judgment (from the run's saved listing when it is that recent): a
         failed read is kept too, so one outage refuses each later entry
         without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        if self._artifacts is not None and _recent(self._fetched_at):
+        if self._artifacts is not None and _recent(
+            self._fetched_at, self.listing_max_age
+        ):
             return self._artifacts
         saved = None if self._own else self._load_saved()
         if saved is not None:
@@ -813,7 +826,7 @@ class Reader:
 
     def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
         """The run's saved listing and when it began to be read. A missing or
-        malformed file, or one with no `fetchedAt` within `LISTING_MAX_AGE`,
+        malformed file, or one with no `fetchedAt` within `listing_max_age`,
         is none, so the listing is read from the API instead."""
         if not self.listing_path:
             return None
@@ -826,7 +839,7 @@ class Reader:
             return None
         listing = saved.get("artifacts")
         if (
-            not _recent(fetched_at)
+            not _recent(fetched_at, self.listing_max_age)
             or not is_json_array(listing)
             or not all(map(is_json_object, listing))
         ):
@@ -1978,6 +1991,41 @@ def lane_queue(
     }
 
 
+def _settle(repo: str, path: str, code_sha: str) -> int:
+    """`settle`: whether this run's post-merge report at `path`, its check
+    run by the code at commit `code_sha`, stands for the check at the default
+    branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
+    but never read again), as the lane's agent identity in the config there.
+    Changed check code refuses before any read. Prints `{"reuse", "reason"}`;
+    exit 0 when it stands, else 1, and the caller runs the check."""
+    shared = postmerge.read_shared(path)
+    reason: str | None = "post-merge answer missing or unreadable"
+    if not merge_policy.check_code_unchanged(code_sha):
+        reason = "post-merge answer code-changed"
+    elif shared is not None:
+        try:
+            default = merge_policy._default_branch(repo, shared=True)
+            config = merge_policy._default_branch_config(repo, default)
+            if not config.agent_identity:
+                reason = "no agent identity"
+            else:
+                _, reason = merge_policy.settle_shared(
+                    repo,
+                    shared,
+                    default=default,
+                    base_sha=config.base_sha,
+                    identity=config.agent_identity,
+                    code_unchanged=True,
+                    runs_unchanged=lambda answer, branch: (
+                        postmerge.pending_runs_unchanged(repo, answer, branch)
+                    ),
+                )
+        except (RuntimeError, ValueError, OSError) as exc:
+            reason = f"unreadable: {exc}"
+    print(json.dumps({"reuse": reason is None, "reason": reason}))
+    return 0 if reason is None else 1
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -1990,7 +2038,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     lower one (`with_default_branch`), each read once per run by commit
     (`merge_policy.config_at`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
-    again on a listing of its own, as the gate does before it allows.
+    again on a listing of its own, as the gate does before it allows. With
+    `--shared-listing` the run's saved listing serves at any age, an allow
+    included: ci-status's merge-queue step runs this reader again at the head.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes and its issue
@@ -2014,7 +2064,15 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     the gate would not reuse, for any `shared_refusal`, is checked again; one
     refused only as `unverified-stale` is first kept while nothing it was
     read from has moved, and one refused only as `demotion-changed` when the
-    demotion reads the same."""
+    demotion reads the same.
+
+    `lane-room` and `settle` take `--code-sha`, the commit whose code ran the
+    report's check (empty when unknown): changed check code reads the report
+    again or refuses it (`merge_policy.check_code_unchanged`).
+
+    `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
+    rule for the merge job's reuse of this run's report, which never reads it
+    again (`_settle`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2028,19 +2086,28 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-reviews", action="store_true")
     cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
+    cmd.add_argument("--shared-listing", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
     room.add_argument("--repo", required=True)
     room.add_argument("--postmerge-result", required=True)
     room.add_argument("--rung-cap", default=None)
+    room.add_argument("--code-sha", required=True)
+    settle = sub.add_parser("settle", allow_abbrev=False)
+    settle.add_argument("--repo", required=True)
+    settle.add_argument("--postmerge-result", required=True)
+    settle.add_argument("--code-sha", required=True)
     args = parser.parse_args(argv)
+    if args.command == "settle":
+        return _settle(args.repo, args.postmerge_result, args.code_sha)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(
             args.repo,
             shared,
             lane_rung_cap=args.rung_cap,
+            code_unchanged=merge_policy.check_code_unchanged(args.code_sha),
             # The gate's recompute, bound as the room binds, and the one run
             # listing that spares it while the pending merges' runs hold.
             post_merge=postmerge.gate_reader(args.repo, (), lane_merges_only=True),
@@ -2065,6 +2132,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews and --base-sha")
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+    if args.shared_listing:
+        reader.listing_max_age = None
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
     if args.lane_link:
@@ -2094,7 +2163,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
     evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved:
+    if evidence.refusal is None and reader.saved and not args.shared_listing:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

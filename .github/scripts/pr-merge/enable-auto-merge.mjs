@@ -45,14 +45,16 @@
 //   read that fails, or a line without the link's answer, refuses. Only the
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request
-//   every other rule would arm or keep armed, sharing one artifact listing
-//   and run cache in the run. An event run (a person's edit,
+//   every other rule would arm or keep armed, sharing one artifact listing,
+//   read once for the run, and run cache. An event run (a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
 //   ci-status disarms an armed lanes App pull request on each push to its
 //   head, so a new head is armed only after the reader judges it, and in the
 //   merge queue it checks the pass again at the head it merges
-//   (merge-holds.mjs verdictHold).
+//   (merge-holds.mjs verdictHold) and runs this reader again there on a
+//   listing of its own (merge-holds.mjs evidenceHold), which holds a FAIL
+//   uploaded after the run's one listing.
 // - pr-merge's gate would let its lane merge one more now: babysit_verify_evidence.py
 //   `lane-room` (babysit_merge_policy.lane_room) reads, once per reader run,
 //   the run-level refusals the gate applies to every lane candidate. While
@@ -140,6 +142,8 @@
 //                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
+//   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
+//                        when unknown: lane-room reads the report again)
 //   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
 //                        unset holds the lane off, as the gate reads it)
 //   RISK_ESCALATION_MINUTES  merge.risk-escalation-minutes (empty is
@@ -722,6 +726,9 @@ export const costLine = ({ number, calls, ms }) =>
 
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
+// `--shared-listing`: the first read's listing serves the whole run, an allow
+// on it included, since ci-status's merge-queue step runs this reader again
+// at the head it merges (merge-holds.mjs evidenceHold).
 // Each read's cost goes to the log and to `verify.costs`.
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
@@ -730,7 +737,7 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--lane-queue", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--lane-queue", "--shared-listing", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     if (typeof rung === "string") {
       args.push("--rung", rung);
     }
@@ -762,7 +769,16 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
 // quota.
 export function pythonRoom(env, spawn = spawnSync) {
   return async () => {
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
+    const args = [
+      env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT,
+      "lane-room",
+      "--repo",
+      env.GITHUB_REPOSITORY,
+      "--postmerge-result",
+      env.POSTMERGE_RESULT ?? "",
+      "--code-sha",
+      env.POSTMERGE_CODE_SHA ?? "",
+    ];
     if (env.RUNG_CAP !== undefined) {
       args.push("--rung-cap", env.RUNG_CAP);
     }

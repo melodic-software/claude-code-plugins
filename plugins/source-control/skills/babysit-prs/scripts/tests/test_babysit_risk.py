@@ -285,6 +285,7 @@ class HighReasonTests(unittest.TestCase):
                 ".github/actions/check-kill-switch/**",
                 ".github/actions/request-lane-token/**",
                 ".github/actions/log-api-budget/rate-guard.mjs",
+                ".github/actions/log-api-budget/rate-limits.json",
                 ".github/scripts/pr-merge/merge-holds.mjs",
                 ".github/scripts/pr-merge/enable-auto-merge.mjs",
                 ".github/scripts/pr-merge/superseded.mjs",
@@ -313,8 +314,10 @@ class HighReasonTests(unittest.TestCase):
                 ".github/scripts/pr-unblock/address-feedback.mjs",
                 ".github/scripts/pr-unblock/gate-source.mjs",
                 ".github/scripts/pr-unblock/thread-scope.mjs",
+                ".github/scripts/pr-unblock/retry-fetch.mjs",
                 ".github/scripts/work-resolve-issue/report-outcome.mjs",
                 ".github/scripts/work-resolve-issue/limits.mjs",
+                ".github/scripts/work-resolve-issue/retry-fetch.mjs",
             ),
         )
         cases = [
@@ -326,6 +329,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/actions/check-kill-switch/check-kill-switch.mjs", ".github/actions/check-kill-switch/**"),
             (".github/actions/request-lane-token/action.yml", ".github/actions/request-lane-token/**"),
             (".github/actions/log-api-budget/rate-guard.mjs", ".github/actions/log-api-budget/rate-guard.mjs"),
+            (".github/actions/log-api-budget/rate-limits.json", ".github/actions/log-api-budget/rate-limits.json"),
+            (".github/actions/log-api-budget/Rate-Limits.JSON", ".github/actions/log-api-budget/rate-limits.json"),
             (".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-merge/merge-holds.mjs"),
             (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
@@ -340,8 +345,10 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
             (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
             (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
+            (".github/scripts/pr-unblock/retry-fetch.mjs", ".github/scripts/pr-unblock/retry-fetch.mjs"),
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
+            (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
         ]  # fmt: skip
         for path, glob in cases:
             for on in (True, False):
@@ -1180,6 +1187,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/actions/check-kill-switch/action.yml",
             ".github/actions/request-lane-token/action.yml",
             ".github/actions/log-api-budget/rate-guard.mjs",
+            ".github/actions/log-api-budget/rate-limits.json",
             ".github/scripts/pr-merge/merge-holds.mjs",
             ".github/scripts/pr-merge/enable-auto-merge.mjs",
             ".github/scripts/pr-merge/superseded.mjs",
@@ -1193,8 +1201,10 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-unblock/address-feedback.mjs",
             ".github/scripts/pr-unblock/gate-source.mjs",
             ".github/scripts/pr-unblock/thread-scope.mjs",
+            ".github/scripts/pr-unblock/retry-fetch.mjs",
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
+            ".github/scripts/work-resolve-issue/retry-fetch.mjs",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))

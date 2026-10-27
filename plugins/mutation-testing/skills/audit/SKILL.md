@@ -118,10 +118,9 @@ or `--exercised <test-path>` instead and inherit these limits; `--record-mutants
 no-coverage column, with that row's option and source cited in the scope report. Otherwise run the
 manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing the
 `{tests}` word with the test paths, each wrapped in single quotes with every `'` inside it written
-as `'\''`, so no character in a file name reaches the shell unquoted. No `test-command`, one where
-`{tests}` is not a standalone unquoted word, or a runner that only filters by name: refuse, naming
-`/mutation-testing:setup apply`. This is decided
-in Phase 0 and never switched mid-run.
+as `'\''`, so no character in a file name reaches the shell unquoted. When `test-command` starts with `dotnet test`, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/dotnet-test-selection.sh" <test path>...`
+over the test set instead, as [`context/tool-test-restriction.md`](context/tool-test-restriction.md) "Running a .NET test set" says. No `test-command`, one where `{tests}` is not a standalone unquoted word, or another
+runner that only filters by name: refuse, naming `/mutation-testing:setup apply`. This is decided in Phase 0 and never switched mid-run.
 
 **Phase 0, in this order:** config; tool availability; the test set; which files are tests; the
 mapping; runner and regime; the dirty-target stop, on the mapped files; the regime gate with its
