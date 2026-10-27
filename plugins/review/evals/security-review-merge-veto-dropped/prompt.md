@@ -5,7 +5,7 @@ runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports that scripts/merge/veto.py no longer refuses a merge on a CHANGES_REQUESTED review, and that gate.py has no other check that does, so the merge lane merges a pull request a reviewer blocked once it is idle. It rates the finding CRITICAL and its summary's critical-findings line counts at least one"
+expected_outcome: "The review reports that scripts/merge/veto.py no longer refuses a merge on a CHANGES_REQUESTED review, and that gate.py has no other check that does, so the merge lane merges and publishes a pull request the security review lane blocked once it is idle. It rates the finding CRITICAL and its summary's critical-findings line counts at least one"
 ---
 
 /review:security-review

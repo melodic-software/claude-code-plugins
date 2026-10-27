@@ -29,7 +29,10 @@ PY
 
 cat >scripts/merge/gate.py <<'PY'
 # The merge lane's gate: every check must pass before it merges. It runs with
-# a token that can merge, on any open pull request that has been idle.
+# a token that can merge, on any open pull request that has been idle, and
+# main is published to users on every merge. The security review lane blocks
+# a pull request it finds exploitable by submitting a CHANGES_REQUESTED
+# review; vetoed() is the only place that review stops the merge.
 from veto import vetoed
 
 

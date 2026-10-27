@@ -146,8 +146,8 @@ a pin) quotes the line it read, with file and line; a value assumed is not evide
 
 Fail closed. Lowering a severity needs the check that settles it. When, after reading the code,
 the review cannot tell whether an attacker reaches the change or whether a control blocks it, the
-finding is unsettled: rate it CRITICAL and name what is unsettled. A finding whose impact is not a
-security impact (part 2) is never CRITICAL, settled or not. "Not sure, so rate lower" is
+finding is unsettled: rate it CRITICAL and name what is unsettled. A finding the review has shown
+to carry no security impact (part 2), such as a hold that guards only spend, is never CRITICAL. "Not sure, so rate lower" is
 wrong; "checked, and no path reaches it" is the only ground for lowering.
 
 **Trusted paths.** A changed file matching a glob the wrapper lists under `TRUSTED PATHS:` gets
