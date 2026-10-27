@@ -7,8 +7,9 @@ Prepare, look up and start the elevated pass.
 .DESCRIPTION
 New-ElevatedLaunch pre-creates <StateBase>/logs/elevated-result-<runStamp>.json,
 records its file ID from the creating handle, writes
-<StateBase>/logs/elevated-run-<runStamp>.ps1 (one orchestrator command, UTF-8
-without a byte order mark) and returns the launch record:
+<StateBase>/logs/elevated-run-<runStamp>.ps1 (UTF-8 without a byte order mark:
+the Invoke-ElevatedBootstrap.ps1 functions, then one Invoke-ElevatedBootstrap
+call carrying the Get-ElevatedPassManifest hashes) and returns the launch record:
 { ScriptPath, ScriptSha256, ResultPath, ResultFileId, ArgumentString }.
 
 New-ElevatedLaunch refuses unless the session token is a limited token with a
@@ -29,6 +30,7 @@ elevated"; the ask and launch rules: SKILL.md, "Elevated pass".
 . (Join-Path $PSScriptRoot 'Open-NoFollowFile.ps1')
 . (Join-Path $PSScriptRoot 'Assert-StateBaseLocation.ps1')
 . (Join-Path $PSScriptRoot 'Resolve-SkillRoot.ps1')
+. (Join-Path $PSScriptRoot 'Invoke-ElevatedBootstrap.ps1')
 
 if (-not ('MachineHealth.TokenElevationNative' -as [type])) {
     Add-Type -Namespace 'MachineHealth' -Name 'TokenElevationNative' -MemberDefinition @'
@@ -92,6 +94,50 @@ function Get-ElevatedLaunchArgument {
     return "-NoProfile -Command ""$block"""
 }
 
+function Get-ElevatedPassManifest {
+    <#
+    .SYNOPSIS
+    The SHA-256 of each file the elevated pass loads, keyed by its path under the
+    skill root: the orchestrator, the lib and check scripts, the shipped catalog and
+    its schemas.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param([Parameter(Mandatory = $true)] [string] $SkillRoot)
+
+    $SkillRoot = [System.IO.Path]::GetFullPath($SkillRoot).TrimEnd('\')
+    $listed = @{ 'scripts\windows\lib' = '.ps1'; 'scripts\windows\checks' = '.ps1'; 'catalog\schemas' = '.json' }
+    $paths = [System.Collections.Generic.List[string]]::new()
+    foreach ($single in 'scripts\windows\Invoke-MachineHealthCheck.ps1', 'catalog\checks.jsonc') {
+        $path = [System.IO.Path]::Join($SkillRoot, $single)
+        if ([System.IO.File]::Exists($path)) { $paths.Add($path) }
+    }
+    foreach ($folder in $listed.Keys) {
+        foreach ($file in @(Get-ChildItem -LiteralPath ([System.IO.Path]::Join($SkillRoot, $folder)) -File -Force -ErrorAction SilentlyContinue)) {
+            # Compared exactly: the -Filter wildcard also matches longer extensions such as .ps1xml.
+            if ($file.Extension -eq $listed[$folder]) { $paths.Add($file.FullName) }
+        }
+    }
+    $sorted = $paths.ToArray()
+    [Array]::Sort($sorted, [StringComparer]::OrdinalIgnoreCase)
+
+    $manifest = [ordered]@{}
+    foreach ($path in $sorted) {
+        $relative = $path.Substring($SkillRoot.Length + 1)
+        # The bootstrap's own rule, applied here so the pass fails before the owner's yes, not after.
+        if (-not (Test-ElevatedPassPath $relative)) {
+            throw "Refused '$relative': the elevated pass copies no file whose name holds characters other than letters, digits, '.', '_' and '-', or starts with one of the last three."
+        }
+        $manifest[$relative] =
+        [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($path)))
+    }
+    return $manifest
+}
+
+# Written into the launcher in this order; Invoke-ElevatedBootstrap calls the others.
+$script:ElevatedBootstrapFunctions = @('Test-ElevatedPassPath', 'Get-SystemEnvironmentVariable', 'Get-ElevatedPassEnvironment',
+    'New-ElevatedStagingFolder', 'Invoke-ElevatedBootstrap')
+
 function New-ElevatedLaunch {
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
@@ -103,11 +149,12 @@ function New-ElevatedLaunch {
 
     $OutputBase = [System.IO.Path]::GetFullPath($OutputBase)
     $StateBase = [System.IO.Path]::GetFullPath($StateBase)
-    $orchestrator = Join-Path ([System.IO.Path]::GetFullPath($SkillRoot)) 'scripts\windows\Invoke-MachineHealthCheck.ps1'
+    $SkillRoot = [System.IO.Path]::GetFullPath($SkillRoot).TrimEnd('\')
+    $orchestrator = Join-Path $SkillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1'
     $quoted = @{
-        Orchestrator = ConvertTo-SingleQuotedLiteral $orchestrator
-        OutputBase   = ConvertTo-SingleQuotedLiteral $OutputBase
-        StateBase    = ConvertTo-SingleQuotedLiteral $StateBase
+        SkillRoot  = ConvertTo-SingleQuotedLiteral $SkillRoot
+        OutputBase = ConvertTo-SingleQuotedLiteral $OutputBase
+        StateBase  = ConvertTo-SingleQuotedLiteral $StateBase
     }
     if (-not [System.IO.File]::Exists($orchestrator)) { throw "Orchestrator not found: '$orchestrator'." }
     $elevationType = Get-TokenElevationType
@@ -118,6 +165,14 @@ function New-ElevatedLaunch {
     $location = Assert-StateBaseLocation -Path $StateBase -WarningAction SilentlyContinue
     if ($location.Synced) {
         throw "Refused: the state folder '$StateBase' is under a cloud sync root ($($location.Rule): '$($location.Folder)')."
+    }
+    $manifest = Get-ElevatedPassManifest -SkillRoot $SkillRoot
+    $manifestLines = foreach ($relative in $manifest.Keys) {
+        "    $(ConvertTo-SingleQuotedLiteral $relative) = '$($manifest[$relative])'"
+    }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in $script:ElevatedBootstrapFunctions) {
+        $lines.Add("function $name {$((Get-Command -Name $name -CommandType Function).Definition)}")
     }
 
     $logsDir = Join-Path $StateBase 'logs'
@@ -137,9 +192,12 @@ function New-ElevatedLaunch {
         $created.Dispose()
     }
 
-    $command = ('& {0} -OutputBase {1} -StateBase {2} -RunMode on-demand -SkipBanner -ResultPath {3} -ResultFileId {4}' -f
-        $quoted.Orchestrator, $quoted.OutputBase, $quoted.StateBase, (ConvertTo-SingleQuotedLiteral $resultPath),
-        (ConvertTo-SingleQuotedLiteral $fileId))
+    $lines.Add(('exit (Invoke-ElevatedBootstrap -SourceRoot {0} -OutputBase {1} -StateBase {2} -ResultPath {3} -ResultFileId {4} -Manifest @{{' -f
+            $quoted.SkillRoot, $quoted.OutputBase, $quoted.StateBase, (ConvertTo-SingleQuotedLiteral $resultPath),
+            (ConvertTo-SingleQuotedLiteral $fileId)))
+    foreach ($entry in $manifestLines) { $lines.Add($entry) }
+    $lines.Add('})')
+    $command = $lines -join "`n"
     $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($command)
     $stream = [System.IO.File]::Open($scriptPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write,
         [System.IO.FileShare]::None)
@@ -178,7 +236,9 @@ function Get-ElevatedLaunch {
         # The bytes hash to the shown value, so this is the command the owner read.
         $ast = [System.Management.Automation.Language.Parser]::ParseInput(
             [System.Text.UTF8Encoding]::new($false).GetString($bytes), [ref]$null, [ref]$null)
-        $elements = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true))[0].CommandElements
+        $elements = @($ast.FindAll({ param($n)
+                    $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -ceq 'Invoke-ElevatedBootstrap'
+                }, $true))[0].CommandElements
         $named = @{}
         for ($i = 0; $i -lt $elements.Count - 1; $i++) {
             if ($elements[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and

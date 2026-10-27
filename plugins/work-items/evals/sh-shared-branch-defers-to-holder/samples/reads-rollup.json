@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" list-sub-items \"local-markdown:local/markdown#1\" --state all",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rollup read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "TRACKER=/p/tools/work-item-tracker/work-item-tracker.sh\n\"$TRACKER\" list-frontier --parent \"local-markdown:local/markdown#1\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "frontier read through a variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/2.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read the file only"
+    }
+  ]
+}
