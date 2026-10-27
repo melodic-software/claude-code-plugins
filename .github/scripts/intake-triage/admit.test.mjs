@@ -1062,6 +1062,7 @@ describe("unrunnableCriteria", () => {
       /paid eval/,
     ],
     ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /paid eval/],
+    ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /paid eval/],
     // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
     ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
     ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
@@ -1073,6 +1074,8 @@ describe("unrunnableCriteria", () => {
     ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
     ["no file changed", "No file is changed.", /comment instead/],
     ["a result recorded in a comment on this issue", "The script's output is recorded in a comment on this issue.", /comment instead/],
+    ["a comment on this issue listing a result (#9735)", "A comment on this issue lists the machines done.", /comment instead/],
+    ["a comment on this issue starting with a heading (#7556)", "A comment on this issue starting `Probe result:` records the Cursor version.", /comment instead/],
     // Live CLI items the corpus diff flagged (#7135, #9930).
     ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
     ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install core@melodic-software` both exit 0.", /Claude Code CLI/],
@@ -1133,6 +1136,12 @@ describe("unrunnableCriteria", () => {
     ["an edit to a headless Claude Code step", "The headless Claude Code step in the workflow keeps its `--allowedTools` list."],
     ["a script posting its refusal as a comment on this issue", "The refusal is posted as a comment on this issue with the item numbers."],
     ["a script recording in a comment on this issue", "refine.mjs records the split in a comment on this issue."],
+    ["an option measure-invocation accepts", "`measure-invocation.sh` accepts a `--probes-dir` flag."],
+    ["a README documenting measure-invocation", "`plugins/skill-quality/README.md` documents `measure-invocation.sh`."],
+    ["an edit to measure-invocation with its test", "`measure-invocation.sh` handles an empty probe set, with a case in `measure-invocation.test.sh`."],
+    ["plugin-eval named in docs", "The `/evals:plugin-eval` section names the cost ceiling."],
+    ["a subject-first comment a script posts", "A comment on this issue names each refused item."],
+    ["a named script's result posted as a comment on this issue", "work-unblock's result is posted as a comment on this issue."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {

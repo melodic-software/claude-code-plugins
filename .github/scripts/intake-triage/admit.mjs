@@ -250,6 +250,9 @@ const N = String.raw`(?:\d+|two|three|four|five|seven|ten|fourteen|twenty|thirty
 const UNIT = String.raw`(?:hours?|days?|weeks?|months?|nights?)`;
 // A no-spend form in the rest of the clause: validation calls no model.
 const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
+// The trigger-probe harness or the plugin-eval command, not its own test;
+// the harness's validate, score, compare and emit-plugin-eval run no model.
+const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
@@ -260,9 +263,10 @@ const UNRUNNABLE = [
     new RegExp(
       [
         String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
-        // The trigger probes and plugin evals a measured skill rewrite reports;
-        // the harness's validate, score, compare and emit-plugin-eval run no model.
-        String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`,
+        // The trigger probes and plugin evals a measured skill rewrite reports:
+        // the harness with a run before it or a measured output after it.
+        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}${EVAL_HARNESS}`,
+        String.raw`${EVAL_HARNESS}[^,;:.]{0,60}\b(?:trigger (?:scores?|rates?)|with and without|deltas?|before and (?:the )?after)\b`,
         String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
       ].join("|"),
       "i",
@@ -300,9 +304,11 @@ const UNRUNNABLE = [
     },
   ],
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
+  // The comment must carry a payload the lane collects, and an output a named
+  // script owns (work-unblock's result) is that script's behavior.
   [
     "a comment instead of a file change",
-    /^(?:a|one) comment on this issue\b|\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
+    /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's
