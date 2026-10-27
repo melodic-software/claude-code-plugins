@@ -60,16 +60,17 @@ routes=$(dirname "${BASH_SOURCE[0]}")/escalation-routes.json
 
 # `clear`: an attempt of ACTIVITY on HEAD_SHA ended without a stop (a same-head
 # retry landed). When the newest status of the activity's context on the
-# head, by github-actions[bot], is a failure, it posts success over it, so a
+# head, by github-actions[bot], is a failure or error, it posts success over it, so a
 # stop the retry mended no longer fails the head. Needs statuses: write.
 if [[ ${1:-} == clear ]]; then
   [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
   [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
   jq -e --arg a "${ACTIVITY:-}" 'any(.[]; .activity == $a)' "$routes" >/dev/null || die "ACTIVITY is not an activity the table routes"
   if [[ $ACTIVITY == resolve-conflicts ]]; then context=pr-unblock/conflict; else context=pr-unblock/$ACTIVITY; fi
-  state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100" | jq -r --arg c "$context" \
-    '[.[] | select(.context == $c and .creator.login == "github-actions[bot]")][0].state // ""')
-  if [[ $state != failure ]]; then
+  # Every page, newest first, and failure or error, as ci-status reads the same context.
+  state=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100" | jq -rs --arg c "$context" \
+    '[.[][] | select(.context == $c and .creator.login == "github-actions[bot]")][0].state // ""')
+  if [[ $state != failure && $state != error ]]; then
     echo "no failing $context on $HEAD_SHA to clear"
     exit 0
   fi

@@ -500,6 +500,11 @@ clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"success\",\"c
 check "clear: the newest is already success, nothing posted" 0 "$(writes)"
 clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":{\"login\":\"someone\"}}]"
 check "clear: another account's status is not the lane's, nothing posted" 0 "$(writes)"
+clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"error\",\"creator\":$GHA}]"
+has "clear: an error status is cleared as ci-status fails on it" 'context=pr-unblock/fix-ci' "$STUB/calls"
+clear_case fix-ci "[{\"context\":\"pr-unblock/other\",\"state\":\"success\",\"creator\":$GHA}][{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":$GHA}]"
+check "clear: a failure on a later page is cleared" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+has "clear: reads every page" '--paginate' "$STUB/calls"
 clear_case fix-ci '[]'
 check "clear: no status, nothing posted" 0 "$(writes)"
 clear_case bogus '[]'
