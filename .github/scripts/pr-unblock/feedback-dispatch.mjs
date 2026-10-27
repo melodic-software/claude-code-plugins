@@ -70,6 +70,20 @@
 // which the record names. A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
+// A run of this file an outage lost dispatched nothing the lanes trust when
+// re-run: check-trusted-trigger's dispatcher check accepts a dispatcher at
+// attempt 1 or re-run by a listed human, so re-runs stay person-only. When
+// the sweep dispatched nothing, the tick recovers it instead (recoverLost):
+// one listing of this workflow's runs created within the reconciler's
+// LOOKBACK_HOURS finds a run that ended in its LOST set with its dispatch job
+// lost after it started (a run replaced in its concurrency group never
+// started one), and then each open lanes App PR into main short of
+// SWEEP_HEAD_CAP is decided as above with its head's newest completed review
+// run as the upstream. The dispatch is this tick's
+// own attempt-1 run, which the gate already trusts, and dispatchFeedback's
+// check-run and queued-run skips keep a head the lost run dispatched from a
+// second dispatch.
+//
 // A head the human gate skipped at its review completion has no other
 // trigger once the label comes off: no round ran, so the sweep never finds a
 // releasing reply there. A person's or clear-escalations' unlabel (a user or
@@ -92,6 +106,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
@@ -417,37 +432,58 @@ export async function dispatchFeedback({
 // dispatchFeedback dispatches for the head's newest completed review run.
 // Returns dispatchFeedback's result with that run's id, or null.
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+  const context = { api, repository, appSenderId, log, settings, rest };
+  const dispatched = await sweepPulls(context, (pull) => sweepOne({ ...context, pull }));
+  if (dispatched === null) {
+    log("sweep: no head whose last round left it for another round to dispatch");
+  }
+  return dispatched;
+}
+
+// The selection every sweep uses: each open lanes App PR into the base,
+// decided by `decide` in listing order until one dispatches.
+async function sweepPulls({ api, repository, appSenderId, log, settings }, decide) {
   const pulls = (await api.listOpenPulls(settings.base)).filter(
     (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
   );
   for (const pull of pulls) {
-    const head = pull.head.sha;
     let dispatched = null;
     try {
-      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest });
+      dispatched = await decide(pull);
     } catch (error) {
       // One PR's failed read leaves the PRs after it to the sweep.
-      log(`::warning::#${pull.number}: the sweep could not decide head ${head}: ${error.message}`);
+      log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
     }
     if (dispatched !== null) {
       return dispatched;
     }
   }
-  log("sweep: no head whose last round left it for another round to dispatch");
   return null;
 }
 
-async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
+// Whether the head's newest reply check released it, and whether releasing
+// skips reached SWEEP_HEAD_CAP there (logged).
+async function releaseState({ api, pull, log, settings }) {
+  const head = pull.head.sha;
   const replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }));
   const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-  if (!releases(newest)) {
-    return null;
-  }
   const skips = replies.filter(releases).length;
-  if (skips >= SWEEP_HEAD_CAP) {
+  const capped = releases(newest) && skips >= SWEEP_HEAD_CAP;
+  if (capped) {
     log(`skip: #${pull.number}: head ${head} was released ${skips} times, the sweep's cap`);
-    return null;
   }
+  return { released: releases(newest), capped };
+}
+
+async function sweepOne(context) {
+  const { released, capped } = await releaseState(context);
+  return released && !capped ? dispatchAtHead(context) : null;
+}
+
+// dispatchFeedback for a PR's head with the head's newest completed review run
+// as the upstream, with that run's id; null when it has none or nothing is sent.
+async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }) {
+  const head = pull.head.sha;
   const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
@@ -455,6 +491,66 @@ async function sweepOne({ api, pull, head, repository, appSenderId, log, setting
   }
   const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
+}
+
+// This file's workflow, whose lost runs the tick recovers.
+export const DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+
+// The workflow's job that dispatches; a loss of its other jobs leaves no head
+// undispatched.
+const DISPATCH_JOB = "dispatch";
+// A job that ran a step, as reconcile.mjs holdReason reads one.
+const jobStarted = (job) => (Array.isArray(job?.steps) ? job.steps : []).some((step) => step?.conclusion != null && step.conclusion !== "skipped");
+const dispatchLost = (job) => job?.name === DISPATCH_JOB && LOST.has(job.conclusion) && jobStarted(job);
+
+// The newest run of DISPATCH_WORKFLOW other than this one, created within
+// LOOKBACK_HOURS, that ended in LOST with its dispatch job lost after it
+// started; null when none, or when the listing cannot be read. One listing
+// call when none ended in LOST; then one jobs read per such run, newest
+// first, until one matches.
+export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
+  const since = now - LOOKBACK_HOURS * 3_600_000;
+  let runs;
+  try {
+    runs = await api.listRecentRuns(DISPATCH_WORKFLOW, new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z"));
+  } catch (error) {
+    log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
+    return null;
+  }
+  const lost = runs
+    .filter((run) => String(run.id) !== String(runId) && run.status === "completed" && LOST.has(run.conclusion) && Date.parse(run.created_at ?? "") >= since)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  for (const run of lost) {
+    try {
+      if ((await api.listRunJobs(run.id)).some(dispatchLost)) {
+        return run;
+      }
+    } catch (error) {
+      log(`::warning::run ${run.id}'s jobs could not be read (${error.message}); the next tick reads them again`);
+    }
+  }
+  return null;
+}
+
+// The recovery: when a lost run of this workflow is in the window
+// (lostDispatchRun), the first open lanes App PR into main, short of the
+// sweep's cap, that dispatchFeedback dispatches for its head's newest
+// completed review run. Returns dispatchFeedback's result with that run's id,
+// or null.
+export async function recoverLost({ api, repository, appSenderId, log, settings = DEFAULTS, now, ...rest }) {
+  const lost = await lostDispatchRun({ api, runId: rest.runId, log, now });
+  if (lost === null) {
+    return null;
+  }
+  log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its ${DISPATCH_JOB} job started`);
+  const context = { api, repository, appSenderId, log, settings, rest };
+  const dispatched = await sweepPulls(context, async (pull) =>
+    (await releaseState({ ...context, pull })).capped ? null : dispatchAtHead({ ...context, pull }),
+  );
+  if (dispatched === null) {
+    log("recover: no head left to dispatch");
+  }
+  return dispatched;
 }
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -585,6 +681,20 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
     },
+    // A workflow file's newest 100 runs created since `since`: many ticks'
+    // worth, so a run the window holds is listed again by a later tick.
+    async listRecentRuns(path, since) {
+      const query = new URLSearchParams({ created: `>=${since}`, per_page: "100" });
+      return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
+    },
+    // A run's latest attempt's jobs, with their steps.
+    async listRunJobs(id) {
+      const listing = await request(`${repo}/actions/runs/${encodeURIComponent(id)}/jobs?filter=latest&per_page=100`);
+      if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
+        throw new Error(`run ${id}'s job listing is not one complete page`);
+      }
+      return listing.jobs;
+    },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
         ref,
@@ -632,7 +742,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), now = Date.now() } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -672,7 +782,9 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       log(`skip: run ${upstream.id} is not a scheduled tick`);
       return 0;
     }
-    const swept = await sweepReleased(common).finally(summary);
+    // A lost run is recovered only on a tick the released heads leave idle.
+    const sweep = async () => (await sweepReleased(common)) ?? recoverLost({ ...common, now });
+    const swept = await sweep().finally(summary);
     if (swept !== null) {
       appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
     }
