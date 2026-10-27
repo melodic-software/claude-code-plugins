@@ -117,8 +117,10 @@ JOB_KEYS = frozenset(
         "with",
     }
 )
-# Triggers that run a privileged default-branch copy on another run's behalf.
-DENIED_TRIGGERS = frozenset({"pull_request_target", "workflow_run"})
+# Triggers that run a privileged default-branch copy on another run's behalf,
+# and `workflow_call`: a privileged caller run on the branch would act on the
+# head copy's outputs with its own write token.
+DENIED_TRIGGERS = frozenset({"pull_request_target", "workflow_run", "workflow_call"})
 # Any secret can carry a credential (a GitHub App private key, a PAT) whose
 # token ignores `permissions:`; GITHUB_TOKEN is the job's own token.
 SECRETS_RE = re.compile(r"\bsecrets\b", re.IGNORECASE)
@@ -126,7 +128,7 @@ GITHUB_TOKEN_SECRET_RE = re.compile(r"\bsecrets\.github_token\b", re.IGNORECASE)
 # Raw-text backstops, so a parser difference between PyYAML and GitHub's
 # cannot hide a write grant or a denied trigger.
 WORKFLOW_DENIED_TEXT_RE = re.compile(
-    r"id-token|pull_request_target|workflow_run"
+    r"id-token|pull_request_target|workflow_run|workflow_call"
     r"|:\s*['\"]?write(?:-all)?['\"]?\s*(?:[,}\]#]|$)",
     re.IGNORECASE | re.MULTILINE,
 )
@@ -366,7 +368,7 @@ def _readonly_workflow_text(text: str, stem: str) -> bool:
     - `name:` equal to the file stem, so no `workflow_run` listener that
       names another workflow fires on it (its `workflows` filter matches
       names, and an omitted name is the file path);
-    - no `pull_request_target` or `workflow_run` trigger;
+    - no `pull_request_target`, `workflow_run` or `workflow_call` trigger;
     - every job's token set by a `permissions:` of its own or the top level,
       each scope `read` or `none` (`read-all` or `{}` too): a scope set
       leaves every other `none`, while a job with neither inherits the

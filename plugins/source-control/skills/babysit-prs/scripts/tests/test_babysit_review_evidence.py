@@ -666,6 +666,9 @@ class ReadOnlyWorkflowTests(Base):
             "a workflow_run trigger": READ_ONLY.replace(
                 "  push:\n", "  workflow_run:\n    workflows: [x]\n"
             ),
+            "a workflow_call trigger": READ_ONLY.replace(
+                "  push:\n", "  workflow_call:\n"
+            ),
             "unparsable YAML": READ_ONLY + "  bad: [unclosed\n",
             "not a mapping": "- just\n- a list\n",
             "two documents": READ_ONLY + "---\n" + READ_ONLY,
