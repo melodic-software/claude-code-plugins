@@ -4688,6 +4688,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     "run_attempt": 1,
                     "created_at": "2026-10-22T01:00:00Z",
                     "pull_requests": [{"number": PR}],
+                    "head_commit": {"id": HEAD, "tree_id": "7e" * 20},
                     **done,
                 }
                 return [{"workflow_runs": [item]}]
