@@ -673,6 +673,25 @@ def check_proposal(q, alt, text, events):
         raise Conflict({"error": "proposal answered", "proposal": answer})
 
 
+def chain_end(qs, q):
+    """The id q's supersededBy chain ends at: each hop goes to a known question until one with no
+    supersededBy, or one already passed (a cycle). A first hop to an unknown id ends at that id."""
+    seen, cur = {q.get("id")}, q
+    while (nxt := cur.get("supersededBy")) in qs and nxt not in seen:
+        seen.add(nxt)
+        cur = qs[nxt]
+    return q.get("supersededBy") if cur is q else cur.get("id")
+
+
+def check_retired(qs, q):
+    """Conflict (409) for a decision on a question off the path: `superseded`, with `by` naming
+    the end of its supersededBy chain (chain_end), wins over `archived`."""
+    if q.get("supersededBy"):
+        raise Conflict({"error": "superseded", "by": chain_end(qs, q)})
+    if q.get("archived"):
+        raise Conflict({"error": "archived"})
+
+
 def round_complete(doc, r, qid):
     """True when every live question in qid's round has a decision in r (this accept included);
     a proposed question the user has not accepted or edited is not a question yet."""
@@ -862,9 +881,9 @@ def check_out_of_order(msg):
 def split_accept_audit(doc, r, items):
     """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
     {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
-    `ineligible` is an unknown, closed, held or recommendation-less question, one whose state is
-    not open (stale, upstream-changed, upstream-pending), or one with a prerequisite still open
-    (open_prereqs: an archived or superseded prerequisite is met)."""
+    `ineligible` is an unknown, closed, superseded, held or recommendation-less question, one
+    whose state is not open (stale, upstream-changed, upstream-pending), or one with a
+    prerequisite still open (open_prereqs: an archived or superseded prerequisite is met)."""
     release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
     states = question_states(doc, r)
@@ -877,6 +896,7 @@ def split_accept_audit(doc, r, items):
         elif (
             not q
             or states.get(it["id"], ("",))[0] != "open"
+            or q.get("supersededBy")
             or not q.get("recommendation")
             or q.get("waiting")
             or (seeded.get(it["id"]) or {}).get("status") == "superseded-by-plan"
@@ -1157,6 +1177,8 @@ class Hub(LoopbackWatcher):
                     "no recommendation to accept yet: Claude writes it after the proposal's "
                     "accept or edit"
                 )
+            if kind in DECISIONS:
+                check_retired(qs, qs[qid])
             event = {
                 "seq": r["seq"] + 1,
                 "id": qid,

@@ -312,7 +312,9 @@ check. A patch that pushed escalates nothing, whatever the model escalated besid
 head's CI decides, and a red new head gets its own run. The one exception: a run at
 `model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
-`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). The retry posts its own
+`pr-unblock / fix-ci` check, which the dispatcher counts toward `limits.limit-stops-per-head` like
+any other run, so that cap bounds rung-ups on a head too. `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
@@ -2191,12 +2193,12 @@ at the start and end of each run, not the broker's own quota record, which this 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
 Each profile under `models.profiles` names:
 
-- `model`: an alias (`default`, `best`, `fable`, `opus` or `sonnet`), never a full model ID, passed
+- `model`: an alias (`default`, `opus` or `sonnet`), never a full model ID, passed
   as `--model`. `default` passes no `--model`, so the account's default model runs.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
   passes none, so the model's default effort applies.
-- `subagent-model` (optional, default `inherit`): an alias set as `CLAUDE_CODE_SUBAGENT_MODEL`
-  through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
+- `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
+  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
@@ -2257,8 +2259,10 @@ reader rejects a key that is not a complexity and a value that is not a profile.
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
-rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
-waits on an owner decision and a per-week Fable allowance for the lanes.
+rung is off: the schema admits neither `fable` nor `best` for `model` or `subagent-model`, so the
+config reader rejects a profile naming either and no route, rung or Complexity reaches it. It
+waits on an owner decision and a per-week Fable allowance for the lanes; the schema admits the two
+values again when that allowance is set.
 
 ## Funding
 
