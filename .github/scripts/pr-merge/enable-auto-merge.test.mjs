@@ -1160,6 +1160,51 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
   ]);
 });
 
+// ci-status lifts a hold path on a trusted person's approving review of the
+// head (merge-holds.pathLifters); arming reads the same rule. Kyle (id 5) is
+// on the trusted-actor list, id 9 is not.
+const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026-10-26T16:41:00Z" } = {}) => ({
+  author: { __typename: "User", login, databaseId: id },
+  state,
+  commit: { oid },
+  body: "",
+  submittedAt: at,
+  authorAssociation: "OWNER",
+});
+function trustedKyle() {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
+  return { TRUSTED_ACTORS: join(dir, "actors.json") };
+}
+const HELD = [{ filename: "docs/held.md" }];
+
+test("a hold path a trusted person approved at the head is armed, and an armed one stays armed", async () => {
+  const approved = { reviews: [reviewed("APPROVED")] };
+  const { writes } = await run([pull(50, { files: HELD, discussion: approved }), pull(51, { files: HELD, discussion: approved, autoMergeRequest: {} })], trustedKyle());
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_50", head: HEAD }]);
+});
+
+test("a hold path stays held without a trusted approval of the head", async () => {
+  const { writes } = await run(
+    [
+      pull(52, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { oid: "c".repeat(40) })] } }),
+      pull(53, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] } }),
+      pull(54, { files: HELD, discussion: { reviews: [reviewed("APPROVED"), reviewed("CHANGES_REQUESTED", { at: "2026-10-26T17:20:00Z" })] } }),
+      pull(55, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] }, autoMergeRequest: {} }),
+    ],
+    trustedKyle(),
+  );
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
+});
+
+test("an approval lifts no unread hold-path check and no capped file listing", () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const armed = pull(1, { autoMergeRequest: {} });
+  const approved = { ...detail(), lifters: ["kyle-sexton"], verify: PASSED };
+  assert.deepEqual(decide(armed, options, { ...approved, files: null }), { action: "disarm", reason: "its changed files could not all be read", clears: "lane" });
+  assert.deepEqual(decide(armed, options, { ...approved, files: ["docs/a.md"], filesCapped: true }), { action: "disarm", reason: FILES_CAPPED_REASON, clears: "person" });
+});
+
 // A manifest is no hold path: the gate's reader scores it (`evidence
 // --lane-reviews`, babysit_risk manifest-review-required), so a manifest
 // change the gate reviews is not armed, or is disarmed, and one it does not,
