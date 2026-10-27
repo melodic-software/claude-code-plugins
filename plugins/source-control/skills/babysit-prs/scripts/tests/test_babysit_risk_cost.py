@@ -244,6 +244,29 @@ class ModelSpendDetections(_Finding):
         self.assertReported(_cost([wf], public=True))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
+    def test_a_raised_artifact_retention_holds_unless_public(self):
+        # Artifact storage past the free quota bills on a private repository;
+        # Actions use on a public one is free.
+        for patch in (
+            _patch("+          retention-days: 30"),
+            _patch("-          retention-days: 5", "+          retention-days: 30"),
+        ):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
+                for public in (False, None):
+                    self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
+                self.assertReported(_cost([wf], public=True))
+
+    def test_a_lowered_artifact_retention_does_not_count(self):
+        lowered = _patch(
+            "-          retention-days: 30", "+          retention-days: 5"
+        )
+        wf = _file(WORKFLOW, patch=lowered, contents=("", "jobs: {}\n"))
+        for public in (True, False):
+            codes = _codes(_cost([wf], public=public))
+            self.assertNotIn(COST_CODE, codes)
+            self.assertNotIn(COST_FINDING_CODE, codes)
+
     def test_a_new_model_leg_is_reported(self):
         for action in (
             "melodic-software/ci-workflows/.github/actions/run-claude-cli@abc",

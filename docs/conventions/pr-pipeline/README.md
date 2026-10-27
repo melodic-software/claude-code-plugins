@@ -894,7 +894,9 @@ the rules that only tighten in
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
-  - on a repository not known to be public, a raised timeout as below (billed minutes);
+  - on a repository not known to be public, a raised timeout as below (billed minutes), or an
+    artifact `retention-days` the patch adds above every one it removes (storage past the free
+    quota);
   - a workflow or pipeline file with no patch.
 
   Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
@@ -906,7 +908,7 @@ the rules that only tighten in
     each counted against the lines it removes so a moved line or a repin is not new;
   - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
     every one it removes, in a workflow whose head text uses one of those actions or could not be
-    read;
+    read, and a raised artifact `retention-days`;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
     on the same lines in place. Flow style, quoted keys and new list items count.

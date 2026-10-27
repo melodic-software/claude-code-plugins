@@ -59,8 +59,9 @@ under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
 None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
 no patch; and a `.github/workflows/` file whose patch, unless
-`RiskInput.public` is True, adds a `runs-on:`, `windows` or `macos` line or a
-raised timeout (below); or that gains a runner value (head text against base
+`RiskInput.public` is True, adds a `runs-on:`, `windows` or `macos` line, a
+raised timeout (below) or an artifact `retention-days` above every one it
+removes (storage past the free quota); or that gains a runner value (head text against base
 text, and added inline `runs-on:` lines) that is not `_FREE_RUNNER` on a
 public repository, or any on another. Only `RiskInput.cost_decision`, an
 owner decision the caller verified, clears it.
@@ -72,7 +73,8 @@ Spend that draws only on a subscription or prepaid credit is the MED
 `_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
 is not new; that, on a public repository, adds a `timeout-minutes` or
 `leg-timeout-minutes` above every one it removes, when its head text
-(`contents`) names a model leg or could not be read; and a `pr-pipeline.yaml`
+(`contents`) names a model leg or could not be read, or a raised
+`retention-days`; and a `pr-pipeline.yaml`
 change with any added or removed line off `_SAFE_PIPELINE_LINE`, unless it
 only edits trailing comments.
 
@@ -826,6 +828,7 @@ _MODEL_ACTION = re.compile(
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 _TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
+_RETENTION = re.compile(r"^\s*-?\s*retention-days\s*:\s*['\"]?([0-9]+)")
 
 
 def is_workflow_path(path: str) -> bool:
@@ -916,6 +919,14 @@ def _raised_timeouts(
     return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
 
 
+def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
+    """Artifact `retention-days` values the patch adds above every one it
+    removes: more storage held against the free quota."""
+    new = [int(m[1]) for line in added if (m := _RETENTION.match(line))]
+    old = [int(m[1]) for line in removed if (m := _RETENTION.match(line))]
+    return [f"retention raised to {n}" for n in new if not old or n > max(old)]
+
+
 def _cost_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
@@ -977,9 +988,11 @@ def _cost_reasons(
                 f"new model package run {n}"
                 for n in _net_added(_MODEL_PACKAGE, added, removed)
             ]
-            # Hosted minutes are free only on a public repository.
+            # Hosted minutes and artifact storage are free only on a public
+            # repository.
             (spend if public else charge).extend(
                 _raised_timeouts(f, raw, added, removed)
+                + _raised_retention(added, removed)
             )
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
