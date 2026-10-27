@@ -2310,6 +2310,55 @@ def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
     return heads.pop() if len(heads) == 1 else None
 
 
+def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
+    """Why the head branch's push history shows a lane run missing before a
+    decision made at `at`, else None (merge-holds.mjs `unranHead`, and
+    ci-status's cost-hold step). `activity` is one page of the repository
+    activity API for the branch, newest first, which deleting a run leaves;
+    `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
+    `at`. Every head the branch moved to after its last push of `decided`
+    before `at` needs a run of every lane: with one deleted, an older notice
+    would become the decided head (#10437). No push of `decided` before `at`
+    or a full page, which may not reach it, keeps the hold too."""
+    if not is_json_array(activity):
+        return "the branch's push history is unreadable"
+    if len(activity) >= 100:
+        return "the branch's push history fills a page"
+    if (
+        not is_json_array(ran)
+        or len(ran) != len(REVIEW_LANES)
+        or not all(is_json_array(heads) for heads in ran)
+    ):
+        return "the lane runs do not cover every review lane"
+    moves: list[tuple[str, datetime]] = []
+    for move in activity:
+        after = str(json_object(move).get("after") or "")
+        if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
+            made = parse_timestamp(json_object(move).get("timestamp"))
+            if made is None:
+                return "the branch's push history is unreadable"
+            moves.append((after, made))
+    cutoff = parse_timestamp(at)
+    before = [
+        (after, made) for after, made in moves if cutoff is not None and made < cutoff
+    ]
+    pushed = [made for after, made in before if after == decided]
+    if not pushed:
+        return f"the branch shows no push of {decided} before the decision"
+    last = max(pushed)
+    for after, made in before:
+        if (
+            after != decided
+            and made >= last
+            and not all(after in heads for heads in ran)
+        ):
+            return (
+                f"{after} was pushed after the decided head with no run of every"
+                " review lane before the decision"
+            )
+    return None
+
+
 def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str | None:
     """The head a decision made at `at` decided, from the review lanes'
     check-run annotations, never a comment (any GITHUB_TOKEN workflow posts as
@@ -2317,8 +2366,10 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     the head `branch` of `owner`/`name` started before `at` (a run from
     another repository's same-named branch speaks for another pull request),
     each run's head vetted against `base` (`lane_change`), its status job's cost notices (`cost_notices`)
-    from jobs done before `at`, then `decided_head`. A run on a head that fails
-    the vet decides nothing, and a read that fails raises."""
+    from jobs done before `at`, then `decided_head`, kept only while the
+    branch's push history shows no lane run missing since the decided head
+    (`unran_head`). A run on a head that fails the vet decides nothing, and a
+    read that fails raises."""
     cutoff = parse_timestamp(at)
     if cutoff is None or not isinstance(branch, str) or not BASE_BRANCH.fullmatch(branch):
         return None
@@ -2326,7 +2377,10 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     env = {"GH_TOKEN": token} if token else None
     notices: list[tuple[str, Any]] = []
     vetted: set[str] = set()
+    ran: list[list[str]] = []
     for file, check in REVIEW_LANES:
+        heads: list[str] = []
+        ran.append(heads)
         runs = _paginated(
             f"repos/{owner}/{name}/actions/workflows/{file}/runs"
             f"?event=pull_request&branch={quote(branch, safe='')}&per_page=100",
@@ -2342,6 +2396,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
             head = str(run.get("head_sha") or "")
             if not re.fullmatch(r"[0-9a-f]{40}", head):
                 return None
+            heads.append(head)
             if head not in vetted:
                 status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
                 if status != 200:
@@ -2368,7 +2423,16 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                     head,
                     job.get("completed_at"),
                 )
-    return decided_head(notices, at)
+    decided = decided_head(notices, at)
+    if decided is None:
+        return None
+    ref = quote(f"refs/heads/{branch}", safe="")
+    status, activity = _get(
+        f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100", env
+    )
+    if status != 200:
+        raise PolicyReadError("the head branch's push history is unreadable")
+    return decided if unran_head(activity, ran, decided, at) is None else None
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
