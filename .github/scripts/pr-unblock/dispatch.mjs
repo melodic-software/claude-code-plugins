@@ -44,7 +44,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeReco
 import { prHold } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
-import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
@@ -438,6 +438,27 @@ export function createGitHubApi({
       });
       return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
     },
+    // One run's status and latest jobs, as fix-docs-dispatch.mjs counts a
+    // head's runs; null when the run is gone.
+    async readRunJobs(runId) {
+      if (!RUN_ID.test(String(runId))) {
+        throw new Error("not a run id");
+      }
+      let run;
+      try {
+        run = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}`);
+      } catch (error) {
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+      const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+      if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+        throw new Error(`run ${runId}'s job listing is not one complete page`);
+      }
+      return { status: run.status, jobs: jobs.jobs };
+    },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {
@@ -630,6 +651,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log,
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
+    maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
     ...gate,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];

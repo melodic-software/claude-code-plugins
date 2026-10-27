@@ -1,6 +1,6 @@
 # check-born-triaged
 
-Gate the intake lanes (`intake-triage.yml`, `intake-label-needs-triage.yml`) so they skip an issue
+Gate the intake lane (`intake-triage.yml`: its triage and its `needs-triage` floor label) so it skips an issue
 `/work-items:decompose` published already triaged. Issue text is untrusted, so the marker alone
 never skips intake.
 

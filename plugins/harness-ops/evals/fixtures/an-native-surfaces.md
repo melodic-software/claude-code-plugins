@@ -6,8 +6,9 @@ Generated view over the native-overlap store. The block between the markers belo
 **Never hand-edit it.** Verdicts, evidence, and recheck triggers are edited in the store; this
 file is output.
 
-Every verdict here is a human's. Rows are recorded per overlap between a native Claude Code surface
-and a component in this repository, and each one carries the observable event that obliges
+Every verdict here was written by a person or by a session acting on the owner's recorded
+direction, never by an unattended run. Rows are recorded per overlap between a native Claude Code
+surface and a component in this repository, and each one carries the observable event that obliges
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See `docs/conventions/native-references/`.
 
@@ -70,7 +71,7 @@ No rows recorded in this lane.
 
 ## Dismissed
 
-Pairs a human ruled are not an overlap. `detect` suppresses each one until either side's fingerprint changes, then lists it again flagged "resurfaced: description changed".
+Pairs ruled not an overlap by a person or a session acting on the owner's recorded direction, never by an unattended run. `detect` suppresses each one until either side's fingerprint changes, then lists it again flagged "resurfaced: description changed".
 
 No dismissals recorded.
 

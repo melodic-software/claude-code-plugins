@@ -4,7 +4,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add             add a question (from --file JSON or flags)
   add-round       add several groups, questions and visuals from one JSON file, in one write; a round
                   with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
-                  open: [ids]}) the page pins above its first question;
+                  open: [ids]}) the page pins above its first question; meta.kind "sweep"
+                  marks a sweep round, and a question's `reconciles` names the earlier
+                  questions whose answers it reconciles;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
   group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
@@ -43,7 +45,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
                   check-open-questions verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
-  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
+  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
+                  A running server whose recorded plugin version or source hash differs from this
+                  plugin's is restarted on its port (a stderr line says so)
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
                   posted, and clear its session files but the port
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it;
@@ -417,11 +421,12 @@ def set_aside_own(r, doc, q):
         )
 
 
-def add_question(doc, q, repoint=False, latest=None):
+def add_question(doc, q, repoint=False, latest=None, earlier=None):
     """Validate and append one question; returns (the questions whose rev must bump, notes about
     the dependents of a question it supersedes). `latest` is the newest round before the write
-    began (default: now), so questions added in one write date against the same round. Exits
-    before any write."""
+    began (default: now), so questions added in one write date against the same round; `earlier`
+    is the question ids that existed before it (default: now), which `reconciles` may name.
+    Exits before any write."""
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             name = q.get("id") or (
@@ -461,6 +466,7 @@ def add_question(doc, q, repoint=False, latest=None):
     for ref in [q.get("followUpOf"), q.get("supersedes"), *q.get("dependsOn", [])]:
         if ref and ref not in known:
             sys.exit(f"unknown reference in {q['id']}: {ref}")
+    check_reconciles(q, known if earlier is None else earlier)
     if q.get("supersedes"):
         old_short = find(doc, q["supersedes"]).get("short")
         if " ".join(str(old_short or "").split()).casefold() == " ".join(
@@ -512,6 +518,25 @@ def add_question(doc, q, repoint=False, latest=None):
         touched += moved
     doc["questions"].append(q)
     return touched, notes
+
+
+def check_reconciles(q, known):
+    """Refuse a `reconciles` that is not a list of question ids already in the register: the
+    earlier answers the page shows beside a question that reconciles them."""
+    ids = q.get("reconciles")
+    if ids is None:
+        return
+    if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
+        sys.exit(
+            f"refused: {q['id']} reconciles is a list of the earlier question ids it "
+            'reconciles, such as ["Q1"]'
+        )
+    missing = [i for i in dict.fromkeys(ids) if i not in known]
+    if missing:
+        sys.exit(
+            f"refused: {q['id']} reconciles {', '.join(missing)}, not in the register; name "
+            "earlier questions only (nothing was written)"
+        )
 
 
 def require_depends(d):
@@ -791,6 +816,8 @@ def put_group(doc, g):
 
 
 META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
+# add-round's meta may also carry `kind`, stored on the round: a sweep round reconciles earlier answers.
+ROUND_KINDS = ("sweep",)
 
 
 def set_meta(doc, m):
@@ -922,8 +949,25 @@ def checked_round_restate(restate):
     return out
 
 
-def store_round_restate(doc, qs, restate):
-    """Record the restate for the round the new questions open, replacing an earlier one for it."""
+def round_kind(meta, questions):
+    """(the meta to merge, the round's kind): `meta.kind` describes this round, not the
+    interview, so it is taken out of the meta merge and stored on the round's entry."""
+    if not isinstance(meta, dict) or "kind" not in meta:
+        return meta, None
+    kind = meta["kind"]
+    if kind not in ROUND_KINDS:
+        sys.exit(
+            f"refused: meta.kind {kind!r} is not a round kind (known: {', '.join(ROUND_KINDS)})"
+        )
+    if not questions:
+        sys.exit("refused: meta.kind marks a round with questions; this one adds none")
+    rest = {k: v for k, v in meta.items() if k != "kind"}
+    return rest or None, kind
+
+
+def store_round_restate(doc, qs, restate, kind=None):
+    """Record the restate, and the kind when given, for the round the new questions open,
+    replacing an earlier one for it; with no kind given, the earlier entry's kind stays."""
     known = {q["id"] for q in doc["questions"]}
     for key in ("decided", "open"):
         unknown = [i for i in restate[key] if i not in known]
@@ -936,20 +980,22 @@ def store_round_restate(doc, qs, restate):
         "at": now(),
         "restate": restate,
     }
-    rounds = [
-        r
-        for r in doc.get("rounds") or []
-        if (r.get("round"), r.get("stage")) != (entry["round"], entry["stage"])
-    ]
+    slot = (entry["round"], entry["stage"])
+    old = [r for r in doc.get("rounds") or [] if (r.get("round"), r.get("stage")) == slot]
+    # A later write to the same round that names no kind keeps the round's earlier one.
+    kind = kind or next((r["kind"] for r in old if r.get("kind")), None)
+    if kind:
+        entry["kind"] = kind
+    rounds = [r for r in doc.get("rounds") or [] if r not in old]
     doc["rounds"] = [*rounds, entry]
 
 
 def op_add_round(d, doc, a):
-    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...], "restate": {...}}: meta, groups, then questions in file order; a round with questions needs its restate."""
+    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...], "restate": {...}}: meta, groups, then questions in file order; a round with questions needs its restate. `meta.kind` ("sweep") is stored on the round, not merged into meta."""
     restate = checked_round_restate(a.restate) if a.questions else None
     doc.pop("finished", None)
     before = newest_round(doc)
-    meta = a.meta
+    meta, kind = round_kind(a.meta, a.questions)
     if meta is not None:
         old = doc["meta"].get("title")
         if "title" in meta and old and meta["title"] != old and not a.replaceTitle:
@@ -964,10 +1010,11 @@ def op_add_round(d, doc, a):
             sys.exit("a group needs an id")
         put_group(doc, g)
     touched, notes = [], []
+    earlier = {x["id"] for x in doc["questions"]}
     for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
-        t, n = add_question(doc, q, a.repoint, before)
+        t, n = add_question(doc, q, a.repoint, before, earlier)
         touched += t
         notes += n
     check_depends(d, doc, a.questions or [])
@@ -975,7 +1022,7 @@ def op_add_round(d, doc, a):
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
     if restate:
-        store_round_restate(doc, a.questions, restate)
+        store_round_restate(doc, a.questions, restate, kind)
         a.needsAnswer = True
     warn_stale_summaries(doc, a.questions or [])
     warn_stage(doc, a.questions or [])
@@ -2691,6 +2738,17 @@ def cmd_ensure_running(d, a):
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
         settings, _ = Settings(repo_root(d)).resolve(d, layers)
+        stale = live and bridge.stale_build(s)
+        if stale:
+            # A server started before a plugin update runs the old code: start this build in its
+            # place, on the same port, with the same user file. No finish is posted and none is
+            # cleared, so the interview goes on and open tabs read a restart.
+            end_server(d, s, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
+            print(
+                f"restarted the page server: {stale}; reload the page and re-arm the watcher",
+                file=sys.stderr,
+            )
+            live = False
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
@@ -2698,7 +2756,8 @@ def cmd_ensure_running(d, a):
             if a.port is None:
                 ports.append(settings["port"]["value"])
             port = next((p for p in ports if p and bridge.port_free(p)), 0)
-            clear_finished(d)
+            if not stale:
+                clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
             s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
@@ -2708,8 +2767,8 @@ def cmd_ensure_running(d, a):
                 sys.exit(
                     f"the server did not start within {START_SECONDS} s (data dir {d})"
                 )
-        if user and s.get("userSettings") != user:
-            s["userSettings"] = user
+        if layers and s.get("userSettings") != layers:
+            s["userSettings"] = layers
             write_private(
                 d / bridge.session_files(NAME)[0], json.dumps(s, indent=2) + "\n"
             )
@@ -2763,13 +2822,18 @@ def cmd_stop(d, a):
             return
         watcher = (bridge.watcher_lease(d, NAME) or {}).get("pid")
         finish_on_stop(d)
-        end_watcher(d, watcher)
-        os.kill(s["pid"], signal.SIGTERM)
-        deadline = time.monotonic() + START_SECONDS
-        while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
-            time.sleep(0.05)
-        bridge.clear_session(d, NAME)
+        end_server(d, s, watcher)
     print(f"stopped {s['pid']}")
+
+
+def end_server(d, s, watcher):
+    """End the lease's watcher and the running server `s` records, then clear the session files."""
+    end_watcher(d, watcher)
+    os.kill(s["pid"], signal.SIGTERM)
+    deadline = time.monotonic() + START_SECONDS
+    while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
+        time.sleep(0.05)
+    bridge.clear_session(d, NAME)
 
 
 def cmd_lease(d, a):

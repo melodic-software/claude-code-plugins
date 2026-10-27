@@ -1493,8 +1493,12 @@
   function beat() { HB.wanted = true; pumpBeat(); }
   function pumpBeat() {
     // a person still waiting to be let in has no presence to send: the server refuses it (403) every beat (sweep S31)
-    if (HB.busy || HB.timer || !HB.wanted || (!ownerToken && !secret) || Core.state.youWaiting) return;
+    if (HB.busy || !HB.wanted || (!ownerToken && !secret) || Core.state.youWaiting) return;
     const visible = visibleNow(), change = HB.visible !== null && (visible !== HB.visible || away !== HB.away);
+    // A change beat skips the plain beat's gap, so it does not wait on that gap's timer either: in a hidden tab that
+    // timer may not run for a minute.
+    if (HB.timer && !change) return;
+    clearTimeout(HB.timer); HB.timer = 0;
     const due = (change ? HB.changeDone : HB.done) + GAP - Date.now();
     if (due > 0) { HB.timer = setTimeout(() => { HB.timer = 0; pumpBeat(); }, due); return; }
     HB.wanted = false; HB.busy = true;

@@ -4857,6 +4857,12 @@
     // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
     const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
     toastPane.observe(center); offs.push(() => toastPane.disconnect());
+    // in the modal chat the toast stands on the typing line, which moves when it wraps or when what is under it
+    // changes height: the message box growing or emptying (#9202), the counter, the reply bar, the attached files;
+    // the chat itself keeps its size
+    const toastChat = new ResizeObserver(() => { if (toast.classList.contains("vf-on") && activeSheet() === chat) placeToast(); });
+    for (const el of [mTyping, mCount, mReply, chatSlot.chips, mForm]) toastChat.observe(el);
+    offs.push(() => toastChat.disconnect());
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);

@@ -151,30 +151,33 @@ Describe 'audit SKILL.md command templates' -Tag 'skill' {
 }
 
 Describe 'setup SKILL.md command templates' -Tag 'skill' {
-    It 'holds the roots block and eight commands' {
-        $script:SetupBlocks.Count | Should -Be 9
+    It 'holds the roots block and nine commands' {
+        $script:SetupBlocks.Count | Should -Be 10
         foreach ($token in $script:SetupTokens) { $script:SetupBlocks[0] | Should -BeLike "*$token*" }
         @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 6
-        foreach ($command in $script:SetupBlocks[1..8]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        foreach ($command in $script:SetupBlocks[1..9]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
     Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @() }
             @{ Name = 'check wrapper copy'; Index = 1; Expected = @('.', 'Join-Path', 'Test-MonthlyRunCurrent') }
-            @{ Name = 'apply'; Index = 2; Expected = @('.', 'Join-Path', 'Set-ApprovalState') }
-            @{ Name = 'picks resolve'; Index = 3
+            @{ Name = 'check wrapper refresh'; Index = 2
+                Expected = @('.', 'Install-MonthlyRun', 'Join-Path', 'Test-MonthlyRunCurrent')
+            }
+            @{ Name = 'apply'; Index = 3; Expected = @('.', 'Join-Path', 'Set-ApprovalState') }
+            @{ Name = 'picks resolve'; Index = 4
                 Expected = @('.', 'ForEach-Object', 'Format-Table', 'Get-Content', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick')
             }
-            @{ Name = 'picks write'; Index = 4
+            @{ Name = 'picks write'; Index = 5
                 Expected = @('.', 'Get-Content', 'Join-Path', 'Write-CheckupPick')
             }
-            @{ Name = 'schedule report folder'; Index = 5; Expected = @('Join-Path') }
-            @{ Name = 'schedule sync root'; Index = 6; Expected = @('.', 'Assert-StateBaseLocation', 'Join-Path') }
-            @{ Name = 'schedule install'; Index = 7
+            @{ Name = 'schedule report folder'; Index = 6; Expected = @('Join-Path') }
+            @{ Name = 'schedule sync root'; Index = 7; Expected = @('.', 'Assert-StateBaseLocation', 'Join-Path') }
+            @{ Name = 'schedule install'; Index = 8
                 Expected = @('.', 'Get-Command', 'Install-MonthlyRun', 'Join-Path', 'schtasks', 'Select-Object')
             }
-            @{ Name = 'schedule run now'; Index = 8; Expected = @('Join-Path', 'pwsh') }
+            @{ Name = 'schedule run now'; Index = 9; Expected = @('Join-Path', 'pwsh') }
         ) {
             $command = if ($Index -eq 0) { '' } else {
                 $script:SetupBlocks[$Index].Replace('<action> <arguments>', 'approve -RemediationId clear-temp-files').
