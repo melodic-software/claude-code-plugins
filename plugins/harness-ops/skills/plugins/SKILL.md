@@ -35,9 +35,10 @@ per-scope `enabledPlugins`) against the *local* marketplace catalog, a different
 completeness, not settings-vs-upstream drift).
 
 **Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below,
-and never writes a committed `.claude/settings.json`: its Step 5 enables automatically only at
-`user` and `local` scope, and reports a `project`-scope gap rather than filling it, because `sync`
-has no autonomous-session abort behind which a confirm would mean anything. After Step 4 installs
+plus the one `git pull --ff-only` of a `directory` source the user agreed to (see "userConfig:
+`directory_source_pull`"), and never writes a committed `.claude/settings.json`: its Step 5
+enables automatically only at `user` and `local` scope, and reports a `project`-scope gap rather
+than filling it, because a committed file is `converge`'s to write, behind its per-plugin confirm. After Step 4 installs
 anything, `sync` may reorder keys in user-scope `~/.claude/settings.json` (machine-local, already
 written by `claude plugin install -s user`) so the map stays alphabetical; it never reorders a
 project-scope map. `converge` is the one action that can touch committed settings, and only after
@@ -53,10 +54,11 @@ the model presents it and runs only what the user confirms.
 
 **The skill never branches on the host to change its algorithm or its report.** There is no
 cloud-versus-local branch, and no detection of or coordination with a repository's bootstrap hook:
-the same steps run and the same report renders wherever the skill is invoked. Two things this
+the same steps run and the same report renders wherever the skill is invoked. Three things this
 invariant does not cover, because they are not algorithm or report branches: the destructive-tier
 autonomy abort `converge` performs before touching anything (`CLAUDE_CODE_REMOTE`, `/loop`,
-`/schedule`; see [context/converge.md](context/converge.md)), and the platform-portability
+`/schedule`; see [context/converge.md](context/converge.md)), the same autonomy test `sync`
+applies before it offers or runs a `directory`-source pull (it then behaves as `never`), and the platform-portability
 detection in `fleet-state.sh` (`$OSTYPE` for MSYS and Cygwin path forms), which changes how a path
 is spelled and never what is computed.
 
@@ -108,11 +110,19 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
-     --install-new <policy> [--allow-downgrade] --render
+     --install-new <policy> --source-pull <pull> [--quiet-auto-update <names>] \
+     [--allow-downgrade] --render
    ```
 
    `audit` is the same command with `--audit` instead of `--journal-root` (it writes to a scratch
    directory it deletes) and never `--allow-downgrade`, which it ignores and says so.
+
+   `<pull>` is the word from the **Configured value** line under "userConfig:
+   `directory_source_pull`", and `ask` while that line shows the unset placeholder token. Pass
+   `never` instead when the session is autonomous or you cannot tell a human is present.
+   `--quiet-auto-update` takes the names from the **Configured value** line under "userConfig:
+   `quiet_auto_update_marketplaces`"; leave the flag out while that line shows the placeholder
+   token or nothing.
 
    `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
    below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
@@ -126,7 +136,21 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    `<run_dir>/report.txt`. The digest carries a `run_dir` that holds every snapshot and the
    journal, and the fields the `ask` re-entry needs.
 
-3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
+3. **Resolve a pull offer.** When a block's `source_pull.status` is `offered`, ask the user once
+   per such marketplace whether to fast-forward its checkout (one `AskUserQuestion` question per
+   marketplace, Pull or Skip). Never ask in an autonomous session (`CLAUDE_CODE_REMOTE` set, or the
+   run arrived via `/loop` or `/schedule`) or when it is unclear a human is present; the first run
+   then had `--source-pull never` and offers nothing. On a yes, run the step 1 command again with
+   `--pull-source "<the names the user agreed to, comma-separated>"` added: the script checks each
+   checkout again, fast-forwards it with `git pull --ff-only` before that marketplace's refresh, or
+   refuses with the reason and touches nothing, and the sync then runs against the refreshed
+   catalog. Its report supersedes the first one, so read the next step from its digest. A no or
+   no answer keeps the first report and its pull-and-rerun bullet. Ask once per invocation: a
+   marketplace the user declined stays `offered` in later digests of this sync and is not asked
+   about again. Resolve this before step 4: an install gap read from a stale checkout is not the
+   one to offer.
+
+4. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
    `stopped_before_install: true` (the report says so under `Action needed`), run the chunked
    "install and enable" offer from
    [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and
@@ -145,11 +169,11 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    before install it skipped the cache-content check, and this re-entry runs that check after the
    installs; otherwise the re-entry reuses the finding the first pass wrote.
 
-4. **Report.** Paste the rendered report and append the one model-owned line; see the Report
+5. **Report.** Paste the rendered report and append the one model-owned line; see the Report
    section below.
 
 Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
-regression, a cache-content finding, or a nonzero `moved_during_run` or `noop_unverified` count
+regression, a cache-content finding, a `source_pull` that was refused or failed, or a nonzero `moved_during_run` or `noop_unverified` count
 (plugins that moved during the run under an update call that reported them current, or
 already-current answers the snapshots could not confirm), and when the user asks why a step behaved
 the way it did.
@@ -224,7 +248,8 @@ digest line, every run writes the same text to `<run_dir>/report.txt`, and
 reproduces it from a run directory later. Every section, conditional row, annotation, and
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
-three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
+three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it, or bare `off` for a
+marketplace named in `quiet_auto_update_marketplaces`; `unreadable` for a
 `null`, never rendered as off), whose status reads `needs update` only for refresh, update and
 failure state (a failed refresh or CLI call, or an error; in `audit`, an update, install or enable `sync`
 would make), `source checkout behind <upstream>` when a `directory` source's git checkout is behind
@@ -235,7 +260,8 @@ install left not enabled, a delisted plugin, a withheld downgrade), so
 action is an `Action needed` bullet, except `audit`'s withheld downgrades, counted once as their
 `Would withhold:` row; the `source:` row under
 it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
-tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
+tracked files, or why freshness was not checked; the run fetches or pulls the checkout only on a
+`--pull-source` request, and then the row names the commits it fast-forwarded from and to); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
 counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
 `(direction unknown)`) and `Downgraded:` (a backward move that happened during the run says so); `Moved during this run:` (ids
@@ -247,7 +273,8 @@ when a root resolved, with one sub-line per project path naming its record count
 ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
 and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
-`git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+`git -C <path> pull --ff-only` to run and the marketplace to resync, a requested fast-forward that
+was refused or failed with its reason, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 installs the CLI reported as disabled by default that this run did not enable, plugins absent from the catalog (installed, or
 only enabled in settings),
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
@@ -362,6 +389,40 @@ report it as an invalid value. Only a rendered value that is a real word other t
 `ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
 flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`
 default when that render is still the placeholder token, not on the option's name or description above.
+
+## userConfig: `directory_source_pull`
+
+What `sync` does with a `directory` marketplace whose git checkout is clean (no modified tracked
+files), on a branch with an upstream, not ahead of it and behind it. A `string` with the picker
+values below, default `"ask"`, read and rendered the same way as `install_new` above:
+
+- `ask` (default). Pass `--source-pull ask`; the digest marks such a checkout `offered`, and
+  step 3 of "Running `sync` and `audit`" asks once per marketplace and reruns with
+  `--pull-source` on a yes. A dirty, ahead, diverged, detached or upstream-less checkout is never
+  offered, and the script refuses a `--pull-source` for one, so the pull cannot discard or tangle
+  local work.
+- `never`. Pass `--source-pull never`; nothing is offered or pulled, and the report keeps its
+  pull-and-rerun bullet.
+
+An autonomous or ambiguous session behaves as `never` whatever the value: no human can answer the
+offer there. The script applies the same rule on its own when `CLAUDE_CODE_REMOTE` is set. A word
+other than these two is treated as `ask` and named in the report.
+
+**Configured value: `${user_config.directory_source_pull}`**. The unset placeholder token here
+means the default, `ask`.
+
+## userConfig: `quiet_auto_update_marketplaces`
+
+Comma-separated marketplace names whose `Marketplace:` line shows `autoUpdate: off` without the
+suggestion to enable it, for a marketplace the user keeps off on purpose. A `string`, default
+empty, which keeps the suggestion everywhere. Pass the names as `--quiet-auto-update`.
+
+**Configured value: `${user_config.quiet_auto_update_marketplaces}`**. The unset placeholder token
+here, or nothing, means no names: leave the flag out.
+
+For the option fields, the picker and where a value is stored, see
+[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+(as of 2026-10-27; recheck when that section changes the `options` or `default` fields).
 
 ## Spoke paths
 

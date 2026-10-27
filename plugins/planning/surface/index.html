@@ -719,12 +719,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
-    if (q.waiting && !q.supersededBy) return q.waitingBy === "user" ? "need" : "wait";
+    if (q.supersededBy) return "sup"; // before the decision, as export-ledger reads it: a superseded answer counts nowhere
+    if (q.waiting) return q.waitingBy === "user" ? "need" : "wait";
     const d = counted(q);
     if (d) return d.decision;
-    if (q.supersededBy) return "sup";
     return "open";
   }
+  function chainEnd(q){ // where q's supersededBy chain ends, as the server's chain_end walks it: the question to answer instead
+    const seen = new Set([q.id]); let cur = q;
+    while (cur.supersededBy && Q[cur.supersededBy] && !seen.has(cur.supersededBy)) { seen.add(cur.supersededBy); cur = Q[cur.supersededBy]; }
+    return cur === q ? q.supersededBy || "" : cur.id;
+  }
+  const offWhy = q => q.supersededBy ? "Superseded: " + q.id + " takes no decision. Answer " + chainEnd(q) + " instead." : "Archived: " + q.id + " takes no decision.";
   const isAnswered = st => !["open", "wait", "need", "arch", "prop"].includes(st);
   const isOpen = st => st === "open" || st === "need" || st === "prop";
   const live = q => !["sup", "arch"].includes(stateOf(q));
@@ -834,10 +840,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const basisLabel = q => { const m = String(q.basis || "").match(/^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$/i); return m ? (m[1] || m[2]).toLowerCase() : ""; }; // the outcome label recommendation-basis.md defines, leading or trailing the basis
   const withheld = q => q.withheld === true; // the server derives it: no recommendation to accept, the field names the evidence that would settle it
   const eligible = q => stateOf(q) === "open" && !upChanged(q) && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
+  const chainOf = q => (q.supersedesChain || []).filter(c => c && Q[c.id]); // the earlier questions q re-issues, the first asked first (server-derived from supersedes)
+  function chainHtml(q){ // "Asked as Q5 in round 2, then Q35 in round 4": every earlier question of q's supersede chain, not only the one it replaced
+    const at = c => " in round " + esc(String(c.round || 1)) + ((c.stage || "") !== (q.stage || "") && c.stage ? " (" + esc(stageLabel(c.stage)) + ")" : "");
+    return "Asked as " + chainOf(q).map(c => refHtml(c.id) + at(c)).join(", then ");
+  }
+  const firstOf = q => chainOf(q).find(x => (x.stage || "") === (q.stage || "")); // the supersede chain's first question in q's own stage
+  function firstAsked(q){ // the round q was first asked in: its chain's first question in the same stage, else its own
+    const c = firstOf(q);
+    return c ? Math.min(c.round || 1, q.round || 1) : q.round || 1;
+  }
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
-    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && needsYou(q)) out[q.id] = n; });
+    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - firstAsked(q); if (n > 0 && needsYou(q)) out[q.id] = n; });
     return out;
   }
   const searchTerm = () => S.search.trim().toLowerCase();
@@ -872,14 +888,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- rail ----------
   function sections(){
     const carry = carryOver(), qs = S.doc.questions.slice().sort(byIdCmp), secs = [];
+    const carried = qs.filter(q => carry[q.id]), rest = qs.filter(q => !carry[q.id]); // the carried section is pinned in every view; Groups and the tree still draw its questions in place too
     if (S.view === "groups") {
       const gs = S.doc.groups || [];
       gs.forEach(g => secs.push({key: "g:" + g.id, gid: g.id, title: g.title || g.id, hint: g.summary, hintStale: summaryStale(g), items: qs.filter(q => q.group === g.id), lock: lockedBy(g.id)}));
       const known = new Set(gs.map(g => g.id)), un = qs.filter(q => !known.has(q.group));
       if (un.length) secs[un.includes(qs[0]) ? "unshift" : "push"]({key: "g:-", title: "Ungrouped", items: un, lock: []});
     } else if (S.view === "rounds") {
-      const carried = qs.filter(q => carry[q.id]), rest = qs.filter(q => !carry[q.id]);
-      if (carried.length) secs.push({key: "carry", title: "Still open from earlier rounds", hint: "Pinned.", items: carried, pin: true, lock: []});
       const stages = Object.keys((S.doc.meta || {}).stages || {}), keys = [];
       rest.forEach(q => { const k = (q.stage || "") + ":" + (q.round || 1); if (!keys.includes(k)) keys.push(k); });
       const seen = [], rank = st => stages.includes(st) ? stages.indexOf(st) : stages.length + seen.indexOf(st);
@@ -887,6 +902,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       keys.sort((a, b) => { const [sa, ra] = a.split(":"), [sb, rb] = b.split(":"); return (rank(sa) - rank(sb)) || (ra - rb); });
       keys.forEach(k => { const items = rest.filter(q => (q.stage || "") + ":" + (q.round || 1) === k); secs.push({key: "r:" + k, round: k, title: roundLabel(items[0]), items, lock: []}); });
     }
+    if (carried.length) secs.unshift({key: "carry", title: "Still open from earlier rounds", hint: S.view === "rounds" ? "Pinned." : "Pinned. Each also stays in its place below.", items: carried, pin: true, copy: S.view !== "rounds", lock: []});
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
       s.open = s.items.filter(q => !isAnswered(stateOf(q)) && (stateOf(q) === "wait" || upChanged(q) || needsYou(q))).length;
@@ -928,7 +944,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
     if (q.claudeRevising && st !== "arch") chips.push('<span class="chip hot" title="' + esc("Claude is revising this: " + q.claudeRevising.why) + '">Claude is revising this: ' + esc(trunc(q.claudeRevising.why, 60)) + "</span>");
-    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round" + (firstOf(q) ? ", first as " + firstOf(q).id : "") + ", and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
     if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
@@ -970,14 +986,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const done = allDone();
     S.pick.forEach(id => { if (!Q[id] || !eligible(Q[id])) S.pick.delete(id); }); // a selection never outlives the question's eligibility
     let html = '<button class="sumbtn' + (done ? " done" : "") + '" data-sum="1" aria-current="' + (S.sel === SUMMARY) + '">' + (done ? "All answered: summary and wrap-up" : "Summary and wrap-up") + "</button>";
-    if (S.view === "tree") html += treeHtml(true);
-    else {
-      const {secs, carry} = sections(), op = opened(), fresh = unseenIds();
+    {
+      const {secs, carry} = sections(), op = opened(), fresh = unseenIds(), tree = S.view === "tree";
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
         const {live: liveItems, arch, open: archOpen} = archSplit(s, items);
-        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
+        const card = q => { const h = railItem(q, s, carry, fresh); return s.copy ? h.replace(/(id|aria-describedby)="qd-/g, '$1="pqd-') : h; }; // Groups and the tree draw the pinned questions again, so the pinned copy's description ids must not repeat
+        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + card(q) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
@@ -989,6 +1005,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
           '<ul class="qlist">' + (items.length ? liveItems.map(li).join("") + (arch.length ? '<li class="archrow"><button class="archtoggle" data-archtoggle="' + esc(s.key) + '" aria-expanded="' + archOpen + '">' + arch.length + " archived</button></li>" + (archOpen ? arch.map(li).join("") : "") : "") : '<li class="empty">None.</li>') + "</ul></div>";
       }
+      if (tree) html += treeHtml(true);
     }
     const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
     $("searchNote").textContent = hiddenByShow ? hiddenByShow + (hiddenByShow === 1 ? " match is" : " matches are") + " hidden by Show: " + $("filter").selectedOptions[0].textContent + "." : "";
@@ -1005,13 +1022,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
-    if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
-    return sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }); // the order the rail draws, without collapsed archived cards
+    if (S.view === "tree") { const t = treeData(), pinned = sections().secs.flatMap(s => s.items.map(q => q.id)), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return pinned.concat(out.filter(id => !pinned.includes(id))).filter(keep); } // the pinned carried questions first, then the tree without them
+
+    return [...new Set(sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }))]; // the order the rail draws, without collapsed archived cards; a pinned question counts once, at its pinned place
   }
   function revealInRail(id){
-    const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');
+    const list = $("railList"), lr = list.getBoundingClientRect(), inView = e => { const r = e.getBoundingClientRect(); return r.top >= lr.top && r.bottom <= lr.bottom; };
+    const els = [...list.querySelectorAll(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]')].filter(e => e.getClientRects().length); // a pinned question has a second card in Groups and Tree: a shown copy, the one in view first
+    const el = els.find(inView) || els[0];
     if (!el) return;
-    const lr = list.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
     if (er.top < lr.top) list.scrollTo({top: list.scrollTop + er.top - lr.top - 40, behavior: "smooth"});
     else if (er.bottom > lr.bottom) list.scrollTo({top: list.scrollTop + er.bottom - lr.bottom + 40, behavior: "smooth"});
   }
@@ -1355,10 +1375,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const unblocks = S.doc.questions.filter(x => (x.dependsOn || []).includes(q.id)).map(x => x.id);
     const link = (label, ids) => ids.length ? "<span>" + label + " " + ids.map(refHtml).join(" ") + "</span>" : "";
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
-      link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
+      link("Unblocks", unblocks) + (chainOf(q).length ? '<span id="askedAs">' + chainHtml(q) + "</span>" : link("Supersedes", q.supersedes ? [q.supersedes] : []));
     if (links) h += '<div class="links">' + links + "</div>";
     h += reconcilesHtml(q);
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
@@ -1372,7 +1392,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     const ups = lockMode() === "off" || !live(q) ? [] : openPrereqs(q);
     if (ups.length) h += '<div class="lockban" id="frontierLock">' + LOCK_SVG + "<b>Locked:</b> waits on " + ups.map(refHtml).join(" ") + ", still open. " + esc(lockAdvice(q)) + "</div>";
-    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
+    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead.</div>"; // the chain's end, as the Go to button names it
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
@@ -1426,10 +1446,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     note.disabled = false;
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
-    const st = stateOf(q);
+    const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
     $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
-        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
+        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision
       ? '<span class="chip s-' + esc(d.decision) + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
@@ -1441,16 +1461,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const armed = armedOf(cs);
     const other = c => !c.re && ["own", "defer", "hedged"].includes(c.kind); // the answers that rest on the note: the second column of a wide Decide pane, in the same row order
     const row = c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.rich || c.text) + "</span></label>";
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can && !off ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.rich || c.text) + "</span></label>";
     $("choices").innerHTML = '<div class="cg">' + cs.filter(c => !other(c)).map(row).join("") + '</div><div class="cg">' + cs.filter(other).map(row).join("") + "</div>";
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const hardLock = lockMode() === "hard" ? openPrereqs(q) : [], ul = upLock(q); // only a decision waits; Ask, Rephrase and Research this stay enabled
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
+    $("decideRow").innerHTML = (end ? '<button class="act primary" data-go="' + esc(end) + '">Go to ' + esc(end) + "</button>" : "") + // the live end of the supersededBy chain takes the answer instead
+      '<button class="act' + (off ? "" : " primary") + '" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && !off && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (off ? esc(offWhy(q)) : shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
-      (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
+      (d && d.decision && !d.aside && !off ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
       (st === "wait"
@@ -1559,7 +1580,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["tldr", "Scope (TLDR)"], ["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
@@ -1635,10 +1656,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const a = document.activeElement; if (!a || a === document.body || !a.closest) return null;
     if (a.id) return {s: "#" + CSS.escape(a.id), start: a.selectionStart, end: a.selectionEnd};
     const attrs = [...a.attributes].filter(x => x.name.startsWith("data-")).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
-    return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs} : null;
+    return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs, pin: !!a.closest(".sec.pin")} : null;
   }
   function restoreFocus(f){
-    const el = f && document.querySelector(f.s);
+    const el = f && ([...document.querySelectorAll(f.s)].find(e => !!e.closest(".sec.pin") === !!f.pin) || document.querySelector(f.s)); // a pinned card and its copy in place share data attributes: keep the one that had focus
     if (!el || el === document.activeElement) return;
     if (el.id === "qhead") el.tabIndex = -1; // a heading focused by Go keeps focus across a rebuild
     el.focus({preventScroll: true});
@@ -2015,6 +2036,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
+    if (!live(q)) { toast("Not saved. " + offWhy(q), true); return; } // before any dialog: an archived or superseded question takes no decision
     const c = armedOf(choicesOf(q));
     if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
     if (!c) { toast("Pick a choice first.", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
@@ -2076,8 +2098,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (closed()) { toast(closedWhy(), true); return; }
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
-    if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
+    if (kind === "ask" && live(q)) { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } } // an off-path question takes no option, so its ask goes as typed
     if (isDec && stateOf(q) === "prop") return; // the keyboard: a proposal takes Accept, Edit or Not this, never a decision
+    if (isDec && !live(q)) { toast("Not saved. " + offWhy(q), true); return; } // the choices are disabled; this catches the keyboard
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     if (isDec && kind !== "reopen" && upLock(q).length) { toast("Not saved: " + upText(q), true); return; } // Save is disabled; this catches the keyboard
     const waits = isDec && kind !== "reopen" && lockMode() !== "off" ? openPrereqs(q) : [];
@@ -2105,6 +2128,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (res.status === 409 && data.error === "upstream-changed") { // the server's lock: Claude has not revised or reconfirmed it since an upstream answer changed
         S.busy = false; toast("Not saved: the answer to " + joinIds((data.changedBy || []).map(String)) + " changed, and Claude has not revised or reconfirmed " + q.id + " yet.", true); await refresh().catch(() => {}); renderAll(); return;
+      }
+      if (res.status === 409 && (data.error === "superseded" || data.error === "archived")) { // the server's refusal: the question left the path after this page last read it
+        S.busy = false; toast("Not saved: " + q.id + (data.by ? " is superseded. Answer " + data.by + " instead." : " is archived."), true); await refresh().catch(() => {}); renderAll(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
       saved = true; S.conflict = null;

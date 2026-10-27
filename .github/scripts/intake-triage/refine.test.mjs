@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
 import { applySizeSplit, partitionProblem, sizeSplitPending, splitDigest } from "./refine.mjs";
@@ -281,6 +282,19 @@ describe("render", () => {
     assert.equal(DECISION_REPLY, "**Decision recorded.** <answer>");
     assert.ok(body.endsWith(`\n\`\`\`\n${DECISION_REPLY}\n\`\`\`\n\n<sub>Automated refinement by the lanes App. Answer with a comment whose first line is \`**Decision recorded.**\`.</sub>`), body);
     assert.equal(refinementExact(body), false);
+  });
+
+  // The Issue Triage prompt asks owner questions too, so its comment must end
+  // with the same reply and lead-in the refinement prints (#7916).
+  test("the Issue Triage prompt ends its owner questions with the refinement's copyable reply", () => {
+    const workflow = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
+    const rule = /\n {8}DECISION REPLY\. ((?:.+\n)+?)(?: {4}\S|\n)/.exec(workflow);
+    assert.ok(rule, "intake-triage.yml prompt has a DECISION REPLY paragraph");
+    const text = rule[1].split("\n").map((line) => line.trim()).join(" ");
+    assert.ok(text.includes(`\`${DECISION_REPLY}\``), text);
+    assert.ok(text.includes("`To answer, post a comment that starts with this line:`"), text);
+    assert.equal((workflow.match(/with a `RECOMMENDED:` answer/g) ?? []).length, 2, "the rule covers both places that ask RECOMMENDED questions");
+    assert.ok(text.includes("RE-ENTRY"), text);
   });
 
   test("model text cannot forge a marker, a mention, a task list line or a second line", () => {

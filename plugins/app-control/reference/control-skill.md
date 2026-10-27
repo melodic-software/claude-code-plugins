@@ -60,7 +60,7 @@ in its manual before writing the command.
 | A core pinned near 100% (spin) | `cpu` | built-in CPU profile flag | Performance panel recording | py-spy record | JFR recording | dotnet-trace | pprof CPU profile | perf record / `sample` |
 | Memory that keeps growing (leak) | `heap`, two snapshots minutes apart | built-in heap snapshot signal or inspector | Memory panel heap snapshot | memray | `jcmd` heap dump | dotnet-gcdump | pprof heap profile | heaptrack / `leaks` |
 | UI that stutters or drops frames (jank) | `trace` with CPU samples | n/a | Performance panel recording (saves a Chrome trace) | n/a | JFR recording | dotnet-trace | execution trace | perf record with call graphs |
-| A process that stops responding (hang) | `threads`, a stack of every thread | not yet | not yet | py-spy dump | not yet | not yet | not yet | not yet |
+| A process that stops responding (hang) | `threads`, a stack of every thread | n/a | not yet | py-spy dump | `jcmd <pid> Thread.print` | `dotnet-stack report -p <pid>` | not yet | `gdb -p <pid> -batch -ex 'thread apply all bt'` / not yet |
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
@@ -69,8 +69,10 @@ When the app's work runs on a server behind a browser, write a row per tier for 
 browser profile of a server-rendered app mostly shows the client runtime. Drive records each tier's
 row, one tool per tier, and the artifact name carries the tier.
 
-Write a `threads` command with a `<pid>` placeholder and no elevation prefix. Drive fills in the
-launched pid only after its pid check, and always takes the elevated route for it.
+Write a `threads` command, and a `cpu` or `heap` command that targets a running process, with a
+`<pid>` placeholder and no elevation prefix, and with `<file>` where the tool takes an output path;
+with no `<file>`, the command's stdout is the capture. Drive fills in the launched pid only after
+its pid check, on Linux only, and always takes the elevated route for `threads`.
 
 A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas` or `runas`). When
 a capture needs root or administrator rights, elevate only the recorder against the app's pid, never
@@ -93,15 +95,24 @@ Manuals, each record a pointer, as-of date and recheck trigger:
 - py-spy: <https://github.com/benfred/py-spy>. memray: <https://bloomberg.github.io/memray/>. As of
   2026-10-04. Recheck on a new major release of either. py-spy dump:
   <https://github.com/benfred/py-spy#dump>. As of 2026-10-23. Recheck on a py-spy major release.
-- JDK `jcmd`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>.
-  JDK `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>. As of
-  2026-10-23. Recheck when the project moves to a newer LTS JDK.
+- JDK `jcmd`, `Thread.print` included:
+  <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>. As of
+  2026-10-27. JDK `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>.
+  As of 2026-10-23. Recheck either when the project moves to a newer LTS JDK.
 - .NET diagnostics tools:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace#dotnet-trace-collect>,
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>.
-  As of 2026-10-23. Recheck on a .NET major release.
+  As of 2026-10-23. Recheck on a .NET major release. dotnet-stack:
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>. As
+  of 2026-10-27. Recheck on a .NET major release.
 - Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
   <https://github.com/google/pprof>. As of 2026-10-23. Recheck on a Go minor release.
+- GDB: `thread apply all`
+  <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Threads.html#thread-apply-all>; attaching
+  by pid and running one command
+  <https://sourceware.org/gdb/current/onlinedocs/gdb.html/File-Options.html#File-Options>; batch
+  mode <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Mode-Options.html#Mode-Options>. As
+  of 2026-10-27. Recheck on a GDB major release.
 - Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>. As of
   2026-10-04. Recheck when the host kernel's perf version changes.
 - heaptrack: <https://github.com/KDE/heaptrack>. As of 2026-10-04. Recheck on a new major release.

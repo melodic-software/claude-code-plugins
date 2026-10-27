@@ -74,6 +74,13 @@ AUTH_FAILURE = dict(
     message="claude-review: failure-class=auth:"
     " the Claude credential was rejected; the owner replaces the secret",
 )
+# publish-review's failure line (ci-workflows publish.cjs `fail`) for a failed
+# runner isolation or CLI install (ci-workflows#893).
+INSTALL_FAILURE = dict(
+    OTHER_FAILURE,
+    message="claude-review: failure-class=install-failed: the runner isolation"
+    " or the Claude Code CLI install or its integrity check failed",
+)
 
 # publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
 # recorded it when the review's own post hit GitHub's API rate limit.
@@ -139,7 +146,9 @@ def run(
     *,
     attempts: list[dict[str, Any]] | None = None,
     created: str = "2026-01-01T00:00:00Z",
+    tree: str | None = None,
 ) -> dict[str, Any]:
+    """A lane run at `sha`; its head's tree is `tree`, else one of its own."""
     if attempts is None:
         annotations = [record(lane, sha, tail)] if tail is not None else []
         attempts = [attempt(lane, sha, 1, annotations)]
@@ -158,8 +167,14 @@ def run(
         "conclusion": latest["conclusion"],
         "run_attempt": latest["run_attempt"],
         "created_at": created,
+        "head_commit": {"id": sha, "tree_id": tree or tree_of(sha)},
         "attempts": attempts,
     }
+
+
+def tree_of(sha: str) -> str:
+    """A tree sha of `sha`'s own, distinct per commit sha."""
+    return sha[::-1]
 
 
 def marker(lane: str, sha: str, login: str = "github-actions[bot]") -> dict[str, Any]:
@@ -224,6 +239,13 @@ class ProbeFixtureTests(unittest.TestCase):
     """Bind the recorded probe data as recorded and with one change each."""
 
     def bind(self, data: dict[str, Any]) -> dict[str, Any]:
+        # The probe left each run's commit object out; a listed run has one.
+        data = copy.deepcopy(data)
+        for item in data["runs"]:
+            item["head_commit"] = {
+                "id": item["head_sha"],
+                "tree_id": tree_of(item["head_sha"]),
+            }
         return by_lane(
             ev.bind(
                 data["head_sha"],
@@ -617,9 +639,41 @@ class AttemptRuleTests(Base):
                 self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
-        self.assertFalse(
-            ev.rate_limited("claude-review", {"annotations": [AUTH_FAILURE]})
+        self.assertEqual(
+            ev.rerun_classes("claude-review", {"annotations": [AUTH_FAILURE]}),
+            {"auth"},
         )
+
+    def test_second_attempt_after_an_install_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_an_install_failure_lookalike_does_not_bind(self) -> None:
+        for message in (
+            "claude-review: failure-class=install-failed-x: something else",
+            "claude-review: failure-class=other: an unclassified failure"
+            " (detail quoting failure-class=install-failed: failed)",
+            "claude-security-review: failure-class=install-failed: another lane",
+            # The older reusables' status line names no lane.
+            "failure-class=install-failed: the subprocess isolation failed",
+        ):
+            with self.subTest(message=message):
+                first = attempt(
+                    "claude-review",
+                    S,
+                    1,
+                    [dict(INSTALL_FAILURE, message=message)],
+                    "failure",
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_an_install_failure_is_not_allowed(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        second = attempt("claude-review", S, 2, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, second, self.ok(3))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
@@ -725,15 +779,165 @@ class AttemptRuleTests(Base):
         self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_every_rerun_the_gate_starts_binds(self) -> None:
-        # The merge gate re-runs a review only on what `rate_limited` accepts
+        # The merge gate re-runs a review only on `GATE_RERUN_CLASSES`
         # (babysit_merge.rerun_rate_limited_review); each such re-run must
         # bind, or the gate spends the one allowed attempt for nothing.
-        for note in (RATE_LIMIT, PUBLISH_RATE_LIMIT):
-            with self.subTest(message=note["message"][:40]):
+        # `LOST` is a conclusion, not an annotation (LostRerunTests).
+        self.assertLessEqual(ev.GATE_RERUN_CLASSES, {*ev.RERUN_CLASSES, ev.LOST})
+        notes = {
+            "rate-limit": RATE_LIMIT,
+            "publish-rate-limit": PUBLISH_RATE_LIMIT,
+            ev.INSTALL_FAILED: INSTALL_FAILURE,
+        }
+        self.assertEqual({*notes, ev.LOST}, ev.GATE_RERUN_CLASSES)
+        for name, note in notes.items():
+            with self.subTest(name):
                 first = attempt("claude-review", S, 1, [note], "failure")
-                self.assertTrue(ev.rate_limited("claude-review", first["jobs"][0]))
+                self.assertEqual(
+                    ev.rerun_classes("claude-review", first["jobs"][0]), {name}
+                )
                 result = self.bind([self.lane_run(first, self.ok(2))])
                 self.assertTrue(result["claude-review"].bound)
+
+
+# After the pinned head's markers (both_markers), as an earlier run's would be.
+FIRST_STARTED = "2026-01-01T00:10:00Z"
+SECOND_STARTED = "2026-01-01T02:00:00Z"
+
+
+def lost(
+    lane: str = "claude-review",
+    conclusion: str = "cancelled",
+    *,
+    lane_job: bool = True,
+    annotations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Attempt 1 an outage lost: with its lane job cut short, or (no
+    `lane_job`, as a run that never started) with no job at all."""
+    first = attempt(lane, S, 1, annotations or [], conclusion)
+    first["run_started_at"] = FIRST_STARTED
+    if not lane_job:
+        first["jobs"] = []
+    return first
+
+
+def rerun_ok(lane: str = "claude-review") -> dict[str, Any]:
+    second = attempt(lane, S, 2, [record(lane, S, "findings=0 inline=0 scope=whole")])
+    second["run_started_at"] = SECOND_STARTED
+    return second
+
+
+class LostRerunTests(Base):
+    """Attempt 2 after an attempt 1 an outage lost (#8524) binds only when
+    attempt 1 reached no side effect on the head."""
+
+    def lane_run(self, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run("claude-review", S, attempts=list(attempts))
+
+    def comment(self, at: str, body: str) -> dict[str, Any]:
+        return {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": at,
+            "body": body,
+        }
+
+    def test_second_attempt_after_a_lost_first_binds(self) -> None:
+        for conclusion in sorted(ev.LOST_CONCLUSIONS):
+            for lane_job in (True, False):
+                with self.subTest(conclusion=conclusion, lane_job=lane_job):
+                    first = lost(conclusion=conclusion, lane_job=lane_job)
+                    result = self.bind([self.lane_run(first, rerun_ok())])
+                    self.assertTrue(result["claude-review"].bound)
+                    self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_lost_first_that_recorded_a_review_does_not_bind(self) -> None:
+        done = record("claude-review", S, "findings=0 inline=0 scope=whole")
+        first = lost(annotations=[done])
+        result = self.bind([self.lane_run(first, rerun_ok())])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_job_ended_on_its_own_does_not_bind(self) -> None:
+        # The run was lost, but its lane job had already failed on a class
+        # outside RERUN_CLASSES, or succeeded: it judged the head.
+        for conclusion, notes in (("failure", [OTHER_FAILURE]), ("success", [])):
+            with self.subTest(conclusion=conclusion):
+                first = lost(annotations=notes)
+                first["jobs"][0]["conclusion"] = conclusion
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_posted_does_not_bind(self) -> None:
+        # Between the two attempts' starts: the marker, a summary comment, or
+        # an inline thread of this lane.
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        summary = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        posted = thread(created="2026-01-01T00:50:00Z")
+        for comments, threads in (
+            ([*both_markers(), mark], []),
+            ([*both_markers(), summary], []),
+            (both_markers(), [posted]),
+        ):
+            with self.subTest(comments=len(comments), threads=len(threads)):
+                result = self.bind(
+                    [self.lane_run(lost(), rerun_ok())], comments, threads
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_what_the_lane_posted_outside_attempt_one_does_not_hold(self) -> None:
+        # Attempt 2's own posts come after its start.
+        late = self.comment(
+            "2026-01-01T02:30:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        other_lane = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-security-review`"
+        )
+        for comments in ([*both_markers(), late], [*both_markers(), other_lane]):
+            with self.subTest(body=comments[-1]["body"][-30:]):
+                result = self.bind(
+                    [self.lane_run(lost(), rerun_ok())], comments, []
+                )
+                self.assertTrue(result["claude-review"].bound)
+
+    def test_an_unreadable_start_does_not_bind(self) -> None:
+        for first_start in (None, "x"):
+            with self.subTest(first_start=first_start):
+                first = lost()
+                first["run_started_at"] = first_start
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_a_lost_first_is_not_allowed(self) -> None:
+        second = lost()
+        second.update(run_attempt=2, run_started_at="2026-01-01T01:00:00Z")
+        second["jobs"][0]["run_attempt"] = 2
+        third = rerun_ok()
+        third["run_attempt"] = 3
+        third["jobs"][0]["run_attempt"] = 3
+        result = self.bind([self.lane_run(lost(), second, third)])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_run_that_never_reached_its_lane_job_counts_nothing(self) -> None:
+        # An earlier head's run lost before its lane job (no jobs listed)
+        # neither unbinds the lane nor adds a finding.
+        older = run("claude-review", S0, attempts=[lost(lane_job=False)])
+        result = self.bind([older, whole("claude-review", S)])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_lane_posted_counts_unreadable_input_as_posted(self) -> None:
+        for comments, threads in ((None, []), ([1], []), ([], None), ([], [1])):
+            with self.subTest(comments=comments, threads=threads):
+                self.assertTrue(
+                    ev.lane_posted(
+                        "claude-review", S, FIRST_STARTED, None, comments, threads
+                    )
+                )
+        self.assertFalse(
+            ev.lane_posted("claude-review", S, FIRST_STARTED, None, [], [])
+        )
 
 
 # The caller workflows' `Report the kill switch` notice
@@ -1494,12 +1698,18 @@ class CoveringReviewTests(Base):
     PUSHER = {"__typename": "User", "login": "pusher"}
 
     def two_reviews(
-        self, earlier: str, latest: str, *, earlier_sha: str = S0
+        self,
+        earlier: str,
+        latest: str,
+        *,
+        earlier_sha: str = S0,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
-        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00.
+        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00,
+        # of the pinned head, whose tree is `tree` when given.
         runs = [
             run("claude-review", earlier_sha, earlier, created="2026-01-01T00:00:00Z"),
-            run("claude-review", S, latest, created="2026-01-01T02:00:00Z"),
+            run("claude-review", S, latest, created="2026-01-01T02:00:00Z", tree=tree),
         ]
         job = runs[1]["attempts"][0]["jobs"][0]
         job["started_at"], job["completed_at"] = (
@@ -1597,11 +1807,16 @@ class CoveringReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
     def incremental_then_whole(
-        self, incremental_sha: str, counts: str = "findings=1 inline=1"
+        self,
+        incremental_sha: str,
+        counts: str = "findings=1 inline=1",
+        *,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
         # A clean whole review at S0 (00:00-01:00); an incremental review at
         # `incremental_sha` raised one finding (02:00-03:00), inline by
-        # default; then a clean whole review of the pinned head S (04:00-05:00).
+        # default; then a clean whole review of the pinned head S (04:00-05:00),
+        # whose tree is `tree` when given.
         return [
             whole("claude-review", S0),
             windowed(
@@ -1620,6 +1835,7 @@ class CoveringReviewTests(Base):
                     S,
                     "findings=0 inline=0 scope=whole",
                     created="2026-01-01T04:00:00Z",
+                    tree=tree,
                 ),
                 "2026-01-01T04:00:00Z",
                 "2026-01-01T05:00:00Z",
@@ -1675,6 +1891,76 @@ class CoveringReviewTests(Base):
         result = self.bind(runs, threads=[])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+    # #8638: a head is new for closure only when its tree changed, so an
+    # empty commit (new sha, same tree) cannot re-roll the review.
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_an_incremental_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, tree=tree_of(S1))
+        result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_summary_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, "findings=1 inline=0", tree=tree_of(S1))
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_whole_reviews_findings(
+        self,
+    ) -> None:
+        empty = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        result = self.bind(empty, threads=self.agent_resolved())
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        threadless = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        self.assertEqual(
+            self.bind(threadless, threads=[])["claude-review"].open_findings, 2
+        )
+
+    def test_a_clean_whole_review_of_a_changed_tree_clears_the_finding(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree="7e" * 20,
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_reviewed_run_with_no_readable_tree_unbinds(self) -> None:
+        for commit in (None, {"id": S}, {"id": S, "tree_id": "not-a-sha"}):
+            with self.subTest(commit=commit):
+                runs = self.two_reviews(
+                    "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+                )
+                runs[1]["head_commit"] = commit
+                result = self.bind(runs, threads=self.agent_resolved())
+                self.assertUnbound(result["claude-review"], "tree-unread")
+
+    def test_two_trees_for_one_head_unbind(self) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            earlier_sha=S,
+        )
+        runs[1]["head_commit"] = {"id": S, "tree_id": "7e" * 20}
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_summary_findings_the_covering_review_reports_still_count(
         self,
@@ -1760,6 +2046,7 @@ class CoveringReviewTests(Base):
             "findings=0 inline=0 scope=whole",
         )
         runs[1]["head_sha"] = S1
+        runs[1]["head_commit"] = {"id": S1, "tree_id": tree_of(S1)}
         for item in runs[1]["attempts"]:
             item["head_sha"] = S1
             for job in item["jobs"]:
@@ -2271,6 +2558,30 @@ class SeverityTests(Base):
                 result = self.bind(runs, comments=self.summary_markers(text))[self.SEC]
                 self.assertEqual(result.open_findings, 3)
                 self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_rerolled_review_of_the_same_tree_never_lowers_the_count(
+        self,
+    ) -> None:
+        # #8638: the earlier review of the tree reported the same summary
+        # findings; its line is not read, so the newer one's line cannot
+        # clear them, whether the re-roll is a re-run or an empty commit.
+        for sha in (S, S0):
+            with self.subTest(earlier=sha):
+                runs = [
+                    whole("claude-review", S),
+                    run(self.SEC, sha, "findings=2 inline=0 scope=whole"),
+                    run(
+                        self.SEC,
+                        S,
+                        "findings=2 inline=0 scope=whole",
+                        created="2026-01-01T02:00:00Z",
+                        tree=tree_of(sha),
+                    ),
+                ]
+                comments = self.summary_markers("critical-findings: 0")
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.open_findings, 2)
+                self.assertEqual(result.blocking_findings, 2)
 
     def test_a_summary_comment_the_review_posted_carries_the_line(self) -> None:
         # The probe fixture's producer shape: the Claude App posts the summary

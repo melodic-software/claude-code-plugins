@@ -225,6 +225,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/gate-check.mjs", "gate"),
     (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
     (".github/scripts/pr-merge/lane-records.mjs", "gate"),
+    (".github/scripts/pr-merge/last-report.mjs", "gate"),
     (".github/scripts/pr-merge/rate-stop.bash", "gate"),
     (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
     (".github/scripts/pr-merge/rotation.mjs", "gate"),
@@ -1152,9 +1153,9 @@ def holding(result: RiskResult) -> list[Reason]:
     ]
 
 
-# The holding reasons only a person clears (owner rule 2026-10-26: a person
-# only for an intent or design change or a CRITICAL security issue, with
-# cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
+# The holding reasons only a person clears (when a person is needed:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# with cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
 # security finding, a trusted-actor widening, a cost hold, every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,
 # submodule or mode change) and a listing past the files API's cap. The lanes

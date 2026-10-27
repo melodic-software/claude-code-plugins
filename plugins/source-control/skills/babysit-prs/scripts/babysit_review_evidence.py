@@ -15,7 +15,8 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   `actions/workflows/{file}/runs` listing), each with an `attempts` list
   (`actions/runs/{id}/attempts/{n}`), each attempt with its `jobs`
   (`.../attempts/{n}/jobs`), each job with its check run's `annotations`
-  (`check-runs/{job id}/annotations`).
+  (`check-runs/{job id}/annotations`). Each run's `head_commit.tree_id`
+  names its head's tree, which finding closure keys on (`_open_findings`).
 - `comments`: the pull request's issue comments (REST).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   or None when they could not be read.
@@ -101,7 +102,7 @@ RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
 # Or on a rejected Claude credential: this lane's publish-review failure line
 # (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
 # attempt 1 then left no verdict, so a re-run cannot trade one review for
-# another. It binds a re-run but does not start one (rate_limited), since a
+# another. It binds a re-run but does not start one (GATE_RERUN_CLASSES), since a
 # re-run before the secret is fixed would spend the one allowed attempt. A
 # spent key needs no entry: publish.cjs reports it as `rate-limit`.
 AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
@@ -115,6 +116,15 @@ PUBLISH_RATE_LIMIT_RE = re.compile(
     r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
     r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
 )
+# Or when the runner isolation or the Claude Code CLI install failed before the
+# review ran: this lane's publish-review failure line (ci-workflows publish.cjs
+# `fail`) with class `install-failed`, which a failed `Isolate the runner` step
+# reports from ci-workflows v0.65.14 (ci-workflows#893). Attempt 1 then left no
+# verdict, often on a slow package mirror, so a re-run trades no review away.
+INSTALL_FAILED = "install-failed"
+INSTALL_FAILURE_RE = re.compile(
+    rf"(?P<lane>[\w-]+): failure-class={re.escape(INSTALL_FAILED)}: "
+)
 # Or when a kill switch stopped attempt 1 before the review started: the
 # caller's `kill-switch` job succeeded and its `Report the kill switch` step
 # wrote this lane's notice, whose `if` is the negation of the `proceed` output
@@ -122,6 +132,13 @@ PUBLISH_RATE_LIMIT_RE = re.compile(
 # verdict. The step's text comes from the switch values only, and a head that
 # edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
 # binds a re-run but does not start one: the gate cannot read the switch.
+# Or when an outage ended attempt 1 without a result: a run GitHub concluded
+# cancelled, timed out or never started (the lost-run reconciler's `LOST` in
+# .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs). Attempt 1
+# then left no verdict unless its lane already posted on the head
+# (`_lost_unposted`), which leaves the run to a person.
+LOST = "lost"
+LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
 KILL_SWITCH_JOB = "kill-switch"
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
@@ -278,7 +295,7 @@ def _bind_lane(
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs)
+        reviewed, chain = _resolve(lane, head, lane_runs, _poster(comments, threads))
         marker = _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
@@ -343,9 +360,10 @@ def _carried_blocking(
         heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
     except Exception:  # noqa: BLE001 - nothing read, nothing carried
         return None
+    posted = _poster(comments, threads)
     for sha in dict.fromkeys(h for h in heads if isinstance(h, str)):
         try:
-            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs)
+            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs, posted)
             marker = _require_marker(SEVERITY_LANE, sha, comments, newest_only=False)
             _require_marked_runs(SEVERITY_LANE, lane_runs, comments)
             _, _, critical = _open_findings(
@@ -383,8 +401,13 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
+# Whether a lane posted on a head between two times (`lane_posted`, bound to
+# the pull request's comments and threads by `_poster`).
+Poster = Callable[[str, str, Any, Any], bool]
+
+
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]]
+    lane: str, head: str, lane_runs: list[Mapping[str, Any]], posted: Poster
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -394,51 +417,61 @@ def _resolve(
     review needs every earlier link bound, back to a whole review. Each link
     is the newest run's latest attempt at its head (`_bound_record`).
     """
-    rec = _bound_record(lane, head, lane_runs)
+    rec = _bound_record(lane, head, lane_runs, posted)
     seen = {head}
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
-        rec = _skip_target(lane, rec.through, lane_runs, seen)
+        rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
     reviewed = rec.sha
     chain = [rec]
     for _ in range(MAX_CHAIN):
         if rec.whole:
             return reviewed, chain
-        rec = _link(lane, rec.since, lane_runs, seen)  # type: ignore[arg-type]
+        rec = _link(lane, rec.since, lane_runs, seen, posted)  # type: ignore[arg-type]
         if rec.skip is not None:
             raise Unbound("incremental-gap")
         if rec.through is not None:
-            rec = _skip_target(lane, rec.through, lane_runs, seen)
+            rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
         chain.append(rec)
     raise Unbound("incremental-gap")
 
 
 def _skip_target(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
-    rec = _link(lane, sha, lane_runs, seen)
+    rec = _link(lane, sha, lane_runs, seen, posted)
     if rec.through is not None or rec.skip is not None:
         raise Unbound("skip-chain")
     return rec
 
 
 def _link(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
     """An earlier head in the chain; any failure to bind it is a gap."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
     try:
-        return _bound_record(lane, sha, lane_runs)
+        return _bound_record(lane, sha, lane_runs, posted)
     except Unbound as exc:
         if exc.reason in {"count-inconsistent", "evidence-error", "evidence-missing"}:
             raise
         raise Unbound("incremental-gap") from exc
 
 
-def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _Record:
+def _bound_record(
+    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], posted: Poster
+) -> _Record:
     at_sha = [item for item in lane_runs if item["head_sha"] == sha]
     if not at_sha:
         raise Unbound("no-run")
@@ -469,7 +502,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if not rerun_binds(lane, newest["id"], first):
+        if not rerun_binds(lane, newest["id"], first, sha, latest, posted):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
     if job.get("conclusion") != "success" or job.get("head_sha") != sha:
@@ -538,24 +571,160 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
     return found is not None and found["lane"] == lane
 
 
-def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
-    return any(
-        RATE_LIMIT_CLASS_RE.search(m) or _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m)
-        for m in _failures(job)
+# The failure classes of a failed attempt 1 after which attempt 2 binds
+# (`rerun_binds`), each with its test of one failure annotation's message.
+RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
+    "rate-limit": lambda lane, m: RATE_LIMIT_CLASS_RE.search(m) is not None,
+    "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
+    "auth": lambda lane, m: _lane_line(AUTH_FAILURE_RE, lane, m),
+    INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
+}
+# The ones the merge gate re-runs itself (babysit_merge
+# `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
+# run's conclusion names rather than an annotation. A rejected credential is
+# left to a person: a re-run before the secret is fixed would spend the one
+# allowed attempt.
+GATE_RERUN_CLASSES = frozenset(
+    {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
+)
+
+
+def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
+    """The `RERUN_CLASSES` a failure annotation of the lane's job names."""
+    failures = _failures(job)
+    return frozenset(
+        name
+        for name, test in RERUN_CLASSES.items()
+        if any(test(lane, m) for m in failures)
     )
 
 
-def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
-    """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
-    failed on a rate limit or a rejected credential (AUTH_FAILURE_RE), or a
-    kill switch stopped it (`_kill_switch_stopped`)."""
+def rerun_binds(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None = None,
+    second: Mapping[str, Any] | None = None,
+    posted: Poster | None = None,
+) -> bool:
+    """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
+    `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch stopped it
+    (`_kill_switch_stopped`), or an outage lost it before its lane posted
+    (`_lost_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
+    if first.get("conclusion") in LOST_CONCLUSIONS:
+        return _lost_unposted(lane, run_id, first, sha, second, posted)
     if first.get("conclusion") != "failure":
         return False
-    job = _lane_job(lane, run_id, first)
-    return rate_limited(lane, job) or any(
-        _lane_line(AUTH_FAILURE_RE, lane, m) for m in _failures(job)
+    return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
+
+
+def recorded(job: Mapping[str, Any]) -> bool:
+    """Whether a job's annotations hold a completion record, well formed or not."""
+    return any(
+        isinstance(a, Mapping) and a.get("title") == RECORD_TITLE
+        for a in job.get("annotations") or ()
+    )
+
+
+def _lost_unposted(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None,
+    second: Mapping[str, Any] | None,
+    posted: Poster | None,
+) -> bool:
+    """Whether lost attempt 1 reached no side effect: its lane job, when it
+    has one, was lost too and left no completion record, and the lane posted
+    nothing on `sha` from attempt 1's start to attempt 2's (`lane_posted`). A
+    lane job that ended on its own (a failure outside `RERUN_CLASSES`) judged
+    the head, so a re-run could trade its verdict away."""
+    if sha is None or second is None or posted is None:
+        return False
+    jobs = first.get("jobs")
+    if not isinstance(jobs, list | tuple):
+        raise Unbound("evidence-missing")
+    if _has_lane_job(lane, jobs):
+        job = _lane_job(lane, run_id, first)
+        if job.get("conclusion") not in LOST_CONCLUSIONS or recorded(job):
+            return False
+    return not posted(
+        lane, sha, first.get("run_started_at"), second.get("run_started_at")
+    )
+
+
+def lane_posted(
+    lane: str,
+    head: str,
+    since: Any,
+    until: Any,
+    comments: Any,
+    threads: Any,
+) -> bool:
+    """Whether the lane posted on `head` from `since` to before `until` (both
+    timestamps; `until` None is now): its reviewed-head marker naming `head`,
+    another lane comment, or a lane thread opened then. An unreadable `since`,
+    time or input counts as posted; an unreadable `until` reads as now."""
+    start = _time(since)
+    if start is None or not isinstance(comments, list | tuple):
+        return True
+    end = _time(until)
+
+    def within(value: Any) -> bool:
+        at = _time(value)
+        return at is None or (start <= at and (end is None or at < end))
+
+    for comment in comments:
+        if not isinstance(comment, Mapping):
+            return True
+        user = comment.get("user")
+        login = user.get("login") if isinstance(user, Mapping) else None
+        body = str(comment.get("body") or "")
+        mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if mark is not None:
+            if login == MARKER_AUTHOR and mark[1] == lane and mark[2] == head:
+                if within(comment.get("created_at")):
+                    return True
+            continue
+        if _lane_comment(lane, login, body) and within(comment.get("created_at")):
+            return True
+    if not isinstance(threads, list | tuple):
+        return True
+    for thread in threads:
+        if not isinstance(thread, Mapping):
+            return True
+        if _lane_thread(lane, thread) and within(
+            thread["comments"][0].get("createdAt")
+        ):
+            return True
+    return False
+
+
+def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
+    suffix = LANES[lane][1]
+    return any(
+        isinstance(job, Mapping)
+        and str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix
+        for job in jobs
+    )
+
+
+def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether an outage lost this attempt before its lane job existed."""
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") in LOST_CONCLUSIONS
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+    )
+
+
+def _poster(comments: Any, threads: Any) -> Poster:
+    """`lane_posted` over this pull request's comments and threads."""
+    return lambda lane, head, since, until: lane_posted(
+        lane, head, since, until, comments, threads
     )
 
 
@@ -713,9 +882,12 @@ def _open_findings(
     never supersede each other, whatever their kind: each link counts the
     most summary findings, and the most inline findings left without a
     thread, that any completed review of its head (whole or incremental)
-    reported. So a finding any review of a head reported clears only by a
-    new head (a fix) or a human resolution; re-running the review of the
-    same head until it comes back clean never clears it.
+    reported. A head here is its tree (the run's `head_commit.tree_id`), so
+    commits with one tree are one head. So a finding any review of a head
+    reported clears only by a new head (a fix that changes the tree) or a
+    human resolution; re-running the review of the same head, or of an
+    empty commit on it, until it comes back clean never clears it. A
+    reviewed run with no readable tree unbinds the lane.
 
     A resolved thread is closed when:
     - a human resolved it;
@@ -740,13 +912,14 @@ def _open_findings(
 
     Also returns whether a clean whole review of `reviewed` would close every
     open finding: none is an unresolved thread, no completed review of
-    `reviewed` reported a finding, and none of them was a whole review; and
-    how many open findings are CRITICAL (`SEVERITY_RE`): open threads whose
-    comment is not marked IMPORTANT or SUGGESTION, every inline finding whose
-    thread is gone, and the summary findings, of which only the covering
-    review's own may count fewer: its one `critical-findings:` line, read
-    from `summaries` (the reviewed-head marker, which carries the summary,
-    and each Claude App summary comment posted inside that review's job). An
+    `reviewed`'s tree reported a finding, and none of them was a whole
+    review; and how many open findings are CRITICAL (`SEVERITY_RE`): open
+    threads whose comment is not marked IMPORTANT or SUGGESTION, every inline
+    finding whose thread is gone, and the summary findings, of which only the
+    covering review's own may count fewer, when no other review of its tree
+    reported a summary finding: its one `critical-findings:` line, read from
+    `summaries` (the reviewed-head marker, which carries the summary, and
+    each Claude App summary comment posted inside that review's job). An
     earlier review's summary is not read, so all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
@@ -754,24 +927,32 @@ def _open_findings(
     span: tuple[datetime | None, datetime | None] | None = None
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
-    # The head per window, to count missing ones on the chain.
-    heads: list[str] = []
+    # The tree per window, to count missing ones on the chain.
+    window_trees: list[str] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
     first: datetime | None = None
-    # Per head, the most findings and the most summary findings any completed
+    # Per reviewed head sha, its tree: findings are keyed on the tree, so a
+    # new commit with the same tree (an empty one) re-rolls no review.
+    trees: dict[str, str] = {}
+    # Per tree, the most findings and the most summary findings any completed
     # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Whether any review of `reviewed` was whole or reported a finding.
-    head_spent = False
+    # Per tree, how many reviews of it reported a summary finding.
+    summary_reviews: dict[str, int] = {}
+    # The trees any review of which was whole or reported a finding.
+    spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped or kill-switched run reviewed nothing.
+            # A draft-skipped or kill-switched run reviewed nothing, nor did a
+            # lost one that never reached its lane job.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
-            ) or _kill_switch_stopped(lane, item["id"], attempt):
+                or _kill_switch_stopped(lane, item["id"], attempt)
+                or _lost_before_lane_job(lane, attempt)
+            ):
                 continue
             job = _lane_job(lane, item["id"], attempt)
             rec = _record(lane, item["head_sha"], job)
@@ -779,11 +960,16 @@ def _open_findings(
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
-            head_max[rec.sha] = max(head_max.get(rec.sha, 0), rec.findings)
-            summary_max[rec.sha] = max(
-                summary_max.get(rec.sha, 0),
+            tree = _tree(item)
+            if trees.setdefault(rec.sha, tree) != tree:
+                raise Unbound("evidence-error")
+            head_max[tree] = max(head_max.get(tree, 0), rec.findings)
+            summary_max[tree] = max(
+                summary_max.get(tree, 0),
                 rec.findings - rec.inline,  # type: ignore[operator]
             )
+            if rec.findings > rec.inline:  # type: ignore[operator]
+                summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
             started = _time(job.get("started_at"))
             if rec == chain[0]:
                 span = (started, rec.completed)
@@ -794,17 +980,23 @@ def _open_findings(
                     rec.inline,  # type: ignore[arg-type]
                 )
             )
-            heads.append(rec.sha)
-            if rec.sha == reviewed and (rec.whole or rec.findings > 0):
-                head_spent = True
+            window_trees.append(tree)
+            if rec.whole or rec.findings > 0:
+                spent.add(tree)
             if (
                 item["head_sha"] == reviewed
                 and started
                 and (first is None or started < first)
             ):
                 first = started
-    summary = sum(summary_max.get(rec.sha, 0) for rec in chain)
-    cleared = not any(head_max.get(rec.sha) for rec in chain)
+    if any(rec.sha not in trees for rec in chain):
+        raise Unbound("tree-unread")
+    # The chain's trees, the covering review's first; links that share one
+    # count once.
+    chain_trees = list(dict.fromkeys(trees[rec.sha] for rec in chain))
+    head_spent = chain_trees[0] in spent
+    summary = sum(summary_max.get(tree, 0) for tree in chain_trees)
+    cleared = not any(head_max.get(tree) for tree in chain_trees)
     # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
@@ -843,11 +1035,11 @@ def _open_findings(
         if len(severities) != 1 or severities[0] == "CRITICAL":
             critical += 1
     # Inline findings with no thread left, counted like summary findings:
-    # per chain link, the most any review at its head left.
+    # per chain tree, the most any review of it left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
     missing = sum(
-        max((g for g, sha in zip(gone, heads) if sha == rec.sha), default=0)
-        for rec in chain
+        max((g for g, at in zip(gone, window_trees) if at == tree), default=0)
+        for tree in chain_trees
     )
     count = summary + unresolved + held + missing
     # The covering review's summary findings, when it was the head's only
@@ -860,14 +1052,28 @@ def _open_findings(
         if at is None or (start and end and start <= at <= end)
         for line in SUMMARY_CRITICAL_RE.findall(body)
     ]
-    rest = summary - summary_max.get(chain[0].sha, 0)
-    if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
+    rest = summary - summary_max.get(chain_trees[0], 0)
+    if (
+        own == summary_max.get(chain_trees[0], 0)
+        and summary_reviews.get(chain_trees[0], 0) <= 1
+        and len(lines) == 1
+    ):
         summary = rest + min(int(lines[0]), own)
     return (
         count,
         count > 0 and not unresolved and not head_spent,
         summary + critical + missing,
     )
+
+
+def _tree(item: Mapping[str, Any]) -> str:
+    """The tree of a run's head commit (`head_commit.tree_id`, which GitHub
+    may leave null); unreadable unbinds."""
+    commit = item.get("head_commit")
+    tree = commit.get("tree_id") if isinstance(commit, Mapping) else None
+    if not isinstance(tree, str) or not SHA_RE.match(tree):
+        raise Unbound("tree-unread")
+    return tree
 
 
 def _line_changed(

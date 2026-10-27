@@ -3,6 +3,35 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.12.0] - 2026-10-27
+
+### Added
+
+- **`/harness-ops:plugins sync` offers to fast-forward a `directory` marketplace's checkout.**
+  When the checkout is clean, on a branch with an upstream, and only behind it, the report's
+  digest marks it `offered` and the skill asks once per marketplace. On a yes it reruns with
+  `--pull-source`: `sync-run.sh` checks the checkout again, runs `git pull --ff-only` before
+  the marketplace refresh, and the run goes on against the newer catalog, its `source:` row
+  naming the commits it moved from and to. The script refuses a dirty, detached, upstream-less,
+  ahead, diverged or current checkout with the reason and touches nothing, and a refused or
+  failed pull does not stop the run. The new `directory_source_pull` option takes `ask`
+  (default) or `never`; an autonomous or ambiguous session never asks or pulls, and the script
+  treats a set `CLAUDE_CODE_REMOTE` as `never` (#7454).
+- **The `autoUpdate: off` suggestion can be silenced.** Marketplaces named in the new
+  `quiet_auto_update_marketplaces` option render `autoUpdate: off` without the suggestion to
+  enable it; unset keeps it.
+
+### Fixed
+
+- `/harness-ops:morning-brief`: a queue count or stuck label whose search reads 0 is checked against the REST issue listing, which does not go through search ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)). When that listing reads more than 0 or fails, the label shows `count unavailable` on a `PARTIAL` line, and the Stuck section prints no all-clear.
+- `/harness-ops:lanes` restart consumer: the `Lane telemetry: <lane>` issue lookup reads REST `search/issues` and treats an answer whose `incomplete_results` is not `false` as a failed read, so the lane records `api-error` instead of `no-telemetry` when search is degraded ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)).
+
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
 ## [4.11.2] - 2026-10-27
 
 ### Security

@@ -3,6 +3,47 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.13.7] - 2026-10-27
+
+### Changed
+
+- `babysit_verify_evidence.NEEDS_HUMAN` is `verify:untrusted-spec` alone (owner rule 2026-10-27: a person only for an intent or design change or a CRITICAL security issue, trust holds kept). `verify:repeated-fail` and `verify:too-old` still refuse the merge for good, now with no `needs-human` label: the pr-merge gate writes no escalation for them, and `enable-auto-merge.mjs` leaves the pull request unarmed with the lane comment and, once it stands, a failing `pr-merge/unarmed` status.
+
+- `babysit_verify_evidence.py settle --idle-tick` lets pr-merge's post-merge-dispatch job reuse the post-merge report the last tick kept. The report must pass the lane room's reuse rule (`settle_shared`) and `babysit_postmerge.idle_refusal`. That rule takes a passing report only (exit 0 or 5) with no hold, no full run or re-run to start, no unattributed red run and no quarantine excuse, and at least 10 minutes left before `SHARED_MAX_AGE`. It also requires that since the report no verifying run completed, no quarantine issue changed, and every pin the check read reads the same again. The post-merge report now records those pins (`pins`) and when the earliest canary still running in a merge's window was created (`outstandingSince`), which can still turn red and fail a verified merge. Both `idle_refusal` and `pending_runs_unchanged` list verifying runs back to that canary, and refuse a report without the field.
+- `pending_runs_unchanged` lists runs once for each verifying workflow instead of once for every workflow on the branch. On main, the all-workflow listing held 152 runs in under two hours, more than fit on one page.
+- The reuse rule (`shared_refusal`) refuses a report once a quarantine excuse it carries has expired (`excuse-expired`).
+
+### Removed
+
+- The repeated-fail escalation's quote of the head FAIL's summary, now unreachable: `babysit_merge._fail_summary`, `_carried_quote` and `VERIFY_SUMMARY_MAX`, `Reader.fail_summary`, `SummaryUnreadable`, and the report's `headFail` field.
+
+## [3.13.6] - 2026-10-27
+
+### Fixed
+
+- `cost_decision` takes a cost decision's decided head from the review lanes' check-run annotations, never from a `github-actions[bot]` hold comment, which any workflow on `GITHUB_TOKEN` can post. The decided head is the `sha=` of the newest `claude-lane-hold ... criteria=` notice with `cost` that a review lane's status job (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) recorded before the decision, counted only where it names its own run's head and that head is in this repository, so a fork pull request on a same-named branch decides nothing. Every such run on the head branch started before the decision must be on a head that changes neither review-lane workflow and lists fewer than 300 files, or nothing carries; two heads noticed at the newest time carry nothing. The runs, jobs, annotations and those compares are read with `BABYSIT_VERIFY_GH_TOKEN` when it is set. The edit and deletion checks on the hold comment are gone with the comment read.
+
+- `babysit_review_evidence` closes a review finding on a new head only when that head's tree differs: per-head finding counts now key on each lane run's `head_commit.tree_id`, so an empty commit (new sha, same tree) followed by a clean whole review no longer closes a finding, and no longer counts as a fresh head for `whole_review_clears`. A reviewed run with no readable tree unbinds the lane (`tree-unread`).
+- The security lane's `critical-findings:` line lowers the blocking count only when no other review of the same tree reported a summary finding, so a re-run or an empty-commit review that comes back with `critical-findings: 0` no longer clears the earlier review's CRITICAL summary findings.
+
+## [3.13.5] - 2026-10-27
+
+### Fixed
+
+- The babysit merge gate now re-runs an AI review check that failed with the lane's `failure-class=install-failed` line (the runner isolation or the Claude Code CLI install failed before the review ran), at once rather than after the five-hour wait a rate limit gets ([#9073](https://github.com/melodic-software/claude-code-plugins/issues/9073)). Before, such a check stayed red until a person re-ran it. The existing rules still apply: only the first attempt is re-run, at most once per check per head, and only on the pinned live head. The review evidence now defines `install-failed` once and binds the second attempt after it. The classes the gate re-runs (`GATE_RERUN_CLASSES`) come from that same definition, and a test asserts that the review evidence binds a second attempt after each of them. A rejected credential is still left to a person, even when its line sits beside one the gate re-runs. Any other class is still never re-run. The refusal reason now names the classes the gate re-runs.
+
+## [3.13.4] - 2026-10-27
+
+### Fixed
+
+- `babysit_verify_evidence.py` reads the repository's artifact listing under its own 300 s timeout (`LISTING_TIMEOUT_SECONDS`) instead of gh's 60 s per-call default. The listing's pages share one timeout, and at 7,522 artifacts (76 pages at 0.7 to 1 s each) a cold read ran out on page 66 and refused the pull request as `verify:unreadable`. Retries after a 5xx still fit inside that one timeout.
+
+## [3.13.3] - 2026-10-27
+
+### Fixed
+
+- The pr-merge lane's risk score (`babysit_verify_evidence.py evidence --lane-reviews`) drops a configured or floor high path (`high-path:<glob>`) once a person on the trusted-actor list approved the pull request's current head, by the same rule `ci-status` lifts the hold path with (`babysit_merge_policy.path_lifters`, held equal to `merge-holds.mjs` `pathLifters`). An approval of an older head, an untrusted approver, a newer request for changes or a dismissal lifts nothing, and so does a review list or trusted-actor list that does not read. An aliasing path, symlink, submodule or mode change, and every cost, trust-gate, manifest, file-cap and review-lane hold, still hold.
+
 ## [3.13.2] - 2026-10-27
 
 ### Security

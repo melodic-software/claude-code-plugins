@@ -675,6 +675,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
         number: 42,
         state: "OPEN",
         isDraft: false,
+        mergedAt: null,
         headRefName: "feat/x",
         headRefOid: HEAD,
         baseRefName: "main",
@@ -693,6 +694,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
       number: 42,
       state: "open",
       draft: false,
+      merged_at: null,
       user: { id: APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" },
       labels: [{ name: "needs-human" }],
       head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPOSITORY } },
@@ -1152,10 +1154,13 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
+  // No lost pr-feedback-dispatch.yml run in the lookback window.
+  api.listRecentRuns = async () => [];
+  api.listRunJobs = async () => assert.fail("no lost run, so no jobs read");
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK) {
+async function sweepMain(t, api, tick = TICK, now = undefined) {
   const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
@@ -1172,7 +1177,7 @@ async function sweepMain(t, api, tick = TICK) {
       TRUSTED_ACTORS: noActors(dir),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
-    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
   );
   return { output: readFileSync(output, "utf8"), lines };
 }
@@ -1285,4 +1290,224 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
   assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});
+
+// The recovery: a pr-feedback-dispatch.yml run an outage lost in the
+// lookback window (24 hours before NOW) makes the tick decide every open
+// lanes App head through dispatchFeedback. `runs` is the one listing, `jobs`
+// each run's latest jobs by id; no head here was released, so the sweep of
+// released heads dispatches nothing.
+const NOW = Date.parse("2026-10-17T14:00:00Z");
+const lostRun = (overrides = {}) => ({
+  id: 600,
+  path: ".github/workflows/pr-feedback-dispatch.yml",
+  event: "workflow_run",
+  status: "completed",
+  conclusion: "cancelled",
+  run_attempt: 1,
+  created_at: "2026-10-17T13:00:00Z",
+  ...overrides,
+});
+// The dispatch job lost mid-run: its first step ran, the running one was cancelled.
+const startedJobs = [
+  { id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
+];
+function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, ...options } = {}) {
+  const api = sweepApi({ checksAt: {}, ...options });
+  api.listings = [];
+  api.jobReads = [];
+  api.pullReads = 0;
+  api.listRecentRuns = async (workflow, since) => {
+    api.listings.push({ workflow, since });
+    return runs;
+  };
+  api.listRunJobs = async (id) => {
+    api.jobReads.push(id);
+    return jobs[id] ?? [];
+  };
+  const listOpenPulls = api.listOpenPulls;
+  api.listOpenPulls = async (base) => {
+    api.pullReads += 1;
+    return listOpenPulls(base);
+  };
+  return api;
+}
+
+test("a tick with no lost pr-feedback-dispatch.yml run in the window makes one run listing for recovery and dispatches nothing", async (t) => {
+  const api = recoveryApi({ runs: [lostRun({ conclusion: "success" }), lostRun({ id: 601, status: "in_progress", conclusion: null }), lostRun({ id: 602, conclusion: "failure" })] });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.equal(api.listings.length, 1);
+  assert.deepEqual(api.jobReads, []);
+  assert.equal(api.pullReads, 1, "only the sweep of released heads lists the PRs");
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+});
+
+test("a lost pr-feedback-dispatch.yml run with a started job gets one fresh dispatch of a head dispatchFeedback sends", async (t) => {
+  for (const conclusion of ["cancelled", "timed_out"]) {
+    const api = recoveryApi({ runs: [lostRun({ conclusion })] });
+    const { output, lines } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, [600], conclusion);
+    assert.deepEqual(
+      api.calls.dispatch,
+      [{ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } }],
+      conclusion,
+    );
+    // The record names the head's newest review run, as the sweep's does.
+    assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n", conclusion);
+    assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+  }
+});
+
+test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {
+  const ran = startedJobs[0].steps;
+  for (const [label, runs, jobs, reads] of [
+    ["no step ran", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [] }] }, [600]],
+    ["every step skipped or unfinished", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ conclusion: "skipped" }, { conclusion: null }] }] }, [600]],
+    ["no job", [lostRun({ conclusion: "startup_failure" })], { 600: [] }, [600]],
+    // Another job of the run was lost; the dispatch job finished or was skipped.
+    ["a lost ci-status re-run", [lostRun()], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "cancelled", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
+    ["this run", [lostRun({ id: Number(RUN_ID) })], {}, []],
+  ]) {
+    const api = recoveryApi({ runs, jobs });
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, reads, label);
+    assert.equal(api.pullReads, 1, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a lost run that already dispatched is not dispatched again", async (t) => {
+  // Its round's address-feedback check run is on the head.
+  const checked = recoveryApi({ checksAt: { [HEAD]: [answeredRound] } });
+  const first = await sweepMain(t, checked, TICK, NOW);
+  assert.deepEqual(checked.calls.dispatch, []);
+  assert.equal(first.output, "");
+  assert.match(first.lines.join("\n"), /already has a pr-unblock \/ address-feedback check run/);
+  // Its dispatched run is still going.
+  const going = recoveryApi();
+  going.listWorkflowRuns = async () => [{ id: 7, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-17T13:05:00Z" }];
+  const second = await sweepMain(t, going, TICK, NOW);
+  assert.deepEqual(going.calls.dispatch, []);
+  assert.match(second.lines.join("\n"), /is not done yet/);
+});
+
+test("the recovery leaves a head the sweep has capped alone", async (t) => {
+  const api = recoveryApi({
+    checksAt: { [HEAD]: [answeredRound, noModelTurn("2026-10-17T10:05:00Z"), findingStands("2026-10-17T11:05:00Z"), findingStands("2026-10-17T12:05:00Z")] },
+  });
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [600]);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+  assert.ok(lines.some((line) => line.includes("the sweep's cap")), lines.join("\n"));
+});
+
+test("the recovery lists only runs created within the lookback window, and an older lost run is not counted", async (t) => {
+  const api = recoveryApi({ runs: [lostRun({ created_at: "2026-10-16T13:59:59Z" })] });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.listings, [{ workflow: ".github/workflows/pr-feedback-dispatch.yml", since: "2026-10-16T14:00:00Z" }]);
+  assert.deepEqual(api.jobReads, []);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+});
+
+test("a failed recovery listing is a warning, and the tick ends green", async (t) => {
+  const api = recoveryApi();
+  api.listRecentRuns = async () => {
+    throw Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  };
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("403")), lines.join("\n"));
+});
+
+test("the recovery reads its listing and jobs through the REST API", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify(url.includes("/jobs") ? { total_count: 1, jobs: startedJobs } : { workflow_runs: [lostRun()] }));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  assert.deepEqual(await api.listRecentRuns(".github/workflows/pr-feedback-dispatch.yml", "2026-10-16T14:00:00Z"), [lostRun()]);
+  assert.deepEqual(await api.listRunJobs(600), startedJobs);
+  assert.deepEqual(urls, [
+    `https://api.example/repos/${REPOSITORY}/actions/workflows/pr-feedback-dispatch.yml/runs?created=%3E%3D2026-10-16T14%3A00%3A00Z&per_page=100`,
+    `https://api.example/repos/${REPOSITORY}/actions/runs/600/jobs?filter=latest&per_page=100`,
+  ]);
+});
+
+// A pr-verify pass whose post-verify-notes job found an open fail-note thread
+// from an earlier head names its head in VERIFY_PASS_HEAD_SHA: the dispatch
+// sends a pass-only round, which needs no workable thread, no review marker
+// and no check-run room, since it runs no model and posts no address-feedback
+// check.
+async function passMain(dir, api, env = { VERIFY_PASS_HEAD_SHA: HEAD }) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, VERIFY_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      ...env,
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+test("a pr-verify pass with stale fail notes sends a pass-only round through the newest review run at its head", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
+  const api = verifyApi({ threads: [], comments: [], checkRuns: [after] });
+  const { output } = await passMain(dir, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs), [
+    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a pass-only round waits like any round: not while a run for the PR is going, nor on a held PR", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
+  const busy = verifyApi({ workflowRuns: [going] });
+  await passMain(dir, busy);
+  assert.deepEqual(busy.calls.dispatch, []);
+  const held = verifyApi({
+    pulls: [{ number: 42, state: "open", draft: false, user: { id: APP_ID }, labels: [{ name: "do-not-merge" }], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }],
+  });
+  await passMain(dir, held);
+  assert.deepEqual(held.calls.dispatch, []);
+});
+
+test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  await assert.rejects(passMain(dir, verifyApi(), { VERIFY_HEAD_SHA: HEAD, VERIFY_PASS_HEAD_SHA: HEAD }), /exactly one/);
+  await assert.rejects(passMain(dir, verifyApi(), {}), /VERIFY_HEAD_SHA/);
+});
+
+// A pass-only round's reply job resolves stale fail notes and skips pass-only
+// (publish-feedback.mjs). It answers no thread, so it must not hide the
+// release of the round before it.
+const passOnly = (started = "2026-10-17T13:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: pass-only", started);
+
+test("a pass-only round's reply check after a finding-stands skip leaves the head released, for a review completion and a tick", async (t) => {
+  const record = emptyRecord();
+  const { result } = await decideWith(fakeApi({ checkRuns: [answeredRound, findingStands(), passOnly()] }), record);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.equal(record.handled.size, 0);
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
 });

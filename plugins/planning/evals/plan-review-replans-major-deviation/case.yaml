@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: plan-review-replans-major-deviation
 description: A plan review invoked after implementation stopped reads the DEVIATIONS.md beside the plan, treats its Major entry as a falsified load-bearing assumption, and re-plans the phase for re-approval instead of only grading completeness
 tags: [plan, review, deviations, assumptions, scaffold]
-expected_outcome: The plan skill fires in review mode, reads .work/photo-backup/DEVIATIONS.md, names its Major entry (the storage SDK has no batch upload), marks the batch-upload load-bearing assumption falsified, re-checks that the Goal still serves the Problem of lost photos, revises Phase 2 to upload one file per call, and asks for approval of the revised plan. It edits no .py file.
+expected_outcome: The plan skill fires in review mode, reads .work/photo-backup/DEVIATIONS.md, names its Major entry (the storage SDK has no batch upload), marks the batch-upload load-bearing assumption falsified, re-checks that the revised phases still serve the Brief's Problem of lost photos, revises Phase 2 to upload one file per call, and asks for approval of the revised plan. It edits no .py file.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -31,4 +31,4 @@ graders:
   - name: replan-judge
     type: llm
     arm: both
-    criteria: "PASS only if the answer names the Major DEVIATIONS.md entry (the storage SDK has no batch upload), says the plan's batch-upload load-bearing assumption is false, confirms the Goal still serves the Problem of photos lost when a laptop fails, revises Phase 2 to upload photos one file per call (or an equivalent that meets the acceptance criteria without a batch call), and asks the user to approve the revised plan before implementation resumes. FAIL if it only lists completeness gaps against the template, tells implementation to continue with the batch call, or never mentions the deviation."
+    criteria: "PASS only if the answer names the Major DEVIATIONS.md entry (the storage SDK has no batch upload), says the plan's batch-upload load-bearing assumption is false, confirms the revised plan still serves the Brief's Problem of photos lost when a laptop fails, revises Phase 2 to upload photos one file per call (or an equivalent that meets the acceptance criteria without a batch call), and asks the user to approve the revised plan before implementation resumes. FAIL if it only lists completeness gaps against the template, tells implementation to continue with the batch call, or never mentions the deviation."
