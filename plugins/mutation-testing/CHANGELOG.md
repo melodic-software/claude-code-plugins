@@ -3,6 +3,16 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-27
+
+### Changed
+
+- **`setup` names what the detected test runner supports up front.** `apply` step 2 says, beside
+  the tool proposal and before the diff-target question, whether the runner supports
+  `audit --exercised` and `/testing:cleanup`'s mutation gate; a name-filter-only runner (Maven
+  `-Dtest`, Gradle `--tests`) supports neither, so the user can stop before investing in setup.
+  `check` step 3 adds the same line as an INFO row. A new setup eval case covers a Gradle project.
+
 ## [0.9.0] - 2026-10-27
 
 ### Added
