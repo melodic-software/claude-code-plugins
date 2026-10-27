@@ -2129,6 +2129,9 @@ const PATCH_HEAD = {
 // A job a push job also waits for: address-feedback's push lands after the
 // adjudicator, right before the reply job.
 const APPLY_AFTER = { "address-feedback": ["adjudicate-feedback"] };
+// The patch-rules.json row a push job names past its producer's prepare mode:
+// fix-docs has none, and its patch takes the markdown-only docs row.
+const PATCH_ROW = { "fix-docs": "docs" };
 // What else a push job's gate reads, set so a conflicted round's patch decides it.
 const APPLY_GATE = {
   "resolve-conflicts": { "needs.resolve-conflicts-select.outputs.merge-state": "conflicted", "needs.resolve-conflicts-select.outputs.proceed": "true" },
@@ -2248,7 +2251,7 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(apply.with["trusted-base"], jobs[firstId].with["trusted-base"]);
     assert.equal(apply.secrets, undefined, "the push job gets no Claude credential");
     const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
-    assert.equal(apply.with["patch-prepare"] ?? "", config.activities[firstId].prepare ?? "", "the row of the producer's prepare mode");
+    assert.equal(apply.with["patch-prepare"] ?? "", config.activities[firstId].prepare ?? PATCH_ROW[firstId] ?? "", "the row of the producer's prepare mode");
     // A call that handed off ran but left its outputs empty.
     const context = (from) => {
       const values = {
@@ -2362,6 +2365,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
   assert.equal(hold.run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
   assert.equal(hold.env.ACTIVITY, "fix-docs");
   assert.equal(jobs["apply-docs-patch"].with["patch-fix-requested"], "${{ needs.fix-docs-head.outputs.lane-escalated }}");
+  assert.equal(jobs["apply-docs-patch"].with["patch-prepare"], "docs", "the markdown-only patch-rules.json row");
   assert.equal(starts({ activity: "fix-ci" }), false);
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
   assert.equal(starts({ pr: "" }), false);

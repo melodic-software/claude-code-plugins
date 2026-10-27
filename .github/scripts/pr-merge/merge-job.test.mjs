@@ -51,6 +51,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check the kill switch",
       "Read report-only",
       "Read the lane records the last run kept",
+      "Read the post-merge report the last run kept",
       "Check earlier lane merges",
       "Keep the post-merge report for enable-auto-merge",
       "Start the full CI run on main",
@@ -524,6 +525,104 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.match(run.output, /^needs-dispatch=false$/m);
   assert.match(run.output, /^code=75$/m);
   assert.equal(run.keptCode, "75");
+});
+
+// post-merge-dispatch's check, run with the last run's report in
+// post-merge-last (or none) and a fake python3: `settle` answers whether the
+// report stands (exit `settle`), any other call is the check, which marks that
+// it ran. The rule (pr-merge.yml): an idle tick reuses a report whose check
+// passed (exit 0 or 5) and that `settle --idle-tick` keeps
+// (babysit_verify_evidence.py, tested in test_babysit_lane_room.py
+// IdleRefusal and SettleCommand), keeping its code and commit so the reuse
+// ends SHARED_MAX_AGE after the check that made it; otherwise it runs the
+// check.
+const LAST_SHA = "d".repeat(40);
+const lastReport = () => ({ readable: true, ok: true, needsDispatch: false, shared: { mainSha: "a".repeat(40) } });
+const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3 } = {}) => {
+  const dir = tempDir("pr-merge-idle-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '{"ran": true}'\nexit ${exit}\n`,
+    );
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    writeFileSync(join(dir, "lane-records.json"), "read in");
+    if (last !== undefined) {
+      mkdirSync(join(dir, "post-merge-last"));
+      writeFileSync(join(dir, "post-merge-last/post-merge.json"), JSON.stringify(last));
+      writeFileSync(join(dir, "post-merge-last/post-merge-code"), `${code}\n`);
+      writeFileSync(join(dir, "post-merge-last/post-merge-code-sha"), `${LAST_SHA}\n`);
+      writeFileSync(join(dir, "post-merge-last/lane-records.json"), "the last run's");
+    }
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")))], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
+    });
+    const kept = (file) => (existsSync(join(dir, "post-merge-report", file)) ? readFileSync(join(dir, "post-merge-report", file), "utf8").trim() : null);
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      ran: existsSync(join(dir, "ran")),
+      settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      report: kept("post-merge.json"),
+      keptCode: kept("post-merge-code"),
+      keptSha: kept("post-merge-code-sha"),
+      records: kept("lane-records.json"),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("an idle tick reuses the last run's report that settle --idle-tick keeps, with its code and commit", () => {
+  for (const code of ["0", "5"]) {
+    const run = runIdleCheck({ last: lastReport(), code });
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.ran, false, `exit ${code}: the check ran again`);
+    assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge-last/post-merge\\.json --code-sha ${LAST_SHA}$`));
+    assert.match(run.stdout, /::notice::the last run's post-merge check \(exit \d\) still stands: nothing it reads has moved; reused, not run again/);
+    assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
+    assert.match(run.output, /^needs-dispatch=false$/m);
+    // Kept for this run's later jobs and the next tick as it was made, with
+    // the lane records this run read, not the last run's.
+    assert.deepEqual(JSON.parse(run.report), lastReport());
+    assert.equal(run.keptCode, code);
+    assert.equal(run.keptSha, LAST_SHA);
+    assert.equal(run.records, "read in");
+  }
+});
+
+test("a tick runs the check itself for no report, a refusal, a crash or a check that did not pass", () => {
+  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  for (const [why, options] of [
+    ["none", {}],
+    ["settle refuses", { last: lastReport(), settle: 1 }],
+    ["settle crashes", { last: lastReport(), settle: 2 }],
+    ...["1", "2", "3", "4", "75"].map((code) => [`exit ${code}`, { last: lastReport(), code }]),
+  ]) {
+    const run = runIdleCheck(options);
+    assert.equal(run.ran, true, why);
+    assert.match(run.output, /^code=3$/m, why);
+    assert.deepEqual(JSON.parse(run.report), { ran: true }, why);
+    assert.equal(run.keptSha, head, why);
+    if (/^exit /.test(why)) assert.equal(run.settled, null, `${why} is not offered to settle`);
+  }
+});
+
+test("post-merge-dispatch reads the last run's report before its check, from a trusted run alone", () => {
+  const list = stepsOf(jobBlock("post-merge-dispatch"));
+  const names = list.map((s) => s.name);
+  const read = step("Read the post-merge report the last run kept", list);
+  assert.equal(names.indexOf("Read the post-merge report the last run kept") + 1, names.indexOf("Check earlier lane merges"));
+  assert.match(read, /\n {8}if: steps\.mode\.outputs\.live == 'true'\n {8}continue-on-error: true\n/);
+  assert.ok(read.includes("LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last\n"));
+  assert.match(read, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/last-report\.mjs\n/);
 });
 
 // The merge job reuses the kept report only while the check's code at its
