@@ -19,7 +19,7 @@ audit/
 │   ├── windows/                   # Windows-specific check catalog + remediation policy
 │   ├── macos/not-implemented.md   # porting stub
 │   └── linux/not-implemented.md   # porting stub
-├── evals/                         # evals.json; the skill-quality gate requires it
+├── evals/                         # evals.json; the skill-quality gate requires it (the plugin eval suite is the plugin root's evals/)
 ├── scripts/
 │   ├── windows/                   # orchestrator, checks, remediations, lib helpers
 │   ├── macos/not-implemented.md   # porting stub

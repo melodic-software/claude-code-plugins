@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./select-trusted-text.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LIST = path.join(HERE, "..", "check-trusted-trigger", "fixtures", "trusted-actors.json");
@@ -85,7 +85,7 @@ function fakeGitHub(routes) {
 
 let dir;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "select-trusted-text-"));
+  dir = tempDir("select-trusted-text-");
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });

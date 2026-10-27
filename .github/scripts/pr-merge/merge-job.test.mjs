@@ -6,11 +6,11 @@
 // never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const text = readFileSync(join(root, ".github/workflows/pr-merge.yml"), "utf8");
@@ -91,7 +91,7 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
 const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway") => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
+  const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -216,7 +216,7 @@ test("under lane-prs native with no other author the listing calls nothing and l
 
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
   for (const mode of ["native", "gate"]) {
-    const dir = mkdtempSync(join(tmpdir(), "pr-merge-mode-"));
+    const dir = tempDir("pr-merge-mode-");
     try {
       symlinkSync(root, join(dir, ".base"));
       writeFileSync(join(dir, "resolved-config.json"), JSON.stringify({ merge: { "lane-prs": mode } }));
@@ -274,7 +274,7 @@ test("the job end logs both tokens' readings from the job's own responses, and r
 // Runs the sweep-cost step with the end reading's costs and a summary of
 // `reached` gate verdicts and `skipped` carried ones beside one held candidate.
 const runSweepCost = (costs, reached, skipped = 0) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-cost-"));
+  const dir = tempDir("pr-merge-cost-");
   try {
     writeFileSync(join(dir, "held.json"), '[{"number": 9}]');
     const rows = [
@@ -483,7 +483,7 @@ test("every post-merge check reads the lane records, and only the merge job uplo
 // Runs the early job's check against a fake python3 that prints a report and
 // exits `code`.
 const runEarlyCheck = (code, needsDispatch = false, stops) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-"));
+  const dir = tempDir("pr-merge-early-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -539,7 +539,7 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
 const LAST_SHA = "d".repeat(40);
 const lastReport = () => ({ readable: true, ok: true, needsDispatch: false, shared: { mainSha: "a".repeat(40) } });
 const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3 } = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-idle-"));
+  const dir = tempDir("pr-merge-idle-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
@@ -661,7 +661,7 @@ test("the early check names the stopped pool and its reset in its rate-limited o
 test("the rate-stop label's time is the latest stop of every stop_files vector", () => {
   const vectors = JSON.parse(readFileSync(join(root, ".github/actions/log-api-budget/rate-guard.vectors.json"), "utf8"));
   for (const vector of vectors.stop_files) {
-    const dir = mkdtempSync(join(tmpdir(), "pr-merge-stop-label-"));
+    const dir = tempDir("pr-merge-stop-label-");
     try {
       mkdirSync(join(dir, "api-budget"));
       writeFileSync(join(dir, "api-budget", "stop"), vector.text);
@@ -838,7 +838,7 @@ test("the summary does not call a full run unneeded when only the gate's dispatc
 // Runs the gate step with a fake gate whose second candidate kills the loop,
 // as a cancelled run would stop it mid-sweep.
 const runCancelledGate = () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-gate-"));
+  const dir = tempDir("pr-merge-gate-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
@@ -926,7 +926,7 @@ test("the read-only post-merge check and the gate's reads use the job's read-onl
 // Runs the record step against a fake python3 that saves its arguments,
 // prints `report` and exits `code`.
 const runRecord = (code, report = { remediation: { errors: [] } }) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-record-"));
+  const dir = tempDir("pr-merge-record-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -988,7 +988,7 @@ const runBudgetedGate = (
     candidates = [7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" })),
   } = {},
 ) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
+  const dir = tempDir("pr-merge-budget-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
@@ -1111,7 +1111,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
     }
   }
   // The refusal count still writes its summary, with no read of the run.
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-count-"));
+  const dir = tempDir("pr-merge-count-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
@@ -1139,7 +1139,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
 // The candidates the next run's rotation.mjs orders from a cursor.
 const rotateFrom = async (cursor) => {
   const { main: rotation } = await import("./rotation.mjs");
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rotation-"));
+  const dir = tempDir("pr-merge-rotation-");
   try {
     const path = join(dir, "candidates.json");
     writeFileSync(path, JSON.stringify([3, 5, 7].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))));
@@ -1321,7 +1321,7 @@ const earlySteps = () => stepsOf(jobBlock("post-merge-dispatch"));
 
 // Runs the early job's check against a fake python3 that prints `report`.
 const runEarlyReport = (report) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-report-"));
+  const dir = tempDir("pr-merge-early-report-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -1367,7 +1367,7 @@ const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
 const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
 const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
+  const dir = tempDir("pr-merge-rerun-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -1599,7 +1599,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 // run the check. `yqFails` puts a yq that fails on the PATH.
 const KEPT_SHA = "b".repeat(40);
 const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
+  const dir = tempDir("pr-merge-reuse-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
