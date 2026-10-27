@@ -354,6 +354,15 @@ at most `limits.fix-docs-per-run` per run, none for a PR whose `fix-docs` run is
 going, and the run ids join the dispatched-runs record. A PR that turns ready waits for the next
 push to the default branch.
 
+A `fix-docs` run whose run job emits an empty head posts no check (`post-decline: false`), so the
+dispatch record also keeps the `fix-docs` runs dispatched on each head. Once
+`limits.limit-stops-per-head` are kept, the dispatcher reads each one's status and jobs through
+the Actions API, and a head with that many runs whose `fix-docs / broker-allowed` job succeeded (a
+fact no run job can write) gets one `::warning::` and joins the record's handled heads until a new
+push. A run the broker refused, or one a hold skipped, ran no model turn: it does not count and
+leaves the list once it ends, as a run that is gone does. A head whose runs cannot be read is not
+dispatched. A lost record restarts the count, at most that many runs more.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -2296,7 +2305,7 @@ with defaults.
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
-| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
