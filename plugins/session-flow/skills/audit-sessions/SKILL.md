@@ -261,7 +261,7 @@ a model. Run Step 1 first, pass `--scope` yourself as in the style pass's step 3
 
 6. **Present** as Step 3 says. The report's `Judged (unranked)` section lists each turn judged a
    correction with its excerpt and reason. Say that a model, not a measurement, made these calls,
-   that no agreement figure on a labelled sample exists yet, and that they are never ranked beside
+   that no agreement figure on a labeled sample exists yet, and that they are never ranked beside
    the measured findings. Each one suggests `/session-flow:retro codify` for the person to run.
 
 ## Boundary, the built-in `/insights` command

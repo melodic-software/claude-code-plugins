@@ -103,7 +103,7 @@ D/audit-sessions/
   (the recheck trigger in `sweep-rules.json`). The mark is advisory: it raises no finding and leaves
   the exit code unchanged.
 - With `--judged`, `data.judged` holds the correction lens's section: `title` (`Judged (unranked)`),
-  `note`, `agreement` (null until an agreement figure on a labelled sample exists), `counts`, and
+  `note`, `agreement` (null until an agreement figure on a labeled sample exists), `counts`, and
   `findings`, one per turn judged a correction, each with `"confidence": "judged"`, its `turn_id`,
   `excerpt` and `reason`. These findings never enter `data.findings` or `data.suggestions` and leave
   the exit code unchanged. `--judged` refuses `--write-report`, so a saved report never holds an

@@ -57,7 +57,7 @@ KEEP_REPORTS = 20
 MAX_LISTED = 5
 JUDGED_TITLE = "Judged (unranked)"
 JUDGED_NOTE = (
-    "A model judged these turns, and no agreement figure against a labelled sample exists yet, so they are not ranked"
+    "A model judged these turns, and no agreement figure against a labeled sample exists yet, so they are not ranked"
     " and change no measured finding."
 )
 VERDICTS = ("correction", "not-correction")
