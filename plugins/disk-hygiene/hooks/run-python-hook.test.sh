@@ -955,9 +955,9 @@ assert_eq "a launch records the session in its own tmp directory" "present" \
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) ;;
 *)
-  assert_eq "the launch creates its tmp marker directory with mode 700" "700" \
-    "$(stat -c '%a' "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor" 2>/dev/null ||
-      stat -f '%Lp' "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
+  own_mode="$(ls -ld "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
+  assert_eq "the launch creates its tmp marker directory with mode 700" "drwx------" \
+    "${own_mode:0:10}"
   ;;
 esac
 MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"Stop"}'
