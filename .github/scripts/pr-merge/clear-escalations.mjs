@@ -148,8 +148,12 @@ const prMergeLine = (line) => PR_MERGE_MARKERS.includes(line) || line === PR_MER
 const AT_HEAD = / at head `([^`]*)`/g;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// report-escalation.sh's fix-ci stops, each judged by ciPasses.
-const CI_FIX = Object.freeze(["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-protected-path", "ci-fix-not-applied", "ci-fix-escalated"]);
+// report-escalation.sh's fix-ci stops, each judged by ciPasses. Not
+// ci-fix-protected-path: its fix needed a protected path, so a person decides it.
+const CI_FIX = Object.freeze(["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-escalated"]);
+// The only conclusions a check's latest run at the head may have for a ci-fix
+// stop to clear; action_required, stale, null and any other keep it.
+const PASSING = new Set(["success", "neutral", "skipped"]);
 // fix-ci's aggregate check, which the human-gated label itself fails.
 const AGGREGATE = "ci-status";
 // Check-run pages read at a head; a head with more stays unread.
@@ -231,7 +235,8 @@ const CHECKS = Object.freeze({
 // A ci-fix stop: the lane could not fix CI at its resume key. Gone once a
 // trusted push moved the head and, at the new head, no check fails, runs or
 // was cancelled (fix-ci's failingChecks over every run, so a later skip hides
-// no failure), and one passed. ci-status is left out: the label fails it.
+// no failure), each check's latest run ended in PASSING, and one passed.
+// ci-status is left out: the label fails it.
 async function ciPasses(context) {
   const moved = await context.moved();
   if (moved === null) {
@@ -253,10 +258,17 @@ async function ciPasses(context) {
     return null;
   });
   const others = (runs ?? []).filter((run) => run?.name !== AGGREGATE);
+  const latest = new Map();
+  for (const run of others) {
+    if (!(latest.get(run.name)?.id > run.id)) {
+      latest.set(run.name, run);
+    }
+  }
   if (
     runs === null ||
     failingChecks(others).length > 0 ||
     others.some((run) => run.status !== "completed") ||
+    [...latest.values()].some((run) => !PASSING.has(run.conclusion)) ||
     !others.some((run) => run.conclusion === "success")
   ) {
     return null;
@@ -268,7 +280,8 @@ async function ciPasses(context) {
 // the label went on: the head is this repository's (the activity API shows no
 // fork push), its newest push since `since` landed the head, and every push
 // or other activity on the branch since then is by an id `trusted` holds (a
-// `human` of trusted-actors.json, or the lanes App's own entry). The page must
+// `human` of trusted-actors.json; never the lanes App, whose own push would
+// lift its own stop). The page must
 // reach back past `since`, or the move stays unread. A description, or null.
 async function trustedMove({ read, repo, pull, keys, since, trusted }) {
   const head = pull.head.sha;
@@ -524,14 +537,14 @@ function cleared(timeline, bot, since, reasons, head, why) {
   return { reason: null, recorded, head, why: why.join("; "), explained };
 }
 
-// The ids whose push is a trusted move: every `human` of trusted-actors.json
-// and the lanes App's own entry (`bot`), matched by id. Null when the list
-// does not read.
-function trustedIds(path, bot) {
+// The ids whose push is a trusted move: every `human` of trusted-actors.json,
+// matched by id. Not the lanes App: every lane that sets check-trusted-trigger's
+// denied-actor-ids denies its sender id, and its own push must not clear its
+// own stop.
+// Null when the list does not read.
+function trustedIds(path) {
   try {
-    const { humans, logins } = loadTrustedList(path);
-    const app = logins.get(bot.toLowerCase());
-    return new Set(app === undefined ? humans : [...humans, app]);
+    return new Set(loadTrustedList(path).humans);
   } catch (error) {
     console.log(`clear-escalations: no stop clears on a trusted move: ${escapeCommand(error?.message ?? error)}`);
     return null;
@@ -557,7 +570,7 @@ export async function main({ env = process.env, github, verify, reader } = {}) {
     // history; without it, or without the trusted list, no stop clears on a
     // trusted move.
     reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? createGitHub({ token: env.BABYSIT_VERIFY_GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined })) : null;
-    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json", bot);
+    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
     const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
     if (!SHA.test(String(mainSha))) {

@@ -869,10 +869,14 @@ test("workflow-staged comes off once a trusted person moved the head past the re
   assert.equal(removal.method, "DELETE");
 });
 
-test("a lanes App push counts as a trusted move", async () => {
-  const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: readerFor({ pushes: [pushedBy(APP_ACTOR)] }) });
-  await run(w, TRUST_ENV);
-  assert.equal(w.writes().at(-1)?.method, "DELETE");
+test("a lanes App push is not a trusted move: the App never lifts its own stop with its own push", async () => {
+  for (const pushes of [[pushedBy(APP_ACTOR)], [pushedBy(PERSON, "e".repeat(40), "2026-10-18T10:30:00Z"), pushedBy(APP_ACTOR)]]) {
+    for (const reason of ["workflow-staged", "ci-fix-escalated"]) {
+      const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mainFiles: WORKFLOW_MAIN, reader: readerFor({ pushes }) });
+      await run(w, TRUST_ENV);
+      assert.deepEqual(w.writes(), [], `${reason} ${JSON.stringify(pushes)}`);
+    }
+  }
 });
 
 test("workflow-staged stays when any push since the label is by an account off the trusted list", async () => {
@@ -939,7 +943,7 @@ test("an unreadable job-token read keeps the label without failing the run", asy
   assert.deepEqual(w.writes(), []);
 });
 
-const CI_FIX = ["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-protected-path", "ci-fix-not-applied", "ci-fix-escalated"];
+const CI_FIX = ["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-escalated"];
 
 test("a ci-fix stop comes off once a trusted push moved the head and no check but ci-status fails there", async () => {
   for (const reason of CI_FIX) {
@@ -958,6 +962,9 @@ test("a ci-fix stop stays while a check fails, runs, or none has passed at the h
     [...GREEN, run_("test-python", "cancelled", 4)],
     [run_("test-node", "failure", 2), run_("test-node", "skipped", 9)],
     [run_("ci-status", "failure", 1), run_("lint-repo", "skipped", 3)],
+    [...GREEN, run_("deploy", "action_required", 4)],
+    [...GREEN, run_("test-go", "stale", 4)],
+    [...GREEN, run_("test-go", null, 4)],
     [],
   ]) {
     const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns }) });
@@ -969,8 +976,14 @@ test("a ci-fix stop stays while a check fails, runs, or none has passed at the h
   assert.deepEqual(unmoved.writes(), []);
 });
 
-test("a stop on the lane's own conflict patch stays, even once the PR is mergeable after a trusted move", async () => {
-  for (const reason of ["unexpected-path-staged", "conflict-patch-invalid", "conflict-patch-not-applied", "conflict-patch-protected-path"]) {
+test("a ci-fix stop passes with a neutral check at the head", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns: [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)] }) });
+  await run(w, TRUST_ENV);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("a protected-path or own-patch stop stays, even once the PR is mergeable after a trusted move with everything green", async () => {
+  for (const reason of ["ci-fix-protected-path", "unexpected-path-staged", "conflict-patch-invalid", "conflict-patch-not-applied", "conflict-patch-protected-path"]) {
     const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mergeable: true, reader: readerFor() });
     await run(w, TRUST_ENV);
     assert.deepEqual(w.writes(), [], reason);
