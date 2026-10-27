@@ -5,13 +5,21 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## [12.7.0] - 2026-10-26
+## [12.8.0] - 2026-10-26
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
 
 - **Operator steering.** §7 documents the `eval: run` pull request label, which runs the changed
   plugins' eval suites when a listed human adds it, and refuses a plugin whose tree holds a
   symlink or submodule.
+
+## [12.7.0] - 2026-10-26
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **AI disclaimer is a setting.** The attend-queue park and hold comments open with the AI
+  disclaimer only when work-items' `ai_disclaimer` setting resolves `true`; it defaults to `false`.
+  §4's lane-editable config adds that both lanes read `work-items.yaml` for the key (#8650).
 
 ## [12.6.0] - 2026-10-26
 
