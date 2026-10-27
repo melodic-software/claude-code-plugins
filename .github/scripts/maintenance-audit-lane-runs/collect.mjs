@@ -27,9 +27,10 @@ const SELF = ".github/workflows/maintenance-audit-lane-runs.yml";
 const LIST_CAP = 1000;
 // Calls the listing leaves for what follows: the open PR and issue reads (4)
 // and the most the units can spend, four A units (5 runs, each a jobs read
-// and 3 failed jobs' annotations and log), two D units (3 sampled runs) and
-// the two C units left (10 PRs): 4 + 4 * 5 * 7 + 2 * 3 + 2 * 10.
-export const DETAIL_RESERVE = 170;
+// and 3 failed jobs' annotations and log) and, with no D unit, four C units
+// (10 PRs): 4 + 4 * 5 * 7 + 4 * 10. A D unit (3 sampled runs) costs less
+// than the C unit it displaces.
+export const DETAIL_RESERVE = 184;
 
 export function createBudget(limit) {
   return {
@@ -92,11 +93,11 @@ export function tailLog(text, count = LOG_LINES) {
 const stamp = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // Every run of each workflow but this one created from `from` to `to` (whole
-// seconds, both ends included). One per_page=1 call reads a workflow's count;
-// a range at the listing cap is halved until each part fits. Listing stops
-// before the budget's last `reserve` calls, and each workflow it could not
-// read in full is in `partial` with the runs it read and its count (null
-// when not read).
+// seconds, both ends included). A range's first page of 100 carries its
+// count, so listing goes on from page 2; a range at the listing cap is halved
+// until each part fits. Listing stops before the budget's last `reserve`
+// calls, and each workflow it could not read in full is in `partial` with the
+// runs it read and its count (null when not read).
 export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RESERVE }) {
   const room = () => budget.used < budget.limit - reserve;
   const workflows = [];
@@ -106,44 +107,48 @@ export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RE
     if (batch.workflows.length < 100) break;
   }
   const runsOf = (id, a, b) => `/repos/${repo}/actions/workflows/${id}/runs?created=${stamp(a)}..${stamp(b)}`;
-  const count = async (id, a, b) => (await gh.call(`${runsOf(id, a, b)}&per_page=1`)).total_count;
-  // Whether every run of the range was read into `got`.
-  const list = async (id, a, b, total, got) => {
-    if (total === 0) return true;
-    if (total >= LIST_CAP && b - a >= 2000) {
+  const head = async (id, a, b) => {
+    const batch = await gh.call(`${runsOf(id, a, b)}&per_page=100`);
+    return { total: batch.total_count, runs: batch.workflow_runs };
+  };
+  // Whether every run of the range was read into `got`; `first` is its head().
+  const list = async (id, a, b, first, got) => {
+    for (const r of first.runs) got.set(r.id, r);
+    if (first.total >= LIST_CAP && b - a >= 2000) {
       const mid = a + Math.floor((b - a) / 2000) * 1000;
       for (const [x, y] of [
         [a, mid],
         [mid + 1000, b],
       ]) {
-        if (!room() || !(await list(id, x, y, await count(id, x, y), got))) return false;
+        if (!room() || !(await list(id, x, y, await head(id, x, y), got))) return false;
       }
       return true;
     }
-    let read = 0;
-    for (let page = 1; page <= Math.ceil(Math.min(total, LIST_CAP) / 100); page += 1) {
+    let read = first.runs.length;
+    let last = read;
+    for (let page = 2; last === 100 && page <= Math.ceil(Math.min(first.total, LIST_CAP) / 100); page += 1) {
       if (!room()) return false;
       const batch = await gh.call(`${runsOf(id, a, b)}&per_page=100&page=${page}`);
       for (const r of batch.workflow_runs) got.set(r.id, r);
-      read += batch.workflow_runs.length;
-      if (batch.workflow_runs.length < 100) break;
+      last = batch.workflow_runs.length;
+      read += last;
     }
-    return read >= total;
+    return read >= first.total;
   };
   const partial = [];
   const counted = [];
   for (const w of workflows) {
-    if (room()) counted.push({ w, total: await count(w.id, from, to) });
+    if (room()) counted.push({ w, first: await head(w.id, from, to) });
     else partial.push({ path: w.path, listed: 0, total: null });
   }
-  // Smallest first, so a budget that runs out leaves the fewest workflows part-read.
-  counted.sort((x, y) => x.total - y.total || x.w.path.localeCompare(y.w.path));
+  // Busiest first, so a budget that runs out leaves the smaller workflows part-read.
+  counted.sort((x, y) => y.first.total - x.first.total || x.w.path.localeCompare(y.w.path));
   const runs = [];
-  for (const { w, total } of counted) {
+  for (const { w, first } of counted) {
     const got = new Map();
-    const whole = room() && (await list(w.id, from, to, total, got));
+    const whole = await list(w.id, from, to, first, got);
     runs.push(...got.values());
-    if (!whole) partial.push({ path: w.path, listed: got.size, total });
+    if (!whole) partial.push({ path: w.path, listed: got.size, total: first.total });
   }
   return { runs, partial };
 }

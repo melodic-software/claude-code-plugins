@@ -313,10 +313,23 @@ test("a refusal a person must clear, a cost path or a configured denied path, is
   ]);
 });
 
+// Owner decision Q26 option B: the gate holds an enforcement floor path as
+// `review-path:` until the security review binds clean to the head; the lanes
+// run that review, so the refusal gets the comment and no label.
+test("an enforcement floor path the gate holds for its security review is a lane's refusal", async () => {
+  const reviews = "review-path:.github/scripts/work-resolve-issue/limits.mjs: .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head clears it";
+  const verdict = { refusal: null, needsHuman: false, reviewsPerson: false, head: HEAD, ineligible: null, reviews };
+  const { writes, notes } = await run([pull(1, { files: [{ filename: ".github/scripts/work-resolve-issue/limits.mjs" }], verdict })]);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(`pr-merge's gate holds it on its risk score (${reviews})`) } }]);
+});
+
 // Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): a floor path, the files
 // that enforce the floor included, holds with no configured glob naming it,
 // as a cause a person must clear, so it gets the label; a trusted path off
-// the floor arms.
+// the floor arms. Owner decision Q26 option B: an `enforcement` floor path is
+// left to the gate's verifier read, whose risk score holds it until a clean
+// security review binds to the head, so it arms on a passing read.
 test("a floor path no configured glob names is commented on and labeled human-gated; a trusted path off it arms", async () => {
   const floor = [
     ".github/actions/resolve-config/resolve.mjs",
@@ -331,23 +344,23 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-merge/who.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     ".github/workflows/pr-require-checks.yml",
+    ".github/workflows/pr-merge.yml",
     "docs/conventions/pr-pipeline.yaml",
-    ".github/scripts/pr-unblock/address-feedback.mjs",
-    ".github/scripts/pr-unblock/gate-source.mjs",
-    ".github/scripts/pr-unblock/thread-scope.mjs",
-    ".github/scripts/pr-unblock/retry-fetch.mjs",
-    ".github/scripts/work-resolve-issue/report-outcome.mjs",
-    ".github/scripts/work-resolve-issue/limits.mjs",
-    ".github/scripts/work-resolve-issue/retry-fetch.mjs",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
-    pull(99, { files: [{ filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
+    pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
+    pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.equal(code, 0);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_99", head: HEAD }]);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_98", head: HEAD },
+    { mutation: "arm", id: "PR_99", head: HEAD },
+  ]);
   assert.deepEqual(
     notes,
     floor.flatMap((filename, index) => [
@@ -1151,13 +1164,58 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
     // The rest of .github merges on the review lanes.
-    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
+    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.deepEqual(writes, [
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_5", head: HEAD },
     { mutation: "arm", id: "PR_6", head: HEAD },
   ]);
+});
+
+// ci-status lifts a hold path on a trusted person's approving review of the
+// head (merge-holds.pathLifters); arming reads the same rule. Kyle (id 5) is
+// on the trusted-actor list, id 9 is not.
+const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026-10-26T16:41:00Z" } = {}) => ({
+  author: { __typename: "User", login, databaseId: id },
+  state,
+  commit: { oid },
+  body: "",
+  submittedAt: at,
+  authorAssociation: "OWNER",
+});
+function trustedKyle() {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
+  return { TRUSTED_ACTORS: join(dir, "actors.json") };
+}
+const HELD = [{ filename: "docs/held.md" }];
+
+test("a hold path a trusted person approved at the head is armed, and an armed one stays armed", async () => {
+  const approved = { reviews: [reviewed("APPROVED")] };
+  const { writes } = await run([pull(50, { files: HELD, discussion: approved }), pull(51, { files: HELD, discussion: approved, autoMergeRequest: {} })], trustedKyle());
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_50", head: HEAD }]);
+});
+
+test("a hold path stays held without a trusted approval of the head", async () => {
+  const { writes } = await run(
+    [
+      pull(52, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { oid: "c".repeat(40) })] } }),
+      pull(53, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] } }),
+      pull(54, { files: HELD, discussion: { reviews: [reviewed("APPROVED"), reviewed("CHANGES_REQUESTED", { at: "2026-10-26T17:20:00Z" })] } }),
+      pull(55, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] }, autoMergeRequest: {} }),
+    ],
+    trustedKyle(),
+  );
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
+});
+
+test("an approval lifts no unread hold-path check and no capped file listing", () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const armed = pull(1, { autoMergeRequest: {} });
+  const approved = { ...detail(), lifters: ["kyle-sexton"], verify: PASSED };
+  assert.deepEqual(decide(armed, options, { ...approved, files: null }), { action: "disarm", reason: "its changed files could not all be read", clears: "lane" });
+  assert.deepEqual(decide(armed, options, { ...approved, files: ["docs/a.md"], filesCapped: true }), { action: "disarm", reason: FILES_CAPPED_REASON, clears: "person" });
 });
 
 // A manifest is no hold path: the gate's reader scores it (`evidence
@@ -1727,7 +1785,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -1812,7 +1870,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -2395,7 +2453,7 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
     mock.patch.object(policy, "read_config_at", lambda repo, sha: config), \\
     mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
     mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
-    mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), \\
+    mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), \\
     mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, "failedEjections": COUNTS[str(n)]}), \\
     mock.patch.object(babysit_merge, "_failed_merge_group_runs", lambda repo, branch, n: []):
     sys.exit(ve.main(sys.argv[1:]))

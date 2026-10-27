@@ -10,7 +10,7 @@ Three subcommands over one committed store:
               `--check` regenerates and diffs instead of writing.
   self-check  Deterministic freshness gate over the store, the view, and the
               baked lines in components.
-  dismiss     Record a human's ruling that a candidate pair is not an overlap,
+  dismiss     Record a ruling that a candidate pair is not an overlap,
               fingerprinting both sides' scored text so `detect` suppresses
               the pair until either side's text changes.
 
@@ -248,8 +248,9 @@ Generated view over the native-overlap store. The block between the markers belo
 **Never hand-edit it.** Verdicts, evidence, and recheck triggers are edited in the store; this
 file is output.
 
-Every verdict here is a human's. Rows are recorded per overlap between a native Claude Code surface
-and a component in this repository, and each one carries the observable event that obliges
+Every verdict here was written by a person or by a session acting on the owner's recorded
+direction, never by an unattended run. Rows are recorded per overlap between a native Claude Code
+surface and a component in this repository, and each one carries the observable event that obliges
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See [`docs/conventions/native-references/`](conventions/native-references/README.md).
 """
@@ -1125,11 +1126,13 @@ def render_block(
 
 
 def render_dismissals(dismissals: list[dict[str, Any]]) -> list[str]:
-    """The Dismissed section: pairs a human ruled are not an overlap."""
+    """The Dismissed section: pairs ruled not an overlap."""
     lines = [
         "## Dismissed",
         "",
-        "Pairs a human ruled are not an overlap. `detect` suppresses each one until either "
+        "Pairs ruled not an overlap by a person or a session acting on the owner's "
+        "recorded direction, never by an unattended run. `detect` suppresses each one "
+        "until either "
         "side's fingerprint changes, then lists it again flagged "
         f'"{RESURFACED}".',
         "",
@@ -1937,8 +1940,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
         },
         "candidates": candidates,
         "note": (
-            "Candidates only. No verdict is assigned here: every verdict is a human's, "
-            "recorded in the store."
+            "Candidates only. No verdict is assigned here: a person or a session "
+            "acting on the owner's recorded direction writes each one in the store, "
+            "never an unattended run."
         ),
     }
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
@@ -2184,7 +2188,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
 
 
 def cmd_dismiss(args: argparse.Namespace) -> int:
-    """Record (or refresh) a human's ruling that a pair is not an overlap."""
+    """Record (or refresh) a ruling that a pair is not an overlap."""
     store_path = Path(args.store)
     if not store_path.is_file():
         _fail(f"no store at {store_path}; a dismissal is recorded in an adopted store")
@@ -2382,7 +2386,7 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
     dismiss = subparsers.add_parser(
         "dismiss",
         help=(
-            "record a human's ruling that a candidate pair is not an overlap; detect "
+            "record a ruling that a candidate pair is not an overlap; detect "
             "suppresses it until either side's description changes"
         ),
     )

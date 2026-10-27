@@ -370,7 +370,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | --- | --- | --- | --- |
 | [`/bugs:scan`](../plugins/bugs/skills/scan/SKILL.md) | `bugs` | daily | Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only |
 | [`/harness-ops:audit-install-state`](../plugins/harness-ops/skills/audit-install-state/SKILL.md) | `harness-ops` | weekly | Audit a Claude Code install directory. What is there, what the product manages, what is stale |
-| [`/harness-ops:audit-native-overlap`](../plugins/harness-ops/skills/audit-native-overlap/SKILL.md) | `harness-ops` | weekly | Map native Claude Code surfaces against this repo's components and record human-gated verdicts |
+| [`/harness-ops:audit-native-overlap`](../plugins/harness-ops/skills/audit-native-overlap/SKILL.md) | `harness-ops` | weekly | Map native Claude Code surfaces against this repo's components and record owner-directed verdicts |
 | [`/harness-ops:audit-performance`](../plugins/harness-ops/skills/audit-performance/SKILL.md) | `harness-ops` | continuous | Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet, fan-out |
 | [`/harness-ops:audit-skill-visibility`](../plugins/harness-ops/skills/audit-skill-visibility/SKILL.md) | `harness-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/harness-ops:inventory`](../plugins/harness-ops/skills/inventory/SKILL.md) | `harness-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |

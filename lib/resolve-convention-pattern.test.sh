@@ -261,6 +261,58 @@ r="$(newrepo $'## convention_source\nconventions.yml')"
 addneutral "$r" "conventions.yml" $'# convention SSOT\n\n# see CONTRIBUTING.md\nsubject_pattern: \047^C-[0-9]+: .+\047'
 assert_eq "neutral: comments/blanks inert" '^C-[0-9]+: .+' "$(run "$r")"
 
+# --- CRLF line endings: each value loses its CR, the dialect and deferral included ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'dialect: posix-ere\r\nsubject_pattern: \047^CR-[0-9]+: .+\047\r\npr_title_pattern: Same as `subject_pattern`.\r'
+assert_eq "neutral: CRLF subject" '^CR-[0-9]+: .+' "$(run "$r")"
+assert_eq "neutral: CRLF pr deferral -> subject" '^CR-[0-9]+: .+' "$(run "$r" pr_title_pattern)"
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047\047\r'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: CRLF empty key -> exit 1" 1 $?
+
+# --- the first line carrying a key wins; an indented key is not a key ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'  subject_pattern: \047^indented: .+\047\nsubject_pattern: \047^first: .+\047\nsubject_pattern: \047^second: .+\047'
+assert_eq "neutral: first key line wins, indented ignored" '^first: .+' "$(run "$r")"
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern:\nsubject_pattern: \047^later: .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: empty first key line fails closed despite a later value" 1 $?
+
+# --- a final line with no newline is still read ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+printf '%s' "subject_pattern: '^NONL: .+'" >"$r/conventions.yml"
+assert_eq "neutral: final line without newline" '^NONL: .+' "$(run "$r")"
+
+# --- an unreadable neutral file says so on stderr (skipped where it stays readable, as root) ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^U-[0-9]+: .+\047'
+chmod 000 "$r/conventions.yml"
+if [[ -r "$r/conventions.yml" ]]; then
+  echo "SKIP: unreadable neutral file case (the file stays readable to this user)"
+else
+  err="$(run "$r" 2>&1 >/dev/null)"
+  rc=$?
+  assert_exit "neutral: unreadable file -> exit 1" 1 "$rc"
+  assert_eq "neutral: unreadable file -> stderr diagnostic" "yes" \
+    "$([[ "$err" == *"cannot read convention_source file 'conventions.yml'"* ]] && echo yes || echo no)"
+fi
+chmod 644 "$r/conventions.yml"
+# ...and fails closed rather than falling back to a markdown H2 the migration retired.
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^U-[0-9]+: .+\047'
+chmod 000 "$r/conventions.yml"
+if [[ -r "$r/conventions.yml" ]]; then
+  echo "SKIP: unreadable neutral file with H2 fallback case (the file stays readable to this user)"
+else
+  out="$(run "$r" 2>/dev/null)"
+  rc=$?
+  assert_exit "neutral: unreadable file with H2 -> exit 1" 1 "$rc"
+  assert_eq "neutral: unreadable file with H2 -> no stale H2 pattern" "" "$out"
+fi
+chmod 644 "$r/conventions.yml"
+
 # --- pointer in the LOCAL overlay only is ignored (team-only policy floor) ---
 r="$(newrepo "" $'## convention_source\nconventions.yml')"
 addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
