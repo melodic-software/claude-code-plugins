@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [5.19.2] - 2026-10-27
+
+### Changed
+
+- maintenance-delete-stale-branches runs as two jobs. A plan job whose token writes nothing reads the branches, issues and pull requests and hands at most `max-deletes-per-run` candidates to a delete job as an artifact. The delete job alone holds `contents: write`, reads no issue or pull request text, and refuses a list for another repository, over the cap, or with an entry outside the rule's shape. No permission is added.
+- The delete is one GraphQL `updateRefs` per branch with `beforeOid` set to the listed tip, in place of `DELETE git/refs/heads/<branch>`, so a push that lands after the delete-time re-read makes GitHub refuse the delete, the branch is reported as skipped, and a second ledger line with `notDeletedAt` records that it still stands.
+
+### Fixed
+
+- `ci-status` reads the lanes App's bot account id from the `AUTOMATION_LANES_APP_SENDER_ID` repository variable, its one source, at job level, instead of a literal id; the cost-hold step no longer sets its own copy. The trust-hold, cost-hold and lanes-hold steps keep failing closed, or keeping the hold, when the variable is not a numeric id. The lanes-hold step, which runs on every pull request and in the merge queue, fails red, and the cost-hold step keeps its hold, when the variable is not the trusted-actor id of `merge.agent-identity` in the base commit's `pr-pipeline.yaml`, now part of the base config checkout.
+
+## [5.19.1] - 2026-10-27
+
+### Fixed
+
+- work-unblock re-fires an issue run whose broker-check `Ask the broker whether the lane may run` step failed for any reason but the lanes kill switch, or with no reason its log names, as a failed mint ([#9102](https://github.com/melodic-software/claude-code-plugins/issues/9102)). The read runner work-resolve-issue calls has no `Request the lane token` step, so such a run matched no no-work class and, past its one re-fire per version of the lane workflow files, waited on the stranded backoff. It now waits `limits.reset-clamp-min` hours after the run ended and is re-fired up to `limits.limit-stops-per-issue` times per version of those files, then on the stranded backoff, like a failed `Request the lane token` step. A kill-switch refusal there stays a breaker trip. The failed-mint backoff record now says the run could not get its lane token or the token broker's leave to run (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
 ## [5.19.0] - 2026-10-27
 
 ### Changed

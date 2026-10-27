@@ -2649,17 +2649,21 @@ jobs:
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy) and the inventory's parser packages go only on a leg whose suites
-      # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
-      # quiet: those suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
+      # inventory's parser packages go only on a leg whose suites need them,
+      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
+      # suites fail rather than skip without their dependency
+      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
+      # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # The animation lock must hold every pin its requirements.in declares, so an edit to
-          # the .in without regenerating the lock fails here instead of testing a stale lock.
-          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
-          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          # Each lock must hold every pin its requirements.in declares, so an edit to the .in
+          # without regenerating the lock fails here instead of testing a stale lock.
+          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+            stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
+                             <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
+            [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          done
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -2670,7 +2674,17 @@ jobs:
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
+          fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+          # hosted image does not carry; Ubuntu's signed archive provides both.
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            sudo apt-get -o Acquire::Retries=3 update -qq
+            sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
+            ffprobe -version | head -n 1
+          fi
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             node node_modules/playwright/cli.js install --only-shell chromium
@@ -2746,6 +2760,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
+          # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
+          DEMO_VIDEO_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
@@ -3201,10 +3217,12 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 300
-      # The lanes App's bot account id, which the trust-hold and lanes-hold
-      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
-      # checks it is merge.agent-identity's trusted-actor id).
-      LANES_APP_ID: 337595936
+      # The lanes App's bot account id, which the trust-hold, cost-hold and
+      # lanes-hold steps match a pull request author against. Its one source is
+      # the repository variable; each step that reads it fails closed or keeps
+      # its hold when it is not a numeric id, and the cost-hold and lanes-hold
+      # steps when it is not merge.agent-identity's trusted-actor id at the base.
+      LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -3856,10 +3874,11 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
-      # config names the human-gated label and the trusted-actor list names who
-      # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
-      # step runs. A sparse checkout of the three files at the base SHA
+      # config names the human-gated label, the trusted-actor list names who
+      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
+      # lanes App's id that LANES_APP_ID must equal; all are read at the base
+      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
+      # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
@@ -3882,6 +3901,7 @@ jobs:
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
+            /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3940,7 +3960,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
@@ -3976,6 +3995,10 @@ jobs:
               | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
           fi
           actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
+          # A stale or mistyped variable would miss the lanes App's escalation below.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || keep "merge.agent-identity is unreadable"
+          jq -e --arg login "$identity" --argjson id "$LANES_APP_ID" '[.actors[] | select(.login == $login) | .id] == [$id]' <<<"$actors" >/dev/null ||
+            keep "AUTOMATION_LANES_APP_SENDER_ID is not $identity's trusted-actor id"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           # The window opens at the newest removal a trusted person made directly, not through an App.
@@ -4853,10 +4876,27 @@ jobs:
           # exact value `false` lets a lanes App pull request merge.
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
+          # The id must be merge.agent-identity's entry in the base commit's
+          # trusted-actor list: a stale or mistyped variable would read the
+          # lanes App's pull request as another author's and skip every hold
+          # here and the trust hold's link rule. This step runs on every pull
+          # request and in the queue, so a mismatch turns ci-status red.
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
+              | if length == 1 then .[0] else error("not one entry") end' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::cannot read merge.agent-identity's trusted-actor id from the base commit's config; re-run this run."
+            exit 1
+          fi
+          if [ "$want" != "$LANES_APP_ID" ]; then
+            echo "::error::the job's LANES_APP_ID ($LANES_APP_ID, the AUTOMATION_LANES_APP_SENDER_ID variable) is not $identity's trusted-actor id ($want); correct the variable."
             exit 1
           fi
           pr=$PR_NUMBER

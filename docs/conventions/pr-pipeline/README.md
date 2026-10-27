@@ -1000,8 +1000,13 @@ except six:
   enqueued it, its newest unedited pin comment names that head, and no other author has commented
   or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
-  wait, refuses again, as does an unreadable one. The head commit test and every hold still
-  apply. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  wait, refuses again, as does an unreadable one. The same holds after the lane's own
+  whole-review request at the current head: while the lanes App's newest reasons comment records
+  a request at that head, the App's newest conversion to draft falls within `CONVERT_WINDOW` of
+  the record's time (so an edited record time excuses nothing), and no person has commented,
+  reviewed or commented inline since the record's time, a recent `updatedAt` does not refuse, since the record, the draft toggle and the
+  whole review it starts refresh it (`lane_toggled_at_head`); bots do not count. The head commit
+  test and every hold still apply, and a draft still refuses. A person's merge-queue enqueue that the queue removed for failed checks also excuses
   both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
   (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
@@ -1102,7 +1107,7 @@ unchanged thread: a lane that resolved an unfixed finding and pushed an unrelate
 open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
-Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate
+Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull request passes every other gate
 and its only risk reasons are open findings a clean whole review of the head would close (no review
 of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
@@ -2132,7 +2137,7 @@ a short page; a run that spends its call budget there stops before writing. A st
 the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
-no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
+no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
 the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
@@ -2622,19 +2627,29 @@ runs daily and sorts every branch; its rules and tests are in
    or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
    on the issue does not keep the branch once the issue is closed.
 
-The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
-order. It reserves four calls per planned delete from its call budget before evaluating, and stops
-evaluating once it has found `max-deletes-per-run` deletable branches or spent the rest of the
-budget. Each run starts at a different point in the listing, moved by the run number and wrapping
-around, so branches kept early in the listing do not hide the later ones from every run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
-skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
-deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
-delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,
-`issues` and `pull-requests` read); the API takes no expected SHA, so the delete also removes a push that lands between the re-read
-and the delete; the pusher's own copy restores it. The ledger SHA restores the deleted tip:
-`git push origin <sha>:refs/heads/<branch>`. A scheduled run
-deletes; a manual run is a dry-run unless `dry-run` is set to false, and in dry-run the client
-refuses every request but `GET`. The kill switch stops it.
+Two jobs run it. The plan job, whose token writes nothing (`contents`, `issues` and
+`pull-requests` read), sorts the branches, prints how many it will delete, and hands at most
+`max-deletes-per-run` candidates, in listing order, to the delete job as the run's
+`branch-cleanup-candidates-<run>-<attempt>` artifact. It leaves the delete job one call plus five
+per planned delete from its call budget before evaluating, and stops evaluating once it has found
+`max-deletes-per-run` deletable branches or spent the rest of the budget. Each run starts at a
+different point in the listing, moved by the run number and wrapping around, so branches kept
+early in the listing do not hide the later ones from every run.
+
+The delete job alone holds `contents: write` (with `pull-requests` read) and reads no issue or pull
+request text: it refuses a candidate list for another repository, over the cap, or with an entry
+outside the rule's shape. Before each delete it re-reads the tip and the open pull requests from
+and into the branch, skips it when the tip moved or one opened, and appends `{repo, branch, sha,
+rule, issue, pr, deletedAt}` to the step summary and the run's
+`branch-cleanup-ledger-<run>-<attempt>` artifact. The delete is one GraphQL `updateRefs` per
+branch whose `beforeOid` is the listed tip and whose `afterOid` is all zeros, so GitHub checks the
+tip and deletes in one step; a push that lands after the re-read makes GitHub refuse the delete,
+the branch is reported as skipped, and a second ledger line `{repo, branch, sha, notDeletedAt,
+reason}` records that it still stands. The ledger SHA of a branch with no such line restores the
+deleted tip:
+`git push origin <sha>:refs/heads/<branch>`. A scheduled run deletes; a manual run is a dry-run
+unless `dry-run` is set to false, and a dry-run starts no delete job. The kill switch, checked by
+each job, stops it.
 
 | Key | Default | What it sets |
 |---|---|---|

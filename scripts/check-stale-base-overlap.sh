@@ -157,7 +157,7 @@ while IFS= read -r path; do
   printf '    %s\n' "$path" >&2
 done <<<"$overlap"
 echo >&2
-echo "Refresh before merge: integrate origin/$base_ref (merge or update-branch)," >&2
+echo "Refresh before merge: integrate $base_ref (merge or update-branch)," >&2
 echo "re-run CI, then merge. A stale-base squash can silently revert recently" >&2
 echo "landed fixes on the overlapping paths (claude-code-plugins#2691)." >&2
 echo "Scope: stale BASE only. A branch stale in content but current in history" >&2
