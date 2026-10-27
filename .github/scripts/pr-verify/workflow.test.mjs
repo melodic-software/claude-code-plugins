@@ -82,6 +82,8 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     assert.ok(index("Upload the verdict", job) > index("Write the verdict", job), job);
     assert.match(uploads[0].block, /if: steps\.verdict\.outcome == 'success'/, job);
+    // The verdict step names the retention (write-verdict.mjs retentionDays).
+    assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A verdict needs a judge step that succeeded, which run-claude-cli never
     // reports with a lane-class, so a credit stop writes none.
     assert.match(step("Write the verdict", job), /^ {8}if: steps\.judge\.outcome == 'success'$/m, job);
