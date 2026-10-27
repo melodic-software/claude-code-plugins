@@ -44,7 +44,17 @@ test("only the plan stage reads issue and pull request text; the delete stage ta
   assert.match(step(job("plan"), "Plan the deletes"), /STAGE: plan\n/);
   assert.match(step(job("delete"), "Delete stale branches"), /STAGE: delete\n/);
   assert.match(job("delete"), /needs: plan\n/);
-  assert.match(step(job("delete"), "Download the candidate list"), /name: branch-cleanup-candidates-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}\n/);
+});
+
+// Re-running only a failed delete job keeps the plan job's outputs from the
+// attempt that uploaded the list, so the download names that attempt's
+// artifact, never the re-run's own attempt.
+test("the delete job downloads the artifact name the plan job uploaded", () => {
+  const name = "branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}";
+  assert.ok(job("plan").includes(`\n      candidates: ${name}\n`));
+  assert.ok(step(job("plan"), "Upload the candidate list").includes(`\n          name: ${name}\n`));
+  assert.match(step(job("delete"), "Download the candidate list"), /\n {10}name: \$\{\{ needs\.plan\.outputs\.candidates \}\}\n/);
+  assert.doesNotMatch(step(job("delete"), "Download the candidate list"), /github\.run_attempt/);
 });
 
 test("a manual run is a dry-run unless set and starts no delete job, and the schedule deletes", () => {
