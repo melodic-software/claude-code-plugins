@@ -5185,7 +5185,15 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_content; }
+          # The job-end notices log-api-budget writes, the api-calls count
+          # included (log-api-budget.test.mjs checks they match).
+          [ -z "${API_BUDGET_SH:-}" ] || {
+            eval "$API_BUDGET_SH"
+            api_budget_emit github-token
+            [ ! -s "${RUNNER_TEMP:-}/api-budget/github-token" ] ||
+              awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::github-token=%d not-modified=%d\n", n, m }' "$RUNNER_TEMP/api-budget/github-token"
+            api_budget_emit_content
+          }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
