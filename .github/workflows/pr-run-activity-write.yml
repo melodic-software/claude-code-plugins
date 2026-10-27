@@ -450,7 +450,9 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     # id-token: write is only for the broker request. Any step of this job can
     # request an OIDC token for another audience: an accepted residual (ADR
-    # 0058), bounded by the broker's one mint per job.
+    # 0058), bounded by the broker's one mint per job. So no step runs a
+    # PR-head test file: the schema refuses the verify-scripts, checks and
+    # self-checks that run checkout tests on a write-effect skill.
     permissions:
       contents: read
       pull-requests: read
@@ -996,19 +998,6 @@ jobs:
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
 
-      # The run-test-file verify-script runs test_*.py under pytest, which the
-      # runner image lacks. When the stage granted its wrapper, install the
-      # base's hash-pinned CI requirements, before the head checkout replaces
-      # .base.
-      - name: Set up Python for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .base/.python-version
-      - name: Install the pinned pytest for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
-
       # A script reads the base's work-item tracker config (report-escalation's
       # human-gated role label), which the head checkout would replace. Its
       # SHA-256, or `absent`, is checked by the script step.
@@ -1094,21 +1083,23 @@ jobs:
           name: dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
-      # review-replies and dependency-verdict: every attempt's marker the read
-      # runner's scan-refusal job uploaded for the model call in this run, by
-      # name, never a job output (a failed job's outputs are not documented to
-      # reach this caller). A pattern that matches nothing downloads nothing
-      # and succeeds; a failed download reads as a refusal. An earlier
-      # attempt's marker after a re-run only hands the round to a person.
+      # review-replies, dependency-verdict and issue mode: every attempt's
+      # marker the read runner's scan-refusal job uploaded for the model call
+      # in this run, by name, never a job output (a failed job's outputs are
+      # not documented to reach this caller). A pattern that matches nothing
+      # downloads nothing and succeeds; a failed download reads as a refusal
+      # for a reply or verdict script. An earlier attempt's marker after a
+      # re-run only hands the round to a person. report-outcome reads one
+      # only for a run that left no readable outcome.
       - name: Download the scan refusal markers
         id: scan-refused
         if: >-
-          steps.lane-token.outputs.token != '' && (inputs.review-replies || inputs.dependency-verdict)
+          steps.lane-token.outputs.token != '' && (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: scan-refused-${{ inputs.lane }}-${{ inputs.review-replies && 'address-feedback' || 'review-dependency' }}-*
+          pattern: scan-refused-${{ inputs.lane }}-${{ inputs.issue-number != '' && 'resolve-issue' || inputs.review-replies && 'address-feedback' || 'review-dependency' }}-*
           path: ${{ runner.temp }}/scan-refused
           merge-multiple: true
 
@@ -1849,11 +1840,12 @@ jobs:
           DEPENDENCY_HEAD_SHA: ${{ inputs.dependency-head-sha }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
           DEPENDENCY_PATCH_STATE: ${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}
-          # review-replies and dependency-verdict: the scan refusal markers
-          # and whether their download failed (address-feedback.mjs
-          # scanRefusal).
-          SCAN_REFUSED_DIR: ${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}
+          # review-replies, dependency-verdict and issue mode: the scan
+          # refusal markers and whether their download failed
+          # (address-feedback.mjs scanRefusal, report-outcome.mjs).
+          SCAN_REFUSED_DIR: ${{ (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '') && format('{0}/scan-refused', runner.temp) || '' }}
           SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
           PREPARE: ${{ steps.config.outputs.prepare }}

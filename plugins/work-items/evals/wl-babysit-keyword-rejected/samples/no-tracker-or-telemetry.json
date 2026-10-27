@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git remote get-url origin"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printenv CLAUDE_EFFORT"
+          }
+        }
+      ],
+      "why": "harmless reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "binding read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" list-frontier --autonomous"
+          }
+        }
+      ],
+      "why": "snapshot read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/lane-telemetry-upsert.sh --lane work-loop --body-file /tmp/b"
+          }
+        }
+      ],
+      "why": "telemetry upsert"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue list --label needs-triage"
+          }
+        }
+      ],
+      "why": "forge read for cycle work"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/lane-push.sh --login bot --check"
+          }
+        }
+      ],
+      "why": "identity preflight is cycle work"
+    }
+  ]
+}

@@ -171,6 +171,14 @@ sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 #     that fail-open is that the skip is inert in a plugin data root where no
 #     guard has ever launched: every Stop pays the old price until the first
 #     guard launch spends its one `mkdir`.
+#   * the tmp fallback sits in a directory every local user can write, so
+#     another user could create its marker directory first, or a symlink in its
+#     place, and plant or delete markers: an empty planted directory would skip
+#     the monitor for every session. A tmp directory that is a symlink or that
+#     this user does not own is neither read nor written, so it counts as no
+#     candidate at all and this script does not skip on it. The launch side
+#     creates each marker directory with mode 700. GAP: `exec-bash.mjs` makes
+#     its own skip before bash starts, and does not check ownership yet.
 #   * RESIDUAL, and undetectable across processes: a candidate directory that
 #     exists while the marker FILE could not be written (a full disk, a
 #     permission denial on the file alone) still degrades to silence for that
@@ -212,6 +220,7 @@ esac
 # shellcheck disable=SC2016  # the literal placeholder, deliberately unexpanded
 _DATA_ROOT_PLACEHOLDER='${CLAUDE_PLUGIN_DATA}'
 _MARKER_PATHS=()
+_TMP_MARKER_DIR=""
 _PAYLOAD=""
 _SESSION_ID=""
 _BUFFERED_STDIN=0
@@ -250,7 +259,23 @@ _marker_candidates() {
   if [[ -n "$MARKER_ROOT" && "$MARKER_ROOT" != "$_DATA_ROOT_PLACEHOLDER" ]]; then
     _MARKER_PATHS+=("$MARKER_ROOT/$subdir/$safe.$suffix")
   fi
-  _MARKER_PATHS+=("${TMPDIR:-/tmp}/disk-hygiene-$subdir/$safe.$suffix")
+  _TMP_MARKER_DIR="${TMPDIR:-/tmp}/disk-hygiene-$subdir"
+  _MARKER_PATHS+=("$_TMP_MARKER_DIR/$safe.$suffix")
+}
+
+# True when `dir` is a real directory this user owns. The tmp fallback sits in a
+# directory every local user can write, so another user could create the marker
+# directory first, or a symlink in its place, and plant or hide a marker for any
+# session. A directory that fails this is neither read nor written. All three
+# tests are builtins.
+_owned_marker_dir() {
+  [[ -d "$1" && ! -L "$1" && -O "$1" ]]
+}
+
+# True unless `dir` is the tmp fallback and fails `_owned_marker_dir`. The data
+# root is the plugin's own directory, so only the shared tmp one is checked.
+_trusted_marker_dir() {
+  [[ "$1" != "$_TMP_MARKER_DIR" ]] || _owned_marker_dir "$1"
 }
 
 if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
@@ -264,6 +289,7 @@ if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
     # failures. Both tests are builtins, so the skip path still spawns nothing.
     _marker_dir_seen=0
     for _marker_path in "${_MARKER_PATHS[@]}"; do
+      _trusted_marker_dir "${_marker_path%/*}" || continue
       [[ -d "${_marker_path%/*}" ]] && _marker_dir_seen=1
       if [[ -f "$_marker_path" ]]; then
         _marker_found=1
@@ -281,9 +307,13 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
   if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$LAUNCH_MARKER_SUBDIR" "$_SESSION_ID"; then
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _marker_dir="${_marker_path%/*}"
-      # `mkdir` is the one spawn on this path and `[[ -d ]]` is a builtin, so it
-      # is paid once per root rather than once per launch.
-      [[ -d "$_marker_dir" ]] || mkdir -p "$_marker_dir" 2>/dev/null || continue
+      # `mkdir` is the one spawn on this path and `[[ -e ]]` is a builtin, so it
+      # is paid once per root rather than once per launch. Only the marker
+      # directory itself needs mode 700; its parent is `$TMPDIR` or the data root.
+      # shellcheck disable=SC2174
+      [[ -e "$_marker_dir" || -L "$_marker_dir" ]] ||
+        mkdir -p -m 700 "$_marker_dir" 2>/dev/null || continue
+      _trusted_marker_dir "$_marker_dir" || continue
       : >"$_marker_path" 2>/dev/null && break
     done
   fi
@@ -572,15 +602,6 @@ _guard_mode_value() {
   done
 }
 
-# True when `dir` is a real directory this user owns. The tmp fallback sits in a
-# directory every local user can write, so another user could create the marker
-# directory first, or a symlink in its place, holding a marker for any session
-# and silencing the notice. A directory that fails this is neither read nor
-# written. All three tests are builtins.
-_owned_marker_dir() {
-  [[ -d "$1" && ! -L "$1" && -O "$1" ]]
-}
-
 # True when this session already carries the no-interpreter notice. A session
 # with no id, or no marker that could be written, re-notices: over-reporting is
 # the safe direction for a notice that exists to end a silence.
@@ -593,7 +614,8 @@ _no_python_noticed() {
   done
   for path in "${_MARKER_PATHS[@]}"; do
     dir="${path%/*}"
-    [[ -e "$dir" || -L "$dir" ]] || mkdir -p "$dir" 2>/dev/null || continue
+    # shellcheck disable=SC2174  # only the marker directory needs mode 700
+    [[ -e "$dir" || -L "$dir" ]] || mkdir -p -m 700 "$dir" 2>/dev/null || continue
     _owned_marker_dir "$dir" || continue
     : >"$path" 2>/dev/null && break
   done

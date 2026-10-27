@@ -1,5 +1,103 @@
 # Changelog for the PR pipeline convention
 
+## [5.19.0] - 2026-10-27
+
+### Changed
+
+- The pr-merge hold-path floor now gives each glob a class (owner decision Q26 option B). `trust` (check-trusted-trigger, check-kill-switch, request-lane-token, CODEOWNERS, .gitmodules) and `gate` (every pr-merge script, the pr-merge and ci-status workflows, `babysit_merge*.py`, `babysit_risk.py` and `babysit_review_evidence.py` (they compute the review's clear condition), the rate guard, resolve-config and the pipeline config) still hold for a person. `enforcement` (the other modules the floored scripts import and the Python that decides the holds) no longer needs a person: the merge gate holds such a path as `review-path:<glob>` until the claude-security-review evidence binds to the head with no open finding, then arms it. ci-status leaves those paths to the gate. One classed list on each side, `HOLD_PATH_CLASSES` (`.github/scripts/pr-merge/merge-holds.mjs`) and `babysit_risk.FLOOR_CLASSES`, pinned equal by `test_merge_holds_sync.py`.
+- The rest of `.github/scripts/pr-merge/` (gate-check, rotation, who, lane-records and the other scripts pr-merge.yml runs) joins the floor as `gate`, and both review callers' `hold-paths` and ci-status's exempt-author `hold_patterns` name them.
+
+## [5.18.0] - 2026-10-27
+
+### Added
+
+- `patch-rules.json` has a `docs` row for a markdown-only patch. It allows only a path ending in `.md` (the new `markdown` allow rule). Besides the universal set it refuses a path under a `skills/` directory at any depth and a `SKILL.md` anywhere (the new `skills` and `skill-md` refusals, which apply only to a row that names them), each escalating `patch-protected-path`. Its cap, commit, moved-head path and reasons match `default`. No push job selects it yet: fix-docs's `apply-docs-patch` job keeps the `default` row until `pr-refine.yml` passes `patch-prepare: docs`.
+
+## [5.17.3] - 2026-10-27
+
+### Fixed
+
+- The babysit wrapper's effective rung reads `babysit_loop_merge` from `docs/conventions/source-control.yaml` as well as `.claude/source-control.md` and takes the lower value, so a demotion written only to the YAML holds unattended merges ([#9726](https://github.com/melodic-software/claude-code-plugins/issues/9726)). While `.claude/source-control.md` exists it must set the key too, or the rung is `off`, so a raise needs both files; with no legacy file the rung stays `off`, as before, so the YAML alone never raises it. Either file the wrapper cannot read or trust (a rejected YAML or legacy file, an empty, non-scalar or unknown YAML value, an empty or repeated legacy H2) means `off`, never the other file's value alone.
+
+## [5.17.2] - 2026-10-27
+
+### Changed
+
+- work-unblock re-fires an issue run that the lanes kill switch stopped at broker-check on the first hourly sweep after the switch clears, instead of waiting `limits.reset-clamp-min` hours after the run ended. That run ran no model, and the sweep runs only with the switch off. A trip at a post-model `Request the lane token` step still waits the clamp. The trip count, the stranded backoff past `limits.limit-stops-per-issue`, the WIP cap pause and `limits.restarts-per-run` are unchanged (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+## [5.17.1] - 2026-10-27
+
+### Security
+
+- The schema refuses `scripts/run-test-file.sh` and skill-quality's `check-skill.sh`, the `verify-scripts` that run checkout code, on a skill whose effect is not `read`, since that skill runs in `pr-run-activity-write.yml`'s run job, which holds the lane token and `id-token: write`. A read skill with `applied-by.patch` still lists them; it runs in the read runner, whose run job holds neither. On such a skill, `checks` and `self-checks` may not name a script that runs the checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`, `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays allowed, since from the base copy it skips the branch's tests. The write runner no longer installs Python and pytest for the test-file runner ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)).
+
+## [5.17.0] - 2026-10-27
+
+### Added
+
+- `merge.verify-cache` (default `shadow`) sets how enable-auto-merge uses the verifier refusals the last run kept. Each scheduled or hand-started run reads them from the newest trusted run's `pr-merge-verify-answers` artifact (`verify-answers.mjs`, found as the head-ref map is, never through actions/cache) and uploads its own, always, with 1-day retention. Under `shadow` every pull request is still read in full, and each read logs `verify-cache shadow: #<n> key=hit|miss stored=<kind> fresh=<kind> agree=yes|no|n/a`. Under `serve` an unarmed pull request whose kept refusal still matches is left unarmed on it with no further read, and, when an answers file is in use, is answered only from a kept refusal once the read budget is spent; without one it is not read past the budget. `serve` is set only once a day or more of scheduled runs has logged at least 50 `key=hit` lines, at least 5 for each kept refusal kind, and none with `agree=no`, on days with no `cache=error` line. A read whose cache work failed logs `verify-cache <mode>: #<n> cache=error`. An armed pull request is always read in full. A kept answer that holds nothing is read again in full and never arms. A kept refusal writes no new comment or label unless its reason changed. Each cost line shows `cached=0|1` when the answers files are in use.
+
+## [5.16.0] - 2026-10-27
+
+### Added
+
+- address-feedback's thread file gives each kept thread `is_outdated`, true only when GitHub reports the review thread's `isOutdated` true, beside its `review_commit`, so a lane working a thread from an earlier review sees that its line may be stale. Edit scope still keys on paths alone.
+
+### Fixed
+
+- The pr-merge gate's Dependabot content rule, and its fix-scope check on a lanes App fix, count a manifest directory as covered only when `.github/dependabot.yml` lists its ecosystem and directory at both the base and the default branch head. Its review-only match reads the Dependabot policy at both too: an entry either side lists matches, and either side unreadable makes the policy unreadable. A tightening on main now reaches Dependabot pull requests opened before it.
+
+## [5.15.9] - 2026-10-26
+
+### Changed
+
+- pr-merge's `merge` and `enable-auto-merge` jobs now skip a bot-sent `pull_request_target` run in the job condition, before the job joins its concurrency group. Such a run used to wait in the `queue: max` line and then stop at `who.mjs`, since a bot is never a listed human. `who.mjs` is unchanged and stays the check; schedule, `workflow_dispatch` and push runs are not gated on the sender.
+
+### Fixed
+
+- Lifting the lanes kill switch no longer leaves open lanes App pull requests red until a push or a manual re-run. The next `maintenance-reconcile-lost-runs` run re-runs the failed `ci-status` of each lanes App pull request whose newest checks run failed, on its first attempt, only because the switch was on, recorded so `pr-verify` trusts the re-run, at most three per run. While the switch is on, the reconciler still reads nothing.
+
+## [5.15.8] - 2026-10-26
+
+### Changed
+
+- The pr-merge merge job reuses this run's post-merge report by the lane room's reuse rule (`babysit_verify_evidence.py settle`, `babysit_merge_policy.settle_shared`) in place of its 6-minute age and same-main test (`REUSE_MINUTES`), which never passed because the report's age counts from before its 6-8 minute check. A report whose check judged (exit 0, 1 or 5) is reused when `settle` keeps it, including at a moved main with no new lane merge; any refusal or failed read runs the check as before (`.github/workflows/pr-merge.yml`). post-merge-dispatch keeps the commit whose code ran its check beside the report, and both the merge job's reuse and enable-auto-merge's lane room (`POSTMERGE_CODE_SHA`) refuse or read the report again when the babysit-prs scripts or `docs/conventions/pr-pipeline.yaml` differ at their own commit, or that commit is missing. The merge job reads the agent identity with yq only for a fresh check.
+
+### Fixed
+
+- An issue lane run whose scan job refused its output (a patch over its 262144-byte cap, a leak-scan block, a payload that does not match its record) is now handed back naming that refusal instead of "The run wrote no readable outcome file". The read runner's `scan-refusal` job now uploads its `scan-refused-<lane>-<activity>-<attempt>` marker in issue mode too, the write runner downloads the `resolve-issue` markers for `report-outcome`, and `report-outcome.mjs` reads them only for a run that left no readable outcome (`.github/workflows/pr-run-activity-read.yml`, `.github/workflows/pr-run-activity-write.yml`, `.github/scripts/work-resolve-issue/report-outcome.mjs`).
+
+## [5.15.7] - 2026-10-26
+
+### Fixed
+
+- The monitoring lane reads failed runs 100 to a page, up to 5 pages (`LIMITS.failedRunPages`), until it keeps 12 lane runs, so a page full of failing fork or pull-request runs no longer hides a failed run of this repository's own. When 5 full pages keep fewer, the read records a `failed runs` gap, which leaves signal 3's issue as it is.
+
+- The work-resolve-issue lane stops a run whose change needs a path `apply-issue-patch` refuses at its first write to that path, instead of after the whole run, when the push is refused. The run's file tools and shell redirects are denied `Edit` on each such path. `deny-rules.mjs` builds those rules from `protected-paths.mjs`'s `PATH_RULES` for the `issue` row in `patch-rules.json`, and they match no path that row would push, so a plugin's `settings.json` stays writable. The preamble names the patterns and tells the run to stop with `exit` `stopped` and a `reason` starting `patch-protected-path`. `report-outcome.mjs` then hands the issue back naming `patch-protected-path`, before the run's own words. `apply-issue-patch` still refuses every path itself, including writes the rules do not cover, such as a wrapper subprocess.
+
+- Lane scripts no longer fail an activity on one transient network error (undici `fetch failed`, `ECONNRESET`, `UND_ERR_SOCKET`). The shared client (`check-trusted-trigger.mjs` `retryServerErrors`) now times and resends a GraphQL POST whose document is a query, with no mutation, under its GET retry rules; a mutation is still sent once.
+- `apply-patch.mjs`, `address-feedback.mjs` (publish-feedback, apply-dependency-verdict, verify-notes), `report-outcome.mjs` and `post-statuses.mjs` send a read, a GraphQL query, or a write that repeats to the same state again after a network error or a 5xx: at most 3 attempts, with a full-jitter wait of a random share of 4 s, then 8 s. The writes resent are the Git Data blob, tree and commit creates, a ref update, a pull request close, an issue label add or remove, and a commit status. After a `POST /pulls` that fails on the network, `report-outcome` reads the open pull request back and creates it again only when there is none. A comment, an issue, a ref create and any mutation are sent once. The wrapper is `retry-fetch.mjs`, one identical copy in each script directory, since each script runs from a copy of its own directory.
+- `pr-unblock/dispatch.mjs` sends `Connection: close` on every request, so its workflow dispatch, which follows up to 5 x 10 s of waiting, goes out on a new connection rather than a pooled one GitHub may have dropped while it sat idle.
+- The hold-path floor (`merge-holds.mjs` `HOLD_PATH_FLOOR`, `babysit_risk.py` `HIGH_FLOOR`, ci-status `hold_patterns`, and both review lanes' `hold-paths`) now holds `.github/scripts/pr-unblock/retry-fetch.mjs` and `.github/scripts/work-resolve-issue/retry-fetch.mjs`, which the floored `address-feedback.mjs` and `report-outcome.mjs` import.
+
+## [5.15.6] - 2026-10-26
+
+### Fixed
+
+- pr-merge keeps the verifier's carried reads when the merge job's `pr-merge-run-cache` file does not read. `carry-run-cache.mjs read` now warns and treats that file as absent instead of dropping `pr-merge-verify-run-cache` with it; a failed trust check still carries nothing. The run cache section names both artifacts and what each carries.
+
+## [5.15.5] - 2026-10-26
+
+### Fixed
+
+- pr-merge's carried verdict reads stay warm again. Since the run cache moved to the `pr-merge-run-cache` artifact, only the `merge` job uploaded it, and its gate reads no lane verdict, so the chain started empty and stayed empty: every `enable-auto-merge` verifier read started cold, ran into the 4-minute read timeout, and left lane pull requests unarmed. A scheduled or hand-started `enable-auto-merge` job, whose reader is the only one that fills `run-record`, now keeps its reads the same way and uploads them as `pr-merge-verify-run-cache` (1-day retention), only when it kept a read. `carry-run-cache.mjs read` takes each artifact from the newest trusted run on main holding it and adds only the verify file's `carried-*` sections to the merge job's file, whose other sections, the skip refusals included, are unchanged; `carry()` still filters every entry, and a carried read still counts only toward a FAIL.
+
+## [5.15.4] - 2026-10-26
+
+### Changed
+
+- The `limits.api` defaults (each pool's `plan`, `writer-pause`, `breaker`, `read-floor`, github-token's `limit-cap`, content-creation's `per-minute` and `per-hour`) moved out of `pr-pipeline.schema.json` into [`.github/actions/log-api-budget/rate-limits.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/log-api-budget/rate-limits.json), their only copy, with the same values. The schema states no default for them now. The merge path floor (`merge-holds.mjs` `HOLD_PATH_FLOOR`, `babysit_risk.HIGH_FLOOR`, ci-status's `hold_patterns` and both review lanes' `hold-paths`) holds that file, so a change to a rate-limit default waits for a person, while a schema change does not.
+
 ## [5.15.3] - 2026-10-26
 
 ### Security

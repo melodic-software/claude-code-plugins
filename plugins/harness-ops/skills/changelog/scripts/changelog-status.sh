@@ -33,13 +33,14 @@
 # Whichever source is used, the body's first heading must read
 # "# Claude Code changelog": a retired slug can serve another page's bytes under a
 # 200, so identity is checked before any count is trusted. A body with the heading
-# but no release blocks is a parse failure, not an empty range. In both cases the
+# but no release markers is a parse failure, not an empty range. In both cases the
 # range is reported as not computed, with the reason.
 #
 # Range: the default is every release newer than the marker, oldest first, up to
 # the newest published release. --range A..B (v prefix optional) is inclusive at
 # both ends and ignores the marker; --range X is the single release X.
-# Core items: bullet lines inside an <Update> block, excluding lines tagged [VSCode].
+# Releases and items come from the plugin's scripts/changelog-releases.sh. Core items:
+# the items of a release, excluding lines tagged [VSCode].
 # Cap: --cap-releases (default $HARNESS_OPS_CHANGELOG_CAP_RELEASES, else 10) and
 # --cap-items (default $HARNESS_OPS_CHANGELOG_CAP_ITEMS, else 300). Beyond the cap,
 # replaying items costs more than it returns because the current docs already carry
@@ -223,6 +224,7 @@ printf 'ledger: %s (%s)\n' "$ledger" "$ledger_state"
 printf 'installed: %s\n' "$installed"
 
 # --- Changelog source ------------------------------------------------------------
+plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 tmp_dir=""
 trap '[[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"' EXIT
 
@@ -235,7 +237,6 @@ elif ((no_fetch)); then
 elif ! command -v jq >/dev/null 2>&1; then
   not_computed="jq is not installed; pass --changelog <file>"
 else
-  plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
   tmp_dir="$(mktemp -d)"
   # The status script never reads the manifest's claude_version, so the fetcher runs no claude.
   # --max-age 0: the range is computed from fresh bytes, never a cached copy.
@@ -276,7 +277,8 @@ if [[ -n "$range_first" ]]; then
 else
   mode="after"
 fi
-mapfile -t in_range < <(awk -v mode="$mode" -v last="$last" -v lo="$range_first" -v hi="$range_last" '
+rows="$(bash "$plugin_root/scripts/changelog-releases.sh" "$changelog")"
+mapfile -t in_range < <(printf '%s\n' "$rows" | awk -F'\t' -v mode="$mode" -v last="$last" -v lo="$range_first" -v hi="$range_last" '
   function vcmp(a, b,   A, B, i) {
     split(a, A, "."); split(b, B, ".")
     for (i = 1; i <= 3; i++) {
@@ -289,29 +291,20 @@ mapfile -t in_range < <(awk -v mode="$mode" -v last="$last" -v lo="$range_first"
     if (mode == "between") return vcmp(v, lo) >= 0 && vcmp(v, hi) <= 0
     return last == "" || vcmp(v, last) > 0
   }
-  /<Update label="/ {
-    match($0, /label="[^"]+"/)
-    v = substr($0, RSTART + 7, RLENGTH - 8)
-    n = 0
-    next
-  }
-  /^<\/Update>/ {
-    if (v != "" && wanted(v)) print v "\t" n
-    v = ""
-    next
-  }
-  v != "" && /^[[:space:]]*\*/ && !/\[VSCode\]/ { n++ }
-' "$changelog" | sort -t. -k1,1n -k2,2n -k3,3n)
+  $1 == "release" { if (wanted($2)) n[$2] += 0 }
+  $1 == "item" && $3 !~ /\[VSCode\]/ { if (wanted($2)) n[$2]++ }
+  END { for (v in n) print v "\t" n[v] }
+' | sort -t. -k1,1n -k2,2n -k3,3n)
 
 # Newest published release, independent of the range, for the latest line and the
 # installed-version warning.
-latest="$(grep -oE '<Update label="'"$VERSION_RE"'"' "$changelog" | grep -oE "$VERSION_RE" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+latest="$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "release" { print $2 }' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
 printf 'latest: %s\n' "${latest:-unknown}"
 
-# A body with the right heading but no release blocks is a parse failure (the page
+# A body with the right heading but no release marker is a parse failure (the page
 # markup moved), never proof that nothing is pending.
 if [[ -z "$latest" ]]; then
-  printf 'range: not computed (no <Update label=...> release blocks parsed from the changelog body; the page markup may have changed)\n'
+  printf 'range: not computed (no release markers parsed from the changelog body; the page markup may have changed)\n'
   exit 0
 fi
 

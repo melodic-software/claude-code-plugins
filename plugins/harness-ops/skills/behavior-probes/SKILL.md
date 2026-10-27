@@ -60,13 +60,21 @@ deny can return process environment or git config. The lists live once, in
 `cases/lib/lane-write-tools.json`, copied from this marketplace repository's `collect-base-activity`
 action; when the lane's lists change, change that file.
 
+The `autocompact` area checks which auto-compact window `/autocompact`, run with no argument, reports
+when a project settings file, the `--autocompact` flag and the environment variable each set one. Its
+cases judge the printed line, not a tool call. A base case sets only the project file's top-level
+window, and each other case adds one element to a case it names as its control. No case passes
+`/autocompact` an argument, which would save to the operator's user settings. Whether `claude -p`
+prints the window without a model turn is unconfirmed until the area's first live run; a model
+answer reads as `inconclusive`.
+
 ## Reading a result
 
 | Verdict | Meaning | Do |
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, the CLI did not start, or a negative case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, the CLI did not start, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
@@ -76,8 +84,8 @@ Exit codes: 0 all passed, 1 a fail or error, 3 inconclusive or skipped with no f
 
 A case is `cases/<area>/<name>/` with `settings.json` (`{}` when the case needs none), `prompt.md`,
 `expect.json` and an optional `scaffold.sh`. `${PROBE_WORKDIR}` and `${PROBE_CASE_DIR}` are
-substituted in `settings.json` and `prompt.md`; a scaffold gets them, plus `PROBE_LIB` (`cases/lib/`),
-as environment variables and runs in the temp directory.
+substituted in `settings.json` and `prompt.md`; a scaffold gets them, plus `PROBE_LIB` (`cases/lib/`)
+and `PROBE_MODEL` (the model the case runs), as environment variables and runs in the temp directory.
 
 `expect.json` fields: `claim`; `tags` (terms a changelog item would use for the surface, read by
 `recheck`); `target` (`tool`, `input_match` regex over the call's JSON input, `example` input for the
@@ -89,9 +97,15 @@ case-insensitive substring of the denial reason or tool result); optional `permi
 `disallowed_tools` (lists of permission rules, no rule holding a comma, `${PROBE_WORKDIR}`
 substituted) or `tool_rules` (a JSON file in `cases/lib/` holding both lists, for cases that share
 them; a list the case sets itself wins); optional `verdict_only` (`true` on a case whose failure would
-return a secret: the run saves no stream and no tool output). A `deny` or `refused` case
-names its positive control in `control`, a case that differs only in the element that causes the
+return a secret: the run saves no stream and no tool output); optional `cli_args` (flag-value
+pairs, each flag and value of a shape the runner's `CLI_FLAGS` allows). Outcome `prints` judges what
+a slash command in `prompt.md` prints instead of a tool call: its `target` holds `text_match`, a
+regex over the first non-blank printed line, `example`, the text the dry run prints, and optional
+`printed_match`, a regex a line must match to be judged at all (else `inconclusive`). A `deny` or `refused`
+case names its positive control in `control`, a case that differs only in the element that causes the
 denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md).
+A `prints` case may name a `prints` control whose `example` its `text_match` rejects; either kind
+keeps a `pass` only while its control passes.
 Run `validate` and `dry-run`, then a live run of the new case and its control, and add its record.
 
 ## Next

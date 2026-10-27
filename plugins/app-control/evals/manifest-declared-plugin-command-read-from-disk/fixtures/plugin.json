@@ -1,0 +1,10 @@
+{
+  "name": "shopkit",
+  "description": "Shop app tooling kept in the skills folder",
+  "commands": {
+    "control-shop": {
+      "source": "./tooling/shop-driver.md",
+      "description": "Launch, ready-check, drive, capture and clean up the shop app"
+    }
+  }
+}
