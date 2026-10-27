@@ -314,6 +314,12 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/apply-patch/predicates.mjs", "enforcement"],
   [".github/scripts/apply-patch/protected-paths.mjs", "enforcement"],
   [".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
+  [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
+  [".github/workflows/pr-unblock.yml", "enforcement"],
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
 // person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge

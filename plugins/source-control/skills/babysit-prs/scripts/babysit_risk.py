@@ -274,6 +274,12 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
     (".github/scripts/apply-patch/protected-paths.mjs", "enforcement"),
     (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
+    (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
+    (".github/workflows/pr-unblock.yml", "enforcement"),
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)

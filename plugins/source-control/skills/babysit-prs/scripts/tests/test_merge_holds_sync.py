@@ -70,13 +70,18 @@ FLOOR_ENTRIES = (
 # The scripts that act on a pr-unblock stop's route: report-escalation.sh adds
 # `needs-human` for a held reason, adjudicate-feedback.mjs decides which threads
 # a model verdict may settle, publish-feedback.mjs resolves threads, and
-# apply-patch.mjs decides which fix-ci escalations hold. Flooring the routing
-# table alone would let an edit to one of them drop a hold.
+# apply-patch.mjs decides which fix-ci escalations hold. fix-ci-context.mjs,
+# feedback-dispatch.mjs and limit-stop.mjs decide `stop-resolved`, which
+# clears a failing pr-unblock/* status that ci-status enforces. Flooring the
+# routing table alone would let an edit to one of them drop a hold.
 ROUTE_ENTRIES = (
     ".github/scripts/pr-unblock/report-escalation.sh",
     ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
     ".github/scripts/pr-unblock/publish-feedback.mjs",
     ".github/scripts/apply-patch/apply-patch.mjs",
+    ".github/scripts/pr-unblock/fix-ci-context.mjs",
+    ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+    ".github/scripts/pr-unblock/limit-stop.mjs",
 )
 # A relative import, or a module-relative file a module reads at load
 # (`new URL("./x.json", import.meta.url)`): data such as a routing table
@@ -238,8 +243,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 62)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 32)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 68)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 38)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -279,6 +284,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_floor_holds_the_code_that_acts_on_a_stop_route(self) -> None:
         files = import_closure(ROUTE_ENTRIES)
         self.assertIn(".github/scripts/apply-patch/protected-paths.mjs", files)
+        # report-stop-status, the job that posts the clear, lives in pr-unblock.yml.
+        files = sorted({*files, ".github/workflows/pr-unblock.yml"})
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
