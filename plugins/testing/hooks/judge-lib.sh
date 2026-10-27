@@ -489,8 +489,11 @@ judge::transcript_class() {
 # judge::pick <writers json>: set MODEL to a judge class that differs from
 # every writer class (the main session's always counts; each writing session's
 # transcript and subagent transcript add theirs), and EFFORT; false when none
-# remains. Walks the configured model, the fallback, then opus, sonnet, haiku.
-# haiku is the last resort: uncalibrated, and it may favor Claude-labeled outputs.
+# remains. Walks the configured model, the fallback, then opus and sonnet, as
+# /testing:audit's judge pass does. haiku is never a fallback, configured or
+# walked to: its calibration arms flipped a third of their verdicts across runs
+# (calibration.md, Haiku). It stays a valid configured model only so the
+# calibration sweep can measure it.
 judge::pick() {
   local tdir="${TPATH%[/\\]*}" writers=" " sid agent c m fb
   writers+="$(judge::transcript_class "$TPATH") "
@@ -503,10 +506,10 @@ judge::pick() {
   m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-sonnet}"
   [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=sonnet
   fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}"
-  [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=opus
+  [[ "$fb" =~ ^(fable|opus|sonnet)$ ]] || fb=opus
   EFFORT="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-medium}"
   [[ "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]] || EFFORT=medium
-  for c in "$m" "$fb" opus sonnet haiku; do
+  for c in "$m" "$fb" opus sonnet; do
     if [[ "$writers" != *" $c "* ]]; then
       MODEL="$c"
       return 0

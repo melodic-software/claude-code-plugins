@@ -51,7 +51,7 @@ test("an activity without verify-scripts selects none", () => {
 test("verify-scripts under scripts/, a plugin and a plugin skill pass through", () => {
   const list = [
     "scripts/check-x.sh",
-    "plugins/skill-quality/scripts/check-skill.sh",
+    "plugins/skill-quality/scripts/check-evals-quality.sh",
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
   ];
   assert.deepEqual(run({ "verify-scripts": list }).selected["verify-scripts"], list);
@@ -81,6 +81,18 @@ for (const path of [
 test("verify-scripts with effect read and no applied-by.patch fails the schema", () => {
   rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
 });
+
+// A skill with an effect other than read runs in the write runner's run job,
+// which holds the lane token and id-token: write. Code a verify-script runs can
+// read that token from an ancestor's /proc/<pid>/environ, so the schema refuses
+// the scripts that run checkout code there (pr-run-activity.md, Skill
+// activities).
+for (const script of ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"]) {
+  test(`verify-scripts listing ${script} on a write-effect skill fails the schema`, () => {
+    rejected({ "verify-scripts": [script] });
+    rejected({ "verify-scripts": ["scripts/check-x.sh", script] });
+  });
+}
 
 test("an empty or repeating verify-scripts list fails the schema", () => {
   rejected({ "verify-scripts": [] });

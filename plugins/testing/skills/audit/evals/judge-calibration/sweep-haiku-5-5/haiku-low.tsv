@@ -1,0 +1,78 @@
+seed-s3	UNKNOWN	haiku	low	the proposed diff does not apply
+seed-g7	PASS	haiku	low	
+seed-t3	UNKNOWN	haiku	low	the proposed diff does not apply
+seed-m2	PASS	haiku	low	
+seed-m3	PASS	haiku	low	
+seed-m5	PASS	haiku	low	
+seed-m6	UNKNOWN	haiku	low	
+seed-m7	UNKNOWN	haiku	low	
+seed-s5	UNKNOWN	haiku	low	
+seed-g10	PASS	haiku	low	
+adv-1	UNKNOWN	haiku	low	the proposed diff does not apply
+adv-2	FLAG	haiku	low	
+adv-3	FLAG	haiku	low	
+adv-4	FLAG	haiku	low	
+adv-5	PASS	haiku	low	
+adv-6	PASS	haiku	low	
+adv-7	UNKNOWN	haiku	low	
+adv-8	UNKNOWN	haiku	low	the proposed diff does not apply
+u01-1	UNKNOWN	haiku	low	
+u01-2	UNKNOWN	haiku	low	
+u02-1	PASS	haiku	low	
+u03-1	PASS	haiku	low	
+u03-2	UNKNOWN	haiku	low	the proposed diff does not apply
+u03-3	PASS	haiku	low	
+u03-4	PASS	haiku	low	
+u03-5	UNKNOWN	haiku	low	
+u04-1	UNKNOWN	haiku	low	the proposed diff does not apply
+u05-1	PASS	haiku	low	
+u05-2	PASS	haiku	low	
+u05-3	PASS	haiku	low	
+u05-4	PASS	haiku	low	
+u05-5	PASS	haiku	low	
+u06-1	PASS	haiku	low	
+u07-1	PASS	haiku	low	
+u08-1	PASS	haiku	low	
+u09-1	PASS	haiku	low	
+u10-1	PASS	haiku	low	
+u11-1	PASS	haiku	low	
+u12-1	UNKNOWN	haiku	low	a quoted line is in no file of the repository
+u13-1	PASS	haiku	low	
+u13-2	PASS	haiku	low	
+u14-1	PASS	haiku	low	
+u14-2	UNKNOWN	haiku	low	
+u15-1	UNKNOWN	haiku	low	the FLAG proposes no diff
+u16-1	PASS	haiku	low	
+u17-1	PASS	haiku	low	
+u18-1	PASS	haiku	low	
+u19-1	UNKNOWN	-	-	no verdict for this block
+u20-1	PASS	haiku	low	
+u21-1	PASS	haiku	low	
+u22-1	UNKNOWN	haiku	low	a quoted line is in no file of the repository
+u23-1	PASS	haiku	low	
+u24-1	PASS	haiku	low	
+u25-1	PASS	haiku	low	
+u25-2	PASS	haiku	low	
+u26-1	PASS	haiku	low	
+u27-1	PASS	haiku	low	
+u28-1	PASS	haiku	low	
+u28-2	PASS	haiku	low	
+u28-3	UNKNOWN	haiku	low	the proposed diff does not apply
+u28-4	UNKNOWN	haiku	low	the proposed diff does not apply
+u29-1	PASS	haiku	low	
+u30-1	FLAG	haiku	low	
+u31-1	UNKNOWN	haiku	low	
+u32-1	UNKNOWN	haiku	low	the proposed diff does not apply
+u33-1	PASS	haiku	low	
+u33-2	PASS	haiku	low	
+u34-1	UNKNOWN	haiku	low	the proposed diff does not apply
+u35-1	PASS	haiku	low	
+u36-1	UNKNOWN	haiku	low	
+u37-1	PASS	haiku	low	
+u37-2	PASS	haiku	low	
+u37-3	PASS	haiku	low	
+u37-4	PASS	haiku	low	
+u38-1	UNKNOWN	haiku	low	
+u38-2	UNKNOWN	haiku	low	
+u38-3	UNKNOWN	haiku	low	
+u39-1	PASS	haiku	low	

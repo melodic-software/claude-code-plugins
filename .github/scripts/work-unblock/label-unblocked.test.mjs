@@ -2080,13 +2080,21 @@ async function afterSweeps(count, jobs, logs) {
   return history(bodies);
 }
 
-test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired an hour after it ended", async () => {
+test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired by the first sweep after it ended", async () => {
   const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
   assert.equal(await sweep({ github, actions }), 0);
   tripped(calls);
   assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
-  // Within the hour it waits.
-  const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  // No model ran and the sweep runs only with the switch off, so it does not
+  // wait limits.reset-clamp-min: a run that ended half an hour ago re-fires.
+  const recent = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
+});
+
+test("a breaker trip at a post-model mint still waits limits.reset-clamp-min after the run ended", async () => {
+  // The model ran, so a re-fire runs it again: the clamp stays.
+  const early = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED, ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
   assert.deepEqual(writes(early.calls), []);
 });
@@ -2283,6 +2291,10 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
   const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
   assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
   tripped(late.calls);
+  // No model ran, so the first sweep after it ended re-fires it.
+  const recent = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
 });
 
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
@@ -2296,6 +2308,20 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
     const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), [], name);
+  }
+});
+
+test("a broker-check breaker trip is not re-fired while the issue lane is paused over its cap", async () => {
+  for (const jobs of [BROKER_REFUSED, KILL_SKIPPED]) {
+    const { github, actions, calls } = stalledRun({
+      jobs,
+      logs: CHECK_KILLED,
+      conclusion: jobs === KILL_SKIPPED ? "success" : "failure",
+      ended: "2026-10-16T11:30:00Z",
+      openLanePrs: 2,
+    });
+    assert.equal(await sweep({ github, actions }, PAUSING), 0);
+    assert.deepEqual(writes(calls), []);
   }
 });
 

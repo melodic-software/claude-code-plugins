@@ -424,8 +424,10 @@ export function createGitHubApi({
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      // A fork PR at the same head SHA lists its runs here too; a newer one
+      // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
-        .filter((run) => run.path === path)
+        .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
       const tested = await testedRun(runs, async (run) => {
         const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);

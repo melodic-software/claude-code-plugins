@@ -3,6 +3,30 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.0] - 2026-10-27
+
+### Added
+
+- `hooks/exec-bash.mjs` takes `--require-verdict`, a per-row opt-in for a blocking hook row: the launcher names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line). A row without the flag behaves as before.
+
+### Fixed
+
+- A guard row no longer lets a call through when its dispatcher dies before reaching a verdict. Windows Git Bash reports a crashed bash (a stack overflow, 0xC0000005) as exit 0 with empty output, which read as an allow. Every guardrails row now passes `--require-verdict`, and `run-guards.sh` writes the marker as its last action at each deliberate exit, so a crash denies the call. An abort in the dispatcher's own code, which used to allow the call with a notice, writes no marker either and is now denied. A `--report` process, whose parent gives the answer, never writes it.
+
+## [0.59.4] - 2026-10-26
+
+### Fixed
+
+- `block-unresolved-pr-merge` no longer refuses a command just because merge-shaped text and a backtick appear in the body of a quoted heredoc fed to a program that is not a shell, such as `python3 - <<'EOF'` or `git commit -F - <<'MSG'` (#8949). The backtick and line-continuation refusals now read the command with those bodies cut out, as the shared parser bounds them. A body is cut only when all of these hold:
+  - it ends at its own plain-word delimiter;
+  - it holds no backslash-newline and names no GraphQL merge mutation;
+  - no word of the command names a shell, `sudo`, `su`, `ssh` or `at`;
+  - the command word is not `eval`, `source`, `.` or a `.sh` script, and it can be read;
+  - no backtick, `$(`, `${`, `$[`, `((` or `[[` comes before it.
+
+  An unquoted heredoc body is never cut, because bash runs its backticks.
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted. `run-guards.sh` replays that array along with the rest of a shared parse. A here-doc delimiter word now ends at `(` or `)`, as it does in bash, so `(cat <<'E')` no longer hides the commands after its body.
+
 ## [0.59.3] - 2026-10-26
 
 ### Added
