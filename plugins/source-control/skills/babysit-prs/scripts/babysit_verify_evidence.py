@@ -2524,13 +2524,15 @@ def _answered(
         return report | {"cache": failed}
 
 
-def _settle(repo: str, path: str, code_sha: str) -> int:
+def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
     but never read again), as the lane's agent identity in the config there.
-    Changed check code refuses before any read. Prints `{"reuse", "reason"}`;
-    exit 0 when it stands, else 1, and the caller runs the check."""
+    With `idle`, the report is an earlier tick's, and it must also pass
+    `postmerge.idle_refusal`. Changed check code refuses before any read.
+    Prints `{"reuse", "reason"}`; exit 0 when it stands, else 1, and the
+    caller runs the check."""
     shared = postmerge.read_shared(path)
     reason: str | None = "post-merge answer missing or unreadable"
     if not merge_policy.check_code_unchanged(code_sha):
@@ -2553,6 +2555,14 @@ def _settle(repo: str, path: str, code_sha: str) -> int:
                         postmerge.pending_runs_unchanged(repo, answer, branch)
                     ),
                 )
+                if reason is None and idle:
+                    refusal = postmerge.idle_refusal(
+                        repo,
+                        shared,
+                        default,
+                        confirm_wait_minutes=config.confirm_wait_minutes,
+                    )
+                    reason = refusal and f"idle tick {refusal}"
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
     print(json.dumps({"reuse": reason is None, "reason": reason}))
@@ -2613,7 +2623,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
-    again (`_settle`)."""
+    again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
+    earlier tick's report, which must also pass `postmerge.idle_refusal`."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2643,9 +2654,12 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--repo", required=True)
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
+    settle.add_argument("--idle-tick", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "settle":
-        return _settle(args.repo, args.postmerge_result, args.code_sha)
+        return _settle(
+            args.repo, args.postmerge_result, args.code_sha, idle=args.idle_tick
+        )
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(

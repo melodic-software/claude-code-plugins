@@ -760,6 +760,27 @@ class Verification(CheckCase):
         after = self.check(now=datetime(2026, 10, 12, 16, 1, tzinfo=UTC))
         self.assertEqual([f.signal for f in after.failures], ["dispatch"])
 
+    def test_the_report_records_the_earliest_canary_still_queued_in_a_window(
+        self,
+    ) -> None:
+        # A canary queued before the green one that verified the merge is in
+        # its window and fails it once it turns red, so a later tick that
+        # reuses the report must list runs back to it (`idle_refusal`).
+        self.all_green()
+        self.assertIsNone(self.check().report()["outstandingSince"])
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(
+                20, conclusion=None, status="queued", created_at="2026-10-12T10:00:10Z"
+            ),
+        )
+        verdict = self.check()
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(
+            verdict.report()["outstandingSince"], "2026-10-12T10:00:10+00:00"
+        )
+
     def test_red_canary_is_a_failure(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(
@@ -1027,6 +1048,16 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.merges[0].pending, ())
         self.assertTrue(verdict.merges[0].verified)
+
+    def test_the_report_records_each_pin_it_read_once(self) -> None:
+        # A later tick reads them again before it reuses the report
+        # (`idle_refusal`), so the record is the read itself, None included.
+        self.all_green()
+        for pin in (HEAD_SHA, None):
+            with self.subTest(pin=pin):
+                report = self.check_unpinned(pin=pin).report()
+                self.assertEqual(report["pins"], {"7001": pin})
+                self.assertEqual(self.pin_reads, [7001])
 
     def test_a_pin_at_another_head_fails_the_read_back(self) -> None:
         # A push after the arm: the merged head is not the one pinned.
