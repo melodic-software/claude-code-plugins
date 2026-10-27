@@ -102,7 +102,8 @@ Precedence, top-down, first hit decides:
    refuses: billing, billed, spending limit, subscription, SKU, retention, a larger or
    self-hosted runner, seat, Codespaces, a paid plan, top-up, auto-renew, auto-reload, extra
    usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
-   public, where standard GitHub-hosted runner minutes are free. A spend word (cost, spend, spending, pricing, paid, quota) refuses
+   public, where the forge's standard hosted runner minutes are free. A spend word (cost,
+   spend, spending, pricing, paid, quota) refuses
    unless that occurrence sits in a phrase naming the subscribed model vendor or its product
    (vendor or product name, up to three closed qualifiers such as API, key, eval or model, then
    the spend word), and the issue names none of a closed list of other charge sources (the
