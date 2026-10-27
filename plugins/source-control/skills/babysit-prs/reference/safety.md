@@ -870,6 +870,17 @@ first: the caller's `kill-switch` job succeeded with its lane's `a kill switch s
 started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
 person to rerun the run once the switch is off.
 
+The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
+whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`
+(`LOST_CONCLUSIONS` in `babysit_review_evidence.py`, the lost-run reconciler's `LOST`, which also
+holds `startup_failure`). A run that never started leaves no job and no check, so the gate finds
+none to rerun. A lost run that already reached its side effect is left to a person: its job
+carries the lane's completion record, or the PR has that lane's reviewed-head marker for the head
+or another lane comment created since the run started. The review evidence binds a second attempt
+after a lost first attempt, of any `LOST_CONCLUSIONS`, by the same rule, between the two attempts'
+starts and reading the lane's review threads too; a lane job that ended on its own judged the head,
+so it binds none. The lost-run reconciler still reruns no review run.
+
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
   the publish-review failure line (`fail`) in ci-workflows
