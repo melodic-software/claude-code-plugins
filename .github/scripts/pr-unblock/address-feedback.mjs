@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
@@ -430,6 +431,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       path: rows[0].path,
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
+      // Newer changes moved the thread's code, so its line may be stale.
+      is_outdated: thread.isOutdated === true,
       root_comment_id: rows[0].id,
       // A lane only from the github-actions[bot] author whose footer the
       // review lanes write; claude[bot] writes its own body.
@@ -613,7 +616,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
     pullRequest(number: $pr) {
       reviewThreads(first: 100, after: $after) {
         nodes {
-          id isResolved
+          id isResolved isOutdated
           comments(first: 100) {
             totalCount
             nodes { databaseId lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
@@ -625,16 +628,23 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
-export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch = globalThis.fetch }) {
+// A read, GraphQL queries included, and a write marked safeToResend, is sent
+// again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
+// pull request changes nothing; a blob, a tree and a commit are used only by
+// the sha their answer names, and a ref update carries the sha it sets. A
+// comment, an issue and a mutation are sent once.
+export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = globalThis.fetch, sleep }) {
+  const fetch = retryFetch(rawFetch, { sleep });
   const [owner, name] = repository.split("/");
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
   };
-  async function request(url, method = "GET", body) {
+  async function request(url, method = "GET", body, safeToResend = false) {
     const response = await fetch(url, {
       method,
+      safeToResend,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -676,7 +686,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       return (await response.json()).permission;
     },
-    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" })).data,
+    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" }, true)).data,
     createIssue: async (fields) => (await request(`${repo}/issues`, "POST", fields)).data,
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
@@ -788,11 +798,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     },
     // The Git Data API: GitHub signs a commit made with no author or
     // committer as the App.
-    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
-    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
-    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,
+    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" }, true)).data.sha,
+    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree }, true)).data.sha,
+    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents }, true)).data.sha,
     async updateRef(ref, sha, force) {
-      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force });
+      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force }, true);
     },
   };
 }

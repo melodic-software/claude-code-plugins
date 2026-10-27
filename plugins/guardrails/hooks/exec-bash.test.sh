@@ -105,6 +105,82 @@ rc=0
 CLAUDE_PLUGIN_OPTION_FC_GATE=false node "$ENTRY" --fail-closed --require-true FC_GATE "$segv" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "--fail-closed must not change a closed gate (got $rc)"
 
+# --- --require-verdict: exit 0 counts only with the marker written ------------
+# Git Bash reports a crashed bash as exit 0 with empty stdout (#7681). The
+# launcher names a marker file in EXEC_BASH_VERDICT_FILE; the script writes it
+# as its last action, and an exit 0 without it denies.
+silent="$TEST_TMPDIR/silent.sh"
+printf '#!/bin/bash\nexit 0\n' >"$silent"
+rc=0
+err=$(node "$ENTRY" --fail-closed --require-verdict "$silent" 2>&1 >/dev/null) || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--require-verdict on exit 0 with no marker should exit 2 (got $rc)"
+[[ "$(grep -c . <<<"$err")" -eq 1 ]] || fail "--require-verdict should write one stderr line: $err"
+grep -q 'silent.sh' <<<"$err" || fail "--require-verdict line should name the script: $err"
+grep -q 'verdict marker' <<<"$err" || fail "--require-verdict line should name the cause: $err"
+rc=0
+node "$ENTRY" --require-verdict "$silent" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--require-verdict alone on exit 0 with no marker should exit 2 (got $rc)"
+
+marked="$TEST_TMPDIR/marked.sh"
+seen_marker="$TEST_TMPDIR/marker-path.txt"
+cat >"$marked" <<EOF
+#!/bin/bash
+printf '%s' "\$EXEC_BASH_VERDICT_FILE" >"$seen_marker"
+: >"\$EXEC_BASH_VERDICT_FILE"
+echo '{"systemMessage":"kept"}'
+exit 0
+EOF
+rc=0
+out=$(node "$ENTRY" --fail-closed --require-verdict "$marked" 2>/dev/null) || rc=$?
+[[ "$rc" -eq 0 ]] || fail "--require-verdict on exit 0 with the marker should exit 0 (got $rc)"
+[[ "$out" == '{"systemMessage":"kept"}' ]] || fail "--require-verdict should pass the script's stdout through: $out"
+marker_path=$(cat "$seen_marker")
+[[ -n "$marker_path" ]] || fail "--require-verdict did not hand the script a marker path"
+[[ ! -e "$marker_path" && ! -e "${marker_path%/*}" ]] || fail "the marker directory outlived the launch: $marker_path"
+
+# Exit 2 still blocks with no marker, and --fail-closed still decides the rest.
+printf '#!/bin/bash\nexit 2\n' >"$TEST_TMPDIR/exit.sh"
+rc=0
+node "$ENTRY" --require-verdict "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--require-verdict on exit 2 should exit 2 (got $rc)"
+rc=0
+err=$(node "$ENTRY" --fail-closed --require-verdict "$segv" 2>&1 >/dev/null) || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--require-verdict must keep the --fail-closed signal deny (got $rc)"
+grep -q 'SIGSEGV' <<<"$err" || fail "--require-verdict must keep the --fail-closed signal line: $err"
+
+# A row without the flag behaves as before: exit 0 is an allow and the script
+# gets no marker variable.
+cat >"$TEST_TMPDIR/novar.sh" <<'EOF'
+#!/bin/bash
+[[ -z "${EXEC_BASH_VERDICT_FILE+x}" ]] || exit 9
+exit 0
+EOF
+rc=0
+node "$ENTRY" --fail-closed "$TEST_TMPDIR/novar.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "a row without --require-verdict should allow exit 0 with no marker variable (got $rc)"
+
+# A closed option gate is the launcher's own answer, so it needs no marker.
+rc=0
+CLAUDE_PLUGIN_OPTION_RV_GATE=false node "$ENTRY" --require-verdict --require-true RV_GATE "$silent" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "--require-verdict must not change a closed gate (got $rc)"
+
+# The shipped dispatcher writes the marker, so through the launcher a clean run
+# allows. A dispatcher that ends with exit 0 before its own exit, the way a
+# crashed Git Bash reads, writes none and is denied: the stub drops the
+# dispatcher's EXIT trap, which would otherwise finish the chain.
+printf '#!/bin/bash\n:\n' >"$TEST_TMPDIR/rv-allow.sh"
+printf '#!/bin/bash\ntrap - EXIT\nbuiltin exit 0\n' >"$TEST_TMPDIR/rv-crash.sh"
+rv_payload='{"tool_name":"Bash","tool_input":{"command":"git status"}}'
+rc=0
+printf '%s' "$rv_payload" | node "$ENTRY" --fail-closed --require-verdict "$HOOK_DIR/run-guards.sh" "$TEST_TMPDIR/rv-allow.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "run-guards.sh through --require-verdict should allow a clean run (got $rc)"
+rc=0
+printf '%s' "$rv_payload" | node "$ENTRY" --fail-closed "$HOOK_DIR/run-guards.sh" "$TEST_TMPDIR/rv-crash.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "without --require-verdict a silent exit 0 is still an allow (got $rc)"
+rc=0
+printf '%s' "$rv_payload" | node "$ENTRY" --fail-closed --require-verdict "$HOOK_DIR/run-guards.sh" "$TEST_TMPDIR/rv-crash.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 2 ]] || fail "a dispatcher that exits 0 with no verdict should be denied (got $rc)"
+
 # --- Windows resolver: Git Bash, never the WSL relay -------------------------
 node "$HOOK_DIR/exec-bash.resolver.test.mjs" || fail "Windows resolver rejected Git Bash or accepted the relay"
 
@@ -130,7 +206,9 @@ while IFS= read -r row; do
     second=$(jq -r '.args[1]' <<<"$row")
     [[ "$second" == "--fail-closed" ]] || fail "guard row does not pass --fail-closed: $second"
     third=$(jq -r '.args[2]' <<<"$row")
-    [[ "$third" == *"/hooks/run-guards.sh" ]] || fail "args[2] is not run-guards.sh: $third"
+    [[ "$third" == "--require-verdict" ]] || fail "guard row does not pass --require-verdict: $third"
+    fourth=$(jq -r '.args[3]' <<<"$row")
+    [[ "$fourth" == *"/hooks/run-guards.sh" ]] || fail "args[3] is not run-guards.sh: $fourth"
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
@@ -182,4 +260,4 @@ notice=$(jq -c '.hooks.SessionStart[].hooks[] | select(.command != "node")' "$HO
 jq -e '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /guardrails:check"))' \
   <<<"$notice" >/dev/null || fail "SessionStart row is not the shell-form node notice: $notice"
 
-echo "exec-bash: stdin, exit 2, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."
+echo "exec-bash: stdin, exit 2, --fail-closed, --require-verdict, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."

@@ -158,9 +158,9 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
-| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
+| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). `scripts/check-affected.sh` runs the same scan on the changed files without a `ci-workflows` checkout. |
 
-`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, `machine-specific-paths` and the whole-repo scanners included. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
+`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `machine-specific-paths`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, the whole-repo scanners included. Its `machine-specific-paths` check repeats the composite's scan and exemptions over `plugins/guardrails/lib/path-detection/machine-path-patterns.sh`, the copy of the patterns file the composite sources, with the `exclude:` pathspecs of the workflow step; `scripts/check-affected-gates.test.sh` fails when those pathspecs differ. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
 `scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
@@ -171,7 +171,7 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 - **As of:** `ci-workflows` v0.58.0 (`5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c`), the pin in
   `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-21: the `contract-only` default is unchanged.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
-  contract.
+  contract, its scan or its exemptions, which `scripts/check-affected.sh` repeats.
 
 #### Running `machine-specific-paths` locally
 

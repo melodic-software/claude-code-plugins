@@ -1,0 +1,6 @@
+steps:
+  - id: open-billing
+    action: goto /billing/orders/1001
+  - id: issue-refund
+    kind: write
+    cli: refund 1001
