@@ -15,7 +15,8 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   `actions/workflows/{file}/runs` listing), each with an `attempts` list
   (`actions/runs/{id}/attempts/{n}`), each attempt with its `jobs`
   (`.../attempts/{n}/jobs`), each job with its check run's `annotations`
-  (`check-runs/{job id}/annotations`).
+  (`check-runs/{job id}/annotations`). Each run's `head_commit.tree_id`
+  names its head's tree, which finding closure keys on (`_open_findings`).
 - `comments`: the pull request's issue comments (REST).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   or None when they could not be read.
@@ -736,9 +737,12 @@ def _open_findings(
     never supersede each other, whatever their kind: each link counts the
     most summary findings, and the most inline findings left without a
     thread, that any completed review of its head (whole or incremental)
-    reported. So a finding any review of a head reported clears only by a
-    new head (a fix) or a human resolution; re-running the review of the
-    same head until it comes back clean never clears it.
+    reported. A head here is its tree (the run's `head_commit.tree_id`), so
+    commits with one tree are one head. So a finding any review of a head
+    reported clears only by a new head (a fix that changes the tree) or a
+    human resolution; re-running the review of the same head, or of an
+    empty commit on it, until it comes back clean never clears it. A
+    reviewed run with no readable tree unbinds the lane.
 
     A resolved thread is closed when:
     - a human resolved it;
@@ -763,13 +767,14 @@ def _open_findings(
 
     Also returns whether a clean whole review of `reviewed` would close every
     open finding: none is an unresolved thread, no completed review of
-    `reviewed` reported a finding, and none of them was a whole review; and
-    how many open findings are CRITICAL (`SEVERITY_RE`): open threads whose
-    comment is not marked IMPORTANT or SUGGESTION, every inline finding whose
-    thread is gone, and the summary findings, of which only the covering
-    review's own may count fewer: its one `critical-findings:` line, read
-    from `summaries` (the reviewed-head marker, which carries the summary,
-    and each Claude App summary comment posted inside that review's job). An
+    `reviewed`'s tree reported a finding, and none of them was a whole
+    review; and how many open findings are CRITICAL (`SEVERITY_RE`): open
+    threads whose comment is not marked IMPORTANT or SUGGESTION, every inline
+    finding whose thread is gone, and the summary findings, of which only the
+    covering review's own may count fewer, when no other review of its tree
+    reported a summary finding: its one `critical-findings:` line, read from
+    `summaries` (the reviewed-head marker, which carries the summary, and
+    each Claude App summary comment posted inside that review's job). An
     earlier review's summary is not read, so all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
@@ -777,17 +782,22 @@ def _open_findings(
     span: tuple[datetime | None, datetime | None] | None = None
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
-    # The head per window, to count missing ones on the chain.
-    heads: list[str] = []
+    # The tree per window, to count missing ones on the chain.
+    window_trees: list[str] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
     first: datetime | None = None
-    # Per head, the most findings and the most summary findings any completed
+    # Per reviewed head sha, its tree: findings are keyed on the tree, so a
+    # new commit with the same tree (an empty one) re-rolls no review.
+    trees: dict[str, str] = {}
+    # Per tree, the most findings and the most summary findings any completed
     # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Whether any review of `reviewed` was whole or reported a finding.
-    head_spent = False
+    # Per tree, how many reviews of it reported a summary finding.
+    summary_reviews: dict[str, int] = {}
+    # The trees any review of which was whole or reported a finding.
+    spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped or kill-switched run reviewed nothing.
@@ -802,11 +812,16 @@ def _open_findings(
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
-            head_max[rec.sha] = max(head_max.get(rec.sha, 0), rec.findings)
-            summary_max[rec.sha] = max(
-                summary_max.get(rec.sha, 0),
+            tree = _tree(item)
+            if trees.setdefault(rec.sha, tree) != tree:
+                raise Unbound("evidence-error")
+            head_max[tree] = max(head_max.get(tree, 0), rec.findings)
+            summary_max[tree] = max(
+                summary_max.get(tree, 0),
                 rec.findings - rec.inline,  # type: ignore[operator]
             )
+            if rec.findings > rec.inline:  # type: ignore[operator]
+                summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
             started = _time(job.get("started_at"))
             if rec == chain[0]:
                 span = (started, rec.completed)
@@ -817,17 +832,23 @@ def _open_findings(
                     rec.inline,  # type: ignore[arg-type]
                 )
             )
-            heads.append(rec.sha)
-            if rec.sha == reviewed and (rec.whole or rec.findings > 0):
-                head_spent = True
+            window_trees.append(tree)
+            if rec.whole or rec.findings > 0:
+                spent.add(tree)
             if (
                 item["head_sha"] == reviewed
                 and started
                 and (first is None or started < first)
             ):
                 first = started
-    summary = sum(summary_max.get(rec.sha, 0) for rec in chain)
-    cleared = not any(head_max.get(rec.sha) for rec in chain)
+    if any(rec.sha not in trees for rec in chain):
+        raise Unbound("tree-unread")
+    # The chain's trees, the covering review's first; links that share one
+    # count once.
+    chain_trees = list(dict.fromkeys(trees[rec.sha] for rec in chain))
+    head_spent = chain_trees[0] in spent
+    summary = sum(summary_max.get(tree, 0) for tree in chain_trees)
+    cleared = not any(head_max.get(tree) for tree in chain_trees)
     # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
@@ -866,11 +887,11 @@ def _open_findings(
         if len(severities) != 1 or severities[0] == "CRITICAL":
             critical += 1
     # Inline findings with no thread left, counted like summary findings:
-    # per chain link, the most any review at its head left.
+    # per chain tree, the most any review of it left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
     missing = sum(
-        max((g for g, sha in zip(gone, heads) if sha == rec.sha), default=0)
-        for rec in chain
+        max((g for g, at in zip(gone, window_trees) if at == tree), default=0)
+        for tree in chain_trees
     )
     count = summary + unresolved + held + missing
     # The covering review's summary findings, when it was the head's only
@@ -883,14 +904,28 @@ def _open_findings(
         if at is None or (start and end and start <= at <= end)
         for line in SUMMARY_CRITICAL_RE.findall(body)
     ]
-    rest = summary - summary_max.get(chain[0].sha, 0)
-    if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
+    rest = summary - summary_max.get(chain_trees[0], 0)
+    if (
+        own == summary_max.get(chain_trees[0], 0)
+        and summary_reviews.get(chain_trees[0], 0) <= 1
+        and len(lines) == 1
+    ):
         summary = rest + min(int(lines[0]), own)
     return (
         count,
         count > 0 and not unresolved and not head_spent,
         summary + critical + missing,
     )
+
+
+def _tree(item: Mapping[str, Any]) -> str:
+    """The tree of a run's head commit (`head_commit.tree_id`, which GitHub
+    may leave null); unreadable unbinds."""
+    commit = item.get("head_commit")
+    tree = commit.get("tree_id") if isinstance(commit, Mapping) else None
+    if not isinstance(tree, str) or not SHA_RE.match(tree):
+        raise Unbound("tree-unread")
+    return tree
 
 
 def _line_changed(
