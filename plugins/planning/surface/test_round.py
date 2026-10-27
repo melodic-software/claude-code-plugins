@@ -449,6 +449,56 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("asks the user", err)
 
+    TABLE = "| AC | Criterion |\n|---|---|\n| AC1 | builds reuse the cache |"
+    VISUAL_WARNING = "recommendation refers to a table or visual"
+
+    def test_add_warns_on_a_recommendation_that_points_at_a_table_it_does_not_carry(self):
+        q = question(
+            "Q4",
+            recommendation="Adopt the ten criteria in the table as written.",
+            facts=self.TABLE,
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.VISUAL_WARNING}", err)
+
+    def test_a_table_reference_with_commitments_or_nothing_shown_draws_no_warning(self):
+        for name, q in (
+            (
+                "commitments carry it",
+                question(
+                    "Q4",
+                    recommendation="Adopt the criteria in the table as written.",
+                    facts=self.TABLE,
+                    commits=["AC1: builds reuse the cache"],
+                ),
+            ),
+            (
+                "a database table, no visual or facts table",
+                question("Q4", recommendation="Add an index to the orders table."),
+            ),
+        ):
+            with self.subTest(name):
+                self.write_doc(base_doc())
+                rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+                self.assertEqual(rc, 0, out + err)
+                self.assertNotIn(self.VISUAL_WARNING, err)
+
+    def test_revise_warns_on_a_recommendation_that_points_at_a_table(self):
+        rc, out, err = self.rp(
+            "revise",
+            "Q2",
+            "--rec",
+            "Adopt the criteria in the table.",
+            "--facts",
+            self.TABLE,
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q2 {self.VISUAL_WARNING}", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
@@ -1570,6 +1620,36 @@ class TestStatusLive(DirCase):
         g1 = json.loads(out)["groups"][0]
         self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
 
+    def test_an_answer_superseded_after_it_counts_nowhere(self):
+        """#9715: status reads supersededBy before the decision, as export-ledger does, so the two
+        agree once an answered question is superseded."""
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at}]
+        )
+        ledger = self.tmp / "ledger.md"
+
+        def counts():  # (answered per status --json, Q1's export-ledger status)
+            rc, out, err = self.rp("status", "--json")
+            self.assertEqual(rc, 0, out + err)
+            answered = sum(g["answered"] for g in json.loads(out)["groups"])
+            rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+            self.assertEqual(rc, 0, out + err)
+            rows = [
+                line.split(" | ")
+                for line in ledger.read_text(encoding="utf-8").splitlines()
+                if line.startswith("- Q")
+            ]
+            return answered, next(r[1] for r in rows if r[0] == "- Q1")
+
+        self.assertEqual(counts(), (1, "answered"))
+        rc, out, err = self.rp(
+            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(counts(), (0, "withdrawn"))
+
     def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
         doc = base_doc()
         doc["questions"][0]["commits"] = ["No network"]
@@ -2526,6 +2606,55 @@ class TestClaudeActivity(DirCase):
                 if sections is not None:
                     op["sections"] = sections
                 self.refused(op)
+
+    def test_restate_refuses_an_acceptance_line_that_asks_the_user(self):
+        for line in (
+            "- AC3: Say add both, add one, or neither.",
+            "- Does it need an unwanted-behavior case?",
+            "- [state-driven] Please confirm the timeout.",
+            "AC2: Choose one of the two layouts",
+            "1. Say which one applies",
+        ):
+            with self.subTest(line=line):
+                out = self.refused(
+                    {"op": "restate", "sections": {"acceptance": f"- AC1: it ships\n{line}"}}
+                )
+                self.assertIn("acceptance line asks the user something", out)
+
+    def test_restate_keeps_checkable_criteria_and_a_code_span_question_mark(self):
+        acceptance = (
+            "- AC1: [unwanted-behavior] IF the upload fails, THEN the manifest is discarded\n"
+            "- AC2: the lookup uses `a?.b`\n"
+            "- AC3: a picked row stays selected\n"
+            "- AC4: Pick lists reprint from the handheld\n"
+            "- AC5: Reply emails keep their thread"
+        )
+        self.apply({"op": "restate", "sections": {"acceptance": acceptance}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"]["acceptance"], acceptance
+        )
+
+    def test_restate_takes_a_tldr_and_refuses_a_gate_label_in_it(self):
+        self.apply({"op": "restate", "sections": {"tldr": "- Ships the build cache"}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"], {"tldr": "- Ships the build cache"}
+        )
+        for line in (
+            "- Restatement: confirmed at rev 9",
+            "Page title: Other",
+            "- Page  title: Other",
+            "Page\ttitle: Other",
+        ):
+            with self.subTest(line=line):
+                out = self.refused({"op": "restate", "sections": {"tldr": line}})
+                self.assertIn("a label the --brief gate reads", out)
+
+    def test_restate_warns_on_a_tldr_over_five_lines(self):
+        tldr = "\n".join(f"- scope item {n}" for n in range(1, 7))
+        ops = {"ops": [{"op": "restate", "sections": {"tldr": tldr}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("restate tldr has 6 lines", err)
 
     def test_constraint_records_each_constraint_in_the_page_state(self):
         self.apply(

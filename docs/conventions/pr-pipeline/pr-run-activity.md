@@ -1379,12 +1379,12 @@ The run's `escalation-reason` output is the script's reason, else the select ste
 accepts the script's reasons only in this mode.
 
 In `pr-refine.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
-no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
-runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
+no prepare mode: the caller passes `patch-prepare: docs`, so the script takes the markdown-only
+`docs` row, and runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
 fallback call when it ran, else the first) and every patch input from that leg's scan job
 (`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt`, `scan-reply-attempt`), never from
-a run job. That row refuses the universal set, escalating
-`patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
+a run job. That row admits only a path ending in `.md` and refuses the universal set, any path
+under a `skills/` directory and any `SKILL.md`, each escalating `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
 `Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
 `pr-refine.yml` has no escalation job, so a refusal leaves only the neutral `awaiting-human`
@@ -1628,7 +1628,7 @@ outputs are sent), so the report job differs:
   trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
   `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
   run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
-  `default` row's refusals from there.
+  `docs` row's refusals from there.
 
 What it trusts:
 
@@ -1990,7 +1990,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   limit) whose permission mode checked out, so partial work reaches a branch a resumed run
   continues. A failed leg fails the job after its outcome and patch are carried; a turn cap is
   class `max-turns` in `lane.json`, a usage limit class `rate-limit` with run-claude-cli's
-  `lane-resets`. The skill's `work-outcome.json` and
+  `lane-resets`. A run whose issue file was not written never starts the skill: class
+  `issue-edited` when write-issue refused because the issue's title or body changed after its
+  label (its `refused=edited` output), else `issue-file`. The skill's `work-outcome.json` and
   the runner's `lane.json` (no branch yet, and on a resume the resumed branch) are uploaded as the
   `work-outcome-<n>` artifact by the scan job, sealed to it like the patch. The runner keeps at
   most the first 48 KiB of `work-outcome.json`: a longer file is cut, no longer parses, and
@@ -2018,7 +2020,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
+  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), hands the issue to a person naming
   that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
   (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals

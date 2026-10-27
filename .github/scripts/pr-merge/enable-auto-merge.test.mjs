@@ -52,7 +52,7 @@ import {
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -140,9 +140,20 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
-    // Its decided head: a review lane's cost hold marker at the head, before it.
-    if (method === "GET" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments\?per_page=100&page=1$/.test(path)) {
-      return [{ user: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-10-22T11:00:00Z", body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` }];
+    // Its decided head: the code review lane's status job noticed a cost
+    // hold at the head before it; the security lane has no run.
+    const runs = /^\/repos\/melodic-software\/claude-code-plugins\/actions\/workflows\/([a-z-]+)\.yml\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
+    if (method === "GET" && runs) {
+      return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
+    }
+    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
+      return { files: [{ filename: "infra/main.tf" }] };
+    }
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
+      return { jobs: [{ id: 90, name: "pr-review / claude-review-status", completed_at: "2026-10-22T11:00:00Z" }] };
+    }
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/check-runs/90/annotations?per_page=100&page=1") {
+      return [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost label=needs-human` }];
     }
     // A pull request's whole label list, when its listing cut it.
     const labelPage = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/([0-9]+)\/labels\?per_page=100&page=([0-9]+)$/.exec(path);
@@ -174,13 +185,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
       const nodes = [{ number: body.variables.number + 1000, repository: { nameWithOwner: REPO } }];
-      return { data: { repository: { pullRequest: { createdAt: "2026-10-22T10:00:00Z", closingIssuesReferences: { totalCount: 1, nodes } } } } };
+      return { data: { repository: { pullRequest: { createdAt: "2026-10-22T10:00:00Z", baseRefName: "main", headRefName: "fix/cost", closingIssuesReferences: { totalCount: 1, nodes } } } } };
     }
     if (body.query === COMMENT_EDITED_QUERY) {
       return { data: { node: { lastEditedAt: null } } };
-    }
-    if (body.query === COMMENT_DELETED_QUERY) {
-      return { data: { repository: { pullRequest: { timelineItems: { filteredCount: 0, nodes: [] } } } } };
     }
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
@@ -237,7 +245,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
@@ -370,18 +378,17 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-// Owner rule 2026-10-26: a person only for intent, design, a CRITICAL
-// security issue or a hold no lane can clear. The gate's `needsHuman`
-// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec, the terminal
-// repeated-FAIL cap, a pull request too old to verify) decides, so a changed
-// spec is a lane's.
-test("only a verifier refusal the gate marks needsHuman is a person's; a changed spec is a lane's", async () => {
+// Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
+// a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
+// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
+// changed spec, the repeated-FAIL cap and an old pull request are the lanes'.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are the lanes'", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", true) }),
-    pull(4, { verdict: refused("verify:too-old", true) }),
+    pull(3, { verdict: refused("verify:repeated-fail", false) }),
+    pull(4, { verdict: refused("verify:too-old", false) }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
@@ -389,10 +396,8 @@ test("only a verifier refusal the gate marks needsHuman is a person's; a changed
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: personNote(refusing("verify:too-old")) } },
-    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });
@@ -1173,6 +1178,51 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
   ]);
 });
 
+// ci-status lifts a hold path on a trusted person's approving review of the
+// head (merge-holds.pathLifters); arming reads the same rule. Kyle (id 5) is
+// on the trusted-actor list, id 9 is not.
+const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026-10-26T16:41:00Z" } = {}) => ({
+  author: { __typename: "User", login, databaseId: id },
+  state,
+  commit: { oid },
+  body: "",
+  submittedAt: at,
+  authorAssociation: "OWNER",
+});
+function trustedKyle() {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
+  return { TRUSTED_ACTORS: join(dir, "actors.json") };
+}
+const HELD = [{ filename: "docs/held.md" }];
+
+test("a hold path a trusted person approved at the head is armed, and an armed one stays armed", async () => {
+  const approved = { reviews: [reviewed("APPROVED")] };
+  const { writes } = await run([pull(50, { files: HELD, discussion: approved }), pull(51, { files: HELD, discussion: approved, autoMergeRequest: {} })], trustedKyle());
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_50", head: HEAD }]);
+});
+
+test("a hold path stays held without a trusted approval of the head", async () => {
+  const { writes } = await run(
+    [
+      pull(52, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { oid: "c".repeat(40) })] } }),
+      pull(53, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] } }),
+      pull(54, { files: HELD, discussion: { reviews: [reviewed("APPROVED"), reviewed("CHANGES_REQUESTED", { at: "2026-10-26T17:20:00Z" })] } }),
+      pull(55, { files: HELD, discussion: { reviews: [reviewed("APPROVED", { id: 9, login: "someone" })] }, autoMergeRequest: {} }),
+    ],
+    trustedKyle(),
+  );
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
+});
+
+test("an approval lifts no unread hold-path check and no capped file listing", () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const armed = pull(1, { autoMergeRequest: {} });
+  const approved = { ...detail(), lifters: ["kyle-sexton"], verify: PASSED };
+  assert.deepEqual(decide(armed, options, { ...approved, files: null }), { action: "disarm", reason: "its changed files could not all be read", clears: "lane" });
+  assert.deepEqual(decide(armed, options, { ...approved, files: ["docs/a.md"], filesCapped: true }), { action: "disarm", reason: FILES_CAPPED_REASON, clears: "person" });
+});
+
 // A manifest is no hold path: the gate's reader scores it (`evidence
 // --lane-reviews`, babysit_risk manifest-review-required), so a manifest
 // change the gate reviews is not armed, or is disarmed, and one it does not,
@@ -1457,7 +1507,7 @@ test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async 
   const { code, writes, verified } = await run([
     pull(1, { verdict: { refusal: "verify:missing", head: HEAD } }),
     pull(2, { verdict: { refusal: "verify:fail", head: HEAD } }),
-    pull(3, { verdict: { refusal: "verify:repeated-fail", head: HEAD, needsHuman: true } }),
+    pull(3, { verdict: { refusal: "verify:repeated-fail", head: HEAD, needsHuman: false } }),
     pull(4, { verdict: { refusal: "verify:earlier-fail", head: HEAD } }),
     pull(5, { verdict: { refusal: null, head: "c".repeat(40) } }),
     pull(6, { verdict: new Error("gh: rate limited") }),
@@ -1740,7 +1790,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -1825,7 +1875,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -2408,7 +2458,7 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
     mock.patch.object(policy, "read_config_at", lambda repo, sha: config), \\
     mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
     mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
-    mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), \\
+    mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), \\
     mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, "failedEjections": COUNTS[str(n)]}), \\
     mock.patch.object(babysit_merge, "_failed_merge_group_runs", lambda repo, branch, n: []):
     sys.exit(ve.main(sys.argv[1:]))
@@ -2470,11 +2520,11 @@ test("a kept refusal on an armed pull request disarms it", async () => {
 });
 
 test("a kept refusal writes no label back; a changed reason is still written", async () => {
-  const reason = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
-  const repeated = { refusal: "verify:repeated-fail", needsHuman: true, head: HEAD, ineligible: null };
+  const reason = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
+  const untrusted = { refusal: "verify:untrusted-spec", needsHuman: true, head: HEAD, ineligible: null };
   const standing = (verdict) => pull(2, { verdict, discussion: { comments: [lanesSaid(personNote(reason))] } });
-  assert.deepEqual((await run([standing(repeated)])).notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
-  const kept = await run([standing({ ...repeated, cached: true })]);
+  assert.deepEqual((await run([standing(untrusted)])).notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
+  const kept = await run([standing({ ...untrusted, cached: true })]);
   assert.deepEqual(kept.notes, []);
   assert.equal(kept.calls.filter(({ body }) => body?.query === UNLABELED_QUERY).length, 0);
   const moved = await run([pull(1, { verdict: CACHED_MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } })]);

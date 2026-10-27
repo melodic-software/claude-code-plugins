@@ -56,7 +56,7 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -305,6 +305,13 @@ class PostMergeVerdict:
     recover_dispatch: bool = False
     # When the earliest quarantine that excused a failing suite expires.
     excuses_expire_at: datetime | None = None
+    # Each pin the check read, by merge number (None: no pin), which a later
+    # tick reads again before it reuses the report (`idle_refusal`).
+    pins: Mapping[int, str | None] = field(default_factory=dict)
+    # When the earliest canary in a merge's window still running was created:
+    # it can still turn red and fail a merge judged verified, so a later tick
+    # lists runs back to it before it reuses the report (`idle_refusal`).
+    outstanding_since: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -374,6 +381,10 @@ class PostMergeVerdict:
             "branch": self.branch,
             "excusesExpireAt": (
                 self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
+            ),
+            "pins": {str(n): sha for n, sha in sorted(self.pins.items())},
+            "outstandingSince": (
+                self.outstanding_since.isoformat() if self.outstanding_since else None
             ),
         }
 
@@ -1897,6 +1908,7 @@ class _Tally:
     reruns: dict[int, Rerun] = field(default_factory=dict)
     flakes: dict[str, None] = field(default_factory=dict)
     unattributed: dict[str, None] = field(default_factory=dict)
+    outstanding: list[datetime] = field(default_factory=list)
 
 
 def _judge(
@@ -2012,15 +2024,13 @@ def _judge(
         elif state == PENDING:
             pending.append(f"{signal}-run-in-progress:{run.id}")
     for run in canaries:
-        if in_window(run) and ctx.outcome(run, attributable=False)[0] == RED:
-            failures.append(
-                Failure(
-                    SIGNAL_CANARY,
-                    merge,
-                    ctx.sighting(run),
-                    ctx.outcome(run, attributable=False)[1],
-                )
-            )
+        if not in_window(run):
+            continue
+        state, detail = ctx.outcome(run, attributable=False)
+        if state == RED:
+            failures.append(Failure(SIGNAL_CANARY, merge, ctx.sighting(run), detail))
+        elif state == PENDING:
+            tally.outstanding.append(run.created_at)
 
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
@@ -2261,15 +2271,18 @@ def check(
             prefetch(
                 [m.number for m in merges if m.number in pinned_merges | optional_pins]
             )
+        pins = {
+            m.number: pinned_sha(m)
+            for m in merges
+            if pinned_sha and m.number in pinned_merges | optional_pins
+        }
         states = tuple(
             _judge(
                 merge,
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge)
-                if pinned_sha and merge.number in pinned_merges | optional_pins
-                else None,
+                pinned=pins.get(merge.number),
                 pin_required=merge.number in pinned_merges,
                 now=now,
                 tally=tally,
@@ -2300,6 +2313,8 @@ def check(
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
         excuses_expire_at=ctx.excuses_expire_at,
+        pins=pins,
+        outstanding_since=min(tally.outstanding, default=None),
     )
 
 
@@ -3314,6 +3329,51 @@ VERIFYING_WORKFLOWS = frozenset(
 )
 
 
+def _verifying_runs_unchanged(
+    repo: str, branch: str, *, created: datetime, since: datetime
+) -> bool:
+    """Whether no full or canary run on `branch` created at or after
+    `created` completed, or was re-run, at or after `since`, from one listing
+    per verifying workflow: every workflow's runs on a busy branch fill more
+    than one page in an hour or two. A run started since and still running
+    changes nothing yet. A listing that is not whole raises
+    `PostMergeReadError`."""
+    owner, name = _split_repo(repo)
+    floor = quote(
+        f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+    )
+    for workflow in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW):
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
+                    f"?branch={quote(branch, safe='')}&created={floor}&per_page=100",
+                ],
+                f"{workflow} runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            raise PostMergeReadError(f"{workflow} runs: the listing is not whole")
+        if any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        ):
+            return False
+    return True
+
+
+def _pending_merges(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [
+        m
+        for m in map(json_object, json_array(report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+
+
 def pending_runs_unchanged(
     repo: str,
     shared: policy.SharedPostMerge,
@@ -3321,23 +3381,21 @@ def pending_runs_unchanged(
     *,
     now: datetime | None = None,
 ) -> bool:
-    """Whether `check` would judge `shared`'s unverified merges as it did,
-    from one run listing: no full or canary run on `branch` created since the
-    earliest of them completed or was re-run since `computed_at` (less
-    `policy.SINCE_CLOCK_MARGIN`), none has passed `DISPATCH_DEADLINE`, after
-    which a missing dispatch or pin is a failure, and no quarantine that
-    excused a failing suite has expired (`excusesExpireAt`; an answer
-    without the field is False). Those are `_judge`'s time-based excuses. A
-    run started since and still running only stays pending. A listing that
-    cannot be read or is not whole, or an entry without a merge time, is
-    False."""
-    pending = [
-        m
-        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
-        if m.get("verified") is not True
-    ]
+    """Whether `check` would judge `shared`'s unverified merges as it did:
+    no full or canary run on `branch` created since the earliest of them
+    completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`; `_verifying_runs_unchanged`), none has
+    passed `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
+    failure, and no quarantine that excused a failing suite has expired
+    (`excusesExpireAt`; an answer without the field is False). Those are
+    `_judge`'s time-based excuses. The listing reaches back to the earliest
+    canary still running in a verified merge's window too
+    (`outstandingSince`; an answer without the field is False), which can
+    still turn red and fail it. A listing that cannot be read or is not
+    whole, or an entry without a merge time, is False."""
     report = shared.gate.report
-    if not pending or "excusesExpireAt" not in report:
+    pending = _pending_merges(report)
+    if not pending or not {"excusesExpireAt", "outstandingSince"} <= report.keys():
         return False
     now = now or datetime.now(UTC)
     try:
@@ -3347,32 +3405,136 @@ def pending_runs_unchanged(
             excuse is not None and now >= _time(excuse)
         ):
             return False
-        owner, name = _split_repo(repo)
-        created = quote(
-            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
-        )
-        payload = json_object(
-            _read(
-                [
-                    "api",
-                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
-                    f"&created={created}&per_page=100",
-                ],
-                "verifying runs",
-            )
-        )
-        runs = json_array(payload.get("workflow_runs"))
-        if payload.get("total_count") != len(runs):
-            return False
-        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
-        return not any(
-            run.get("path") in VERIFYING_WORKFLOWS
-            and run.get("status") == "completed"
-            and _time(run.get("updated_at")) >= since
-            for run in map(json_object, runs)
+        outstanding = report["outstandingSince"]
+        return _verifying_runs_unchanged(
+            repo,
+            branch,
+            created=earliest
+            if outstanding is None
+            else min(earliest, _time(outstanding)),
+            since=shared.computed_at - policy.SINCE_CLOCK_MARGIN,
         )
     except PostMergeReadError:
         return False
+
+
+# How much of `policy.SHARED_MAX_AGE` a report reused from an earlier tick
+# must have left: the merge gate (`assess`, per candidate) and the lane room
+# read the same report after post-merge-dispatch ends, and one past the age
+# sends them to the full check. Over 72 scheduled runs on 2026-10-26/27 the
+# gate ended a median 17.7 minutes after a reuse tick's check would start;
+# replayed on those runs, 10 minutes reuses as often as 5 and leaves fewer
+# gates past the age.
+IDLE_HEADROOM = timedelta(minutes=10)
+QUARANTINE_MARKER = "<!-- post-merge-quarantine "
+
+
+def _quarantine_touched(repo: str, since: datetime) -> bool:
+    """Whether any issue carrying a quarantine marker was opened, reopened,
+    closed or edited at or after `since`, in one listing; a full page counts
+    as touched. A read that fails raises `PostMergeReadError`."""
+    owner, name = _split_repo(repo)
+    stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    issues = json_array(
+        _read(
+            [
+                "api",
+                f"repos/{owner}/{name}/issues?state=all&since={stamp}&per_page=100",
+            ],
+            "issues changed since the report",
+        )
+    )
+    return len(issues) >= 100 or any(
+        "pull_request" not in issue
+        and QUARANTINE_MARKER in str(issue.get("body") or "")
+        for issue in map(json_object, issues)
+    )
+
+
+def idle_refusal(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    confirm_wait_minutes: int,
+    now: datetime | None = None,
+) -> str | None:
+    """Why a post-merge report an earlier pr-merge tick kept, which
+    `policy.settle_shared` already keeps (the same merges, floor and
+    demotion), may not stand for this tick's check, or None. It covers the
+    rest of what `check` reads that can move with no new lane merge:
+
+    - the report: passing (exit 0 or 5), with no hold, no full run or
+      re-run to start, no red run charged to no merge, no quarantine excuse
+      (`quarantines`, `excusesExpireAt`), a `_lane_reruns` read that did not
+      fail, and its pins recorded;
+    - its age: `IDLE_HEADROOM` short of `SHARED_MAX_AGE`, from the
+      `computedAt` of the check that made it, never re-stamped;
+    - an unverified merge past `DISPATCH_DEADLINE`;
+    - verifying runs: none completed since `computedAt` (less
+      `SINCE_CLOCK_MARGIN`) among those created since the earliest unverified
+      merge, the earliest canary still running in a merge's window
+      (`outstandingSince`), or the `_lane_reruns` lookback
+      (`red-main.confirm-wait-minutes` plus `FULL_RUN_ALLOWANCE`, once more
+      for a baseline run still going);
+    - quarantine issues: none carrying the marker changed since;
+    - pins: each recorded one reads the same again, so an edited, new or
+      deleted pin refuses.
+
+    Any read that fails refuses (`unreadable`)."""
+    report = shared.gate.report
+    now = now or datetime.now(UTC)
+    warnings = json_array(report.get("warnings"))
+    unsettled = (
+        (
+            report.get("ok") is not True or report.get("readable") is not True,
+            "not-passing",
+        ),
+        (report.get("hold") is not None, "hold"),
+        (report.get("needsDispatch") is not False, "needs-dispatch"),
+        (bool(json_array(report.get("reruns"))), "reruns"),
+        (bool(json_array(report.get("unattributed"))), "unattributed"),
+        (bool(json_array(report.get("quarantines"))), "quarantines"),
+        (report.get("excusesExpireAt", "") is not None, "excused"),
+        (
+            any(str(w).startswith("lane-rerun-unreadable") for w in warnings),
+            "lane-reruns-unread",
+        ),
+        (not is_json_object(report.get("pins")), "pins-unrecorded"),
+        ("outstandingSince" not in report, "outstanding-unrecorded"),
+        (
+            now + IDLE_HEADROOM - shared.computed_at > policy.SHARED_MAX_AGE,
+            "stale-soon",
+        ),
+    )
+    refusal = next((text for refused, text in unsettled if refused), None)
+    if refusal:
+        return refusal
+    since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+    try:
+        created = shared.computed_at - (
+            timedelta(minutes=confirm_wait_minutes) + 2 * FULL_RUN_ALLOWANCE
+        )
+        pending = _pending_merges(report)
+        if pending:
+            earliest = min(_time(m.get("mergedAt")) for m in pending)
+            if now > earliest + DISPATCH_DEADLINE:
+                return "dispatch-deadline"
+            created = min(created, earliest)
+        if report["outstandingSince"] is not None:
+            created = min(created, _time(report["outstandingSince"]))
+        if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
+            return "runs-changed"
+        if _quarantine_touched(repo, since):
+            return "quarantine-changed"
+        recorded = report["pins"]
+        reader = pin_reader(repo, shared.identity)
+        reader.prefetch(int(n) for n in recorded)
+        if {str(n): sha for n, sha in reader.pins.items()} != recorded:
+            return "pins-changed"
+    except (PostMergeReadError, ValueError) as exc:
+        return f"unreadable: {exc}"
+    return None
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:

@@ -30,8 +30,10 @@ The script is bound to it, so a rule changed here is a rule changed in the scrip
 
 ```bash
 sync-run.sh [--marketplace <name> | --all] --journal-root <dir> \
-            [--install-new all|none|ask] [--allow-downgrade]
-sync-run.sh [--marketplace <name> | --all] --audit [--install-new all|none|ask]
+            [--install-new all|none|ask] [--allow-downgrade] \
+            [--source-pull ask|never] [--pull-source <names>] [--quiet-auto-update <names>]
+sync-run.sh [--marketplace <name> | --all] --audit [--install-new all|none|ask] \
+            [--source-pull ask|never] [--quiet-auto-update <names>]
 sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 ```
 
@@ -49,6 +51,11 @@ What the model still owns, because the script cannot:
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
+- **The pull offer.** The `directory_source_pull` and `quiet_auto_update_marketplaces` values
+  render in SKILL.md the same way, and the model passes them as `--source-pull` and
+  `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
+  `offered` is asked about there, and a yes reruns with `--pull-source`; see Step 1's
+  "Directory-source fast-forward".
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
 - **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
@@ -58,8 +65,10 @@ What the model still owns, because the script cannot:
 The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
 `auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
 ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
-kind; the script never fetches or pulls that checkout, because `claude plugin marketplace update`
-reads a directory as it is and the user owns it), the in-repo and user-scope sweep outcomes with each pair's
+kind; the script fetches or pulls that checkout only on a `--pull-source` request, because the
+user owns it), `source_pull` (what the run did or would do with a behind checkout: offered,
+skipped, refused, pulled or failed, with the reason, and the commits for a pull; see Step 1's
+"Directory-source fast-forward"), the in-repo and user-scope sweep outcomes with each pair's
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
@@ -192,7 +201,9 @@ Three sources, in precedence order, and **never** a synthesized value:
 1. **`<old>`**: that id's `installed[].version` from the pre-mutation `fleet-state.sh` re-read the
    section above already requires. It is the pre-update value by construction.
 2. **`<new>`**: the `claude plugin update` call's own output for that id when it names a version.
-   Capture the CLI's line as it runs; it is the only source that reflects the update immediately.
+   Capture it as it runs; it is the only source that reflects the update immediately. The run
+   asks for the CLI's JSON result and falls back to its result sentence on a CLI that prints no
+   result line (`sync-run.sh`'s `cli_reported_version`).
 3. **`<new>` fallback**: that id's `installed[].version` from one `fleet-state.sh` re-read after
    the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
 
@@ -204,7 +215,19 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-The CLI's "already at the latest version (X)" line is not a source for `<new>`: this run's call
+**Two install facts are read from the result's message text.** The probe found no result field
+for unset userConfig options or a disabled-by-default install, so `sync-run.sh` classifies both
+from the message (`unset_user_config_of`, `install_disabled_notice`). The shapes it matches live
+only in the script and its probe evidence, never here.
+
+- **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
+  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
+  basis comment in `scripts/sync-run.sh`.
+- **As of**: 2026-10-25
+- **Recheck trigger**: a Claude Code release that adds a result field for either fact, or a sync
+  report that misses unset options `/plugin configure` shows.
+
+An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
 never dropped and never filed under `Updated:`.
@@ -466,6 +489,35 @@ this skill does not do. To learn how stale the catalog actually is, compare
 directory. `ls-remote` queries the remote
 without writing `FETCH_HEAD`, remote-tracking refs, or objects, all three of which a plain
 `git fetch` writes (mutations of the marketplace's internal clone, outside this skill's boundary).
+
+### Directory-source fast-forward
+
+`claude plugin marketplace update` reads a `directory` source as it is on disk, so a checkout
+behind its upstream keeps the whole run on an old catalog. The script never pulls that checkout on
+its own. It pulls only a marketplace the model names with `--pull-source`, which the model passes
+only after the user said yes to the offer.
+
+- **The offer.** The digest's `source_pull` is `offered` when the checkout is clean (no modified
+  tracked files), on a branch with an upstream, not ahead and behind, the policy is `ask`, and the
+  action is `sync`. Every other behind checkout is `skipped` with the reason, and the report keeps
+  its pull-and-rerun bullet.
+- **The guard.** On `--pull-source` the script reads the checkout again just before Step 1's
+  refresh and refuses, with the reason and with no change to the checkout, when it is dirty,
+  detached, has no upstream, is ahead or diverged, or is not behind, or when the policy is `never`.
+  Only then does it run `git -C <path> pull --ff-only`, journaled like a CLI call, with stdin
+  closed and git's terminal and credential-manager prompts off, so a pull that needs a credential
+  fails rather than waits. A refused or failed pull is reported under `Action needed` and does not
+  stop the run: the refresh and every later step still run, against HEAD and the work tree as they
+  were.
+- **After a pull.** The refresh runs against the fast-forwarded checkout, so Steps 2 through 5b see
+  the newer catalog, and the `source:` row names the commits it moved from and to. Its time is in
+  the block's `marketplace_update` timing.
+- **Never in an autonomous or ambiguous session.** No human can answer the offer there, so a
+  session with `CLAUDE_CODE_REMOTE` set, or one invoked via `/loop` or `/schedule`, or one where it
+  is unclear a human is present, never asks and never pulls: the model passes `--source-pull
+  never`, and the script treats a set `CLAUDE_CODE_REMOTE` as `never` on its own. This is the test
+  `converge` applies before touching anything ([converge.md](converge.md)).
+- **`audit`** offers nothing and refuses `--pull-source` as a usage error: it changes nothing.
 
 ## Step 2: In-repo update (the primary value path)
 
