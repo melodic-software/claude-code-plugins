@@ -136,6 +136,9 @@ jobs:
       result: ${{ steps.audit.outputs.structured_output }}
       mode: ${{ steps.target.outputs.mode }}
       restored: ${{ steps.restored.outputs.restored }}
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the pushed head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -144,29 +147,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Tools, the plugin and the config reader come from main's tip, apart
-      # from the checkout the mutants edit.
+      # Tools, the plugin, the config reader and npm's fetch bound come from
+      # main's tip, apart from the checkout the mutants edit. Not sparse, so
+      # the job's npm ci always finds npm-fetch.npmrc.
       - name: Check out main's tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/main
           path: .base
           persist-credentials: false
-          sparse-checkout: |
-            /.claude-plugin/
-            /plugins/
-            /.github/actions/check-kill-switch/
-            /.github/actions/check-trusted-trigger/
-            /.github/actions/log-api-budget/
-            /.github/actions/resolve-config/
-            /.github/actions/setup-runner-isolation/
-            /.github/scripts/post-merge-test-mutation/
-            /.github/CODEOWNERS
-            /.github/standards/github-actions-conventions/vocabulary.json
-            /.node-version
-            /docs/conventions/pr-pipeline.yaml
-            /docs/conventions/pr-pipeline/
-          sparse-checkout-cone-mode: false
 
       # The head must be on main, and the diff target is the push's previous
       # head, or the head's first parent when the push had none (a first push
