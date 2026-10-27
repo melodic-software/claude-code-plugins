@@ -523,6 +523,14 @@ run_cli() {
   CLI_RC=${PIPESTATUS[0]}
   CLI_OUT=$(<"$sink")
   CLI_OUT="${CLI_OUT//$'\r'/}"
+  # A CLI older than `--json` (before 2.1.268) rejects it as an unknown option:
+  # run the call once more without it and read its text output.
+  if ((CLI_RC != 0)) && [[ " $* " == *" --json "* && "$CLI_OUT" == *"unknown option"*"--json"* ]]; then
+    local -a args=()
+    local arg
+    for arg in "$@"; do [[ "$arg" == --json ]] || args+=("$arg"); done
+    run_cli "${label/ --json/}" "${args[@]}"
+  fi
 }
 
 # audit's stand-in for run_cli: journals the prediction, issues nothing.

@@ -91,8 +91,8 @@ norm_path() {
 # shape an attended probe captured from Claude Code 2.1.310 (`outcome`, `message`,
 # `failureCode`, and on update `updateOutcome`, `oldVersion`, `newVersion`), and
 # the failure's `✘` line beside it, as the CLI's stderr is merged into the
-# capture. CLAUDE_STUB_TEXT=1 prints the text-only output of a CLI older than
-# the flag. CLAUDE_STUB_REWORD=1 keeps the fields and rewords an update's
+# capture. CLAUDE_STUB_TEXT=1 acts as a CLI older than the flag: it rejects
+# `--json` as an unknown option and prints text only without it. CLAUDE_STUB_REWORD=1 keeps the fields and rewords an update's
 # message, so a case can show the fields decide, not the sentence.
 write_claude_stub() {
   local case_dir="$1"
@@ -102,7 +102,11 @@ printf '%s\n' "$*" >>"$CLAUDE_STUB_LOG"
 if IFS= read -r -t 1 _stdin_line; then printf 'stdin was open\n' >>"$CLAUDE_STUB_LOG.stdin"; fi
 verb="${1:-} ${2:-}"
 json=false
-[[ " $* " == *" --json "* && -z "${CLAUDE_STUB_TEXT:-}" ]] && json=true
+if [[ " $* " == *" --json "* && -n "${CLAUDE_STUB_TEXT:-}" ]]; then
+  echo "error: unknown option '--json'" >&2
+  exit 1
+fi
+[[ " $* " == *" --json "* ]] && json=true
 # result <command> <outcome> <message> [extra-json]: the --json result line,
 # or the message alone in text mode.
 result() {
