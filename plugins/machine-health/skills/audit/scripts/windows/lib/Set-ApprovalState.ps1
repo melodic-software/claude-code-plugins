@@ -15,13 +15,20 @@ The writer of both files under the rule in reference/shared/approvals.md,
            approved_at, approved_by, notes }.
   revoke   approvals.json: remediations.<RemediationId>.approved = false and
            approved_at = now.
+  exclude-service  approvals.json: append ServiceName to
+           check_overrides.services.service_exclusions; a name already there
+           (any case, as Restart-StoppedService matches) is skipped.
+  include-service  approvals.json: remove ServiceName (any case) from that list.
 
 CheckId must be a shipped check id and RemediationId a shipped remediation
-(Get-RemediationId). state/approvals.lock (Enter-RunLock) is held across one
+(Get-RemediationId). ServiceName follows the CreateService rule: 1 to 256
+characters, no '/' or '\', and here also no control character and no leading or
+trailing whitespace, since Restart-StoppedService compares the exact name. state/approvals.lock (Enter-RunLock) is held across one
 read, the change, the schema check and one Write-StateFile replace, so a
 second writer waits and applies its change to the file the first one wrote. A
 document that fails its schema is never written, which also refuses a malformed
-FindingKey; unmuting a key that is not muted throws. Writing under a StateBase
+FindingKey; unmuting a key that is not muted, or including a service that is
+not excluded, throws. Writing under a StateBase
 a OneDrive variable names (Assert-StateBaseLocation) is refused.
 
 approved_by is "setup picks <RunId>" when a run id is given, else
@@ -41,10 +48,12 @@ function Set-ApprovalState {
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true)] [string] $StateBase,
-        [Parameter(Mandatory = $true)] [ValidateSet('mute', 'unmute', 'approve', 'revoke')] [string] $Action,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('mute', 'unmute', 'approve', 'revoke', 'exclude-service', 'include-service')] [string] $Action,
         [string] $CheckId,
         [string] $FindingKey,
         [string] $RemediationId,
+        [string] $ServiceName,
         [string] $Label,
         [string] $Notes,
         [string] $RunId,
@@ -53,7 +62,7 @@ function Set-ApprovalState {
 
     $request = @{
         CheckId = $CheckId; FindingKey = $FindingKey; RemediationId = $RemediationId
-        Label = $Label; Notes = $Notes; RunId = $RunId
+        ServiceName = $ServiceName; Label = $Label; Notes = $Notes; RunId = $RunId
     }
     $catalogRoot = Join-Path $PSScriptRoot '..\..\..\catalog'
     $remediationIds = @(Get-RemediationId)
@@ -68,6 +77,34 @@ function Set-ApprovalState {
         param($Doc)
         if ($null -eq $Doc['remediations']) { $Doc['remediations'] = [System.Text.Json.Nodes.JsonObject]::new() }
         return , $Doc['remediations']
+    }
+    $assertServiceName = {
+        $name = $request.ServiceName
+        if ([string]::IsNullOrWhiteSpace($name) -or $name -cne $name.Trim() -or $name.Length -gt 256 -or
+            $name -match '[\p{Cc}/\\]') {
+            throw ("Set-ApprovalState: -ServiceName must be a service name: 1 to 256 characters, no leading or " +
+                "trailing whitespace, and no control character, '/' or '\'.")
+        }
+    }
+    # check_overrides.services.service_exclusions, created on the way when $Create.
+    $exclusionsOf = {
+        param($Doc, [bool] $Create)
+        $node = $Doc
+        foreach ($key in 'check_overrides', 'services') {
+            if ($null -eq $node[$key]) {
+                if (-not $Create) { return $null }
+                $node[$key] = [System.Text.Json.Nodes.JsonObject]::new()
+            }
+            $node = $node[$key]
+        }
+        if ($null -eq $node['service_exclusions']) {
+            if (-not $Create) { return $null }
+            $node['service_exclusions'] = [System.Text.Json.Nodes.JsonArray]::new()
+        }
+        if ($node['service_exclusions'] -isnot [System.Text.Json.Nodes.JsonArray]) {
+            throw 'Set-ApprovalState: check_overrides.services.service_exclusions is not an array; approvals.json left as it is.'
+        }
+        return , $node['service_exclusions']
     }
 
     $mutesFile = @{ Name = 'mutes.json'; Schema = 'mutes.schema.json'; Root = 'checks' }
@@ -141,6 +178,35 @@ function Set-ApprovalState {
                 if ($null -eq $remediations[$id]) { $remediations[$id] = [System.Text.Json.Nodes.JsonObject]::new() }
                 $remediations[$id]['approved'] = $false
                 $remediations[$id]['approved_at'] = $now
+                return $true
+            }
+        }
+        'exclude-service' = @{
+            File     = $approvalsFile
+            Validate = $assertServiceName
+            Apply    = {
+                param($Doc)
+                $list = & $exclusionsOf $Doc $true
+                foreach ($item in $list) {
+                    if ($item.GetValue[string]() -ieq $request.ServiceName) { return $false }
+                }
+                $list.Add([System.Text.Json.Nodes.JsonValue]::Create([string]$request.ServiceName))
+                return $true
+            }
+        }
+        'include-service' = @{
+            File     = $approvalsFile
+            Validate = $assertServiceName
+            Apply    = {
+                param($Doc)
+                $list = & $exclusionsOf $Doc $false
+                $removed = 0
+                if ($null -ne $list) {
+                    for ($i = $list.Count - 1; $i -ge 0; $i--) {
+                        if ($list[$i].GetValue[string]() -ieq $request.ServiceName) { $list.RemoveAt($i); $removed++ }
+                    }
+                }
+                if ($removed -eq 0) { throw "Set-ApprovalState: '$($request.ServiceName)' is not in service_exclusions." }
                 return $true
             }
         }

@@ -30,13 +30,17 @@ assert_contains() {
   esac
 }
 
-# PATH shim: a fake `gh` whose behavior is driven by GH_STUB_MODE.
+# PATH shim: a fake `gh` whose behavior is driven by GH_STUB_MODE. It prints
+# "<open PRs listed> <tidy PRs among them>", as the script's --jq filter does,
+# and fails a search read: the script must list, not search.
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "$*" in *--search*) exit 64 ;; *"--limit 1000"*) ;; *) exit 65 ;; esac
 case "${GH_STUB_MODE:-}" in
-  count0) echo "0" ;;
-  count3) echo "3" ;;
+  count0) echo "5 0" ;;
+  count3) echo "12 3" ;;
+  full) echo "1000 0" ;;
   fail | *) exit 4 ;;
 esac
 EOF
@@ -64,6 +68,14 @@ out=$(PATH="$STUB_PATH" GH_STUB_MODE=count3 bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "count 3 exits 0" 0 "$rc"
 assert_contains "count 3 throttle active" "$out" "Throttle active: yes"
+
+# --- 3b. A listing that fills its limit throttles -------------------------------
+
+out=$(PATH="$STUB_PATH" GH_STUB_MODE=full bash "$SCRIPT" 2>&1)
+rc=$?
+assert_exit "full page exits 0" 0 "$rc"
+assert_contains "full page reports a floor" "$out" "Open tidy PR count: 0 or more"
+assert_contains "full page throttle active" "$out" "Throttle active: yes"
 
 # --- 4. gh failure → unknown ----------------------------------------------------
 

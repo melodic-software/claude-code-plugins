@@ -68,7 +68,7 @@ step's prose, is what to branch on:
   for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
   notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered prompt
   (or chunk) means no picks for its entries; the other chunks' picks still go in the id list, and
-  when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 3), which installs
+  when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 4), which installs
   nothing and still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
 - **`all`**: `claude plugin install <id> -s user` for every entry, no prompt
