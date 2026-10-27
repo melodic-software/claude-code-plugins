@@ -138,9 +138,9 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             "   Rerun the same command to change a value on an installed plugin, passing the scope",
             "   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to",
             f"   reconfigure: see [What an uninstall deletes and keeps]({UNINSTALL_DOCS}).",
-            "   Start a fresh Claude Code session before expecting new behavior; the CLI reference's",
-            f"   [`plugin configure`]({CONFIGURE_DOCS}) entry covers applying a saved value. What a rerun prints",
-            f"   and writes, and why the old session keeps the old value, are recorded in {cite}.",
+            f"   The [`plugin configure`]({CONFIGURE_DOCS}) entry in the CLI reference covers applying a saved",
+            "   value. What a rerun prints and writes, and why a session started before the rerun keeps the",
+            f"   old value until a fresh session starts, are recorded in {cite}.",
         ]
         if sensitive:
             # The convention records that the rerun write was not verified for a
@@ -196,9 +196,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "   ```",
         "",
         "   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)",
-        "   entry names the settings scopes Claude Code reads this key from. To vary behavior per",
-        "   repository, enable or disable the plugin in that project's `enabledPlugins`",
-        "   instead of setting an option there.",
+        "   entry names the settings scopes Claude Code reads this key from.",
         "",
         "Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one",
         "of the routes above.",

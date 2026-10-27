@@ -234,9 +234,7 @@ Three supported routes:
    ```
 
    The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   entry names the settings scopes Claude Code reads this key from.
 
 Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
 of the routes above.

@@ -236,9 +236,9 @@ Three supported routes:
    Rerun the same command to change a value on an installed plugin, passing the scope
    `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-   Start a fresh Claude Code session before expecting new behavior; the CLI reference's
-   [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry covers applying a saved value. What a rerun prints
-   and writes, and why the old session keeps the old value, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -256,9 +256,7 @@ Three supported routes:
    ```
 
    The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry names the settings scopes Claude Code reads this key from. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   entry names the settings scopes Claude Code reads this key from.
 
 Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
 of the routes above.
