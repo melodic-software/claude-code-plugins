@@ -238,6 +238,7 @@ breath. One coverage check is exempt; a round that happens to contain one is not
 Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
 synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
 is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
+The prompt is never itself a criterion. On the page surface it is a Notes question the user answers there, the restate refuses an acceptance line that asks the user something, and a prompt still unanswered at export lands in the Brief's `### Captured assumptions` as `- asked in Notes, not answered: <the prompt>` ([`context/surface.md`](context/surface.md) "Confirmation gate").
 
 ### Non-interactive runs skip the ask and say so
 

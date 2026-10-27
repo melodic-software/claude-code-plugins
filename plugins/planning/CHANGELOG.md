@@ -3,6 +3,43 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.116.0] - 2026-10-27
+
+### Added
+
+- **`interview` page surface:** a `tldr` restate section, shown first on the page as `Scope (TLDR)`, so the user confirms scope before the export. `export-brief` writes its bullets at the head of the Brief's `### TLDR`, ahead of the counts and the stamp, and `restate` refuses a `tldr` line opening `Restatement:` or `Page title:`, the labels the `--brief` gate reads. A `tldr` over five lines warns ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+### Fixed
+
+- **`interview` page surface:** `export-brief` no longer lists each confirmed commitment under `### Captured assumptions` as `confirmed on Q<N>; revisit if Q<N> changes`. `/planning:plan` turned each of those lines into an assumption to revisit, but a confirmed commitment is a decision. It already sits on its decision's line, and a decision still open on unticked commitments now lists its ticked ones on a TLDR line, `- Q<N> confirmed so far: <commitments>`. Captured assumptions now holds unconfirmed commitments as named risks, plus each `needsAnswer` Notes line no user note answered, as `- asked in Notes, not answered: <text>`. That line is how an unanswered acceptance-criteria coverage prompt reaches the Brief ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `restate` refuses an `acceptance` line that asks the user something: a question mark, "tell me", "please confirm", or a line opening on say or choose. Before this, a question such as the coverage prompt could be exported and confirmed as a criterion ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `round.py` warns on `add`, `add-round`, `apply` and `revise` when a recommendation with no commitments points at a table, visual, diagram, chart or figure while the file holds a visual or the question's `facts` hold a markdown table. The Brief exports only the recommendation and its commitments, so criteria kept only in a visual never reached the planner ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+## [0.115.1] - 2026-10-27
+
+### Fixed
+
+- `/planning:interview`: the page lane's `user_config` substitution record no longer claims that an unset key with a `default` substitutes that default. The manifest reference does not say so, and our own probe (the `/harness-ops:plugins` record "`userConfig`: an unset key renders the literal placeholder") found the token stays literal. The record now treats a token the lane table shows literal as unset, whatever the key's saved state. It names each key's fallback (`surface` to `terminal`, emoji markers to off), points at that probe, and rechecks when a fresh-session probe records whether a saved boolean substitutes (`skills/interview/context/lane-page.md`).
+
+## [0.115.0] - 2026-10-27
+
+### Changed
+
+- The Brief is the spec, and each planning value has one owner. `/planning:interview`'s Brief template owns the Goal, the acceptance criteria and the deferred questions. `/planning:plan` writes no Goal of its own under `## Plan` and points at the Brief's. A minimal Brief written by plan now includes `### Acceptance criteria`. A plan with no Brief puts a one-line `Goal:` under its `No Brief: <reason>` line instead.
+- `/planning:plan`'s Test strategy is the one place test boundaries are decided. `/planning:design`'s Test-seam posture thread sketches candidates for it and no longer asks the user to confirm them separately.
+- PLAN.md has one `## Execution shape` section. It holds the routing table, the scope-fencing tables and the sequential fallback, so the `### Execution shape` subsection under `## Handoff to implementation` is gone. The `## Open questions` section is also gone: a question the plan raises is a Step 1 Open Decision, and a deferred question stays in the Brief's `### Deferred questions`, and Step 5 asks for a reply to each one still open as `USER-RESERVED`. Step 4.6 tags decisions in `## Execution shape` too. `/planning:design-handoff` sends uncovered dimensions to those Step 1 Open Decisions.
+
+### Fixed
+
+- The interview page no longer takes a decision on an archived or superseded question: its Decide
+  choices, Save and Reopen are disabled, Ask, Rephrase and Research this still work, and a primary
+  `Go to <id>` button opens the end of its `supersededBy` chain. The page server answers such a
+  decision 409 `{"error": "superseded", "by": "<id>"}`, or `{"error": "archived"}`, and
+  accept-audit leaves a superseded question out.
+- An answer recorded before its question was superseded no longer counts as answered and live in
+  the page meter or `round.sh status`: both now read `supersededBy` before the decision, as
+  `export-ledger` already did, so they agree with the exported `withdrawn` row.
+
 ## [0.114.1] - 2026-10-27
 
 ### Fixed

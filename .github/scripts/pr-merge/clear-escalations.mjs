@@ -168,21 +168,23 @@ const REFUSAL_CLEARED = "refusal-cleared";
 // this script lifts at the same head, and the only ones a lift tolerates
 // refusing now. Every other code, an unknown one included, is a person's. The
 // list is explicit, so it fails closed; lane-causes-person-codes.test.mjs pins
-// it against babysit_risk.PERSON_CODES and PERSON_PREFIXES (#10249).
+// it against babysit_risk.PERSON_CODES and PERSON_PREFIXES (#10249) and
+// babysit_verify_evidence.NEEDS_HUMAN.
 // - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
 //   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
 //   the manifest review (:598). Not the reader's `unreadable: …` score.
 //   files-incomplete and the manifest review join their items with "; ", so
 //   a reason with two or more items reads as unknown codes and stays.
-// - verdict: babysit_verify_evidence.py's FAIL, EARLIER_FAIL and SPEC_CHANGED,
-//   which a push clears. Not untrusted-spec or repeated-fail (a person's),
-//   too-old (it recurs at the same head; #10249 makes it a person's), missing
-//   or unreadable (no answer), or ineligible (always paired with a link
-//   answer, which verifyHold reads first).
+// - verdict: every babysit_verify_evidence.py refusal off NEEDS_HUMAN that
+//   answers: FAIL, EARLIER_FAIL and SPEC_CHANGED, which a push or a new
+//   judgment clears, and REPEATED_FAIL and TOO_OLD, which never clear but hold
+//   for the lanes with no label (owner rule 2026-10-27). Not untrusted-spec (a
+//   person's), missing or unreadable (no answer), or ineligible (always
+//   paired with a link answer, which verifyHold reads first).
 // - link: none; an issue link is a person's.
 export const LANE_CAUSES = Object.freeze({
   link: Object.freeze([]),
-  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed"]),
+  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed", "verify:repeated-fail", "verify:too-old"]),
   risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required"]),
 });
 

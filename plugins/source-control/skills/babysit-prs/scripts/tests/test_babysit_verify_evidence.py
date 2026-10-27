@@ -8,7 +8,7 @@ whatever the run's conclusion and under any pull request number, a PASS only
 from a completed success at this pull request's head; a FAIL at another head
 of the pull request goes to a human unless a counted pass at the head clears
 every check; an unreadable FAIL blocks; a pull request
-older than 80 days goes to a human; a pass needs every linked issue written
+older than 80 days is refused; a pass needs every linked issue written
 and last edited by a trusted human, the pull request's author included,
 unchanged since the judgment; the Actions reads use the Actions token; a Dependabot pull request
 needs no verdict.
@@ -463,83 +463,6 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertFalse(evidence.needs_human)
-        self.assertEqual(
-            evidence.report()["headFail"], {"run": 1, "artifact": named(HEAD, "fail")}
-        )
-
-    def summary(self, fake: FakeGitHub, run_id: int, name: str) -> str | None:
-        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
-            return ve.Reader(REPO, "main", now=NOW).fail_summary(run_id, name, PR, HEAD)
-
-    def test_the_newest_head_fail_names_the_summary_to_quote(self) -> None:
-        older, newer = named(HEAD, "fail", 7), named(HEAD, "fail")
-        fake = FakeGitHub(
-            [artifact(newer, 5), artifact(older, 2)],
-            {2: run(2), 5: run(5)},
-            {
-                older: record(7, verdict="fail", summary="old"),
-                newer: record(verdict="fail", summary="Spec item 2 is unmet."),
-            },
-        )
-        evidence = read(fake)
-        self.assertEqual(evidence.head_fail, (5, newer))
-        self.assertEqual(self.summary(fake, 5, newer), "Spec item 2 is unmet.")
-
-    def test_another_pull_requests_fail_counts_but_is_not_quoted(self) -> None:
-        other = named(HEAD, "fail", 99)
-        fake = FakeGitHub(
-            [artifact(other, 5)],
-            {5: run(5)},
-            {other: record(99, verdict="fail", summary="PR 99's reason.")},
-        )
-        evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:fail")
-        self.assertEqual(evidence.head_fail, (5, other))
-        self.assertIsNone(self.summary(fake, 5, other))
-
-    def test_a_newer_head_pass_is_never_the_fail_to_quote(self) -> None:
-        fail, passed = named(HEAD, "fail"), named(HEAD, "pass", 99)
-        fake = FakeGitHub(
-            [artifact(passed, 5), artifact(fail, 2)],
-            {2: run(2), 5: run(5)},
-            {passed: record(99)},
-        )
-        evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:fail")
-        self.assertEqual(evidence.head_fail, (2, fail))
-
-    def test_a_newer_fail_at_an_earlier_head_is_never_the_fail_to_quote(
-        self,
-    ) -> None:
-        fail, earlier = named(HEAD, "fail"), named(EARLIER, "fail")
-        fake = FakeGitHub(
-            [artifact(earlier, 5), artifact(fail, 2)],
-            {2: run(2), 5: run(5)},
-        )
-        evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:fail")
-        self.assertEqual(evidence.head_fail, (2, fail))
-
-    def test_an_unreadable_record_is_not_a_record_with_nothing_to_quote(
-        self,
-    ) -> None:
-        name = named(HEAD, "fail")
-        fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
-        with self.assertRaises(ve.SummaryUnreadable):
-            self.summary(fake, 1, name)
-
-    def test_a_foreign_record_quotes_no_summary(self) -> None:
-        name = named(HEAD, "fail")
-        fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
-        for other in (
-            record(99, verdict="fail"),
-            record(sha=EARLIER, verdict="fail"),
-            record(verdict="pass"),
-            record(verdict="fail", summary=7),
-        ):
-            with self.subTest(other):
-                fake.records[name] = other
-                self.assertIsNone(self.summary(fake, 1, name))
 
     def test_a_fail_beside_a_pass_at_the_same_head_blocks(self) -> None:
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
@@ -1161,7 +1084,7 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
     def test_three_fails_on_a_closed_pull_request_refuse(self) -> None:
         evidence = read(self.sibling_fails(*SIBLING_HEADS))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
 
     def test_two_there_and_one_here_refuse(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
@@ -1169,16 +1092,14 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         fake.runs[9] = judged(9, OLDER_START)
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
-    def test_two_there_and_a_fail_at_the_head_go_to_a_human(self) -> None:
-        # Not to a fix round whose push could never merge.
+    def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
+        # Not verify:fail: a fix round whose push could never merge.
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
         fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
         fake.runs[9] = judged(9, OLDER_START)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertEqual(
-            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
-        )
+        self.assertFalse(evidence.needs_human)
 
     def test_one_there_and_a_fail_at_the_head_wait_for_a_fix_round(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:1])
@@ -1242,18 +1163,16 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         fake = self.sibling_fails(*SIBLING_HEADS)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
         self.assertEqual(downloads(fake), 0)
 
-    def test_two_there_and_a_fail_at_the_head_go_to_a_human(self) -> None:
+    def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
         fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
         fake.runs[9] = judged(9, OLDER_START)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertEqual(
-            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
-        )
+        self.assertFalse(evidence.needs_human)
 
     def test_two_there_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
@@ -1313,18 +1232,16 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
     def test_three_named_fails_refuse(self) -> None:
         evidence = read(self.named_fails(*SIBLING_HEADS))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
         self.assertEqual(downloads(self.named_fails(*SIBLING_HEADS)), 0)
 
-    def test_two_named_and_a_fail_at_the_head_go_to_a_human(self) -> None:
+    def test_two_named_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         fake = self.named_fails(*SIBLING_HEADS[:2])
         fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
         fake.runs[9] = judged(9, OLDER_START)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertEqual(
-            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
-        )
+        self.assertFalse(evidence.needs_human)
 
     def test_two_named_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.named_fails(*SIBLING_HEADS[:2])).refusal)
@@ -1436,10 +1353,11 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
 
-class RepeatedFailsGoToAHuman(unittest.TestCase):
+class RepeatedFailsHoldForTheLanes(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
-    pull request hold it for a human whatever a later pass says (owner
-    decision 2026-10-21); fewer leave the pass to decide."""
+    pull request hold it, never to merge unattended, whatever a later pass
+    says (owner decision 2026-10-21), for the lanes with no label (owner rule
+    2026-10-27); fewer leave the pass to decide."""
 
     @staticmethod
     def failed_at(*shas: str) -> FakeGitHub:
@@ -1454,7 +1372,7 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
     def test_fails_at_three_heads_refuse_despite_a_later_pass(self) -> None:
         evidence = read(self.failed_at(EARLIER, IN_PR, UNRELATED))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
         self.assertIn("3", evidence.detail or "")
 
     def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
@@ -1466,7 +1384,7 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
     def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
-        # Artifacts last 90 days here; a pull request is refused for a person
+        # Artifacts last 90 days here; a pull request is refused
         # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
         # expired FAIL never lifts the cap of a pull request still judged.
         self.assertLess(ve.TOO_OLD_DAYS, 90)
@@ -1479,7 +1397,7 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         )
         evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
         self.assertEqual(evidence.refusal, "verify:too-old")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
 
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
@@ -1494,15 +1412,12 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         self.assertEqual(len([v for v in evidence.verdicts if v.verdict == "fail"]), 3)
 
     def test_a_fail_at_the_head_that_reaches_the_cap_is_repeated_fail(self) -> None:
-        # The third failing head goes to a human, not to a fourth fix round,
-        # and names its own FAIL for the escalation to quote.
+        # The third failing head is refused for good, not sent to a fourth
+        # fix round.
         fake = self.failed_at(EARLIER, IN_PR, HEAD)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertTrue(evidence.needs_human)
-        self.assertEqual(
-            evidence.report()["headFail"], {"run": 4, "artifact": named(HEAD, "fail")}
-        )
+        self.assertFalse(evidence.needs_human)
 
     def test_a_fail_at_the_head_under_the_cap_stays_verify_fail(self) -> None:
         fake = self.failed_at(EARLIER, HEAD)
@@ -1707,11 +1622,11 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
                     self.assertFalse(evidence.needs_human)
 
 
-class AnOldPullRequestGoesToAHuman(unittest.TestCase):
+class AnOldPullRequestIsRefused(unittest.TestCase):
     def test_older_than_80_days_is_too_old(self) -> None:
         evidence = read(passing(), pull(created_at="2026-07-27T23:00:00Z"))
         self.assertEqual(evidence.refusal, "verify:too-old")
-        self.assertTrue(evidence.needs_human)
+        self.assertFalse(evidence.needs_human)
 
     def test_79_days_is_judged(self) -> None:
         self.assertIsNone(
@@ -2892,16 +2807,8 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
 # --- The --authority pr-merge path ------------------------------------------------
 
 
-def evidence(
-    refusal: str | None, head_fail: tuple[int, str] | None = None
-) -> ve.Evidence:
-    return ve.Evidence(
-        refusal=refusal,
-        head=unattended.HEAD,
-        verdicts=(),
-        ignored=0,
-        head_fail=head_fail,
-    )
+def evidence(refusal: str | None) -> ve.Evidence:
+    return ve.Evidence(refusal=refusal, head=unattended.HEAD, verdicts=(), ignored=0)
 
 
 # A manifest the floor switch's manifest review holds; the floor itself holds
@@ -2962,11 +2869,13 @@ class LaneRequiresAVerdict(unattended.Unattended):
             "id": 90,
             "user": {"login": unattended.IDENTITY, "type": "Bot"},
             "created_at": "2026-10-12T10:00:00Z",
-            "body": merge.verify_escalation_body("verify:too-old", unattended.HEAD),
+            "body": merge.verify_escalation_body(
+                "verify:untrusted-spec", unattended.HEAD
+            ),
         }
 
     def test_a_failed_comment_adds_no_label(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.failing = {merge.VERIFY_ESCALATION_MARKER}
         _, out = self.lane()
         self.assertFalse(
@@ -2983,7 +2892,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
     def test_a_failed_label_is_added_on_the_next_run_without_a_second_comment(
         self,
     ) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.failing = {"/labels"}
         _, out = self.lane()
         self.assertTrue(
@@ -3004,7 +2913,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         )
 
     def test_a_label_differing_only_in_case_is_not_added_again(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.pr_labels = [{"name": "Needs-Human"}]
         self.comments = [self.escalation_comment()]
         _, out = self.lane()
@@ -3053,7 +2962,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
 
     def test_the_label_is_the_trackers_human_gated_role(self) -> None:
         self.role_label.return_value = "status: needs-decision"
-        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.lane()
         self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
 
@@ -3086,151 +2995,28 @@ class LaneRequiresAVerdict(unattended.Unattended):
         # names the verifier refusal.
         self.assertEqual(out["unattended"]["reason"], "verify:untrusted-spec")
 
-    FAIL_RUN = (7, f"pr-verify-{unattended.PR}-{unattended.HEAD}-fail")
-
-    def fail_with_summary(self, summary: str | None | Exception) -> mock.Mock:
-        """A `verify:repeated-fail` with a FAIL at the head whose verdict
-        records `summary`, or whose record read raises it."""
-        self.verdicts[unattended.PR] = evidence("verify:repeated-fail", self.FAIL_RUN)
-        answer = (
-            {"side_effect": summary}
-            if isinstance(summary, Exception)
-            else {"return_value": summary}
-        )
-        patcher = mock.patch.object(ve.Reader, "fail_summary", **answer)
-        read = patcher.start()
-        self.addCleanup(patcher.stop)
-        return read
-
     def test_a_fail_at_the_head_writes_no_escalation(self) -> None:
         # A fix round answers it (pr-feedback-dispatch.yml); a label would
         # hold that round as awaiting-human.
-        self.verdicts[unattended.PR] = evidence("verify:fail", self.FAIL_RUN)
+        self.verdicts[unattended.PR] = evidence("verify:fail")
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "verify:fail")
         self.assertEqual(self.escalation_writes(), [])
         self.assertNotIn("escalation", out["unattended"]["writes"])
 
-    def test_a_repeated_fail_escalates_quoting_the_verdict_summary(self) -> None:
-        read = self.fail_with_summary("Spec item 2 is unmet.")
-        code, out = self.lane()
-        self.assert_no_merge(code)
-        read.assert_called_once_with(*self.FAIL_RUN, unattended.PR, unattended.HEAD)
-        comment, label = self.escalation_writes()
-        self.assertIn("labels[]=needs-human", label)
-        body = comment[-1].removeprefix("body=")
-        self.assertTrue(body.startswith(merge.VERIFY_ESCALATION_MARKER + "\n"))
-        self.assertIn("`verify:repeated-fail`", body)
-        self.assertIn(unattended.HEAD, body)
-        self.assertTrue(body.endswith("```text\nSpec item 2 is unmet.\n```"))
-        self.assertEqual(
-            out["unattended"]["writes"]["escalation"],
-            {"label": "added", "comment": "created"},
-        )
-
-    def test_a_repeated_fail_rerun_at_the_same_head_writes_nothing(self) -> None:
-        self.fail_with_summary("Spec item 2 is unmet.")
-        self.lane()
-        comment, _ = self.escalation_writes()
-        self.capture.reset_mock()
-        # The next run reads the comment and the label the first one wrote.
-        self.pr_labels = [{"name": "needs-human"}]
-        self.comments = [
-            {
-                "id": 90,
-                "user": {"login": unattended.IDENTITY, "type": "Bot"},
-                "created_at": "2026-10-12T10:00:00Z",
-                "body": comment[-1].removeprefix("body="),
-            }
-        ]
-        _, out = self.lane()
-        self.assertEqual(self.escalation_writes(), [])
-        self.assertEqual(
-            out["unattended"]["writes"]["escalation"],
-            {"label": "present", "comment": "unchanged"},
-        )
-
-    def test_the_quoted_summary_stays_inside_its_fence_and_is_cut(self) -> None:
-        summary = "a```b\r\n@someone\x1b" + "x" * 1500
-        body = merge.verify_escalation_body(
-            "verify:repeated-fail", unattended.HEAD, summary
-        )
-        quoted = body.split("```text\n", 1)[1]
-        # 1500 characters kept: the 15 of "a'''b\n@someone?" and 1485 x's.
-        self.assertEqual(quoted, "a'''b\n@someone?" + "x" * 1485 + " [cut]\n```")
-
-    def test_a_lone_surrogate_in_the_summary_still_posts(self) -> None:
-        body = merge.verify_escalation_body(
-            "verify:repeated-fail", unattended.HEAD, "a\ud800b"
-        )
-        self.assertTrue(body.endswith("```text\na?b\n```"))
-        body.encode("utf-8")
-
-    def assert_escalates_without_a_quote(self, summary: Any) -> None:
-        self.fail_with_summary(summary)
-        _, out = self.lane()
-        comment, _ = self.escalation_writes()
-        body = comment[-1].removeprefix("body=")
-        self.assertIn("`verify:repeated-fail`", body)
-        self.assertNotIn("```", body)
-        self.assertEqual(
-            out["unattended"]["writes"]["escalation"]["comment"], "created"
-        )
-
-    def test_a_repeated_fail_with_no_summary_to_quote_still_escalates(self) -> None:
-        self.assert_escalates_without_a_quote(None)
-
-    def test_a_repeated_fail_whose_record_cannot_be_read_still_escalates(self) -> None:
-        self.assert_escalates_without_a_quote(
-            ve.SummaryUnreadable("gh: boom (HTTP 502)")
-        )
-
-    def test_a_failed_read_keeps_the_quote_a_same_head_comment_carries(self) -> None:
-        quoted = merge.verify_escalation_body(
-            "verify:repeated-fail", unattended.HEAD, "Spec item 2 is unmet."
-        )
-        self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
-        self.pr_labels = [{"name": "needs-human"}]
-        self.comments = [
-            {
-                "id": 90,
-                "user": {"login": unattended.IDENTITY, "type": "Bot"},
-                "created_at": "2026-10-12T10:00:00Z",
-                "body": quoted,
-            }
-        ]
-        _, out = self.lane()
-        self.assertEqual(self.escalation_writes(), [])
-        self.assertEqual(
-            out["unattended"]["writes"]["escalation"],
-            {"label": "present", "comment": "unchanged"},
-        )
-
-    def test_a_failed_read_still_reposts_another_heads_comment(self) -> None:
-        self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
-        self.comments = [
-            {
-                "id": 90,
-                "user": {"login": unattended.IDENTITY, "type": "Bot"},
-                "created_at": "2026-10-12T10:00:00Z",
-                "body": merge.verify_escalation_body(
-                    "verify:repeated-fail", "c" * 40, "Old head's reason."
-                ),
-            }
-        ]
-        _, out = self.lane()
-        self.assertEqual(
-            out["unattended"]["writes"]["escalation"]["comment"], "created"
-        )
-        # The old head's reason stays, under the head it was given at.
-        (comment, _) = self.escalation_writes()
-        self.assertTrue(
-            comment[-1].endswith(
-                f"fail verdict at `{'c' * 40}`, as it wrote it:\n\n"
-                "```text\nOld head's reason.\n```"
-            )
-        )
+    def test_the_cap_and_an_old_pull_request_hold_with_no_escalation(self) -> None:
+        # Owner rule 2026-10-27: neither is an intent, design or security
+        # question, so each holds for the lanes. The gate still refuses.
+        for refusal in ("verify:repeated-fail", "verify:too-old"):
+            with self.subTest(refusal):
+                self.verdicts[unattended.PR] = evidence(refusal)
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                self.assertEqual(out["unattended"]["reason"], refusal)
+                self.assertIs(out["unattended"]["verify"]["needsHuman"], False)
+                self.assertEqual(self.escalation_writes(), [])
+                self.assertNotIn("escalation", out["unattended"]["writes"])
 
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
@@ -3676,7 +3462,7 @@ class EachVerdictIsOneRequest(unittest.TestCase):
                 # Only the untied FAILs' records: the pass decides nothing.
                 self.assertEqual(download_requests(fake), requests)
 
-    def test_a_third_failed_head_goes_to_a_human(self) -> None:
+    def test_a_third_failed_head_reaches_the_cap(self) -> None:
         for ids in (True, False):
             with self.subTest(ids=ids):
                 fake = self.heads(ids=ids)
@@ -3687,7 +3473,7 @@ class EachVerdictIsOneRequest(unittest.TestCase):
                 fake.runs[5] = run(5)
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:repeated-fail")
-                self.assertTrue(evidence.needs_human)
+                self.assertFalse(evidence.needs_human)
 
     def test_an_unreadable_untied_record_refuses(self) -> None:
         for ids in (True, False):
@@ -3729,7 +3515,10 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
     the reader at 6c4b552396, which fetched every verdict with `gh run
     download`, run on these same fixtures. The by-id fetch must give the same
     report in each of the six cases and spend half the download requests.
-    Break `_record` on purpose and these fail."""
+    Two fields were changed since by design, not by the fetch: `needsHuman`
+    is false for the repeated-FAIL cap (owner rule 2026-10-27), and the
+    report no longer carries `headFail`. Break `_record` on purpose and these
+    fail."""
 
     @staticmethod
     def report(
@@ -3737,13 +3526,12 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
     ) -> dict[str, Any]:
         return {
             "refusal": refusal,
-            "needsHuman": refusal == "verify:repeated-fail",
+            "needsHuman": False,
             "head": HEAD,
             "atHead": at_head,
             "earlierFails": sorted(earlier),
             "ignored": 0,
             "detail": None,
-            "headFail": None,
             **extra,
         }
 
@@ -3798,7 +3586,6 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
                     ["fail", "pass"],
                     both,
                     detail=capped,
-                    headFail={"run": 6, "artifact": named(HEAD, "fail")},
                 ),
                 4,
                 2,
@@ -3811,22 +3598,6 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
                 self.assertEqual(read(fake).report(), recorded)
                 self.assertEqual(download_requests(fake), after)
                 self.assertEqual(after * 2, before)
-
-
-class AFailSummaryIsFetchedByItsListedId(unittest.TestCase):
-    def test_the_judging_reader_quotes_the_head_fail_in_one_request(self) -> None:
-        name = named(HEAD, "fail")
-        fake = FakeGitHub(
-            [artifact(name, 5)],
-            {5: run(5)},
-            {name: record(verdict="fail", summary="Why.")},
-        )
-        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
-            reader = ve.Reader(REPO, "main", now=NOW)
-            self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
-            fake.calls.clear()
-            self.assertEqual(reader.fail_summary(5, name, PR, HEAD), "Why.")
-        self.assertEqual(download_requests(fake), 1)
 
 
 class ACorruptArchiveIsAnUnreadableRecord(unittest.TestCase):
@@ -4369,16 +4140,17 @@ class EvidenceCommandTest(unittest.TestCase):
             ve.Evidence(ve.REPEATED_FAIL, HEAD, (), 0, "fails at 3 heads"),
         )
         self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
-        self.assertTrue(report["needsHuman"])
+        self.assertIs(report["needsHuman"], False)
 
-    def test_a_changed_spec_alone_goes_back_to_the_lanes(self) -> None:
-        # Owner rule 2026-10-26: a person only where no lane can clear the
-        # refusal. An untrusted spec, the terminal repeated-FAIL cap and an
-        # old pull request stay a person's; a changed spec is judged again.
+    def test_only_an_untrusted_spec_goes_to_a_person(self) -> None:
+        # Owner rule 2026-10-27: a person only for intent, a design-altering
+        # finding or a CRITICAL security issue, trust holds kept. An untrusted
+        # spec is a trust boundary; the cap, an old pull request and a changed
+        # spec hold for the lanes.
         for refusal, person in (
             (ve.UNTRUSTED_SPEC, True),
-            (ve.REPEATED_FAIL, True),
-            (ve.TOO_OLD, True),
+            (ve.REPEATED_FAIL, False),
+            (ve.TOO_OLD, False),
             (ve.SPEC_CHANGED, False),
         ):
             with self.subTest(refusal):
