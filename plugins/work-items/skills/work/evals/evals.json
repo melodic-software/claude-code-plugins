@@ -212,6 +212,32 @@
         "Leaves part A, the delivered work, out of `remaining`",
         "Does not record part B in `not_done` in place of `remaining`"
       ]
+    },
+    {
+      "id": 16,
+      "name": "work-ci-mode-leaves-an-unrunnable-test-suite-to-pr-ci",
+      "prompt": "/work-items:work --issue 612 --ci\n\nIssue 612 asks for a small fix in one helper script and a unit test for it. The runner's system prompt names the repository's changelog-fragment check and the plugin's test suite as checks to run. The changelog-fragment check runs and passes. The test suite cannot run in this sandbox: its test runner is not installed and the lane has no network to install it. Everything else is done. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite is a test run the lane could not execute, which the skill treats as the exception to the required-check rule because the PR's CI runs the suites. The run adds it to `not_done` as left to the PR's CI with `\"required\": false` and does not stop for it. The changelog-fragment check passed, so nothing required is left, and the run ends `done`, not `stopped`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the test suite it could not run in `not_done` as left to the PR's CI with `\"required\": false`",
+        "Does not stop the run, or report it `stopped`, because the test suite could not run",
+        "Reports the run as done, with the changelog-fragment check passed"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "work-ci-mode-stops-when-a-test-that-ran-fails",
+      "prompt": "/work-items:work --issue 613 --ci\n\nIssue 613 asks for a small fix in one helper script. The runner's system prompt names the plugin's test suite as a check to run. The suite runs in this sandbox, and one of its tests fails after the change. Two attempts to fix the code do not make it pass, and the run has no turns left to try again. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite ran and a test failed, so it is not the unrunnable-test exception: a test that ran and failed is still required. The run adds the failing test to `not_done` with `\"required\": true`, and the lane reports the run `stopped` whatever `exit` says. It does not file the failure as left to the PR's CI with `\"required\": false`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the failing test in `not_done` with `\"required\": true`",
+        "States that the lane reports the run `stopped`, whatever `exit` says",
+        "Does not mark the failing test `\"required\": false` or leave it to the PR's CI on the grounds that it is a test run"
+      ]
     }
   ]
 }
