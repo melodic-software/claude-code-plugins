@@ -136,7 +136,13 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // re-run once, but only when that job is the run's only failed one: the
 // re-run starts every failed job again, and the run's other jobs (the model
 // triage, the gates) must not run again as github-actions[bot]. Adding the
-// label is idempotent, so the re-run is safe whatever the failure was.
+// label is idempotent, so the re-run is safe whatever the failure was. A run
+// where the floor label and another job both failed (a rate limit can fail
+// both) is left alone. When that failure kept the issue from a `status:`
+// label, the hourly triage sweep (maintenance-audit-lane-runs/triage-sweep.mjs,
+// issues a listed human or the lanes App opened) dispatches intake for it and
+// labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
+// once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
 export const INTAKE_LABEL_JOB = "intake-label-needs-triage";
 // A job's conclusions that rerun-failed-jobs leaves alone.

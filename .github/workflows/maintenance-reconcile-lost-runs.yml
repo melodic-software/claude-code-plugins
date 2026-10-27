@@ -41,7 +41,11 @@ name: maintenance-reconcile-lost-runs
 # in its intake-label-needs-triage job (a rate limit, most often) left the
 # issue without its floor label; its failed jobs are re-run once, taking no
 # place under the cap. A run where any other job failed is left alone, so no
-# triage or broker job runs again.
+# triage or broker job runs again. When that failure kept the issue from a
+# status label, the hourly triage sweep in maintenance-audit-lane-runs.yml
+# re-dispatches intake and adds needs-triage after 2 dispatches leave it
+# untriaged; otherwise, and once a dispatch triages it, the issue stays without
+# the floor label.
 #
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
