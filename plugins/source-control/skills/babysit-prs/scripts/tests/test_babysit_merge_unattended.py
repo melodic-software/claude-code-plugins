@@ -2380,16 +2380,27 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
     def test_a_cost_hold_holds(self) -> None:
+        # Infrastructure as code can start a real charge.
+        self.files = ((dataclasses.replace(LOW_FILE, path="infra/main.tf"),), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
+
+    def test_subscription_spend_is_reported_and_merges(self) -> None:
+        # A pipeline spend line draws on the subscription: no real charge.
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
             LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()
-        self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["cost-review-required"])
+        self.assertEqual(codes, ["cost-finding"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
 
 class BaseConfigParseError(Unattended):

@@ -1316,12 +1316,12 @@ class LanePathFloorTests(unittest.TestCase):
         result = score(_lane_input((_edit(SKILL, FRONT, after),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pipeline_caps_edit_still_holds_as_cost(self):
+    def test_a_pipeline_caps_edit_holds_on_the_floor_and_reports_cost(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
         self.assertEqual(
             _codes(score(_lane_input(files))),
-            ("cost-review-required", "high-path:docs/conventions/pr-pipeline.yaml"),
+            ("high-path:docs/conventions/pr-pipeline.yaml", "cost-finding"),
         )
 
 
@@ -1744,10 +1744,15 @@ class ReviewFlagClassTests(unittest.TestCase):
         )  # fmt: skip
 
     def test_cost_flag_holds(self):
-        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
-        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        result = score(_input(files=(_file("infra/main.tf"),)))
         self.assertEqual(_codes(result), ("cost-review-required",))
         self.assertTrue(holds(result))
+
+    def test_subscription_spend_is_reported_and_does_not_hold(self):
+        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
+        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        self.assertEqual(_codes(result), ("cost-finding",))
+        self.assertFalse(holds(result))
 
     def test_trust_gate_flag_holds(self):
         widened = _edit(ACTORS, BASE_ACTORS, _actors(_KYLE, _BOT, '{ "id": 3 }'))

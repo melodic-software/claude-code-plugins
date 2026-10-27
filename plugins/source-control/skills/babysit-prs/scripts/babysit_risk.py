@@ -4,8 +4,9 @@
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
 The caller reads the PR, the base-SHA config and the review-lane evidence, and
 hands them in; this module only judges them. No work class is read. A LOW
-score merges unattended, and so does a MED one whose every reason is a size or
-reported review-finding reason (`holds`); every other reason holds.
+score merges unattended, and so does a MED one whose every reason is a size,
+reported review-finding or cost-finding reason (`holds`); every other reason
+holds.
 So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
@@ -47,27 +48,33 @@ A review finding holds only as a CRITICAL security finding
 (`security-finding`): the security lane's `blocking_findings`. Every other open
 finding, a code-review finding or an IMPORTANT or SUGGESTION security one, is
 reported as a MED `findings:<lane>` reason that does not hold (owner decisions
-Q25, Q33 and Q693). A cost increase holds through `cost-review-required` and a
-trusted-actor widening through `trust-gate:trusted-actors`.
+Q25, Q33 and Q693). A real new charge holds through `cost-review-required`
+and a trusted-actor widening through `trust-gate:trusted-actors`.
 
-A change that could add or raise a charge rates HIGH as `cost-review-required`
-in every lane, floor or not and whatever `floor_exempt` says (owner rule,
-2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
-`RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
-(the base tree was not listed); a file renamed or copied into a workflow or
-`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
-patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
-`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
-or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
+Cost is not a stop; only a real new charge is (owner rule, 2026-10-26). A
+change that could start one (billed infrastructure or billed runner minutes)
+rates HIGH as `cost-review-required` in every lane, floor or not and whatever
+`floor_exempt` says: any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file
+under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
+None (the base tree was not listed); a file renamed or copied into a workflow
+or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
+no patch; and a `.github/workflows/` file whose patch, unless
+`RiskInput.public` is True, adds a `runs-on:`, `windows` or `macos` line or a
+raised timeout (below); or that gains a runner value (head text against base
+text, and added inline `runs-on:` lines) that is not `_FREE_RUNNER` on a
+public repository, or any on another. Only `RiskInput.cost_decision`, an
+owner decision the caller verified, clears it.
+
+Spend that draws only on a subscription or prepaid credit is the MED
+`cost-finding`, reported and never held: a workflow patch that adds a
+`_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
+`--max-turns`); that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
 `_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
-is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
-one it removes, when its head text (`contents`) names a model leg or could not
-be read; or that gains a runner value (head text against base text, and added
-inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
-any on another; and a `pr-pipeline.yaml` change with any added or removed line
-off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
-or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
-decision the caller verified, clears it.
+is not new; that, on a public repository, adds a `timeout-minutes` or
+`leg-timeout-minutes` above every one it removes, when its head text
+(`contents`) names a model leg or could not be read; and a `pr-pipeline.yaml`
+change with any added or removed line off `_SAFE_PIPELINE_LINE`, unless it
+only edits trailing comments.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -696,6 +703,8 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 
 
 COST_CODE = "cost-review-required"
+# Spend on a subscription or prepaid credit: reported, never held.
+COST_FINDING_CODE = "cost-finding"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
     "**/Pulumi.yaml",
@@ -910,23 +919,28 @@ def _raised_timeouts(
 def _cost_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
-    """`cost-review-required` for a change that could add or raise a charge,
-    unless `inp.cost_decision` names the owner decision that clears it. It
-    holds in every lane, whatever the floor switch says."""
-    hits = []
+    """`cost-review-required` (HIGH) for a change that could start a real
+    charge, unless `inp.cost_decision` names the owner decision that clears
+    it; it holds in every lane, whatever the floor switch says. Spend that
+    draws only on a subscription or prepaid credit is `cost-finding` (MED),
+    reported and never held (owner rule 2026-10-26: cost is not a stop, only
+    a real new charge is)."""
+    charges, spends = [], []
     for f, raw in zip(files, raw_files):
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
-            hits.append(f"{f.path}: infrastructure as code")
+            charges.append(f"{f.path}: infrastructure as code")
             continue
         if inp.pulumi_dirs is None:
-            hits.append(f"{f.path}: the base tree was not listed for Pulumi projects")
+            charges.append(
+                f"{f.path}: the base tree was not listed for Pulumi projects"
+            )
             continue
         if any(
             p == d or not d or p.casefold().startswith(d.casefold() + "/")
             for d in inp.pulumi_dirs or ()
             for p in f.paths
         ):
-            hits.append(f"{f.path}: in a Pulumi project")
+            charges.append(f"{f.path}: in a Pulumi project")
             continue
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
@@ -936,44 +950,55 @@ def _cost_reasons(
         if new != old and not (
             is_workflow_path(old) or glob_match(_PIPELINE_CONFIG, old)
         ):
-            hits.append(f"{f.path}: renamed or copied from {old}")
+            charges.append(f"{f.path}: renamed or copied from {old}")
             continue
         lines = _patch_lines(getattr(raw, "patch", None))
         if lines is None:
-            hits.append(f"{f.path}: no patch to read")
+            charges.append(f"{f.path}: no patch to read")
             continue
         added, removed = lines
+        public = inp.public is True
+        charge: list[str] = []
+        spend: list[str] = []
         if workflow:
-            patterns = [_COST_WORKFLOW_LINE] + (
-                [] if inp.public is True else [_COST_PRIVATE_LINE]
-            )
-            found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
-            found += [
+            for s in added:
+                if not public and _COST_PRIVATE_LINE.search(s):
+                    charge.append(s.strip())
+                elif _COST_WORKFLOW_LINE.search(s):
+                    spend.append(s.strip())
+            spend += [
                 f"new secrets reference {n}"
                 for n in _net_added(_SECRET_REF, added, removed)
             ]
-            found += [
+            spend += [
                 f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
             ]
-            found += [
+            spend += [
                 f"new model package run {n}"
                 for n in _net_added(_MODEL_PACKAGE, added, removed)
             ]
-            found += _raised_timeouts(f, raw, added, removed)
-            found += [
-                f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
-            ]
+            # Hosted minutes are free only on a public repository.
+            (spend if public else charge).extend(
+                _raised_timeouts(f, raw, added, removed)
+            )
+            charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
-            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
-        if found:
-            hits.append(f"{f.path}: {'; '.join(found)}")
-    if not hits or inp.cost_decision:
-        return []
-    detail = "; ".join(hits) + (
-        "; cite the owner's `**Decision recorded.**` comment on the closing issue or "
-        "this pull request in the body to clear it"
-    )
-    return [Reason(COST_CODE, Risk.HIGH, detail)]
+            spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+        if charge:
+            charges.append(f"{f.path}: {'; '.join(charge)}")
+        if spend:
+            spends.append(f"{f.path}: {'; '.join(spend)}")
+    reasons = []
+    if charges and not inp.cost_decision:
+        detail = "; ".join(charges) + (
+            "; cite the owner's `**Decision recorded.**` comment on the closing "
+            "issue or this pull request in the body to clear it"
+        )
+        reasons.append(Reason(COST_CODE, Risk.HIGH, detail))
+    if spends:
+        detail = "; ".join(spends) + "; subscription or prepaid spend, reported only"
+        reasons.append(Reason(COST_FINDING_CODE, Risk.MED, detail))
+    return reasons
 
 
 def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
@@ -1127,14 +1152,15 @@ def _score(inp: RiskInput) -> RiskResult:
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes: the diff's size and the review
-# findings that are reported only.
+# MED reasons an unattended merge passes: the diff's size and the review and
+# cost findings that are reported only.
 MERGEABLE_MED = frozenset(
     {
         "lines-over",
         "files-over",
         LANES["claude-review"][0],
         REPORTED_SECURITY_CODE,
+        COST_FINDING_CODE,
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
@@ -1154,8 +1180,9 @@ def holding(result: RiskResult) -> list[Reason]:
 
 # The holding reasons only a person clears (owner rule 2026-10-26: a person
 # only for an intent or design change or a CRITICAL security issue, with
-# cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
-# security finding, a trusted-actor widening, a cost hold, every high path
+# real-charge and trust holds kept, and for a hold no lane can clear): a
+# CRITICAL security finding, a trusted-actor widening, a real-charge hold,
+# every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,
 # submodule or mode change) and a listing past the files API's cap. The lanes
 # clear every other holding reason, such as review evidence not yet bound to
