@@ -2035,10 +2035,12 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   failed jobs, annotations and log tails; slice D, every run of each of the two lane workflows with
   the most runs, successes included, with sampled green runs' failed steps; slice C, ten open pull
   requests by listed authors per unit, with labels, ages and head check results. Runs from forks
-  never count. It lists the window workflow by workflow: one `per_page=1` call reads each workflow's
-  run count, and a range at the listing's 1,000-run cap is halved until each part fits, so every run
-  of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
-  so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
+  never count. It lists the window workflow by workflow, busiest first: each range's first page of
+  100 runs carries its run count, and a range at the listing's 1,000-run cap is halved until each
+  part fits, so every run of the 24 hours is read. It stops at 350 REST calls, keeping 184 of them
+  for the open pull request and issue reads and the units (the dearest mix: four slice A units and
+  four slice C units), and says so: a
+  workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
 - **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
   on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
