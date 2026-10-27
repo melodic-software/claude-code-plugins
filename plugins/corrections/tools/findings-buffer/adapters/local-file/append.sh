@@ -103,13 +103,37 @@ take_mkdir_lock() {
   fi
 }
 
+# Without flock(1), perl's flock takes the same lock when perl calls flock(2) itself
+# (d_flock), not an fcntl emulation whose lock would end with the perl process. A
+# flock(2) lock belongs to the open file, so it stays held through this shell's fd 9
+# after the tool exits, and ends only when every process holding that fd has exited:
+# a killed holder leaves nothing to take over. The mkdir lock is the last fallback.
+LOCK_WITH="mkdir"
 if command -v flock >/dev/null 2>&1; then
-  (
-    flock -x 9 || exit 1
-    write_rows
-  ) 9>>"$DIR/.lock" || exit 1
-else
+  LOCK_WITH="flock"
+elif perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; then
+  LOCK_WITH="perl"
+fi
+
+# lock_fd9: an exclusive flock(2) lock on fd 9, waiting while another append holds it.
+lock_fd9() {
+  if [[ $LOCK_WITH == flock ]]; then
+    flock -x 9
+  else
+    perl -MFcntl=:flock -e 'open(my $fh, ">>&=", 9) && flock($fh, LOCK_EX) or exit 1'
+  fi
+}
+
+if [[ $LOCK_WITH == mkdir ]]; then
   take_mkdir_lock || exit 1
   write_rows || exit 1
+else
+  (
+    lock_fd9 || {
+      echo "append.sh: could not lock $DIR/.lock" >&2
+      exit 1
+    }
+    write_rows
+  ) 9>>"$DIR/.lock" || exit 1
 fi
 exit 0
