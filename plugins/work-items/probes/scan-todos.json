@@ -1,0 +1,123 @@
+{
+  "skill": "work-items:scan-todos",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/scan-todos",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are track, triage and work, plus bugs:scan and codebase-health:audit.",
+  "competitors": [
+    "work-items:track",
+    "work-items:triage",
+    "work-items:work",
+    "bugs:scan",
+    "codebase-health:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Grep the codebase for TODO and FIXME comments and deal with each one."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Find all the HACK and XXX markers in src and either fix them or file issues."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a sweep of leftover TODOs in the services directory and turn the real ones into tickets."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Clean up the tech-debt comments scattered through the repo."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List every FIXME in this project and decide which are stale."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Scan --path packages/api for TODO comments and resolve what's quick."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before release, go through the source for unfinished-work markers and handle them."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How many TODO comments are lurking in the code? Triage them all."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sweep comments for XXX and HACK notes and resolve or log each one."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hunt down the old TODO: remove this later notes and either do the work or record it."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run through the code for FIXME markers and work the ones that are small."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Look through the issue tracker for stale tickets and close them."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hunt for unobserved bugs in the payments module."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit the repo for docs that drifted from the code."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a ticket for refactoring the auth middleware."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Triage the new issues that came in this week."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pick the highest-priority backlog item and implement it."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review my diff for correctness problems."
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        }
+      ],
+      "why": "both item bodies carry the Goal and both Constraints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        }
+      ],
+      "why": "one combined slice carries them"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the Bank Statement each month without asking engineering for a database query.\nConstraints:\n- The Nightly Ledger job's schedule and output stay untouched.\n- The export reads only from the Reporting Replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        }
+      ],
+      "why": "capitalized copy still counts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/notes.md",
+            "content": "# notes\n\nscratch"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        }
+      ],
+      "why": "a non-item Write is not an item body"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 2, topic refund-export\n\n## Outcome\n\nThe CSV downloads.\n\nGoal: Finance staff reconcile refunds against the bank statement each month.\n\n## Done when\n\n- [ ] download test passes\n"
+          }
+        }
+      ],
+      "why": "the second item omits both Constraints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 2, topic refund-export\n\n## Outcome\n\nThe CSV downloads.\n\nGoal: Finance staff reconcile refunds against the bank statement each month.\n\n## Done when\n\n- [ ] download test passes\n"
+          }
+        }
+      ],
+      "why": "the only item omits the Constraints"
+    }
+  ]
+}
