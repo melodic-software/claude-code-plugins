@@ -551,9 +551,10 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["address-feedback-not-run"];
-  const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "") => ({
+  const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "", resolveOnly = "") => ({
     "inputs.activity": activity,
     "needs.address-feedback-select.outputs.proceed": proceed,
+    "needs.address-feedback-select.outputs.resolve-only": resolveOnly,
     "needs.address-feedback-select.outputs.head-sha": headSha,
     "needs.address-feedback-select.outputs.skip-reason": skip,
     "needs.address-feedback-select.outputs.not-run-detail": detail,
@@ -564,6 +565,10 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
     assert.equal(evaluate(jobs[id].if, context("false", head)), false, id);
     assert.equal(evaluate(jobs[id].if, context("", "")), false, `${id} after a kill-switch stop`);
   }
+  // A pass-only round runs the reply job alone, and no neutral check.
+  assert.equal(evaluate(jobs["publish-feedback"].if, context("", head, "", "address-feedback", "", "true")), true);
+  assert.equal(evaluate(jobs["address-feedback"].if, context("", head, "", "address-feedback", "", "true")), false);
+  assert.equal(evaluate(notRun.if, context("", head, "", "address-feedback", "", "true")), false);
   assert.equal(evaluate(notRun.if, context("true", head)), false);
   assert.equal(evaluate(notRun.if, context("false", head, "not-applicable")), true);
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
@@ -4782,15 +4787,21 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
-  const proceed = (upload, applies, decided) =>
-    evaluate(select.outputs.proceed, { "steps.upload.outcome": upload, "steps.slot.outputs.applies": applies, "steps.select.outputs.proceed": decided });
+  const proceed = (upload, applies, decided, resolveOnly = "") =>
+    evaluate(select.outputs.proceed, {
+      "steps.upload.outcome": upload,
+      "steps.slot.outputs.applies": applies,
+      "steps.select.outputs.proceed": decided,
+      "steps.select.outputs.resolve-only": resolveOnly,
+    });
   assert.equal(proceed("success", "true", "true"), "true");
   assert.equal(proceed("failure", "true", "true"), "", "a context that did not upload proceeds to nothing");
   assert.equal(proceed("skipped", "true", "false"), "false");
   assert.equal(proceed("skipped", "false", ""), "false", "a slot that does not apply");
   assert.equal(proceed("skipped", "", ""), "", "a kill-switch stop");
+  assert.equal(proceed("success", "true", "", "true"), "", "a pass-only round proceeds to no model");
   const upload = select.steps.find((s) => s.id === "upload");
-  assert.equal(upload.if, "steps.select.outputs.proceed == 'true'");
+  assert.equal(upload.if, "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 
