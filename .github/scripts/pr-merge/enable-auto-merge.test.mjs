@@ -1839,8 +1839,9 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
 });
 
 // The reader's own listing rules (babysit_verify_evidence.py main and
-// Reader._current_listing), its judgment stubbed to a pass that reads the
-// listing: every candidate is allowed, so a run that lists again before an
+// Reader._current_listing), each listing from the API stubbed to one call
+// (`_complete_listing`, with no base to build on) and its judgment to a pass
+// that reads the listing: every candidate is allowed, so a run that lists again before an
 // allow on the saved listing would page once per candidate.
 test("a reader run pages the artifact listing once for all its candidates", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-listing-"));
@@ -1867,7 +1868,7 @@ def gh(args, **_):
 def listing(self):
     with open(os.environ["LISTINGS"], "a") as log:
         log.write("listing\\n")
-    return [{"total_count": 0, "artifacts": []}]
+    return []
 
 def passes(self, number, head, pr=None):
     self._listing()
@@ -1875,7 +1876,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_incremental", lambda self, *args: None), mock.patch.object(ve.Reader, "_complete_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
