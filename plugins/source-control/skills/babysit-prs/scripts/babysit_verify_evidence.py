@@ -144,6 +144,7 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    fetch_paginated_api,
     flatten_paginated_items,
     gh_http_status,
     pull_request_commits_once,
@@ -1901,6 +1902,8 @@ def lane_risk_refusal(
     pr: dict[str, Any],
     config: merge_policy.PipelineConfig,
     issue: int | None,
+    *,
+    humans: Callable[[], frozenset[int]] = frozenset,
 ) -> tuple[str, bool] | None:
     """Why pr-merge's gate would hold the pull request on its risk score, and
     whether only a person clears it (`babysit_risk.person_reasons`), or
@@ -1911,7 +1914,11 @@ def lane_risk_refusal(
     or other non-regular mode, a high path, the manifest review, the trust
     gate and the cost review all hold, the cost review lifted only by the
     owner's decision on the pull request or its linked `issue`
-    (`merge_policy.cost_decision`). A read that fails holds."""
+    (`merge_policy.cost_decision`). A read that fails holds. A configured or
+    floor high path is lifted, as ci-status lifts it, by a trusted person's
+    approval of the head (`merge_policy.path_lifters` over the pull request's
+    reviews and `humans`, the trusted list's people); an aliasing path keeps
+    its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
     import babysit_risk  # noqa: PLC0415
@@ -1958,6 +1965,23 @@ def lane_risk_refusal(
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         return f"unreadable: {type(exc).__name__}: {exc}", False
     held = babysit_risk.holding(risk)
+    paths = [
+        r
+        for r in held
+        if r.code.startswith("high-path:") and r.code != babysit_risk.UNSAFE_PATH_CODE
+    ]
+    if paths:
+        head = str(json_object(pr.get("head")).get("sha") or "")
+        try:
+            reviews = fetch_paginated_api(
+                f"repos/{repo}/pulls/{number}/reviews?per_page=100",
+                f"{repo}#{number} reviews",
+            )
+            lifted = bool(merge_policy.path_lifters(reviews, humans(), head))
+        except Exception:  # noqa: BLE001 - an unread approval lifts nothing
+            lifted = False
+        if lifted:
+            held = [r for r in held if r not in paths]
     text = "; ".join(f"{r.code}: {r.detail}" for r in held)
     return (text, bool(babysit_risk.person_reasons(held))) if text else None
 
@@ -2771,6 +2795,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                     json_object(pr),
                     config,
                     reader.linked_issue.get(args.number),
+                    humans=reader._trusted_humans,
                 )
             )
             link["reviews"], link["reviewsPerson"] = held or (None, False)

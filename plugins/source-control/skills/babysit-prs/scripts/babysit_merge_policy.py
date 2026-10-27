@@ -2510,6 +2510,34 @@ def _denied_path_refusal(
     return f"denied-path:{','.join(hits)}" if hits else None
 
 
+def path_lifters(
+    reviews: Sequence[Mapping[str, Any]], humans: Collection[int], head: str
+) -> list[str]:
+    """The logins of the trusted people (`humans` ids) whose newest deciding
+    review (approved, changes requested or dismissed) of `head` among the REST
+    `reviews` approves it, sorted: merge-holds.mjs `pathLifters` over
+    `fromRest`, which test_merge_holds_sync.py holds equal."""
+    newest: dict[int, tuple[str, Mapping[str, Any]]] = {}
+    for row in reviews:
+        user = json_object(row.get("user"))
+        uid = user.get("id")
+        if user.get("type") != "User" or type(uid) is not int or uid not in humans:
+            continue
+        if row.get("commit_id") != head:
+            continue
+        if row.get("state") not in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            continue
+        at = row.get("submitted_at")
+        at = str((row.get("created_at") if at is None else at) or "")
+        if uid not in newest or at >= newest[uid][0]:
+            newest[uid] = (at, row)
+    return sorted(
+        str(json_object(row.get("user")).get("login") or "")
+        for _, row in newest.values()
+        if row.get("state") == "APPROVED"
+    )
+
+
 AUTHOR_NOT_OWNER = "author-not-owner"
 # `trusted_actors` by (repo, ref), read once a run.
 _TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {}
