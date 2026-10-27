@@ -458,10 +458,44 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
     });
 
+    // Code names a job or file, not a charge; prose still refuses.
+    test("skips fenced blocks and inline code spans", () => {
+      const hits = (body, extra = {}) => CHARGE.exec(decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }), ...extra })).reasons.join("; "))?.[1];
+      assert.equal(hits("The `fix-ci-subscription` job fails on main."), undefined);
+      assert.equal(hits("Fix the step:\n\n```yaml\n- uses: actions/upload-artifact@v4\n  with:\n    retention-days: 5\n```"), undefined);
+      assert.equal(hits("The `fix-ci-subscription` job needs a paid subscription."), "subscription");
+      assert.equal(hits("Move the `lint` leg to larger runners.", { public: true }), "larger runners");
+      // A bare identifier still refuses: excluding words joined by - _ / . would
+      // also drop prose such as per-seat billing or data-retention.
+      assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
+    });
+
+    // Standard GitHub-hosted runner minutes are free only on a public
+    // repository (https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+    test("a hosted runner refuses unless the repository is public", () => {
+      const body = `${BODY}\n\nThe check runs on GitHub-hosted runners.`;
+      assert.deepEqual(decide(facts({ issue: issueOf({ body }), public: true })), { verdict: "admit", reasons: [] });
+      for (const extra of [{ public: false }, {}]) {
+        assert.equal(CHARGE.exec(decide(facts({ issue: issueOf({ body }), ...extra })).reasons.join("; "))?.[1], "hosted runners");
+      }
+    });
+
+    test("admissionFacts counts a repository public only when its visibility reads public", async () => {
+      const read = async (answer) => {
+        const fake = fakeGitHub();
+        const github = async (method, path, body) => (method === "GET" && path === "/repos/o/r" ? answer() : fake.github(method, path, body));
+        return (await admissionFacts({ github, repository: "o/r", number: 7, issue: issueOf(), rules: RULES, humans, isTrusted: async () => true })).public;
+      };
+      assert.equal(await read(() => ({ visibility: "public" })), true);
+      assert.equal(await read(() => ({ visibility: "internal" })), false);
+      assert.equal(await read(() => Promise.reject(new Error("GET /repos/o/r failed"))), false);
+    });
+
     // rule-admit.test.sh shows the script reads the same file.
-    test("reads the pattern from the one definition rule-admit.sh reads", () => {
+    test("reads the patterns from the one definition rule-admit.sh reads", () => {
       const shared = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
-      assert.equal(chargePattern().source, new RegExp(shared.cost).source);
+      const { code, cost, costPrivate } = chargePattern();
+      assert.deepEqual([code.source, cost.source, costPrivate.source], [shared.code, shared.cost, shared.cost_private].map((p) => new RegExp(p).source));
       assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
     });
   });

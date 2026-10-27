@@ -97,10 +97,12 @@ Precedence, top-down, first hit decides:
    work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
    ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
    too: a false positive fails closed.
-3. Cost hit → refuse, terms matched as whole words in the title or body. A charge term always
-   refuses: billing, billed, spending limit, subscription, SKU, retention, a larger, hosted or
-   self-hosted runner, macOS minutes, seat, Codespaces, a paid plan, top-up, auto-renew,
-   auto-reload, extra usage. A spend word (cost, spend, spending, pricing, paid, quota) refuses
+3. Cost hit → refuse, terms matched as whole words in the title or body outside fenced code
+   blocks and inline code spans, which name jobs and files, not charges. A charge term always
+   refuses: billing, billed, spending limit, subscription, SKU, retention, a larger or
+   self-hosted runner, seat, Codespaces, a paid plan, top-up, auto-renew, auto-reload, extra
+   usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
+   public, where standard GitHub-hosted runner minutes are free. A spend word (cost, spend, spending, pricing, paid, quota) refuses
    unless that occurrence sits in a phrase naming the subscribed model vendor or its product
    (vendor or product name, up to three closed qualifiers such as API, key, eval or model, then
    the spend word), and the issue names none of a closed list of other charge sources (the

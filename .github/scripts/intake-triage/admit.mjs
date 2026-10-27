@@ -395,21 +395,30 @@ export function issuePushRefusals() {
 }
 
 let chargeWords;
-// The charge-word pattern rule-admit.sh matches too, read once from its one
-// definition in the default branch's checkout beside this script.
+// The charge-word patterns rule-admit.sh matches too, {code, cost,
+// costPrivate}, read once from their one definition in the default branch's
+// checkout beside this script.
 export function chargePattern() {
   if (chargeWords === undefined) {
-    const { cost } = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
-    if (typeof cost !== "string" || cost === "") {
-      throw new Error("plugins/work-items/scripts/charge-words.json: `cost` must be a pattern");
-    }
-    chargeWords = new RegExp(cost, "gi");
+    const words = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
+    const pattern = (key) => {
+      if (typeof words[key] !== "string" || words[key] === "") {
+        throw new Error(`plugins/work-items/scripts/charge-words.json: \`${key}\` must be a pattern`);
+      }
+      return new RegExp(words[key], "gi");
+    };
+    chargeWords = { code: pattern("code"), cost: pattern("cost"), costPrivate: pattern("cost_private") };
   }
   return chargeWords;
 }
 
-// The charge words `text` holds by `pattern`, lowercased, each once. Pure.
-export const chargeHits = (text, pattern) => [...new Set([...String(text ?? "").matchAll(pattern)].map((m) => m[0].toLowerCase()))];
+// The charge words `text` holds outside code, lowercased, each once: the
+// `cost` words, and the `costPrivate` ones unless `isPublic`. Pure.
+export const chargeHits = (text, { code, cost, costPrivate }, isPublic = false) => {
+  const prose = String(text ?? "").replace(code, " ");
+  const found = [...prose.matchAll(cost), ...(isPublic ? [] : prose.matchAll(costPrivate))];
+  return [...new Set(found.map((m) => m[0].toLowerCase()))];
+};
 
 // A repository path a criterion names: a backticked span or a word, less a
 // trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
@@ -511,11 +520,12 @@ export function admissionSettled(labels, events, isMark) {
 // perform, which refine splits only from needs-decision (refine.mjs splitOf).
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
-// body. The sweep reads no lane comment and passes none. Pure but for
+// body. The sweep reads no lane comment and passes none. `public` (from
+// admissionFacts) skips the cost_private charge words. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
 // charge-words.json when not given; a file that does not read throws out of
 // decide, so no issue is admitted on a guess.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals(), charges = chargePattern() }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -594,7 +604,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   // A metered or renewing charge needs the owner's decision, whatever the
   // verdict flagged.
-  const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges);
+  const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges, isPublic);
   if (charged.length > 0) {
     refuse.push(`its title or body names a charge (${charged.join(", ")}), which needs an owner decision`);
     hold = true;
@@ -1150,6 +1160,12 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     // Listed only when the issue read counts any.
     subIssues: (issue.sub_issues_summary?.total ?? 0) > 0 ? await paginate(github, `${base}/sub_issues`) : [],
     events: await paginate(github, `${base}/events`),
+    // Only a visibility that reads public skips the cost_private charge
+    // words; a failed read counts the repository as private.
+    public: await github("GET", `/repos/${repository}`).then(
+      (repo) => repo?.visibility === "public",
+      () => false,
+    ),
   };
 }
 

@@ -276,6 +276,45 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
     },
     {
+      "name": "a job name in an inline code span admits",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "Two rows in the install table read awkwardly; the `pr-retention.yml` job reports them." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a charge word in a fenced block admits",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "Two rows in the install table read awkwardly.\n\n```yaml\nretention-days: 5\n```" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a paid subscription in prose refuses beside code",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "The `nightly-subscription` job needs a paid subscription." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "larger runners in prose refuse on a public repository",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "visibility": "public",
+      "issue": { "body": "Move the slow leg to larger runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runners;" }
+    },
+    {
+      "name": "a hosted runner admits on a public repository",
+      "source": "https://docs.github.com/en/billing/concepts/product-billing/github-actions: Actions usage is free for public repositories that use standard GitHub-hosted runners",
+      "visibility": "public",
+      "issue": { "body": "Two rows in the install table read awkwardly on GitHub-hosted runners." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a hosted runner refuses on a private repository",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "visibility": "private",
+      "issue": { "body": "Two rows in the install table read awkwardly on GitHub-hosted runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: hosted runners;" }
+    },
+    {
       "name": "Claude eval cost and quota admit",
       "source": "owner decision #9904: spend covered by the subscription or the fixed API credit is fine",
       "issue": { "title": "Run claude plugin eval and report the Claude eval cost", "body": "The Claude eval quota covers each run." },
