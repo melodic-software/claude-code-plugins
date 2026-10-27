@@ -211,7 +211,7 @@ async function pullsOfCommit(github, repository, head) {
 // pull request's head branch (write-verdict.mjs headRefDigest), which doubles
 // the lookups. Once write-verdict writes only digest names, the digest-free
 // lookups are needed only until the last artifact named that way expires
-// (90-day retention), and then go. Given `issues`, this PR's linked issue
+// (write-verdict.mjs retentionDays), and then go. Given `issues`, this PR's linked issue
 // numbers, it looks up only this PR's FAIL names with `-i` and those issues
 // (write-verdict.mjs artifactName), so the caller reads the issues only for a
 // head the names without them leave unjudged; issues no name carries (over
