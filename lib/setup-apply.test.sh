@@ -238,6 +238,15 @@ assert_contains "--ref names the commit read" "$out" "$SHA"
 out="$(HOME="$FAKE_HOME" node "$APPLY_REF" --root "$R" --check --ref 'origin/a..b' 2>&1)"
 assert_eq "--ref with a range: exits 2" "2" "$?"
 
+# --- No --root: the caller's repository, though git runs in the library's ----
+out="$(cd "$R/docs/conventions" && HOME="$FAKE_HOME" node "$APPLY" --check 2>&1)"
+assert_eq "no --root inside a repository: exits 0" "0" "$?"
+assert_contains "no --root reads the caller's repository root, not the library's" "$out" "PASS mode: fast"
+mkdir -p "$TEST_TMPDIR/no-repo"
+out="$(cd "$TEST_TMPDIR/no-repo" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" HOME="$FAKE_HOME" node "$APPLY" --check 2>&1)"
+assert_eq "no --root outside a repository: exits 2" "2" "$?"
+assert_contains "no --root outside a repository: says so" "$out" "not inside a git working tree"
+
 # --- Refusals that leave the file untouched -----------------------------------
 refused "a duplicate key after trimming" $'mode: fast\n"mode ": slow\n' mode=slow
 assert_contains "a duplicate key after trimming: named once" "$OUT" "key mode is set more than once"
