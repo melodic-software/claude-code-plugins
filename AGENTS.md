@@ -32,6 +32,9 @@ Commit a harness only when something re-runs it (a CI lane, a schedule, a skill 
 
 ## When to stop and when to keep going
 
+A work item or pull request goes to the owner only for the reasons in
+[When work stops for the owner](docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner).
+
 When a step doesn't need the user's input, keep going, with status notes in the same message as
 the next action. Stop and ask only when you can't continue without the user, or before anything
 destructive or outside this session's work: deleting data, force-pushing (except, on a feature

@@ -137,11 +137,11 @@ plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.
 is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
 check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
 
-# 45 suites of 40 s beside a (100 s): 1900 suite-seconds, capped at 6 legs.
+# 45 suites of 40 s beside a (100 s): 1900 suite-seconds, capped at 7 legs.
 # Weighed by the larger of its suite-seconds and three times a, a's leg would
 # draw short suites until its other two workers ran 100 s each, as long as a
 # itself: 300s/6, no room for a slow run. Weighed by its suite-seconds plus two
-# thirds of three times a, it stops at 220s/4 and the other legs take the rest.
+# thirds of three times a, it stops at 180s/3 and the other legs take the rest.
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 many=()
 for i in $(seq -w 1 45); do
@@ -152,7 +152,7 @@ done
 plan -- plugins/a/a.test.sh "${many[@]}"
 rm -rf "${repo:?}/plugins/n"
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-grep -q 'bash: 46 suite(s), 1900 suite-seconds, 6 leg(s): 220s/4 ' "$ERR"
+grep -q 'bash: 46 suite(s), 1900 suite-seconds, 7 leg(s): 180s/3 ' "$ERR"
 check "the longest suite's leg keeps room: its other workers finish well before it" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
@@ -334,13 +334,13 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 # --- wider than the selection ------------------------------------------------
 
 plan -- .github/workflows/pr-require-checks.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
+is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 7 &&
   is "$(key windows_jobs)" "[]"
-check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 6 legs, and test-windows from the selection" $?
+check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 7 legs, and test-windows from the selection" $?
 
 plan -- .github/actions/download-full-history/action.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(key windows_jobs)" '["win-a","win-b"]'
 check "the local action every lane runs plans every lane whole" $?
 
 plan -- .github/actions/other/action.yml
@@ -353,8 +353,8 @@ check "a pr-test-windows.yml change runs every Windows step and no pr-require-ch
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_legs)" "[0,1,2,3,4,5]"
-check "the whole tree plans the runner's whole corpus on 6 legs" $?
+  is "$(key bash_legs)" "[0,1,2,3,4,5,6]"
+check "the whole tree plans the runner's whole corpus on 7 legs" $?
 
 # --- a diff base ---------------------------------------------------------------
 
