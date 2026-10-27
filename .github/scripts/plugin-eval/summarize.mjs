@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // summarize.mjs: the job summary for one `claude plugin eval` JSON result.
 //
-//   summarize.mjs <results.json> [--plugin <name>]
+//   summarize.mjs <results.json> [--plugin <name>] [--redact]
 //
 // Prints Markdown: a with-versus-without table with one verdict per case,
 // then one health line per case. The verdict is read in the order
@@ -13,6 +13,10 @@
 // plugin's skills were loaded (the init message's skill list) and how many
 // runs called one of them through the Skill tool. --plugin names the plugin;
 // without it, suite.root's last segment does.
+//
+// --redact, for a pull request run whose prompts the pull request supplies,
+// prints each case as `case <n>` and leaves out every error and partial
+// reason text, so no model output reaches the public job summary.
 //
 // The last line is `Result: PASS`, `Result: FAIL` or `Result: NOT COMPARABLE`.
 // Exit 0 when every case passes, 1 when any case fails, is not comparable,
@@ -82,21 +86,22 @@ export function health(runs, { plugin, base }) {
 }
 
 // [{name, verdict, reason, score, without, delta}] for each case.
-export function verdicts(result) {
+export function verdicts(result, { redact = false } = {}) {
+  const said = (text) => (redact ? "(redacted)" : text);
   const twoArm = result.suite?.ablation !== "none";
   const threshold = num(result.suite?.threshold) ?? 1;
   return list(result.cases).map((c, index) => {
-    const name = c?.name ?? c?.dir ?? `case ${index + 1}`;
+    const name = redact ? `case ${index + 1}` : (c?.name ?? c?.dir ?? `case ${index + 1}`);
     const aggregates = c?.aggregates ?? {};
     const row = { name, score: num(aggregates.score), without: num(aggregates.scoreWithout), delta: num(aggregates.delta) };
     const runs = Object.entries(c?.arms ?? {}).flatMap(([arm, rows]) => list(rows).map((run, i) => ({ arm, n: i + 1, run })));
     const notComparable = (reason) => ({ ...row, verdict: NOT_COMPARABLE, reason, score: null, without: null, delta: null });
     if (result.partial) {
-      return notComparable(`the suite did not finish (partial: ${result.partialReason ?? "no reason given"})`);
+      return notComparable(`the suite did not finish (partial: ${said(result.partialReason ?? "no reason given")})`);
     }
     const errored = runs.find(({ run }) => run?.error !== null && run?.error !== undefined);
     if (errored) {
-      return notComparable(`${errored.arm}-arm run ${errored.n} errored: ${errored.run.error}`);
+      return notComparable(`${errored.arm}-arm run ${errored.n} errored: ${said(errored.run.error)}`);
     }
     const skipped = runs.find(({ run }) => run?.skippedPaidGraders);
     if (skipped) {
@@ -115,8 +120,8 @@ export function verdicts(result) {
   });
 }
 
-export function summarize(result, { plugin, base }) {
-  const rows = verdicts(result);
+export function summarize(result, { plugin, base, redact = false }) {
+  const rows = verdicts(result, { redact });
   const owner = plugin || (typeof result.suite?.root === "string" ? basename(result.suite.root) : "");
   const lines = [
     `### Plugin eval: ${cell(owner || "unknown plugin")}`,
@@ -146,10 +151,12 @@ export function summarize(result, { plugin, base }) {
   return { text: lines.join("\n"), result: result_ };
 }
 
-export function main(argv = process.argv.slice(2)) {
+export function main(args = process.argv.slice(2)) {
+  const redact = args.includes("--redact");
+  const argv = args.filter((arg) => arg !== "--redact");
   const [file, flag, plugin] = argv;
   if (!file || (flag !== undefined && (flag !== "--plugin" || !plugin)) || argv.length > 3) {
-    console.error("usage: summarize.mjs <results.json> [--plugin <name>]");
+    console.error("usage: summarize.mjs <results.json> [--plugin <name>] [--redact]");
     return 2;
   }
   let result;
@@ -163,7 +170,7 @@ export function main(argv = process.argv.slice(2)) {
     console.error(`summarize: ${file} is not a result document`);
     return 2;
   }
-  const { text, result: verdict } = summarize(result, { plugin, base: dirname(resolve(file)) });
+  const { text, result: verdict } = summarize(result, { plugin, base: dirname(resolve(file)), redact });
   console.log(text);
   return verdict === PASS ? 0 : 1;
 }

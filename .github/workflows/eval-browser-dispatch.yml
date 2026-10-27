@@ -338,6 +338,33 @@ jobs:
         if: steps.stage.outputs.go == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
 
+      # A pull request supplies the prompts, and the eval's Read, Glob and Grep
+      # run without the Bash sandbox, so nothing else keeps them from the
+      # credential in /proc/<pid>/environ or the runner's own files. A
+      # root-owned managed settings file, which applies inside every eval run
+      # and which nothing in the run overrides (code.claude.com/docs/en/
+      # plugin-evals, "How runs are isolated"; code.claude.com/docs/en/
+      # settings, "Settings precedence", as of 2026-10-27), denies those
+      # paths. Written while sudo is still there; the job stops if it cannot
+      # be written or read back.
+      - name: Deny the eval's reads of process and runner state
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        run: |
+          policy=$(mktemp)
+          jq -n '{permissions: {deny: [
+            "Read(//proc/**)",
+            "Read(//sys/**)",
+            "Read(//etc/claude-code/**)",
+            "Read(//home/runner/actions-runner/**)",
+            "Read(//home/runner/.config/**)",
+            "Read(//home/runner/.ssh/**)",
+            "Read(//home/runner/.docker/**)",
+            "Read(~/.claude/**)",
+            "Read(~/.claude.json)"
+          ]}}' >"$policy"
+          sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
+          jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
+
       # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
       # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
       # and docker access for the rest of the job.
@@ -468,13 +495,18 @@ jobs:
 
       # The verdict of record: summarize.mjs per result, PASS, FAIL or NOT
       # COMPARABLE per case. A suite with no result fails the job too.
+      # A pull request run prints no case name, error or partial reason: the
+      # model output those can carry would land in the public job summary.
       - name: Summarize the results
         if: always() && steps.stage.outputs.go == 'true'
         env:
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
+          REDACT: ${{ github.event_name == 'pull_request' && '--redact' || '' }}
         run: |
           failed=0
+          redact=()
+          if [ -n "$REDACT" ]; then redact=("$REDACT"); fi
           while IFS=$'\t' read -r dir _; do
             [ -n "$dir" ] || continue
             name=$(basename "$dir")
@@ -485,7 +517,7 @@ jobs:
               failed=1
               continue
             fi
-            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" >>"$GITHUB_STEP_SUMMARY" || failed=1
+            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" >>"$GITHUB_STEP_SUMMARY" || failed=1
             echo >>"$GITHUB_STEP_SUMMARY"
           done <<<"$SUITES"
           exit "$failed"
@@ -548,8 +580,11 @@ jobs:
           done
           echo "::$token::"
 
+      # Only a dispatched run, whose cases merged through review, uploads its
+      # results: a pull request's prompts could steer model output into a
+      # public artifact.
       - name: Upload the eval results
-        if: always() && steps.stage.outputs.go == 'true'
+        if: always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eval-${{ github.run_id }}-${{ github.run_attempt }}

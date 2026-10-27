@@ -78,3 +78,16 @@ test("a missing or unreadable result is a usage error", () => {
   assert.equal(run().status, 2);
   assert.equal(run(fixture("scored.json"), "--plugin").status, 2);
 });
+
+test("--redact prints no case name, error or partial reason, and keeps the verdict", () => {
+  const errored = run(fixture("errored.json"), "--redact");
+  assert.equal(errored.status, 1);
+  assert.doesNotMatch(errored.stdout, /timeout/);
+  assert.match(errored.stdout, /\| case 1 \|.*with-arm run 1 errored: \(redacted\)/);
+  const partial = run(fixture("partial.json"), "--plugin", "x", "--redact");
+  assert.doesNotMatch(partial.stdout, /cost_ceiling/);
+  const scored = run(fixture("scored.json"), "--redact");
+  assert.equal(scored.status, 0, scored.stderr);
+  assert.doesNotMatch(scored.stdout, /writes-a-test/);
+  assert.match(scored.stdout, /Result: PASS$/m);
+});
