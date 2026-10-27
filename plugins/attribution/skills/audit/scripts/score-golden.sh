@@ -94,36 +94,33 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# --- Config cascade (.claude/attribution.json; user-global -> team -> overlay) -----
+# --- Config cascade (user-global -> team -> overlay; YAML, legacy JSON) -----------
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
 cfg_layers_init "$CONFIG_ROOT"
 
-# cfg_num <jq-path> <default>: last layer that defines the key wins (per-key
-# override). A non-numeric value is ignored rather than propagated, so a typo in
-# one layer falls back to the default instead of poisoning the arithmetic.
-# Carriage returns are stripped for the Windows-jq CRLF reason (ai-slop #3343).
-cfg_num() {
-  local path="$1" out="$2" layer v
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
-    v="${v//$'\r'/}"
-    [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]] && out="$v"
-  done
-  printf '%s' "$out"
-}
-
-FIX_PRECISION_BAR="$(cfg_num '.gates.fix_precision_bar' 0.95)"
-REPORT_RECALL_FLOOR="$(cfg_num '.gates.report_recall_floor' 0.8)"
-MIN_N_PER_CLASS="$(cfg_num '.gates.min_n_per_class' 10)"
+# The last layer with a numeric value wins. A non-numeric value is ignored
+# rather than propagated, so a typo in one layer falls back instead of
+# poisoning the arithmetic.
+NUM='^[0-9]+(\.[0-9]+)?$'
+FIX_PRECISION_BAR="" REPORT_RECALL_FLOOR="" MIN_N_PER_CLASS=""
+cfg_scalar FIX_PRECISION_BAR gates.fix_precision_bar "$NUM"
+FIX_PRECISION_BAR_FROM="$CFG_SOURCE"
+cfg_scalar REPORT_RECALL_FLOOR gates.report_recall_floor "$NUM"
+REPORT_RECALL_FLOOR_FROM="$CFG_SOURCE"
+cfg_scalar MIN_N_PER_CLASS gates.min_n_per_class "$NUM"
+MIN_N_PER_CLASS_FROM="$CFG_SOURCE"
+FIX_PRECISION_BAR="${FIX_PRECISION_BAR:-0.95}"
+REPORT_RECALL_FLOOR="${REPORT_RECALL_FLOOR:-0.8}"
+MIN_N_PER_CLASS="${MIN_N_PER_CLASS:-10}"
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cfg_layers_print
-  echo "Effective: gates.fix_precision_bar=$FIX_PRECISION_BAR"
-  echo "Effective: gates.report_recall_floor=$REPORT_RECALL_FLOOR"
-  echo "Effective: gates.min_n_per_class=$MIN_N_PER_CLASS"
+  echo "Effective: gates.fix_precision_bar=$FIX_PRECISION_BAR $(cfg_from_label "$FIX_PRECISION_BAR_FROM")"
+  echo "Effective: gates.report_recall_floor=$REPORT_RECALL_FLOOR $(cfg_from_label "$REPORT_RECALL_FLOOR_FROM")"
+  echo "Effective: gates.min_n_per_class=$MIN_N_PER_CLASS $(cfg_from_label "$MIN_N_PER_CLASS_FROM")"
   exit 0
 fi
 
