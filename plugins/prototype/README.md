@@ -9,7 +9,7 @@ It ships **two skills**, one per kind of question:
 | Skill | Invoke | Answers |
 |---|---|---|
 | `pressure-test` | `/prototype:pressure-test <scope>` | "Does this state machine / data model / API surface hold up?" A portable logic module you can lift into production, driven by hand from a disposable shell: a terminal app by default, or a self-contained HTML demo that someone outside engineering operates by clicking buttons. |
-| `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?" A few structurally different layouts (three by default) behind one route, toggled from a floating switcher, as a self-contained HTML mockup by default or on the real stack on request. For the mockup it also tells you that you can run `/design`, the bundled `design` skill's editable canvas, yourself. |
+| `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?" A few structurally different layouts (three by default), toggled from a floating switcher, as a self-contained HTML mockup by default or on the real stack behind one route on request. For the mockup it also tells you that you can run `/design`, the bundled `design` skill's editable canvas, yourself. |
 
 Both skills follow the six rules in `context/discipline.md`, from "Starts with one command" to
 "Delete or absorb when done", and both write the validated answer into a durable note before the
