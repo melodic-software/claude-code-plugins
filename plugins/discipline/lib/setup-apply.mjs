@@ -131,6 +131,9 @@ import { homedir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// This file's directory: the working directory of every child process, so a
+// same-named executable in the caller's directory is never the one run.
+const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_HOME = "docs/conventions";
 const REGION_BEGIN = "<!-- BEGIN GENERATED: convention-home -->";
 const REGION_END = "<!-- END GENERATED: convention-home -->";
@@ -485,6 +488,7 @@ function stripComment(s) {
 // per scalar, or { error } with the parse error's message.
 function flatten(text, parser) {
   const parsed = spawnSync("awk", ["-f", parser], {
+    cwd: HERE,
     input: text,
     encoding: "utf8",
     env: { ...process.env, LC_ALL: "C" },
@@ -636,7 +640,7 @@ function main(config, argv) {
 
   let root = opts.root;
   if (!root) {
-    const git = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" });
+    const git = spawnSync("git", ["-C", process.cwd(), "rev-parse", "--show-toplevel"], { cwd: HERE, encoding: "utf8" });
     if (git.status !== 0) refuse("not inside a git working tree; pass --root <dir>", 2);
     root = git.stdout.trim();
   }
@@ -764,7 +768,7 @@ function main(config, argv) {
   // The commit --ref names, as a 40-hex id. Every git argument is the
   // validated ref, a resolved object id or a fixed string, passed without a
   // shell.
-  const git = (...a) => spawnSync("git", ["-C", root, ...a], { encoding: "utf8" });
+  const git = (...a) => spawnSync("git", ["-C", root, ...a], { cwd: HERE, encoding: "utf8" });
   const resolveRef = () => {
     checkRoot();
     const ref = opts.ref;
@@ -801,12 +805,12 @@ function main(config, argv) {
   // The convention home, from the pointer region (lib/resolve-convention-home.sh).
   // The resolver reads the committed files when given a commit, else the
   // working tree. Its stdout is the home; its exit code is the state.
-  const resolver = config.resolver ?? join(dirname(fileURLToPath(import.meta.url)), "resolve-convention-home.sh");
+  const resolver = config.resolver ?? join(HERE, "resolve-convention-home.sh");
   const runResolver = (args, input) => {
     if (!lstatOrNull(resolver, "the convention-home resolver")) {
       refuse(`the convention-home resolver ${resolver} is missing; nothing written`, 2);
     }
-    const r = spawnSync("bash", [resolver, ...args], { input, encoding: "utf8" });
+    const r = spawnSync("bash", [resolver, ...args], { cwd: HERE, input, encoding: "utf8" });
     if (r.error) refuse(`cannot run bash: ${why(r.error)}`, 2);
     const lines = (r.stderr ?? "").split("\n").filter(Boolean);
     for (const l of lines.filter((l) => l.startsWith("duplicate:"))) process.stderr.write(printable(`setup-apply: WARN ${l}\n`));
@@ -961,7 +965,7 @@ function main(config, argv) {
       if (isObject(keys[k])) return leaves(k);
       const parsed = scalars.get(k) ?? "";
       if (parsed === "" || parsed.trim() !== parsed) return JSON.stringify(parsed);
-      return spawnSync("bash", [config.reader, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
+      return spawnSync("bash", [config.reader, "-", k], { cwd: HERE, input: existing, encoding: "utf8" }).stdout.trim();
     };
     return (config.report ?? perKeyReport)({ rel, keys, problems: check(existing), value });
   }
@@ -1077,6 +1081,7 @@ function main(config, argv) {
   if (!opts.yes && ((existing !== null && changes) || (index !== null && index.existing !== null) || strandedHome)) {
     if (existing !== null && changes) {
       const diff = spawnSync("diff", ["-u", "--label", `a/${rel}`, "--label", `b/${rel}`, join(root, rel), "-"], {
+        cwd: HERE,
         input: proposed,
         encoding: "utf8",
       });

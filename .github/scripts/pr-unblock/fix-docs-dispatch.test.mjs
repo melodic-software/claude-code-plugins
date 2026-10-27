@@ -8,9 +8,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi } from "./dispatch.mjs";
-import { dispatchDocsFixes, HISTORY_COMMITS, HISTORY_QUERY, LIST_QUERY } from "./fix-docs-dispatch.mjs";
+import { dispatchDocsFixes, docsRunState, HISTORY_COMMITS, HISTORY_QUERY, LIST_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
 const CHECK = "pr-refine / fix-docs";
@@ -52,10 +52,20 @@ const history = (counts = [], earlier = counts.map(() => 0)) => ({
   },
 });
 
-function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map() } = {}) {
-  const calls = { history: [], dispatch: [] };
+function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), runJobs = new Map() } = {}) {
+  const calls = { history: [], dispatch: [], jobs: [] };
   return {
     calls,
+    // Per run id, its status and latest jobs, null when it is gone, or the
+    // error the read throws.
+    async readRunJobs(runId) {
+      calls.jobs.push(runId);
+      const read = runJobs.get(runId);
+      if (read instanceof Error) {
+        throw read;
+      }
+      return read ?? null;
+    },
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
@@ -253,6 +263,135 @@ test("a failed history read counts as a failure and dispatches nothing for that 
 
 test("every listing page is read", async () => {
   assert.deepEqual(numbers((await run({ pages: [[pr(70)], [pr(71)]] })).api), ["70", "71"]);
+});
+
+// A fix-docs run's status and latest jobs as the REST listings name them:
+// pr-refine.yml's fix-docs call's jobs are `fix-docs / <job>`
+// (pr-run-activity-read.yml's broker-check, broker-allowed, run and report).
+const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
+const ended = (...jobs) => ({ status: "completed", jobs });
+// The broker allowed it and its run job emitted an empty head: no check posted.
+const EMPTY_HEAD = ended(
+  job("fix-docs-head", "success"),
+  job("fix-docs / broker-check", "success"),
+  job("fix-docs / broker-allowed", "success"),
+  job("fix-docs / run", "success"),
+  job("fix-docs / report", "success"),
+  job("fix-docs-handoff", "success"),
+);
+// The broker refused it: broker-allowed and the run job skipped.
+const REFUSED = ended(
+  job("fix-docs-head", "success"),
+  job("fix-docs / broker-check", "failure"),
+  job("fix-docs / broker-allowed", "skipped"),
+  job("fix-docs / run", "skipped"),
+  job("fix-docs / report", "success"),
+  job("fix-docs-handoff", "success"),
+);
+// fix-docs-head found a person's hold: the call never started.
+const HELD = ended(job("fix-docs-head", "success"), job("fix-docs", "skipped"));
+const GOING = { status: "in_progress", jobs: [job("fix-docs-head", "success"), job("fix-docs / broker-check", null, "in_progress")] };
+
+test("docsRunState: only a succeeded broker-allowed job counts; a run that ended without one, or is gone, is done; any other is going", () => {
+  assert.equal(docsRunState(EMPTY_HEAD), "allowed");
+  assert.equal(docsRunState(REFUSED), "done");
+  assert.equal(docsRunState(HELD), "done");
+  assert.equal(docsRunState(GOING), "going");
+  assert.equal(docsRunState({ status: "queued", jobs: [] }), "going", "a run with no job listed yet");
+  assert.equal(docsRunState(ended()), "done", "a run that ended with no job, as a startup failure does");
+  assert.equal(docsRunState(null), "done", "a run that is gone");
+  assert.equal(docsRunState(ended(job("fix-docs / run", "success"))), "done", "a run job's success is not the broker's allow");
+});
+
+// Run ids the dispatch record keeps for a head.
+const kept = (record, number, ids) => record.docsRuns.set(pr(number).headRefOid, ids);
+
+test("a head whose fix-docs runs reach the per-head cap with no check run is not dispatched, recorded, and warned about once; a head below it is dispatched", async () => {
+  const record = emptyRecord();
+  kept(record, 80, ["101", "102", "103"]);
+  kept(record, 81, ["111", "112"]);
+  const runJobs = new Map(["101", "102", "103"].map((id) => [id, EMPTY_HEAD]));
+  const { api, lines, result } = await run({ pages: [[pr(80), pr(81)]], runJobs }, { record });
+  assert.deepEqual(numbers(api), ["81"]);
+  assert.deepEqual(result, { dispatched: [{ number: 81, workflowRunId: "8081" }], failed: 0 });
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), [
+    `::warning::#80: head ${pr(80).headRefOid}'s fix-docs ran 3 time(s) with no ${CHECK} check run, the most one head gets; no fix-docs until a new push`,
+  ]);
+  assert.ok(isHandled(record, CHECK, pr(80).headRefOid), "the capped head goes into the dispatch record");
+  assert.equal(record.docsRuns.has(pr(80).headRefOid), false);
+  assert.deepEqual(api.calls.jobs, ["101", "102", "103"], "a head below the cap reads no runs");
+  assert.deepEqual(record.docsRuns.get(pr(81).headRefOid), ["111", "112", "8081"], "the dispatch joins its head's runs");
+
+  const next = await run({ pages: [[pr(80)]], runJobs }, { record: parseRecord(serializeRecord(record)) });
+  assert.deepEqual(numbers(next.api), []);
+  assert.deepEqual([next.api.calls.history, next.api.calls.jobs], [[], []], "the recorded head is skipped before any read");
+  assert.deepEqual(next.lines.filter((line) => line.startsWith("::warning::")), []);
+});
+
+test("broker-refused, held and gone runs do not count toward the cap and leave the list; a run still going stays", async () => {
+  const record = emptyRecord();
+  kept(record, 82, ["201", "202", "203", "204", "205"]);
+  const runJobs = new Map([["201", EMPTY_HEAD], ["202", REFUSED], ["203", HELD], ["204", GOING], ["205", null]]);
+  const { api } = await run({ pages: [[pr(82)]], runJobs }, { record });
+  assert.deepEqual(numbers(api), ["82"]);
+  assert.deepEqual(record.docsRuns.get(pr(82).headRefOid), ["201", "204", "8082"]);
+  assert.equal(isHandled(record, CHECK, pr(82).headRefOid), false);
+});
+
+test("maxRunsPerHead sets the cap", async () => {
+  const record = emptyRecord();
+  kept(record, 83, ["301"]);
+  const { api } = await run({ pages: [[pr(83)]], runJobs: new Map([["301", EMPTY_HEAD]]) }, { record, maxRunsPerHead: 1 });
+  assert.deepEqual(numbers(api), []);
+  assert.ok(isHandled(record, CHECK, pr(83).headRefOid));
+});
+
+test("a head whose runs cannot be read is not dispatched: a rate limit or a server error warns, any other error fails", async () => {
+  const cases = [
+    [Object.assign(new Error("GET jobs returned 403"), { rateLimited: true }), 0],
+    [Object.assign(new Error("GET jobs returned 502"), { status: 502 }), 0],
+    [Object.assign(new Error("GET jobs returned 401"), { status: 401 }), 1],
+  ];
+  for (const [error, failed] of cases) {
+    const record = emptyRecord();
+    kept(record, 84, ["401", "402", "403"]);
+    const runJobs = new Map([["401", EMPTY_HEAD], ["402", error], ["403", EMPTY_HEAD]]);
+    const { api, result } = await run({ pages: [[pr(84)]], runJobs }, { record });
+    assert.deepEqual(numbers(api), [], error.message);
+    assert.equal(result.failed, failed, error.message);
+    assert.equal(isHandled(record, CHECK, pr(84).headRefOid), false, error.message);
+    assert.deepEqual(record.docsRuns.get(pr(84).headRefOid), ["401", "402", "403"], error.message);
+  }
+});
+
+test("the GitHub API reads a run's status and its latest jobs as one complete page; a gone run reads null", async () => {
+  const urls = [];
+  const responses = [
+    { ok: true, status: 200, body: { id: 38779200001, status: "completed" } },
+    { ok: true, status: 200, body: { total_count: 1, jobs: [job("fix-docs / broker-allowed", "success")] } },
+    { ok: false, status: 404, body: {} },
+    { ok: true, status: 200, body: { id: 38779200003, status: "completed" } },
+    { ok: true, status: 200, body: { total_count: 101, jobs: [] } },
+  ];
+  const api = createGitHubApi({
+    token: "t",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      const { ok, status, body } = responses.shift();
+      return { ok, status, json: async () => body };
+    },
+  });
+  assert.deepEqual(await api.readRunJobs("38779200001"), { status: "completed", jobs: [job("fix-docs / broker-allowed", "success")] });
+  assert.deepEqual(urls, [
+    "https://api.example/repos/octo/repo/actions/runs/38779200001",
+    "https://api.example/repos/octo/repo/actions/runs/38779200001/jobs?filter=latest&per_page=100",
+  ]);
+  assert.equal(await api.readRunJobs("38779200002"), null);
+  await assert.rejects(api.readRunJobs("38779200003"), /not one complete page/);
+  await assert.rejects(api.readRunJobs("../1"), /not a run id/);
 });
 
 test("the GitHub API sends the listing and history queries with their variables", async () => {
