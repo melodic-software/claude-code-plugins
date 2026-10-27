@@ -92,7 +92,12 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    names, the recheck before every included `cli:` call among them, run
    `python3 -I ${CLAUDE_PLUGIN_ROOT}/scripts/verify_pin.py <checkout> <app> <sha>`, with `<sha>`
    the `pins.<app>` value from this control skill's committed config or `""` when it is unset. A
-   non-zero exit stops that feature with the message the script prints. An included
+   non-zero exit stops that feature with the message the script prints. When `python3` is not on
+   `PATH`, stop that feature and run
+   `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}" --for skill:drive`
+   (the `lib/prerequisites.ps1` stub, same arguments, where there is no `sh`), which prints the
+   install command; an `--unattended` run reports it, an attended run offers it and installs nothing
+   without the user's yes. An included
    `cli:` step runs that app's `cli/`, not this one's, as that section says.
 
 The bundled `run` skill and how it defers to a project skill:
