@@ -121,9 +121,10 @@ the artifacts whose `expires_at` had passed by the response's `Date`. Three
 incremental listings that day each held exactly that count and every artifact
 a full listing taken just after held, plus 0, 1 and 3 that the full listing
 skipped at its page boundaries though they still existed. An artifact that
-expires during the read can only make the counts differ. Any other count, a
-base that is missing, older or of another shape, or any failed read lists
-every page, checked the same way. A carry forged to drop a FAIL must therefore
+expires during the read can only make the counts differ. Any other count or
+failed read is read again on the same base, up to `INCREMENTAL_READS` reads;
+after those, or with a base that is missing, older or of another shape, it
+lists every page, checked the same way. A carry forged to drop a FAIL must therefore
 also hold a fabricated entry in its place to match the live count, and forging it already needs code
 running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
 job holds the lanes App token.
@@ -289,6 +290,14 @@ LISTING_OVERLAP = timedelta(hours=2)
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
+# The incremental reads on one base before a whole listing. The first
+# pr-merge tick on a carried base (run 40600822658, 2026-10-27 23:19Z) read
+# 4 pages that did not hold the live count and then paged all 71; the same
+# base read again at 23:24Z held it in 4 pages. A page boundary that moves
+# while the pages are read, as a whole listing's does (#10486), would do
+# that. A second read costs about 4 pages against 71 (judgment on that
+# data).
+INCREMENTAL_READS = 2
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -895,7 +904,12 @@ class Reader:
             self._saved = True
             return self._artifacts
         fetched_at = _wall_clock()
-        listing = self._incremental()
+        base = self._incremental_base()
+        listing = None
+        for _ in range(INCREMENTAL_READS if base is not None else 0):
+            listing = self._incremental(base)
+            if listing is not None:
+                break
         self.listing_mode = "incremental"
         if listing is None:
             self.listing_mode = "full"

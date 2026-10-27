@@ -3080,8 +3080,30 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(reader.listing_mode, "full")
-        # The incremental first page, then the whole listing's own check.
-        self.assertEqual((fake.pages(), fake.full_listings()), (2, 1))
+        # The incremental first page, read `INCREMENTAL_READS` times, then
+        # the whole listing's own check.
+        self.assertEqual(
+            (fake.pages(), fake.full_listings()), (ve.INCREMENTAL_READS + 1, 1)
+        )
+
+    def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
+        # The first read's live count is one more than its pages hold, as
+        # when a page boundary moves during the read; the next read holds it
+        # and no page is listed whole.
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        rest, off = fake.rest, [len(self.base) + 2]
+
+        def first_read_off(args: list[str], *rest_args: Any) -> Any:
+            first = any(a.endswith("&page=1") for a in args)
+            fake.live_total = off.pop() if first and off else None
+            return rest(args, *rest_args)
+
+        fake.rest = first_read_off  # type: ignore[method-assign]
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual((fake.pages(), fake.full_listings()), (4, 0))
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
         for delta in (-1, 1):
