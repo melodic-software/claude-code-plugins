@@ -1188,7 +1188,7 @@ collaborator) whose newest comment, review or inline comment with text says "do 
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
 `HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
-run, and whose
+run, unless a person on the trusted-actor list approved that head as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1332,7 +1332,14 @@ request event and in the merge queue, where a red group removes the pull request
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
-body hold or veto, and arming still skips the pull request, so that person merges it.
+body hold or veto. `enable-auto-merge` reads the same approval (`pathLifters`) and stops holding
+the pull request on the hold path, and the gate's risk score (`evidence --lane-reviews`,
+`lane_risk_refusal`) drops its `high-path:` reasons for a path on `babysit_risk.HIGH_FLOOR` or in
+`merge.diff-check.denied-paths` on the same approval (`babysit_merge_policy.path_lifters`, which
+`test_merge_holds_sync.py` holds equal to `pathLifters`), so its other checks decide. The approval
+lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost, trust-gate,
+manifest, file-cap or review-lane hold, and a review list or trusted-actor list that does not read
+lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
