@@ -445,6 +445,32 @@ async page => { // the question page itself: choices, chips, banners, header and
     ev = await events(); last = ev[ev.length - 1] || {};
     ok("#9694: Not this posts a decline and the question is archived", ev.length === n0 + 1 && last.id === "Q16" && last.alt === "decline" && await stateOf("Q16") === "archived", JSON.stringify(last));
   }
+  if (PHASE === 18) { // gap G10: a page stamped with another build than its server started from says the server is older
+    const banner = () => page.$eval("#oldServer", el => ({hidden: el.hidden, shown: el.getClientRects().length > 0, text: el.textContent}));
+    const load = async () => { await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400); };
+    await load();
+    const same = await banner();
+    ok("gap G10: a page from the build its server started from shows no old-server banner", same.hidden && !same.shown, JSON.stringify(same));
+    const isPage = u => u.pathname === "/";
+    await page.route(isPage, async route => {
+      const res = await route.fetch(), headers = res.headers();
+      delete headers["content-length"]; // the body changes length; fulfill sets it from the new body
+      await route.fulfill({status: res.status(), headers, body: (await res.text()).replace(/<meta name="interview-build" content="[^"]*">/, '<meta name="interview-build" content="0.0.0-newer 0">')});
+    });
+    await load();
+    const newer = await banner();
+    await page.unroute(isPage);
+    ok("gap G10: a page newer than its server shows the old-server banner", !newer.hidden && newer.shown && newer.text === "This page's server is older than the page. Run ensure-running to restart.", JSON.stringify(newer));
+    await load();
+  }
+  if (PHASE === 19) { // #9695: the shell answered Q1 in the terminal, then posted a sweep round whose Q17 reconciles Q1
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q17");
+    const card = await text("#roundRestate"), rec = await text("#reconciles"), head = await text("#dscroll .dids");
+    ok("#9695: the sweep round's card is labeled Sweep: reconciling earlier answers", /^Sweep: reconciling earlier answers \(round 4\)/.test(card) && /Sweep/.test(head), card + " | " + head);
+    ok("#9695: Q1's decision text shows beside Q17, which reconciles it", /^Earlier answers this reconciles\s*Q1.*Ship on Wednesday after the code freeze\./.test(rec), rec);
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

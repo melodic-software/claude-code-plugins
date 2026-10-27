@@ -26,9 +26,14 @@ them from the file rather than from a copy of tool output.
   takes `HOST/OWNER/REPO`; without it `view` reads the `origin` remote's host when the forge CLI is
   logged in to that host, and github.com otherwise.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,
-  `baseRefName`, `mergeCommit`, open PRs by default, up to 1000 rows. `--head-match` keeps the
-  PRs whose head branch matches the ERE. `--search` keeps the PRs the forge's text search matches,
-  such as those whose text mentions a work item's reference.
+  `baseRefName`, `mergeCommit`, `isCrossRepository` and `headRepositoryOwner`, open PRs by
+  default, up to 1000 rows. A caller after the repository's own PR on a branch counts only rows
+  whose `isCrossRepository` is `false`.
+  `--head-match` keeps the PRs whose head branch matches the ERE. `--search` keeps the PRs the
+  forge's text search matches, such as those whose text mentions a work item's reference.
+  - **Pointer**: when checking whether the forge's head filter can name a head repository, fetch
+    the `--head` option of [gh pr list](https://cli.github.com/manual/gh_pr_list) live. **As of**:
+    2026-10-27. **Recheck trigger**: a gh release note changes `gh pr list --head`.
 - **Exit codes.** 0 read; 1 bad argument; 2 the forge call failed, which includes a branch with no
   PR; 5 a prerequisite is missing. Report a non-zero exit as it is: a failed read is not an empty
   result.

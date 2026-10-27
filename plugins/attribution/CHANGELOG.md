@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.12] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.11.11] - 2026-10-25
 
 ### Changed

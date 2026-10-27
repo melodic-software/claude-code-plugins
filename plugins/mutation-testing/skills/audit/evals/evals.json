@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Run it across the whole repo.",
-      "expected_output": "Recognizes --full as expensive, computes and states the estimated wall-clock from baseline-suite-ms times the mutant count, and confirms before running rather than starting silently. If a cap truncates the mutant set, reports what was dropped so a truncated run does not read as a clean one.",
+      "expected_output": "Recognizes --full as expensive, times one build plus test run of the selected tests, takes the mutant count from the tool's dry run or listing, prints the line `bash \"${CLAUDE_PLUGIN_ROOT}/scripts/estimate-run.sh\" --mutants <n> --seconds <s>` prints rather than computing the estimate itself, and confirms before running rather than starting silently. If a cap truncates the mutant set, reports what was dropped so a truncated run does not read as a clean one.",
       "files": []
     },
     {

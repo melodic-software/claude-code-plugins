@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "Seeded overlap CANDIDATES only. A pair here is a starting point for detection, never a verdict: verdicts live in the committed store (docs/native-surfaces/records.json by default) and are human-gated. Adding a pair here proposes a row; it does not create one.",
+  "note": "Seeded overlap CANDIDATES only. A pair here is a starting point for detection, never a verdict: verdicts live in the committed store (docs/native-surfaces/records.json by default) and are human-gated: a person or a session acting on the owner's recorded direction writes each one, never an unattended run. Adding a pair here proposes a row; it does not create one.",
   "pairs": [
     {
       "native": { "name": "code-review", "class": "bundled-skill" },

@@ -304,13 +304,14 @@
       "id": 25,
       "name": "refresh-working-tree-changed-during-source-wave",
       "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Before the source wave, git status --porcelain printed nothing. After the subagents returned, it prints ` M src/timesheet/Toolbar.tsx`.",
-      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened.",
+      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened. The report states that the tripwire cannot see writes under .git/, to ignored paths or outside the checkout.",
       "files": [],
       "narration": true,
       "expectations": [
         "Reports the outcome as blocked",
         "Names src/timesheet/Toolbar.tsx as the changed path",
-        "Edits no control skill file and opens no pull request"
+        "Edits no control skill file and opens no pull request",
+        "States that the tripwire cannot see writes under .git/, to ignored paths or outside the checkout"
       ]
     },
     {

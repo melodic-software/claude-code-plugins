@@ -3281,6 +3281,84 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(history["Q1"][1]["alt"], "0")
 
 
+class TestRestartsAnOldServer(unittest.TestCase):
+    """ensure-running restarts a server whose recorded plugin version differs from the installed
+    one: the old server runs from a copy of this folder whose manifest names another version."""
+
+    def setUp(self):
+        from session_bridge import running
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-old-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.dir = self.tmp / "data"
+        self.dir.mkdir()
+        (self.dir / "questions.json").write_text(json.dumps(base_doc()), encoding="utf-8")
+        old = self.tmp / "old" / "surface"
+        old.mkdir(parents=True)
+        for f in HERE.glob("*.py"):
+            if not f.name.startswith("test_"):
+                shutil.copy(f, old / f.name)
+        shutil.copy(HERE / "index.html", old / "index.html")
+        (old.parent / ".claude-plugin").mkdir()
+        (old.parent / ".claude-plugin" / "plugin.json").write_text(
+            '{"name": "planning", "version": "0.0.0-old"}', encoding="utf-8"
+        )
+        self.addCleanup(run_round, self.dir, "stop")
+        self.old = subprocess.Popen(
+            [sys.executable, str(old / "server.py"), "--dir", str(self.dir), "--nonce", "old"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self.addCleanup(self.old.wait, 10)
+        self.addCleanup(self.old.kill)
+        path = self.dir / ".interview-session.json"
+        deadline = time.monotonic() + 10
+        self.s = {}
+        while time.monotonic() < deadline:
+            try:
+                s = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                s = {}
+            if s.get("nonce") == "old" and running(self.dir, s):
+                self.s = s
+                break
+            time.sleep(0.05)
+        self.assertEqual(self.s.get("pluginVersion"), "0.0.0-old", "the old server did not start")
+
+    def test_ensure_running_starts_the_installed_version_in_its_place(self):
+        installed = json.loads(
+            (HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["version"]
+        rc, out, err = run_round(self.dir, "ensure-running")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            f"restarted the page server: it runs 0.0.0-old, this plugin is {installed}", err
+        )
+        self.assertIsNotNone(self.old.wait(timeout=10))
+        s = json.loads((self.dir / ".interview-session.json").read_text(encoding="utf-8"))
+        self.assertNotEqual(s["pid"], self.s["pid"])
+        if os.name == "posix":
+            self.assertEqual(s["port"], self.s["port"])
+        self.assertEqual(out.strip(), f"http://127.0.0.1:{s['port']}/")
+        conn = http.client.HTTPConnection("127.0.0.1", s["port"], timeout=10)
+        try:
+            conn.request("GET", "/api/state")
+            state = json.loads(conn.getresponse().read())
+        finally:
+            conn.close()
+        self.assertEqual(state["pluginVersion"], installed)
+        rc, out, err = run_round(self.dir, "ensure-running")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("restarted", err)
+        self.assertEqual(
+            json.loads((self.dir / ".interview-session.json").read_text(encoding="utf-8"))[
+                "pid"
+            ],
+            s["pid"],
+        )
+
+
 class TestGroupSummaryOf(DirCase):
     """A group summary records the questions it was written for and warns when they change."""
 
@@ -4600,6 +4678,103 @@ class TestRoundRestate(DirCase):
         self.assertNotIn("rounds", self.doc())
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestSweepRound(DirCase):
+    """#9695: a round of sweep questions carries meta.kind "sweep", and a question names the
+    earlier answers it reconciles."""
+
+    def spec(self, meta=None, **extra):
+        q = question("Q4", round=2, dependsOn=[], reconciles=["Q1"], **extra)
+        body = {
+            "questions": [q],
+            "restate": {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]},
+        }
+        body["meta"] = {"kind": "sweep"} if meta is None else meta
+        return body
+
+    def post(self, spec):
+        path = self.tmp / "sweep-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_sweep_round_with_reconciles_is_posted(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertEqual(self.q("Q4")["reconciles"], ["Q1"])
+        self.assertNotIn("kind", self.doc()["meta"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_kind_beside_other_meta_keys_merges_the_rest(self):
+        spec = self.spec(meta={"kind": "sweep", "eyebrow": "Sweep"})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["eyebrow"], "Sweep")
+        self.assertNotIn("kind", self.doc()["meta"])
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_apply_posts_a_sweep_round(self):
+        op = {"op": "add-round", **self.spec()}
+        rc, out, err = self.rp("apply", "--file", self.post({"ops": [op]}))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_a_reconciles_id_not_in_the_register_is_refused_naming_it(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q1", "Q99"]
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q99", out)
+        self.assertIn("not in the register", out)
+        self.assertNotIn("Q1,", out)
+
+    def test_apply_refuses_an_unknown_reconciles_id(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q42"]
+        out = self.assert_refused("apply", "--file", self.post({"ops": [{"op": "add-round", **spec}]}))
+        self.assertIn("Q42", out)
+
+    def test_reconciles_must_be_a_list_of_ids(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = "Q1"
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("reconciles", out)
+
+    def test_an_unknown_kind_is_refused(self):
+        out = self.assert_refused("add-round", "--file", self.post(self.spec(meta={"kind": "audit"})))
+        self.assertIn("meta.kind", out)
+
+    def test_a_kind_on_a_round_without_questions_is_refused(self):
+        out = self.assert_refused(
+            "add-round", "--file", self.post({"meta": {"kind": "sweep"}, "groups": [{"id": "g3", "title": "T"}]})
+        )
+        self.assertIn("meta.kind", out)
+
+    def test_reconciles_may_not_name_a_question_of_the_same_write(self):
+        spec = self.spec()
+        spec["questions"].append(question("Q5", round=2, dependsOn=[], reconciles=["Q4"]))
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q5 reconciles Q4", out)
+
+    def test_a_later_write_to_the_sweep_round_keeps_its_kind(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        more = {
+            "questions": [question("Q5", round=2, stage="interview", dependsOn=[])],
+            "restate": {"text": "Q4 is open. Q5 joins it.", "decided": [], "open": ["Q4", "Q5"]},
+        }
+        rc, out, err = self.rp("add-round", "--file", self.post(more))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertIn("Q5 joins it", entry["restate"]["text"])
+
+    def test_an_ordinary_round_has_no_kind(self):
+        spec = self.spec(meta={})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("kind", self.doc()["rounds"][0])
 
 
 if __name__ == "__main__":
