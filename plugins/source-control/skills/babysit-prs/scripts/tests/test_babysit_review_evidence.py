@@ -139,7 +139,9 @@ def run(
     *,
     attempts: list[dict[str, Any]] | None = None,
     created: str = "2026-01-01T00:00:00Z",
+    tree: str | None = None,
 ) -> dict[str, Any]:
+    """A lane run at `sha`; its head's tree is `tree`, else one of its own."""
     if attempts is None:
         annotations = [record(lane, sha, tail)] if tail is not None else []
         attempts = [attempt(lane, sha, 1, annotations)]
@@ -158,8 +160,14 @@ def run(
         "conclusion": latest["conclusion"],
         "run_attempt": latest["run_attempt"],
         "created_at": created,
+        "head_commit": {"id": sha, "tree_id": tree or tree_of(sha)},
         "attempts": attempts,
     }
+
+
+def tree_of(sha: str) -> str:
+    """A tree sha of `sha`'s own, distinct per commit sha."""
+    return sha[::-1]
 
 
 def marker(lane: str, sha: str, login: str = "github-actions[bot]") -> dict[str, Any]:
@@ -224,6 +232,13 @@ class ProbeFixtureTests(unittest.TestCase):
     """Bind the recorded probe data as recorded and with one change each."""
 
     def bind(self, data: dict[str, Any]) -> dict[str, Any]:
+        # The probe left each run's commit object out; a listed run has one.
+        data = copy.deepcopy(data)
+        for item in data["runs"]:
+            item["head_commit"] = {
+                "id": item["head_sha"],
+                "tree_id": tree_of(item["head_sha"]),
+            }
         return by_lane(
             ev.bind(
                 data["head_sha"],
@@ -1494,12 +1509,18 @@ class CoveringReviewTests(Base):
     PUSHER = {"__typename": "User", "login": "pusher"}
 
     def two_reviews(
-        self, earlier: str, latest: str, *, earlier_sha: str = S0
+        self,
+        earlier: str,
+        latest: str,
+        *,
+        earlier_sha: str = S0,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
-        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00.
+        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00,
+        # of the pinned head, whose tree is `tree` when given.
         runs = [
             run("claude-review", earlier_sha, earlier, created="2026-01-01T00:00:00Z"),
-            run("claude-review", S, latest, created="2026-01-01T02:00:00Z"),
+            run("claude-review", S, latest, created="2026-01-01T02:00:00Z", tree=tree),
         ]
         job = runs[1]["attempts"][0]["jobs"][0]
         job["started_at"], job["completed_at"] = (
@@ -1597,11 +1618,16 @@ class CoveringReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
     def incremental_then_whole(
-        self, incremental_sha: str, counts: str = "findings=1 inline=1"
+        self,
+        incremental_sha: str,
+        counts: str = "findings=1 inline=1",
+        *,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
         # A clean whole review at S0 (00:00-01:00); an incremental review at
         # `incremental_sha` raised one finding (02:00-03:00), inline by
-        # default; then a clean whole review of the pinned head S (04:00-05:00).
+        # default; then a clean whole review of the pinned head S (04:00-05:00),
+        # whose tree is `tree` when given.
         return [
             whole("claude-review", S0),
             windowed(
@@ -1620,6 +1646,7 @@ class CoveringReviewTests(Base):
                     S,
                     "findings=0 inline=0 scope=whole",
                     created="2026-01-01T04:00:00Z",
+                    tree=tree,
                 ),
                 "2026-01-01T04:00:00Z",
                 "2026-01-01T05:00:00Z",
@@ -1675,6 +1702,76 @@ class CoveringReviewTests(Base):
         result = self.bind(runs, threads=[])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+    # #8638: a head is new for closure only when its tree changed, so an
+    # empty commit (new sha, same tree) cannot re-roll the review.
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_an_incremental_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, tree=tree_of(S1))
+        result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_summary_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, "findings=1 inline=0", tree=tree_of(S1))
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_whole_reviews_findings(
+        self,
+    ) -> None:
+        empty = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        result = self.bind(empty, threads=self.agent_resolved())
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        threadless = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        self.assertEqual(
+            self.bind(threadless, threads=[])["claude-review"].open_findings, 2
+        )
+
+    def test_a_clean_whole_review_of_a_changed_tree_clears_the_finding(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree="7e" * 20,
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_reviewed_run_with_no_readable_tree_unbinds(self) -> None:
+        for commit in (None, {"id": S}, {"id": S, "tree_id": "not-a-sha"}):
+            with self.subTest(commit=commit):
+                runs = self.two_reviews(
+                    "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+                )
+                runs[1]["head_commit"] = commit
+                result = self.bind(runs, threads=self.agent_resolved())
+                self.assertUnbound(result["claude-review"], "tree-unread")
+
+    def test_two_trees_for_one_head_unbind(self) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            earlier_sha=S,
+        )
+        runs[1]["head_commit"] = {"id": S, "tree_id": "7e" * 20}
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_summary_findings_the_covering_review_reports_still_count(
         self,
@@ -1760,6 +1857,7 @@ class CoveringReviewTests(Base):
             "findings=0 inline=0 scope=whole",
         )
         runs[1]["head_sha"] = S1
+        runs[1]["head_commit"] = {"id": S1, "tree_id": tree_of(S1)}
         for item in runs[1]["attempts"]:
             item["head_sha"] = S1
             for job in item["jobs"]:
@@ -2271,6 +2369,30 @@ class SeverityTests(Base):
                 result = self.bind(runs, comments=self.summary_markers(text))[self.SEC]
                 self.assertEqual(result.open_findings, 3)
                 self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_rerolled_review_of_the_same_tree_never_lowers_the_count(
+        self,
+    ) -> None:
+        # #8638: the earlier review of the tree reported the same summary
+        # findings; its line is not read, so the newer one's line cannot
+        # clear them, whether the re-roll is a re-run or an empty commit.
+        for sha in (S, S0):
+            with self.subTest(earlier=sha):
+                runs = [
+                    whole("claude-review", S),
+                    run(self.SEC, sha, "findings=2 inline=0 scope=whole"),
+                    run(
+                        self.SEC,
+                        S,
+                        "findings=2 inline=0 scope=whole",
+                        created="2026-01-01T02:00:00Z",
+                        tree=tree_of(sha),
+                    ),
+                ]
+                comments = self.summary_markers("critical-findings: 0")
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.open_findings, 2)
+                self.assertEqual(result.blocking_findings, 2)
 
     def test_a_summary_comment_the_review_posted_carries_the_line(self) -> None:
         # The probe fixture's producer shape: the Claude App posts the summary
