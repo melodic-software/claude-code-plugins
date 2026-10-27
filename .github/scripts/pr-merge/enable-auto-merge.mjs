@@ -97,9 +97,9 @@
 // edited in place while it is a lane's, posted anew when it becomes a
 // person's, and left alone while the reason and head are unchanged
 // (refusalWrites). The
-// comment is the record; only a cause a person must clear (owner rule
-// 2026-10-26 and 2026-10-27: an intent or design change or a CRITICAL
-// security issue, with cost and trust holds kept: untrusted
+// comment is the record; only a cause a person must clear
+// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+// with cost and trust holds kept: untrusted
 // provenance or an untrusted spec, a security finding, a high path, a
 // trusted-actor widening, a real charge or a listing too long to check, see
 // verifyClears; a hold path, a configured denied path
@@ -508,10 +508,9 @@ export function verifyHold(evidence, head) {
 // read whole, more than the 100 the read lists, which no later read changes.
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
-// Who clears the refusal verifyHold reads in `evidence` at `head` (owner
-// rules 2026-10-26 and 2026-10-27: a person only for an intent or design
-// change, or a CRITICAL security issue; cost and trust holds stay a
-// person's): `person`
+// Who clears the refusal verifyHold reads in `evidence` at `head`
+// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner;
+// cost and trust holds stay a person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
 // or a risk hold it marks `reviewsPerson` (babysit_risk.person_reasons),

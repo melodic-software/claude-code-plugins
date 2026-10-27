@@ -51,10 +51,11 @@ reported as a MED `findings:<lane>` reason that does not hold (owner decisions
 Q25, Q33 and Q693). A real new charge holds through `cost-review-required`
 and a trusted-actor widening through `trust-gate:trusted-actors`.
 
-Cost is not a stop; only a real new charge is (owner rule, 2026-10-26). A
-change that could start one (billed infrastructure or billed runner minutes)
-rates HIGH as `cost-review-required` in every lane, floor or not and whatever
-`floor_exempt` says: any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file
+Cost is not a stop; only a real new charge is (docs/conventions/loop-lane/
+README.md, "When work stops for the owner"). A change that could start one
+(billed infrastructure or billed runner minutes) rates HIGH as
+`cost-review-required` in every lane, floor or not and whatever `floor_exempt`
+says: any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file
 under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
 None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
@@ -935,8 +936,7 @@ def _cost_reasons(
     charge, unless `inp.cost_decision` names the owner decision that clears
     it; it holds in every lane, whatever the floor switch says. Spend that
     draws only on a subscription or prepaid credit is `cost-finding` (MED),
-    reported and never held (owner rule 2026-10-26: cost is not a stop, only
-    a real new charge is)."""
+    reported and never held (cost is not a stop, only a real new charge is)."""
     charges, spends = [], []
     for f, raw in zip(files, raw_files):
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
@@ -1192,9 +1192,9 @@ def holding(result: RiskResult) -> list[Reason]:
     ]
 
 
-# The holding reasons only a person clears (owner rule 2026-10-26: a person
-# only for an intent or design change or a CRITICAL security issue, with
-# real-charge and trust holds kept, and for a hold no lane can clear): a
+# The holding reasons only a person clears (when a person is needed:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# with real-charge and trust holds kept, and for a hold no lane can clear): a
 # CRITICAL security finding, a trusted-actor widening, a real-charge hold,
 # every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,
