@@ -176,14 +176,15 @@ function world({
         const items = queuedIssues.map((number) => ({ number }));
         return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
       }
-      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+      // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
+      if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
           throw new Error(`${method} ${path} failed with status 403`);
         }
         const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
         return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
       }
-      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/[\w-]+ (merged|created):>=\S+$/);
       if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
