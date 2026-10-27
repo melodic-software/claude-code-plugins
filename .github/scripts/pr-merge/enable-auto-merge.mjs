@@ -98,11 +98,11 @@
 // person's, and left alone while the reason and head are unchanged
 // (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner rule
-// 2026-10-26: an intent or design change or a CRITICAL security issue, with
-// cost and trust holds and a hold no lane can clear kept: untrusted
-// provenance or an untrusted spec, the repeated-FAIL cap, a pull request too
-// old to verify, a security finding, a high path, a trusted-actor widening,
-// a real charge or a listing too long to check, see verifyClears; a hold path, a configured denied path
+// 2026-10-26 and 2026-10-27: an intent or design change or a CRITICAL
+// security issue, with cost and trust holds kept: untrusted
+// provenance or an untrusted spec, a security finding, a high path, a
+// trusted-actor widening, a real charge or a listing too long to check, see
+// verifyClears; a hold path, a configured denied path
 // or the floor, which only a trusted approval lifts; and the lane's own hold
 // line, owner decision Q-HOLDLINE) also gets the human-gated label, put back
 // while the comment stands unless a person removed it since. Every other
@@ -508,9 +508,9 @@ export function verifyHold(evidence, head) {
 // read whole, more than the 100 the read lists, which no later read changes.
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
-// Who clears the refusal verifyHold reads in `evidence` at `head` (owner rule
-// 2026-10-26: a person only for an intent or design change, or a CRITICAL
-// security issue; cost and trust holds and a hold no lane can clear stay a
+// Who clears the refusal verifyHold reads in `evidence` at `head` (owner
+// rules 2026-10-26 and 2026-10-27: a person only for an intent or design
+// change, or a CRITICAL security issue; cost and trust holds stay a
 // person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
