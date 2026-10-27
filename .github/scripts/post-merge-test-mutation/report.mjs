@@ -7,9 +7,9 @@
 //
 // Env: STRUCTURED_OUTPUT, AUDIT_RESULT (the audit job's result), RESTORED
 // (`true` or `false` from the audit job's own check of the checkout), BEFORE,
-// AFTER, RANGE_MODE (`range`, or `commit` when the push had no usable
-// previous head), REPOSITORY, GITHUB_TOKEN, GITHUB_STEP_SUMMARY, COMMENT_PATH,
-// GITHUB_OUTPUT, GITHUB_RUN_ID.
+// AFTER, RANGE_MODE (`range`, `commit` when the push had no usable previous
+// head, or empty when the audit stopped first), REPOSITORY, GITHUB_TOKEN,
+// GITHUB_STEP_SUMMARY, COMMENT_PATH, GITHUB_OUTPUT, GITHUB_RUN_ID.
 // Exits 1 when the audit left no valid result or could not restore the tree;
 // surviving mutants alone never fail it (the plugin gates on no score).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
@@ -108,7 +108,12 @@ const fenced = (text) => {
 
 export function render({ result, error, before, after, mode, pulls, repository }) {
   const short = (sha) => (SHA.test(sha ?? "") ? sha.slice(0, 12) : "unknown");
-  const range = mode === "range" ? `${short(before)}..${short(after)}` : `${short(after)} only (the push had no usable previous head)`;
+  const range =
+    mode === "range"
+      ? `${short(before)}..${short(after)}`
+      : mode === "commit"
+        ? `${short(after)} only (the push had no usable previous head)`
+        : `${short(before)}..${short(after)} pushed; the audit chose no diff mode`;
   const merged =
     pulls === null
       ? "unknown (the lookup failed)"

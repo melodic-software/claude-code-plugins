@@ -72,6 +72,12 @@ test("the report says when there was no previous head, no pull request, or no lo
   assert.match(render({ ...base, mode: "range", before: BEFORE, pulls: null }), /Merged pull request: unknown \(the lookup failed\)/);
 });
 
+test("an audit that stopped before choosing a mode reports the pushed range, not a missing previous head", () => {
+  const text = render({ result: null, error: "the audit job failed", before: BEFORE, after: AFTER, mode: "", pulls: [], repository: "o/r" });
+  assert.match(text, /- Range: bbbbbbbbbbbb\.\.aaaaaaaaaaaa pushed; the audit chose no diff mode\n/);
+  assert.doesNotMatch(text, /no usable previous head/);
+});
+
 test("model text in the detail stays inside a fence it cannot close", () => {
   const text = render({ result: result([], { detail: "x ```` y" }), after: AFTER, mode: "commit", pulls: [], repository: "o/r" });
   assert.match(text, /\n`````text\nx ```` y\n`````/);
