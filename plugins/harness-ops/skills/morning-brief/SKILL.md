@@ -142,7 +142,9 @@ A list read that reaches its result cap prints a `PARTIAL` line in its section: 
 label inventory (and then the queue rows are not filtered to labels that exist), a
 queue count (shown as `N+`), the stuck list (past `--stuck-limit` lines, or when a
 label's search reaches GitHub's result cap), the open-PR list, the decision list,
-and the telemetry issue search.
+and the telemetry issue search. A queue count or stuck label whose search reads 0 is checked
+against the REST issue listing; when that listing reads more than 0 or fails, the label shows
+`count unavailable` on a `PARTIAL` line instead of a 0 or an all-clear.
 
 When a GraphQL read is refused (the cloud GitHub proxy's HTTP 403), sections 1-4 are
 re-read from repository-scoped REST endpoints and the header names the transport.

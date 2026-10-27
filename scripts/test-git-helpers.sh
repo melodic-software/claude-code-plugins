@@ -33,9 +33,20 @@
 # it. scripts/check-fixture-git-isolation.sh keeps that true.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
+# EMPTY OR NON-REPO DIR. `git -C ""` leaves the working directory unchanged
+# (git(1), -C), and a dir with no .git of its own discovers the nearest
+# enclosing repository. Either way a fixture write lands in the repo the suite
+# runs from: an unchecked failed build writes the fixture identity into the
+# caller's config, which in a main checkout every worktree shares. So every call
+# except init and clone, which create the repo, must name a repository root: a
+# .git entry, or a bare repo's HEAD.
 git_test_config() {
   local dir="$1"
   shift
+  if [[ -z "$dir" ]] || [[ "${1:-}" != init && "${1:-}" != clone && ! -e "$dir/.git" && ! -f "$dir/HEAD" ]]; then
+    echo "git_test_config: refusing a path that is not a repository root: ${dir:-<empty>}" >&2
+    return 1
+  fi
   git -C "$dir" \
     -c user.email=t@t.test \
     -c user.name=test \
