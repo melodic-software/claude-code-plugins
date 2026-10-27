@@ -4,9 +4,9 @@ import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, 
 import { applySizeSplit, partitionProblem, sizeSplitPending, splitDigest } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
-import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, refinementExact, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, splitSource, validateOutput } from "./refine.mjs";
+import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, splitSource, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -264,6 +264,7 @@ describe("render", () => {
     assert.ok(body.startsWith(`${REFINE_MARKER}\n`));
     assert.ok(body.includes("\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.\n"));
     assert.ok(!body.includes("RECOMMENDED:"));
+    assert.ok(!body.includes(DECISION_REPLY), "an exact refinement asks nothing");
   });
 
   test("an inexact refinement has numbered questions with RECOMMENDED lines and no task list", () => {
@@ -271,6 +272,15 @@ describe("render", () => {
     assert.match(body, /\n1\. Is this a duplicate of #​3\?\n {3}RECOMMENDED: Close it as a duplicate\. Basis: #​3 fixed the same line\.\n/);
     assert.ok(body.includes("- #3 (duplicate): same count fix"));
     assert.ok(!body.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")));
+  });
+
+  // Only a comment whose first line is `**Decision recorded.**` answers, so
+  // the questions close with that reply in a block the owner can copy (#7916).
+  test("an inexact refinement shows the copyable decision reply above its footer and stays not exact", () => {
+    const body = render(validateOutput(INEXACT, new Set([3])));
+    assert.equal(DECISION_REPLY, "**Decision recorded.** <answer>");
+    assert.ok(body.endsWith(`\n\`\`\`\n${DECISION_REPLY}\n\`\`\`\n\n<sub>Automated refinement by the lanes App. Answer with a comment whose first line is \`**Decision recorded.**\`.</sub>`), body);
+    assert.equal(refinementExact(body), false);
   });
 
   test("model text cannot forge a marker, a mention, a task list line or a second line", () => {
@@ -296,7 +306,11 @@ describe("render", () => {
     );
     assert.ok(!lines.some((line) => line.trimStart().startsWith("- [ ] ")), "no task list line from model text");
     assert.ok(!body.includes("@owner"), "mentions are broken");
-    assert.ok(lines.every((line) => !line.startsWith("**Decision recorded.**")));
+    assert.deepEqual(
+      lines.filter((line) => line.startsWith("**Decision recorded.**")),
+      [DECISION_REPLY],
+      "only the script's own reply to copy",
+    );
   });
 
   test("model text cannot add a link, an autolink or a cross-reference", () => {
@@ -367,6 +381,25 @@ describe("applyRefinement", () => {
     assert.equal(done.length, 2);
     const again = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment(), refined(issueOf().body)] });
     assert.deepEqual(await apply(again, EXACT), { outcome: "skipped", redispatch: false });
+  });
+
+  test("an exact refinement of an issue admission parked at status: confirmed lifts it and asks for re-triage", async () => {
+    const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed undefined");
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 3);
+  });
+
+  test("an exact refinement of a status: confirmed issue admission never parked asks for no re-triage", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, false);
+    assert.equal(writes(fake.calls).length, 1, "the comment only");
   });
 
   test("an exact refinement of an issue already agent-ready asks for no re-triage", async () => {

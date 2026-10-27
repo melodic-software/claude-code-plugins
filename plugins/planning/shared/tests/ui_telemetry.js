@@ -10,7 +10,8 @@
 // older page left in localStorage is ignored: errors and summaries still send after a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
 // only. Taps are counted by the tapped control's class: three quick ones are a rage tap, one that changes nothing a dead
 // tap even when the page's own poll renders in its second, one that opens a sheet no dead tap, and no body holds the control's text, label, title or id. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
-// back to a selector and an id gets "-" sent for both.
+// back to a selector and an id gets "-" sent for both. The owner's Host Health shows the log's summary by section,
+// the thrown error among its top errors; a guest's Help and More have no Host Health.
 //   node plugins/planning/shared/tests/ui_telemetry.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved V1 (feedback triage row 49: the signals, no pid on usage entries, local
@@ -298,6 +299,15 @@ async function main() {
     const named = await stubSummary(2);
     ok("  and an element web-vitals measured is named by its component", named.inp === "160:keyboard:vf-stub-probe" && named.lcp === "950:vf-stub-probe", JSON.stringify(named));
     ok("  no body from that page holds the selector or an id", ws.bodies.length >= 2 && !ws.bodies.some(b => /cy-secret|#|>/.test(b)), ws.bodies.join(" | "));
+
+    // ---------- Host Health: the owner's view of the summary, by section; a guest has no entry ----------
+    ok("a guest's Help and More have no Host Health", await guest.evaluate(() => { const b = [...document.querySelectorAll(".vf-help-health, .vf-ms-health")]; return b.length > 0 && b.every(x => x.hidden); }));
+    await owner.evaluate(() => document.querySelector(".vf-help-health").click());
+    const health = await until(owner, t => [...document.querySelectorAll(".vf-healthpop .vf-health-sec")].some(x => x.querySelector("h3")?.textContent === "Top errors" && x.textContent.includes(t)), THROWN)
+      && await owner.evaluate(() => [...document.querySelectorAll(".vf-healthpop .vf-health-sec h3")].map(h => h.textContent));
+    ok("the owner's Host Health shows the log's summary by section, the thrown error among the top errors",
+      !!health && health[0] === "Top errors" && health.at(-1) === "Dead taps (a tap that changed nothing on the page) by component", JSON.stringify(health));
+    await owner.keyboard.press("Escape");
 
     const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN) && m !== "Object" && m !== "Error: boom"); // the injected rejections
     ok("no other page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));

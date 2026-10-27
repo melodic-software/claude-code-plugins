@@ -14,6 +14,7 @@
         "min_occurrences": {
           "type": "integer",
           "minimum": 1,
+          "maximum": 1000,
           "default": 2,
           "description": "How many occurrences of a mistake /corrections:codify counts before it proposes a check. Below it, a model-invoked run reports the count and proposes nothing; a person's direct \"codify this\" acts at once whatever the count."
         }

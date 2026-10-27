@@ -21,15 +21,36 @@ repo="$tmp/repo"
 mkdir -p "$repo/scripts"
 git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
+# The real patterns file machine-specific-paths sources, committed at the base.
+patterns_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+mkdir -p "$repo/${patterns_lib%/*}"
+cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
   check-spoke-plugin-root check-changelog-parity check-changed-skills setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
+# The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
+# as the real one lists the selected suites it did not run.
+cat >"$repo/scripts/affected-tests.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "affected-tests ran" >&2
+while (($#)); do
+  [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
+  shift
+done
+exit "${STUB_AFFECTED_TESTS:-0}"
+STUB
 printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
   >"$repo/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
+# The real Node package runner, over one registered fixture package.
+mkdir -p "$repo/scripts/lib"
+cp "$SELF_DIR/lib/read-list.sh" "$repo/scripts/lib/"
+cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
+printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
+printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 : >"$repo/_typos.toml"
 chmod +x "$repo"/scripts/*.sh
 # A typos stand-in on every run's PATH, so a typos on the machine never sees the
@@ -80,9 +101,11 @@ check "every check passing exits 0 with the statement on stdout" \
 check "a diff with no skill file skips changed-skills" \
   '[[ $ERR == *"SKIP changed-skills (no changed skill file)"* && $ERR != *"check-changed-skills ran"* ]]'
 check "every hygiene gate the runner does not run is named CI only" \
-  '[[ $ERR == *"CI only: zizmor ("* && $ERR == *"CI only: machine-specific-paths ("* && $ERR == *"CI only: gitleaks ("* ]]'
+  '[[ $ERR == *"CI only: zizmor ("* && $ERR == *"CI only: actionlint ("* && $ERR == *"CI only: gitleaks ("* ]]'
 check "a gate the runner runs is not named CI only" \
-  '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* ]]'
+  '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* && $ERR != *"CI only: machine-specific-paths "* ]]'
+check "a diff with no file of a scanned type skips machine-specific-paths" \
+  '[[ $ERR == *"SKIP machine-specific-paths (no changed file of a type it scans)"* ]]'
 
 # The tree checked is the one holding the script, whatever the working
 # directory: run by path from another checkout whose HEAD is at its base (a main
@@ -140,6 +163,27 @@ check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
 check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAIL changelog-parity"* ]]'
 
+# machine-specific-paths scans the changed files with the committed patterns
+# file. Each home path is built at run time, so this file holds none.
+pre_paths="$(git_test_config "$repo" rev-parse HEAD)"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+git_test_config "$repo" add settings.json
+git_test_config "$repo" commit -q -m home-path
+run -- --base base
+check "a changed file holding a home path fails machine-specific-paths, naming the file" \
+  '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+excluded=plugins/autonomy/skills/setup/evals/fixtures/security-binding
+mkdir -p "$repo/$excluded"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/$excluded/case.json"
+printf '{"root": "/%s/.../project",\n"note": "/%s/alice/x machine-path:allow"}\n' home home >"$repo/placeholder.json"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m excluded-paths
+run -- --base base
+check "a home path in a file the workflow step excludes, a placeholder, or an allow-marked line passes" \
+  '[[ $RC == 0 && $ERR != *"FAIL machine-specific-paths"* && $ERR != *"SKIP machine-specific-paths"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+
 run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base
 check "a failing check exits 1" '[[ $RC == 1 ]]'
 check "the failure names the check and how to reproduce it" \
@@ -153,8 +197,44 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
+check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
 run STUB_AFFECTED_TESTS=3 -- --base base --tests
-check "--tests passes when only another ecosystem's suites went unrun" '[[ $RC == 0 ]]'
+check "--tests does not pass an exit 3 that names no unrun suite" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: affected-tests exited 3 but named no unrun suite)"* ]]'
+mkdir -p "$repo/eco"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/eco/w.test.sh"
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/w.test.mjs\n' -- --base base --tests
+check "--tests counts a Node suite beside its .test.sh wrapper as run" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
+rm -rf "$repo/eco"
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'fixtures/case.test.js\n' -- --base base --tests
+check "--tests counts no path under outside-node-exclusions.txt as an unrun suite" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
+# A selected Node suite in a registered package runs through the package's own
+# npm test, and a failing one fails tests.
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  mkdir -p "$repo/pkg/demo"
+  printf '{"name":"demo","private":true,"scripts":{"test":"node --test x.test.mjs"}}\n' >"$repo/pkg/demo/package.json"
+  node_suite='import test from "node:test";\nimport assert from "node:assert";\ntest("planted", () => assert.equal(1, %s));\n'
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 2 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests
+  check "--tests fails on a failing selected Node suite in a registered package" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 1 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests
+  check "--tests passes when the selected Node package suites pass and nothing is left unrun" \
+    '[[ $RC == 0 && $ERR != *"SKIP tests"* && $ERR != *"FAIL tests"* ]]'
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\neco/test_x.py\n' -- --base base --tests
+  check "--tests runs the Node package suites and still skips, counting, the ones left unrun" \
+    '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 1 selected suite(s) not run here"* ]]'
+  rm -rf "$repo/pkg"
+else
+  ok "SKIP Node package cases (node, npm or jq not installed)"
+fi
 run STUB_AFFECTED_TESTS=1 -- --base base --tests
 check "--tests fails on a failing suite" '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
 
@@ -292,6 +372,44 @@ check "a copy run elsewhere skips changed-skills, which runs the checked tree's 
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
+# The options-docs generator writes the READMEs, so a branch that changes it and
+# regenerates them fails the copy's older generator; a README-only drift is
+# still the copy's to judge.
+pre_docs="$(git_test_config "$repo" rev-parse HEAD)"
+mkdir -p "$repo/plugins/demo"
+printf '# Demo\n' >"$repo/plugins/demo/README.md"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m readme
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere checks a README-only change with its own options-docs generator" \
+  '[[ $RC == 1 && $ERR == *"copy of sync-plugin-options-docs read $repo"* && $ERR == *"FAIL plugin-options-docs"* ]]'
+printf '# changed generator\n' >>"$repo/scripts/sync-plugin-options-docs.py"
+git_test_config "$repo" commit -q -am generator
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere skips options-docs when the branch changes the generator" \
+  '[[ $ERR == *"SKIP plugin-options-docs (the branch changes the generator"* && $ERR != *"copy of sync-plugin-options-docs"* && $ERR != *"FAIL plugin-options-docs"* ]]'
+run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
+check "the branch's own run still checks options-docs when it changes the generator" \
+  '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_docs"
+
+# machine-specific-paths loads the merge-base's patterns file, never the
+# branch's, whose own edit here would make a home path pass.
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+printf "HPP_LINUX_USER_BODY='never-matches'\n" >>"$repo/$patterns_lib"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m home-path
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere scans with the merge-base's patterns file, not the checked tree's" \
+  '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+run -- --base base
+check "an in-place run scans with the merge-base's patterns file, not the branch's" \
+  '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
+git_test_config "$repo" reset -q --hard HEAD~1
+
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
   mkdir -p "$repo/docs"
@@ -347,7 +465,7 @@ chmod +x "$repo/scripts/validate-plugins.sh"
 run PATH="$tmp/bin:$PATH" -- --uncommitted
 check "--uncommitted validates a plugin that only untracked files touch" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
-rm -rf "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+rm -rf "$repo/plugins/demo" "$repo/scripts/validate-plugins.sh"
 # The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
 # refuses to add; it is skipped and the regular untracked file still checked.
 if bwrap --bind / / --dev /dev true 2>/dev/null; then

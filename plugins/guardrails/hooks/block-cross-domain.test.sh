@@ -309,7 +309,8 @@ assert_absent "dispatched, nothing named: the parser does not run" "$GUARD_ERR" 
 
 ROW_ARGS=()
 while IFS= read -r arg; do ROW_ARGS+=("${arg%$'\r'}"); done < <(jq -r '
-  .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args[3:][]' "$HOOKS_JSON")
+  .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args
+  | .[(map(endswith("/hooks/run-guards.sh")) | index(true)) + 1:][]' "$HOOKS_JSON")
 if [[ " ${ROW_ARGS[*]} " == *" block-cross-domain.sh "* ]]; then
   ok "the Bash|PowerShell row runs block-cross-domain.sh"
 else

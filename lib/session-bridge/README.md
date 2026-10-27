@@ -53,20 +53,25 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
   process's argv, which other local users can read on Linux without `hidepid` and on macOS.
 - On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
   local process can bind the same port and receive requests that carry the token.
-- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt, and
-  `watchToken` when the app sets one) and `.<name>-session.env` (`PID`, `PORT`, `TOKEN`,
-  `WATCH_TOKEN` when set, `NONCE`) to the data dir, mode 0600.
+- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt,
+  pluginVersion, sourceHash, and `watchToken` when the app sets one) and `.<name>-session.env`
+  (`PID`, `PORT`, `TOKEN`, `PLUGIN_VERSION` when known, `WATCH_TOKEN` when set, `NONCE`) to the
+  data dir, mode 0600. `pluginVersion` and `sourceHash` are `plugin_build()` taken at start: the
+  version in the plugin manifest beside the bridge's folder (null when there is none) and a SHA-256
+  of the non-test `.py` files in that folder. The hub keeps them as `build`.
 - `GET /events` streams `state` frames on every change and a `ping` every 15 s when idle; at most 8
   streams run at once (one more gets 503).
 - `GET /api/wait?after=handled&replayed=<n>&timeout=<s>&watcher=<id>&pid=<pid>` blocks until the
   log holds unhandled events, at most `timeout` seconds (1 to 120, default 90). Events a dead turn
   never handled come back at once when any seq exceeds `replayed`. `after=<seq>` returns the
-  events past a seq instead. The answer is `{seq, timedOut, replayed?, events, note}`.
+  events past a seq instead. The answer is `{seq, timedOut, replayed?, note, events}`, `note`
+  ahead of the events it frames.
 - The first `watcher` id holds an in-memory lease; another id gets 409 `lease held` until the
   lease expires. `POST /api/lease {"action": "release"}` clears it, and a wait the old holder has
   in flight ends with 409 `lease released`. `GET /api/lease` shows the holder. A wait without a
   `watcher` takes no part in leasing.
-- `GET /api/ping` answers `ok`, the app's `identity()`, `pid`, `dataDir` and `consoleWindow`.
+- `GET /api/ping` answers `ok`, the app's `identity()`, `pluginVersion`, `sourceHash`, `pid`,
+  `dataDir` and `consoleWindow`.
 
 ## The watcher
 
@@ -82,7 +87,10 @@ another watcher holds the lease, its lease was released, or the server was stopp
 printing the re-arm command: a watcher orphaned by a crashed session ends, and the server expires.
 A live session re-arms it. There is no parent-pid check, since the parent pid is 1 for a Claude Code
 Bash shell on Windows. The watcher id is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else
-`<hostname>-<parent pid>`. It sends `WATCH_TOKEN` from the env file, else `TOKEN`.
+`<hostname>-<parent pid>`. It sends `WATCH_TOKEN` from the env file, else `TOKEN`. Before its first
+poll it prints a `note:` line to stderr when the env file's `PLUGIN_VERSION` differs from the
+version in the plugin manifest beside its folder (a server started before a plugin update), naming
+both and `CONTROL ensure-running`; with no manifest there it compares nothing.
 
 Output lines (the `/api/wait` body and the channel server's messages) are `json.dumps` with
 `ensure_ascii=False`, then U+2028 and U+2029 are escaped (`dumps_line`), so no reader splits a line
@@ -90,11 +98,13 @@ on them.
 
 ## The client half
 
-`ping`, `read_session`, `running`, `port_free`, `interpreter`, `spawn`, `wait_started`,
+`ping`, `read_session`, `running`, `stale_build` (why a session file's recorded build is not this
+plugin copy's, or None), `port_free`, `interpreter`, `spawn`, `wait_started`,
 `kept_port`, `clear_session` (keeps the port so the page's origin survives a restart),
 `set_wait_timeout`, `end_watcher` (signals only this data dir's `watch.sh`, never on Windows),
 `watcher_lease` and `release_lease` are the pieces an app's control script composes into
-`ensure-running`, `stop` and `lease`.
+`ensure-running`, `stop` and `lease`. Each app's `ensure-running` restarts a running server whose
+`stale_build` names a reason, so a plugin update never leaves the old code serving.
 
 ## Delivery as data
 
@@ -110,8 +120,8 @@ carries: an action a page asks for passes the same confirm or permission gate it
 `view-bridge/` inside each adopting plugin, beside a `session-bridge.conf` with `NAME=view` and
 `CONTROL=view-bridge.sh`.
 
-1. `view-bridge.sh --dir <data_dir> ensure-running` starts the server, or reuses a running one, and
-   prints `{url, origin, page, watch}`.
+1. `view-bridge.sh --dir <data_dir> ensure-running` starts the server, or reuses a running one
+   (restarting it when `stale_build` names a reason), and prints `{url, origin, page, watch}`.
 2. The adopter builds its page with `--connect <origin>` into `page`. The builder adds
    `connect-src <origin>` to the page's policy and nothing else (rendered-views rule 3).
 3. The reader opens `url`. The runtime fetches the page token from `GET /api/token`, which answers

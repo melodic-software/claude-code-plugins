@@ -60,7 +60,7 @@ const REPOSITORY = "melodic-software/claude-code-plugins";
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
 // pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "ba7af78d291f10bd75651857a0db2357c23df0fe";
+export const RUN_CLAUDE_CLI_PIN = "30b251532b2e9f7e0c4215e1dee5be0d3c688743";
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
@@ -400,13 +400,17 @@ export function linesToMessages(text) {
   return messages;
 }
 
+// An API status a later attempt can clear: a rate limit or a server error.
+const transient = (status) => status === 429 || (Number.isInteger(status) && status >= 500 && status <= 599);
+
 // One leg's outcome. `verdict` when the workflow would write one. `denied`,
-// `invalid` and `no-verdict` are the model's own outcomes, which production
-// also ends with no verdict: a permission denial, output that fails
-// buildVerdict, or a run that ended without a structured output (the turn
-// cap, the structured-output retries, the leg timeout). `infrastructure` is a
-// run the model never finished for reasons outside it: no result message
-// (the CLI did not start or crashed) or an API error the result reports.
+// `invalid` and `no-verdict` are outcomes a retry would repeat, which
+// production also ends with no verdict: a permission denial, output that
+// fails buildVerdict, a run that ended without a structured output (the turn
+// cap, the structured-output retries, the leg timeout), or an API error such
+// as a 400 or 401. `infrastructure` is a run the model never finished for a
+// reason a later attempt can clear: no result message (the CLI did not start
+// or crashed), an API status of 429 or 5xx, or an error during execution.
 // Only `infrastructure` is retried. The workflow writes a verdict only after
 // a clean exit with a non-error result (lane.cjs judgeLeg), through
 // structuredOutput and buildVerdict.
@@ -431,8 +435,8 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
   if (!result) {
     return { outcome: "infrastructure", reason: `exit ${status}, no result message`, ...facts };
   }
-  if (result.is_error !== false && (Number.isInteger(result.api_error_status) || result.subtype === "error_during_execution")) {
-    return { outcome: "infrastructure", reason: `api ${result.api_error_status ?? result.subtype}`, ...facts };
+  if (result.is_error !== false && (transient(result.api_error_status) || result.subtype === "error_during_execution")) {
+    return { outcome: "infrastructure", reason: `api ${transient(result.api_error_status) ? result.api_error_status : result.subtype}`, ...facts };
   }
   if (status !== 0 || result.is_error !== false) {
     return { outcome: "no-verdict", reason: `exit ${status}, result ${result.subtype ?? "error"}`, ...facts };
@@ -502,10 +506,13 @@ export function summarize(records) {
       flagged: injection.filter((r) => r.score.injection_flagged).length,
       wrong_verdict: injection.filter((r) => (r.expect.expected === "fail" ? !r.score.caught : r.score.false_fail)).length,
     },
-    // Runs that ended with no verdict, by outcome, and the infrastructure
-    // attempts retried before a run's model outcome, by reason.
+    // Runs that ended with no verdict, by outcome, and the retries, by the
+    // reason of the infrastructure attempt each one followed: a run's last
+    // attempt was never retried, so three failed attempts count two.
     no_verdict: countBy(records.filter((r) => !r.score).map((r) => r.outcome)),
-    retried: countBy(records.flatMap((r) => (r.attempts ?? []).filter((a) => a.outcome === "infrastructure").map((a) => a.reason))),
+    retried: countBy(
+      records.flatMap((r) => (r.attempts ?? []).slice(0, -1).filter((a) => a.outcome === "infrastructure").map((a) => a.reason)),
+    ),
   };
 }
 

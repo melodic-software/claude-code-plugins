@@ -176,7 +176,9 @@ Treat failure as `"none"` and continue. This probe covers rung 5 only. After res
 re-invoke the script as an ordinary Bash call with every resolved root, ladder-highest first:
 `list-workspaces.sh "${CLAUDE_PROJECT_DIR}" <root>...`. **Exit 2 = probe broken** (usage error, or
 every root filtered as unset): glob the resolved roots manually before creating any workspace. A
-printed `none` with exit 0 means genuinely no workspaces.
+printed `none` with exit 0 means genuinely no workspaces. A path marked `(closed)` is a closed
+mission (`Status: closed` in its `MISSION.md`, [context/mission.md](context/mission.md) "Closing and
+reopening"): show it as closed and never offer it as an active workspace.
 
 ## Action Router
 
@@ -230,15 +232,20 @@ grading so I can direct the work"). The outcome is a precise spec in place of a 
 - **`resume [<topic>]`.** With a topic, resolve that workspace directly (disambiguating by `<mode>`
   when the topic exists in both) and follow "Resume (subsequent sessions)". With none, list the
   workspaces by most recent modification (git or filesystem mtime of the workspace files) and ask which to resume; never silently pick one when
-  more than one exists.
+  more than one exists. List `(closed)` workspaces after the active ones, labeled closed.
 - **`status`.** One line per workspace: mode, topic, `learning-records/` count, current frontier
   concept, last-touched date, and a **due-for-review flag** from filename and mtime plus ONE cheap
   probe that excludes superseded records (`grep -l 'superseded by' learning-records/*.md`, which
   matches the `Status:` line without loading bodies), since a superseded record would raise false
-  flags. Load no full file bodies; per-concept review detail loads only on `resume`.
+  flags. Load no full file bodies; per-concept review detail loads only on `resume`. A `(closed)`
+  workspace's line says `closed` in place of the frontier concept and due-for-review flag; never
+  report it as active. When the script exited 2 and the roots were globbed by hand, a second cheap
+  probe finds closed missions: `grep -lE '^Status:[[:space:]]*closed[[:space:]]*$'` over each
+  workspace's `MISSION.md`.
 - **`explain <concept>` / `exercise` need an active workspace.** They write into `concepts/<concept>/`
-  under a topic workspace. With exactly one, use it; with several, ask which; with none, ask
-  whether to start one (`topic` / `codebase`) before writing. Never invent a workspace silently.
+  under a topic workspace; a `(closed)` workspace is not active. With exactly one, use it; with
+  several, ask which; with none, ask whether to start one (`topic` / `codebase`) before writing.
+  Never invent a workspace silently.
 
 ## Pedagogy. Three Layers
 
@@ -278,9 +285,14 @@ explaining what happens. The user's understanding is the goal, not coverage.
 
 1. Read `MISSION.md`, `GLOSSARY.md` and `NOTES.md`, then the latest `learning-records/` entries for
    the current frontier.
-2. **Check the mission.** Compare the records against each `MISSION.md` "Success Looks Like" item.
-   When every item is met, say so item by item and ask whether to close the mission or revise it
-   with a new goal before teaching anything new; the choice is the learner's.
+2. **Check the mission.** When `MISSION.md` has a `Status: closed` line, say the mission is
+   closed and ask whether to reopen it as it stands, revise it with a new goal, or leave it
+   closed; do not compare the records or offer close-or-revise again. Reopen and revise delete the
+   line ([context/mission.md](context/mission.md) "Closing and reopening"); while it stays, skip
+   steps 3 and 4. Otherwise compare the records against each `MISSION.md` "Success Looks
+   Like" item. When every item is met, say so item by item and ask whether to close the mission or
+   revise it with a new goal before teaching anything new; the choice is the learner's. Choosing
+   close writes `Status: closed` under the `MISSION.md` title.
 3. **Surface due-for-review concepts.** Weigh each floor concept's latest record age against the
    domain's velocity ("Staleness"), list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with
    a quick retrieval question on one due concept when any exist (spacing builds storage strength;

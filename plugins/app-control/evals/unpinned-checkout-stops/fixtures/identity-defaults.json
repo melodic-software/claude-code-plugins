@@ -1,0 +1,17 @@
+{
+  "environment": "staging",
+  "environments": {
+    "dev": {
+      "url": "http://127.0.0.1:9100"
+    },
+    "staging": {
+      "url": "http://127.0.0.1:9200"
+    }
+  },
+  "credentials": {
+    "shopper": {
+      "password": "IDP_SHOPPER_PASSWORD"
+    }
+  },
+  "safety": {}
+}

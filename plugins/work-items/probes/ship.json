@@ -1,0 +1,123 @@
+{
+  "skill": "work-items:ship",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/ship",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are work, work-loop, track and decompose, plus source-control:pull-request.",
+  "competitors": [
+    "work-items:work",
+    "work-items:work-loop",
+    "work-items:track",
+    "work-items:decompose",
+    "source-control:pull-request"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where does the search-revamp effort stand? Which items are ready next?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Ship the onboarding spec container; fan out the ones that are unblocked."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's the next step on the multi-session migration we've been driving?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Resume the data-platform effort where we left off."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Close out the reporting container now that the last items merged."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do these items go as separate PRs or on one integration branch? Tell me and proceed."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Status of #214, the spec container: what is done and what is blocked?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Drive the checkout spec to completion across sessions."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the container for the notifications topic and merge the pieces sequentially."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Let's ship the auth rework; show me where it is and then keep it moving."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which execution shape applies to this spec, and what discipline goes with it?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Pick one ticket and implement it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Cut this PRD into tickets and publish them."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start the unattended loop that drains the whole repo backlog."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Create a pull request for my current branch."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a ticket for the broken export button."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Show me a dashboard of open items by label."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Answer the escalations the agents left for me."
+    }
+  ]
+}

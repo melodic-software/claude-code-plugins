@@ -37,7 +37,8 @@
 // their own `**Decision recorded.**` comment, which re-enters intake; a
 // re-triage then would only refuse again. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
-// and the issue keeps or gets `status: needs-decision`, which a person's
+// shows the reply to copy (DECISION_REPLY) above its footer, and the issue
+// keeps or gets `status: needs-decision`, which a person's
 // `**Decision recorded.**` sends back through intake-reenter.yml. An exact
 // output that names a duplicate or fixing change becomes not exact, with one
 // question whether to close the issue. It never adds `agent-ready` or
@@ -84,7 +85,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, CONFIRMED, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
@@ -478,6 +479,11 @@ export function line(text) {
   return out;
 }
 
+// The reply a refinement that asks questions shows the owner to copy: only a
+// comment whose first line is `**Decision recorded.**` counts as an answer
+// (select-trusted-text's isDecisionComment), and nothing tells them so but this.
+export const DECISION_REPLY = "**Decision recorded.** <answer>";
+
 // `body` is the issue body the refinement is for (bodyVersion); `from`, the
 // body a split split (splitSource); `checks`, a split's moved items as
 // written; `retriage`, whether intake triages the issue again.
@@ -505,6 +511,9 @@ export function render(output, { body, from, checks = [], retriage = false } = {
     output.questions.map((item, index) => `${index + 1}. ${line(item.question)}\n   RECOMMENDED: ${line(item.recommended)} Basis: ${line(item.basis)}`),
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
+  if (!output.exact) {
+    parts.push("To answer, post a comment that starts with this line:", "", "```", DECISION_REPLY, "```", "");
+  }
   parts.push(
     !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
   );
@@ -649,6 +658,20 @@ export async function applyRefinement({ github, repository, number, appId, human
     await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
+  }
+  // Admission parks a refusal no person must answer at status: confirmed
+  // (admit.mjs): it resumes like the App's own needs-decision below.
+  const parked = !labels.includes(NEEDS_DECISION) && !labels.includes(READY) && !labels.includes(AGENT_READY) && labels.includes(CONFIRMED) &&
+    comments.some((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
+  if (parked) {
+    if (await untrusted()) {
+      return { outcome: "exact", redispatch: false };
+    }
+    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await removeLabel(github, base, CONFIRMED);
+    await post(true);
+    log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
+    return { outcome: "exact", redispatch: true };
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
   // agent-ready) is triaged again when the text admission counts, with this

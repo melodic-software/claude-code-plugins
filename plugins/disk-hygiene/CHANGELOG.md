@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-10-27
+
+### Fixed
+
+- **`run-python-hook.sh` ignores a tmp launch-marker directory this user does not own.** With no plugin data root, the `--launch-marker` and `--skip-unless-marker` markers live under the shared `${TMPDIR:-/tmp}/disk-hygiene-<subdir>`, so another local user could pre-create that directory, or a symlink in its place, and plant or suppress a `.launched` marker; an empty planted directory reads as "no guard launched" and skips the guard-launch monitor. A tmp marker directory that is a symlink or that this user does not own is now neither read nor written by the launcher, the same check its no-interpreter notice already made, and the launcher creates its marker directories with mode 700. The node launcher's own pre-bash skip (`hooks/exec-bash.mjs`) does not check ownership yet.
+
+## [0.45.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [0.44.1] - 2026-10-26
+
+### Fixed
+
+- **A session resumed after `/disk-hygiene:clean` now hears that the clean skill's guard is gone.** The skill-frontmatter belt (the PowerShell deletion prompts and the deny-by-default Bash lane) is not registered after `claude -p --resume`, so an approved manual-lane delete ran unprompted in the resumed process. The `/disk-hygiene:clean` expansion hook now writes a per-session marker, and the existing `SessionStart` entry, on `source: resume` with that marker present, tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again. It is a notice, not a gate. The safety model, the unsupported-platform handoff, the README and the setup skill now state the belt's lifetime as the process that invoked the skill, with the Windows probe as the verification record ([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)).
+
 ## [0.44.0] - 2026-10-25
 
 ### Added

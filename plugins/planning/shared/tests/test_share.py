@@ -108,6 +108,17 @@ class TestEnsureRunning(Running):
         self.assertEqual((out["guestUrl"], out["resumed"]), (self.first["guestUrl"], True))
         self.assertEqual((self.session_record()["pid"], tunnel.read(self.d)["pid"]), (pid, cf))
 
+    def test_a_server_from_another_build_is_restarted_on_its_ports(self):
+        s = self.session_record()
+        (self.d / ".shared-session.json").write_text(json.dumps({**s, "pluginVersion": "0.0.0-old"}), encoding="utf-8")
+        cf = tunnel.read(self.d)["pid"]
+        code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+        self.assertIn("restarted the shared server: it runs 0.0.0-old", err)
+        now = self.session_record()
+        self.assertNotEqual(now["pid"], s["pid"])
+        self.assertEqual((now["port"], now["pluginVersion"], tunnel.read(self.d)["pid"]), (s["port"], s["pluginVersion"], cf))
+
     def test_the_owner_link_is_private_and_carries_the_token_in_the_fragment(self):
         link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
         self.assertRegex(link, r"^http://127\.0\.0\.1:\d+/#owner=[A-Za-z0-9_-]{43}$")
@@ -384,6 +395,20 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(out["summaries"]["dropped"], 0)
         self.assertEqual((out["latency"]["/api/vote"]["actions"], out["latency"]["/api/vote"]["rollbacks"]), (1, 0))
         self.assertEqual(out["reconnect"]["count"], 0)
+
+    def test_the_text_prints_the_sections_the_host_health_panel_shows(self):
+        """README "Logs", "Host Health": the panel shows summary_sections; the plain text is those sections, a titled
+        one's lines indented under it. Expected titles and lines are the ones test_text_reads_the_same_counts reads."""
+        out = share_cli.summarize([])
+        sections = share_cli.summary_sections(out)
+        self.assertEqual([x["title"] for x in sections], [
+            "", "Top errors:", "Refusals by route and code (the server's own entries):", "Network failures and unanswered actions:",
+            "Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:", "", "Layout anomalies by device:", "",
+            "Feature use, taps by component:", "Rage taps (three quick taps on one control) by component:", "Dead taps (a tap that changed nothing on the page) by component:"])
+        self.assertEqual((sections[1]["lines"], sections[4]["lines"]), (["none"], ["none", "Rollback rate: 0 of 0 actions (-)"]))
+        text = share_cli.summary_text(out)
+        self.assertIn("\n\nTop errors:\n  none\n\nRefusals by route and code", text)
+        self.assertIn("\n  none\n  Rollback rate: 0 of 0 actions (-)\n\nReconnect gaps after the page shows again: 0, 0 over 10 s, worst - ()\n\nLayout", text)
 
     def test_an_empty_log_summarizes_to_nothing(self):
         code, out, err = share(tmpdir(self), "logs", "--summary", "--json")

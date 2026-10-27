@@ -244,7 +244,12 @@ def bind(
         )
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
         reason = exc.reason if isinstance(exc, Unbound) else "evidence-error"
-        return tuple(LaneEvidence(lane, False, reason, None) for lane in LANES)
+        return tuple(
+            _unbound(
+                lane, reason, head_sha, runs, comments, threads, is_human, head_file
+            )
+            for lane in LANES
+        )
 
 
 def lane_source(path: Any) -> bool:
@@ -288,9 +293,76 @@ def _bind_lane(
             [(None, marker), *_summary_comments(lane, comments)],
         )
     except Unbound as exc:
-        return LaneEvidence(lane, False, exc.reason, None)
+        return _unbound(
+            lane, exc.reason, head, runs, comments, threads, is_human, head_file
+        )
     blocking = critical if lane == SEVERITY_LANE else None
     return LaneEvidence(lane, True, None, count, clears, blocking)
+
+
+def _unbound(
+    lane: str,
+    reason: str,
+    head: Any,
+    runs: Any,
+    comments: Any,
+    threads: Any,
+    is_human: Callable[[Any], bool],
+    head_file: Callable[[str, str], str | None] | None,
+) -> LaneEvidence:
+    """The unbound evidence for `lane`, carrying for the security lane the
+    blocking findings its last bound review on this pull request still
+    leaves open (`_carried_blocking`), so an unbind never hides one."""
+    carried = (
+        _carried_blocking(head, runs, comments, threads, is_human, head_file)
+        if lane == SEVERITY_LANE
+        else None
+    )
+    return LaneEvidence(lane, False, reason, None, False, carried or None)
+
+
+def _carried_blocking(
+    head: Any,
+    runs: Any,
+    comments: Any,
+    threads: Any,
+    is_human: Callable[[Any], bool],
+    head_file: Callable[[str, str], str | None] | None,
+) -> int | None:
+    """The security lane's blocking findings at the newest head of this pull
+    request its evidence binds at, the pinned head first, judged as at that
+    head against the threads and comments read now; None when none binds.
+    It reads only what the caller already read."""
+    try:
+        lane_runs = _lane_runs(SEVERITY_LANE, runs)
+        ordered = sorted(
+            lane_runs,
+            key=lambda item: (str(item.get("created_at") or ""), item["id"]),
+            reverse=True,
+        )
+        heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
+    except Exception:  # noqa: BLE001 - nothing read, nothing carried
+        return None
+    for sha in dict.fromkeys(h for h in heads if isinstance(h, str)):
+        try:
+            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs)
+            marker = _require_marker(SEVERITY_LANE, sha, comments, newest_only=False)
+            _require_marked_runs(SEVERITY_LANE, lane_runs, comments)
+            _, _, critical = _open_findings(
+                SEVERITY_LANE,
+                lane_runs,
+                threads,
+                is_human,
+                set(),
+                reviewed,
+                chain,
+                head_file,
+                [(None, marker), *_summary_comments(SEVERITY_LANE, comments)],
+            )
+        except Exception:  # noqa: BLE001 - this head does not bind; try older
+            continue
+        return critical
+    return None
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -543,9 +615,16 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
     )
 
 
-def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]]) -> str:
+def _require_marker(
+    lane: str,
+    head: str,
+    comments: Sequence[Mapping[str, Any]],
+    newest_only: bool = True,
+) -> str:
     """The newest reviewed-head marker the lane job wrote must name `head`;
-    its body, which carries the covering review's summary."""
+    its body, which carries the covering review's summary. With
+    `newest_only` False, the newest marker naming `head` will do, for a
+    review a newer marker has passed."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
     newest: tuple[str, int, str, str] | None = None
@@ -557,7 +636,7 @@ def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]])
             continue
         first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
         match = MARKER_RE.match(first_line)
-        if not match or match[1] != lane:
+        if not match or match[1] != lane or not (newest_only or match[2] == head):
             continue
         key = (
             str(comment.get("created_at") or ""),

@@ -3,6 +3,69 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.113.0] - 2026-10-27
+
+### Added
+
+- The interview page server records the plugin version and a hash of its own source at start, and `/api/state` reports them as `pluginVersion` and `sourceHash`. The page compares them with the build stamped into it when served and, when its server is older, shows "This page's server is older than the page. Run ensure-running to restart."
+- `round.sh ensure-running` restarts a running page server whose recorded plugin version or source hash differs from the installed plugin's, on its port and with its user settings file, posting no finish, and says so on stderr. The shared session's `share.sh ensure-running` and the view bridge's `ensure-running` restart such a server the same way.
+- `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [0.112.1] - 2026-10-26
+
+### Fixed
+
+- The session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
+## [0.112.0] - 2026-10-26
+
+### Added
+
+- **`repin.sh` re-pins several `interview-defenses.test.sh` digests in one call.** `tests/repin.sh [--test-file <path>] <pin-label>... <reason>` takes any number of labels before the one reason, resolves every label before it writes, and refuses the whole call, leaving the file unchanged, when any label matches no pin, more than one, or a pin an earlier label already named (exit 3) or names a pin whose digest already matches (exit 4). It prints one `<label>: <old> -> <new>` line per pin, reruns the suite once and ends `PASS` or `FAIL`. Pins that share a stale literal each take the digest from their own failure line.
+
+## [0.111.1] - 2026-10-26
+
+### Fixed
+
+- `check-open-questions.sh` no longer grades a register clean while question rows sit below a sub-heading inside it. Any unfenced `- Q<N> |` row outside the `## Open-question register` section now makes the ledger ungradeable (exit 2), and stderr names each such row's line. Rows inside a fenced block are still documentation. The `/planning:interview` ledger template now says to keep live rows above any heading in the register.
+
+## [0.111.0] - 2026-10-26
+
+### Added
+
+- `check-plan-outcome.sh` grades a new `criteria` criterion: each acceptance criterion id (`AC1:`) must be named on some phase's `**Satisfies:**` line. It fails an unmapped id (`unmapped=`), an id no criterion defines (`unknown=`), a criterion without an id beside ones with ids, and an id used twice. A plan whose criteria carry no id passes with a warning.
+
+### Changed
+
+- `/planning:interview` writes each Brief acceptance criterion with an id, `- AC<n>: <criterion>`, with an EARS tag after the id under the `ears` format.
+- `/planning:plan` numbers any Brief criteria that lack ids, gives a criterion it adds the next id, and has each phase name the ids it satisfies; its outcome gate maps them by script instead of by reading.
+
+## [0.110.0] - 2026-10-26
+
+### Added
+
+- `/planning:plan` publishes an approved plan at a reader depth: `step-by-step` (default, the whole PLAN.md), `standard` (the `## Brief`, the `## Design` section and a phase outline) or `guardrails` (the `## Brief` and the `## Design` section). The depth comes from a `--reader <depth>` argument, else the depth the plan recorded at its first publish, else the new `plan_reader` key in `docs/conventions/planning.yaml` or the plugin's user config, else `step-by-step`. A reduced depth renders a derived `PLAN.<depth>.md` that keeps the `Approval:` line and goes to `/work-items:track publish-plan` and the pull request paste; PLAN.md stays whole.
+- PLAN.md's `### Conventions followed` carries a `Net new:` line and a `Challenges a pattern:` line, which `/planning:design-handoff` fills.
+
+## [0.109.1] - 2026-10-26
+
+### Fixed
+
+- The interview page's question pane fixes several layout and accessibility papercuts ([#7970](https://github.com/melodic-software/claude-code-plugins/issues/7970)). The recommendation's full text shows once, in the Decide list's Rec row, which now keeps its code, links and emphasis, and the Thread no longer opens with a `Claude asked` line that repeated the question. The header names a group only when it differs from the stage. Why and Details toggle side by side, so opening one never moves the other. The side panels open pinned beside the question on a screen 1200 px or wider until you choose, a stored Pin choice still wins, and Esc still closes a panel only that default pinned. The Pin control reads `Pin beside`. `Finish: export and end the session` is a secondary control while anything is outstanding and the primary one at zero, enabled either way. The dialog's second button has a name before it shows. The light theme's faint label color is darker (`#5f6a7c`, at least 4.57:1 on every light background). A wide Decide pane shows its rows in two columns, and on a short screen the question gives the answer area more room, down to 41% of the pane, so the whole list fits unscrolled at 1568x744.
+
+## [0.109.0] - 2026-10-26
+
+### Added
+
+- The shared interview page gives the owner a Host Health panel, listed in Help and More, which no one else sees ([#9974](https://github.com/melodic-software/claude-code-plugins/issues/9974)). It shows what `share.sh logs --summary` reports for the whole kept log, in the same sections: top errors, refusals, network failures, action latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and feature use, rage taps and dead taps by control. It loads when the panel opens and again on Refresh. The panel reads the new owner-only `GET /api/owner/health`, which answers `{summary, sections}`. `logs --summary` now prints its last line, about repeats whose first entry has left the log, after a blank line like the other sections.
+
+## [0.108.0] - 2026-10-26
+
+### Added
+
+- The interview surface has a `propose` op for a new question an Ask opens: `id`, `title`, `short`, optional `group` and `fromSeq` (the Ask it answers). The question is `proposed` until the user answers it: the page shows a Needs-you card, `Claude proposes adding: <title>`, with Accept, Edit and Not this and no Decide list, which post a `proposal` event (`accept`, `edit` with the user's wording, or `decline`). The server derives the question `open` after an accept or edit and `archived` after a decline, and refuses a decision on it before then, and an accept until Claude writes its recommendation. The exports write no row for it until the user accepts or edits it (a declined one exports as a withdrawn row), `status` lists it apart from the live count, and a recommendation, alternatives, commitments or a terminal answer on it are refused until then.
+- The interview skill's surface guide says a reply to an Ask that opens new scope carries an `Understood as:` readback naming the proposed ids, and a question an Ask opens goes through `propose` before it gets a recommendation.
+
 ## [0.107.1] - 2026-10-26
 
 ### Fixed

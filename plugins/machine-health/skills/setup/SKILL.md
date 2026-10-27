@@ -1,5 +1,5 @@
 ---
-description: "Configure the machine-health plugin for this machine. check (read-only, default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, and unmute findings. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
+description: "Configure the machine-health plugin for this machine. check (default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run; its one write refreshes a stale monthly wrapper copy, only on the owner's yes. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, and unmute findings. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
 argument-hint: "[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|unmute=<key>…]"
 user-invocable: true
 disable-model-invocation: true
@@ -90,12 +90,13 @@ $pluginRoot, $stateRoot, $reportRoot, $payloadPath = @'
   **As of**: 2026-10-22. **Recheck trigger**: that section stops substituting in skill content or
   starts exporting the variables to the Bash or PowerShell tool.
 
-## `check` (read-only)
+## `check` (read-only, except one write on the owner's yes)
 
 The shipped catalog (`${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/checks.jsonc`) is the single
 source of truth for what checks exist and their defaults. **Read it first**, then read the existing
 overlay, approvals, and `<StateBase>/TODO.md` when present. Report a PASS/FAIL/INFO table with one
-suggested-action line per FAIL; modify nothing. The plugin ships a working zero-config default (the whole
+suggested-action line per FAIL; modify nothing but the stale wrapper copy step 6 offers to
+refresh. The plugin ships a working zero-config default (the whole
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
@@ -154,8 +155,18 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -StateBase $stateRoot
    ```
 
-   FAIL when `WrapperCurrent` is false, or it throws: the copy is an older wrapper. Rerunning
-   `schedule` rewrites it.
+   FAIL when `WrapperCurrent` is false, or it throws: the copy is an older wrapper. When it is
+   false, offer to refresh the copy from the plugin's template, and only on the owner's own yes in
+   this conversation run, appended to the [roots block](#resolving-the-state-root):
+
+   ```powershell
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $null = Install-MonthlyRun -StateBase $stateRoot; Test-MonthlyRunCurrent -StateBase $stateRoot
+   ```
+
+   It rewrites the copy alone, never the task, and reports the new `WrapperCurrent`: PASS when
+   true, FAIL quoting the error when it throws or is still false. Without a yes, write nothing.
+   The refresh restarts the 35-day clock the no-status-file verdict above reads, so report that
+   verdict before offering it.
 
 ## `apply` (idempotent)
 
@@ -340,8 +351,7 @@ It prints the report folder the monthly runs will write to: show it to the owner
 `claude -p "/machine-health:audit on-demand --scheduled"` in auto mode under the wrapper's time
 limit (its `-TimeoutSeconds` default) and records each run in
 `<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). A plugin update that
-changes the wrapper leaves the copy stale, and `check` step 6 FAILs it; rerunning `schedule`
-rewrites it.
+changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offers the refresh.
 
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
@@ -365,7 +375,7 @@ rewrites it.
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -StateBase $stateRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
    ```
 
-   It copies the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
+   It writes the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
    earlier build left there. The wrapper runs only from that folder, never from the plugin install,
    which a plugin update replaces. Re-running this step refreshes the copy and replaces the task. Then show the owner the command the task will run:
    `(Get-ScheduledTask -TaskName 'machine-health monthly').Actions | Format-List Execute, Arguments`.
@@ -394,7 +404,8 @@ rewrites it.
 An updated `<StateBase>/catalog/checks.local.jsonc` (and `approvals.json` or `mutes.json` when
 approvals or mutes changed),
 plus a one-paragraph summary of what changed and how to re-run this setup to reconfigure. `check`
-alone reports the effective configuration and changes nothing.
+alone reports the effective configuration and changes nothing but a stale wrapper copy the owner said
+yes to refreshing.
 
 ## Next
 

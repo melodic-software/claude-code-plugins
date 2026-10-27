@@ -75,6 +75,7 @@ class RerunRateLimitedReview(unittest.TestCase):
         annotations: list[str | dict[str, Any]] = (RATE_LIMITED,),  # type: ignore[assignment]
         now: str = "2026-10-09T15:00:00Z",
         check: dict[str, Any] = CHECK,
+        attempt_conclusion: str = "failure",
     ) -> tuple[dict[str, Any], list[list[str]]]:
         reads: list[list[str]] = []
         posts: list[list[str]] = []
@@ -91,6 +92,8 @@ class RerunRateLimitedReview(unittest.TestCase):
                     else {"annotation_level": "failure", "message": a}
                     for a in annotations
                 ]
+            if args[1] == f"repos/{REPO}/actions/runs/{RUN_ID}/attempts/1":
+                return {"run_attempt": 1, "conclusion": attempt_conclusion}
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         def capture(cmd: list[str]) -> Any:
@@ -113,6 +116,17 @@ class RerunRateLimitedReview(unittest.TestCase):
         self.assertEqual(
             posts, [["api", "-X", "POST", f"repos/{REPO}/actions/runs/{RUN_ID}/rerun"]]
         )
+
+    def test_a_failed_job_in_an_attempt_that_did_not_fail_is_not_rerun(self) -> None:
+        # The binding (review_evidence.rerun_binds) takes attempt 2 only
+        # after an attempt 1 that concluded failure, so a re-run of any other
+        # attempt would spend the one allowed attempt on a hold.
+        for conclusion in ("cancelled", "success"):
+            with self.subTest(conclusion):
+                report, posts = self._run(attempt_conclusion=conclusion)
+                self.assertFalse(report["rerun"])
+                self.assertIn(conclusion, report["reason"])
+                self.assertEqual(posts, [])
 
     def test_before_the_reset_waits_without_reading_annotations(self) -> None:
         report, posts = self._run(now="2026-10-09T14:59:00Z")

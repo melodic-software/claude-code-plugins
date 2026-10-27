@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
 ## [1.5.0] - 2026-10-26
 
 ### Changed

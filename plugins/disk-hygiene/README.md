@@ -140,8 +140,10 @@ from the scopes a repo cannot forge:
 2026-10-11; recheck when that section changes which scopes the key is read from), register
 unconditionally, and fail closed to enabled.
 
-Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the session. Start a
-new session to clear it. The plugin-level engine gate fires inside subagents. The
+Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
+new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
+a `SessionStart` notice tells the model to make no delete or overwrite until the user types
+`/disk-hygiene:clean` again (#9853). The plugin-level engine gate fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
 "evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
 [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565) observed the subagent
@@ -176,7 +178,8 @@ either; the failure table below states what happens then.
 (`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
 skill the guard's absolute Python and authorized `--data-root`, resolved by the guard's own code, so
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
-guard still judges every call.
+guard still judges every call. The same row records the session id in a marker file, which the resume
+notice reads.
 
 An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
 they blocked, so the guard is only as strong as the mods installed beside it.

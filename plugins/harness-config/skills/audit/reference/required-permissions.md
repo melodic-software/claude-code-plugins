@@ -8,25 +8,26 @@ B.1 / B.2 / B.3:
 - `destructive-bash-deny` → must appear in `permissions.deny` (Bash patterns)
 - `ask-rules` → must appear in `permissions.ask` (Bash patterns)
 
-This is the cross-repo security floor. Projects with a stricter posture (extra secret-file paths,
-destructive API-endpoint families, hook-bypass blockers, additional ask-gates) declare those in their
-own rules files; Category B checks them alongside this baseline. Both arg-bearing and bare forms are
-listed separately where relevant, because CC permission globs are greedy across slashes but require an
-explicit pattern for each invocation shape.
+This is the cross-repo security minimum the audit checks. Projects with a stricter posture (extra
+secret-file paths, destructive API-endpoint families, hook-bypass blockers, additional ask-gates)
+declare those in their own rules files; Category B checks them alongside this baseline. Both
+arg-bearing and bare forms are listed separately where relevant, because CC permission globs are
+greedy across slashes but require an explicit pattern for each invocation shape. How this minimum
+differs from the standards repository's permission floor, and why, is in "Relation to the standards
+permission floor" below.
 
 ## sensitive-file-deny (Read deny)
 
 Read deny patterns for secret-bearing files. `.env` / `.env.*` are the de-facto secrets convention;
-`secrets/**` is the conventional secrets directory; the `settings.local.json` deny prevents tokens
-stored there from being read by tools; key/PEM/SSH patterns cover private-key material anywhere in the
-tree.
+`secrets/**` is the conventional secrets directory; key/PEM/SSH patterns cover private-key material
+anywhere in the tree. `.claude/settings.local.json` is deliberately not in this table; see "Relation
+to the standards permission floor" below.
 
 | Pattern | Purpose |
 | --- | --- |
 | `Read(./.env)` | Block reading .env file |
 | `Read(./.env.*)` | Block reading .env.local, .env.production, etc. |
 | `Read(./secrets/**)` | Block reading secrets directory |
-| `Read(./.claude/settings.local.json)` | Block reading file containing tokens/secrets |
 | `Read(**/*.key)` | Block reading private-key files anywhere in tree |
 | `Read(**/*.pem)` | Block reading PEM certificate/key files anywhere in tree |
 | `Read(**/id_rsa)` | Block reading SSH private keys |
@@ -218,9 +219,68 @@ because pushes carry intent the agent should not infer.
 | `Bash(git push *)` | Require confirmation before pushing with args |
 | `Bash(git push)` | Require confirmation before pushing without args |
 
+## Relation to the standards permission floor
+
+The standards repository keeps its own permission floor in
+[`components/claude-permissions/claude-permissions.json`](https://github.com/melodic-software/standards/blob/main/components/claude-permissions/claude-permissions.json),
+explained in that component's
+[README](https://github.com/melodic-software/standards/blob/main/components/claude-permissions/README.md).
+This baseline is the smaller set the audit flags when absent. Where the two differ:
+
+- **`.claude/settings.local.json` is on neither.** The floor leaves the file off on purpose, and this
+  baseline follows it. The file holds personal overrides for one project and the standing approvals
+  Claude Code saves there ("Yes, and don't ask again"). The floor's README calls it not a credential
+  store. A `Read` deny on it also blocks Edit and Write on the same path, which stops the documented
+  way to manage project-local rules. Claude Code keeps the file at the repository root even when a
+  session starts in a subdirectory, and a relative rule does not reach a parent directory, so such a
+  deny is incomplete there. A missing deny for it is not a finding. A project that does keep a secret
+  in the file carries the deny in its `settings.json` and declares it required in its own rules files,
+  and Category B checks it there. The file is still where Category F sends a token found in the
+  tracked `settings.json`, because it stays out of git. Out of git is not out of the session: a
+  finding that moves a secret there also names a project `Read` deny on the file, with the limits
+  "Scope of a Read deny" above states, or a credential store. Inspecting the file still follows
+  [procedures.md](../context/procedures.md) "Reading settings.local.json safely", which treats it as
+  secret-bearing either way.
+- **Three sensitive-file rows are spelled differently.** The baseline writes `./.env`, `./.env.*` and
+  `./secrets/**`; the floor writes the same three without the `./`. The baseline keeps the `./` form
+  because the settings page's own deny example writes `Read(./.env)` and `Read(./.env.*)`. The
+  permissions page lists `path` and `./path` as one pattern type, relative to the current directory.
+  The bare forms block at least what the `./` forms name: a bare filename matches at any depth under
+  the current directory, and a one-directory deny such as `secrets/**` matches that directory at any
+  depth. The page does not say whether the `./` prefix changes match depth. The engine compares rule
+  strings exactly, so a project that carries only the floor's bare spelling gets a missing-pattern row
+  for each of the three. Report such a row as present under the floor's spelling, not as a missing
+  rule. `Read(**/*.key)`, `Read(**/*.pem)` and `Read(**/id_rsa)` appear in the floor exactly as
+  written here.
+- **The floor is wider.** Its deny list also carries the `**/`-prefixed form of each secret-file
+  pattern and more credential files: other SSH key types (`id_dsa`, `id_ecdsa`, `id_ed25519`, plus
+  `id_ecdsa_sk` and `id_ed25519_sk`), `*.ppk`, `.credentials.json`, `secrets.json` and
+  `.azure-cli/**`. It also carries more
+  destructive git spellings: the flag after an operand (`git push * --force`), `--mirror`, `--delete`,
+  `--no-verify`, `git clean --force` and `-fdx`. The README says the floor writes these in both
+  `Bash()` and `PowerShell()` forms. All eight `destructive-bash-deny` rows above appear in the floor
+  exactly as written. The baseline stays the common minimum, so a project without the floor is not
+  flagged for every extra. A project that adopts the floor's extras declares them in its own rules
+  files, and Category B checks them there.
+- **`git push` is an ask rule here and an allow rule there.** The floor allows `Bash(git push *)` and
+  `Bash(git push)` and has no `ask` list. The baseline keeps both as ask rules, because a push carries
+  intent the agent should not infer. Carrying both does not cancel the ask rule: Claude Code evaluates
+  deny, then ask, then allow, and a matching ask rule prompts even when an allow rule matches too. A
+  project that takes the floor's allow without the ask rules gets the `ask-rules` warning. Narrowing 1
+  below covers a project that pushes unattended.
+
+The record for this comparison:
+
+- **Basis**: the floor's JSON and README above, the
+  [permissions page](https://code.claude.com/docs/en/permissions) "How path patterns match" and its
+  rule-order sentence, and [settings](https://code.claude.com/docs/en/settings) "Settings files and
+  who they affect" and its deny example.
+- **As of**: 2026-10-26.
+- **Recheck trigger**: the floor's `deny` or `allow` list changes, or it adds an `ask` list.
+
 ## Narrowing the baseline
 
-The baseline is a floor for the common case, not an unconditional mandate. Three narrowings apply, and
+The baseline is a minimum for the common case, not an unconditional mandate. Three narrowings apply, and
 Category B checks all three before flagging an absent pattern.
 
 **1. A documented exemption in the consuming repo.** A repo where a pattern is

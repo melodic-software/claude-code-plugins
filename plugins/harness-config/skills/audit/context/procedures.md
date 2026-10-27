@@ -11,12 +11,14 @@ supplemental jq: below.
 The safety here is *what gets emitted*, not what gets opened. `check-structure.sh` opens the file from
 inside a subprocess, which a `Read(...)` deny does not cover. It is safe because it emits counts and
 never values. The `cat … | jq` recipes below go the other way: `cat` is a file command Claude Code
-recognizes in Bash, so a project carrying the baseline `Read(./.claude/settings.local.json)` deny will
-block them. That is the correct outcome. Do not route around it with an interpreter one-liner
+recognizes in Bash, so a project whose settings carry a `Read(./.claude/settings.local.json)` deny will
+block them. That is the correct outcome. Do not route around the block with an interpreter one-liner
 (`python -c`, `node -e`) to dump content the sanctioned script will not emit. See "Scope of a Read
-deny" in [reference/required-permissions.md](../reference/required-permissions.md).
+deny" in [reference/required-permissions.md](../reference/required-permissions.md); that file's
+"Relation to the standards permission floor" says why the deny is a project's choice, not part of the
+baseline.
 
-**Counts are not guaranteed.** Where the project also enables the sandbox, the baseline `Read` deny
+**Counts are not guaranteed.** Where the project also enables the sandbox, a `Read` deny on the file
 merges into the sandbox filesystem boundary and the OS blocks `check-structure.sh` and its `tr`/`jq`
 children too, and the subprocess route closes. The script distinguishes that case: it reports
 `Readable: no` with a `not inspectable` note rather than `Valid JSON: no`, and does not fail the run.

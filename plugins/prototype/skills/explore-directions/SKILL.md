@@ -1,5 +1,5 @@
 ---
-description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default) behind one route, toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Runs on the real stack by default or as a self-contained HTML mockup; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default), toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Builds a self-contained HTML mockup by default, or runs on the real stack behind one route on request; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
 argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -40,9 +40,10 @@ Arguments: `$ARGUMENTS`
 ## Purpose
 
 The output is a recorded decision about one screen's layout, made by a user who has clicked
-through working candidates rather than sketches. The candidates are mounted in the app itself (or
-in a local mockup) with a switcher attached; the verdict may combine parts of several of them, and
-once it is written down, all candidate code is deleted.
+through working candidates rather than sketches. The candidates live in a local HTML mockup that
+opens with nothing running (or, on request, in the app itself) with a switcher attached; the
+verdict may combine parts of several of them, and once it is written down, all candidate code is
+deleted.
 
 The examples in this file follow one case: the `/shipments` page of an order-tracking app, where
 the team cannot agree on how to show parcels in transit.
@@ -67,25 +68,34 @@ question, not an appearance question, and belongs to the other facet: invoke
 ## Where the variants live
 
 Choose a host before drafting anything. This table is the intent selector the rest of the file
-refers to: the question decides the row, not whichever mount point is easiest. A direct request
-for a real-stack page or for an HTML mockup overrides it in either direction.
+refers to. The HTML mockup is the default host: whoever decides (a developer, a product owner, a
+designer, or several of them) opens it from `file://` with nothing running. The real stack is an
+explicit override: a request to build the variants on the real stack or in the app ("on the real
+stack", "in the app", "behind `?variant=` on `/shipments`") picks sub-shape A, or B when no page
+can host them. A running dev server alone is not that request. The default picks a host once the
+skill runs; it never starts a prototype unasked, and the discipline's auto-invoke gate still stops
+for confirmation before any file is written.
 
 | Host | Choose it when | How the variants are mounted | When the exercise ends |
 |---|---|---|---|
-| **Sub-shape A** (default) | A page already exists, or the new piece would sit inside one (a panel, a card, one step of a flow) | Inside that page, selected by a `?variant=` query parameter or the framework's equivalent. The page keeps its data loading, route parameters and auth; only the subtree under test changes | Merge the winning variant into the page; remove the switcher and every losing variant |
-| **Sub-shape B** (last resort) | The candidate-page check below found nothing, as for a carrier sign-up wizard in an area the app does not have yet | A new route, placed and named under the discipline's "Marked as disposable from the start" rule, with the same `?variant=` selection | Turn the winning variant into a real route; remove the switcher along with the throwaway route |
-| **HTML mockup substrate** | No page to host it and speed matters more than realism: no app or dev server running, no app yet, or someone who is not a developer exploring | One local `file://` page, described in the next section | Discard the file once the winning key and notes are written down; nothing tracked is left |
+| **HTML mockup substrate** (default) | No request for the real stack. For an existing app the mockup keeps the app's look; with no app yet, or a redesign asked, each variant declares its own direction | One local `file://` page, described in the next section | Discard the file once the winning key and notes are written down; nothing tracked is left |
+| **Sub-shape A** (real stack, on request) | The real stack was asked for, and a page already exists or the new piece would sit inside one (a panel, a card, one step of a flow) | Inside that page, selected by a `?variant=` query parameter or the framework's equivalent. The page keeps its data loading, route parameters and auth; only the subtree under test changes | Merge the winning variant into the page; remove the switcher and every losing variant |
+| **Sub-shape B** (real stack, last resort) | The real stack was asked for and the candidate-page check below found nothing, as for a carrier sign-up wizard in an area the app does not have yet | A new route, placed and named under the discipline's "Marked as disposable from the start" rule, with the same `?variant=` selection | Turn the winning variant into a real route; remove the switcher along with the throwaway route |
 | **Design canvas** (the user runs it) | The user took the `/design` offer described below | Artboards on a published canvas | Write down the winning key and notes the same way, then ask whether the user wants the canvas kept (it persists under their account) or cleared; nothing tracked points at it either way |
+
+**When the real stack earns its cost.** The mockup reproduces an existing app's styling and the
+page around the feature, but it binds synthetic data and needs no running app. Suggest the
+real-stack override, without switching to it unasked, when the judgment depends on what the mockup
+cannot reproduce: a layout sensitive to live data volume, such as a parcel card that looks roomy
+beside five synthetic parcels but pushes the order summary off screen on the real `/shipments`
+with forty parcels in transit, or page chrome the mockup cannot rebuild from the app's markup and
+CSS. The real stack costs a running app and buys a judgment made inside it; it is also where the
+winner is folded in.
 
 **Candidate-page check.** Before choosing B, list every existing page the piece could be added to
 and say why each one fails. For a returns panel the list is `/shipments`, the order detail page
-and the account page. The check matters because a parcel card that
-looks roomy on a bare route can push the order summary off screen on the real `/shipments`, with
-its header, its filters and forty parcels in transit.
-
-Sub-shape B and the mockup substrate cover the same situation, no page to host the work. B costs
-a running app and buys a judgment made inside it; the mockup gives up that realism for a page that
-opens with nothing running.
+and the account page. The check matters because a variant judged on a bare route loses the same
+realism the override was asked for.
 
 ## HTML mockup substrate
 
@@ -114,9 +124,10 @@ Constraints:
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
   `file://`. No external scripts, fonts, or data fetches. Enforce this rather than trusting it:
   emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
-  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
-  only remote origins, CDNs, web fonts, `fetch`/XHR, are forbidden.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:">`.
+  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script),
+  and so do `data:` images and fonts (an existing app's inlined assets, below);
+  only remote origins, CDNs, remote web fonts, `fetch`/XHR, are forbidden.
 - **Ephemeral placement.** Generate the mockup via the platform's temp primitive, never a tracked
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
   the page inside it, echoing the directory in the same call:
@@ -127,12 +138,21 @@ Constraints:
   That is why the page takes a fixed name inside the generated directory rather than an
   `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under
-  `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
+  `%LOCALAPPDATA%\Temp`. One file per run, or one per variant when the person asks for separate
+  files. The path is handed to the user to open from `file://`,
   so do not delete it. It must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
   answer (per the shared discipline); the HTML is throwaway.
-- **Each variant declares its visual direction.** The mockup has no project styling system to
-  inherit, so with no declared direction every variant renders in one default house aesthetic.
+- **An existing app keeps its look.** When the variants change part of an app that exists, build
+  every variant from the app's own styling and markup: inline its CSS in the page's `<style>`
+  (never linked, per the rule above; fold its `@import`s in and turn its `url()` assets into
+  `data:` URIs), reproduce its surrounding page markup once (header, navigation, the page around
+  the feature) with synthetic values in place of every real value (records, user names, counts),
+  and let the variant containers wrap only the subtree under test. Every variant shares that look
+  and differs structurally. The per-variant direction below applies only when no app exists yet
+  or the person asked to change the app's design.
+- **Otherwise each variant declares its visual direction.** With no app look to keep, and no
+  declared direction, every variant renders in one default house aesthetic.
   Before writing a variant, state its direction. Background hex, accent hex, typeface, one-line
   rationale, and make it differ from its siblings on that axis as well as structurally. Generic
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
@@ -147,10 +167,9 @@ Constraints:
 When the intent selector lands on the HTML mockup substrate, tell the user before building that
 the design canvas is an alternative they can run themselves, using the suggest sentence in the
 Boundary section below. The bundled `design` skill is reserved for the person to run; this skill
-never invokes it and never switches silently. The HTML mockup stays the default and is built
-either way:
+never invokes it and never switches silently. This skill builds the HTML mockup either way:
 
-- **HTML mockup (default)**, the throwaway `file://` page above; nothing persists.
+- **HTML mockup (built either way)**, the throwaway `file://` page above; nothing persists.
 - **Design canvas**, run by the user as `/design <scope>`: it drafts the variants as artboards on
   one canvas, published as a Claude Design Artifact. Name the lifecycle difference in the offer:
   the canvas is a published, persistent Artifact. Default-private, shareable with teammates at
@@ -168,16 +187,17 @@ the repo references it. The surface facts and their verified-on record live in
 ### 1. Write the plan
 
 Before any code, record the plan as one line naming the route, the host and the keys, for example:
-"Plan: `/shipments`, sub-shape A, variants A to C selected by `?variant=`." The count is **3
+"Plan: `/shipments`, HTML mockup in the app's look, variants A to C." The count is **3
 variants** unless the user asks for another number, and never more than 5: past five, new variants
 repeat earlier ones instead of disagreeing with them.
 
-**Optional reference pass.** Two to four candidate directions, each described by its layout,
-density, color and type, can seed step 2 in place of a blank page. They are distilled from a small
+**Optional reference pass.** Two to four candidate directions, each described by its layout and
+density, plus color and type only when no app exists or a redesign was asked, can seed step 2 in
+place of a blank page. They are distilled from a small
 set of comparable screens: other products that do the same job, and the app's own closest screens.
 Offer the pass before step 2, and only while the look is still open, meaning the user has given no
-direction and there is no host page under sub-shape A. If the user accepts, the step 2 variants
-follow whichever directions the user keeps; if not, step 2 begins as it normally would.
+direction and no existing page fixes the look, on either host. If the user accepts, the step 2
+variants follow whichever directions the user keeps; if not, step 2 begins as it normally would.
 
 Before building, give each variant a name that describes its direction ("Quiet", "Dense",
 "Editorial", never "Option A") and the axis it diverges on (layout, density, personality, motion,
@@ -192,22 +212,25 @@ Sort every design choice into what must change between variants and what must no
 | Layout: how the regions are arranged | Must differ | A: one full-width table. B: a column of parcel cards. C: a map with a side list |
 | Information hierarchy: what the eye reads first | Must differ | A: status. B: expected delivery date. C: current location |
 | Primary affordance: the main thing to do | Must differ | A: select several and export. B: open one parcel. C: filter by region |
-| Visual direction | Must differ wherever the project's styling system leaves room, and always on the HTML mockup substrate; each variant declares its own direction instead of sharing one default look | A: muted grays. B: the brand blue. C: high-contrast map tiles |
+| Visual direction | Must differ only when no app exists or a redesign was asked; then each variant declares its own direction instead of sharing one default look. Otherwise every variant keeps the app's look | All three keep the app's own colors and type. Asked for a redesign: A muted grays, B the brand blue, C high-contrast map tiles |
 | The job the page does and the records it can reach | Identical | Every variant shows the same in-transit parcels for the same customer |
 | Component library and styling system | Identical | All three use the app's own table, card and map components |
 
-Every variant is required to be structurally different and visually distinct. When two drafts
-agree on the three structural "must differ" rows, they are one design shown twice, however
-different their colors or wording; structure comes first and the visual direction sits on top. Rewrite one of the
-pair under an explicit ban, such as "no table".
+Every variant is required to be structurally different, and visually distinct where the visual
+direction row asks for it. When two drafts agree on the three structural "must differ" rows, they
+are one design shown twice, however different their colors or wording; structure comes first and
+the visual direction sits on top. Rewrite one of the pair under an explicit ban, such as "no
+table".
 
-On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The HTML mockup has no project styling to defer to, so write its CSS here from each variant's declared direction.
+On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
 
 ### 3. Build the switcher
 
-Add one switcher component to the page at that route, using the framework's own routing and the
-`?variant=` parameter or its equivalent. Under sub-shape A, all data loading stays above the switcher, so every
-variant receives the same records and only the subtree under test changes.
+On the HTML mockup, the bundled switcher inlined in the substrate section is the switcher; go to
+step 4. On the real stack, add one switcher component to the page at that route, using the
+framework's own routing and the `?variant=` parameter or its equivalent. Under sub-shape A, all
+data loading stays above the switcher, so every variant receives the same records and only the
+subtree under test changes.
 
 The switcher is a small floating bar, fixed at the bottom center of the viewport:
 
@@ -225,10 +248,10 @@ The switcher is a small floating bar, fixed at the bottom center of the viewport
 
 The handover message has four parts, in this order:
 
-1. **Where to look.** The route URL, and under it one line per variant: its key, its name and,
-   when evidence was captured, its screenshot path.
+1. **Where to look.** The mockup's `file://` path or the real-stack route URL, and under it one
+   line per variant: its key, its name and, when evidence was captured, its screenshot path.
 2. **Evidence per variant.** With `/playwright:playwright` among the available skills, load each
-   variant in it, use its main control once (open the menu, submit the form, change the tab), and
+   variant in it (on the mockup, open the page and step to it with the switcher), use its main control once (open the menu, submit the form, change the tab), and
    capture a screenshot; the handover pairs every variant key with its screenshot path. Without
    that skill, the handover says no screenshots exist.
 3. **Tradeoffs.** One row per variant: its axis, when it is the right choice, and what it costs.
@@ -260,8 +283,8 @@ graft rather than a single winner, say which piece came from where **and what th
 held that the graft deliberately left behind**.
 
 Then carry out the "When the exercise ends" column of the intent selector for the host you used.
-Those deletions are irreversible: whatever is not written down first is gone. Delete the switcher and
-every variant file in the same change that merges the winner; code left behind gets imported by
+Those deletions are irreversible: whatever is not written down first is gone. On the real stack,
+delete the switcher and every variant file in the same change that merges the winner; code left behind gets imported by
 mistake and falls out of date.
 
 ## Boundary, the bundled `design` skill
@@ -273,10 +296,11 @@ the intent selector lands on the HTML mockup substrate:
   Claude Design Artifact: persistent, shareable, edited in a desktop browser with edits saved
   automatically. It is reserved for the person
   to run as `/design`; the model does not invoke it.
-- **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
-  mockup, switchable from a control bar; only the winning-variant key survives.
+- **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
+  the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
-**Routing.** The HTML mockup stays the default and is built either way. Before building, tell the
+**Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
+`/design`. Before building, tell the
 user: If /design is available in your session (gate basis: the verification record below), you
 can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
 State the lifecycle difference with it; the design-canvas subsection above carries the offer
@@ -311,8 +335,8 @@ means that project, not a new mockup:
   writes files in an existing one (list, get a project, write, copy, and plan writes). The model
   calls it by name. It does not create a new Design artifact; that is the bundled `design` skill
   above, which the person runs.
-- **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
-  mockup; only the winning-variant key survives.
+- **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
+  the real stack on request; only the winning-variant key survives.
 
 **Routing.** When the person names or links an existing claude.ai/design project, or asks for the
 work to go into one, and the `ClaudeDesign` tool resolves in this session, use that tool for the
@@ -335,9 +359,9 @@ visually" can mean either:
   `playground` skill builds an interactive parameter explorer: controls on one side, a live preview
   on the other, and a prompt at the bottom with a copy button. The output returns to the
   conversation as a prompt.
-- **This skill (marketplace plugin).** Switchable UI variants of the user's own project (real
-  header, data, and routes, or a local mockup); the winning-variant key is kept and the rest is
-  thrown away.
+- **This skill (marketplace plugin).** Switchable UI variants of the user's own project (a local
+  mockup in the app's own look by default, or its real header, data, and routes on request); the
+  winning-variant key is kept and the rest is thrown away.
 
 **Routing.** When the ask is to explore a parameter space and hand back a prompt, route it to the
 `playground` skill when that plugin is installed, or to `/playgrounds:use` when that wrapper is
@@ -365,4 +389,5 @@ Ordered from the costliest outcome on `/shipments` down:
 | B's "Cancel shipment" button calls the live API while the team clicks through the review | A customer's real parcel is cancelled | Point every write (cancel, reroute, refund) at a stub, so the variants are read-only |
 | The chosen variant is merged as written | Prototype code with no tests and minimal error handling reaches customers and fails on the first carrier timeout | Rebuild the chosen design to production standards as part of folding it in |
 | A gets five sample parcels while B renders the live list of two hundred | B is judged on volume rather than on its layout | Load the records once, above the switcher, and pass the same set to every variant |
+| Three variants of one app's feature in three different looks: a mockup of `/shipments` drawn in three palettes and typefaces | The user judges which app looks best instead of which layout works, and rejects all three as not their app | Build every variant from the app's own CSS and surrounding page and vary only the subtree under test; a per-variant look needs no app yet or a redesign request |
 | The variants cannot differ: one parcel table recolored three times, or three variants forced into one shared frame with a fixed sidebar and column grid | There is nothing to choose between | Settle the step 2 must-differ rows first, and let each variant own its whole arrangement; share only small parts such as the page header |

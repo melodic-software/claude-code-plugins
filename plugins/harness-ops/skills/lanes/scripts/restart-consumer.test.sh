@@ -1003,6 +1003,30 @@ OUT="$(run_network --app-slug 'Bad Slug')"
 RC=$?
 assert_eq "an invalid --app-slug is rejected" "3" "$RC"
 
+# The lanes skill always passes the rendered lane_app_slug option (#8002); unset,
+# it arrives empty or as the literal placeholder, and either reads as no slug.
+# shellcheck disable=SC2016 # the literal, unexpanded placeholder is the input
+PLACEHOLDER_SLUG='${user_config.lane_app_slug}'
+for UNSET_SLUG in "$PLACEHOLDER_SLUG" ''; do
+  : >"$LAUNCH_LOG"
+  OUT="$(GH_USER_LOGIN=lane-app GH_USER_TYPE=Bot GH_COMMENTS_JSON="$(comments_json 'lane-app[bot]' true)" run_network --app-slug "$UNSET_SLUG")"
+  assert_not_contains "slug '$UNSET_SLUG' is not refused" "$OUT" "must be a GitHub App slug"
+  assert_contains "slug '$UNSET_SLUG' reads the Bot login plus [bot], as with no slug" "$(cat "$LAUNCH_LOG")" "restart work"
+  : >"$LAUNCH_LOG"
+  OUT="$(GH_USER_FAIL=1 GH_COMMENTS_JSON="$(comments_json stub-user true)" run_network --app-slug "$UNSET_SLUG")"
+  RC=$?
+  assert_eq "slug '$UNSET_SLUG' with a failed gh api user leaves no identity, exit 4" "4" "$RC"
+  assert_contains "slug '$UNSET_SLUG' with no identity names the fix" "$OUT" "pass --app-slug"
+  assert_eq "slug '$UNSET_SLUG' with no identity launches nothing" "" "$(cat "$LAUNCH_LOG")"
+  OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug "$UNSET_SLUG" 2>&1)"
+  assert_not_contains "slug '$UNSET_SLUG' does not reach the scheduled command" "$OUT" "--app-slug"
+done
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug="$PLACEHOLDER_SLUG" 2>&1)"
+assert_not_contains "--app-slug=<placeholder> does not reach the scheduled command" "$OUT" "--app-slug"
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug 2>&1)"
+RC=$?
+assert_eq "--app-slug with no value at all is still rejected" "3" "$RC"
+
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug lane-app 2>&1)"
 assert_contains "a passed --app-slug survives into the scheduled command" "$OUT" "--app-slug lane-app"
 

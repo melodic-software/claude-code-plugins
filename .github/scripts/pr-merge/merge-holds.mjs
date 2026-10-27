@@ -16,7 +16,9 @@
 //   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
 //   lifts it; an item with no text lifts nothing.
 // - A hold path: a changed file, or a renamed file's old path, matching the
-//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR. A person on
+//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
+//   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
+//   which a clean security review clears). A person on
 //   the trusted-actor list lifts it by approving the head: their newest
 //   review of the head that approves, requests changes or was dismissed must
 //   approve. No other path is held for being trusted alone: the review lanes
@@ -34,9 +36,15 @@
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
 //   (verdictHold). The same approval of the head lifts it, the human merge
-//   path for a pull request pr-merge's gate sends to a person. FAILs and the
-//   repeated-FAIL cap are enable-auto-merge.mjs's, through pr-merge's own
-//   reader, which disarms such a pull request.
+//   path for a pull request pr-merge's gate sends to a person.
+// - A FAIL the gate's reader counts, when an evidence file is given with the
+//   verdicts: babysit_verify_evidence.py `evidence`'s report for the head,
+//   which ci-status runs from main's checkout in the merge queue
+//   (evidenceHold). It holds on every refusal but the three a pass decides
+//   (verify:missing, verify:spec-changed, verify:untrusted-spec, which
+//   verdictHold and linkHold judge here): the FAIL classes, verify:unreadable,
+//   verify:too-old and any refusal this module does not know. A report that
+//   does not read, or is for another head, holds. The same approval lifts it.
 // - A changed issue link, when a link file is given with the verdicts: the
 //   pass binds only while the live link is the one its verdict judged
 //   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
@@ -45,12 +53,14 @@
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file> <link-file>]. The link file holds {record, closing}: the
+// [<verdicts-file> <link-file> [<evidence-file>]]. The link file holds {record, closing}: the
 // verdict.json of the pass verdictHold counts (null when none was read) and
 // the pull request's closingIssuesReferences (totalCount, nodes with number
 // and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
 // per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
 // named a pass at the head; GITHUB_REPOSITORY names the repository. The
+// evidence file holds the reader's one JSON line (Evidence.report); with
+// verdicts and no evidence file, the FAIL check holds as unreadable. The
 // discussion file holds one REST issue comment, review or review comment per
 // line; the files file one changed file per line, its path, renamed-from
 // path and status (changeOf); the denied-paths file the config's
@@ -68,6 +78,9 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// The lanes App's bot login. A `Hold:` line on its own pull request holds the
+// merge, not a fix pushed to it (apply-patch.mjs's held()).
+export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // report-outcome.mjs HOLD_LINE on a line of its own, which
 // enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
 export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
@@ -220,76 +233,100 @@ export const fromRest = (row) => ({
 const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
-// The narrow floor every hold path check adds to the configured globs (owner
-// decision Q-FLOOR (B)): the code main runs to mint and scope lane tokens
-// and judge triggers (resolve-config, request-lane-token,
-// check-trusted-trigger, check-kill-switch, the rate guard), code owners and
-// submodules; and the files that enforce the floor (owner decision
-// Q-ENFORCE (A)): this module, enable-auto-merge, superseded,
-// clear-escalations, babysit_risk.py, the ci-status workflow, the pr-merge
-// workflow that wires them, the pipeline config, every module those scripts
-// import, and the babysit-prs modules
-// babysit_risk.py and the Python those scripts run (babysit_verify_evidence.py)
-// import (test_merge_holds_sync.py derives both closures and requires them
-// here). babysit_risk.HIGH_FLOOR, which
-// test_merge_holds_sync.py checks this equals. A constant of the module
-// ci-status and enable-auto-merge run from the base commit, so a pull
-// request cannot rewrite it.
-export const HOLD_PATH_FLOOR = Object.freeze([
-  ".github/actions/check-trusted-trigger/**",
-  "**/CODEOWNERS",
-  "**/.gitmodules",
-  ".github/actions/resolve-config/**",
-  ".github/actions/check-kill-switch/**",
-  ".github/actions/request-lane-token/**",
-  ".github/actions/log-api-budget/rate-guard.mjs",
-  ".github/scripts/pr-merge/merge-holds.mjs",
-  ".github/scripts/pr-merge/enable-auto-merge.mjs",
-  ".github/scripts/pr-merge/superseded.mjs",
-  ".github/scripts/pr-merge/clear-escalations.mjs",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
-  ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-merge.yml",
-  "docs/conventions/pr-pipeline.yaml",
-  ".github/scripts/pr-unblock/address-feedback.mjs",
-  ".github/scripts/pr-unblock/gate-source.mjs",
-  ".github/scripts/pr-unblock/thread-scope.mjs",
-  ".github/scripts/work-resolve-issue/report-outcome.mjs",
-  ".github/scripts/work-resolve-issue/limits.mjs",
+// The narrow floor every hold path check adds to the configured globs, each
+// glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
+// option B): `trust`, what mints and scopes lane tokens and judges triggers
+// (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
+// and submodules; `gate`, the merge gate's own code (every pr-merge script,
+// the pr-merge and ci-status workflows, babysit_merge*, babysit_risk.py and
+// babysit_review_evidence.py, which compute the review's clear condition,
+// the rate guard) and
+// the config the token broker loads (resolve-config, effect-grants.json
+// included, and the pipeline config); `enforcement`, the other modules the
+// floored scripts import and the Python that decides the holds
+// (test_merge_holds_sync.py derives both closures and requires them here).
+// babysit_risk.FLOOR_CLASSES, which test_merge_holds_sync.py checks this
+// equals. A constant of the module ci-status and enable-auto-merge run from
+// the base commit, so a pull request cannot rewrite it.
+export const HOLD_PATH_CLASSES = Object.freeze([
+  [".github/actions/check-trusted-trigger/**", "trust"],
+  ["**/CODEOWNERS", "trust"],
+  ["**/.gitmodules", "trust"],
+  [".github/actions/resolve-config/**", "gate"],
+  [".github/actions/check-kill-switch/**", "trust"],
+  [".github/actions/request-lane-token/**", "trust"],
+  [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
+  [".github/actions/log-api-budget/rate-limits.json", "gate"],
+  [".github/scripts/pr-merge/merge-holds.mjs", "gate"],
+  [".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"],
+  [".github/scripts/pr-merge/superseded.mjs", "gate"],
+  [".github/scripts/pr-merge/clear-escalations.mjs", "gate"],
+  [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
+  [".github/scripts/pr-merge/gate-check.mjs", "gate"],
+  [".github/scripts/pr-merge/head-ref-map.mjs", "gate"],
+  [".github/scripts/pr-merge/lane-records.mjs", "gate"],
+  [".github/scripts/pr-merge/rate-stop.bash", "gate"],
+  [".github/scripts/pr-merge/refire-refused.mjs", "gate"],
+  [".github/scripts/pr-merge/rotation.mjs", "gate"],
+  [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
+  [".github/scripts/pr-merge/who.mjs", "gate"],
+  [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
+  [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
+  ["docs/conventions/pr-pipeline.yaml", "gate"],
+  [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/limits.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"],
 ]);
+// The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
+// person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge
+// gate holds it (babysit_risk `review-path:`) until a clean security review
+// binds to the head, and enable-auto-merge arms only a head the gate passed.
+export const HOLD_PATH_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
 // or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
-export function pathHold(files, holdPaths) {
+export const pathHold = (files, holdPaths) => pathHoldKind(files, holdPaths)?.reason ?? null;
+
+// pathHold's answer with its kind: `hold-path` for a changed file a hold
+// path matches, `unread` for a list that could not be read or checked.
+export function pathHoldKind(files, holdPaths) {
   if (!Array.isArray(holdPaths)) {
-    return "the hold paths could not be read";
+    return { kind: "unread", reason: "the hold paths could not be read" };
   }
   if (!Array.isArray(files)) {
-    return "its changed files could not all be read";
+    return { kind: "unread", reason: "its changed files could not all be read" };
   }
   if (typeof posix.matchesGlob !== "function") {
-    return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
+    return { kind: "unread", reason: "this Node has no path.matchesGlob, so its hold paths cannot be checked" };
   }
   const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
   const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
-  return held === undefined ? null : `it changes ${held}, a hold path`;
+  return held === undefined ? null : { kind: "hold-path", reason: `it changes ${held}, a hold path` };
 }
 
 // Why the changed `files` hold it for the owner's cost decision, or null when
@@ -811,6 +848,41 @@ export function verdictHold(records, repo, branch = "main") {
   return pass ? null : "pr-verify has not passed this head";
 }
 
+// The refusals of babysit_verify_evidence.py a pass decides: verdictHold and
+// linkHold judge the pass here, and an approval lifts them as it lifts this.
+const PASS_REFUSALS = Object.freeze(["verify:missing", "verify:spec-changed", "verify:untrusted-spec"]);
+
+// Why the reader's report for `head` holds it, or null: a refusal outside
+// PASS_REFUSALS (a FAIL class, verify:unreadable, verify:too-old or one this
+// module does not know) holds, and so does a report that does not read or
+// names another head.
+export function evidenceHold(report, head) {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    Array.isArray(report) ||
+    report.head !== head ||
+    !("refusal" in report) ||
+    (report.refusal !== null && typeof report.refusal !== "string")
+  ) {
+    return "its pr-verify FAILs could not be read";
+  }
+  const { refusal, detail } = report;
+  if (refusal === null || PASS_REFUSALS.includes(refusal)) {
+    return null;
+  }
+  return `pr-verify's reader refuses this head (${refusal}${typeof detail === "string" && detail ? `: ${detail}` : ""})`;
+}
+
+// The evidence file's verdict, a file that does not read included.
+function evidenceOf(file, head) {
+  try {
+    return evidenceHold(JSON.parse(readFileSync(file, "utf8")), head);
+  } catch {
+    return "its pr-verify FAILs could not be read";
+  }
+}
+
 // A log line can carry a changed file's name: escape what would start a
 // workflow command on a new line.
 const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
@@ -862,7 +934,7 @@ async function bodyByPerson(github, repo, number) {
 }
 
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile, evidenceFile] = argv;
   try {
     if (
       !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -874,7 +946,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       !/^[0-9a-f]{40}$/.test(String(head))
     ) {
       throw new Error(
-        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file>]",
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file> [<evidence-file>]]",
       );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
@@ -924,6 +996,15 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         reasons.push(
           `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
         );
+      }
+      const failed = evidenceFile ? evidenceOf(evidenceFile, head) : "its pr-verify FAILs could not be read";
+      if (!failed) {
+        const refusal = JSON.parse(readFileSync(evidenceFile, "utf8")).refusal;
+        console.log(`#${number}: no pr-verify FAIL hold: ${refusal ? `the reader refuses this head only on its pass (${refusal})` : "the reader allows this head"}.`);
+      } else if (lifters.length) {
+        console.log(`#${number}: no pr-verify FAIL hold: ${lifters.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
+      } else {
+        reasons.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }
     }
     for (const reason of reasons) {

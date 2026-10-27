@@ -12,7 +12,8 @@
 #   - write identity (#7999): User login; Bot report + --app-slug; failed user call
 #     + --app-slug; Bot report without a slug; a refused slug (exit 3); an
 #     unresolved identity (exit 4, nothing written, even with a sentinel present);
-#     another author's sentinel comment is ignored
+#     another author's sentinel comment is ignored; an empty or unrendered
+#     `${user_config.lane_app_slug}` slug reads as no slug (#8002)
 #   - a comment list that does not parse exits 5 with nothing written
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
@@ -340,6 +341,25 @@ assert_contains "a Bot report without --app-slug reads the login plus [bot]" "$o
 
 out="$(STUB_ME="octocat" run "$TMP/two-authors.json" --app-slug lanes-app --dry-run 2>&1)"
 assert_contains "a User login wins over --app-slug" "$out" "would update comment 701"
+
+# The lanes skill always passes the rendered lane_app_slug option (#8002); unset,
+# it arrives empty or as the literal placeholder, and either reads as no slug.
+# shellcheck disable=SC2016 # the literal, unexpanded placeholder is the input
+PLACEHOLDER_SLUG='${user_config.lane_app_slug}'
+for unset_slug in "$PLACEHOLDER_SLUG" ''; do
+  out="$(STUB_ME="other-app" STUB_ME_TYPE=Bot run "$TMP/two-authors.json" --app-slug "$unset_slug" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "slug '$unset_slug' is not refused" 0 "$rc"
+  assert_contains "slug '$unset_slug' reads the Bot login plus [bot], as with no slug" "$out" "would update comment 703"
+  : >"$LOG"
+  out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" --app-slug "$unset_slug" 2>&1)"
+  rc=$?
+  assert_eq "slug '$unset_slug' with a failed user call leaves no identity, exit 4" 4 "$rc"
+  assert_contains "slug '$unset_slug' with no identity names --app-slug" "$out" "pass --app-slug"
+  assert_not_contains "slug '$unset_slug' with no identity does not POST" "$(cat "$LOG")" "method=POST"
+done
+out="$(STUB_ME="other-app" STUB_ME_TYPE=Bot run "$TMP/two-authors.json" --app-slug="$PLACEHOLDER_SLUG" --dry-run 2>&1)"
+assert_contains "--app-slug=<placeholder> reads as no slug" "$out" "would update comment 703"
 
 # A refused slug writes nothing: exit 3 before any API call.
 for bad_slug in 'Bad Slug' 'lanes-app[bot]' '-lanes' 'a/b'; do

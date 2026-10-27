@@ -908,6 +908,66 @@ assert_eq "a Stop with no candidate marker directory runs the monitor" \
   "ran" "$(target_state)"
 assert_eq "a Stop with no candidate marker directory exits 0" "0" "$blocked_rc"
 
+# --- a tmp marker directory this user does not own is not a candidate ---
+#
+# With no marker root, the tmp fallback is the only candidate, and it sits where
+# every local user can write. A planted empty directory, or a symlink to one,
+# would otherwise read as "the guard never launched" and skip the monitor for
+# every session; a symlink would also take this session's marker elsewhere.
+PLANTED_CASE="$PROBE_DIR/planted-case"
+mkdir -p "$PLANTED_CASE/link-tmp" "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/own-tmp"
+ln -s "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/link-tmp/disk-hygiene-guard-launch-monitor"
+
+tmp_launch() { # <tmpdir> <flag>: run with the tmp fallback as the only candidate
+  rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
+  printf '%s' "$MARKER_PAYLOAD" |
+    HOME="$MARKER_HOME" TMPDIR="$1" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      "$2" guard-launch-monitor "$MARKER_TARGET" "$MARKER_SEEN" 0 >/dev/null 2>&1 || true
+}
+
+MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/link-tmp" --skip-unless-marker
+assert_eq "a symlinked tmp marker directory does not skip the monitor" "ran" "$(target_state)"
+MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"PreToolUse"}'
+tmp_launch "$PLANTED_CASE/link-tmp" --launch-marker
+assert_eq "no launch marker is written through a symlinked tmp directory" "absent" \
+  "$([[ -e "$PLANTED_CASE/elsewhere/sess-4.launched" ]] && printf 'present' || printf 'absent')"
+
+# A directory another user owns: only root can make one, so this case runs as root.
+if [[ "$(id -u)" == 0 ]] && id nobody >/dev/null 2>&1; then
+  mkdir -p "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
+  chown nobody "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
+  MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"Stop"}'
+  tmp_launch "$PLANTED_CASE/foreign-tmp" --skip-unless-marker
+  assert_eq "a tmp marker directory another user owns does not skip the monitor" \
+    "ran" "$(target_state)"
+else
+  printf 'SKIP: %s\n' "a tmp launch-marker directory another user owns (needs root to create one)"
+fi
+
+# Stays quiet where it should: this user's own tmp directory, created by the
+# launch with mode 700, still skips an unrecorded session and runs a recorded one.
+MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"PreToolUse"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --launch-marker
+assert_eq "a launch records the session in its own tmp directory" "present" \
+  "$([[ -f "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor/sess-5.launched" ]] &&
+    printf 'present' || printf 'absent')"
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) ;;
+*)
+  own_mode="$(ls -ld "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
+  assert_eq "the launch creates its tmp marker directory with mode 700" "drwx------" \
+    "${own_mode:0:10}"
+  ;;
+esac
+MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
+assert_eq "a recorded session in an own tmp directory runs the monitor" "ran" "$(target_state)"
+MARKER_PAYLOAD='{"session_id":"sess-6","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
+assert_eq "an unrecorded session in an own tmp directory skips the monitor" \
+  "skipped" "$(target_state)"
+
 # --- both wirings carry the flag the other one depends on ---
 guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |
   select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("destructive_guard.py"))] | length' \
@@ -933,9 +993,16 @@ assert_eq "the launcher skips the Stop row before bash with the script's own mar
 # --- the SessionStart node notice is shell form and needs no node ---
 # Its behavior, with and without node and under PowerShell, is run by
 # scripts/node-notice-rows.test.sh; this pins that disk-hygiene keeps it shell form.
-notice="$(jq -c '.hooks.SessionStart[].hooks[]' "$HOOKS_JSON")"
-assert_eq "one SessionStart row" "1" "$(jq -s 'length' <<<"$notice")"
-assert_eq "the SessionStart row is shell form with no args" "true" \
+# The same SessionStart entry also runs the resume notice (#9853), whose
+# behavior resume-notice.test.mjs runs; this pins the entry's two handlers.
+assert_eq "one SessionStart entry with two handlers" "[2]" \
+  "$(jq -c '[.hooks.SessionStart[] | .hooks | length]' "$HOOKS_JSON")"
+notice="$(jq -c '.hooks.SessionStart[0].hooks[0]' "$HOOKS_JSON")"
+assert_eq "the first SessionStart handler is shell form with no args" "true" \
   "$(jq '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /disk-hygiene:check"))' <<<"$notice")"
+assert_eq "the second SessionStart handler is the exec-form resume notice" "true" \
+  "$(jq '.hooks.SessionStart[0].hooks[1] | .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs", "--marker-root", "${CLAUDE_PLUGIN_DATA}"]' "$HOOKS_JSON" | tr -d '\r')"
+assert_eq "the clean expansion records the session the resume notice reads" "true" \
+  "$(jq '[.hooks.UserPromptExpansion[].hooks[].args | .[1:6] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "--marker-root", "${CLAUDE_PLUGIN_DATA}", "--launch-marker", "clean-invoked"]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
 pass "all run-python-hook contract checks"

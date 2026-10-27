@@ -74,9 +74,13 @@ async function main() {
     ok("everyone shows Active on the owner's page", await until(owner, ps => ps.every(p => window.Core.state.presence.some(x => x.cid === p && !x.away)), [hidPid, gonePid, snoozePid, busyPid, twoPid], 10000));
 
     // ---------- hide one tab for 3 minutes; close another; watch both from the owner's page ----------
+    // Hidden while a plain beat waits out its gap: a focus just after a beat answered asks for one, and its gap timer is
+    // still pending when the tab hides. The hide's beat changes `visible`, so it must not wait on that timer, which
+    // the throttled tab would only run at its next one-minute wake.
+    await hid.waitForResponse(r => new URL(r.url()).pathname === "/api/heartbeat");
     const t0 = Date.now(), samples = [], hiddenBeats = [];
     hid.on("request", r => { if (new URL(r.url()).pathname === "/api/heartbeat") hiddenBeats.push((Date.now() - t0) / 1000); });
-    await hid.evaluate(() => window.__setHidden(true));
+    await hid.evaluate(() => { window.dispatchEvent(new Event("focus")); window.__setHidden(true); });
     // Sampled on the clock, one a second from t0, so slow page reads do not thin the samples out; the watch starts
     // before the close, so a slow close cannot delay the first sample.
     const watch = (async () => {

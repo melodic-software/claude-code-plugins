@@ -266,7 +266,7 @@ from the two together (see
   descriptions at their source is the fix, and
   [#6846](https://github.com/melodic-software/claude-code-plugins/issues/6846) owns it, including
   lowering this fraction again once the trimmed listing is re-measured. Until it lands, a
-  second report-only CI step measures this repository's skills at the configured fraction on a
+  scheduled report-only CI step measures this repository's skills at the configured fraction on a
   750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, which
   overflows at 750,000 tokens already.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**

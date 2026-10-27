@@ -174,7 +174,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
     with:
       lane: security
       publish: comments
@@ -206,15 +206,29 @@ jobs:
         .github/actions/request-lane-token/**
         .github/actions/check-kill-switch/**
         .github/actions/log-api-budget/rate-guard.mjs
+        .github/actions/log-api-budget/rate-limits.json
         .github/scripts/pr-merge/merge-holds.mjs
         .github/scripts/pr-merge/enable-auto-merge.mjs
         .github/scripts/pr-merge/superseded.mjs
         .github/scripts/pr-merge/clear-escalations.mjs
+        .github/scripts/pr-merge/carry-run-cache.mjs
+        .github/scripts/pr-merge/gate-check.mjs
+        .github/scripts/pr-merge/head-ref-map.mjs
+        .github/scripts/pr-merge/lane-records.mjs
+        .github/scripts/pr-merge/rate-stop.bash
+        .github/scripts/pr-merge/refire-refused.mjs
+        .github/scripts/pr-merge/rotation.mjs
+        .github/scripts/pr-merge/sweep-summary.mjs
+        .github/scripts/pr-merge/who.mjs
+        .github/scripts/pr-merge/post-unarmed-status.mjs
+        .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/gate-source.mjs
         .github/scripts/pr-unblock/thread-scope.mjs
+        .github/scripts/pr-unblock/retry-fetch.mjs
         .github/scripts/work-resolve-issue/report-outcome.mjs
         .github/scripts/work-resolve-issue/limits.mjs
+        .github/scripts/work-resolve-issue/retry-fetch.mjs
         .github/workflows/pr-require-checks.yml
         .github/workflows/pr-merge.yml
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py

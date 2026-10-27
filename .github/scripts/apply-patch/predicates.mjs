@@ -8,6 +8,8 @@ import { inThreadScope } from "../pr-unblock/thread-scope.mjs";
 
 export const PREDICATES = {
   any: () => () => true,
+  // A markdown file: a path ending in .md, in that case.
+  markdown: () => (path) => path.endsWith(".md"),
   // A kept thread's path, or a file thread-scope.mjs places in its scope,
   // its named_paths and the PR's own files the patch does not add included:
   // `keptThreads` is { paths, threads, prPaths }.

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "#1 \"Backlog drain board\" is lane infrastructure, not intake: `.work/lanes/lanes.json` pins it as the work-loop lane's `telemetry.issue`, and its body carries the lane-telemetry sentinel. Stopping; no labels changed.",
+      "why": "names both signals"
+    },
+    {
+      "answer": "Stopped: this is the work-loop lane's telemetry issue. I won't relabel or close it.",
+      "why": "telemetry issue"
+    },
+    {
+      "answer": "Item 1 is a lane telemetry surface (pinned in lanes.json), so triage does not apply.",
+      "why": "telemetry surface"
+    },
+    {
+      "answer": "**Not triaged.** #1 is the telemetry home for the work-loop lane.",
+      "why": "telemetry home for the work-loop"
+    },
+    {
+      "answer": "Stopping: .work/lanes/lanes.json has #1 pinned as `telemetry.issue` for work-loop.",
+      "why": "dotted key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#1 is not lane telemetry: its title is not `Lane telemetry: <lane>`, so it is raw intake. Applied priority: medium and closed it as not actionable.",
+      "why": "negated, then triaged"
+    },
+    {
+      "answer": "Triaged #1: enhancement, priority: medium, routed to needs-human.",
+      "why": "state-machined"
+    },
+    {
+      "answer": "Closed #1 as wontfix: it's a status board, not a bug.",
+      "why": "closed"
+    },
+    {
+      "answer": "Which outcome should I apply to #1?",
+      "why": "asks for an outcome"
+    }
+  ]
+}

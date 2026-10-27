@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costMarker, deletedSince, evidenceHold, linkHold, main, pathHold, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -246,7 +246,9 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // A `files` entry is a path, or a files API row; `denied` is the config's
 // denied paths; `writers` answers BODY_WRITERS_QUERY, or "fail"; `list`
 // maps a ref (BASE, HEAD) to the trusted-actor list's text there.
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {} } = {}) {
+// `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
+// each written as given (a string as it is), `evidence` left out when undefined.
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
@@ -254,6 +256,16 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(typeof row === "string" ? [row] : row)).join("\n"));
   writeFileSync(join(dir, "denied"), JSON.stringify(denied));
   const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), head];
+  if (queue) {
+    const text = (value) => (typeof value === "string" ? value : JSON.stringify(value));
+    writeFileSync(join(dir, "verdicts"), queue.verdicts.map(text).join("\n"));
+    writeFileSync(join(dir, "link"), text(queue.link));
+    argv.push(join(dir, "verdicts"), join(dir, "link"));
+    if (queue.evidence !== undefined) {
+      writeFileSync(join(dir, "evidence"), text(queue.evidence));
+      argv.push(join(dir, "evidence"));
+    }
+  }
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
     const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
@@ -296,7 +308,9 @@ const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "
 // check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
 // configured glob, and so do the files that enforce it (owner decision
 // Q-ENFORCE (A)); a trusted person's approval of the head lifts them as it
-// lifts a configured one.
+// lifts a configured one. Owner decision Q26 option B: only the `trust` and
+// `gate` entries hold here; an `enforcement` one is the merge gate's, which a
+// clean security review bound to the head clears (ENFORCEMENT_FILES).
 const FLOOR_FILES = [
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
@@ -304,6 +318,7 @@ const FLOOR_FILES = [
   ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
   ".github/actions/check-kill-switch/check-kill-switch.mjs",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
   ".github/CODEOWNERS",
   "plugins/foo/codeowners",
   ".gitmodules",
@@ -312,15 +327,47 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
   ".github/scripts/pr-merge/clear-escalations.mjs",
+  ".github/scripts/pr-merge/gate-check.mjs",
+  ".github/scripts/pr-merge/who.mjs",
+  ".github/scripts/pr-merge/rate-stop.bash",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   ".github/workflows/pr-require-checks.yml",
+  ".github/workflows/pr-merge.yml",
   "docs/conventions/pr-pipeline.yaml",
+];
+const ENFORCEMENT_FILES = [
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
+  ".github/scripts/work-resolve-issue/retry-fetch.mjs",
 ];
+test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
+  assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
+  assert.deepEqual(HOLD_PATH_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+  assert.deepEqual([...new Set(HOLD_PATH_CLASSES.map(([, kind]) => kind))].sort(), ["enforcement", "gate", "trust"]);
+  for (const path of ENFORCEMENT_FILES) {
+    assert.ok(REVIEW_FLOOR.includes(path), path);
+    assert.equal(pathHold([path], []), null, path);
+  }
+});
+test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
+  for (const path of ENFORCEMENT_FILES) {
+    const passed = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
+  }
+  // Beside a gate path it still holds on that one.
+  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/who.mjs", status: "modified" }]);
+  assert.equal(both.code, 1, both.out);
+  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
+});
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
     const held = await ci([{ filename: path, status: "modified" }]);
@@ -344,7 +391,7 @@ test("ci-status holds no other trusted path or manifest change, only a configure
     ".github/actions/log-api-budget/action.yml",
     ".github/actions/log-api-budget/rate-guard.test.mjs",
     ".github/actions/check-trusted-trigger-x/a.mjs",
-    ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-unblock/other.mjs",
     "docs/CODEOWNERS.md",
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
@@ -636,4 +683,78 @@ test("changeOf reads a files line with and without its status", () => {
   assert.deepEqual(changeOf(["b.md", "a.md"]), { path: "b.md", previous: "a.md", status: null });
   assert.deepEqual(changeOf(["a.md"]), { path: "a.md", previous: null, status: null });
   assert.throws(() => changeOf("a.md"), /does not read/);
+});
+
+// The merge queue's FAIL check: babysit_verify_evidence.py's report for the
+// head, as ci-status runs that reader from main's checkout.
+const PASS_RUN = {
+  id: 11,
+  path: ".github/workflows/pr-verify.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  repository: { full_name: REPO },
+  head_repository: { full_name: REPO },
+  status: "completed",
+  conclusion: "success",
+};
+const QUEUE_PASS = { name: `pr-verify-99-${HEAD}-pass`, verdict: "pass", runId: 11, run: PASS_RUN };
+const QUEUE_LINK = { record: { linked_issues: [{ number: 40 }], spec_kind: "closes" }, closing: { totalCount: 1, nodes: [{ number: 40, repository: { nameWithOwner: REPO } }] } };
+const report = (refusal, extra = {}) => ({ refusal, head: HEAD, detail: refusal ? "why" : null, ...extra });
+const queued = (evidence, reviews = []) => ci(["docs/a.md"], { reviews, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence } });
+
+test("evidenceHold holds the reader's FAIL classes, an unreadable or too-old pull request, and a refusal it does not know", () => {
+  for (const refusal of [null, "verify:missing", "verify:spec-changed", "verify:untrusted-spec"]) {
+    assert.equal(evidenceHold(report(refusal), HEAD), null, String(refusal));
+  }
+  for (const refusal of ["verify:fail", "verify:earlier-fail", "verify:repeated-fail", "verify:unreadable", "verify:too-old", "verify:something-new"]) {
+    assert.equal(evidenceHold(report(refusal), HEAD), `pr-verify's reader refuses this head (${refusal}: why)`, refusal);
+  }
+  assert.equal(evidenceHold(report("verify:fail", { detail: null }), HEAD), "pr-verify's reader refuses this head (verify:fail)");
+});
+
+test("evidenceHold holds a report it cannot read, or one for another head", () => {
+  const unread = "its pr-verify FAILs could not be read";
+  for (const bad of [null, [], "x", {}, { head: HEAD }, { refusal: 1, head: HEAD }, report(null, { head: OLD }), report(null, { head: undefined })]) {
+    assert.equal(evidenceHold(bad, HEAD), unread, JSON.stringify(bad));
+  }
+});
+
+test("in the merge queue, a reader with no FAIL hold lets a passed head through", async () => {
+  const { code, out } = await queued(report(null));
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: the reader allows this head\.$/m);
+  assert.match(out, /^#99: no verifier hold: pr-verify passed this head\.$/m);
+});
+
+test("in the merge queue, a reader that refuses only on the pass leaves that to verdictHold", async () => {
+  const { code, out } = await queued(report("verify:spec-changed"));
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: the reader refuses this head only on its pass \(verify:spec-changed\)\.$/m);
+});
+
+test("in the merge queue, a FAIL the reader counts holds a passed head", async () => {
+  const { code, out } = await queued(report("verify:fail", { detail: "fails at the head" }));
+  assert.equal(code, 1, out);
+  assert.match(out, /::error::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
+  assert.doesNotMatch(out, /no pr-verify FAIL hold/);
+});
+
+test("in the merge queue, a trusted approval of the head lifts a FAIL hold", async () => {
+  const { code, out } = await queued(report("verify:repeated-fail"), [approve]);
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: owner-person approved this head, which lifts 'pr-verify's reader refuses this head \(verify:repeated-fail: why\)'\.$/m);
+});
+
+test("in the merge queue, an approval of another head lifts no FAIL hold", async () => {
+  const { code, out } = await queued(report("verify:earlier-fail"), [{ ...approve, commit_id: OLD }]);
+  assert.equal(code, 1, out);
+  assert.match(out, /verify:earlier-fail/);
+});
+
+test("in the merge queue, a missing or unreadable reader report holds", async () => {
+  for (const evidence of [undefined, "", "not json", JSON.stringify(report(null, { head: OLD }))]) {
+    const { code, out } = await queued(evidence);
+    assert.equal(code, 1, `${evidence}: ${out}`);
+    assert.match(out, /::error::#99: its pr-verify FAILs could not be read/, String(evidence));
+  }
 });

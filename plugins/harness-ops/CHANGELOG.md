@@ -3,6 +3,81 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [4.10.4] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [4.10.3] - 2026-10-26
+
+### Changed
+
+- `context/gotchas.md` records why the user sweep stays serial: concurrent `claude plugin update` and `plugin uninstall` calls lose registry writes while exiting 0 (probe on Claude Code 2.1.310, #6309).
+
+## [4.10.2] - 2026-10-26
+
+### Fixed
+
+- `/harness-ops:changelog` `status`, `diff` and `apply` read the changelog page's current `**X.Y.Z**` release headings again instead of reporting `range: not computed`; the older `<Update label>` blocks still parse. One parser, `scripts/changelog-releases.sh`, now serves the status script, the `fetch` slice and the behavior-probes `recheck`.
+
+## [4.10.1] - 2026-10-26
+
+### Changed
+
+- **audit-performance:** the Token-leak reference now records the per-logon `ForegroundLockTimeout` workaround, applied after every logon because a third-party write-up reports that Windows resets the live value at logon; on the trial host a process that cannot take the foreground was refused the set. It also records the trial on one host and a before-baseline on build 26300.9711, where the leak still counts one token per creator.
+
+## [4.10.0] - 2026-10-26
+
+### Added
+
+- behavior-probes gains a `prints` outcome that judges the first line a slash command prints, a per-case `cli_args` list limited to allowed flags (today `--autocompact`), and `PROBE_MODEL` in a scaffold's environment. A `prints` case can name a control, and a control's own control now counts too.
+- A new `autocompact` area: four cases that run `/autocompact` with no argument and check which window wins between a project file's top-level and per-model `autoCompactWindow`, the `--autocompact` flag, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. Each case adds one element to the case it names as its control. They pass in the dry run and have not run live yet.
+
+## [4.9.0] - 2026-10-26
+
+### Added
+
+- `behavior-probes` has a `lane-permissions` area: seven cases that run the CI write lane's tool lists under `dontAsk` and check that its Read deny rules keep Grep, Glob and Read out of `/proc/*/environ` and the checkout's `.git`, with paired in-checkout Grep and Read controls.
+- `probe.py` passes a case's `allowed_tools` and `disallowed_tools` (or a shared `tool_rules` file in `cases/lib/`) as `--allowedTools` and `--disallowedTools`, with `${PROBE_WORKDIR}` substituted.
+- A `verdict_only` case saves no raw stream and no tool output text, so a failed deny leaves nothing on disk; `rejudge` keeps its row from the live run and says why.
+
+## [4.8.0] - 2026-10-26
+
+### Added
+
+- **lanes:** a new optional `lane_app_slug` option holds the GitHub App slug the lanes run `gh` under. The `consume-restarts` invocation passes it to `restart-consumer.sh` as `--app-slug`, and the `telemetry-upsert.sh` guidance passes it on every call, so an operator whose lanes write under an App installation token no longer has to type `--app-slug` on each run. The README options table lists it.
+
+### Changed
+
+- **lanes:** `restart-consumer.sh` and `telemetry-upsert.sh` read an unrendered `${user_config.lane_app_slug}` placeholder as no slug instead of refusing it with exit 3, so the always-passed option is harmless when unset. `restart-consumer.sh` also accepts an empty `--app-slug` value, which it used to refuse with exit 3, and reads it as no slug, as `telemetry-upsert.sh` already did. A bare trailing `--app-slug` with no value is still refused.
+
+## [4.7.0] - 2026-10-26
+
+### Added
+
+- **`CC_OTEL_HOT_TOTAL_MAX_MB` caps the hot OTEL store files together.** Each prune now trims
+  `cc-logs.json`, `cc-metrics.json` and `cc-traces.json` to at most 1024 MiB in total by default
+  (`0` disables), dropping the oldest lines across all three to cold first. Before this, only the
+  per-file `CC_OTEL_HOT_MAX_MB` cap applied, so three files each under it could together pass the
+  1 GiB hot budget provisioning checks. `operator-setup-retention.md` documents the knob.
+
+### Fixed
+
+- **`CC_OTEL_HOT_MAX_MB` with a leading zero** (`08`) is read as base 10 instead of failing as octal.
+
+## [4.6.1] - 2026-10-26
+
+### Fixed
+
+- **The parser reader's flow check trusts the engine's implicit lookups.** A spread of the array now trusts `@@iterator` and `next`; `slice`, `map`, `filter`, `concat`, `flat` and `flatMap` trust `constructor` and `@@species`, and `concat` trusts `@@isConcatSpreadable`; a member read used as a value trusts its key (the array's own `length` and literal elements excepted), and one whose computed key names nothing is no longer followed. A spread or value-only read of the array now reaches the sink check even when nothing mutates it, so a module patching any of those names reads the list `partial` under `--reader=parser` instead of a wrong `literal`. Fail-closed: a bundle that may write `Symbol.iterator` or `next` on an object the sink rule cannot show is no prototype (2.1.287's yallist writes `Symbol.iterator` on one) now reads every spread-built list `partial` under the parser.
+
 ## [4.6.0] - 2026-10-26
 
 ### Added
