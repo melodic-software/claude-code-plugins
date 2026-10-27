@@ -68,9 +68,10 @@
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
 // added again by the App, which starts the lane. An issue whose newest marker
-// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
-// restarted the same way at once, while its turn-cap markers since a person
-// last added agent-ready are within limits.turn-cap-restarts. At most
+// is `turn-cap` or `retry` (report-outcome kept agent-ready, so a restart is
+// left) is restarted the same way at once, while its markers of that outcome
+// since a person last added agent-ready are within limits.turn-cap-restarts
+// or limits.stop-retries. At most
 // limits.restarts-per-run issues per run, longest-waiting first.
 //
 // It re-fires the same way an open agent-ready issue whose newest
@@ -322,10 +323,13 @@ const appMarkers = (comments, bot) =>
     .sort((a, b) => a.at - b.at);
 
 // The App's markers after which its removal of agent-ready is a restart.
-const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry"]);
+
+// The outcomes restarted at once, each bounded by its `limits` leaf.
+const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries" };
 
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap`, `retry` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
@@ -1288,18 +1292,19 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a turn cap only while a restart is
-  // left, and hands the issue back otherwise; the count here bounds a forged
-  // or stale marker the same way.
-  if (marker?.outcome === "turn-cap") {
-    // Only a listed human's agent-ready resets the turn-cap count, so another
-    // labeler cannot buy restarts.
+  // report-outcome keeps agent-ready after a turn cap or a stop routed to
+  // retry only while a restart is left, and stops the issue otherwise; the
+  // count here bounds a forged or stale marker the same way.
+  const bound = CAPPED_RESTARTS[marker?.outcome];
+  if (bound) {
+    // Only a listed human's agent-ready resets the count, so another labeler
+    // cannot buy restarts.
     const humanSince = events
       .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
       .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
-    return caps > limits["turn-cap-restarts"]
-      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
+    const caps = markers.filter((item) => item.outcome === marker.outcome && item.at > humanSince).length;
+    return caps > limits[bound]
+      ? { reason: `${caps} ${marker.outcome} stops since a person last added ${LABEL}` }
       : { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";
