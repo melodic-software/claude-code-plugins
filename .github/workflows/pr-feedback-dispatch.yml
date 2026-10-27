@@ -37,7 +37,11 @@ name: pr-feedback-dispatch
 # finding standing with the head unmoved, and dispatches one such head again,
 # through its newest completed review run, at most once per tick
 # (feedback-dispatch.mjs sweepReleased). That round released the head only
-# for a next review or pr-verify completion, which may never come. Taking
+# for a next review or pr-verify completion, which may never come. With no
+# such head, it dispatches one head whose pr-unblock/address-feedback status
+# still fails though no review thread is left unresolved, once per stop, so
+# the run finds nothing to fix and report-stop-status clears the status
+# (sweepStale). Taking
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
 # broker trust with a review run as its upstream.
@@ -199,6 +203,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # the PR, its comments and review threads
       checks: read # skip a head that already has an address-feedback check run
+      statuses: read # the sweep's read of a head's pr-unblock/address-feedback stop
       actions: write # list pr-unblock runs; dispatch pr-unblock.yml
     env:
       # npm's fetch timeout and retries, from the one file that sets them.

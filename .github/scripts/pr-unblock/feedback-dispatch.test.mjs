@@ -1214,6 +1214,7 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   api.listReviewThreads = async (number) => [thread([CLAUDE], false, headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
+  api.listStatuses = async () => [];
   return api;
 }
 
@@ -1443,4 +1444,48 @@ test("a pass-only round's reply check after a finding-stands skip leaves the hea
   const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
   await sweepMain(t, api);
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+});
+
+// A head whose address-feedback stop still fails after a person resolved
+// every thread: nothing else dispatches the lane there, so the sweep does,
+// once per stop, and the run's select job clears the status.
+const STOP = { context: "pr-unblock/address-feedback", state: "failure", created_at: "2026-10-17T12:00:00Z", creator: { login: "github-actions[bot]" } };
+function staleApi({ statuses = [STOP], threads = [{ isResolved: true, comments: { nodes: [] } }], workflowRuns = [], openPulls = pull() } = {}) {
+  const api = sweepApi({ checksAt: {}, openPulls });
+  api.listStatuses = async () => statuses;
+  api.listReviewThreads = async () => threads;
+  api.listWorkflowRuns = async () => workflowRuns;
+  return api;
+}
+
+test("a scheduled tick dispatches a head whose address-feedback stop fails with every thread resolved", async (t) => {
+  const api = staleApi();
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+  const error = staleApi({ statuses: [{ ...STOP, state: "error" }] });
+  await sweepMain(t, error);
+  assert.equal(error.calls.dispatch.length, 1);
+});
+
+test("the stale-stop sweep leaves a passing or newer status, an open thread, a run since the stop, another account's status and a held PR", async (t) => {
+  for (const [label, options] of [
+    ["the newest status passes", { statuses: [{ ...STOP, state: "success" }, STOP] }],
+    ["no status", { statuses: [] }],
+    ["another account's status", { statuses: [{ ...STOP, creator: { login: "someone" } }] }],
+    ["an unresolved thread", { threads: [{ isResolved: false, comments: { nodes: [] } }] }],
+    ["a run since the stop", { workflowRuns: [{ id: 7, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:05:00Z" }] }],
+    ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
+  ]) {
+    const api = staleApi(options);
+    const { output } = await sweepMain(t, api);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+  // A run from before the stop does not hold it.
+  const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
+  await sweepMain(t, older);
+  assert.equal(older.calls.dispatch.length, 1);
 });

@@ -446,7 +446,80 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     }
   }
   log("sweep: no head whose last round left it for another round to dispatch");
+  for (const pull of pulls) {
+    let dispatched = null;
+    try {
+      dispatched = await sweepStale({ api, pull, repository, log, settings, rest });
+    } catch (error) {
+      log(`::warning::#${pull.number}: the sweep could not read the stop status of head ${pull.head.sha}: ${error.message}`);
+    }
+    if (dispatched !== null) {
+      return dispatched;
+    }
+  }
+  log("sweep: no head with a failing address-feedback stop and nothing left to fix");
   return null;
+}
+
+// The newest status of `context` on a head by github-actions[bot], read
+// across every page newest first, as ci-status and report-escalation.sh clear
+// read it; null when there is none.
+export function newestStatus(statuses, context) {
+  return statuses.find((row) => row?.context === context && row?.creator?.login === "github-actions[bot]") ?? null;
+}
+
+// A head whose newest pr-unblock/address-feedback status fails although no
+// review thread is left unresolved: a person resolved the threads after the
+// lane stopped, and nothing else dispatches the lane on that head. A run of
+// the activity then finds nothing to fix (address-feedback.mjs `resolved`),
+// and report-stop-status clears the status. Once per stop: a pr-unblock run
+// for the PR created after the failing status holds the head. The upstream is
+// the head's newest completed review run, as for any other dispatch.
+async function sweepStale({ api, pull, repository, log, settings, rest }) {
+  const head = pull.head.sha;
+  const number = pull.number;
+  const status = newestStatus(await api.listStatuses(head), `pr-unblock/${settings.activity}`);
+  if (status?.state !== "failure" && status?.state !== "error") {
+    return null;
+  }
+  const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
+  if (held.length > 0) {
+    log(`skip: #${number} is labeled ${held.join(", ")}`);
+    return null;
+  }
+  if ((await api.listReviewThreads(number)).some((thread) => thread.isResolved === false)) {
+    return null;
+  }
+  const stoppedAt = Date.parse(status.created_at ?? "");
+  const since = (await api.listWorkflowRuns(settings.workflow)).find(
+    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < stoppedAt),
+  );
+  if (since) {
+    log(`skip: #${number}: ${settings.workflow} run ${since.id} for ${settings.activity} started after the stop on head ${head}`);
+    return null;
+  }
+  const resolved = await rest.resolveSlot({ number, head });
+  const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
+  if (resolved?.lane.enabled !== true || !enabled(settings.activity) || resolved.selected?.applies !== true) {
+    log(`skip: #${number}: ${settings.activity} is not enabled or does not apply`);
+    return null;
+  }
+  const upstream = await reviewRunAt({ api, head, repository, settings });
+  if (upstream === null) {
+    log(`skip: #${number}: head ${head} has no completed review run`);
+    return null;
+  }
+  const { workflowRunId } = await api.dispatchWorkflow({
+    workflow: settings.workflow,
+    ref: `refs/heads/${settings.base}`,
+    inputs: { "pr-number": String(number), activity: settings.activity, "dispatcher-run-id": String(rest.runId) },
+  });
+  const id = String(workflowRunId);
+  if (!RUN_ID.test(id)) {
+    throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
+  }
+  log(`dispatched #${number} head ${head} to clear a stop with no thread left, upstream run ${upstream.id} workflow_run_id=${id}`);
+  return { number, workflowRunId: id, upstreamRunId: upstream.id };
 }
 
 async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
@@ -592,6 +665,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
         }
       }
       throw new Error(`more than 1000 open PRs into ${base}`);
+    },
+    // Every status on a commit, newest first across pages.
+    async listStatuses(sha) {
+      const statuses = [];
+      for (let page = 1; page <= 10; page += 1) {
+        const batch = await request(`${repo}/commits/${sha}/statuses?per_page=100&page=${page}`);
+        statuses.push(...batch);
+        if (batch.length < 100) {
+          return statuses;
+        }
+      }
+      throw new Error(`commit ${sha} has more than 1000 statuses`);
     },
     // The newest completed pull_request runs of a workflow file at a head.
     async listCompletedRuns(path, head) {
