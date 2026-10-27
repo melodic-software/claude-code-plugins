@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.8.0] - 2026-10-27
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **When work stops for the owner.** §2 quotes the owner's rule of 2026-10-27 and tables the three
+  reasons an item goes to a person (an intent or vision change, an implementation finding that
+  alters intent or the primary design, a HIGH or CRITICAL security issue), each with its label and
+  the lane that decides. Cost is not a stop; a new charge is out of bounds.
+
 ## [12.7.0] - 2026-10-26
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

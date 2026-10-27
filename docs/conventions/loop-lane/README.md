@@ -4,6 +4,7 @@
 
 - [1. Three-session topology](#1-three-session-topology)
 - [2. Escalation contract](#2-escalation-contract)
+- [When work stops for the owner](#when-work-stops-for-the-owner)
 - [3. Capability tiers](#3-capability-tiers)
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
@@ -310,6 +311,24 @@ write and the out-of-band notification seam below are notification depth on the 
 escalation, the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names, never a
 second channel: the tracker item remains the single escalation of record.
+
+### When work stops for the owner
+
+The owner's rule, 2026-10-27, verbatim:
+
+<!-- spellchecker:off -->
+> "I (the human) should only ever be in the loop or involved via signals like needs-human / needs-decision labels if there is 1. A change in original intent/vision 2. Something comes up during implementation (things don't always go to plan, new findings while doing the actual work) that alters intent/vision or the primary design 3. If there is a HIGH/CRITICAL security issue. Everything else needs to move through the factory floor, the conveyer belt autonomously once work has been deemed agent ready and intent/vision have been translated, expressed and codified in the work item contract. Any changes from that intent/vision are what require my intervention."
+<!-- spellchecker:on -->
+
+| Reason | Label | Lane that decides |
+|---|---|---|
+| Original intent or vision changes, or the item cannot answer an intent question | `status: needs-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
+| A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../pr-pipeline/README.md#loop-caps) is spent |
+| A HIGH or CRITICAL security issue | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
+
+A lane that hands an item to the owner for any other reason has a defect to fix. Trust holds
+(untrusted provenance, an untrusted spec) are security controls the owner keeps. Cost is not a
+stop; a new charge is out of bounds.
 
 ### Cross-lane PR hold
 
