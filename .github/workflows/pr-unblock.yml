@@ -14,6 +14,10 @@ name: pr-unblock
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
 # PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
 # model job answers them, and script jobs push its patch and post its replies.
+# After a pr-verify pass at a PR's head that left fail-note threads of earlier
+# heads open, it sends one with verify-pass-head: a pass-only round, where the
+# base job lists those threads, no model job runs, and the reply job resolves
+# them as the lanes App, posting nothing and counting no round.
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
@@ -46,6 +50,11 @@ on:
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
+        required: false
+        type: string
+        default: ""
+      verify-pass-head:
+        description: address-feedback from pr-feedback-dispatch.yml only; the head a pr-verify pass judged, for a pass-only round.
         required: false
         type: string
         default: ""
@@ -601,8 +610,11 @@ jobs:
       # true once the context is uploaded; false on a skip or an escalation;
       # empty when the job stopped before deciding.
       proceed: >-
-        ${{ steps.upload.outcome == 'success' && 'true'
+        ${{ steps.upload.outcome == 'success' && steps.select.outputs.resolve-only != 'true' && 'true'
         || (steps.slot.outputs.applies == 'false' || steps.select.outputs.proceed == 'false') && 'false' || '' }}
+      # true for a pass-only round with stale fail-note threads uploaded: only
+      # the reply job runs, and proceed stays empty.
+      resolve-only: ${{ steps.upload.outcome == 'success' && steps.select.outputs.resolve-only == 'true' && 'true' || '' }}
       head-sha: ${{ steps.head.outputs.sha }}
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
@@ -686,6 +698,10 @@ jobs:
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           TRACKER_CONFIG: .base/.work-item-tracker.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
+          # A pass-only round (address-feedback.mjs select), sent only by a
+          # dispatcher run, which the reply job's gate checks.
+          VERIFY_PASS_HEAD: ${{ inputs.verify-pass-head }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: |
           mkdir -p "$FEEDBACK_DIR"
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
@@ -701,7 +717,7 @@ jobs:
 
       - name: Upload the feedback context
         id: upload
-        if: steps.select.outputs.proceed == 'true'
+        if: steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: feedback-context-${{ github.run_attempt }}
@@ -1350,10 +1366,12 @@ jobs:
   # posts the replies the model job recorded, exactly as written or not at
   # all, naming the commit the push job made, then the round marker. It runs
   # whenever the select job proceeded, whatever the model and push jobs did,
-  # so every round is counted; a hostile model job cannot skip it.
+  # so every round is counted; a hostile model job cannot skip it. In a
+  # pass-only round it runs alone and only resolves the stale fail-note
+  # threads run.json lists (publish-feedback.mjs).
   publish-feedback:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, apply-feedback-patch, adjudicate-feedback]
-    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    if: ${{ !cancelled() && (needs.address-feedback-select.outputs.proceed == 'true' || needs.address-feedback-select.outputs.resolve-only == 'true') }}
     permissions:
       contents: read
       pull-requests: read
