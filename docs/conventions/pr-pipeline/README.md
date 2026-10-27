@@ -1007,14 +1007,17 @@ except six:
   tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
   the body. Its activity is the newest of its opening, the head's arrival (the newest GitHub
   Actions check suite for the head commit on its branch, since a commit's dates are its
-  pusher's), and each comment, review, inline review comment, label change, title edit, review
+  pusher's; a `pull_request` workflow run that a label or title edit starts adds such a suite, so
+  any account's label change there also delays adoption, never grants it), and each comment, review, inline review comment, label change, title edit, review
   request, ready for review, reopen or force push whose actor id is on the trusted-actor list,
   the lanes App
   and Dependabot left out, at its newest time, a comment's edit included (`trusted_activity`).
   The raw `updatedAt` is not read: any account that can comment moves it. Another account's
   activity therefore never keeps the pull request from going idle, except a hold (owner decision
-  Q30): its changes-requested review, or a `User` account's comment, review or inline review
-  comment whose text carries a body-hold phrase ("do not merge", "don't merge", a line opening
+  Q30) by an OWNER, MEMBER or COLLABORATOR (`author_association`, as for the human merge veto;
+  on a public repository anyone else's would hold every pull request): its changes-requested
+  review, or a `User` account's comment, review or inline review comment whose text carries a
+  body-hold phrase ("do not merge", "don't merge", a line opening
   with `Hold:`), counts like a trusted account's; a bot's text is not read, since review lanes
   quote the phrase. A trusted account's comment, such as a person's request to wait,
   still refuses. A timeline or check suite listing
@@ -2487,8 +2490,8 @@ person opened. A PR is adopted when all of these hold:
   opening, the head's arrival, and each comment, review, label change or title edit whose actor
   id is on the trusted-actor list ([The pr-merge lane](#the-pr-merge-lane) lists every event
   read), never the raw `updatedAt`, so another account's comments cannot keep the PR from going
-  idle there unless they are a hold (a changes-requested review or a "do not merge" or `Hold:`
-  phrase); fix-ci still reads the PR's last update (`updatedAt`). An App's PR does not wait.
+  idle there unless they are a member's or collaborator's hold (a changes-requested review or a
+  "do not merge" or `Hold:` phrase); fix-ci still reads the PR's last update (`updatedAt`). An App's PR does not wait.
 
 A person's PR also skips the wait when a person put it in the merge queue and the queue removed
 it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for

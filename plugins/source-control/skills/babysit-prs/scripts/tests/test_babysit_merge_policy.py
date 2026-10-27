@@ -4875,43 +4875,63 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(owner_pr(), adoption_owner_ids=ids)
                 self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
-    # Owner decision Q30: an untrusted account's hold still counts.
+    # Owner decision Q30: an untrusted account's hold still counts, but only a
+    # repository member's or collaborator's (the `human_veto_logins` filter).
 
-    def test_an_untrusted_changes_requested_review_is_not_adopted(self) -> None:
-        review = {
-            "event": "reviewed",
-            "user": self.STRANGER,
-            "state": "changes_requested",
-            "body": "",
-            "submitted_at": FRESH,
-        }
-        self.owner_fake(timeline=[review])
-        result = self.eligibility(owner_pr())
-        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+    BLOCKERS = ("OWNER", "MEMBER", "COLLABORATOR")
+    DRIVE_BY = ("NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", None)
 
-    def test_an_untrusted_hold_phrase_comment_is_not_adopted(self) -> None:
-        thread = {
-            "event": "line-commented",
-            "comments": [
-                {"user": self.STRANGER, "created_at": FRESH, "body": "Do not merge."}
-            ],
-        }
+    def holds(self, association: str | None) -> list[dict[str, Any]]:
+        """A stranger's changes-requested review and hold-phrase comment,
+        review and inline comment, each written with `association`."""
+        tag = {} if association is None else {"author_association": association}
+        events: list[dict[str, Any]] = [
+            {
+                "event": "reviewed",
+                "user": self.STRANGER,
+                "state": "changes_requested",
+                "body": "",
+                "submitted_at": FRESH,
+                **tag,
+            }
+        ]
         for body in ("do not merge, this leaks X", "Don't merge yet", "Hold: see #1"):
-            comment = self.commented(self.STRANGER, FRESH)
-            comment["body"] = body
-            for event in (comment, {**comment, "event": "reviewed"}, thread):
-                with self.subTest(body=body, event=event["event"]):
+            comment = {**self.commented(self.STRANGER, FRESH), "body": body, **tag}
+            thread = {
+                "event": "line-commented",
+                "comments": [
+                    {"user": self.STRANGER, "created_at": FRESH, "body": body, **tag}
+                ],
+            }
+            events += [comment, {**comment, "event": "reviewed"}, thread]
+        return events
+
+    def test_a_members_untrusted_hold_is_not_adopted(self) -> None:
+        for association in self.BLOCKERS:
+            for event in self.holds(association):
+                with self.subTest(association=association, event=event):
                     self.owner_fake(timeline=[event])
                     result = self.eligibility(owner_pr())
                     self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    def test_a_drive_by_accounts_hold_leaves_an_owner_pr_idle(self) -> None:
+        for association in self.DRIVE_BY:
+            for event in self.holds(association):
+                with self.subTest(association=association, event=event):
+                    self.owner_fake(timeline=[event])
+                    result = self.eligibility(owner_pr())
+                    self.assertTrue(result.eligible, result.reason)
+                    self.assertEqual(result.adoption, "idle-owner:24h")
+
     def test_other_untrusted_activity_leaves_an_owner_pr_idle(self) -> None:
         comment = self.commented(self.STRANGER, FRESH)
         comment["body"] = "Looks fine; the do-not-merge label is gone."
+        comment["author_association"] = "MEMBER"
         # A bot's text is not read: review lanes quote the hold phrase.
         bot = {"login": "github-actions[bot]", "id": 41898282, "type": "Bot"}
         quoted = self.commented(bot, FRESH)
         quoted["body"] = 'a collaborator comments "do not merge, this leaks X"'
+        quoted["author_association"] = "COLLABORATOR"
         for event in (
             comment,
             quoted,
@@ -4921,6 +4941,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 "state": "commented",
                 "body": "a nit",
                 "submitted_at": FRESH,
+                "author_association": "MEMBER",
             },
             {
                 "event": "reviewed",
@@ -4928,6 +4949,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 "state": "approved",
                 "body": "",
                 "submitted_at": FRESH,
+                "author_association": "MEMBER",
             },
             {"event": "labeled", "actor": self.STRANGER, "created_at": FRESH},
         ):

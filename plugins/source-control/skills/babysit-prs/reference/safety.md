@@ -1057,8 +1057,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
    README's "The pr-merge lane"), idleness read from trusted-actor activity
    (`trusted_activity`) and the head's arrival (`_head_last_seen`), never the raw `updated_at`
-   any commenter moves; any account's changes-requested review or a person's hold-phrase comment still
-   counts. The decision records why
+   any commenter moves; an OWNER, MEMBER or COLLABORATOR account's changes-requested review or a
+   person's hold-phrase comment still counts. The decision records why
    as `eligibility.adoption`; its path
    floor scores only changed paths a commit not the author's own (verified, author and, for a
    person, committer) touched (`foreign_paths`). The lane's

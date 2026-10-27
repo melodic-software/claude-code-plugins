@@ -2595,10 +2595,15 @@ ACTIVITY_EVENTS = frozenset(
 
 
 def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any], who: Any) -> bool:
-    """An act that holds the pull request whoever wrote it: a changes-requested
-    review, or a `User`'s comment or review whose text carries a
-    `BODY_MERGE_HOLD_RE` phrase ("do not merge", a "Hold:" line). A bot's
-    text is not read, since review lanes and the lanes App quote the phrase."""
+    """An act by an account off the trusted-actor list that still holds the
+    pull request: a changes-requested review, or a `User`'s comment or review
+    whose text carries a `BODY_MERGE_HOLD_RE` phrase ("do not merge", a "Hold:"
+    line). Only an OWNER, MEMBER or COLLABORATOR (`author_association`) holds,
+    as for `human_veto_logins`: on a public repository anyone else's act would
+    keep any pull request from going idle. A bot's text is not read, since
+    review lanes and the lanes App quote the phrase."""
+    if str(act.get("author_association") or "").upper() not in BLOCKER_ASSOCIATIONS:
+        return False
     if event.get("event") == "reviewed" and (
         str(act.get("state") or "").lower() == "changes_requested"
     ):
@@ -2622,9 +2627,10 @@ def trusted_activity(
     `_head_last_seen`); a body edit, which names no editor here, is not read,
     and a body hold refuses on its own.
     Any other account's activity moves nothing, so it cannot keep the pull
-    request from going idle, but for a hold (`_untrusted_hold`, owner decision
-    Q30): its changes-requested review or a person's comment or review
-    carrying a `BODY_MERGE_HOLD_RE` phrase counts like a trusted account's. The lane's
+    request from going idle, but for a repository member's or collaborator's
+    hold (`_untrusted_hold`, owner decision Q30): its changes-requested review
+    or a person's comment or review carrying a `BODY_MERGE_HOLD_RE` phrase
+    counts like a trusted account's. The lane's
     own pin and reasons comments do not count when `actor_ids` leaves the
     lane's identity out, as `trusted_actors(exclude=...)` does. An event whose
     actor id, or a counted one's time, cannot be read raises
@@ -2852,7 +2858,9 @@ def _head_last_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
     branch: the newest `created_at` of GitHub Actions' check suites for that
     commit whose `head_branch` is the pull request's. GitHub sets it when a
     push arrives, unlike a commit's dates, which the pusher sets, and a head
-    pushed again (reset away and pushed back) gets a newer suite. No such
+    pushed again (reset away and pushed back) gets a newer suite. A
+    `pull_request` run that a label or title edit starts adds a suite too, so
+    any account's label change can delay adoption, never grant it. No such
     suite, a listing past one page, or an unreadable one raises."""
     head = json_object(pr.get("head"))
     sha, ref = str(head.get("sha") or ""), head.get("ref")
