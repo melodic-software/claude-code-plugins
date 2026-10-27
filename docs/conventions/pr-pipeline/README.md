@@ -594,7 +594,8 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
-`CODEOWNERS`, `.gitmodules` and the files that enforce the floor) waits for a person, and the
+`CODEOWNERS`, `.gitmodules` and the merge gate's own code; the other files that enforce the floor
+wait for a clean security review instead) waits for a person, and the
 security lane judges the rest, the trusted-actor list included. The `docs` row also refuses, in any case and through
 any `..` segment, a path under a `skills/` directory at any depth (`skills`) and a `SKILL.md`
 anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
@@ -803,29 +804,36 @@ the rules that only tighten in
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **Narrow path floor.** A fixed set of paths in the wrapper's code (`babysit_risk.HIGH_FLOOR`,
-  owner decisions Q-FLOOR (B) and
-  [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)),
-  joined with `merge.diff-check.denied-paths` (empty here) and
-  matched case-insensitively, scores HIGH whatever `high-path-floor` says and is never merged
-  unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
-  its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
-  `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
-  (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
-  (`.github/actions/log-api-budget/rate-limits.json`), `.github/actions/check-kill-switch/**`,
-  whose output writer both actions use, `**/CODEOWNERS`, `**/.gitmodules`, and the files that
-  enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
-  `superseded.mjs` and `clear-escalations.mjs` there,
-  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
-  `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
-  scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
-  those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and
-  the `retry-fetch.mjs` copy in each of those two directories),
-  and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
-  `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
-  (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
-  both closures from their imports and requires them on the floor. No other path
+- **Narrow path floor.** A fixed set of globs in the wrapper's code, each with a class
+  (`babysit_risk.FLOOR_CLASSES`, equal to `merge-holds.mjs` `HOLD_PATH_CLASSES`; owner decisions
+  Q-FLOOR (B),
+  [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
+  and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
+  - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
+    App token, `.github/actions/check-trusted-trigger/**`, `.github/actions/check-kill-switch/**`,
+    whose output writer both actions use, `**/CODEOWNERS` and `**/.gitmodules`.
+  - `gate`, a person merges it: the merge gate's own code and the config the token broker loads.
+    `.github/actions/resolve-config/**`, whose code the broker runs from main in its signer
+    process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
+    defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
+    `.github/scripts/pr-merge/`, `.github/workflows/pr-merge.yml` and
+    `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`,
+    `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
+    `babysit_review_evidence.py`, which compute the security review's clear condition.
+  - `enforcement`, a clean security review clears it: every other module the floored scripts
+    import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+    `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
+    and the `retry-fetch.mjs` copy in each of those two directories)
+    and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
+    `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
+    import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
+    binds to the head with no open finding, then merges with no person; ci-status leaves it to
+    the gate. When the pull request also changes a lane source, the review can never bind at that
+    head, so it scores `review-path-unbindable:<glob>`, which a person clears.
+
+  `merge.diff-check.denied-paths` (empty here) joins the person classes.
+  `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
+  floor, with every pr-merge script as `gate`. No other path
   is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
   path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
@@ -1165,7 +1173,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
 run, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
@@ -1893,7 +1901,7 @@ defines it) or `critical-security`. `hold-paths` only flags the files it names f
 scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
 what it gates, and only a CRITICAL finding there holds. The callers name
 `.github/standards/trusted-actors/**`, every entry of the narrow path floor above
-(`babysit_risk.HIGH_FLOOR`), and the security review's own criteria and eval cases
+(`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
 `test_merge_holds_sync.py` checks that both callers' `hold-paths` and that check's
