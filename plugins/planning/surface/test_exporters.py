@@ -571,15 +571,39 @@ class TestExportBrief(SessionCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
-    def test_confirmed_commitment_is_an_assumption_and_archived_is_out_of_scope(self):
+    def test_confirmed_commitment_stays_on_its_decision_and_archived_is_out_of_scope(self):
         self.decided()
         text = self.export("brief").read_text(encoding="utf-8")
         assumptions = text.split("### Captured assumptions")[1].split("###")[0]
-        self.assertIn("One writer only", assumptions)
-        self.assertIn("No network: confirmed on Q1", assumptions)
-        self.assertNotIn("risk:", assumptions)
+        self.assertEqual(assumptions.strip(), "- none")
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("confirmed: One writer only; No network", constraints)
         scope = text.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn("Off the chosen path.", scope)
+
+    COVERAGE = "Are the criteria missing an unwanted-behavior case and a state-driven case?"
+
+    def with_coverage_prompt(self, events):
+        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then events."""
+        self.session([question("Q1")], [event(1, "Q1", "accept"), *events])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["notes"] = [
+            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True}
+        ]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.export("brief").read_text(encoding="utf-8")
+        return text.split("### Captured assumptions")[1].split("###")[0]
+
+    def test_an_unanswered_notes_ask_is_reported_under_captured_assumptions(self):
+        before = {**event(2, None, "note", text="An earlier note."), "at": "2026-09-24T10:01:00Z"}
+        assumptions = self.with_coverage_prompt([before])
+        self.assertIn(f"- asked in Notes, not answered: {self.COVERAGE}\n", assumptions)
+
+    def test_an_answered_notes_ask_is_not_reported(self):
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply])
+        self.assertNotIn("asked in Notes", assumptions)
 
 
 LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"
@@ -857,6 +881,35 @@ class TestBriefRestatements(SessionCase):
             ["- Gap: builds lose their cache", "- Evidence: observed"],
         )
         self.assertEqual(self.section(text, "Work size"), ["- Size: Small"])
+
+    def test_restated_tldr_leads_the_tldr_ahead_of_the_counts(self):
+        tldr = ["- Ships the build cache", "- Leaves remote caching out"]
+        text = self.brief(
+            [self.rev(1, goal="Ship it.", acceptance="- it ships", tldr="\n".join(tldr))],
+            [self.confirm(2, 1)],
+        )
+        lines = self.section(text, "TLDR")
+        self.assertEqual(lines[:2], tldr)
+        self.assertTrue(lines[2].startswith("- 2 questions:"), lines)
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_every_restatement_section_reaches_the_brief(self):
+        schema = json.loads(
+            (HERE / "schema" / "questions.schema.json").read_text(encoding="utf-8")
+        )
+        keys = sorted(schema["$defs"]["sections"]["properties"])
+        self.assertEqual(len(keys), 10, keys)
+        text = self.brief(
+            [self.rev(1, **{k: f"- marker {k} text" for k in keys})],
+            [self.confirm(2, 1)],
+        )
+        for k in keys:
+            with self.subTest(section=k):
+                self.assertIn(f"marker {k} text", text)
 
     def test_restated_deferred_planning_owned_and_decisions_reach_the_brief(self):
         deferred = ["Q3: moderation model, defer until after V1", "offline mode"]
@@ -1248,7 +1301,8 @@ class TestConfirmedInTheTerminal(SessionCase):
         self.session(qs, [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")])
         brief = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("- 2 commitments confirmed; 0 unconfirmed", brief)
-        self.assertIn("- No network: confirmed on Q1", brief)
+        self.assertIn("confirmed: One writer only; No network", brief)
+        self.assertNotIn("confirmed on Q1", brief)
         [row] = register_rows(self.export("ledger"))
         self.assertIn("commitments:: +One writer only; +No network", row)
 
@@ -1555,7 +1609,8 @@ class TestReadableResolutions(SessionCase):
         self.assertNotIn("Q1", constraints)
         scope = brief.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn(f"- Q5 Question Q5?: {plain[4]}\n", scope)
-        self.assertIn("- One / writer; only: confirmed on Q1;", brief)
+        self.assertNotIn("confirmed on Q1", brief)
+        self.assertIn("- Q1 confirmed so far: One / writer; only\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
         report = self.export("report").read_text(encoding="utf-8")
         cells = [html.unescape(c) for c in re.findall(r"<td>([^<]*)</td></tr>", report)]
@@ -3824,7 +3879,8 @@ class TestResumedState(SessionCase):
         self.assertIn(
             "- 1 commitment confirmed; 1 unconfirmed, carried as named risks", brief
         )
-        self.assertIn("- One writer: confirmed on Q1; revisit if Q1 changes\n", brief)
+        self.assertNotIn("revisit if Q1", brief)
+        self.assertIn("- Q1 confirmed so far: One writer\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
 
     # Every combination: seed x hold x decision x commitment set, one question each.

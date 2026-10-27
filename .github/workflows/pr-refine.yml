@@ -289,13 +289,13 @@ jobs:
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # fix-docs's push job: the apply-patch activity under patch-rules.json's
-  # default row (fix-docs has no prepare mode). It runs only on a written
-  # patch: no change is the common case and needs no one. The lane has no
-  # escalation job, so a refused patch posts the pr-refine / apply-patch
-  # check neutral and labels nothing. One leg answers, as for pr-unblock.yml's
-  # apply-patch: the fallback call when it ran, else the first, and every
-  # input is that leg's scan job's, never a run job's, since the run job runs
-  # head code. The head is fix-docs-head's, read by a job that ran no head
+  # docs row, which admits only markdown outside skills/ and no SKILL.md. It
+  # runs only on a written patch: no change is the common case and needs no
+  # one. The lane has no escalation job, so a refused patch posts the
+  # pr-refine / apply-patch check neutral and labels nothing. One leg answers,
+  # as for pr-unblock.yml's apply-patch: the fallback call when it ran, else
+  # the first, and every input is that leg's scan job's, never a run job's,
+  # since the run job runs head code. The head is fix-docs-head's, read by a job that ran no head
   # code; apply-patch still applies onto the head its own gate reads.
   apply-docs-patch:
     needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]
@@ -323,6 +323,7 @@ jobs:
       patch-sha256: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-sha256 || '' }}
       patch-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
+      patch-prepare: docs
       patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
       # true drops the human-gated label from the holds: a lane escalation
       # put it on (lane-hold.mjs).
