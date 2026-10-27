@@ -23,6 +23,11 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
   ranking.
+- The scan ranks entries for review by signals read from the snapshot it already took (a discovery
+  hint, siblings whose modification times cluster, files of identical size in sibling directories).
+  Each ranked entry's `review_rank` names the signals that placed it, and an entry no signal reached
+  is `unranked`, not given a middle position. The rank orders review only: no eligibility, tick or
+  blocker decision reads it. Detail: [review ranking](skills/clean/reference/safety-model.md#review-ranking).
 - Filesystem roots, mount targets (a non-root mount such as a tmpfs `/tmp` can only have its
   immediate children listed, read-only, with `--root-children`), OS-managed roots on every Windows
   volume (unless addressed only via `--root-children` with an explicit child selection), user
