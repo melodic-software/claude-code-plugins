@@ -5,12 +5,12 @@
       "id": 1,
       "name": "preflight-reports-before-spending",
       "prompt": "/evals:plugin-eval preflight plugins/evals",
-      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, git_version, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, ceiling, leftover_sandboxes (count and size of claude-eval-* directories in the temp directory, or unknown), and tmp_free, in that order, then stops. Preflight removes no sandbox directory; when any are left it prints the chmod -R u+w and rm -rf cleanup commands for the user to run. No claude plugin eval invocation happens during a preflight.",
+      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, git_version, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, ceiling, leftover_sandboxes (count and size of claude-eval-* directories in the temp directory, or unknown), and tmp_free, in that order, then stops. Preflight removes no sandbox directory; when any are left it prints a per-sandbox cleanup loop (chmod 700 on the sandbox and its sealed directory, chmod -R u+rwx, then rm -rf) for the user to run. No claude plugin eval invocation happens during a preflight.",
       "narration": true,
       "expectations": [
         "Every preflight field is printed in order, including sandbox_backend, same_model, and estimate_usd",
         "leftover_sandboxes and tmp_free are printed after ceiling, each with a value or unknown, never an invented 0 for a path the probe could not read",
-        "No sandbox directory is deleted; if any are left, the chmod -R u+w and rm -rf cleanup commands are printed for the user and the response says preflight removes nothing",
+        "No sandbox directory is deleted; if any are left, a per-sandbox cleanup loop that runs chmod 700 on the sandbox and its sealed directory, then chmod -R u+rwx and rm -rf, is printed for the user, and the response says preflight removes nothing",
         "cli_version comes from reading claude --version rather than being asserted",
         "target_type is reported as plugin for a directory holding a plugin manifest and an eval dir",
         "No eval run is launched and no cost is incurred by the preflight action"
@@ -164,6 +164,18 @@
         "Does not call the +0.12 delta a gain",
         "Ends with a do not promote line",
         "Names the within-noise verdict as the condition that failed"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "scaffold-case-gets-the-flag",
+      "prompt": "/evals:plugin-eval run ./my-plugin. One case's case.yaml has context: scaffold_script: fixture.sh that sets up a git repo.",
+      "expected_output": "Says the scaffold script must be read before the run because it runs as the user outside the sandbox, then adds --scaffold to the claude plugin eval command; explains that without it the case runs against an unstaged workspace, both arms score the same and its delta reads 0.",
+      "narration": true,
+      "expectations": [
+        "The printed or invoked claude plugin eval command includes --scaffold",
+        "Says to read fixture.sh before adding --scaffold, because it runs as the user outside the sandbox",
+        "Explains that leaving --scaffold off runs the case against an unstaged workspace, so the delta reads 0"
       ]
     }
   ]
