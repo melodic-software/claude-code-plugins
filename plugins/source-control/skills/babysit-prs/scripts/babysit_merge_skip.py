@@ -115,6 +115,8 @@ STABLE_RERUNS = (
     "the job ran on another head",
     "the job named by details_url",
     "job conclusion is",
+    "left to a person: ",
+    "attempt 1 concluded ",
 )
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 KEY_RE = re.compile(r"[0-9a-f]{64}")
