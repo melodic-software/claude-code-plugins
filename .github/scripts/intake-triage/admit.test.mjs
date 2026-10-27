@@ -1017,6 +1017,8 @@ describe("unrunnableCriteria", () => {
     ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
     ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install core@melodic-software` both exit 0.", /Claude Code CLI/],
     ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
+    ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
+    ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -1067,6 +1069,10 @@ describe("unrunnableCriteria", () => {
     ["measure-invocation score", "`bash plugins/skill-quality/scripts/measure-invocation.sh score plugins/tdd/probes` exits 0."],
     ["measure-invocation compare", "`measure-invocation.sh compare baseline.json treatment.json` reports the delta."],
     ["measure-invocation emit-plugin-eval", "`measure-invocation.sh emit-plugin-eval plugins/tdd/probes evals/` writes the cases."],
+    ["an edit to a claude -p call", "The wrapper's `claude -p` call passes `--max-turns 30`."],
+    ["an edit to a headless Claude Code step", "The headless Claude Code step in the workflow keeps its `--allowedTools` list."],
+    ["a script posting its refusal as a comment on this issue", "The refusal is posted as a comment on this issue with the item numbers."],
+    ["a script recording in a comment on this issue", "refine.mjs records the split in a comment on this issue."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {

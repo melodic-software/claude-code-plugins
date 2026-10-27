@@ -268,7 +268,7 @@ const UNRUNNABLE = [
   // The lane's Bash runs only named wrappers, and a nested CLI gets no credential.
   [
     "a live Claude Code CLI run",
-    /\bclaude (?:-p|--print)\b|\brun\b[^,;:]{0,40}\bclaude plugin (?:test|install|update|configure)\b|\bclaude plugin (?:test|install|update|configure)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|\bheadless (?:claude|Claude Code)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
+    /\b(?:run|records?|reports? from|output (?:of|from))\b[^,;:]{0,40}\bclaude (?:-p|--print)\b|\bclaude (?:-p|--print)\b[^,;:.]{0,60}\b(?:exits?|prints?)\b|\brun\b[^,;:]{0,40}\bclaude plugin (?:test|install|update|configure)\b|\bclaude plugin (?:test|install|update|configure)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|\b(?:run|records?)\b[^,;:]{0,40}\bheadless (?:claude|Claude Code)\b|\bheadless (?:claude|Claude Code) (?:runs?|sessions?)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
   ],
   [
     "a repeated run",
@@ -299,7 +299,7 @@ const UNRUNNABLE = [
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
   [
     "a comment instead of a file change",
-    /^(?:a|one) comment on this issue\b|\b(?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
+    /^(?:a|one) comment on this issue\b|\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's
