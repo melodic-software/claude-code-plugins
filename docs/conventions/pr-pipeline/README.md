@@ -825,12 +825,13 @@ the rules that only tighten in
     `.github/actions/resolve-config/**`, whose code the broker runs from main in its signer
     process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
     defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
-    `.github/scripts/pr-merge/`, `.github/workflows/pr-merge.yml` and
-    `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`,
+    `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
     `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition.
-  - `enforcement`, a clean security review clears it: every other module the floored scripts
-    import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+  - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
+    `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
+    request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
+    other module the floored scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
     and the `retry-fetch.mjs` copy in each of those two directories)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
