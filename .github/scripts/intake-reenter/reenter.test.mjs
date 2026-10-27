@@ -350,3 +350,42 @@ test("the workflow runs on a needs-human unlabel", () => {
   assert.match(workflow, /^ {2}issues:.*\n {4}types: \[unlabeled\]$/m);
   assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
 });
+
+// The reenter job's folded `if:`, evaluated against one event. Covers only
+// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels.
+function reenterGate({ event, labels, label = null, comment = null }) {
+  const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
+  const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
+  assert.ok(block, "the reenter job has a folded if:");
+  let body = block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
+  body = body.replace(/contains\(github\.event\.issue\.labels\.\*\.name, ('[^']*')\)/g, (_, name) => `${JSON.stringify(labels)}.includes(${name})`);
+  const context = {
+    "github.event.comment.performed_via_github_app": null,
+    "github.event.comment.user.type": comment?.type ?? null,
+    "github.event.issue.pull_request": null,
+    "github.event.issue.state": "open",
+    "github.event.label.name": label,
+    github_event_name: event,
+  };
+  body = body.replaceAll("github.event_name", "github_event_name");
+  for (const name of Object.keys(context).sort((a, b) => b.length - a.length)) {
+    body = body.replaceAll(name, JSON.stringify(context[name]));
+  }
+  assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /github[._]/, `an unresolved reference in ${body}`);
+  return Function(`return (${body});`)();
+}
+
+test("a parked swap that lifts needs-human and adds status: confirmed starts no runner", () => {
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run", "status: confirmed", "priority: medium"] }), false);
+});
+
+test("a plain needs-human lift and a comment on a parked issue still start the job", () => {
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["priority: medium"] }), true);
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run"] }), true);
+  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User" }, labels: ["status: confirmed"] }), true);
+  assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
+});
