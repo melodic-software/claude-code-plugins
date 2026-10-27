@@ -19,12 +19,15 @@
 #     case-insensitively);
 #   - no `secrets: inherit`;
 #   - every `secrets` reference in a `${{ }}` expression is `secrets.<name>`
-#     with `<name>` on the allowlist `claude_code_oauth_token`,
-#     `pr_unblock_claude_code_oauth_token`,
-#     `issue_lane_claude_code_oauth_token`, `claude_api_key`,
-#     `pr_unblock_claude_api_key`, `issue_lane_claude_api_key`, `github_token`
-#     (lower-cased, `-` read as `_`); `toJSON(secrets)`, `secrets[...]` and
-#     bare `secrets` fail;
+#     with `<name>` (lower-cased, `-` read as `_`) in the shared set
+#     `fallback_claude_code_oauth_token`, `claude_code_oauth_token`,
+#     `claude_api_key`, `github_token`, or, in a workflow whose run reaches
+#     the read workflow, in that workflow's own entry of the caller map:
+#     `pr-refine.yml` and `pr-unblock.yml` may also name
+#     `pr_unblock_claude_code_oauth_token` and `pr_unblock_claude_api_key`,
+#     `work-resolve-issue.yml` `issue_lane_claude_code_oauth_token` and
+#     `issue_lane_claude_api_key`; `toJSON(secrets)`, `secrets[...]` and bare
+#     `secrets` fail;
 #   - one exception to both rules above, the scan-carrier key: the read
 #     workflow's `scan` job may hold one step that uses
 #     `./.base/.github/actions/open-lane-output` with
@@ -40,8 +43,10 @@
 # head code, and that job must be `steps` (not a reusable call) whose
 # `actions/checkout` steps take only `ref`, `path` and `persist-credentials`,
 # with `ref: ${{ github.event.repository.default_branch }}`. A missing
-# read workflow, or a workflow that does not parse, is an offender, so neither
-# a rename nor a syntax error turns the check into a silent pass.
+# read workflow, a workflow that does not parse, or a workflow whose run
+# reaches the read workflow with no entry in the caller map is an offender, so
+# neither a rename, a syntax error nor a new caller turns the check into a
+# silent pass.
 #
 # WHY. GitHub scrubs secrets per workflow run, not per job: a caller plus every
 # reusable workflow it calls is one run, and a secret referenced anywhere in it

@@ -307,36 +307,86 @@ test("the sweep cost names both tokens' spend, the candidates, those reached and
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
 });
 
-test("the run cache starts from the last run's kept reads and saves this run's under a new key", () => {
-  const names = steps.map((s) => s.name);
-  const order = [
-    "Restore the verdict reads the last run kept",
-    "Start the run cache from them",
-    "Run the merge gate on each candidate",
-    "Keep the verdict reads that never change",
-    "Save them for the next run",
-  ].map((name) => names.indexOf(name));
-  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
-  const key = "pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}";
+// The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
+// jobs as the head-ref map does (#9416): read from the last trusted run's
+// pr-merge-run-cache artifact (with enable-auto-merge's
+// pr-merge-verify-run-cache added), each uploaded by scheduled and
+// hand-started runs only, the runs a later read accepts. Neither job restores an
+// Actions cache, which any job in main's cache scope can write (#9455).
+test("both token-holding jobs read the carried reads from the last trusted run's artifact, never a cache", () => {
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
-  const restore = step("Restore the verdict reads the last run kept");
-  assert.match(restore, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(restore.includes(`key: ${key}\n`) && restore.includes("restore-keys: pr-merge-run-cache-\n"));
-  assert.ok(restore.includes(`path: ${carried}\n`));
-  const start = step("Start the run cache from them");
-  assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+  const read = "Read the verdict reads the last run kept";
+  for (const list of [steps, stepsOf(jobBlock("enable-auto-merge"))]) {
+    const names = list.map((s) => s.name);
+    assert.ok(names.indexOf(read) >= 0 && names.indexOf(read) < names.indexOf("Start the run cache from them"));
+    const block = step(read, list);
+    assert.match(block, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs read\n/);
+    assert.ok(block.includes(`CARRY_TO: ${carried}\n`) && block.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.match(block, /\n {8}timeout-minutes: 2\n/);
+    const start = step("Start the run cache from them", list);
+    assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+    assert.match(start, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs\n/);
+    for (const name of [read, "Start the run cache from them"]) {
+      assert.match(step(name, list), /\n {8}continue-on-error: true\n/, name);
+    }
+    for (const s of list) assert.doesNotMatch(s.block, /uses: actions\/cache[@/]/, s.name);
+  }
+  const names = steps.map((s) => s.name);
+  const order = [
+    read,
+    "Skip refusals whose inputs have not changed",
+    "Run the merge gate on each candidate",
+    "Keep the verdict reads that never change",
+    "Keep the refusals the next run may skip",
+    "Upload the verdict reads for the next run",
+  ].map((name) => names.indexOf(name));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
   assert.ok(step("Run the merge gate on each candidate").includes(`BABYSIT_RUN_CACHE: ${runCache}\n`));
   const keep = step("Keep the verdict reads that never change");
   assert.ok(keep.includes(`CARRY_FROM: ${runCache}\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
-  assert.match(keep, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
-  const save = step("Save them for the next run");
-  assert.match(save, /uses: actions\/cache\/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(save.includes(`key: ${key}\n`) && save.includes(`path: ${carried}\n`));
-  assert.match(save, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
-  for (const name of ["Restore the verdict reads the last run kept", "Start the run cache from them", "Keep the verdict reads that never change", "Save them for the next run"]) {
+  assert.ok(
+    keep.includes(
+      "always() && steps.gate.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload the verdict reads for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-run-cache\n") && upload.includes(`path: ${carried}\n`));
+  assert.ok(upload.includes("retention-days: 1\n"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
+  for (const name of ["Keep the verdict reads that never change", "Upload the verdict reads for the next run"]) {
     assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
   }
+});
+
+// The merge gate reads no lane verdict, so enable-auto-merge's reader is the
+// only one that fills run-record: a scheduled or hand-started run keeps its
+// reads as the merge job does and uploads them under a name of their own, and
+// only when it kept one, so an empty file never hides an older one.
+test("enable-auto-merge uploads its verifier reads for the next run", () => {
+  const list = stepsOf(jobBlock("enable-auto-merge"));
+  const carried = "${{ runner.temp }}/pr-merge-carried.json";
+  const names = list.map((s) => s.name);
+  const order = ["Arm and disarm auto-merge", "Keep the verdict reads that never change", "Upload the verdict reads for the next run"].map(
+    (name) => names.indexOf(name),
+  );
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
+  const keep = step("Keep the verdict reads that never change", list);
+  assert.match(keep, /\n {8}id: carry\n/);
+  assert.ok(keep.includes(`CARRY_FROM: \${{ runner.temp }}/babysit-run-cache.json\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
+  assert.ok(
+    keep.includes(
+      "always() && steps.arm.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  assert.match(keep, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs\n/);
+  const upload = step("Upload the verdict reads for the next run", list);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-verify-run-cache\n") && upload.includes(`path: ${carried}\n`));
+  assert.ok(upload.includes("retention-days: 1\n"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.kept == 'true'\n/);
+  for (const block of [keep, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
 });
 
 // The head-ref map (head-ref-map.mjs): read before the gate from the last
@@ -451,11 +501,13 @@ const runEarlyCheck = (code, needsDispatch = false, stops) => {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     const keptCode = join(dir, "post-merge-report", "post-merge-code");
+    const keptSha = join(dir, "post-merge-report", "post-merge-code-sha");
     return {
       status: result.status,
       stdout: result.stdout,
       output: readFileSync(output, "utf8"),
       keptCode: existsSync(keptCode) ? readFileSync(keptCode, "utf8").trim() : null,
+      keptSha: existsSync(keptSha) ? readFileSync(keptSha, "utf8").trim() : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -472,6 +524,17 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.match(run.output, /^needs-dispatch=false$/m);
   assert.match(run.output, /^code=75$/m);
   assert.equal(run.keptCode, "75");
+});
+
+// The merge job reuses the kept report only while the check's code at its
+// own commit reads as it did here: the report keeps the commit it ran.
+test("the early check keeps the commit whose code ran it beside its report", () => {
+  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  for (const code of [0, 1, 3]) {
+    const run = runEarlyCheck(code);
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.keptSha, head, String(code));
+  }
 });
 
 // The stop the check recorded in the job's stop file (babysit_gh.py
@@ -1070,13 +1133,13 @@ test("a missing or malformed skip file adds no row and the gate still runs", () 
   }
 });
 
-test("the skip step runs just before the gate and its record between the carry and the save, neither able to fail the job", () => {
+test("the skip step runs just before the gate and its record between the carry and the upload, neither able to fail the job", () => {
   const names = steps.map((s) => s.name);
   const at = (name) => names.indexOf(name);
   assert.equal(at("Skip refusals whose inputs have not changed"), at("Run the merge gate on each candidate") - 1);
   assert.ok(at("Record a failed lane merge") < at("Skip refusals whose inputs have not changed"));
   assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
-  assert.equal(at("Save them for the next run"), at("Keep the refusals the next run may skip") + 1);
+  assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
   assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);
@@ -1193,10 +1256,17 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
 // Runs the re-run step against a fake gh that answers `attempts` in turn for
 // the run read, failing a read whose entry is "x" (a 502) and rate-limiting
 // one whose entry is "limited" (a 403 with the core pool spent until
-// 2100-01-01). `post` answers the re-run POST: "ok", "refuse" (a 403 that is
-// no rate limit) or "limited" (a 429 with a retry-after). Like gh, with -i it
+// 2100-01-01). `post` answers the re-run POST, or each POST in turn when a
+// list: "ok", "refuse" (a 403 that is no rate limit), "limited" (a 429 with a
+// retry-after) or "unsent" (a TLS handshake timeout, before the request left).
+// The "limited" read's stderr is RATE_LIMITED_STDERR. Like gh, with -i it
 // prints the status and headers before the body, the guard's shape.
-const LIMITED_403 = 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
+// gh's stderr for a call GitHub refused for a rate limit, as run 39906176584
+// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
+// 2026-10-23T05:30:57Z).
+const RATE_LIMITED_STDERR =
+  "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
+const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
 const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
   try {
@@ -1207,19 +1277,21 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
       `#!/usr/bin/env bash\ninc=; if [ "$2" = -i ]; then inc=1; set -- "$1" "\${@:3}"; fi\n` +
         `echo "$*" >>"${dir}/calls"\n` +
         `say() { if [ -n "$inc" ]; then printf "$1"; else printf "$1" | sed '1,/^\\r\\?$/d'; fi; }\n` +
-        `if [ "$3" = POST ]; then case ${post} in\n` +
+        `if [ "$3" = POST ]; then p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"\n` +
+        `case "\${p[$((s - 1))]:-\${p[-1]}}" in\n` +
         `  ok) say 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;\n` +
+        `  unsent) echo 'Post "https://api.github.com/repos/o/r/actions/runs/11/rerun-failed-jobs": net/http: TLS handshake timeout' >&2; exit 1 ;;\n` +
         `  refuse) say 'HTTP/2.0 403 Forbidden\\r\\n\\r\\n{"message": "Resource not accessible by integration"}\\n'; echo "HTTP 403" >&2; exit 1 ;;\n` +
         `  limited) say 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "HTTP 429" >&2; exit 1 ;;\n` +
         `esac; fi\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
         `if [ "$v" = x ]; then say 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "HTTP 502" >&2; exit 1; fi\n` +
-        `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\n` +
+        `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi\n` +
         `if [ "$v" = bare429 ]; then echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1; fi\n` +
         `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v\\n"\n`,
     );
-    writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
     symlinkSync(root, join(dir, ".base"));
@@ -1244,6 +1316,7 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
       calls: read("calls").split("\n").filter(Boolean),
       output: read("output"),
       record: read("rerun.json"),
+      slept: read("slept").split("\n").filter(Boolean).map(Number),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1285,6 +1358,34 @@ test("the re-run step records nothing when the re-run is refused or lands past a
     assert.doesNotMatch(run.output, /recorded=true/);
     assert.match(run.stdout, /^::warning::/m);
   }
+});
+
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), as the dispatch: a POST that never left is sent again; a refusal
+// GitHub answered is not, since the re-run may have started.
+test("a re-run POST that never left is sent again after a jittered wait, at most three times", () => {
+  const run = runRerun([1, 2], { post: ["unsent", "unsent", "ok"] });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST, POST, POST]);
+  assert.ok(run.slept[0] >= 1 && run.slept[0] <= 10, `${run.slept[0]}`);
+  assert.ok(run.slept[1] >= 1 && run.slept[1] <= 20, `${run.slept[1]}`);
+  assert.match(run.output, /^recorded=true$/m);
+  const spent = runRerun([1], { post: ["unsent"] });
+  assert.equal(spent.status, 0, spent.stdout);
+  assert.equal(spent.calls.filter((c) => c.includes("POST")).length, 3);
+  assert.equal(spent.record, "");
+  assert.match(spent.stdout, /::warning::the re-run of run 11 was refused after 3 attempt\(s\)/);
+  const refused = runRerun([1], { post: ["refuse", "ok"] });
+  assert.deepEqual(refused.calls.filter((c) => c.includes("POST")), [POST]);
+  assert.deepEqual(refused.slept, []);
+});
+
+test("a rate limit after a re-run POST that never left still stops red, with no further send", () => {
+  const run = runRerun([1], { post: ["unsent", "limited", "ok"] });
+  assert.equal(run.status, 1, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST, POST]);
+  assert.equal(run.record, "");
+  assert.match(run.output, /^rate-limited=true$/m);
 });
 
 test("the re-run step rides out failed reads after the re-run and records attempt 2", () => {
@@ -1390,72 +1491,94 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 });
 
 // The merge job's check, run with this run's post-merge-dispatch report kept
-// in post-merge-kept (or none) and a fake python3 that marks it ran. The rule
-// (pr-merge.yml): reuse a report whose check judged (exit 0, 1 or 5) main at
-// this job's commit under REUSE_MINUTES ago; otherwise run the check.
-const MAIN = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: true } } = {}) => {
+// in post-merge-kept (or none) and a fake python3: `settle` answers whether
+// the report stands (exit `settle`), any other call is the check, which marks
+// that it ran. The rule (pr-merge.yml): reuse a report whose check judged
+// (exit 0, 1 or 5) and that `settle` keeps (babysit_verify_evidence.py, the
+// lane room's rule, tested in test_babysit_lane_room.py) given the commit
+// post-merge-dispatch's check ran (`codeSha`, null for no file); otherwise
+// run the check. `yqFails` puts a yq that fails on the PATH.
+const KEPT_SHA = "b".repeat(40);
+const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`,
+    );
     chmodSync(join(bin, "python3"), 0o755);
+    if (yqFails) {
+      writeFileSync(join(bin, "yq"), "#!/usr/bin/env bash\nexit 1\n");
+      chmodSync(join(bin, "yq"), 0o755);
+    }
     symlinkSync(root, join(dir, ".base"));
     writeFileSync(join(dir, "lane-records.json"), "read in");
     if (kept !== undefined) {
       mkdirSync(join(dir, "post-merge-kept"));
       writeFileSync(join(dir, "post-merge-kept/post-merge.json"), JSON.stringify(kept));
       writeFileSync(join(dir, "post-merge-kept/post-merge-code"), `${code}\n`);
+      if (codeSha !== null) writeFileSync(join(dir, "post-merge-kept/post-merge-code-sha"), `${codeSha}\n`);
       if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
     }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: /\n {10}REUSE_MINUTES: (\d+)\n/.exec(step("Check earlier lane merges"))[1] },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     return {
       status: result.status,
       stdout: result.stdout,
       ran: existsSync(join(dir, "ran")),
-      output: readFileSync(output, "utf8"),
-      report: JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")),
+      settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      report: existsSync(join(dir, "post-merge.json")) ? JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")) : null,
       records: readFileSync(join(dir, "lane-records.json"), "utf8"),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-const keptReport = ({ main = MAIN, minutesAgo = 3 } = {}) => ({
-  readable: true,
-  needsDispatch: true,
-  shared: { mainSha: main, computedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString().replace("Z", "+00:00") },
-});
+const keptReport = () => ({ readable: true, needsDispatch: true, shared: { mainSha: "a".repeat(40) } });
 
-test("the merge job reuses this run's post-merge report for main at its commit, with its code and lane records", () => {
+test("the merge job reuses this run's post-merge report that settle keeps, with its code and lane records", () => {
   for (const code of ["0", "1", "5"]) {
     const run = runMergeCheck({ kept: keptReport(), code, records: "proved" });
     assert.equal(run.status, 0, run.stdout);
     assert.equal(run.ran, false, code);
     assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
     assert.match(run.output, /^needs-dispatch=true$/m);
-    assert.equal(run.report.shared.mainSha, MAIN);
+    assert.equal(run.report.shared.mainSha, "a".repeat(40));
     assert.equal(run.records, "proved");
-    assert.match(run.stdout, /::notice::post-merge-dispatch's check judged main at [0-9a-f]{40} \d+s ago/);
+    assert.match(run.stdout, /::notice::post-merge-dispatch's check \(exit \d\) still stands by the lane room's reuse rule; reused, not run again/);
   }
+  // settle is given the commit whose code ran the kept check, and reads the
+  // lane's identity itself.
+  const run = runMergeCheck({ kept: keptReport() });
+  assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --repo o/r --postmerge-result \\S+/post-merge-kept/post-merge\\.json --code-sha ${KEPT_SHA}$`));
+  // With no commit kept, an empty one, which settle refuses.
+  assert.match(runMergeCheck({ kept: keptReport(), codeSha: null }).settled, / --code-sha$/);
   // A report kept with no lane records leaves the ones read in.
-  assert.equal(runMergeCheck({ kept: keptReport() }).records, "read in");
+  assert.equal(run.records, "read in");
+  // The identity read (yq) is the fresh check's alone: a reused report
+  // needs none, so a failing yq fails only the check that needs it.
+  const reused = runMergeCheck({ kept: keptReport(), yqFails: true });
+  assert.equal(reused.status, 0, reused.stdout);
+  assert.equal(reused.ran, false);
+  const fresh = runMergeCheck({ kept: keptReport(), settle: 1, yqFails: true });
+  assert.notEqual(fresh.status, 0);
+  assert.equal(fresh.ran, false);
 });
 
-test("the merge job runs the check itself for no report, another main, an old report or a check that could not judge", () => {
+test("the merge job runs the check itself for no report, a report settle refuses or a check that could not judge", () => {
   for (const [why, options] of [
     ["none", {}],
-    ["another main", { kept: keptReport({ main: "f".repeat(40) }) }],
-    ["7 minutes old", { kept: keptReport({ minutesAgo: 7 }) }],
-    ["from the future", { kept: keptReport({ minutesAgo: -5 }) }],
-    ["no time", { kept: { ...keptReport(), shared: { mainSha: MAIN } } }],
+    ["settle refuses", { kept: keptReport(), settle: 1 }],
+    ["settle crashes", { kept: keptReport(), settle: 2 }],
     ["exit 3", { kept: keptReport(), code: "3" }],
+    ["exit 75", { kept: keptReport(), code: "75" }],
   ]) {
     const run = runMergeCheck({ ...options, records: "proved" });
     assert.equal(run.ran, true, why);
@@ -1463,6 +1586,8 @@ test("the merge job runs the check itself for no report, another main, an old re
     assert.deepEqual(run.report, { ran: true }, why);
     assert.equal(run.records, "read in", why);
   }
+  // A code that could not judge is not offered to settle.
+  assert.equal(runMergeCheck({ kept: keptReport(), code: "3" }).settled, null);
 });
 
 // The gate and every later step would call GitHub again while limited, so

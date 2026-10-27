@@ -29,10 +29,11 @@ import ntpath
 import os
 import posixpath
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -576,10 +577,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
-    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
-    # must have stood unchanged at the head before the gate adds the
-    # human-gated label; 0 is no minimum. Absent, or anything but a whole
-    # number, is `RISK_ESCALATION_MINUTES`.
+    # `merge.risk-escalation-minutes`: how long a reasons comment must have
+    # stood unchanged at the head before the gate adds the human-gated label
+    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # no minimum. Absent, or anything but a whole number, is
+    # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
     # one pull request at which it holds for a human whatever a later pass
@@ -671,13 +673,14 @@ def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
         raise PolicyReadError(f"{path} at {sha} is unreadable: {exc}") from exc
 
 
-def _loop_merge(text: str) -> str | None:
-    """The one `## babysit_loop_merge` value, or None for none, two, or a file
-    the repository-config parser rejects."""
+def _loop_merge(text: str) -> tuple[str | None, bool]:
+    """(the one `## babysit_loop_merge` value or None when the file has no
+    such H2, whether the file can be trusted: False for a file the
+    repository-config parser rejects, two such H2s or an empty one)."""
     try:
         repo_config.parse_repo_config(text)
     except repo_config.RepoConfigError:
-        return None
+        return None, False
     values: list[str] = []
     current: list[str] | None = None
     in_fence = False
@@ -696,7 +699,62 @@ def _loop_merge(text: str) -> str | None:
                 values.append("")
         elif current is not None and raw.strip() and not values[-1]:
             values[-1] = raw.strip().strip("`").strip()
-    return values[0] if len(values) == 1 and values[0] else None
+    if not values:
+        return None, True
+    return (values[0], True) if len(values) == 1 and values[0] else (None, False)
+
+
+def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
+    """(`babysit_loop_merge` from the team YAML or None when it sets none,
+    a note when the file cannot be trusted). A file the shared reader
+    rejects, or an empty, non-scalar or unknown value, is a note."""
+    path = repo_config.YAML_CONFIG_PATH
+    values = _concern_values(text, [(LOOP_MERGE_KEY, False)])
+    if values is None:
+        return None, f"{path}: the shared YAML reader rejects it"
+    found = values[LOOP_MERGE_KEY]
+    if not found:
+        if re.search(rf"^{LOOP_MERGE_KEY}[ \t]*:", text, re.M):
+            return None, f"{path}: {LOOP_MERGE_KEY} is not a scalar value"
+        return None, None
+    if found[0] not in LOOP_MERGE_RUNG:
+        return None, f"{path}: {LOOP_MERGE_KEY} {found[0]!r} is not a known value"
+    return found[0], None
+
+
+def _resolve_loop_merge(
+    file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
+) -> str | None:
+    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
+    set the key, else None (off), so a raise needs both files; the result is
+    the lower of the two, or the legacy value when the YAML sets none. Either
+    file unreadable or untrustworthy yields None (off), never the other
+    file's value alone."""
+    try:
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
+        return None
+    legacy, trusted = _loop_merge(source) if source is not None else (None, True)
+    if not trusted:
+        return None
+    try:
+        team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{repo_config.YAML_CONFIG_PATH} unreadable: {exc}")
+        return None
+    team, note = _team_loop_merge(team_text) if team_text is not None else (None, None)
+    if note:
+        notes.append(note)
+        return None
+    if source is None:
+        # Off with no legacy file: the YAML alone never raises the gate. The
+        # cleanup slice that deletes the legacy file decides deliberately
+        # whether the YAML may then set the rung by itself.
+        return None
+    if legacy is None or team is None:
+        return legacy
+    return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
 
 
 def read_config_at(
@@ -705,7 +763,8 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through
+    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
+    and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
@@ -727,12 +786,7 @@ def read_config_at(
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
-    try:
-        source = file_at(SOURCE_CONTROL_PATH, base_sha)
-    except PolicyReadError as exc:
-        source = None
-        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-    loop_merge = _loop_merge(source) if source is not None else None
+    loop_merge = _resolve_loop_merge(file_at, base_sha, notes)
 
     text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
@@ -2855,6 +2909,25 @@ def _dependabot_pushes(
     )
 
 
+def _dependabot_config(
+    owner: str, name: str, base_sha: str, main_sha: str
+) -> list[tuple[str, str]] | None:
+    """The (ecosystem, directory) pairs `.github/dependabot.yml` names at both
+    the base and the default branch head (`main_sha`), in the base's order:
+    coverage only admits, so a pair one side lacks is not covered and neither
+    side can widen it. None when either side holds no entry. Raises
+    `PolicyReadError` on a read failure."""
+    base = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
+    if base is None or main_sha == base_sha:
+        return base
+    main = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, main_sha) or ""
+    )
+    return None if main is None else [p for p in base if p in main]
+
+
 def _dependabot_content(
     owner: str,
     name: str,
@@ -2862,11 +2935,13 @@ def _dependabot_content(
     pr: Mapping[str, Any],
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
+    main_sha: str,
 ) -> tuple[str | None, str | None, list[str] | None]:
     """(content reason, refusal, changed paths). The content reason,
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
-    lock files and `uses:` repins (`content_refusal`, per
-    `.github/dependabot.yml` at the base); it sends the pull request to tier
+    lock files and `uses:` repins (`content_refusal`, per the pairs
+    `.github/dependabot.yml` names at both the base and the default branch
+    head, `_dependabot_config`); it sends the pull request to tier
     `review`. The paths a version-bump commit touched count as checked once
     it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
     else `dependabot-bump-content:<why>`); any other commit that is not
@@ -2876,9 +2951,7 @@ def _dependabot_content(
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
+    config = _dependabot_config(owner, name, base_sha, main_sha)
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -2992,15 +3065,48 @@ def _fix_commit_refusal(
         return f"fix-unreadable:{str(exc)[:120]}"
 
 
-def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
-    """The base's standards Dependabot policy as parsed JSON, or None when it
+def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
+    """The standards Dependabot policy at `sha` as parsed JSON, or None when it
     is absent or not JSON (`review_only` then reports it unreadable). Raises
     `PolicyReadError` on a read failure."""
-    text = _file_at(owner, name, dependabot.POLICY_PATH, base_sha)
+    text = _file_at(owner, name, dependabot.POLICY_PATH, sha)
     try:
         return json.loads(text) if text is not None else None
     except ValueError:
         return None
+
+
+def _review_only(
+    owner: str,
+    name: str,
+    pr: Mapping[str, Any],
+    updates: Sequence[dependabot.Update],
+    paths: list[str] | None,
+    main_sha: str,
+) -> tuple[str, ...]:
+    """`review_only`'s reasons under the policy at the base and under the one
+    at the default branch head (`main_sha`), base first, each once: an entry
+    either side lists sends the pull request to review, and either side
+    unreadable reports it. Raises `PolicyReadError` on a read failure."""
+    repo = f"{owner}/{name}"
+    head_ref = str(json_object(pr.get("head")).get("ref") or "")
+    base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    return tuple(
+        dict.fromkeys(
+            reason
+            for sha in dict.fromkeys((base_sha, main_sha))
+            for reason in dependabot.review_only(
+                _dependabot_policy(owner, name, sha), repo, head_ref, updates, paths
+            )
+        )
+    )
+
+
+def _dependabot_main_sha(repo: str, branch: str | None) -> str:
+    """The default branch head whose Dependabot inputs bind beside the base's:
+    the one `_default_branch_config` reads, saved once per cache window and
+    never a failed read. Raises `PolicyReadError` when it cannot be read."""
+    return _default_branch_config(repo, branch).base_sha
 
 
 def _registry_json(url: str, accept: str) -> Any:
@@ -3072,6 +3178,8 @@ def dependabot_eligibility(
     pr: Mapping[str, Any],
     agent_identity: str | None,
     hold_majors: bool = True,
+    main_sha: str | None = None,
+    branch: str | None = None,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
@@ -3085,10 +3193,13 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
     hold labels and a body hold are the gate's, as for every pull
-    request."""
+    request. `.github/dependabot.yml` and the Dependabot policy bind at the
+    base and at the default branch head `main_sha` (`_dependabot_main_sha`
+    of `branch` when None), each by the rule that only tightens."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
     try:
+        main_sha = main_sha or _dependabot_main_sha(repo, branch)
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
@@ -3138,21 +3249,13 @@ def dependabot_eligibility(
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         content, refusal, paths = _dependabot_content(
-            owner, name, number, pr, commits, files
+            owner, name, number, pr, commits, files, main_sha
         )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         # A dependency the standards policy lists as review-only goes to review
         # whatever its version change; an unreadable policy sends every one.
-        listed = dependabot.review_only(
-            _dependabot_policy(
-                owner, name, str(json_object(pr.get("base")).get("sha") or "")
-            ),
-            repo,
-            str(json_object(pr.get("head")).get("ref") or ""),
-            tier.updates,
-            paths,
-        )
+        listed = _review_only(owner, name, pr, tier.updates, paths, main_sha)
         added = tuple(r for r in (content, *listed) if r)
         # A release whose registry provenance changed goes to review; only a
         # pull request still tier `auto` spends the registry reads.
@@ -4011,6 +4114,18 @@ def _changed_files(
     return tuple(files), complete
 
 
+# The most files GitHub's pull request files listing returns
+# (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
+FILES_API_CAP = 3000
+
+
+def files_capped(pr: Mapping[str, Any]) -> bool:
+    """Whether the REST pull request record changes more files than the
+    listing returns (`FILES_API_CAP`), so no read ever lists them all."""
+    count = pr.get("changed_files")
+    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+
+
 def changed_files(
     repo: str, pr: Mapping[str, Any]
 ) -> tuple[tuple[ChangedFile, ...], bool]:
@@ -4499,7 +4614,9 @@ def shared_refusal(
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an
-    answer when the demotion reads the same). The binding comes before the
+    answer only when a fresh demotion read equals the shared one in every
+    field: the records, the newest record's creation and the newest clear
+    move the floor and the evidence window too). The binding comes before the
     age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
     does not replace the run's answer. The floor is compared under the
     shared answer's demotion, which may be out of date; that changes only the
@@ -4892,6 +5009,7 @@ def assess(
                 pr=pr,
                 agent_identity=identity,
                 hold_majors=config.dependabot_majors == "hold",
+                branch=default,
             )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
@@ -5084,11 +5202,125 @@ def _recompute_shared(
     )
 
 
+# The check's code: what decides a post-merge report, so a report kept from
+# another commit's code stands only while these read the same.
+CHECK_CODE_PATHS = (
+    "plugins/source-control/skills/babysit-prs/scripts",
+    "docs/conventions/pr-pipeline.yaml",
+)
+CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
+
+
+def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
+    """Whether the check's code (`CHECK_CODE_PATHS`) at `root`'s HEAD is the
+    code at `code_sha`, the commit a kept post-merge report's check ran. A
+    sha that is not 40 hex digits, a commit missing from the clone, a path
+    missing at HEAD (a diff of a path at neither commit is empty) or any git
+    failure is not unchanged."""
+    if not SHA_RE.fullmatch(code_sha):
+        return False
+    try:
+        for path in CHECK_CODE_PATHS:
+            if subprocess.run(
+                ["git", "-C", str(root), "cat-file", "-e", f"HEAD:{path}"],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            ).returncode:
+                return False
+        done = subprocess.run(
+            ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
+            + list(CHECK_CODE_PATHS),
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
+def settle_shared(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    default: str,
+    base_sha: str,
+    identity: str,
+    code_unchanged: bool,
+    now: datetime | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
+    keep: bool = True,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+) -> tuple[SharedPostMerge | None, str | None]:
+    """The answer to use for the run's post-merge check in place of
+    `shared`, or None and why not (`post-merge answer <refusal>`): the gate's
+    own reuse rule (`shared_refusal`) as a candidate at the default branch
+    head `base_sha` with the gate's self logins (none). With `keep`, two
+    refusals keep `shared`: `unverified-stale` when nothing it was read from
+    moved (`_still_current`, with `runs_unchanged`), and `demotion-changed`
+    when `read_demotion` reads the shared demotion again. Any other refusal
+    is read again with `post_merge` (`_recompute_shared`), or with none
+    refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
+    from other check code: `code-changed`, never reused or kept. One rule for
+    the lane room and the merge job's reuse of post-merge-dispatch's report."""
+    unusable = (
+        shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=identity,
+            self_logins=frozenset(),
+            lane=True,
+            authority=PR_MERGE,
+            now=now,
+        )
+        if code_unchanged
+        else "code-changed"
+    )
+    if not unusable:
+        return shared, None
+    # An unverified-stale answer is kept when nothing it was read from moved,
+    # a demotion-changed one when the demotion reads the same (an issue the
+    # lane opened that triage edited, most runs).
+    try:
+        if not keep:
+            current = False
+        elif unusable == "demotion-changed":
+            current = shared.demotion == read_demotion(
+                repo,
+                agent_identity=identity,
+                self_logins=frozenset(),
+                permission=permission_reader(repo),
+            )
+        else:
+            current = (
+                unusable == "unverified-stale"
+                and runs_unchanged is not None
+                and _still_current(repo, default, identity, shared, runs_unchanged)
+            )
+    except (RuntimeError, ValueError, OSError):
+        current = False
+    if current:
+        return shared, None
+    if post_merge is None:
+        return None, f"post-merge answer {unusable}"
+    try:
+        fresh = _recompute_shared(repo, default, identity, frozenset(), post_merge, now)
+    except (RuntimeError, ValueError, OSError) as exc:
+        return None, f"post-merge answer {unusable}: {exc}"
+    if fresh is None:
+        return None, f"post-merge answer {unusable}: unreadable"
+    return fresh, None
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
+    code_unchanged: bool,
     now: datetime | None = None,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
@@ -5097,8 +5329,9 @@ def lane_room(
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
-    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`,
+    settled by `settle_shared`, with `code_unchanged` whether its check ran
+    this checkout's code (`check_code_unchanged`). `post_merge` is `assess`'s: an answer the gate would not reuse, for any
     `shared_refusal`, is read again as the gate reads it
     (`_recompute_shared`, with the room's self logins, none), and a readable
     one stands in for `shared`. Two refusals are first kept: one refused only
@@ -5131,55 +5364,22 @@ def lane_room(
     identity = config.agent_identity
     if not identity:
         return LaneRoom(unreadable="no agent identity")
-    # The gate's own reuse rule, as a candidate at the default branch head
-    # with the gate's self logins (none): the same identity and lane, its
-    # age, no demotion record filed or changed since, and every lane merge
-    # the check would judge now counted (`new-merge:#<n>` otherwise).
-    unusable = shared_refusal(
+    settled, unusable = settle_shared(
         repo,
         shared,
-        branch=default,
+        default=default,
         base_sha=config.base_sha,
         identity=identity,
-        self_logins=frozenset(),
-        lane=True,
-        authority=PR_MERGE,
+        code_unchanged=code_unchanged,
         now=now,
+        runs_unchanged=runs_unchanged,
+        # With no check to read it again, the room keeps nothing either.
+        keep=post_merge is not None,
+        post_merge=post_merge,
     )
-    if unusable and post_merge is not None:
-        # As the gate, any refusal reads afresh; an unverified-stale answer
-        # is first kept when nothing it was read from moved, a
-        # demotion-changed one when the demotion reads the same (an issue
-        # the lane opened that triage edited, most runs).
-        try:
-            if unusable == "demotion-changed":
-                current = shared.demotion == read_demotion(
-                    repo,
-                    agent_identity=identity,
-                    self_logins=frozenset(),
-                    permission=permission_reader(repo),
-                )
-            else:
-                current = (
-                    unusable == "unverified-stale"
-                    and runs_unchanged is not None
-                    and _still_current(repo, default, identity, shared, runs_unchanged)
-                )
-        except (RuntimeError, ValueError, OSError):
-            current = False
-        if not current:
-            try:
-                fresh = _recompute_shared(
-                    repo, default, identity, frozenset(), post_merge, now
-                )
-            except (RuntimeError, ValueError, OSError) as exc:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
-            if fresh is None:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
-            shared = fresh
-        unusable = None
-    if unusable:
-        return LaneRoom(unreadable=f"post-merge answer {unusable}")
+    if settled is None:
+        return LaneRoom(unreadable=unusable)
+    shared = settled
     if shared.gate.refusal:
         return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)

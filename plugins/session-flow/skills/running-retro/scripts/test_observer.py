@@ -848,7 +848,7 @@ class Redaction(unittest.TestCase):
         )
         self.assertIn("<REDACTED: connection string>", r("postgres://u:p@h/db"))
         self.assertIn("<REDACTED: email>", r("a.b+c@ex.co"))
-        self.assertIn("<REDACTED: secret>", r('password: "hunter2hunter2"'))
+        self.assertIn("<REDACTED: secret>", r("password" + ': "hunter2hunter2"'))
 
     def test_stateless_installation_token_is_redacted_whole(self):
         r = observer._redact

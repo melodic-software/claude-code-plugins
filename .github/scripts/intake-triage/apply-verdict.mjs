@@ -456,9 +456,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // A ready verdict's comment names admission's outcome, so it goes after; a
   // failed one stops neither the reword nor the summary.
   let reasonsError = null;
+  const refused = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission);
+      await sayReasons(github, repository, base, comments, appId, plan, admission, refused);
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
@@ -548,6 +549,21 @@ const edgeSummary = (edges, problem) =>
 
 const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} not written (GitHub answered ${status})`);
 const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${number} written and not deleted (GitHub answered ${status})`);
+const forbidden = (missed = [], undeleted = []) => [...missed, ...undeleted].some(({ status }) => status === 403);
+
+// What a 403 on a blocked-by edge means and how to grant the permission, for
+// the annotation and the issue comment. GitHub has no separate dependencies
+// permission: the blocked-by endpoints take the Issues repository permission,
+// at write to add or delete an edge
+// (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps,
+// read 2026-10-26). Label writes take Issues or Pull requests write; while
+// intake-triage.yml grants this job pull-requests: read, labels that landed
+// rule the permission in, so the 403 was a rate limit. An added permission
+// takes effect once each account the App is installed on approves it
+// (https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration,
+// read 2026-10-26).
+export const FORBIDDEN_EDGE =
+  "a 403 is a rate limit when this run's label writes landed, since this token makes them through the same grant, and intake's next run writes the edge; otherwise the lanes App lacks the Issues repository permission at write, which no re-run fixes. To grant it, the App's owner sets Issues to Read and write under Repository permissions on the App's Permissions & events settings page, then the owner of the account it is installed on approves the updated permissions";
 
 // The annotation for missed edges, or null. A 403 is a missing permission,
 // which no re-run fixes, or a rate limit: it fails the job, after every write.
@@ -572,10 +588,10 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       line: `::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: ${edges}; the verdict's labels are written, and work-unblock, which reads only native edges, does not see ${undeleted.length ? "the blockers not written" : "these blockers"}`,
     };
   }
-  return [...missed, ...undeleted].some(({ status }) => status === 403)
+  return forbidden(missed, undeleted)
     ? {
         fail: true,
-        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
+        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; ${FORBIDDEN_EDGE}. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
       }
     : {
         fail: false,
@@ -602,7 +618,9 @@ const settled = (admission) =>
 // issue; a later ready verdict marks it settled, naming the status admission
 // left. None is posted for a ready verdict that stays ready and never held;
 // one admission moved or did not finish gets the record a later run reads.
-async function sayReasons(github, repository, base, comments, appId, plan, admission) {
+// A missing edge GitHub answered 403 for names the permission (refused); a
+// 429 or 5xx does not, since the sweep's re-run writes it.
+async function sayReasons(github, repository, base, comments, appId, plan, admission, refused) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
   if (plan.ready && !own && after === null) {
@@ -613,7 +631,9 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
         admission?.outcome === "refused"
           ? `admission moved the issue to \`${after}\`; its comment says why.`
           : after === WAITS
-            ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
+            ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.${
+                refused ? ` GitHub answered 403 for an edge, and ${FORBIDDEN_EDGE}.` : ""
+              }`
             : after
               ? "admission did not finish, so the issue's status is not settled."
             : `the issue is at \`${READY}\`.`

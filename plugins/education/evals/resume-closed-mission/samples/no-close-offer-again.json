@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "MISSION.md says this mission is closed. Two options, your call: reopen it as it is, or revise it with a new goal and new checks. Which would you like?",
+      "why": "says closed and offers reopen or revise"
+    },
+    {
+      "answer": "You closed SQL Joins last session. Should we reopen it to keep practising, or set a new goal for it first?",
+      "why": "reopen and revise phrased differently, still a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You have met every item under Success Looks Like. Should we close the mission or revise it with a new goal?",
+      "why": "near miss: offers close-or-revise again on a closed mission"
+    },
+    {
+      "answer": "The mission was closed, so I have reopened it. Today's concept is FULL OUTER JOIN.",
+      "why": "reopens without asking and starts teaching"
+    }
+  ]
+}

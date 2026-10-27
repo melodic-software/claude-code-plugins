@@ -6,8 +6,9 @@
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
 // are already in `status: ready`: apply-verdict withholds it on any flag
 // (triage flags security only for a very-high risk) or a hold label, and the
-// cost rule adds needs-human. Criterion 4 (no protected path named) is not
-// applied. This checks the rest:
+// cost rule adds needs-human. Criterion 4 (no protected path named) applies
+// only to the paths the issue lane cannot push (unpushablePaths). This checks
+// the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -70,6 +71,7 @@ import { fileURLToPath } from "node:url";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -347,6 +349,51 @@ export function unrunnableCriteria(body, taskList, webHosts) {
   return { items: items.length, found };
 }
 
+// The patch-rules.json row apply-patch.mjs reads for an issue lane push
+// (TARGETS.issue).
+export const PATCH_ROW = "issue";
+let pushRefusalNames;
+// The protected-path refusals of that row in the default branch's
+// patch-rules.json beside this script, read once.
+export function issuePushRefusals() {
+  pushRefusalNames ??= JSON.parse(readFileSync(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url), "utf8"))[PATCH_ROW].refuse.filter(
+    (name) => PROTECTED_REFUSALS[name]?.kind === "protected-path",
+  );
+  return pushRefusalNames;
+}
+
+// A repository path a criterion names: a backticked span or a word, less a
+// trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
+// or a root CODEOWNERS or .gitmodules, counts: a bare file name or an
+// absolute runner path names no file of this repository.
+const pathTokens = (text) =>
+  [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
+    .map((token) =>
+      token
+        .replace(/^["'(\[]+/, "")
+        .replace(/[.,;:!?"')\]]+$/, "")
+        .replace(/:\d+(-\d+)?$/, ""),
+    )
+    .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+
+// A line that opens its own list item, such as a nested evidence bullet.
+const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
+
+// The paths the task-list items in `body`, with the wrapped text below each up
+// to its first nested bullet, name that apply-patch refuses under `names`
+// (issuePushRefusals), in order, each once. Pure.
+export function unpushablePaths(body, taskList, names) {
+  const lines = String(body ?? "").split("\n");
+  const wrapped = (more) => {
+    const end = more.findIndex((index) => BULLET.test(lines[index]));
+    return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
+  };
+  const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
+    pathTokens([text, ...wrapped(more)].join("\n")).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+  );
+  return [...new Set(paths)];
+}
+
 // The refusal reason for unrunnableCriteria's result, with the split it
 // recommends, or null when every item is runnable.
 export function unrunnableReason({ items, found }) {
@@ -412,8 +459,10 @@ export function admissionSettled(labels, events, isMark) {
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label (the owner's 2026-10-26 rule keeps a person out of
 // every other refusal), or done-when items a lane run cannot perform, which
-// refine splits only from needs-decision (refine.mjs splitOf). Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts }) {
+// refine splits only from needs-decision (refine.mjs splitOf). Pure but for
+// `pushRefusals`, read from patch-rules.json when not given; a file that does
+// not read throws out of decide, so no issue is admitted on a guess.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -482,6 +531,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (unrunnable) {
     refuse.push(unrunnable);
     hold = true;
+  }
+  // apply-patch refuses the issue lane's push of these paths
+  // (patch-protected-path), so a run for such a criterion is spent for
+  // nothing; this refusal parks at status: confirmed, never with a person.
+  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
+  if (unpushable.length > 0) {
+    refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
@@ -891,19 +947,55 @@ export function splitRecord(body) {
   };
 }
 
-// Whether `issue`, as just read, is a parent a size split filed every
-// sub-issue for, closed as completed by the lanes App (`isApp(actor)`) once
-// each sub-issue was closed by a listed human or a merge (`trusted(number)`):
-// the one close by the App that counts as done (owner Q93).
-export async function splitParentClosed({ github, repository, issue, isApp, trusted }) {
+// The default branch's admission rules, beside this script like readSchedule's
+// file, read once.
+let baseRules;
+const baseTaskList = () =>
+  (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))))["task-list"];
+
+// Whether `issue` in this repository is a split parent, whose work is its
+// sub-issues' (owner Q93): the lanes App (`isApp(actor)`) posted a split
+// record with its sub-issues filed (refine.mjs), or it was split by hand:
+// `children` (its sub-issues as listed) is not empty, the newest
+// sub_issue_added naming each child was the App's or a listed human's, it is
+// not `recurring`, and its body holds no task-list item (the admission
+// rules' `task-list`, unticked). `comments` are its comments. A failed read
+// throws.
+export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
+  if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+    return true;
+  }
+  if (children.length === 0 || names(issue.labels).includes(RECURRING) || taskItems(issue.body, baseTaskList()).length > 0) {
+    return false;
+  }
+  const linker = new Map();
+  const events = await paginate(github, `/repos/${repository}/issues/${issue.number}/events`);
+  for (const event of events.filter((item) => item?.event === "sub_issue_added")) {
+    const key = `${String(event.sub_issue?.repository?.full_name).toLowerCase()}#${event.sub_issue?.number}`;
+    const newest = linker.get(key);
+    if (newest === undefined || !(Date.parse(event.created_at) < Date.parse(newest.created_at))) {
+      linker.set(key, event);
+    }
+  }
+  return children.every((child) => {
+    const actor = linker.get(`${repoOf(child?.repository_url)}#${child?.number}`)?.actor;
+    return actor !== undefined && (isApp(actor) || humans.has(actor?.id));
+  });
+}
+
+// Whether `issue`, as just read, is a split parent (isSplitParent) closed as
+// completed by the lanes App (`isApp(actor)`) once each sub-issue was closed
+// by a listed human or a merge (`trusted(number)`): the one close by the App
+// that counts as done (owner Q93).
+export async function splitParentClosed({ github, repository, issue, isApp, humans, trusted }) {
   if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
     return false;
   }
   const base = `/repos/${repository}/issues/${issue.number}`;
-  if (!(await paginate(github, `${base}/comments`)).some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  const children = await paginate(github, `${base}/sub_issues`);
+  if (!(await isSplitParent({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans }))) {
     return false;
   }
-  const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
     if (child?.state !== "closed" || !(await trusted(child.number))) {
       return false;
@@ -919,7 +1011,7 @@ export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = (actor) => appId !== undefined && actor?.id === appId;
   const trusted = async (number) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
-    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, trusted });
+    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
   };
   return trusted;
 };

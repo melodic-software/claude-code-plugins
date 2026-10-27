@@ -3,6 +3,24 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [0.11.8] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [0.11.7] - 2026-10-26
+
+### Added
+
+- The git-hook installer's shared plan (`lib/git-hooks/install.mjs plan --scope shared`, plain hooks, `core.hooksPath` not yet `.githooks`) returns a `shared-entries` decision before `hooks-path`, listing what setting `core.hooksPath` would also run that this plugin did not install: `<event>.d/` markers other than its own, any `.githooks/*.pre-checks` hook, any other hook file there that is not the dispatcher, and every tracked file under `.githooks/local/` ([#7613](https://github.com/melodic-software/claude-code-plugins/issues/7613)). Setup shows the list and sets `core.hooksPath` only on the user's yes. With none present the plan is unchanged.
+
 ## [0.11.6] - 2026-10-25
 
 ### Changed

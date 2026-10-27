@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "^Status: closed",
+            "path": "learning/topic/sql-joins/MISSION.md",
+            "output_mode": "files_with_matches"
+          }
+        }
+      ],
+      "why": "the documented closed probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "superseded by",
+            "path": "learning/topic/sql-joins/learning-records"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Status: closed",
+            "glob": "**/MISSION.md"
+          }
+        }
+      ],
+      "why": "closed probe after the superseded probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "superseded by",
+            "path": "learning/topic/sql-joins/learning-records"
+          }
+        }
+      ],
+      "why": "near miss: only the superseded probe, nothing checks the mission state"
+    }
+  ]
+}

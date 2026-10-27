@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no Edit"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-item-tracker.json",
+            "old_string": "github",
+            "new_string": "jira"
+          }
+        }
+      ],
+      "why": "edits the binding"
+    }
+  ]
+}

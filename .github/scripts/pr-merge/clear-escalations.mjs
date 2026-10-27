@@ -109,9 +109,9 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 // babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
@@ -142,9 +142,9 @@ export const NATIVE_READS_PER_RUN = 3;
 const REFUSAL_CLEARED = "refusal-cleared";
 // The causes the lanes clear, by READER_HOLDS kind: the only recorded ones
 // this script lifts at the same head, and the only ones a lift tolerates
-// refusing now. Every other code, an unknown one included, is a person's. babysit_risk.PERSON_CODES (#10249) is
-// to become the single source; until then the list is explicit, so it fails
-// closed.
+// refusing now. Every other code, an unknown one included, is a person's. The
+// list is explicit, so it fails closed; lane-causes-person-codes.test.mjs pins
+// it against babysit_risk.PERSON_CODES and PERSON_PREFIXES (#10249).
 // - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
 //   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
 //   the manifest review (:598). Not the reader's `unreadable: …` score.

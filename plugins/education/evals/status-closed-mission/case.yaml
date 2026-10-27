@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: status-closed-mission
+description: teach status over a workspace whose MISSION.md carries a Status closed line must report that workspace as closed, not list it as an active mission with a frontier concept
+tags: [teach, pocock-24, closed-mission]
+expected_outcome: A grep probes MISSION.md for the closed line, and the reply's sql-joins line says closed in place of a frontier concept and a due-for-review flag.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach status. My only workspace is at learning/topic/sql-joins/ in this directory (topic mode). This run cannot write files."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: closed-probe
+    type: tool_used
+    tool: Grep
+    input_match: 'closed'
+    arm: both
+  - name: line-says-closed
+    type: regex
+    pattern: '^(?=[^\n]*\bsql-joins\b)(?=[^\n]*\bclosed\b)'
+    flags: 'im'
+    target: last_message
+  - name: not-reported-active
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply reports the sql-joins workspace as closed (its mission is finished) and does not present it as an active workspace: it names no current frontier concept to continue with and suggests no next lesson in it. A mention that it can be reopened is allowed. FAIL if the reply lists sql-joins as active or in progress, names a frontier concept such as FULL OUTER JOIN as the next step, or flags concepts in it as due for review without saying the mission is closed."
