@@ -486,6 +486,14 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("G6: Tree view pins the carried section too, keeps Q19 in the tree, and repeats no element id", tree.pinned && tree.inTree && tdup.length === 0, JSON.stringify(tree) + " dups " + JSON.stringify(tdup));
     await page.click('.seg button[data-view="groups"]'); await page.waitForTimeout(150);
   }
+  if (PHASE === 20) { // #9695: the shell answered Q1 in the terminal, then posted a sweep round whose Q20 reconciles Q1
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q20");
+    const card = await text("#roundRestate"), rec = await text("#reconciles"), head = await text("#dscroll .dids");
+    ok("#9695: the sweep round's card is labeled Sweep: reconciling earlier answers", /^Sweep: reconciling earlier answers \(round 4\)/.test(card) && /Sweep/.test(head), card + " | " + head);
+    ok("#9695: Q1's decision text shows beside Q20, which reconciles it", /^Earlier answers this reconciles\s*Q1.*Ship on Wednesday after the code freeze\./.test(rec), rec);
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

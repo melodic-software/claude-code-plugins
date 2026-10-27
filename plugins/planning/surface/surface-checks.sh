@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=115)
+declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=118)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -445,7 +445,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
     gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
-    gphases=19
+    gphases=20
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
     done
@@ -509,6 +509,12 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     {"op": "add", "question": {"id": "Q19", "group": "g1", "stage": "interview", "round": 3, "short": "Canary traffic", "title": "How much traffic goes to the canary first?", "recommendation": "One percent for an hour.", "dependsOn": [], "supersedes": "Q18", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent for a day"}, {"key": "b", "text": "Everything at once"}]}}]}' >"$pg/ops/chain.json"
     bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/chain.json" >/dev/null || bad "page: the supersede chain was refused"
     grun 19
+    # Phase 20 (#9695): Q1 answered in the terminal, then a sweep round whose Q20 reconciles it.
+    printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q1", "decision": "own", "text": "Ship on Wednesday after the code freeze."},
+    {"op": "add-round", "round": 4, "meta": {"kind": "sweep"}, "restate": {"text": "Q1 is settled. Q20 reconciles it with the rollout window.", "decided": ["Q1"], "open": ["Q20"]},
+    "questions": [{"id": "Q20", "group": "g1", "stage": "interview", "short": "Freeze conflict", "title": "Q1 ships inside the rollout window: which answer holds?", "recommendation": "Keep the Wednesday ship.", "basis": "Judgment", "dependsOn": [], "reconciles": ["Q1"], "commits": [], "alternatives": [{"key": "a", "text": "Move the rollout window"}, {"key": "b", "text": "Ship on Thursday"}]}]}]}' >"$pg/ops/sweep.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/sweep.json" >/dev/null || bad "page: the sweep round was refused"
+    grun 20
     bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
   }
