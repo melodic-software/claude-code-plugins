@@ -55,19 +55,26 @@ in every lane, floor or not and whatever `floor_exempt` says (owner rule,
 2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
 `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
 (the base tree was not listed); a file renamed or copied into a workflow or
-`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
-patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
-`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
-or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
-`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
-is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
-one it removes, when its head text (`contents`) names a model leg or could not
-be read; or that gains a runner value (head text against base text, and added
-inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
-any on another; and a `pr-pipeline.yaml` change with any added or removed line
-off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
-or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
-decision the caller verified, clears it.
+`pr-pipeline.yaml` path from outside one, or into a `_MODEL_CODE` path from
+outside those; a `.github/workflows/` file whose
+patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, a `model:` or
+`max-turns:` key, a `_MODEL_FLAG`), or, unless `RiskInput.public` is True, a
+`runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`, a
+`_MODEL_ACTION` (a local `uses: ./` included) or a `_MODEL_PACKAGE` run,
+counted against the lines it removes so a move or repin is not new; that
+raises a `timeout-minutes` or `leg-timeout-minutes` (`_raised_timeouts`: per
+key path when both sides are read), sets one to an expression or removes one,
+when its head text (`contents`) names a model leg or could not be read; or
+that gains a runner value (head text against base text, with the matrix values
+and input defaults a runner expression reads, and added inline `runs-on:`
+lines) that is not `_FREE_RUNNER` on a public repository, or any on another;
+an action's `action.yml` (`_MODEL_CODE`) whose patch adds a
+`_COST_WORKFLOW_LINE` or gains a `_MODEL_ACTION` or `_MODEL_PACKAGE` run, and a
+`.github/scripts/**` file whose patch adds a `_MODEL_FLAG` or gains a
+`_MODEL_PACKAGE` run; and a `pr-pipeline.yaml` change with any added or
+removed line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing
+comments. A workflow, pipeline or `_MODEL_CODE` file with no patch holds. Only
+`RiskInput.cost_decision`, an owner decision the caller verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -707,11 +714,23 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
+# Files outside the workflows that can start a model leg or set its model or
+# turns.
+_MODEL_CODE = (
+    ".github/actions/**/action.yml",
+    ".github/actions/**/action.yaml",
+    ".github/scripts/**",
+)
+# A model or turn flag, or a model environment variable.
+_MODEL_FLAG_SOURCE = r"--model\b|--max-turns\b|\b(?:ANTHROPIC|CLAUDE_CODE)_\w*MODEL\b"
+_MODEL_FLAG = re.compile(_MODEL_FLAG_SOURCE, re.IGNORECASE)
 # Added workflow lines that can charge in any repository: a schedule in any
-# YAML or JSON spelling (a scheduled lane spends model credits) and a model or
-# turn flag.
+# YAML or JSON spelling (a scheduled lane spends model credits), a `model:` or
+# `max-turns:` key (a model step's input), and a `_MODEL_FLAG`.
 _COST_WORKFLOW_LINE = re.compile(
-    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
+    r"\bcron\s*:|[\"']cron[\"']\s*:"
+    r"|(?:^|[\s{,])[\"']?(?:model|max[-_]turns)[\"']?\s*:|" + _MODEL_FLAG_SOURCE,
+    re.IGNORECASE,
 )
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on line or a Windows or macOS label (a matrix value) charges.
@@ -764,6 +783,62 @@ def _runner_values(text: str) -> list[str]:
     return values
 
 
+def _key_values(text: str, key: str) -> list[str]:
+    """Each value a `key:` holds in workflow text: an inline label or list, a
+    flow mapping's entry, and a block's list items and `default:` (an
+    input's)."""
+    values: list[str] = []
+    name = rf"[\"']?{re.escape(key)}[\"']?\s*:\s*"
+    block = re.compile(rf"^(\s*)(?:-\s+)?{name}(.*)$", re.IGNORECASE)
+    flow = re.compile(rf"[{{,]\s*{name}(\[[^\]]{{0,500}}\]|[^,}}\]]*)", re.IGNORECASE)
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        m = block.match(line)
+        if not m:
+            for value in flow.findall(line):
+                values.extend(_labels(value))
+            continue
+        if _scalar(m[2]):
+            values.extend(_labels(m[2]))
+            continue
+        indent = len(m[1])
+        for j in range(i + 1, len(lines)):
+            inner = lines[j]
+            if inner.strip() and len(inner) - len(inner.lstrip()) <= indent:
+                break
+            item = inner.strip()
+            if item.startswith("- "):
+                values.append(_scalar(item[2:]))
+            elif item.startswith("default:"):
+                values.append(_scalar(item[8:]))
+    return values
+
+
+def _feeds(
+    text: str, values: list[str], read: dict[str, list[str]] | None = None
+) -> list[str]:
+    """The values of each matrix key, input or env variable an expression
+    among `values` names, so a value changed there changes what the
+    expression reads. `read` keeps each key's values across calls."""
+    read = {} if read is None else read
+    keys = {
+        key
+        for value in values
+        if "${{" in value
+        for key in re.findall(r"\b(?:matrix|inputs|env)\.([\w-]+)", value)
+    }
+    for key in keys - set(read):
+        read[key] = _key_values(text, key)
+    return [v for key in sorted(keys) for v in read[key]]
+
+
+def _runner_feeds(text: str) -> list[str]:
+    """`_runner_values`, plus what a runner expression reads (`_feeds`), so a
+    larger label added there is a gained runner."""
+    values = _runner_values(text)
+    return values + _feeds(text, values)
+
+
 def _free(value: str) -> bool:
     labels = _labels(value)
     if "self-hosted" in (label.casefold() for label in labels):
@@ -773,15 +848,16 @@ def _free(value: str) -> bool:
 
 def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
     """Runner values the change adds that are not free: from the head text
-    against the base text when both were read, and from added inline runs-on
-    lines. Unread text and an added block holds."""
+    against the base text when both were read (with what a runner expression
+    reads, `_runner_feeds`), and from added inline runs-on lines. Unread text
+    and an added block holds."""
     contents = getattr(raw, "contents", None)
     pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
     base, head = pair if pair else (None, None)
     gained: Counter[str] = Counter()
     if isinstance(head, str):
-        gained.update(_runner_values(head))
-        gained.subtract(_runner_values(base if isinstance(base, str) else ""))
+        gained.update(_runner_feeds(head))
+        gained.subtract(_runner_feeds(base if isinstance(base, str) else ""))
     found = [v for v, n in gained.items() if n > 0]
     for line in added:
         m = _RUNS_ON.match(line)
@@ -799,28 +875,49 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
 _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
-# Any secrets reference: `secrets.NAME`, `secrets['NAME']`, the whole
-# `secrets` context, and `secrets: inherit`.
+# Any secrets reference: `secrets.NAME`, `secrets.*`, `secrets['NAME']`,
+# `secrets: inherit`, and the whole `secrets` context opening an expression or
+# argument (`${{ secrets }}`, `toJSON(secrets)`, `contains(secrets, ...)`) or a
+# line, ending one when a folded scalar splits a reference across lines.
 _SECRET_REF = re.compile(
-    r"\bsecrets\s*(?:\.\s*[A-Za-z0-9_]+|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b",
+    r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\s*:\s*inherit\b"
+    r"|(?:\$\{\{|[(,!]|^)\s*secrets\b(?:\s*[.\[])?(?=\s*(?:$|[),]|\}\}|[=!]=|&&|\|\|))",
     re.IGNORECASE,
 )
-# A model leg: a claude-code-* action or image, run-claude-cli, or the
-# Claude Code npm package on a run line.
+# A model leg: a claude-code-* action or image, run-claude-cli, the Claude
+# Code npm package on a run line, or a local reusable workflow or composite
+# action (`uses: ./...`), whose text this check does not read.
 _MODEL_ACTION_NAME = re.compile(
-    r"run-claude-cli|claude-code[\w-]*|@anthropic-ai/claude-code", re.IGNORECASE
+    r"run-claude-cli|claude-code[\w-]*|@anthropic-ai/claude-code"
+    r"|\buses\s*:\s*['\"]?\./",
+    re.IGNORECASE,
 )
 _MODEL_ACTION = re.compile(
-    r"\buses\s*:\s*['\"]?([^@\s'\"]*(?:run-claude-cli|claude-code[\w-]*)[^@\s'\"]*)",
+    r"\buses\s*:\s*['\"]?(\./[^\s'\"]*"
+    r"|[^@\s'\"]*(?:run-claude-cli|claude-code[\w-]*)[^@\s'\"]*)",
     re.IGNORECASE,
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
-_TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
+# A timeout in block or flow style, and its value: a number, or an expression
+# or anything else, which holds when new.
+_TIMEOUT = re.compile(
+    r"(?:^|[\s{,\"'])((?:leg-)?timeout-minutes)[\"']?\s*:\s*"
+    r"(\$\{\{[^}]{0,200}\}\}|[^,}]*)",
+    re.IGNORECASE,
+)
+_TIMEOUT_KEY = re.compile(r"(?:leg-)?timeout-minutes", re.IGNORECASE)
+# A timeout a number can carry; a longer run of digits reads as unknown.
+_NUMBER = re.compile(r"[0-9]{1,9}")
+_KEY_COLON = re.compile(r":(?=\s|$)")
+_PLAIN_KEY = re.compile(r"[^\s\"'#:{}\[\],][^\"'#:{}\[\],]*")
 
 
 def is_workflow_path(path: str) -> bool:
     return any(glob_match(g, path) for g in _WORKFLOWS)
+
+
+def is_model_code_path(path: str) -> bool:
+    return any(glob_match(g, path) for g in _MODEL_CODE)
 
 
 def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
@@ -891,20 +988,136 @@ def _net_added(
     return sorted(m for m, n in gained.items() if n > 0)
 
 
+def _key_of(body: str) -> tuple[str, str] | None:
+    """A block mapping line's key and the rest of the line, None when the
+    line holds no key."""
+    if body[:1] in ("'", '"'):
+        end = body.find(body[0], 1)
+        after = body[end + 1 :].lstrip() if end > 0 else ""
+        if not after.startswith(":") or after[1:2] not in ("", " ", "\t"):
+            return None
+        return body[1:end], after[1:].strip()
+    m = _KEY_COLON.search(body)
+    if not m:
+        return None
+    key = body[: m.start()].rstrip()
+    return (key, body[m.end() :].strip()) if _PLAIN_KEY.fullmatch(key) else None
+
+
+_ANCHOR = re.compile(r"(?:^|(?<=[\s\[{,:]))&([\w.-]+)\s+([^\s,}\]#]+)")
+_Path = tuple[str, ...]
+
+
+def _timeouts(text: str) -> tuple[dict[_Path, list[str]], set[_Path]]:
+    """Each timeout value in workflow text by its key path, and every key path
+    the text holds. A job's steps share one path; a flow mapping's timeouts
+    take their place on the line. A value on the lines below its key or behind
+    an alias (the last anchor before it) is read there, and an expression's
+    value also counts what it reads (`_feeds`)."""
+    values: dict[_Path, list[str]] = {}
+    paths: set[_Path] = set()
+    stack: list[tuple[int, str]] = []
+    anchors: dict[str, str] = {}
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        body = line.lstrip(" -")
+        if not body or body.startswith("#"):
+            continue
+        col = len(line) - len(body)
+        while stack and stack[-1][0] >= col:
+            stack.pop()
+        path = tuple(key for _, key in stack)
+        keyed = _key_of(body)
+        rest = keyed[1] if keyed else body
+        for name, value in _ANCHOR.findall(rest.split(" #", 1)[0]):
+            anchors[name] = _scalar(value)
+        if keyed:
+            key = keyed[0]
+            path += (key,)
+            paths.add(path)
+            stack.append((col, key))
+            if _TIMEOUT_KEY.fullmatch(key):
+                value = _scalar(re.sub(r"^&\S+\s*", "", rest))
+                if not value or value[0] in "|>":
+                    below = []
+                    for j in range(i + 1, len(lines)):
+                        inner = lines[j]
+                        if inner.strip() and len(inner) - len(inner.lstrip()) <= col:
+                            break
+                        below.append(inner.strip())
+                    value = " ".join(v for v in below if v)
+                elif value.startswith("*"):
+                    value = anchors.get(value[1:], value)
+                if value:
+                    values.setdefault(path, []).append(value)
+                continue
+        for n, (name, value) in enumerate(_TIMEOUT.findall(rest)):
+            if _scalar(value):
+                values.setdefault((*path, f"{name}#{n}"), []).append(_scalar(value))
+    read: dict[str, list[str]] = {}
+    for vals in values.values():
+        vals += _feeds(text, vals, read)
+    return values, paths
+
+
+def _timeout_gains(new: list[str], old: list[str]) -> list[str]:
+    """The values `new` gains over `old` that what it loses does not cover:
+    one not a number, or a number above the lost number it pairs with, both
+    sorted largest first, or with none left to pair."""
+    gained, lost = Counter(new) - Counter(old), Counter(old) - Counter(new)
+    floor = sorted(
+        (int(v) for v in lost.elements() if _NUMBER.fullmatch(v)), reverse=True
+    )
+    numbers = sorted(
+        (int(v) for v in gained.elements() if _NUMBER.fullmatch(v)), reverse=True
+    )
+    return [v for v in gained.elements() if not _NUMBER.fullmatch(v)] + [
+        str(n) for i, n in enumerate(numbers) if i >= len(floor) or n > floor[i]
+    ]
+
+
+def _kept_parent(path: _Path, kept: set[_Path]) -> bool:
+    """A job or anything under one on `path` is still in the head."""
+    return any(path[:n] in kept for n in range(2, len(path)))
+
+
 def _raised_timeouts(
     f: _File, raw: Any, added: list[str], removed: list[str]
 ) -> list[str]:
     """Timeouts on a workflow that starts a model leg (or whose head text could
-    not be read) that the patch adds above every value it removes."""
-    new = [int(m[1]) for line in added if (m := _TIMEOUT.match(line))]
-    if not new:
+    not be read) that the change raises, sets to an expression or removes: the
+    patch's added values against the ones it removes (`_timeout_gains`), and,
+    with both sides read, the same per key path (`_timeouts`), plus a timeout
+    removed while its job stays (the default is the longest). With a side
+    unread, a patch that removes more timeouts than it adds holds."""
+    if f.status == "removed":
         return []
     contents = getattr(raw, "contents", None)
-    head = contents[1] if isinstance(contents, tuple) and len(contents) == 2 else None
+    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
+    base, head = pair if pair else (None, None)
+    if f.status == "added" and base is None:
+        base = ""
     if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
         return []
-    old = [int(m[1]) for line in removed if (m := _TIMEOUT.match(line))]
-    return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
+    new = [s for line in added for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))]
+    old = [s for line in removed for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))]
+    found = [f"timeout raised to {v}" for v in _timeout_gains(new, old)]
+    if not (isinstance(base, str) and isinstance(head, str)):
+        if len(old) > len(new):
+            found.append("timeout removed")
+        return found
+    (was, _), (now, kept) = _timeouts(base), _timeouts(head)
+    for path in sorted(set(was) | set(now)):
+        at = "/".join(path)
+        found += [
+            f"timeout at {at} raised to {v}"
+            for v in _timeout_gains(now.get(path, []), was.get(path, []))
+        ]
+        if len(now.get(path, [])) < len(was.get(path, [])) and _kept_parent(
+            path, kept
+        ):
+            found.append(f"timeout at {at} removed")
+    return list(dict.fromkeys(found))
 
 
 def _cost_reasons(
@@ -930,11 +1143,14 @@ def _cost_reasons(
             continue
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
-        if not (workflow or pipeline):
+        model_code = any(is_model_code_path(p) for p in f.paths)
+        if not (workflow or pipeline or model_code):
             continue
         new, old = f.paths[0], f.paths[-1]
         if new != old and not (
             is_workflow_path(old) or glob_match(_PIPELINE_CONFIG, old)
+            if workflow or pipeline
+            else is_model_code_path(old)
         ):
             hits.append(f"{f.path}: renamed or copied from {old}")
             continue
@@ -943,28 +1159,39 @@ def _cost_reasons(
             hits.append(f"{f.path}: no patch to read")
             continue
         added, removed = lines
-        if workflow:
-            patterns = [_COST_WORKFLOW_LINE] + (
-                [] if inp.public is True else [_COST_PRIVATE_LINE]
+        if pipeline and not workflow:
+            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+        else:
+            # An action's steps are a workflow's; a script has only flags.
+            steps = workflow or any(
+                is_model_code_path(p) and not glob_match(".github/scripts/**", p)
+                for p in f.paths
             )
+            if workflow:
+                patterns = [_COST_WORKFLOW_LINE] + (
+                    [] if inp.public is True else [_COST_PRIVATE_LINE]
+                )
+            else:
+                patterns = [_COST_WORKFLOW_LINE if steps else _MODEL_FLAG]
             found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
-            found += [
-                f"new secrets reference {n}"
-                for n in _net_added(_SECRET_REF, added, removed)
-            ]
-            found += [
-                f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
-            ]
+            if steps:
+                found += [
+                    f"new model leg {n}"
+                    for n in _net_added(_MODEL_ACTION, added, removed)
+                ]
             found += [
                 f"new model package run {n}"
                 for n in _net_added(_MODEL_PACKAGE, added, removed)
             ]
-            found += _raised_timeouts(f, raw, added, removed)
-            found += [
-                f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
-            ]
-        else:
-            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+            if workflow:
+                found += [
+                    f"new secrets reference {n}"
+                    for n in _net_added(_SECRET_REF, added, removed)
+                ]
+                found += _raised_timeouts(f, raw, added, removed)
+                found += [
+                    f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
+                ]
         if found:
             hits.append(f"{f.path}: {'; '.join(found)}")
     if not hits or inp.cost_decision:

@@ -863,21 +863,39 @@ the rules that only tighten in
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
     file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
     list whole holds every file;
-  - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
+  - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside,
+    or into an action's `action.yml` or `.github/scripts/` from outside those;
   - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
-    model credits) or a `--model` or `--max-turns` flag; or that gains any `secrets` reference
-    (`secrets.NAME`, `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`), a `uses:` of
-    `run-claude-cli` or any `claude-code*` action or image (matched ignoring case), or a run line
-    invoking `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved
-    line or a repin is not new;
-  - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
-    workflow whose head text uses one of those actions or could not be read;
-  - a runner value the workflow's head text gains over its base text, or an added inline
-    `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
-    standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
-    list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
+    model credits), a `model:` or `max-turns:` key (a model step's input), a `--model` or
+    `--max-turns` flag, or an `ANTHROPIC_*MODEL` or `CLAUDE_CODE_*MODEL` variable; or that gains
+    any `secrets` reference (`secrets.NAME`, `secrets.*`, `secrets['NAME']`, `secrets: inherit`,
+    and the whole context: `${{ secrets }}`, `toJSON(secrets)`, `contains(secrets, ...)`, or
+    `secrets` opening a line or an expression and ending the line, as a folded scalar splits it), a `uses:` of
+    `run-claude-cli`, any `claude-code*` action
+    or image (matched ignoring case), or a local reusable workflow or composite action
+    (`uses: ./...`, whose text the gate does not read), or a run line invoking
+    `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved line or a
+    repin is not new;
+  - in a workflow whose head text names one of those actions, `run-claude-cli`,
+    `@anthropic-ai/claude-code` or a `uses: ./` anywhere, or could not be read, a
+    `timeout-minutes` or `leg-timeout-minutes`, in block or flow style, that the change raises,
+    sets to an expression, or removes while its job stays (the default is the longest): the
+    patch's added values against the ones it removes, paired largest first, and with both sides
+    read, each job's values against its own (a job's step timeouts together), counting a value on
+    the lines below its key, behind an alias, or in the matrix values, input default or `env`
+    value an expression reads;
+  - a runner value the workflow's head text gains over its base text, counting the matrix values
+    (block or flow style) and input defaults a `runs-on:` expression reads, or an added inline
+    `runs-on:` value: on a
+    public repository only one that is not a free literal (GitHub's standard `ubuntu-*`,
+    `windows-*` and `macos-*` labels, the self-hosted managed labels, or a list holding
+    `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
+  - an action's `action.yml` under `.github/actions/` whose patch adds one of the workflow lines
+    above or gains a model leg or a run of the package, a file under `.github/scripts/` whose
+    patch adds a `--model` or `--max-turns` flag or a model variable or gains a run of the package,
+    and either with no patch;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
     on the same lines in place.
@@ -896,9 +914,11 @@ the rules that only tighten in
   clears only this reason: a change that is also on the HIGH path floor still waits for a person
   to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
-  does). Not detected: budgets, billing settings and new paid services outside these files, and
-  the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
-  azure-iac's Pulumi program is C#, and its deploy gate
+  does). Accepted: a `secrets` reference moved within one file, which is net zero. Left to the
+  review lanes' cost hold: new triggers, removed concurrency or `if:` guards, matrix growth,
+  workflows in a `.github/workflows/` subdirectory, spend logic in code, other infrastructure file
+  formats, and a non-Claude model action, whose key is a new `secrets` reference. Not detected:
+  budgets, billing settings and new paid services outside these files. azure-iac's Pulumi program is C#, and its deploy gate
   ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
   for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull
   requests are not scored, so the hold does not apply to them.
