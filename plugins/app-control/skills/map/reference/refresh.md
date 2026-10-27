@@ -212,9 +212,12 @@ Then the outcome:
      directory's removal): the edited files and, for an untracked skill, every file under it, in
      one commit. Done when `git status --porcelain -- "<dir>"` prints nothing.
   4. **Pull request.** With the source-control plugin enabled, look for an open pull request from
-     the branch with `/source-control:pull-request list --head "<branch>"`. One exists: push the
-     branch, which updates it. None: open one through `/source-control:pull-request create`, in the
-     open state that skill resolves. Without the plugin, or when the list call fails, leave the
+     the branch with `/source-control:pull-request list --head "<branch>"`. Any listed pull request
+     whose `isCrossRepository` is not `false` (a fork's, on a same-named branch): **blocked**, the
+     blocker each such pull request's URL and `headRepositoryOwner` login, cleared by closing it;
+     push nothing, open nothing, and never report it as the upkeep pull request. Otherwise the
+     listed pull request is the upkeep pull request: push the branch, which updates it. None: open
+     one through `/source-control:pull-request create`, in the open state that skill resolves. Without the plugin, or when the list call fails, leave the
      commit on the branch and report that a pull request still needs checking or opening, with any
      error. Done when the report holds the pull request URL or the reason there is none.
 
