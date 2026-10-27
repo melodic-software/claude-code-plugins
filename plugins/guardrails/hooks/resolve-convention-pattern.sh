@@ -131,18 +131,15 @@ h2_value() {
   ' "$1"
 }
 
-# yaml_value <file> <key>: first matching flat-scalar value for a key from the
-# neutral YAML file: `^<key>:` at column 0, CR-stripped, surrounding whitespace
-# trimmed, ONE pair of matching surrounding quotes ('…' or "…") removed. No YAML
-# quote-escape processing — the one-sed extraction contract other consumers rely
-# on can't either, so the seam doc tells authors to write patterns that need no
-# escaping. Full-line `#` comments never match the key anchor; trailing `#` text
-# is NOT stripped (a regex may legitimately contain `#`).
-yaml_value() {
-  [ -f "$1" ] || return 0
-  yaml_line="$(grep -m1 -E "^${2}:" "$1" | tr -d '\r')"
-  [ -n "$yaml_line" ] || return 0
-  yaml_v="${yaml_line#"${2}":}"
+# yaml_scalar <key> <line>: sets yaml_v to the flat-scalar value of a `<key>:`
+# line from the neutral YAML file: surrounding whitespace trimmed (a CRLF line's
+# CR included, since [:space:] holds CR), ONE pair of matching surrounding quotes
+# ('…' or "…") removed. No YAML quote-escape processing — the one-sed extraction
+# contract other consumers rely on can't either, so the seam doc tells authors
+# to write patterns that need no escaping. Trailing `#` text is NOT stripped (a
+# regex may legitimately contain `#`).
+yaml_scalar() {
+  yaml_v="${2#"${1}":}"
   yaml_v="${yaml_v#"${yaml_v%%[![:space:]]*}"}"
   yaml_v="${yaml_v%"${yaml_v##*[![:space:]]}"}"
   case "$yaml_v" in
@@ -152,7 +149,68 @@ yaml_value() {
     ;;
   *) ;;
   esac
-  printf '%s' "$yaml_v"
+}
+
+# The neutral file's keys, read ONCE (read_neutral) with shell builtins: the
+# guard runs this resolver on every commit it judges, and a grep per key lookup
+# was most of its process cost. For each key, NEUTRAL_HAS_* is 1 when a line
+# starts `<key>:` at column 0 and NEUTRAL_* holds the first such line's value.
+# Full-line `#` comments never match a key.
+NEUTRAL_HAS_DIALECT=""
+NEUTRAL_DIALECT=""
+NEUTRAL_HAS_SUBJECT=""
+NEUTRAL_SUBJECT=""
+NEUTRAL_HAS_PR_TITLE=""
+NEUTRAL_PR_TITLE=""
+
+# read_neutral: fill the NEUTRAL_* values from NEUTRAL_FILE. An unreadable file
+# carries no keys, but says so on stderr: a consumer reads exit 1 with empty
+# stderr as "no convention tracked" and would stay quiet. The -r test keeps a
+# failed redirection from exiting the shell.
+read_neutral() {
+  [ -n "$NEUTRAL_FILE" ] || return 0
+  if [ ! -r "$NEUTRAL_FILE" ]; then
+    printf '%s\n' "resolve-convention-pattern: cannot read convention_source file '$ptr'; its keys are not read." >&2
+    return 0
+  fi
+  while IFS= read -r rn_line || [ -n "$rn_line" ]; do
+    case "$rn_line" in
+    dialect:*)
+      [ -z "$NEUTRAL_HAS_DIALECT" ] || continue
+      yaml_scalar dialect "$rn_line"
+      NEUTRAL_HAS_DIALECT=1
+      NEUTRAL_DIALECT="$yaml_v"
+      ;;
+    subject_pattern:*)
+      [ -z "$NEUTRAL_HAS_SUBJECT" ] || continue
+      yaml_scalar subject_pattern "$rn_line"
+      NEUTRAL_HAS_SUBJECT=1
+      NEUTRAL_SUBJECT="$yaml_v"
+      ;;
+    pr_title_pattern:*)
+      [ -z "$NEUTRAL_HAS_PR_TITLE" ] || continue
+      yaml_scalar pr_title_pattern "$rn_line"
+      NEUTRAL_HAS_PR_TITLE=1
+      NEUTRAL_PR_TITLE="$yaml_v"
+      ;;
+    *) ;;
+    esac
+  done <"$NEUTRAL_FILE"
+}
+
+# neutral_key <key>: sets nk_has and nk_v to the neutral file's NEUTRAL_HAS_ and
+# NEUTRAL_ values for a pattern key.
+neutral_key() {
+  case "$1" in
+  subject_pattern)
+    nk_has="$NEUTRAL_HAS_SUBJECT"
+    nk_v="$NEUTRAL_SUBJECT"
+    ;;
+  *)
+    nk_has="$NEUTRAL_HAS_PR_TITLE"
+    nk_v="$NEUTRAL_PR_TITLE"
+    ;;
+  esac
 }
 
 # Resolve the optional neutral-file pointer. Sets NEUTRAL_FILE (empty when no
@@ -206,7 +264,9 @@ if [ -n "$ptr" ]; then
     exit 1
   fi
   canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
-  canon_dir="$(cd "$(dirname "$NEUTRAL_FILE")" 2>/dev/null && pwd -P)"
+  # NEUTRAL_FILE is "$repo_root/$ptr", so it always holds a `/` and the strip
+  # names its directory without a dirname process.
+  canon_dir="$(cd "${NEUTRAL_FILE%/*}" 2>/dev/null && pwd -P)"
   # A literal prefix test, not a glob: the quoted "$canon_prefix" in the
   # removal below matches its own bytes, so a glob metacharacter in the
   # physical repo path (`[`, `*`, `?`) is compared, never interpreted. When
@@ -218,9 +278,9 @@ if [ -n "$ptr" ]; then
     printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' resolves outside the repository root (symlinked path segment); enforcement disabled." >&2
     exit 1
   fi
-  dialect="$(yaml_value "$NEUTRAL_FILE" dialect)"
-  if [ -n "$dialect" ] && [ "$dialect" != "posix-ere" ]; then
-    printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$dialect'; enforcement consumes posix-ere only — enforcement disabled." >&2
+  read_neutral
+  if [ -n "$NEUTRAL_DIALECT" ] && [ "$NEUTRAL_DIALECT" != "posix-ere" ]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$NEUTRAL_DIALECT'; enforcement consumes posix-ere only — enforcement disabled." >&2
     exit 1
   fi
 fi
@@ -231,9 +291,9 @@ fi
 # H2 would enforce a stale pattern the migration meant to retire. Runs at top
 # level (not inside a command substitution) so the exit reaches the caller.
 check_neutral_key() {
-  [ -n "$NEUTRAL_FILE" ] || return 0
-  grep -q -E "^${1}:" "$NEUTRAL_FILE" || return 0
-  [ -n "$(yaml_value "$NEUTRAL_FILE" "$1")" ] && return 0
+  neutral_key "$1"
+  [ -n "$nk_has" ] || return 0
+  [ -n "$nk_v" ] && return 0
   printf '%s\n' "resolve-convention-pattern: convention_source file carries '$1' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
   exit 1
 }
@@ -242,12 +302,10 @@ check_neutral_key() {
 # when the pointer is declared AND that file carries the key; the team markdown
 # H2 otherwise.
 team_value() {
-  if [ -n "$NEUTRAL_FILE" ]; then
-    team_v="$(yaml_value "$NEUTRAL_FILE" "$1")"
-    if [ -n "$team_v" ]; then
-      printf '%s' "$team_v"
-      return 0
-    fi
+  neutral_key "$1"
+  if [ -n "$nk_v" ]; then
+    printf '%s' "$nk_v"
+    return 0
   fi
   h2_value "$TEAM_FILE" "$1"
 }
