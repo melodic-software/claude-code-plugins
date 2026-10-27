@@ -47,6 +47,15 @@
 //      skips finding-stands instead, which feedback-dispatch.mjs's sweep
 //      dispatches again.
 //
+// A pass-only round is the exception: when pr-verify passed the PR's current
+// head, pr-feedback-dispatch.yml sends pr-unblock.yml with verify-pass-head,
+// and the select job lists in run.json's stale_notes the open fail-note
+// threads from earlier heads (address-feedback.mjs staleVerifyNotes), with no
+// thread for a model. This job then resolves each one still open and stale
+// while the PR head is the passing one, and posts no reply and no round
+// marker, and skips pass-only. The job token cannot resolve a thread; the
+// lane token can.
+//
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
 //   GITHUB_REPOSITORY     owner/repo
@@ -89,6 +98,7 @@ import {
   ROUND_MARKER,
   scanRefusal,
   SHA,
+  staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
 import { parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
@@ -147,6 +157,11 @@ export function parseRun(text) {
       Array.isArray(run.threads) &&
       (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
     "run.json is malformed",
+  );
+  check(
+    run.stale_notes === undefined ||
+      (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
+    "run.json holds a malformed stale_notes list",
   );
   for (const thread of run.threads) {
     check(
@@ -442,8 +457,64 @@ async function resolveAfterReply(api, id, expected, headMoved) {
 // posts; a re-run of this job alone reuses that run's artifact.
 export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
 
+// The pass-only round's skip, which feedback-dispatch.mjs tells apart from a
+// round's reply check: it answers no thread, so it releases nothing and holds
+// nothing.
+export const PASS_ONLY_SKIP = "pass-only";
+
+// A pass-only round: the select job listed the fail-note threads a pr-verify
+// pass at its head left stale, and no model ran. Each one still open and still
+// stale (staleVerifyNotes) is resolved while the PR head is the passing one;
+// a failed resolve is logged, the rest are tried, and the job then fails so
+// a re-run tries again. Nothing is posted and no round is counted.
+async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
+  const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
+  const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha));
+  const failed = [];
+  let resolved = 0;
+  for (const id of run.stale_notes) {
+    if (!open.has(id)) {
+      log(`${id} is no open fail-note thread from an earlier head; left alone`);
+      continue;
+    }
+    try {
+      if (await headMoved()) {
+        log(`the PR head is no longer ${run.head_sha}, which pr-verify passed; nothing more is resolved`);
+        break;
+      }
+      if ((await api.resolveThread(id)) !== true) {
+        throw new Error("it does not read resolved");
+      }
+      resolved += 1;
+    } catch (error) {
+      failed.push(id);
+      log(`could not resolve ${id}: ${String(error?.message ?? error).slice(0, 300)}`);
+    }
+  }
+  log(`resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`);
+  if (failed.length > 0) {
+    throw new Error(`could not resolve ${failed.join(", ")}`);
+  }
+  return { escalationReason: "", skipReason: PASS_ONLY_SKIP, posted: [] };
+}
+
+// run.json when it is a pass-only round's, else null; any other run.json,
+// readable or not, is judged by postReplies.
+function staleRunOf(readArtifact) {
+  try {
+    const run = parseRun(readArtifact().runText);
+    return run.stale_notes ? run : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function publish(args) {
   const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
+  const staleRun = staleRunOf(args.readArtifact);
+  if (staleRun !== null) {
+    return resolveStaleNotes({ api, pr, headSha, headRef: args.headRef, run: staleRun, log });
+  }
   let result = null;
   let failure = null;
   try {

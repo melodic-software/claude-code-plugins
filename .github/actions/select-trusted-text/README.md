@@ -39,7 +39,9 @@ used.
 That query covers bodies only, so the PR title has its own rule: the PR's `timelineItems` of type
 `RENAMED_TITLE_EVENT` are read page by page (the same 50-page cap). When any rename's `actor` is
 null or not listed, the title is withheld (empty) and counted once under `edited-by-untrusted`;
-the body still follows the edit rule above.
+the body still follows the edit rule above. A page of either GraphQL connection that comes back
+with no node list is a failed read. The exported `titleRenamers` is that one rename read;
+pr-verify's `resolve-pr.mjs` uses it under its own, latest-renamer rule.
 
 `selectTrustedIssueComments` applies the same author and edit rules to one issue's comments; the
 issue lane's `write-issue.mjs` uses it to give the model only trusted comments beside the issue.

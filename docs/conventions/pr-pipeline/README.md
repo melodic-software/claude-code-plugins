@@ -209,6 +209,16 @@ upstream it records, except that only `pr-unblock / address-feedback` check runs
 `pr-verify` run was created count, and the head's handled record is not read, since the notes are
 new work at a head an earlier round may have handled; with none yet, the review run dispatches when it completes. The fix round's
 push gives a head the verifier judges again.
+When the run uploaded a `pass` or `pass-notes` verdict instead, `post-verify-notes` posts and
+resolves nothing: on an open PR still at that head it reads the review threads, and when an
+unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
+by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
+sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
+check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
+job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
+PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
+`pass-only`, which the dispatcher's release reads pass over. Resolving a thread
+takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -693,7 +703,9 @@ held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an
 round whose model never ran, so the scan uploaded no replies), `finding-stands` (an
 address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
 did not move, so no review run starts the round that fixes it), `clean-merge` (a resolve-conflicts
-round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
+round whose base merge left no conflict, so no model ran and the push job commits the merge),
+`pass-only` (a pass-only address-feedback round's reply job, which ran no model and only resolved
+fail-note threads a pr-verify pass superseded; the dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
@@ -2527,8 +2539,10 @@ pull-request`, and the pr-merge gate accepts it with no closing issue. Any other
 App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
 would also have written the spec it is graded against.
 
-The body counts only if it was never edited, or was last edited by its author or a trusted person;
-the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
+The body counts only if it was never edited, or was last edited by its author or a trusted person,
+and the title only if it was never renamed, or was last renamed by its author or a trusted person
+(its latest `RenamedTitleEvent`); otherwise the PR is not its own spec. The verdict records the
+sha256 of that title and body (`intent_sha256`), and the gate refuses the pass
 (`verify:spec-changed`) once the live title and body differ.
 
 In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the
