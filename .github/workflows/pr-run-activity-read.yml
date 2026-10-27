@@ -2556,11 +2556,12 @@ jobs:
               if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
               if (replies) {
                 core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
-                // adjudicate-feedback's gate: an INCORRECT reply, or a line
-                // that is not JSON, which the adjudicator's own checks refuse.
+                // adjudicate-feedback's gate: a reply that leaves its thread
+                // open (adjudicate-feedback.mjs DISPUTED), or a line that is
+                // not JSON, which the adjudicator's own checks refuse.
                 const disputed = replies.toString('utf8').split('\n').filter((line) => line.trim() !== '').some((line) => {
                   try {
-                    return JSON.parse(line)?.disposition === 'INCORRECT';
+                    return ['INCORRECT', 'UNCERTAIN', 'VALID-defer'].includes(JSON.parse(line)?.disposition);
                   } catch {
                     return true;
                   }

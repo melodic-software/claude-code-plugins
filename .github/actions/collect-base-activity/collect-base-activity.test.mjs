@@ -106,7 +106,7 @@ before(() => {
   writeFileSync(resolved, JSON.stringify({ selected: { args: "ci" } }));
   // The issue lane's protected-path rules come from the base's apply-patch
   // and patch-rules.json, as committed.
-  for (const file of [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/actions/resolve-config/patch-rules.json"]) {
+  for (const file of [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.json", ".github/actions/resolve-config/patch-rules.json"]) {
     cpSync(path.join(REPO_ROOT, file), path.join(base, file), { recursive: true });
   }
 });

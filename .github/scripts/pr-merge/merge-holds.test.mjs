@@ -357,12 +357,23 @@ const ENFORCEMENT_FILES = [
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
+  ".github/scripts/pr-unblock/escalation-routes.mjs",
+  ".github/scripts/pr-unblock/escalation-routes.json",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
   ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
   ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+  ".github/scripts/pr-unblock/report-escalation.sh",
+  ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
+  ".github/scripts/pr-unblock/publish-feedback.mjs",
+  ".github/scripts/pr-unblock/request-budget.mjs",
+  ".github/scripts/pr-unblock/dependency-classify.mjs",
+  ".github/scripts/apply-patch/apply-patch.mjs",
+  ".github/scripts/apply-patch/predicates.mjs",
+  ".github/scripts/apply-patch/protected-paths.mjs",
+  ".github/scripts/apply-patch/retry-fetch.mjs",
 ];
 test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));

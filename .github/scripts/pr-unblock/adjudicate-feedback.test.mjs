@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicationReply, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicationReply, collect, DISPUTED, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 
 const HEAD = "a".repeat(40);
@@ -116,26 +117,68 @@ test("disputes never adjudicates a CRITICAL code-review finding or a verifier no
   assert.deepEqual(disputes(fileOf(important), incorrect("PRRT_i")).slots.map((slot) => slot.thread), ["PRRT_i"]);
 });
 
-test("settleDisputes sends an INCORRECT reply on a CRITICAL code-review finding or a verifier note to a person, whatever verdict arrived", async () => {
-  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
-  for (const now of [new Map([["PRRT_a", criticalThread("PRRT_a")]]), new Map([["PRRT_a", verifierThread("PRRT_a")]])]) {
-    const result = await settleDisputes({
-      api,
-      pr: 42,
-      adjudicatedSha: HEAD,
-      posted: [{ thread: "PRRT_a", disposition: "INCORRECT" }],
-      replies: [],
-      shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
-      now,
-      verdicts: new Map([["PRRT_a", { verdict: "lane", question: "none" }]]),
-      pushed: false,
-      headMoved: async () => false,
-      resolveAfterReply: async () => assert.fail("not resolved"),
-      escalationReason: "",
-      log: () => {},
-    });
-    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
+// settleDisputes with no API call allowed, on one posted thread.
+const settleOffline = (now, disposition, verdicts = new Map([["PRRT_a", { verdict: "lane", question: "none" }]]), escalationReason = "") =>
+  settleDisputes({
+    api: new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) }),
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition }],
+    replies: [],
+    shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
+    now,
+    verdicts,
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => assert.fail("not resolved"),
+    escalationReason,
+    log: () => {},
+  });
+
+test("settleDisputes holds a CRITICAL code-review finding left open for a person, whatever verdict arrived: disputed when INCORRECT, else uncertain", async () => {
+  const now = new Map([["PRRT_a", criticalThread("PRRT_a")]]);
+  assert.deepEqual(await settleOffline(now, "INCORRECT"), { escalationReason: "feedback-disputed", skipReason: "" });
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
   }
+});
+
+test("settleDisputes ends a verifier note left open in feedback-verifier-open, a failing status and no person, whatever verdict arrived", async () => {
+  const now = new Map([["PRRT_a", verifierThread("PRRT_a")]]);
+  for (const disposition of DISPUTED) {
+    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-verifier-open", skipReason: "" }, disposition);
+  }
+});
+
+test("a reason held for a person outranks every fail-routed reason in one round", async () => {
+  const now = new Map([["PRRT_a", criticalThread("PRRT_a")]]);
+  assert.deepEqual(await settleOffline(now, "UNCERTAIN", undefined, "feedback-partial"), { escalationReason: "feedback-uncertain", skipReason: "" });
+  const verifier = new Map([["PRRT_a", verifierThread("PRRT_a")]]);
+  assert.deepEqual(await settleOffline(verifier, "UNCERTAIN", undefined, "feedback-partial"), { escalationReason: "feedback-partial", skipReason: "" });
+});
+
+// Only an INCORRECT reply is the lane disputing the finding with evidence.
+// On UNCERTAIN (the lane could not tell) or VALID-defer (it agreed the finding
+// holds), a lane verdict would let one model turn close a finding no one
+// disputed (#10252 security review), so neither settles it: no reply, the
+// thread stays open (the ruleset's thread resolution still holds the merge)
+// and the round ends in a failing status. settleOffline fails on any API call
+// or resolve.
+test("settleDisputes resolves only an INCORRECT finding on a lane verdict: UNCERTAIN and VALID-defer stay open as feedback-unadjudicated", async () => {
+  const now = new Map([["PRRT_a", thread("PRRT_a")]]);
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+    // A person's reason in the same round still outranks it.
+    assert.deepEqual(await settleOffline(now, disposition, undefined, "feedback-uncertain"), { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
+  }
+});
+
+test("disputes stages an UNCERTAIN or VALID-defer reply on an adjudicable thread as it does an INCORRECT one", () => {
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    const { slots } = disputes(fileOf(thread("PRRT_a"), criticalThread("PRRT_c")), [incorrect("PRRT_a", { disposition }), incorrect("PRRT_c", { disposition })].join("\n"));
+    assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a"], disposition);
+  }
+  assert.deepEqual(disputes(fileOf(thread("PRRT_a")), incorrect("PRRT_a", { disposition: "VALID" })).slots, []);
 });
 
 test("the adjudication reply says what the adjudicator read: the review comment, not the lane's reasoning", () => {
@@ -246,6 +289,25 @@ test("settleDisputes sends an INCORRECT reply on a security-review or unknown-la
     });
     assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
   }
+});
+
+// The floor for a reply the lane could not settle: on a security-review,
+// unknown-lane or claude[bot] finding an UNCERTAIN or VALID-defer reply holds
+// for a person whatever verdict arrived, and that reason routes `hold` (the
+// needs-human label), not a failing status a new head would clear.
+test("settleDisputes holds an UNCERTAIN or VALID-defer security-review or unknown-lane finding for a person, whatever verdict arrived", async () => {
+  for (const [label, make] of [["security-review", securityThread], ["unknown lane", unnamedThread], ["claude[bot]", claudeBotThread]]) {
+    for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+      for (const verdict of ["lane", "reviewer"]) {
+        const now = new Map([["PRRT_a", make("PRRT_a")]]);
+        const verdicts = new Map([["PRRT_a", { verdict, question: "none" }]]);
+        assert.deepEqual(await settleOffline(now, disposition, verdicts), { escalationReason: "feedback-uncertain", skipReason: "" }, `${label} ${disposition} ${verdict}`);
+      }
+    }
+    assert.deepEqual(disputes(fileOf(make("PRRT_s")), ["UNCERTAIN", "VALID-defer"].map((disposition) => incorrect("PRRT_s", { disposition })).join("\n")).slots, [], `${label}: no slot`);
+  }
+  assert.equal(escalationRoute("feedback-uncertain"), "hold");
+  assert.equal(escalationRoute("feedback-disputed"), "hold");
 });
 
 test("prepare writes one slot per dispute with the files at the head, and refuses another head's thread file", async (t) => {

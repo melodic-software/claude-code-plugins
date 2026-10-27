@@ -38,11 +38,12 @@
 //      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
-//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
-//      or a reason adjudicate-feedback.mjs settleDisputes gives for an
-//      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
-//      feedback-question-design, feedback-question-security, or
-//      feedback-disputed (the finding stood at an earlier adjudication and
+//      after a reply), or a reason adjudicate-feedback.mjs settleDisputes
+//      gives for an INCORRECT, UNCERTAIN or VALID-defer reply:
+//      feedback-unadjudicated, feedback-question-intent,
+//      feedback-question-design, feedback-question-security,
+//      feedback-disputed, feedback-uncertain, feedback-verifier-open, or
+//      feedback-stood-open (the finding stood at an earlier adjudication and
 //      this round left it open). A finding that stands with the head unmoved
 //      skips finding-stands instead, which feedback-dispatch.mjs's sweep
 //      dispatches again.
@@ -101,8 +102,9 @@ import {
   staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
-import { parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
+import { DISPUTED, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope } from "./thread-scope.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 
 // bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
 // runBytes: run.json's, the 1 MiB the read runner accepts for it.
@@ -128,8 +130,8 @@ const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {
   VALID: "VALID, fixed",
   INCORRECT: "INCORRECT, left open",
-  UNCERTAIN: "UNCERTAIN, left open for a person",
-  "VALID-defer": "VALID (defer), left open for a person",
+  UNCERTAIN: "UNCERTAIN, left open",
+  "VALID-defer": "VALID (defer), left open",
 };
 
 class Invalid extends Error {}
@@ -633,9 +635,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason, posted: [] };
     }
     replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
-    if (replies.some((reply) => reply.disposition === "UNCERTAIN" || reply.disposition === "VALID-defer")) {
-      escalationReason = "feedback-uncertain";
-    }
     const posted = [];
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
@@ -679,11 +678,12 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       }
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
     }
-    // An INCORRECT thread goes to the adjudicator's verdict, not straight to
-    // a person (owner decision): it is resolved, handed back to the next round,
-    // or escalated with the question the verdict names; a thread whose finding
-    // stood at an earlier adjudication and is still open escalates
-    // feedback-disputed (adjudicate-feedback.mjs settleDisputes). The
+    // A thread left open (INCORRECT, UNCERTAIN or VALID-defer) goes to the
+    // adjudicator's verdict, not straight to a person (owner decision): it is
+    // resolved, handed back to the next round, or escalated with the question
+    // the verdict names; a thread whose finding stood at an earlier
+    // adjudication and is still open ends feedback-stood-open
+    // (adjudicate-feedback.mjs settleDisputes). The
     // adjudicator read the select job's head, which this round's fix push
     // may have moved past headSha.
     // A head that moved this round gets a review run, which starts the next
@@ -696,7 +696,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       replies,
       shown,
       now,
-      verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      verdicts: posted.some((entry) => DISPUTED.includes(entry.disposition)) ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
       pushed: run.head_sha !== headSha,
       headMoved,
       resolveAfterReply,
@@ -817,7 +817,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
-    writeFileSync(env.SKIP_REASON_FILE, "awaiting-human\n");
+    writeFileSync(env.SKIP_REASON_FILE, `${stopSkip(escalationReason)}\n`);
   } else if (skipReason) {
     writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);
   }

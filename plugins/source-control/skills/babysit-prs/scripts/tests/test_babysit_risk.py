@@ -325,12 +325,23 @@ class HighReasonTests(unittest.TestCase):
                 (".github/workflows/pr-merge.yml", "gate"),
                 ("docs/conventions/pr-pipeline.yaml", "gate"),
                 (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
                 (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
                 (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
                 (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/report-escalation.sh", "enforcement"),
+                (".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/request-budget.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"),
+                (".github/scripts/apply-patch/apply-patch.mjs", "enforcement"),
+                (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
+                (".github/scripts/apply-patch/protected-paths.mjs", "enforcement"),
+                (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
             ),
         )  # fmt: skip
         self.assertEqual(
@@ -364,12 +375,23 @@ class HighReasonTests(unittest.TestCase):
             ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
+            (".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs"),
+            (".github/scripts/pr-unblock/escalation-routes.json", ".github/scripts/pr-unblock/escalation-routes.json"),
             (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
             (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
             (".github/scripts/pr-unblock/retry-fetch.mjs", ".github/scripts/pr-unblock/retry-fetch.mjs"),
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
             (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
+            (".github/scripts/pr-unblock/report-escalation.sh", ".github/scripts/pr-unblock/report-escalation.sh"),
+            (".github/scripts/pr-unblock/adjudicate-feedback.mjs", ".github/scripts/pr-unblock/adjudicate-feedback.mjs"),
+            (".github/scripts/pr-unblock/publish-feedback.mjs", ".github/scripts/pr-unblock/publish-feedback.mjs"),
+            (".github/scripts/pr-unblock/request-budget.mjs", ".github/scripts/pr-unblock/request-budget.mjs"),
+            (".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs"),
+            (".github/scripts/apply-patch/apply-patch.mjs", ".github/scripts/apply-patch/apply-patch.mjs"),
+            (".github/scripts/apply-patch/predicates.mjs", ".github/scripts/apply-patch/predicates.mjs"),
+            (".github/scripts/apply-patch/protected-paths.mjs", ".github/scripts/apply-patch/protected-paths.mjs"),
+            (".github/scripts/apply-patch/retry-fetch.mjs", ".github/scripts/apply-patch/retry-fetch.mjs"),
         ]  # fmt: skip
         unreviewed = (
             _lane("claude-review"),
@@ -1233,12 +1255,23 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/workflows/pr-merge.yml",
             "docs/conventions/pr-pipeline.yaml",
             ".github/scripts/pr-unblock/address-feedback.mjs",
+            ".github/scripts/pr-unblock/escalation-routes.mjs",
+            ".github/scripts/pr-unblock/escalation-routes.json",
             ".github/scripts/pr-unblock/gate-source.mjs",
             ".github/scripts/pr-unblock/thread-scope.mjs",
             ".github/scripts/pr-unblock/retry-fetch.mjs",
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
             ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+            ".github/scripts/pr-unblock/report-escalation.sh",
+            ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
+            ".github/scripts/pr-unblock/publish-feedback.mjs",
+            ".github/scripts/pr-unblock/request-budget.mjs",
+            ".github/scripts/pr-unblock/dependency-classify.mjs",
+            ".github/scripts/apply-patch/apply-patch.mjs",
+            ".github/scripts/apply-patch/predicates.mjs",
+            ".github/scripts/apply-patch/protected-paths.mjs",
+            ".github/scripts/apply-patch/retry-fetch.mjs",
         ):
             with self.subTest(path):
                 unreviewed = (
@@ -1800,7 +1833,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 32)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

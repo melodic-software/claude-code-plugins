@@ -90,11 +90,12 @@ activities:
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
     # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
-    # ran, a person gated it or a kept thread is a security or intent
-    # finding (a write-access fix
+    # ran, a person gated it or a kept thread is a security finding or one
+    # a person directed (a write-access fix
     # request newer than the last round still runs one more round on its
-    # threads; other findings get one fresh fixer round, then go to a person
-    # as feedback-not-converging), and
+    # threads; other findings, pr-verify notes included, get one fresh fixer
+    # round, then fail the head as feedback-verifier-open or
+    # feedback-not-converging), and
     # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
@@ -383,7 +384,10 @@ activities:
     reads-untrusted: false
     inputs: [issue]
   report-escalation:
-    # Labels the PR needs-human and posts the reason with a resume key.
+    # Ends a stopped run on its reason's route (escalation-routes.json):
+    # hold labels the PR needs-human and posts the reason with a resume key;
+    # fail posts or edits one lane-stopped comment, and report-stop-status a
+    # failing status on the head.
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory

@@ -38,6 +38,7 @@ import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
@@ -45,7 +46,7 @@ import { prHold } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -54,6 +55,9 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "resolve-conflicts",
   checkName: "pr-unblock / resolve-conflicts",
+  // The push job's check: its lane-stopped skip releases the head for a
+  // same-head retry (limit-stop.mjs stopRelease).
+  stopCheckName: "pr-unblock / apply-conflict-patch",
   // The GitHub Actions app: only a check run it created counts, so another
   // app cannot suppress a dispatch by posting a run under the same name.
   appId: 15368,
@@ -120,6 +124,7 @@ export async function dispatchConflicting({
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
+  stopCheckName = DEFAULTS.stopCheckName,
   appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
   unknownRetries = DEFAULTS.unknownRetries,
@@ -206,8 +211,20 @@ export async function dispatchConflicting({
         log(`skip #${node.number}: ${why}`);
         continue;
       }
-      const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      let existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      // A push job that stopped on a reason routed to a failing status
+      // releases the head's earlier checks: the next run retries the same
+      // head, a fresh model session, until limit-stops-per-head such stops
+      // stand on it.
+      if (anyHandles(existing, { now, ...options })) {
+        const cap = (limits ?? LIMIT_DEFAULTS)["limit-stops-per-head"];
+        const { cut, stops } = stopRelease(await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId }), cap);
+        existing = releasedBy(existing, cut, limits);
+        if (cut === null && stops >= cap) {
+          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${stopCheckName} stopped ${stops} time(s), the most one head gets; no ${activity} retry until a new push`);
+        }
+      }
       handled = anyHandles(existing, { now, ...options });
       // Handled only because a limit stop has not reset: the log names it.
       waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
@@ -382,12 +399,12 @@ export function createGitHubApi({
     },
     // A held PR's issue timeline (gate-source.mjs reads its REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
-    // Every check run on a commit, up to 300, as fix-ci-context reads them
+    // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
     async listCommitCheckRuns(sha) {
       const runs = [];
       for (let page = 1; page <= 3; page += 1) {
-        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         if ((data.check_runs ?? []).length < 100) {
           break;

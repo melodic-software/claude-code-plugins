@@ -244,7 +244,10 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // the config the token broker loads (resolve-config, effect-grants.json
 // included, and the pipeline config); `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
-// (test_merge_holds_sync.py derives both closures and requires them here).
+// (test_merge_holds_sync.py derives both closures and requires them here),
+// and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
+// adjudicate-feedback.mjs, publish-feedback.mjs, apply-patch.mjs) with every
+// module they import and the routing table they read.
 // babysit_risk.FLOOR_CLASSES, which test_merge_holds_sync.py checks this
 // equals. A constant of the module ci-status and enable-auto-merge run from
 // the base commit, so a pull request cannot rewrite it.
@@ -294,12 +297,23 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-merge.yml", "gate"],
   ["docs/conventions/pr-pipeline.yaml", "gate"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/escalation-routes.json", "enforcement"],
   [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
   [".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"],
   [".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/limits.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/report-escalation.sh", "enforcement"],
+  [".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/request-budget.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"],
+  [".github/scripts/apply-patch/apply-patch.mjs", "enforcement"],
+  [".github/scripts/apply-patch/predicates.mjs", "enforcement"],
+  [".github/scripts/apply-patch/protected-paths.mjs", "enforcement"],
+  [".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"],
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
 // person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge

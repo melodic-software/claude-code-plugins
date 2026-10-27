@@ -261,8 +261,10 @@ jobs:
   # no model job, so no resolve-conflicts check would land on the head and
   # dispatch.mjs would dispatch it again on every run. This job posts it
   # neutral on the head the select job read: the slot's skip reason, else
-  # clean-merge (the push job commits it), else awaiting-human. A
-  # kill-switch stop reads no head, and nothing is posted.
+  # clean-merge (the push job commits it), else the stop's own skip
+  # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
+  # failing status, which ends the head; awaiting-human for one held for a
+  # person). A kill-switch stop reads no head, and nothing is posted.
   resolve-conflicts-not-run:
     needs: resolve-conflicts-select
     if: >-
@@ -288,6 +290,12 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      - name: Read the stop's skip reason
+        id: stop
+        env:
+          REASON: ${{ needs.resolve-conflicts-select.outputs.escalation-reason }}
+        run: echo "skip=$(node .base/.github/scripts/pr-unblock/escalation-routes.mjs skip)" >>"$GITHUB_OUTPUT"
+
       - name: Post the resolve-conflicts check run
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
@@ -297,7 +305,7 @@ jobs:
           not-run-reason: >-
             ${{ needs.resolve-conflicts-select.outputs.skip-reason
             || needs.resolve-conflicts-select.outputs.merge-state == 'clean' && 'clean-merge'
-            || 'awaiting-human' }}
+            || steps.stop.outputs.skip }}
           head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
@@ -619,9 +627,15 @@ jobs:
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
       fix-requested: ${{ steps.select.outputs.fix-requested }}
+      # "1" for a same-head retry after the reply job stopped there
+      # (escalation-routes.mjs retryRung), else empty.
+      model-rung: ${{ steps.select.outputs.model-rung }}
       # `round <N> of max <M>` when the round cap stopped the PR, for the
       # neutral checks' summary.
       not-run-detail: ${{ steps.select.outputs.not-run-detail }}
+      # true when no hold and no unresolved thread is left on the head, so
+      # report-stop-status clears a failing pr-unblock/address-feedback.
+      stop-resolved: ${{ steps.select.outputs.stop-resolved }}
       threads-sha256: ${{ steps.select.outputs.threads-sha256 }}
       run-sha256: ${{ steps.select.outputs.run-sha256 }}
       # The artifact name's attempt, so a re-run of a later job alone still
@@ -818,6 +832,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.address-feedback-select.outputs.model-rung }}
       feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
       head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
@@ -895,6 +910,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.address-feedback-select.outputs.model-rung }}
       feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
       head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
@@ -960,6 +976,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.address-feedback-select.outputs.model-rung }}
       feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
       head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
@@ -975,7 +992,7 @@ jobs:
   # without force. It runs only on a written patch: no change (every thread
   # INCORRECT or UNCERTAIN) needs no push. report-escalation does not need it:
   # a patch that does not land leaves no fix commit, and publish-feedback
-  # hands the PR to a person as feedback-not-landed.
+  # ends the round feedback-not-landed.
   apply-feedback-patch:
     # After adjudicate-feedback too, so the push lands right before the reply
     # job: a review run on the pushed head that finishes while this run still
@@ -1023,9 +1040,10 @@ jobs:
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
   # The adjudicator, after the model job and before the reply job, only when
-  # the answering leg's scan job read an INCORRECT reply (feedback-disputed);
-  # skipping it leaves any such reply with no verdict, which escalates
-  # feedback-unadjudicated. For each INCORRECT reply on a non-CRITICAL
+  # the answering leg's scan job read a reply that leaves its thread open
+  # (INCORRECT, UNCERTAIN or VALID-defer: feedback-disputed); skipping it
+  # leaves any such reply with no verdict, which ends
+  # feedback-unadjudicated. For each such reply on a non-CRITICAL
   # code-review thread no adjudication stood before, up to three
   # (adjudicate-feedback.mjs MAX_THREADS), a fresh-context model reads the
   # whole review comment, the locations the reviewer and the lane cited and
@@ -1885,11 +1903,17 @@ jobs:
       head-sha: ${{ steps.context.outputs.head-sha }}
       escalation-reason: ${{ steps.context.outputs.escalation-reason }}
       context-sha256: ${{ steps.context.outputs.context-sha256 }}
-      # awaiting-human when the human-gated label holds fix-ci, which
-      # fix-ci-not-run posts; lane-escalated when another lane's escalation
+      # awaiting-human when the human-gated label holds fix-ci, lane-stopped
+      # on the round cap, which fix-ci-not-run posts; lane-escalated when another lane's escalation
       # put the label on, so apply-patch pushes past it.
       skip-reason: ${{ steps.context.outputs.skip-reason }}
       lane-escalated: ${{ steps.context.outputs.lane-escalated }}
+      # true when a whole, settled listing of the head's checks has none
+      # failing, so report-stop-status clears a failing pr-unblock/fix-ci.
+      stop-resolved: ${{ steps.context.outputs.stop-resolved }}
+      # "1" for a same-head retry after the push job stopped there
+      # (escalation-routes.mjs retryRung), else empty.
+      model-rung: ${{ steps.context.outputs.model-rung }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
@@ -1958,7 +1982,7 @@ jobs:
           tokens: github-token
 
   # A fix-ci-context skip (a closed PR, a human-gated hold, or no failing
-  # check) runs no fix-ci job,
+  # check) or stop (the round cap, lane-stopped) runs no fix-ci job,
   # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
   # dispatch it again on every run. This job posts fix-ci neutral on that head,
   # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
@@ -1967,7 +1991,6 @@ jobs:
     if: >-
       ${{ !cancelled() && inputs.activity == 'fix-ci'
       && needs.fix-ci-context.outputs.proceed == 'false'
-      && needs.fix-ci-context.outputs.escalation-reason == ''
       && needs.fix-ci-context.outputs.head-sha != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2027,6 +2050,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
@@ -2109,6 +2133,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
@@ -2174,6 +2199,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
@@ -2221,6 +2247,8 @@ jobs:
       patch-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
+      # A same-head retry's producer ran a rung up: no second in-run rung-up.
+      patch-model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
       # The head fix-ci-context gated, from a job that ran no head code; the
       # read runner's own head-sha output is the run job's, which head code
       # could forge. Both fix-ci calls refuse a context for another head, so a
@@ -2498,20 +2526,64 @@ jobs:
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
 
-  # GitHub starts no pull_request workflow on a conflicted PR, so a head the
-  # lane could not resolve gets no CI and no sign why. This script job, with
-  # no model, posts a failing pr-unblock/conflict commit status on that head,
-  # whether the select job escalated before any model turn, the push job
-  # found a conflict left, or the scan refused the model's output. It is the
-  # lane's only statuses: write, on its own GITHUB_TOKEN: the lanes App token
-  # the escalation comment uses carries no statuses permission.
-  report-conflict-status:
-    needs: [resolve-conflicts-select, apply-conflict-patch, conflict-scan-refusal]
+  # A run that stopped on a reason escalation-routes.json routes `fail` ends
+  # in a failing commit status on the head its activity gated, never a
+  # person: pr-unblock/conflict for resolve-conflicts (GitHub starts no
+  # pull_request workflow on a conflicted PR, so it also shows that head why
+  # its CI is missing), pr-unblock/<activity> otherwise; a new head carries
+  # none. It runs when report-escalation does, on the same reason, except
+  # on a cancelled run, and report-escalation.sh status posts nothing for a
+  # reason held for a person. It also runs after an attempt whose push, reply
+  # or verdict job acted and ended with no stop: report-escalation.sh clear
+  # then posts success over a failure an earlier stop left on the same head,
+  # so a same-head retry that landed leaves nothing red. A job that succeeded
+  # on a skip (the reply script's no-model-turn, a gate or head-recheck skip)
+  # (a rung-up skip included) landed nothing and leaves the failure in place;
+  # the address-feedback sweep counts a no-model-turn skip toward
+  # SWEEP_HEAD_CAP (feedback-dispatch.mjs RELEASES). clear also runs when a
+  # select job that succeeded finds the stop gone on its head (stop-resolved:
+  # every thread resolved, or no check failing), since no push, reply or
+  # verdict job runs then. This script job, with no
+  # model, is the lane's only
+  # statuses: write, on its own GITHUB_TOKEN: the lanes App token the
+  # escalation comment uses carries no statuses permission.
+  report-stop-status:
+    needs:
+      - resolve-conflicts-select
+      - apply-conflict-patch
+      - conflict-scan-refusal
+      - address-feedback-select
+      - publish-feedback
+      - review-dependency-select
+      - apply-dependency-verdict
+      - fix-ci-context
+      - apply-patch
+      - apply-patch-rung-up
     if: >-
-      ${{ !cancelled() && needs.resolve-conflicts-select.outputs.head-sha != ''
-      && (needs.resolve-conflicts-select.outputs.escalation-reason == 'unresolved-conflict'
-      || needs.apply-conflict-patch.outputs.escalation-reason == 'unresolved-conflict'
-      || needs.conflict-scan-refusal.outputs.escalation-reason == 'unresolved-conflict') }}
+      ${{ !cancelled()
+      && (needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
+      || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha || '') != ''
+      && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
+      || needs.apply-conflict-patch.outputs.escalation-reason != ''
+      || needs.conflict-scan-refusal.outputs.escalation-reason != ''
+      || needs.address-feedback-select.outputs.escalation-reason != ''
+      || needs.publish-feedback.outputs.escalation-reason != ''
+      || needs.publish-feedback.result == 'failure'
+      || needs.review-dependency-select.outputs.escalation-reason != ''
+      || needs.apply-dependency-verdict.outputs.escalation-reason != ''
+      || needs.fix-ci-context.outputs.escalation-reason != ''
+      || needs.apply-patch.outputs.escalation-reason != ''
+      || needs.apply-patch.outputs.rung-up == 'true'
+      && !(needs.apply-patch-rung-up.result == 'success'
+      && needs.apply-patch-rung-up.outputs.escalation-reason == ''
+      && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')
+      || needs.apply-conflict-patch.result == 'success' && needs.apply-conflict-patch.outputs.skip-reason == ''
+      || needs.publish-feedback.result == 'success' && needs.publish-feedback.outputs.skip-reason == ''
+      || needs.apply-dependency-verdict.result == 'success' && needs.apply-dependency-verdict.outputs.skip-reason == ''
+      || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
+      || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
+      || needs.address-feedback-select.result == 'success' && needs.address-feedback-select.outputs.stop-resolved == 'true'
+      || needs.fix-ci-context.result == 'success' && needs.fix-ci-context.outputs.stop-resolved == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -2525,14 +2597,35 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Post the conflict status
+      # One activity runs per dispatch, so one select job's head is set; a
+      # reason is a fixed enum value from a base script or this run's jobs,
+      # which report-escalation.sh rejects unless the routing table lists it.
+      # No reason: the attempt did not stop, and clear runs instead.
+      - name: Post the stop status
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
-          HEAD_SHA: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
-          ESCALATION_REASON: unresolved-conflict
+          HEAD_SHA: >-
+            ${{ needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
+            || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha }}
+          ESCALATION_REASON: >-
+            ${{ needs.resolve-conflicts-select.outputs.escalation-reason
+            || needs.apply-conflict-patch.outputs.escalation-reason
+            || needs.conflict-scan-refusal.outputs.escalation-reason
+            || needs.address-feedback-select.outputs.escalation-reason
+            || needs.publish-feedback.outputs.escalation-reason
+            || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
+            || needs.review-dependency-select.outputs.escalation-reason
+            || needs.apply-dependency-verdict.outputs.escalation-reason
+            || needs.fix-ci-context.outputs.escalation-reason
+            || needs.apply-patch.outputs.escalation-reason
+            || needs.apply-patch-rung-up.outputs.escalation-reason
+            || needs.apply-patch.outputs.rung-up == 'true'
+            && !(needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')
+            && 'ci-fix-escalated' || '' }}
+          ACTIVITY: ${{ inputs.activity }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: bash .base/.github/scripts/pr-unblock/report-escalation.sh status
+        run: bash .base/.github/scripts/pr-unblock/report-escalation.sh "$([ -n "$ESCALATION_REASON" ] && echo status || echo clear)"
 
   report-escalation:
     needs:
@@ -2546,6 +2639,8 @@ jobs:
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
+    # A reply job that failed with no reason (its lane token, a script error)
+    # stops as feedback-publish-failed, derived here from its result.
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
     # resolve-conflicts-select, conflict-scan-refusal, address-feedback-select,
@@ -2563,6 +2658,7 @@ jobs:
       || needs.conflict-scan-refusal.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
+      || needs.publish-feedback.result == 'failure'
       || needs.review-dependency-select.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
@@ -2592,6 +2688,7 @@ jobs:
         || needs.conflict-scan-refusal.outputs.escalation-reason
         || needs.address-feedback-select.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
+        || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
         || needs.review-dependency-select.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason

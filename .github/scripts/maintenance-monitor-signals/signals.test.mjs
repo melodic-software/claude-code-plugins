@@ -14,6 +14,7 @@ import {
   mainRedFindings,
   parseBudget,
   platformFindings,
+  stalledFindings,
   throttleFindings,
   throughputFindings,
 } from "./signals.mjs";
@@ -428,4 +429,24 @@ test("every finding has a marker-safe key, a hex fingerprint, an area and inert 
     assert.ok(f.area.length > 0);
     for (const line of f.facts) assert.doesNotMatch(line, /`|\n/);
   }
+});
+
+// collect.mjs hands on only stops past STALLED_HOURS with no attempt since;
+// one finding names each, and its fingerprint moves only with the set.
+test("stalled stops are one finding, a fact per PR, whose fingerprint moves with the stopped heads only", () => {
+  const stop = (pr, extra = {}) => ({ pr, head: "a".repeat(40), activity: "fix-ci", reason: "ci-fix-invalid", stoppedAt: "2026-10-19T12:00:00Z", url: `https://github.com/o/r/pull/${pr}#c`, ...extra });
+  assert.deepEqual(stalledFindings({ stalledStops: [] }), []);
+  const [f] = stalledFindings({ stalledStops: [stop(9), stop(4, { activity: "resolve-conflicts", reason: "conflict-patch-invalid" })] });
+  assert.equal(f.key, "stalled-lane-stop");
+  assert.equal(f.signal, "10 stalled lane stop");
+  assert.match(f.title, /^Stalled: 2 pull request stops/);
+  assert.deepEqual(f.facts, [
+    "#4 resolve-conflicts conflict-patch-invalid since 2026-10-19T12:00:00Z: https://github.com/o/r/pull/4#c",
+    "#9 fix-ci ci-fix-invalid since 2026-10-19T12:00:00Z: https://github.com/o/r/pull/9#c",
+  ]);
+  const [again] = stalledFindings({ stalledStops: [stop(4, { activity: "resolve-conflicts", reason: "conflict-patch-invalid", stoppedAt: "later" }), stop(9)] });
+  assert.equal(again.fingerprint, f.fingerprint, "the stop's time is not evidence");
+  const [moved] = stalledFindings({ stalledStops: [stop(9, { head: "b".repeat(40) })] });
+  assert.notEqual(moved.fingerprint, f.fingerprint);
+  assert.ok(detect({ ...base, stalledStops: [stop(9)] }).some((x) => x.key === "stalled-lane-stop"));
 });

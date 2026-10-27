@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
+import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
@@ -85,10 +86,11 @@ function fakeApi({
   comments = new Map(),
   labelEvents = new Map(),
   history = new Map(),
+  stops = new Map(),
   annotations = new Map(),
   commitRuns = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], annotations: [], commit: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], stops: [], annotations: [], commit: [] };
   return {
     calls,
     // One check run's annotations, by its id; none unless the test names it.
@@ -119,6 +121,11 @@ function fakeApi({
     // The head's check runs of one name and app over REST, every one of them:
     // the test's history for the head, else the rollup's runs in REST's shape.
     async listCheckRuns({ sha, checkName, appId }) {
+      // The push job's checks: `stops` for the head.
+      if (checkName === "pr-unblock / apply-patch") {
+        calls.stops.push(sha);
+        return stops.get(sha) ?? [];
+      }
       calls.history.push(sha);
       const rows = history.get(sha);
       if (rows instanceof Error) {
@@ -848,7 +855,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   }
 });
 
-test("the adapter reads a head's check runs as fix-ci-context does: latest, 100 a page, at most 3 pages", async () => {
+test("the adapter reads a head's check runs as fix-ci-context does: every run, 100 a page, at most 3 pages", async () => {
   const urls = [];
   const api = createGitHubApi({
     token: "t",
@@ -864,8 +871,27 @@ test("the adapter reads a head's check runs as fix-ci-context does: latest, 100 
   assert.equal(runs.length, 300);
   assert.deepEqual(
     urls,
-    [1, 2, 3].map((page) => `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=latest&per_page=100&page=${page}`),
+    [1, 2, 3].map((page) => `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=all&per_page=100&page=${page}`),
   );
+});
+
+// A contract-only pr-require-checks run posts a lane skipped after the real
+// run failed it; a latest-only listing returned only the skip, and the
+// dispatcher read the head as not failing where fix-ci-context must agree.
+test("the adapter's listing keeps a lane's failure under a later skip of it", async () => {
+  const api = createGitHubApi({
+    token: "t",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      const skipped = { id: 2, name: "test-node", status: "completed", conclusion: "skipped" };
+      const all = new URL(url).searchParams.get("filter") === "all";
+      const check_runs = all ? [{ id: 1, name: "test-node", status: "completed", conclusion: "failure" }, skipped] : [skipped];
+      return new Response(JSON.stringify({ check_runs }), { status: 200 });
+    },
+  });
+  assert.deepEqual(failingChecks(await api.listCommitCheckRuns("a".repeat(40))).map((run) => run.id), [1]);
 });
 
 test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
@@ -1180,4 +1206,54 @@ test("a failed job whose steps never listed is logged as such past the deadline"
     [5],
   );
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: steps unlisted past ${RERUN_DUE_MINUTES} min in lint-repo)`)), lines.join("\n"));
+});
+
+// A fix-ci run whose push job stopped on a reason routed to a failing status
+// (a lane-stopped skip on pr-unblock / apply-patch) counts as a failed run:
+// the head is retried under fix-ci-restarts and the per-head cap, as a run
+// that failed is.
+test("a fix-ci run its push job stopped is retried on the same head once, then left at fix-ci-restarts", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at(time), completed_at: at(time) });
+  const stop = (time) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time) });
+  const once = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00")]]]), stops: new Map([[head, [stop("10:05")]]]) });
+  assert.ok(once.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), once.lines.join("\n"));
+  const twice = await run({
+    pages: [[pr(7)]],
+    history: new Map([[head, [fixCi("10:00"), fixCi("10:30")]]]),
+    stops: new Map([[head, [stop("10:05"), stop("10:35")]]]),
+  });
+  assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
+  // A push job that did not stop leaves the run handling the head.
+  const pushed = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00")]]]), stops: new Map([[head, [{ ...stop("10:05"), output: { title: "Pushed" }, conclusion: "success" }]]]) });
+  assert.ok(pushed.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), pushed.lines.join("\n"));
+  // A select job's own stop (the round cap) on the fix-ci check is final.
+  const capped = await run({ pages: [[pr(7)]], history: new Map([[head, [{ ...stop("10:00"), name: "pr-unblock / fix-ci" }]]]) });
+  assert.ok(capped.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), capped.lines.join("\n"));
+});
+
+// fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
+// workflow run (the run id in each check's details_url). When the rung-up's
+// push job stops, the pair
+// is one stopped attempt: the first check's "Passed: no changes" does not
+// leave the head handled, and the pair spends one restart, not two.
+test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried on the same head", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time, suite, title) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title }, started_at: at(time), completed_at: at(time), details_url: `https://github.com/o/r/actions/runs/${suite}` });
+  const stop = (time, suite) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), details_url: `https://github.com/o/r/actions/runs/${suite}` });
+  const pair = [fixCi("10:00", 1, "Passed: no changes"), fixCi("10:10", 1, "Fixed")];
+  const once = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 1)]]]) });
+  assert.ok(once.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), once.lines.join("\n"));
+  // A stop in another workflow run marks only that run.
+  const other = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 2)]]]) });
+  assert.ok(other.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), other.lines.join("\n"));
+  // A second stopped attempt is past the one restart.
+  const twice = await run({
+    pages: [[pr(7)]],
+    history: new Map([[head, [...pair, fixCi("11:00", 3, "Passed: no changes"), fixCi("11:10", 3, "Fixed")]]]),
+    stops: new Map([[head, [stop("10:15", 1), stop("11:15", 3)]]]),
+  });
+  assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
 });

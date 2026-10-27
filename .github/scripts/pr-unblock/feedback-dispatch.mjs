@@ -83,10 +83,10 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -130,8 +130,10 @@ export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
 export const SWEEP_HEAD_CAP = 3;
 
 const startOf = (run) => Date.parse(run.started_at ?? "");
-// The reply check skips that leave the head for another round.
-const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands"]);
+// The reply check skips that leave the head for another round: a lane stop
+// (a stop escalation-routes.json routes to a failing status) is retried on
+// the same head, a fresh model session, under SWEEP_HEAD_CAP with the rest.
+const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands", LANE_STOP]);
 const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
 // A pass-only round's reply check (publish-feedback.mjs PASS_ONLY_SKIP)
 // answers no thread, so it neither releases a head nor ends a release.
@@ -147,23 +149,37 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
   return SHA.test(sha) ? sha : "";
 }
 
-// An unresolved thread, read in full, that threadAuthors accepts.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null, fixers = requesters ?? new Set() }) {
-  return threads.some(
-    (thread) =>
-      thread.isResolved === false &&
-      thread.comments.pageInfo?.hasNextPage !== true &&
-      threadAuthors(
-        thread.comments.nodes.map((node) => ({
-          authorId: node.author?.databaseId,
-          createdAt: node.createdAt,
-          body: node.body,
-          lastEditedAt: node.lastEditedAt,
-          editorId: node.editor?.databaseId,
-        })),
-        { reviewerId, appId, trustedHumans, requesters, fixers },
-      ) !== null,
-  );
+// An unresolved thread, read in full, that the select job keeps: threadAuthors
+// accepts it and its review is on a marker-confirmed head (onReviewedHead).
+// `heads` is reviewedHeads of the PR's issue comments.
+export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
+  return threads.some((thread) => {
+    if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
+      return false;
+    }
+    const nodes = thread.comments.nodes;
+    const authors = threadAuthors(
+      nodes.map((node) => ({
+        authorId: node.author?.databaseId,
+        createdAt: node.createdAt,
+        body: node.body,
+        lastEditedAt: node.lastEditedAt,
+        editorId: node.editor?.databaseId,
+      })),
+      { reviewerId, appId, trustedHumans, requesters, fixers },
+    );
+    const review = nodes[0]?.pullRequestReview;
+    return (
+      authors !== null &&
+      onReviewedHead({
+        authors,
+        firstAuthorId: nodes[0].author?.databaseId,
+        review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
+        heads,
+        reviewerId,
+      })
+    );
+  });
 }
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
@@ -314,12 +330,16 @@ export async function dispatchFeedback({
       permission: api.getPermission,
     });
     const requesters = gated ? fixers : null;
-    if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters, fixers })) {
-      return skip(
-        gated
-          ? `#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`
-          : `#${number} has no unresolved thread left by the reviewer bot alone, asked to be fixed, or answered by a trusted person`,
-      );
+    // On an ungated head, any unresolved thread dispatches, even one the select
+    // job will not keep (a reviewer the lane does not act on, a review of an
+    // older head): select then escalates feedback-untaken-threads, and its
+    // lane-stopped check handles the head, so the stall gets a stop once.
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
+    if (gated && !workable) {
+      return skip(`#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`);
+    }
+    if (!workable && !threads.some((thread) => thread.isResolved === false)) {
+      return skip(`#${number} has no unresolved review thread`);
     }
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -362,10 +382,13 @@ export async function dispatchFeedback({
     // limit stop is never released: limit-stop.mjs still holds the head until
     // its reset and counts it toward limits.limit-stops-per-head.
     let replies = [];
+    // A select job's own stop (lane-stopped on this check) ends the head; only
+    // a reply job's skip releases it.
+    const selectStopped = existing.some(laneStop);
     if (anyHandles(existing, { now, limits: resolved.limits })) {
       replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
       const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-      if (releases(newest)) {
+      if (releases(newest) && !selectStopped) {
         const cut = startOf(newest);
         existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
       }
@@ -457,6 +480,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
               author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
+              pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } }
             }
             pageInfo { hasNextPage }
           }

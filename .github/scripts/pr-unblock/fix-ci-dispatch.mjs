@@ -55,6 +55,7 @@ import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold } from "./gate-source.mjs";
+import { laneStop } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -62,6 +63,10 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
+  // The push job's check: a lane-stopped skip there (a stop routed to a
+  // failing status after the model turn) counts the fix-ci run before it as
+  // a failed one, which the per-head cap and the restarts retry.
+  stopCheckName: "pr-unblock / apply-patch",
   // The run whose failure counts: pr-require-checks when its lanes failed,
   // else the advisory pr-test-windows, which ci-status does not aggregate but
   // the merge gate holds on.
@@ -153,6 +158,44 @@ const fromRest = (run) => ({
   title: run.output?.title ?? null,
   completedAt: run.completed_at ?? null,
 });
+
+// The head's fix-ci runs (REST) in the rollup's shape, one per workflow run:
+// fix-ci and the in-run fix-ci-rung-up both post a fix-ci check, and the pair
+// is one attempt, read from its last check. An attempt a lane-stopped push job
+// check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
+// the head may be retried under the same caps a failed run is. A check's
+// workflow run is the id in its details_url (report-check-run sets it to the
+// posting run's page); not its check suite, which GitHub picks for a check
+// created over the API. A stop marks the attempt of its own run; a check with
+// no run id falls back to timing, a stop after it and before the next fix-ci
+// check started.
+const RUN_PAGE = /\/actions\/runs\/([1-9][0-9]{0,19})$/;
+export function withStops(runs, stopRuns) {
+  const startOf = (run) => Date.parse(run.started_at ?? "");
+  const runOf = (run) => RUN_PAGE.exec(String(run.details_url ?? ""))?.[1] ?? null;
+  const stops = stopRuns.filter(laneStop);
+  const starts = runs.map(startOf).sort((a, b) => a - b);
+  const stoppedAt = (run) => {
+    const from = startOf(run);
+    const until = starts.find((start) => start > from) ?? Infinity;
+    return stops.some((stop) =>
+      runOf(stop) !== null && runOf(run) !== null
+        ? runOf(stop) === runOf(run)
+        : startOf(stop) > from && startOf(stop) < until,
+    );
+  };
+  const attempts = new Map();
+  for (const run of runs) {
+    const key = runOf(run) ?? Symbol();
+    const attempt = attempts.get(key) ?? { last: run, stopped: false };
+    if (startOf(run) >= startOf(attempt.last)) {
+      attempt.last = run;
+    }
+    attempt.stopped ||= stoppedAt(run);
+    attempts.set(key, attempt);
+  }
+  return [...attempts.values()].map(({ last, stopped }) => (stopped ? { ...fromRest(last), conclusion: "FAILURE" } : fromRest(last)));
+}
 
 // The fix-ci runs that count: an untrusted-trigger skip ran nothing.
 const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
@@ -367,6 +410,7 @@ export async function dispatchCiFixes({
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
+  stopCheckName = DEFAULTS.stopCheckName,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
   gateLabel = null,
@@ -470,7 +514,10 @@ export async function dispatchCiFixes({
     // read is not dispatched.
     let fixCiRuns;
     try {
-      fixCiRuns = (await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId })).map(fromRest);
+      fixCiRuns = withStops(
+        await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId }),
+        await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId: actionsAppId }),
+      );
     } catch (error) {
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);

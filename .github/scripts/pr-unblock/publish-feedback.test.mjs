@@ -244,7 +244,7 @@ test("every reply the reply job leaves open reads as an escalation; a VALID one 
   assert.equal(isEscalationReply({ user: { id: APP }, body: body("VALID") }, APP), false);
 });
 
-test("INCORRECT is posted and left open; UNCERTAIN and VALID-defer are posted, left open, and escalate", async () => {
+test("INCORRECT, UNCERTAIN and VALID-defer are posted, left open, and go to the adjudicator, not a person", async () => {
   const api = fakeApi();
   const result = await run(
     api,
@@ -253,20 +253,34 @@ test("INCORRECT is posted and left open; UNCERTAIN and VALID-defer are posted, l
       reply({ thread: "PRRT_b", disposition: "UNCERTAIN", evidence: [], note: "Needs the vendor docs." }),
     ),
     undefined,
-    // The finding stands, so INCORRECT leaves the thread open; UNCERTAIN
-    // still escalates.
+    // The finding stands, so INCORRECT leaves the thread open; the UNCERTAIN
+    // thread has no verdict, so the round ends unadjudicated: a failing
+    // status, not a person.
     verdicts(judged("PRRT_a", "reviewer")),
   );
-  assert.equal(result.escalationReason, "feedback-uncertain");
+  assert.equal(result.escalationReason, "feedback-unadjudicated");
   assert.deepEqual(api.resolved(), []);
   assert.match(api.posted()[0][3], /^\*\*pr-unblock \/ address-feedback: INCORRECT, left open\*\*\n\nEvidence: `src\/a.js:3`, `docs\/b.md:1`\n/);
-  assert.match(api.posted()[1][3], /UNCERTAIN, left open for a person\*\*\n\nEvidence: none in the checkout\n/);
+  assert.match(api.posted()[1][3], /UNCERTAIN, left open\*\*\n\nEvidence: none in the checkout\n/);
   assert.deepEqual(api.calls.find((call) => call[0] === "compare"), ["compare", GATED, NOW], "a moved branch is checked even with no VALID reply");
 
+  // A lane verdict never resolves a deferred finding the lane agreed holds:
+  // the thread stays open with only the lane's reply, and the round ends
+  // unadjudicated. A stands verdict hands it to the next round. One that
+  // finds an UNCERTAIN finding stands does the same.
   const defer = fakeApi();
-  assert.equal((await run(defer, lines(reply({ disposition: "VALID-defer" })))).escalationReason, "feedback-uncertain");
-  assert.match(defer.posted()[0][3], /VALID \(defer\), left open for a person/);
+  assert.equal((await run(defer, lines(reply({ disposition: "VALID-defer" })), undefined, verdicts(judged("PRRT_a", "lane")))).escalationReason, "feedback-unadjudicated");
+  assert.match(defer.posted()[0][3], /VALID \(defer\), left open\*\*/);
+  assert.equal(defer.posted().length, 1);
   assert.deepEqual(defer.resolved(), []);
+  const deferStands = fakeApi();
+  assert.equal((await run(deferStands, lines(reply({ disposition: "VALID-defer" })), undefined, verdicts(judged("PRRT_a", "reviewer")))).escalationReason, "");
+  assert.match(deferStands.posted()[1][3], /finding-stands/);
+  assert.deepEqual(deferStands.resolved(), []);
+  const unsure = fakeApi();
+  assert.equal((await run(unsure, lines(reply({ disposition: "UNCERTAIN" })), undefined, verdicts(judged("PRRT_a", "reviewer")))).escalationReason, "");
+  assert.match(unsure.posted()[1][3], /finding-stands/);
+  assert.deepEqual(unsure.resolved(), []);
 });
 
 test("the round marker is posted once, as the first line, numbered after the App's earlier rounds", async () => {
@@ -533,7 +547,7 @@ test("a reviewer verdict posts the finding-stands reply and leaves the thread op
   const stands = api.posted()[2][3].split("\n");
   assert.equal(stands[0], "<!-- pr-unblock adjudicate-feedback: finding-stands -->");
   assert.equal(stands[1], "**pr-unblock / adjudicate-feedback: the finding stands**");
-  assert.match(stands[3], /another INCORRECT reply on this thread is not accepted/);
+  assert.match(stands[3], /a round that leaves this thread open again ends the lane in a failing status/);
   assert.equal(stands[5], "Evidence: `docs/b.md:1`");
 });
 
@@ -552,7 +566,8 @@ test("a finding that stands with the head unmoved skips finding-stands and escal
   assert.equal(api.posted().length, 2, "the lane's reply and the finding-stands reply");
   assert.deepEqual(api.resolved(), []);
 
-  // An UNCERTAIN reply in the same round still goes to a person.
+  // An UNCERTAIN reply in the same round with no verdict of its own ends the
+  // round unadjudicated.
   const uncertain = fakeApi({ compare: unmoved });
   const both = await run(
     uncertain,
@@ -560,7 +575,7 @@ test("a finding that stands with the head unmoved skips finding-stands and escal
     atNow(),
     verdictsAt(NOW, judged("PRRT_a", "reviewer")),
   );
-  assert.deepEqual([both.escalationReason, both.skipReason], ["feedback-uncertain", ""]);
+  assert.deepEqual([both.escalationReason, both.skipReason], ["feedback-unadjudicated", ""]);
 });
 
 // #9560's fallback lands a VALID reply on an earlier lane commit: nothing is
@@ -629,20 +644,20 @@ const stoodApi = (overrides = {}) =>
   });
 const stoodRun = JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: "src/a.js", comment_ids: [100, 101, 102] }] });
 
-test("no second dispute: an INCORRECT reply on a thread whose finding stood escalates feedback-disputed and is not adjudicated", async () => {
+test("no second dispute: an INCORRECT reply on a thread whose finding stood ends feedback-stood-open and is not adjudicated", async () => {
   const api = stoodApi({ compare: { status: "identical", commits: [], files: [] } });
   const result = await run(api, lines(reply()), stoodRun, verdicts(judged("PRRT_a", "lane")));
-  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.equal(result.escalationReason, "feedback-stood-open");
   assert.equal(api.posted().length, 1, "the lane's reply, and no adjudication reply");
   assert.match(api.posted()[0][3], /INCORRECT, left open/);
   assert.deepEqual(api.resolved(), []);
 });
 
-test("the cap: a stood thread the next round leaves open escalates feedback-disputed; one it fixes resolves", async () => {
+test("the cap: a stood thread the next round leaves open ends feedback-stood-open; one it fixes resolves", async () => {
   for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
     const api = stoodApi({ compare: { status: "identical", commits: [], files: [] } });
     const result = await run(api, lines(reply({ disposition, evidence: [] })), stoodRun);
-    assert.equal(result.escalationReason, "feedback-disputed", disposition);
+    assert.equal(result.escalationReason, "feedback-stood-open", disposition);
     assert.deepEqual(api.resolved(), []);
   }
   const fixed = stoodApi();
@@ -1131,7 +1146,7 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   };
   const api = fakeApi();
   assert.equal(await main(env, { api, log: () => {} }), 0);
-  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-uncertain\n");
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-unadjudicated\n");
 
   // replies.jsonl must be the bytes the scan job uploaded, whose SHA-256 it
   // passed out.
@@ -1142,7 +1157,7 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
     assert.deepEqual(forged.posted(), []);
     assert.equal(forged.markers().length, 1);
   }
-  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
+  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "lane-stopped\n");
   assert.equal(api.posted().length, 1);
   assert.equal(api.markers()[0][2].split("\n")[1], MODEL_RUN);
   // No model attempt names no run, so even a marker already on the PR from
