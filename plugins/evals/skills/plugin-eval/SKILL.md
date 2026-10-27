@@ -51,7 +51,7 @@ leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
@@ -239,7 +239,11 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 
    When preflight's `suite_tools` lists gated tools, add `--allow-tools` with exactly those tools;
    without the grant each is removed from every run, so a case that must run or verify its own
-   work cannot. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
+   work cannot. When a selected case's `case.yaml` sets `context.scaffold_script`, read each such
+   script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
+   Without it those cases run against an unstaged workspace, both arms score the same, and their
+   delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -490,6 +494,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
+| `--scaffold` for a case with a `scaffold_script`, and the zero delta without it | <https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml>; the `--scaffold` row of <https://code.claude.com/docs/en/plugin-evals#command-options>; two discarded passes on Claude Code 2.1.309 and 2.1.310 (issue #9414) | 2026-10-27 | That section changes when a `scaffold_script` runs, or a release note touches `--scaffold` |
 | Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
 | Cost anchors (list-price estimates, this plugin's read-only suite, Claude Code 2.1.287 and 2.1.296) | [records.md, Cost anchors](reference/records.md#cost-anchors) | 2026-10-11 | A release note touches `plugin eval`, the served model changes, or a pass averages more than 0.2 USD per run |
 | Spoke reach | <https://code.claude.com/docs/en/plugin-evals#grant-tools>; kept traces in [records.md](reference/records.md#spoke-reach) | 2026-10-04 | A release note touches `plugin eval` or sandbox permissions, or a kept trace on 2.1.289 or later shows a spoke `Read` denied |
