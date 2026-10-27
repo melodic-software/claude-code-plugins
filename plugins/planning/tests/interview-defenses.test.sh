@@ -509,11 +509,12 @@ done
 # Idea-stage routing, brainstorm handoff, problem first, withheld why question
 # The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
 # AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
+# The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "8ea4330b14a92567717d7e6f29c5e235a0321f692a87c116b2fe6b29c83b4719"
+  "cae25d912208f98eed9d04abf99d186e293a6eacea8fc8fbf212f821da6ac01d"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -558,11 +559,12 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
 # AC<n> ids prefix the criteria guidance and EARS examples; USER-RESERVED lines unchanged
+# The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "2d69b0df3cc740badbb42b75c0677251bb990de8e892d8448359eb13c485f883"
+  "624e983f236dfd3698193efcf72428e57f82f5e413ae9dace79f11395ea1409c"
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.

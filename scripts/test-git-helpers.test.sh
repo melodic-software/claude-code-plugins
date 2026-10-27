@@ -201,6 +201,40 @@ scenario_d() {
   assert_isolated "D exported GIT_CONFIG" "$caller" "$fixture" "$before"
 }
 
+# ---------------------------------------------------------------- scenario E
+# No inherited environment at all: a fixture build that failed unchecked leaves
+# its path variable empty or pointing at a directory with no .git. `git -C ""`
+# keeps the cwd (git(1), -C) and a non-repo directory discovers the enclosing
+# repo, so either write lands in the caller. The helper must refuse both, and
+# the refusal must be a nonzero exit so the suite sees it.
+scenario_e() {
+  local caller before rc_empty rc_nested
+  caller="$(new_caller)"
+  mkdir -p "$caller/no-repo"
+  before="$(caller_email "$caller")"
+  rc_empty="$(
+    cd "$caller" || exit 1
+    # shellcheck source=test-git-helpers.sh
+    . "$HELPER"
+    git_test_config "" config user.email empty@example.invalid >/dev/null 2>&1
+    printf '%s' "$?"
+  )"
+  rc_nested="$(
+    cd "$(mktemp -d "$TMP/x.XXXX")" || exit 1
+    # shellcheck source=test-git-helpers.sh
+    . "$HELPER"
+    git_test_config "$caller/no-repo" config user.email nested@example.invalid >/dev/null 2>&1
+    printf '%s' "$?"
+  )"
+  local after
+  after="$(caller_email "$caller")"
+  if [[ "$after" == "$SENTINEL" && "$rc_empty" != 0 && "$rc_nested" != 0 ]]; then
+    ok "E empty or non-repo dir: refused (rc $rc_empty, $rc_nested), caller identity intact"
+  else
+    fail "E empty or non-repo dir: rc empty=$rc_empty nested=$rc_nested, caller before=$before after=$after"
+  fi
+}
+
 # The harness must clear every variable that can redirect a fixture write, not
 # just the two the reproduction happens to use — GIT_INDEX_FILE and
 # GIT_OBJECT_DIRECTORY redirect writes the same way, and GIT_CONFIG redirects
@@ -223,6 +257,7 @@ scenario_a
 scenario_b
 scenario_c
 scenario_d
+scenario_e
 scenario_declares_full_env_clear
 
 test_harness::report
