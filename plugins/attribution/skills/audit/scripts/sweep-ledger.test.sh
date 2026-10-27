@@ -230,6 +230,17 @@ printf '%s\n' '{"budgets": {"corpus_fetch_ceiling": 500}}' >"$CLAUDE_PROJECT_DIR
 OUT="$(run --topic t1 status)"
 assert_exit "a later layer raising the ceiling clears the stop" "$?" "0"
 assert_contains "the later layer supplies the ceiling" "$OUT" "spend: 34 of 500"
+
+# The YAML team layer (ADR 0075) replaces the JSON one when both exist.
+CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
+mkdir -p "$CONV"
+printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 20' >"$CONV/attribution.yaml"
+rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
+OUT="$(run --topic t1 status)"
+assert_exit "a YAML ceiling below the spend stops the sweep" "$?" "1"
+assert_contains "the YAML ceiling applies over the JSON beside it" "$OUT" "spend: 34 of 20"
+assert_contains "the YAML ceiling names its layer" "$OUT" "(from $CONV/attribution.yaml)"
+rm -rf "$CLAUDE_PROJECT_DIR/docs"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json" "$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
 
 # --- cache -------------------------------------------------------------------------

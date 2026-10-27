@@ -12,6 +12,11 @@ import { after, before, test } from "node:test";
 
 import { LIMITS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+// Children that call mktemp (the verify-script wrapper) write here, outside the checkout fixtures.
+const childTmp = tempDir("collect-base-children-");
+process.env.TMPDIR = childTmp;
 
 const ACTION = new URL("./action.yml", import.meta.url);
 const REPO_ROOT = path.join(import.meta.dirname, "../../..");
@@ -128,6 +133,7 @@ function stage(overrides) {
   writeFileSync(envFile, "");
   const env = {
     PATH: process.env.PATH,
+    TMPDIR: childTmp,
     MARKETPLACE: path.join(runTemp, "base-marketplace"),
     DOCS_DIR: path.join(runTemp, "lane-docs"),
     BASE_PATH: base,

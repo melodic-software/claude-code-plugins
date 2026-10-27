@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/report.md", "content": "# Report\n\nLaunched by scripts/start-shop.sh\nblocked: launched process no longer matches"}}],
+      "why": "the report, naming a .sh path in its content"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/threads.sh", "content": "sudo py-spy dump --pid 5121\n"}}],
+      "why": "script written to a .sh path"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/drive/capture", "content": "#!/bin/sh\nsudo py-spy dump --pid 5121\n"}}],
+      "why": "shebang script at a path with no extension"
+    }
+  ]
+}

@@ -208,6 +208,29 @@ assert_eq "clearing leaves only the built-in carve-outs declined" \
   "$(echo "$CLEAR_OUT" | jq -r '[.declined[] | select(.reason | test("excluded_paths"))] | length')" "0"
 rm -f "$CFG_DIR/attribution.local.json" "$CFG_DIR/attribution.json"
 
+# The YAML layers (ADR 0075) replace the JSON ones per file: with both present
+# only the YAML is read, and a YAML block list or empty flow list is a value.
+CONV="$REPO/docs/conventions"
+mkdir -p "$CONV"
+printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/attribution.json"
+printf '%s\n' 'excluded_paths:' '  - legacy/**' >"$CONV/attribution.yaml"
+YAML_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
+assert_not_contains "a YAML team exclusion drops the path" \
+  "$(echo "$YAML_OUT" | jq -r '.files[]')" "legacy/old.md"
+assert_contains "the JSON beside the YAML is not read" \
+  "$(echo "$YAML_OUT" | jq -r '.files[]')" "docs/guide.md"
+YAML_SC="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" --show-config 2>&1)"
+assert_contains "--show-config attributes the exclusions to the YAML layer" \
+  "$YAML_SC" "excluded_paths=legacy/** (from $CONV/attribution.yaml)"
+assert_not_contains "--show-config does not list the shadowed JSON layer" \
+  "$YAML_SC" "$CFG_DIR/attribution.json"
+printf '%s\n' 'excluded_paths: []' >"$CONV/attribution.local.yaml"
+YAML_CLEAR="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
+assert_contains "an empty YAML overlay list clears the team exclusion" \
+  "$(echo "$YAML_CLEAR" | jq -r '.files[]')" "legacy/old.md"
+rm -rf "$CONV"
+rm -f "$CFG_DIR/attribution.json"
+
 mkdir -p "$HOME/.claude"
 printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
 USER_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig" bash "$LIST_CORPUS" 2>/dev/null)"

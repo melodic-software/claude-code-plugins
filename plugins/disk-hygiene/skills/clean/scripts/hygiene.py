@@ -36,6 +36,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
+import ranking_signals  # noqa: E402  (sibling module; a rank orders review only)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -252,6 +253,7 @@ def scan_complete_payload(
     """
     entries = snapshot["entries"]
     hinted = sum(1 for entry in entries if entry.get("hints"))
+    ranking = snapshot.get("review_ranking") or {}
     payload = {
         "status": "scan-complete",
         "target": str(target),
@@ -260,6 +262,11 @@ def scan_complete_payload(
         "entries": len(entries),
         "hinted_entries": hinted,
         "unhinted_entries": len(entries) - hinted,
+        "ranked_entries": ranking.get("ranked_entries", 0),
+        "unranked_entries": ranking.get("unranked_entries", len(entries)),
+        "entries_by_signal": ranking.get(
+            "entries_by_signal", dict.fromkeys(ranking_signals.SIGNALS, 0)
+        ),
         "empty_directory_count": snapshot["empty_directory_count"],
         "empty_file_count": snapshot["empty_file_count"],
         "target_logical_bytes": snapshot["target_logical_bytes"],
@@ -2815,6 +2822,7 @@ def scan_tree(
         truncated.append(".")
     repositories = sorted(set(repositories))
     stdlib_shadowing: list[dict[str, Any]] = []
+    review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
         apply_rules(
@@ -2829,6 +2837,9 @@ def scan_tree(
         )
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
+        # Last, after rules and in-flight refs have ticked or unticked: the
+        # rank reads recorded fields only and nothing downstream reads it.
+        review_ranking = ranking_signals.annotate(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2893,6 +2904,8 @@ def scan_tree(
         "children_rollup": rollup_rows,
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
+    if review_ranking is not None:
+        payload["review_ranking"] = review_ranking
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = "partial" if unknown_paths else "exact"
@@ -5775,8 +5788,11 @@ def main(argv: list[str] | None = None) -> int:
                             "entries minus hinted_entries: every "
                             "inventoried entry no hint judged, left to "
                             "positional review. Hints are discovery "
-                            "signals, never cleanup verdicts."
-                            + home_note                        ),
+                            "signals, never cleanup verdicts. "
+                            "ranked_entries counts entries a review signal "
+                            "reached; review_rank orders review only."
+                            + home_note
+                        ),
                         {
                             "root_children_mode": True,
                             "root_children_selected": resolved_children,
@@ -5860,7 +5876,13 @@ def main(argv: list[str] | None = None) -> int:
                                 "judged is left to positional review, so hint "
                                 "coverage reads as a rate, not a bare count. "
                                 "Hints are discovery signals, never cleanup "
-                                "verdicts. children_rollup carries one row per "
+                                "verdicts. ranked_entries counts entries a "
+                                "review signal reached (discovery hint, "
+                                "sibling-mtime cluster, size collision); each "
+                                "entry's review_rank names its signals, and an "
+                                "unranked entry has a null position. The rank "
+                                "orders review only and never changes "
+                                "eligibility. children_rollup carries one row per "
                                 "immediate child; its logical_bytes, entry_count "
                                 "and newest_mtime_ns are exact where walked is "
                                 "true and null where it is false, never 0. "

@@ -4,13 +4,13 @@
 // into the next leg's matrix.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { denials, marker, route } from "./handoff.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./handoff.mjs", import.meta.url));
 
@@ -32,7 +32,7 @@ test("the leg check counts every denial in the launcher's log", () => {
 });
 
 test("the route builds the next leg's matrix from the downloaded markers", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "handoff-route-"));
+  const dir = tempDir("handoff-route-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   mkdirSync(dir, { recursive: true });
   const put = (name, body) => writeFileSync(join(dir, name), JSON.stringify(body));
@@ -60,7 +60,7 @@ test("the route builds the next leg's matrix from the downloaded markers", (t) =
 });
 
 test("the commands write the marker, the leg check and the route outputs", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "handoff-cli-"));
+  const dir = tempDir("handoff-cli-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const run = (command, env) => spawnSync(process.execPath, [SCRIPT, command], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
   const output = join(dir, "output");

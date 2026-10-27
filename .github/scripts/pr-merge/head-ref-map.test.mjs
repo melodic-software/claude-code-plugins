@@ -7,8 +7,7 @@
 // nothing.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,9 +15,10 @@ import { fileURLToPath } from "node:url";
 import { forgetMainTip, main, nextMap, onMain } from "./head-ref-map.mjs";
 
 import { mainCall } from "./on-main.fixture.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-const dir = mkdtempSync(join(tmpdir(), "head-ref-map-"));
+const dir = tempDir("head-ref-map-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const mapOf = (refs, extra = {}) => JSON.stringify({ version: 1, repo: REPO, head_refs: refs, ...extra });
 const sha = (id) => String(id).padStart(40, "a");

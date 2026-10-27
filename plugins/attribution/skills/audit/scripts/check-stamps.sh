@@ -129,50 +129,23 @@ if [[ -n "$AS_OF" && ! "$AS_OF" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
 fi
 [[ -n "$AS_OF" ]] || AS_OF="$(date +%Y-%m-%d)"
 
-# --- Config cascade (.claude/attribution.json; user-global -> team -> overlay) -----
+# --- Config cascade (user-global -> team -> overlay; YAML, legacy JSON) -----------
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
 cfg_layers_init "$CONFIG_ROOT"
 
-HAVE_JQ=1
-command -v jq >/dev/null 2>&1 || HAVE_JQ=0
-
-# cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
-# Carriage returns are stripped because the Windows build of jq emits CRLF; a
-# CR-suffixed value silently stops matching (the ai-slop #3343 finding).
-# CFG_SOURCE carries the layer that supplied the value the last call returned,
-# empty when no layer did. The setup skill tells the operator to read per-value
-# provenance out of `--show-config` rather than parsing the layers by hand, so
-# the effective value alone is not enough: with two layers present, nothing
-# would say which one won.
-CFG_SOURCE=""
-cfg_scalar() {
-  local path="$1" layer v out="" src=""
-  CFG_SOURCE=""
-  if [[ "$HAVE_JQ" -eq 0 ]]; then
-    printf ''
-    return 0
-  fi
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
-    v="${v//$'\r'/}"
-    if [[ -n "$v" ]]; then
-      out="$v"
-      src="$layer"
-    fi
-  done
-  CFG_SOURCE="$src"
-  printf '%s' "$out"
-}
-
-if [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  echo "check-stamps.sh: jq not found; config layers present but unread, using defaults" >&2
+if cfg_have_unread_layer; then
+  echo "check-stamps.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
+# The setup skill tells the operator to read per-value provenance out of
+# `--show-config` rather than parsing the layers by hand, so each value carries
+# the layer that supplied it (CFG_SOURCE after each read).
 DEFAULT_EXPIRY_DAYS=180
-EXPIRY_DAYS="$(cfg_scalar '.stamp_expiry_days')"
+EXPIRY_DAYS="" TRIGGER_LESS=""
+cfg_scalar EXPIRY_DAYS stamp_expiry_days
 EXPIRY_FROM="$CFG_SOURCE"
 if [[ ! "$EXPIRY_DAYS" =~ ^[0-9]+$ ]]; then
   EXPIRY_DAYS="$DEFAULT_EXPIRY_DAYS"
@@ -183,7 +156,7 @@ if [[ -n "$EXPIRY_OVERRIDE" ]]; then
   EXPIRY_FROM="--expiry-days"
 fi
 
-TRIGGER_LESS="$(cfg_scalar '.trigger_less_stamp_check')"
+cfg_scalar TRIGGER_LESS trigger_less_stamp_check
 TRIGGER_LESS_FROM="$CFG_SOURCE"
 if [[ "$TRIGGER_LESS" != "true" && "$TRIGGER_LESS" != "false" ]]; then
   TRIGGER_LESS_FROM=""
@@ -197,19 +170,10 @@ else
   TRIGGER_LESS_CHECK=0
 fi
 
-# from_label <source>: how --show-config attributes one effective value.
-from_label() {
-  if [[ -z "$1" ]]; then
-    printf '(bundled default)'
-  else
-    printf '(from %s)' "$1"
-  fi
-}
-
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cfg_layers_print
-  echo "Effective: stamp_expiry_days=$EXPIRY_DAYS $(from_label "$EXPIRY_FROM")"
-  echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false) $(from_label "$TRIGGER_LESS_FROM")"
+  echo "Effective: stamp_expiry_days=$EXPIRY_DAYS $(cfg_from_label "$EXPIRY_FROM")"
+  echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false) $(cfg_from_label "$TRIGGER_LESS_FROM")"
   echo "Effective: as_of=$AS_OF"
   exit 0
 fi
