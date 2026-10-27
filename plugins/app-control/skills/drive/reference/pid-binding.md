@@ -66,8 +66,10 @@ rules.
   deletes the capture and exits 3. Exit 3 is `blocked: launched process no longer matches`, with
   no capture; any other non-zero exit is reported with the recorder's output. A script killed
   before its exit leaves an unchecked capture: report it as unchecked. With `--elevate` and a
-  `<file>` in the command, its one other elevated command is a `chown -h` that hands the capture
-  back to the user running the script.
+  `<file>` in the command, the elevated recorder writes into a new directory the elevated user
+  makes, never the capture path, so the captured process cannot plant a symlink there; the script
+  copies that file to the capture path through its own redirect, as the user running it, and
+  removes the directory.
 - **A wrapper resolves to its child by parent pid.** When the recorded command line is a shell or
   launcher that started the app, pass `--child`: the builder takes the one process whose parent
   pid is the recorded pid from the live process table in this invocation (never a stored report or

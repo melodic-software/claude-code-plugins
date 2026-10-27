@@ -225,10 +225,24 @@ else
 fi
 
 build --attach-pid "$K" --elevate sudo -- rec --pid '<pid>' --out '<file>'
-if [[ "$rc" == 0 && "$out" == *"sudo rec --pid $K --out $C"* && "$out" == *'sudo chown -h "$(id -u):$(id -g)" "$capture"'* ]]; then
-  pass "--elevate prefixes the recorder and hands a <file> capture back"
+if [[ "$rc" == 0 && "$out" == *'sudo rec --pid '"$K"' --out "$stage/capture"'* && "$out" != *"--out $C"* ]]; then
+  pass "--elevate prefixes the recorder and points its <file> into a stage directory, never the capture path"
 else
-  fail "--elevate prefixes the recorder and hands a <file> capture back" "rc=$rc out=$out err=$err"
+  fail "--elevate prefixes the recorder and points its <file> into a stage directory, never the capture path" "rc=$rc out=$out err=$err"
+fi
+
+# A stand-in sudo that runs its command as this user: the script copies the staged file to the
+# capture path through its own redirect and removes the stage directory.
+mkdir -p "$T/bin" "$T/stage-tmp"
+printf '#!/bin/sh\nexec "$@"\n' >"$T/bin/sudo"
+chmod +x "$T/bin/sudo"
+build --attach-pid "$K" --elevate sudo -- sh -c 'printf "threads of %s" "$1" >"$2"' recorder '<pid>' '<file>'
+src=0
+PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" sh "$S" 2>"$T/serr" || src=$?
+if [[ "$rc" == 0 && "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && -z "$(ls -A "$T/stage-tmp")" ]]; then
+  pass "an elevated <file> capture is copied from the stage directory, which is removed"
+else
+  fail "an elevated <file> capture is copied from the stage directory, which is removed" "rc=$rc src=$src: $(cat "$T/serr") stage=$(ls -A "$T/stage-tmp")"
 fi
 
 # A placeholder name inside the capture path or a recorder argument stays literal text.

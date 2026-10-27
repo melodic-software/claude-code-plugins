@@ -11,8 +11,9 @@ the caller's own uid, and with --child resolves the one process whose parent pid
 pid. Attach mode reads the named pid's uid, start time and command line hash from /proc. In the
 recorder, <pid> becomes the target pid (the child's when one resolved) and <file> the capture path;
 with no <file>, the recorder's stdout is the capture. The recorder carries no elevation prefix:
---elevate puts one before it, and before the chown that hands a <file> capture back to the user
-running the script.
+--elevate puts one before it. An elevated recorder never writes the capture path itself: its <file>
+is a path in a new directory the elevated user makes, and the script copies that file to the
+capture path through its own redirect, as the user running it, then removes the directory.
 
 The script is written with mode 0700 to a new file at --write. Stdout carries one line per process
 (pid, uid, start time, live command line with NULs as spaces and control characters escaped) and
@@ -105,9 +106,9 @@ recheck
 trap : INT TERM
 @RUN@
 status=$?
-after=1
+@HANDBACK@after=1
 recheck
-@HANDBACK@[ "$status" -ne 3 ] || status=4
+[ "$status" -ne 3 ] || status=4
 exit "$status"
 """
 
@@ -278,11 +279,26 @@ def bind(args):
 def build(bound, recorder, capture, elevate):
     target = bound[-1][1]["pid"]
     to_file = any("<file>" in a for a in recorder)
-    run = shlex.join(a.replace("<pid>", target).replace("<file>", capture) for a in recorder)
+    # An elevated recorder writes into a directory only the elevated user can change, so a process
+    # of this user cannot plant a symlink where the elevated write lands.
+    staged = elevate and to_file
+
+    def word(a):
+        a = a.replace("<pid>", target)
+        if not staged or "<file>" not in a:
+            return shlex.quote(a.replace("<file>", capture))
+        return '"$stage/capture"'.join(shlex.quote(p) if p else "" for p in a.split("<file>"))
+
+    run = " ".join(word(a) for a in recorder)
     if elevate:
         run = f"{elevate} {run}"
     if not to_file:
         run += ' >"$capture"'
+    elif staged:
+        run = (
+            f'stage=$({elevate} mktemp -d) || {{ printf \'could not make a stage directory\\n\' >&2; exit 1; }}\n'
+            + run
+        )
     checks = []
     for i, (_, proc) in enumerate(bound):
         line = f"  check {proc['pid']} {proc['uid']} {proc['start']} {proc['sha256']}"
@@ -290,10 +306,13 @@ def build(bound, recorder, capture, elevate):
             line += f" {proc['ppid']}"
         checks.append(line)
     hand_back = ""
-    if elevate and to_file:
+    if staged:
         hand_back = (
-            f'[ ! -e "$capture" ] || {elevate} chown -h "$(id -u):$(id -g)" "$capture" ||\n'
-            '  printf \'could not hand %s back\\n\' "$capture" >&2\n'
+            f'if {elevate} test -e "$stage/capture"; then\n'
+            f'  {elevate} cat -- "$stage/capture" >"$capture" ||\n'
+            '    printf \'could not hand %s back\\n\' "$capture" >&2\n'
+            'fi\n'
+            f'{elevate} rm -rf -- "$stage"\n'
         )
     values = {
         "CAPTURE": shlex.quote(capture),
