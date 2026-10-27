@@ -109,14 +109,16 @@ patch outputs under the names a caller that takes nothing from a run job reads.
 
 A scan refusal is no output: a failed scan fails the caller's job for the whole read file, and a
 failed job's outputs are not documented to reach a `workflow_call` caller. When the scan job fails
-or is cancelled in PR mode, the `scan-refusal` job, which needs the scan job alone, uploads
+or is cancelled, the `scan-refusal` job, which needs the scan job alone, uploads
 `scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
 cap and `output` otherwise. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
 read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
-person. In issue mode no marker is written: the [issue-fields job](#the-issue-fields-job), which
-ends green, sets `scan-issue-run-started`, so the caller's report job still runs on a failed or
-skipped scan, finds no outcome and stops the run.
+person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends green, sets
+`scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
+downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
+fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file. A
+failed download there names no refusal.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
