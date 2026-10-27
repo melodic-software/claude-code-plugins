@@ -34,6 +34,7 @@ import {
   trustedLabeler,
   unmarkedAnswer,
 } from "./report-outcome.mjs";
+import { LIMIT_DEFAULTS } from "./limits.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 // The first line of every hand-back comment: the attended queue's escalation
@@ -622,6 +623,26 @@ test("done with no branch is retried, since nothing was committed", () => {
   const plan = decideDone({ branch: "" });
   assert.equal(plan.action, "retry");
   assert.equal(plan.stop, "done-no-commit");
+});
+
+// collect-patch.sh exits 3, and writes no patch, when a run leaves content at
+// a stub name such as .npmrc or .env: possibly a planted credential or config
+// file. The run's outcome file and records are its own to forge, so the
+// refusal holds whatever they say.
+test("a run whose patch collector refused goes to a person, whatever its outcome or records say", () => {
+  const base = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], collectRefused: true };
+  for (const [name, args] of [
+    ["done", { outcome: { exit: "done", reason: "", title: "", summary: "" } }],
+    ["unread", { outcome: readOutcome("/nonexistent/work-outcome.json") }],
+    ["turn cap", { outcome: readOutcome("/nonexistent/work-outcome.json"), turnCap: { cap: 50 }, turnCapRestarts: 0, limits: { ...LIMIT_DEFAULTS, "turn-cap-restarts": 1 } }],
+    ["resumed", { outcome: { exit: "done", reason: "", title: "", summary: "" }, resumed: "work-resolve-issue/issue-77-1-1" }],
+  ]) {
+    const plan = decide({ ...base, ...args });
+    assert.equal(plan.stop, "collect-refused", name);
+    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.deepEqual(plan.removeLabels, ["agent-ready"], name);
+    assert.match(plan.comment, /\.npmrc/, name);
+  }
 });
 
 // apply-issue-patch's escalation reason: a done run whose patch was refused
@@ -3136,6 +3157,24 @@ test("main fails a crashed run whose retries are spent: agent-ready off, no labe
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "failed");
   });
+});
+
+test("main hands a run to a person when COLLECT_REFUSED is exactly true, and retries it otherwise", async () => {
+  for (const [value, held] of [["true", true], ["TRUE", false], ["", false]]) {
+    await withAsyncDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ...HISTORY,
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), COLLECT_REFUSED: value }, fetch }), 0);
+      const label = calls.find((c) => c.method === "POST" && c.path.endsWith("/labels"));
+      assert.equal(label?.body.labels[0] === "needs-human", held, value);
+      assert.equal(calls.some((c) => c.method === "DELETE"), held, value);
+    });
+  }
 });
 
 test("main keeps agent-ready on a spent retry whose failed marker could not be posted, so the stranded sweep still finds it", async () => {

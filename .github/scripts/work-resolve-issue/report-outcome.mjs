@@ -303,6 +303,10 @@ export const SCAN_REFUSALS = {
   output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
 };
 
+// The scan job's collect-refused output, as collect-patch.sh's exit 3 sets it.
+export const COLLECT_REFUSED =
+  "The run left content, a link or a directory at a name the patch collector only accepts as an empty stub (such as `.npmrc`, `.env` or a lockfile), so no patch was collected and nothing was published. The run's log names the file.";
+
 // The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
   let parsed;
@@ -813,6 +817,7 @@ export function decide({
   resumed = "",
   escalation = "",
   unmarked = null,
+  collectRefused = false,
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   // A run that never started left no outcome; its record names why.
@@ -820,6 +825,12 @@ export function decide({
     outcome = { ...outcome, reason: issueStop, stop: Object.keys(ISSUE_STOPS).find((key) => ISSUE_STOPS[key] === issueStop) ?? outcome.stop };
   }
   const onResumed = !branch && resumed !== "";
+  // The run's patch collector refused a stub name holding content: the run
+  // may have planted a credential or config file. Its outcome file and
+  // records are its own to forge, so this comes before all of them.
+  if (collectRefused) {
+    return routeStop("collect-refused", { outcome: stopped(COLLECT_REFUSED), issueNumber, branch: "", humanLabel, runUrl, runId });
+  }
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
   // must not hide a stop or pushback the skill reported from the person it
@@ -1692,6 +1703,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           checks,
           escalation,
           unmarked,
+          collectRefused: env.COLLECT_REFUSED === "true",
         });
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds

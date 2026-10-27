@@ -3,6 +3,7 @@
   "outcome-invalid": { "route": "retry", "why": "the run's outcome file names no known exit, a fault in the run, not a finding about the issue" },
   "scan-refused-patch": { "route": "retry", "why": "the scan job refused the run's patch for its size, so a fresh run may make a smaller one" },
   "scan-refused-output": { "route": "hold", "why": "the scan job refused the run's output for a reason only its log names, which may be a credential shape, a security judgment" },
+  "collect-refused": { "route": "hold", "why": "the patch collector refused a file the run left at a stub name such as .npmrc or .env, which may be a planted credential or config file, a security judgment" },
   "issue-file": { "route": "retry", "why": "the runner could not write the issue file, a runner fault before any model ran" },
   "issue-edited": { "route": "hold", "why": "the issue's title or body changed after agent-ready was added, and only a listed human's new agent-ready admits the edited text" },
   "patch-protected-path": { "route": "host-run", "why": "the change needs a path the issue lane may not push, which a maintainer session builds by hand", "code": true },

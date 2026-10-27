@@ -13,6 +13,7 @@ test("a reason the table does not list holds", () => {
 test("only intent, design, security and cost reasons, and reasons the lane cannot tell from them, hold", () => {
   const holds = Object.keys(STOP_ROUTES).filter((reason) => STOP_ROUTES[reason].route === "hold").sort();
   assert.deepEqual(holds, [
+    "collect-refused",
     "cost-risk",
     "design-change",
     "intent-change",
