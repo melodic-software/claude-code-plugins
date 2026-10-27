@@ -566,7 +566,10 @@ fi
 # --- --run puts the CI venv's bin first on PATH, when there is one ----------
 # A suite records the PATH it sees. The fake venv's python imports pytest, which
 # is what the shared lookup (scripts/lib/pytest-python.sh) asks of a venv.
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$PATH" >"${MARKER_FILE:-/dev/null}"\n' >"$repo/lib/pathprobe.test.sh"
+cat >"$repo/lib/pathprobe.test.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$PATH" >"${MARKER_FILE:-/dev/null}"
+EOF
 printf 'probe\n' >"$repo/lib/pathprobe.sh"
 mkdir -p "$repo/.work/venv/bin"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/.work/venv/bin/python"
