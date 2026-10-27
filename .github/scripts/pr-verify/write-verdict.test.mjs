@@ -14,7 +14,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, retentionDays, structuredOutput } from "./write-verdict.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
@@ -50,6 +50,14 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       run_id: 9001,
     });
     assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}${verdict === "fail" ? "-i7" : ""}`);
+  }
+});
+
+test("a PASS or PASS-NOTES lasts 30 days and a FAIL, or anything else, 90", () => {
+  assert.equal(retentionDays("pass"), 30);
+  assert.equal(retentionDays("pass-notes"), 30);
+  for (const verdict of ["fail", "", undefined, "PASS", "pass-notes-x"]) {
+    assert.equal(retentionDays(verdict), 90, String(verdict));
   }
 });
 
@@ -300,9 +308,13 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
+  const passed = { ...env, VERDICT_DIR: path.join(dir, "verdict-ok"), GITHUB_OUTPUT: path.join(dir, "out-ok"), EXECUTION_FILE: okFile };
+  main(passed);
+  const okVerdict = JSON.parse(ok).verdict;
+  assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=30\n`);
   const unparsable = path.join(dir, "unparsable.json");
   writeFileSync(unparsable, "{not json");
   for (const [label, extra] of [
