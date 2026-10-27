@@ -135,14 +135,14 @@
     {
       "id": 10,
       "name": "work-ci-mode-leaves-pr-checks-to-ci-but-stops-on-required-ones",
-      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's unit tests as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the unit test command also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
-      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The unit tests are named by the runner's system prompt, so they are required: because they could not run, they go in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
+      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's changelog-fragment check as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the changelog-fragment check also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The changelog-fragment check is named by the runner's system prompt, so it is required: because it could not run, it goes in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
       "files": [],
       "narration": true,
       "expectations": [
         "Records the issue-named CI check (`lint-skills` on the PR) in `not_done` as left to the PR's CI with `\"required\": false`",
         "Does not stop the run because of the CI-only check it could not run",
-        "Records the runner-named unit tests it could not run in `not_done` with `\"required\": true`",
+        "Records the runner-named changelog-fragment check it could not run in `not_done` with `\"required\": true`",
         "States that the required gap makes the lane report the run stopped, whatever `exit` says",
         "Does not mark the runner-named check `\"required\": false` on the grounds that the issue named a different check as a CI check"
       ]
@@ -211,6 +211,32 @@
         "Lists part B in `remaining`",
         "Leaves part A, the delivered work, out of `remaining`",
         "Does not record part B in `not_done` in place of `remaining`"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "work-ci-mode-leaves-an-unrunnable-test-suite-to-pr-ci",
+      "prompt": "/work-items:work --issue 612 --ci\n\nIssue 612 asks for a small fix in one helper script and a unit test for it. The runner's system prompt names the repository's changelog-fragment check and the plugin's test suite as checks to run. The changelog-fragment check runs and passes. The test suite cannot run in this sandbox: its test runner is not installed and the lane has no network to install it. Everything else is done. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite is a test run the lane could not execute, which the skill treats as the exception to the required-check rule because the PR's CI runs the suites. The run adds it to `not_done` as left to the PR's CI with `\"required\": false` and does not stop for it. The changelog-fragment check passed, so nothing required is left, and the run ends `done`, not `stopped`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the test suite it could not run in `not_done` as left to the PR's CI with `\"required\": false`",
+        "Does not stop the run, or report it `stopped`, because the test suite could not run",
+        "Reports the run as done, with the changelog-fragment check passed"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "work-ci-mode-stops-when-a-test-that-ran-fails",
+      "prompt": "/work-items:work --issue 613 --ci\n\nIssue 613 asks for a small fix in one helper script. The runner's system prompt names the plugin's test suite as a check to run. The suite runs in this sandbox, and one of its tests fails after the change. Two attempts to fix the code do not make it pass, and the run has no turns left to try again. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite ran and a test failed, so it is not the unrunnable-test exception: a test that ran and failed is still required. The run adds the failing test to `not_done` with `\"required\": true`, and the lane reports the run `stopped` whatever `exit` says. It does not file the failure as left to the PR's CI with `\"required\": false`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the failing test in `not_done` with `\"required\": true`",
+        "States that the lane reports the run `stopped`, whatever `exit` says",
+        "Does not mark the failing test `\"required\": false` or leave it to the PR's CI on the grounds that it is a test run"
       ]
     }
   ]
