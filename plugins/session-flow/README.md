@@ -243,13 +243,16 @@ each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
 applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
 preferences two or more sessions show, and hands each one you confirm to `retro codify` for a
-user-scope file, never a repository file.
+user-scope file, never a repository file. The `correction` action has the session's model judge
+which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
+section beside the measured findings.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
 /session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to retro codify
+/session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked
 ```
 
 ### audit-friction
