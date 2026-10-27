@@ -23,6 +23,6 @@ graders:
     arm: both
   - name: asks-how-to-proceed
     type: regex
-    pattern: '^(?=[^\n]*\?)(?=[^\n]*\b(?:proceed|go ahead|instead|alongside|prefer|want|would you like|shall I|should I|which|or)\b)'
+    pattern: '^(?:(?=[^\n]*\?)(?=[^\n]*\b(?:proceed|go ahead|instead|alongside|prefer|want|would you like|shall I|should I|which|or)\b)|[^\n]*\b(?:reply|respond|answer)(?: with)? (?:one of|either)\b|[^\n]*\blet me know (?:which|how)\b|[^\n]*\b(?:reply|respond|answer|say) [*"]*\w+[*"]* to (?:proceed|go ahead|start|continue)\b)'
     flags: 'mi'
     arm: both
