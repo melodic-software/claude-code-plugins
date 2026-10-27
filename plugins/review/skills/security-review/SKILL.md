@@ -186,8 +186,11 @@ widening finding says which control and what now gets through:
   lane that no longer consults it, or an output a lane no longer honors (in this repository
   `.github/actions/check-kill-switch/`);
 - it widens what the token broker's signer process grants: a token's scope or permissions, which
-  lanes or activities get one, or an activity's effect. A field the signer only carries onto its
-  result, with the minted token unchanged, widens nothing (in this repository resolve-config's `resolve.mjs`,
+  lanes or activities get one, an activity's effect, or what an activity's session may invoke (a
+  skill added to its allowlist, judged by the tools that skill grants against those already
+  allowed); or it adds code to the signer's load path that can read or send the signing key, a
+  minted token or the process environment. A field the signer only carries onto its result, with
+  the minted token and the session's tools unchanged, widens nothing (in this repository resolve-config's `resolve.mjs`,
   the sibling modules it imports, `effect-grants.json`, `lane-rules.json` and
   `activity-rules.json`, and `docs/conventions/pr-pipeline.yaml`, whose lane slots and activity
   effects decide what the broker mints; resolve-config's tests, fixtures and docs are not this
@@ -256,16 +259,20 @@ For each item the diff hits, the summary carries one line, `manifest <field>: pa
 or runs code, a `plugin.json` `hooks`, `mcpServers`, `lspServers`, `monitors`,
 `experimental.monitors` or `dependencies`, or in `marketplace.json` a plugin entry added, removed
 or renamed, an entry's `source`, or the marketplace `name`, is CRITICAL when that code starts
-running for users who already have the marketplace, on update and with no step of theirs: an
-entry added or renamed that is on by default, a key added to a plugin that is on by default, an
-entry's `source` moved off the repository, the marketplace `name` changed. Such code meets parts
-1 and 2 of the severity bar by itself, whatever it does today (the pull request's author reaches
-every installed user's machine, and code run there is the impact), so only an opt-in or another
-cited control lowers it. Read whether an entry
-is on by default from its `defaultEnabled` line and quote it: `"defaultEnabled": false` means
-nothing installs until a user enables it, and an entry without that line is treated as on.
-Such a flag on code that installs nothing until a user opts in is IMPORTANT. Every other flag is
-IMPORTANT unless it meets the severity bar.
+running for users who already have the marketplace or the plugin, on update and with no step of
+theirs: an entry added or renamed that is on by default, a key added to a plugin that already
+exists (its users enabled the plugin, not the new key, whatever its entry's `defaultEnabled`
+says), an entry's `source` moved off the repository, the marketplace `name` changed. Such code
+meets parts 1 and 2 of the severity bar by itself, whatever it does today (the pull request's
+author reaches every installed user's machine, and code run there is the impact), so only an
+opt-in or another cited control lowers it. For an added or renamed entry, quote its
+`defaultEnabled` line: treat the entry as opt-in only when it sets `"defaultEnabled": false`, and
+as on in every other case; an opt-in entry's flag, and the keys of the new plugin it brings, are
+IMPORTANT. Every other flag is IMPORTANT unless it meets the severity bar. Pointer: what
+`defaultEnabled` controls is read at
+[marketplace reference: Plugin entries](https://code.claude.com/docs/en/plugins/marketplace-reference#plugin-entries).
+As of: 2026-10-27. Recheck trigger: that section changes what `defaultEnabled` controls or its
+precedence over `plugin.json`.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at

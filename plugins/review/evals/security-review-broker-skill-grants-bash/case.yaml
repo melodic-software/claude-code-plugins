@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: security-review-broker-skill-grants-bash
+context:
+  scaffold_script: scaffold.sh
