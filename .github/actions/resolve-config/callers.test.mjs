@@ -891,7 +891,9 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   const go = steps[index("go")];
   assert.equal(go.env.STALE, "${{ steps.workflow-current.outputs.stale }}");
   const decideGo = (env) => {
-    const out = join(mkdtempSync(join(tmpdir(), "workflow-go-")), "out");
+    const dir = mkdtempSync(join(tmpdir(), "workflow-go-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const out = join(dir, "out");
     writeFileSync(out, "");
     spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", ...env, GITHUB_OUTPUT: out } });
     return readFileSync(out, "utf8").trim();
@@ -2687,6 +2689,7 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
     SCAN_CONTEXT,
     { env },
   );
+  t.after(() => outputs.dir && rmSync(outputs.dir, { recursive: true, force: true }));
   return { clean: outputs.clean, failed, work, temp, warnings, outputs };
 }
 
@@ -2944,7 +2947,7 @@ test("leak scan: a hostile run job output, any value or another commit's SHA, ne
     const { createRequire } = await import("node:module");
     await new AsyncFunction("require", "core", "github", "context", "process", script)(
       createRequire(import.meta.url),
-      { setOutput: () => {}, setFailed: () => {}, warning: () => {} },
+      { setOutput: (name, value) => name === "dir" && t.after(() => rmSync(value, { recursive: true, force: true })), setFailed: () => {}, warning: () => {} },
       github,
       SCAN_CONTEXT,
       { env },
