@@ -299,6 +299,19 @@ else
     "$([[ "$err" == *"cannot read convention_source file 'conventions.yml'"* ]] && echo yes || echo no)"
 fi
 chmod 644 "$r/conventions.yml"
+# ...and fails closed rather than falling back to a markdown H2 the migration retired.
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^U-[0-9]+: .+\047'
+chmod 000 "$r/conventions.yml"
+if [[ -r "$r/conventions.yml" ]]; then
+  echo "SKIP: unreadable neutral file with H2 fallback case (the file stays readable to this user)"
+else
+  out="$(run "$r" 2>/dev/null)"
+  rc=$?
+  assert_exit "neutral: unreadable file with H2 -> exit 1" 1 "$rc"
+  assert_eq "neutral: unreadable file with H2 -> no stale H2 pattern" "" "$out"
+fi
+chmod 644 "$r/conventions.yml"
 
 # --- pointer in the LOCAL overlay only is ignored (team-only policy floor) ---
 r="$(newrepo "" $'## convention_source\nconventions.yml')"

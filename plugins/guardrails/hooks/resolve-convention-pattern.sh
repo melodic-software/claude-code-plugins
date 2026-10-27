@@ -164,14 +164,15 @@ NEUTRAL_HAS_PR_TITLE=""
 NEUTRAL_PR_TITLE=""
 
 # read_neutral: fill the NEUTRAL_* values from NEUTRAL_FILE. An unreadable file
-# carries no keys, but says so on stderr: a consumer reads exit 1 with empty
-# stderr as "no convention tracked" and would stay quiet. The -r test keeps a
-# failed redirection from exiting the shell.
+# is a declared-but-broken pointer: it fails closed (exit 1) with a diagnostic,
+# like the sibling pointer checks, rather than falling back to the markdown H2.
+# Runs at top level so the exit reaches the caller. The -r test keeps a failed
+# redirection from exiting the shell without the diagnostic.
 read_neutral() {
   [ -n "$NEUTRAL_FILE" ] || return 0
   if [ ! -r "$NEUTRAL_FILE" ]; then
-    printf '%s\n' "resolve-convention-pattern: cannot read convention_source file '$ptr'; its keys are not read." >&2
-    return 0
+    printf '%s\n' "resolve-convention-pattern: cannot read convention_source file '$ptr'; enforcement disabled (fix the file's permissions)." >&2
+    exit 1
   fi
   while IFS= read -r rn_line || [ -n "$rn_line" ]; do
     case "$rn_line" in
