@@ -139,6 +139,21 @@ bash "$CHECK" --repo "$REPO" --binding "$WORK/missing.json" --issue 1 >/dev/null
 rc=$?
 if [[ $rc -eq 4 ]]; then pass "a missing binding exits 4"; else fail "a missing binding exits 4 (got $rc)"; fi
 
+# --- the charge words come from charge-words.json beside the script ----------
+# The base case admits, so only the copy's own definition can refuse it.
+mkdir -p "$WORK/lone"
+cp "$CHECK" "$WORK/lone/rule-admit.sh"
+bash "$WORK/lone/rule-admit.sh" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null
+rc=$?
+if [[ $rc -eq 8 && ! -s "$WORK/out" ]]; then pass "no charge-words.json exits 8"; else fail "no charge-words.json exits 8 (got $rc: $(cat "$WORK/out"))"; fi
+printf '%s\n' '{"cost": "readme"}' >"$WORK/lone/charge-words.json"
+if bash "$WORK/lone/rule-admit.sh" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null &&
+  jq -e '.verdict == "refuse" and (.reason | startswith("cost hit in title or body: readme;"))' "$WORK/out" >/dev/null; then
+  pass "the cost pattern is read from charge-words.json"
+else
+  fail "the cost pattern is read from charge-words.json (got: $(cat "$WORK/out"))"
+fi
+
 # --- usage ------------------------------------------------------------------
 for args in "--binding $FIX/binding.json --issue 1" "--repo $REPO --issue 1" "--repo $REPO --binding $FIX/binding.json" "--repo $REPO --binding $FIX/binding.json --issue 0" "--repo $REPO --binding $FIX/binding.json --issue 1 --bogus x"; do
   # shellcheck disable=SC2086 # word splitting builds the argument list
