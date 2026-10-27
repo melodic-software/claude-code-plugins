@@ -343,8 +343,9 @@ role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
 `fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
 read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
 credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
-pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
-set, every agent instruction path and more than 300 paths. No change is the common case, so an
+pushing it as one commit under `patch-rules.json`'s `docs` row (`patch-prepare: docs`), which
+admits only markdown and refuses the universal set, any path under a `skills/` directory, any
+`SKILL.md` and more than 300 paths. No change is the common case, so an
 `empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
 unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
@@ -586,7 +587,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `docs` for a push job that passes
-`patch-prepare: docs` to hold a patch to markdown, `default` for one with no prepare mode, and
+`patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
+one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
 fix-docs's, resolve-conflicts's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
@@ -1232,7 +1234,9 @@ gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a pu
 count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
 armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+report that job keeps as an artifact (on an idle tick the last run's report, which that job reuses
+unchanged while nothing its check reads has moved, `babysit_verify_evidence.py settle --idle-tick`;
+`babysit_verify_evidence.py lane-room`; with no report it
 holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
 as the gate does; one refused only because a demotion record was filed or changed since is first
 kept when the demotion records alone read as they were; one past the gate's
