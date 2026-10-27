@@ -218,6 +218,16 @@ reads the file itself, through a script where the key names one below.
   `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
   default level (the two give the same result) and a substituted `draft` as the `userConfig`
   level.
+- `sync_stale_base`: `true` or `false`, whether
+  [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
+  base into a branch behind it on overlapping paths just before it pushes (the script header
+  holds the base, overlap, signing and skip rules, and exit 4 for a conflict). Resolution, lowest
+  first: the default, `false`; `sync_stale_base` in the checkout's tracked
+  `docs/conventions/source-control.yaml`; `--sync-stale-base` or `--no-sync-stale-base` on the
+  call. No `userConfig` option. The script reads the file from the checkout it pushes, not the
+  base branch: either value leaves the push going to the same place, and `true` only adds a merge
+  of the base. A file the parser rejects, or another value, reads as `false`. A lane push never
+  syncs.
 - `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
   `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
   and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a

@@ -70,7 +70,13 @@ case "$1 $2" in
     ;;
   "repo view") echo "example-org/app" ;;
   "pr view")
-    if [[ " $* " == *" -R "* ]]; then
+    if [[ " $* " == *" baseRefName "* ]]; then
+      [[ -n ${PB_PR_BASE:-} ]] || {
+        echo "no pull requests found for branch \"$3\"" >&2
+        exit 1
+      }
+      echo "$PB_PR_BASE"
+    elif [[ " $* " == *" -R "* ]]; then
       printf '%s\n' "${PB_PR_HEAD_REPO:-example-org/app}" feat/b
     else
       echo "feat/b ${PB_PR_HEAD_REPO:-example-org/app}"
@@ -82,6 +88,7 @@ EOF
 cat >"$SHIM/git" <<EOF
 #!/usr/bin/env bash
 for a in "\$@"; do
+  [[ \$a != fetch ]] || printf '%s\n' "\$*" >>"$LOG/fetch.log"
   if [[ \$a == push && -n \${PB_RECORD_PUSH:-} ]]; then
     printf '%s\n' "\$@" >"$LOG/push.argv"
     pwd -P >"$LOG/push.cwd"
@@ -104,8 +111,9 @@ export PATH="$SHIM:$PATH"
 # passing with PB_IDENTITY as the configured identity, else refusing as a
 # target that names none. lane-push.sh is the real one.
 PLUGIN="$WORKDIR/plugin"
-mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts"
+mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "${SCRIPT_DIR}/../../../lib/convention-key.sh" "${SCRIPT_DIR}/../../../lib/yaml-subset.awk" "$PLUGIN/lib/"
 cp -p "${SCRIPT_DIR}/../../../scripts/lane-push.sh" "$PLUGIN/scripts/"
 cat >"$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh" <<EOF
 #!/usr/bin/env bash
@@ -574,6 +582,207 @@ check "--pr fork head main: exits 0" "$?" "0"
 check "--pr fork head main: the fork received main" "$(has_ref "$WORKDIR/default-pr/origin.git" main)" "yes"
 STUB=""
 unset PB_GITHUB_ROOT
+
+# 11. sync-stale-base: inside the rate gate, just before the push, a branch
+#     behind its base on overlapping paths gets the base merged in (never a
+#     rebase), so the pre-push stale-base refusal does not bounce it. Off by
+#     default; on through sync_stale_base in docs/conventions/source-control.yaml
+#     or --sync-stale-base, off again through --no-sync-stale-base.
+# Signing is read from the fixture alone: a global commit.gpgsign or signing
+# program would decide what these cases sign.
+: >"$WORKDIR/gitconfig-global"
+export GIT_CONFIG_GLOBAL="$WORKDIR/gitconfig-global" GIT_CONFIG_NOSYSTEM=1
+# sync_clone <name> <yes|no>: make_clone plus a ten-line c.txt (and, for yes, the
+# config turning the sync on) committed on feat/x and pushed as the remote's
+# trunk, so both sides share it.
+sync_clone() {
+  local wc
+  wc=$(make_clone "$1")
+  printf '%s\n' 1 2 3 4 5 6 7 8 9 10 >"$wc/c.txt"
+  if [[ $2 == yes ]]; then
+    mkdir -p "$wc/docs/conventions"
+    echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
+  fi
+  git -C "$wc" add -A
+  git -C "$wc" commit -q -m shared
+  git -C "$wc" push -q origin HEAD:refs/heads/trunk 2>/dev/null
+  echo "$wc"
+}
+# set_line <checkout> <file> <line> <text>: rewrite one line and commit it.
+set_line() {
+  awk -v n="$3" -v t="$4" 'NR == n { $0 = t } { print }' "$1/$2" >"$1/$2.new" && mv "$1/$2.new" "$1/$2"
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "edit $2"
+}
+# advance_base <name> <file> <line> <text>: move the remote's trunk on in a
+# second clone, as another pull request landing would.
+advance_base() {
+  local o="$WORKDIR/$1/other"
+  [[ -d $o ]] || {
+    git clone -q -b trunk "$WORKDIR/$1/origin.git" "$o" 2>/dev/null
+    git -C "$o" config user.email other@example.com
+    git -C "$o" config user.name Other
+  }
+  [[ -f $o/$2 ]] || : >"$o/$2"
+  set_line "$o" "$2" "$3" "$4"
+  git -C "$o" push -q origin trunk 2>/dev/null
+}
+sync_run() {
+  local wc="$1"
+  shift
+  rm -f "$LOG"/*
+  OLD_TIP=$(git -C "$wc" rev-parse HEAD)
+  (cd "$wc" && bash "$PUSH_BRANCH" "$@") >/dev/null 2>"$LOG/err"
+  RC=$?
+}
+parents() { git -C "$1" rev-list --parents -n 1 HEAD | wc -w | tr -d ' '; }
+pushed() { git -C "$WORKDIR/$1/origin.git" rev-parse --verify --quiet "refs/heads/$BRANCH" || echo none; }
+fetched() { [[ -s $LOG/fetch.log ]] && echo fetched || echo none; }
+trunk_tip() { git -C "$WORKDIR/$1/origin.git" rev-parse refs/heads/trunk; }
+
+# Current base: nothing to merge, a plain push.
+wc=$(sync_clone sync-current yes)
+set_line "$wc" c.txt 1 branch-one
+sync_run "$wc"
+check "sync, current base: exit 0" "$RC" "0"
+check "sync, current base: the base was fetched" "$(fetched)" "fetched"
+check "sync, current base: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, current base: the remote received HEAD" "$(pushed sync-current)" "$OLD_TIP"
+
+# Stale base, no overlap: no merge (the hook allows it), a plain push.
+wc=$(sync_clone sync-disjoint yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-disjoint other.txt 1 base-only
+sync_run "$wc"
+check "sync, stale no overlap: exit 0" "$RC" "0"
+check "sync, stale no overlap: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, stale no overlap: the remote received HEAD" "$(pushed sync-disjoint)" "$OLD_TIP"
+
+# Stale base with overlap, unsigned repository: a --no-edit merge commit whose
+# first parent is the old tip and second the base tip, no signature, pushed.
+wc=$(sync_clone sync-overlap yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-overlap c.txt 10 base-ten
+sync_run "$wc"
+check "sync, overlap: exit 0" "$RC" "0"
+check "sync, overlap: HEAD is a merge commit" "$(parents "$wc")" "3"
+check "sync, overlap: first parent is the old tip (history kept)" "$(git -C "$wc" rev-parse HEAD^1)" "$OLD_TIP"
+check "sync, overlap: second parent is the base tip" "$(git -C "$wc" rev-parse HEAD^2)" "$(trunk_tip sync-overlap)"
+check "sync, overlap: both edits are in the tree" "$(sed -n '1p;10p' "$wc/c.txt" | paste -sd' ')" "branch-one base-ten"
+check "sync, overlap: unsigned repository, unsigned merge" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "0"
+check "sync, overlap: the remote received the merge" "$(pushed sync-overlap)" "$(git -C "$wc" rev-parse HEAD)"
+
+# Signing follows the repository: commit.gpgsign=true signs the merge, and so
+# does a signed tip with commit.gpgsign unset.
+ssh-keygen -q -t ed25519 -N '' -f "$WORKDIR/signkey" >/dev/null
+sign_cfg() {
+  git -C "$1" config gpg.format ssh
+  git -C "$1" config user.signingkey "$WORKDIR/signkey"
+}
+wc=$(sync_clone sync-gpgsign yes)
+sign_cfg "$wc"
+git -C "$wc" config commit.gpgsign true
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-gpgsign c.txt 10 base-ten
+sync_run "$wc"
+check "sync, commit.gpgsign: exit 0" "$RC" "0"
+check "sync, commit.gpgsign: HEAD is a merge commit" "$(parents "$wc")" "3"
+check "sync, commit.gpgsign: the merge is signed" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "1"
+wc=$(sync_clone sync-signedtip yes)
+sign_cfg "$wc"
+printf 'branch-one\n' >"$wc/tip.txt"
+awk 'NR == 1 { $0 = "branch-one" } { print }' "$wc/c.txt" >"$wc/c.new" && mv "$wc/c.new" "$wc/c.txt"
+git -C "$wc" add -A
+git -C "$wc" commit -q -S -m "signed tip"
+advance_base sync-signedtip c.txt 10 base-ten
+sync_run "$wc"
+check "sync, signed tip: exit 0" "$RC" "0"
+check "sync, signed tip: the merge is signed" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "1"
+check "sync, signed tip: HEAD is a merge commit" "$(parents "$wc")" "3"
+
+# Conflict: the merge is aborted, nothing is pushed, exit 4.
+wc=$(sync_clone sync-conflict yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-conflict c.txt 1 base-one
+sync_run "$wc"
+check "sync, conflict: exit 4" "$RC" "4"
+check "sync, conflict: names the conflict" "$(grep -c 'conflicted; merge aborted; not pushing' "$LOG/err")" "1"
+check "sync, conflict: no merge in progress" \
+  "$(git -C "$wc" rev-parse -q --verify MERGE_HEAD >/dev/null && echo merging || echo clean)" "clean"
+check "sync, conflict: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, conflict: the remote did not receive the branch" "$(pushed sync-conflict)" "none"
+
+# Disabled: no config, or --no-sync-stale-base over the config, fetches nothing
+# and merges nothing.
+wc=$(sync_clone sync-off no)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-off c.txt 10 base-ten
+sync_run "$wc"
+check "sync, no config: exit 0" "$RC" "0"
+check "sync, no config: nothing fetched" "$(fetched)" "none"
+check "sync, no config: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+wc=$(sync_clone sync-flag-off yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-flag-off c.txt 10 base-ten
+sync_run "$wc" --no-sync-stale-base
+check "sync, --no-sync-stale-base: exit 0" "$RC" "0"
+check "sync, --no-sync-stale-base: nothing fetched" "$(fetched)" "none"
+check "sync, --no-sync-stale-base: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, --no-sync-stale-base: the remote received HEAD" "$(pushed sync-flag-off)" "$OLD_TIP"
+sync_run "$wc" --check
+check "sync, --check: nothing fetched" "$(fetched)" "none"
+
+# --sync-stale-base turns it on with no config.
+wc=$(sync_clone sync-flag-on no)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-flag-on c.txt 10 base-ten
+sync_run "$wc" --sync-stale-base
+check "sync, --sync-stale-base: exit 0" "$RC" "0"
+check "sync, --sync-stale-base: HEAD is a merge commit" "$(parents "$wc")" "3"
+for args in "--sync-stale-base --no-sync-stale-base" "--sync-stale-base --sync-stale-base"; do
+  # shellcheck disable=SC2086 # word-split on purpose: each entry is an argv.
+  sync_run "$wc" $args
+  check "sync, '$args': refused" "$RC" "1"
+done
+
+# The pull request's base, not the default branch: a PR based on 'stack',
+# which is current, merges nothing even though trunk moved on c.txt.
+wc=$(sync_clone sync-stacked yes)
+git -C "$wc" push -q origin HEAD:refs/heads/stack 2>/dev/null
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-stacked c.txt 10 base-ten
+PB_PR_BASE=stack sync_run "$wc"
+check "sync, stacked PR: exit 0" "$RC" "0"
+check "sync, stacked PR: fetched its base" "$(grep -c 'refs/heads/stack:' "$LOG/fetch.log")" "1"
+check "sync, stacked PR: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+
+# The repository's own overlap rule wins when the checkout has one: a
+# scripts/check-stale-base-overlap.sh that passes (exit 0) means no merge,
+# though git sees an overlap.
+wc=$(sync_clone sync-repo-rule yes)
+mkdir -p "$wc/scripts"
+printf '#!/usr/bin/env bash\necho "$*" >"%s/rule.argv"\nexit 0\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
+git -C "$wc" add scripts
+git -C "$wc" commit -q -m "repo rule"
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-repo-rule c.txt 10 base-ten
+sync_run "$wc"
+check "sync, repo rule: exit 0" "$RC" "0"
+check "sync, repo rule: called with --check and the fetched base" "$(cat "$LOG/rule.argv" 2>/dev/null)" "--check origin/trunk"
+check "sync, repo rule: its pass means no merge" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+
+# Uncommitted edits to tracked files: the sync is skipped, the push goes on.
+wc=$(sync_clone sync-dirty yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-dirty c.txt 10 base-ten
+echo dirty >>"$wc/c.txt"
+sync_run "$wc"
+check "sync, dirty tree: exit 0" "$RC" "0"
+check "sync, dirty tree: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, dirty tree: says why" "$(grep -c 'uncommitted' "$LOG/err")" "1"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

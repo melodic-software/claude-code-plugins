@@ -71,7 +71,29 @@
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below), and --pr for a fork head needs --dir.
 #
-# Usage: push-branch.sh [--check] [--dir <checkout>] [branch-name | --pr <number>]
+# sync-stale-base: on the operator path, just before the push, a branch behind
+# its base on overlapping paths gets the base merged in, so a pre-push hook
+# that refuses a stale base with overlapping paths does not bounce a push that
+# waited in a rate gate while the base moved. The base is the PR's base branch
+# (--pr's own read, else `gh pr view <branch>`), or the fetch remote's default
+# branch when the branch has no PR yet; it is fetched from the fetch remote.
+# The overlap rule is the checkout's scripts/check-stale-base-overlap.sh
+# --check <remote>/<base> when that file exists (exit 1 merges, 0 does not,
+# anything else skips), else paths changed on both sides since the merge-base.
+# The merge is `git merge --no-edit`, never a rebase, signed when
+# commit.gpgsign is true (git's own setting) or HEAD is signed (-S). It is
+# skipped, with a note, when the base cannot be read or fetched, the branch is
+# checked out in no worktree, tracked files have uncommitted edits, or a merge
+# is in progress. A conflict aborts the merge and exits 4 without pushing.
+# On: sync_stale_base: true in the checkout's tracked
+# docs/conventions/source-control.yaml, or --sync-stale-base; --no-sync-stale-base
+# turns it off. Off by default. A lane (below) never syncs. --check never syncs.
+#
+# Exit: 0 pushed (or --check passed); 1 refused or the push failed; 4 the
+# sync-stale-base merge conflicted and was aborted, nothing pushed.
+#
+# Usage: push-branch.sh [--check] [--dir <checkout>] [--sync-stale-base | --no-sync-stale-base]
+#                       [branch-name | --pr <number>]
 #   (options in any order; defaults to the current branch; any other argument
 #   refuses)
 set -uo pipefail
@@ -80,6 +102,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
+CONVENTION_KEY="${SCRIPT_DIR}/../../../lib/convention-key.sh"
 
 DIR=""
 BRANCH=""
@@ -87,10 +110,20 @@ PR=""
 HAS_DIR=""
 HAS_PR=""
 CHECK=""
+SYNC=""
 while (($#)); do
   case "$1" in
     --check)
       CHECK=1
+      shift
+      ;;
+    --sync-stale-base | --no-sync-stale-base)
+      if [[ -n "$SYNC" ]]; then
+        echo "push-branch.sh: --sync-stale-base and --no-sync-stale-base are given once, one of them; not pushing" >&2
+        exit 1
+      fi
+      SYNC=true
+      [[ "$1" == --sync-stale-base ]] || SYNC=false
       shift
       ;;
     --dir | --pr)
@@ -135,8 +168,8 @@ if [[ -n "$HAS_PR" ]]; then
     exit 1
   fi
   # The PR's URL names its base repository.
-  read -r BRANCH HEAD_REPO PR_BASE_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner,url \
-    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name + " " + (.url | split("/")[3:5] | join("/"))' 2>/dev/null | tr -d '\r')
+  read -r BRANCH HEAD_REPO PR_BASE_REPO PR_BASE_REF < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner,url,baseRefName \
+    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name + " " + (.url | split("/")[3:5] | join("/")) + " " + .baseRefName' 2>/dev/null | tr -d '\r')
   if [[ "${BRANCH:-}" == -* ]]; then
     echo "push-branch.sh: PR '$PR' head branch '$BRANCH' starts with '-'; not pushing" >&2
     exit 1
@@ -149,13 +182,36 @@ elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 
+# remote_default <remote>: the remote's default branch as `ls-remote --symref`
+# reports it, or nothing.
+remote_default() {
+  local out
+  out=$(git ls-remote --symref "$1" HEAD 2>/dev/null) || return 0
+  sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}"
+}
+
+# worktree_of <branch>: the worktree that has <branch> checked out, or nothing.
+worktree_of() {
+  local line wt=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" ;;
+      "branch refs/heads/$1")
+        echo "$wt"
+        return 0
+        ;;
+      *) ;;
+    esac
+  done < <(git worktree list --porcelain 2>/dev/null)
+}
+
 # refuse_default <remote> <branch>: exit 1 when <branch> is main, master, or
 # <remote>'s default branch. The default is read from the remote itself
 # (`ls-remote --symref`), never the local <remote>/HEAD, which can be unset or
 # stale. A failed read refuses, and so does a read that names no default (an
 # empty remote, a server that does not advertise the symref, a detached HEAD).
 refuse_default() {
-  local out="" default="" what="'$2'"
+  local default="" what="'$2'"
   # A fork head pushes to the contributor's fork, never the base repository, so
   # its default branch may be pushed (lane-push.sh's is_fork rule). An unread
   # base repository counts as no fork.
@@ -165,9 +221,7 @@ refuse_default() {
     fi
     what="PR '$PR' head '$2'"
   fi
-  if out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
-    default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
-  fi
+  default=$(remote_default "$1")
   if [[ -z "$default" ]]; then
     echo "push-branch.sh: the default branch of $1 could not be read (git ls-remote failed or named no HEAD branch); not pushing" >&2
     exit 1
@@ -228,21 +282,10 @@ if [[ "$ACTING" == *"[bot]" ]]; then
     echo "push-branch.sh: PR '$PR' head repository '$HEAD_REPO' is not '$BASE_REPO'; a lane pushes a fork head only with --dir; not pushing" >&2
     exit 1
   fi
-  SRC_DIR=""
   if [[ -n "$DIR" ]]; then
     SRC_DIR=$(pwd -P)
   else
-    WT=""
-    while IFS= read -r LINE; do
-      case "$LINE" in
-        "worktree "*) WT="${LINE#worktree }" ;;
-        "branch refs/heads/$BRANCH")
-          SRC_DIR="$WT"
-          break
-          ;;
-        *) ;;
-      esac
-    done < <(git worktree list --porcelain 2>/dev/null)
+    SRC_DIR=$(worktree_of "$BRANCH")
   fi
   if [[ -z "$SRC_DIR" ]]; then
     echo "push-branch.sh: '$BRANCH' is checked out in no worktree, so lane-push.sh has no HEAD to push; not pushing" >&2
@@ -281,11 +324,95 @@ if [[ -n "${HEAD_REPO:-}" ]]; then
   done <<<"$URLS"
 fi
 
+FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
+
+sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" >&2; }
+
+# sync_stale_base <checkout>: the sync-stale-base step of the header. Returns
+# 0 to push; exits 4 on a conflict.
+sync_stale_base() {
+  local wd="$1" root="" on="$SYNC" base="${PR_BASE_REF:-}" out ref rc mb tip paths_base paths_head sign=()
+  [[ -n "$wd" ]] && root=$(git -C "$wd" rev-parse --show-toplevel 2>/dev/null)
+  if [[ -z "$on" && -n "$root" ]] &&
+    git -C "$root" ls-files --error-unmatch -- docs/conventions/source-control.yaml >/dev/null 2>&1; then
+    on=$(bash "$CONVENTION_KEY" value "$root" sync_stale_base) ||
+      echo "push-branch.sh: docs/conventions/source-control.yaml does not parse; sync_stale_base read as false" >&2
+  fi
+  [[ "$on" == true ]] || return 0
+  [[ -n "$root" ]] || {
+    sync_skip "'$BRANCH' is checked out in no worktree"
+    return 0
+  }
+  [[ -n "$FETCH_REMOTE" ]] || {
+    sync_skip "no fetch remote resolves for '$BRANCH'"
+    return 0
+  }
+  if [[ -z "$PR" ]]; then
+    if out=$(gh pr view "$BRANCH" --json baseRefName -q .baseRefName 2>&1); then
+      base="${out//$'\r'/}"
+    elif [[ "$out" == *"no pull requests found"* ]]; then
+      base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
+    fi
+  fi
+  [[ -n "$base" ]] || {
+    sync_skip "the base branch of '$BRANCH' could not be read"
+    return 0
+  }
+  ref="$FETCH_REMOTE/$base"
+  git -C "$wd" fetch --quiet "$FETCH_REMOTE" "+refs/heads/$base:refs/remotes/$ref" || {
+    sync_skip "git fetch of $ref failed"
+    return 0
+  }
+  git -C "$wd" diff --quiet HEAD -- || {
+    sync_skip "tracked files in $wd have uncommitted edits"
+    return 0
+  }
+  ! git -C "$wd" rev-parse -q --verify MERGE_HEAD >/dev/null || {
+    sync_skip "a merge is in progress in $wd"
+    return 0
+  }
+  if [[ -f "$root/scripts/check-stale-base-overlap.sh" ]]; then
+    (cd "$wd" && bash "$root/scripts/check-stale-base-overlap.sh" --check "$ref") >&2
+    rc=$?
+    ((rc != 0)) || return 0
+    ((rc == 1)) || {
+      sync_skip "scripts/check-stale-base-overlap.sh exited $rc"
+      return 0
+    }
+  else
+    if ! mb=$(git -C "$wd" merge-base HEAD "$ref") || ! tip=$(git -C "$wd" rev-parse "$ref^{commit}") ||
+      ! paths_base=$(git -C "$wd" diff --name-only --no-renames "$mb" "$tip") ||
+      ! paths_head=$(git -C "$wd" diff --name-only --no-renames "$mb" HEAD); then
+      sync_skip "the paths changed since the merge-base of HEAD and $ref could not be read"
+      return 0
+    fi
+    [[ "$mb" != "$tip" ]] || return 0
+    LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head") |
+      grep -q . || return 0
+  fi
+  if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true ]] &&
+    git -C "$wd" cat-file commit HEAD | grep -qE '^gpgsig(-sha256)? '; then
+    sign=(-S)
+  fi
+  if git -C "$wd" merge --no-edit ${sign[@]+"${sign[@]}"} "$ref" >&2; then
+    echo "push-branch.sh: merged $ref into '$BRANCH' (stale base with overlapping paths)" >&2
+    return 0
+  fi
+  out=$(git -C "$wd" diff --name-only --diff-filter=U)
+  git -C "$wd" merge --abort 2>/dev/null
+  if [[ -n "$out" ]]; then
+    echo "push-branch.sh: merging $ref into '$BRANCH' conflicted; merge aborted; not pushing. Merge it by hand (/source-control:resolve-conflicts), then push again" >&2
+    exit 4
+  fi
+  echo "push-branch.sh: merging $ref into '$BRANCH' failed; not pushing" >&2
+  exit 1
+}
+
 if [[ -n "$DIR" ]]; then
+  sync_stale_base "$(pwd -P)"
   exec git push "$PUSH_REMOTE" "HEAD:refs/heads/$BRANCH"
 fi
-
-FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
+[[ -z "$BRANCH" ]] || sync_stale_base "$(worktree_of "$BRANCH")"
 EXISTING_REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null)
 EXISTING_MERGE=$(git config "branch.${BRANCH}.merge" 2>/dev/null)
 

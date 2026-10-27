@@ -248,7 +248,10 @@ on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
 `lane-push.sh` instead, as the `merge.agent-identity` the repository configures, and refuses when
 the session does not act as it, or when `--pr` names a fork head and no `--dir <checkout>` names
 the checkout to push (loop-lane convention, "Lane write identity"). For a fork head in a lane, add
-`--dir` with the PR's checkout.
+`--dir` with the PR's checkout. With `sync_stale_base` on, a base that moved on overlapping paths
+since 2.5.2 is merged in before the push (see [create.md](create.md) §2.4.1, exit 4 on a
+conflict). That merge commit has no verify-gate record, so the flip below refuses and the PR stays
+a draft; run `ready` again.
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
