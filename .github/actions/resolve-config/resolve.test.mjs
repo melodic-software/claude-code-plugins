@@ -1864,6 +1864,15 @@ test("review-threads: reviewer-ids resolves to the listed ids, none when absent,
   }
 });
 
+test("review-threads: the broker's resolveGrant returns the same effect and grant with or without reviewer-ids", () => {
+  const listed = edited((doc) => {
+    doc["review-threads"] = { "reviewer-ids": [199175422] };
+  });
+  for (const options of [{ activity: "run-tests" }, { lane: "pr-refine", activity: "fix-prose" }]) {
+    assert.deepEqual(grantOf(listed, options), grantOf(fixture("valid.yaml"), options));
+  }
+});
+
 test("review-threads: the live config lists Codex's account id", () => {
   const live = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
   assert.ok(live["review-threads"]["reviewer-ids"].includes(199175422));
