@@ -2790,7 +2790,7 @@ jobs:
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
@@ -2818,7 +2818,7 @@ jobs:
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
           overwrite: false
 
