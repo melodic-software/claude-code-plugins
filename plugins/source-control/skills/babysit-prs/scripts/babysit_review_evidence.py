@@ -187,6 +187,13 @@ INSTALL_FAILURE_RE = re.compile(
 # verdict. The step's text comes from the switch values only, and a head that
 # edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
 # binds a re-run but does not start one: the gate cannot read the switch.
+# Or when an outage ended attempt 1 without a result: a run GitHub concluded
+# cancelled, timed out or never started (the lost-run reconciler's `LOST` in
+# .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs). Attempt 1
+# then left no verdict unless its lane already posted on the head
+# (`_lost_unposted`), which leaves the run to a person.
+LOST = "lost"
+LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
 KILL_SWITCH_JOB = "kill-switch"
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
@@ -524,7 +531,7 @@ def _bind_lane(
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs)
+        reviewed, chain = _resolve(lane, head, lane_runs, _poster(comments, threads))
         marker = _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
@@ -589,9 +596,10 @@ def _carried_blocking(
         heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
     except Exception:  # noqa: BLE001 - nothing read, nothing carried
         return None
+    posted = _poster(comments, threads)
     for sha in dict.fromkeys(h for h in heads if isinstance(h, str)):
         try:
-            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs)
+            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs, posted)
             marker = _require_marker(SEVERITY_LANE, sha, comments, newest_only=False)
             _require_marked_runs(SEVERITY_LANE, lane_runs, comments)
             _, _, critical = _open_findings(
@@ -629,8 +637,13 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
+# Whether a lane posted on a head between two times (`lane_posted`, bound to
+# the pull request's comments and threads by `_poster`).
+Poster = Callable[[str, str, Any, Any], bool]
+
+
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]]
+    lane: str, head: str, lane_runs: list[Mapping[str, Any]], posted: Poster
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -640,51 +653,61 @@ def _resolve(
     review needs every earlier link bound, back to a whole review. Each link
     is the newest run's latest attempt at its head (`_bound_record`).
     """
-    rec = _bound_record(lane, head, lane_runs)
+    rec = _bound_record(lane, head, lane_runs, posted)
     seen = {head}
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
-        rec = _skip_target(lane, rec.through, lane_runs, seen)
+        rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
     reviewed = rec.sha
     chain = [rec]
     for _ in range(MAX_CHAIN):
         if rec.whole:
             return reviewed, chain
-        rec = _link(lane, rec.since, lane_runs, seen)  # type: ignore[arg-type]
+        rec = _link(lane, rec.since, lane_runs, seen, posted)  # type: ignore[arg-type]
         if rec.skip is not None:
             raise Unbound("incremental-gap")
         if rec.through is not None:
-            rec = _skip_target(lane, rec.through, lane_runs, seen)
+            rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
         chain.append(rec)
     raise Unbound("incremental-gap")
 
 
 def _skip_target(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
-    rec = _link(lane, sha, lane_runs, seen)
+    rec = _link(lane, sha, lane_runs, seen, posted)
     if rec.through is not None or rec.skip is not None:
         raise Unbound("skip-chain")
     return rec
 
 
 def _link(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
     """An earlier head in the chain; any failure to bind it is a gap."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
     try:
-        return _bound_record(lane, sha, lane_runs)
+        return _bound_record(lane, sha, lane_runs, posted)
     except Unbound as exc:
         if exc.reason in {"count-inconsistent", "evidence-error", "evidence-missing"}:
             raise
         raise Unbound("incremental-gap") from exc
 
 
-def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _Record:
+def _bound_record(
+    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], posted: Poster
+) -> _Record:
     at_sha = [item for item in lane_runs if item["head_sha"] == sha]
     if not at_sha:
         raise Unbound("no-run")
@@ -715,7 +738,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if not rerun_binds(lane, newest["id"], first):
+        if not rerun_binds(lane, newest["id"], first, sha, latest, posted):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
     if job.get("conclusion") != "success" or job.get("head_sha") != sha:
@@ -793,9 +816,13 @@ RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
 }
 # The ones the merge gate re-runs itself (babysit_merge
-# `rerun_rate_limited_review`). A rejected credential is left to a person: a
-# re-run before the secret is fixed would spend the one allowed attempt.
-GATE_RERUN_CLASSES = frozenset({"rate-limit", "publish-rate-limit", INSTALL_FAILED})
+# `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
+# run's conclusion names rather than an annotation. A rejected credential is
+# left to a person: a re-run before the secret is fixed would spend the one
+# allowed attempt.
+GATE_RERUN_CLASSES = frozenset(
+    {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
+)
 
 
 def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
@@ -808,15 +835,133 @@ def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
     )
 
 
-def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
-    """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
-    failed on one of `RERUN_CLASSES`, or a kill switch stopped it
-    (`_kill_switch_stopped`)."""
+def rerun_binds(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None = None,
+    second: Mapping[str, Any] | None = None,
+    posted: Poster | None = None,
+) -> bool:
+    """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
+    `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch stopped it
+    (`_kill_switch_stopped`), or an outage lost it before its lane posted
+    (`_lost_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
+    if first.get("conclusion") in LOST_CONCLUSIONS:
+        return _lost_unposted(lane, run_id, first, sha, second, posted)
     if first.get("conclusion") != "failure":
         return False
     return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
+
+
+def recorded(job: Mapping[str, Any]) -> bool:
+    """Whether a job's annotations hold a completion record, well formed or not."""
+    return any(
+        isinstance(a, Mapping) and a.get("title") == RECORD_TITLE
+        for a in job.get("annotations") or ()
+    )
+
+
+def _lost_unposted(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None,
+    second: Mapping[str, Any] | None,
+    posted: Poster | None,
+) -> bool:
+    """Whether lost attempt 1 reached no side effect: its lane job, when it
+    has one, was lost too and left no completion record, and the lane posted
+    nothing on `sha` from attempt 1's start to attempt 2's (`lane_posted`). A
+    lane job that ended on its own (a failure outside `RERUN_CLASSES`) judged
+    the head, so a re-run could trade its verdict away."""
+    if sha is None or second is None or posted is None:
+        return False
+    jobs = first.get("jobs")
+    if not isinstance(jobs, list | tuple):
+        raise Unbound("evidence-missing")
+    if _has_lane_job(lane, jobs):
+        job = _lane_job(lane, run_id, first)
+        if job.get("conclusion") not in LOST_CONCLUSIONS or recorded(job):
+            return False
+    return not posted(
+        lane, sha, first.get("run_started_at"), second.get("run_started_at")
+    )
+
+
+def lane_posted(
+    lane: str,
+    head: str,
+    since: Any,
+    until: Any,
+    comments: Any,
+    threads: Any,
+) -> bool:
+    """Whether the lane posted on `head` from `since` to before `until` (both
+    timestamps; `until` None is now): its reviewed-head marker naming `head`,
+    another lane comment, or a lane thread opened then. An unreadable `since`,
+    time or input counts as posted; an unreadable `until` reads as now."""
+    start = _time(since)
+    if start is None or not isinstance(comments, list | tuple):
+        return True
+    end = _time(until)
+
+    def within(value: Any) -> bool:
+        at = _time(value)
+        return at is None or (start <= at and (end is None or at < end))
+
+    for comment in comments:
+        if not isinstance(comment, Mapping):
+            return True
+        user = comment.get("user")
+        login = user.get("login") if isinstance(user, Mapping) else None
+        body = str(comment.get("body") or "")
+        mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if mark is not None:
+            if login == MARKER_AUTHOR and mark[1] == lane and mark[2] == head:
+                if within(comment.get("created_at")):
+                    return True
+            continue
+        if _lane_comment(lane, login, body) and within(comment.get("created_at")):
+            return True
+    if not isinstance(threads, list | tuple):
+        return True
+    for thread in threads:
+        if not isinstance(thread, Mapping):
+            return True
+        if _lane_thread(lane, thread) and within(
+            thread["comments"][0].get("createdAt")
+        ):
+            return True
+    return False
+
+
+def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
+    suffix = LANES[lane][1]
+    return any(
+        isinstance(job, Mapping)
+        and str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix
+        for job in jobs
+    )
+
+
+def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether an outage lost this attempt before its lane job existed."""
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") in LOST_CONCLUSIONS
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+    )
+
+
+def _poster(comments: Any, threads: Any) -> Poster:
+    """`lane_posted` over this pull request's comments and threads."""
+    return lambda lane, head, since, until: lane_posted(
+        lane, head, since, until, comments, threads
+    )
 
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
@@ -1042,11 +1187,14 @@ def _open_findings(
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped or kill-switched run reviewed nothing.
+            # A draft-skipped or kill-switched run reviewed nothing, nor did a
+            # lost one that never reached its lane job.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
-            ) or _kill_switch_stopped(lane, item["id"], attempt):
+                or _kill_switch_stopped(lane, item["id"], attempt)
+                or _lost_before_lane_job(lane, attempt)
+            ):
                 continue
             job = _lane_job(lane, item["id"], attempt)
             rec = _record(lane, item["head_sha"], job)

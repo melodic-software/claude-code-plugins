@@ -1148,13 +1148,14 @@ class AttemptRuleTests(Base):
         # The merge gate re-runs a review only on `GATE_RERUN_CLASSES`
         # (babysit_merge.rerun_rate_limited_review); each such re-run must
         # bind, or the gate spends the one allowed attempt for nothing.
-        self.assertLessEqual(ev.GATE_RERUN_CLASSES, set(ev.RERUN_CLASSES))
+        # `LOST` is a conclusion, not an annotation (LostRerunTests).
+        self.assertLessEqual(ev.GATE_RERUN_CLASSES, {*ev.RERUN_CLASSES, ev.LOST})
         notes = {
             "rate-limit": RATE_LIMIT,
             "publish-rate-limit": PUBLISH_RATE_LIMIT,
             ev.INSTALL_FAILED: INSTALL_FAILURE,
         }
-        self.assertEqual(set(notes), ev.GATE_RERUN_CLASSES)
+        self.assertEqual({*notes, ev.LOST}, ev.GATE_RERUN_CLASSES)
         for name, note in notes.items():
             with self.subTest(name):
                 first = attempt("claude-review", S, 1, [note], "failure")
@@ -1163,6 +1164,146 @@ class AttemptRuleTests(Base):
                 )
                 result = self.bind([self.lane_run(first, self.ok(2))])
                 self.assertTrue(result["claude-review"].bound)
+
+
+# After the pinned head's markers (both_markers), as an earlier run's would be.
+FIRST_STARTED = "2026-01-01T00:10:00Z"
+SECOND_STARTED = "2026-01-01T02:00:00Z"
+
+
+def lost(
+    lane: str = "claude-review",
+    conclusion: str = "cancelled",
+    *,
+    lane_job: bool = True,
+    annotations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Attempt 1 an outage lost: with its lane job cut short, or (no
+    `lane_job`, as a run that never started) with no job at all."""
+    first = attempt(lane, S, 1, annotations or [], conclusion)
+    first["run_started_at"] = FIRST_STARTED
+    if not lane_job:
+        first["jobs"] = []
+    return first
+
+
+def rerun_ok(lane: str = "claude-review") -> dict[str, Any]:
+    second = attempt(lane, S, 2, [record(lane, S, "findings=0 inline=0 scope=whole")])
+    second["run_started_at"] = SECOND_STARTED
+    return second
+
+
+class LostRerunTests(Base):
+    """Attempt 2 after an attempt 1 an outage lost (#8524) binds only when
+    attempt 1 reached no side effect on the head."""
+
+    def lane_run(self, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run("claude-review", S, attempts=list(attempts))
+
+    def comment(self, at: str, body: str) -> dict[str, Any]:
+        return {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": at,
+            "body": body,
+        }
+
+    def test_second_attempt_after_a_lost_first_binds(self) -> None:
+        for conclusion in sorted(ev.LOST_CONCLUSIONS):
+            for lane_job in (True, False):
+                with self.subTest(conclusion=conclusion, lane_job=lane_job):
+                    first = lost(conclusion=conclusion, lane_job=lane_job)
+                    result = self.bind([self.lane_run(first, rerun_ok())])
+                    self.assertTrue(result["claude-review"].bound)
+                    self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_lost_first_that_recorded_a_review_does_not_bind(self) -> None:
+        done = record("claude-review", S, "findings=0 inline=0 scope=whole")
+        first = lost(annotations=[done])
+        result = self.bind([self.lane_run(first, rerun_ok())])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_job_ended_on_its_own_does_not_bind(self) -> None:
+        # The run was lost, but its lane job had already failed on a class
+        # outside RERUN_CLASSES, or succeeded: it judged the head.
+        for conclusion, notes in (("failure", [OTHER_FAILURE]), ("success", [])):
+            with self.subTest(conclusion=conclusion):
+                first = lost(annotations=notes)
+                first["jobs"][0]["conclusion"] = conclusion
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_posted_does_not_bind(self) -> None:
+        # Between the two attempts' starts: the marker, a summary comment, or
+        # an inline thread of this lane.
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        summary = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        posted = thread(created="2026-01-01T00:50:00Z")
+        for comments, threads in (
+            ([*both_markers(), mark], []),
+            ([*both_markers(), summary], []),
+            (both_markers(), [posted]),
+        ):
+            with self.subTest(comments=len(comments), threads=len(threads)):
+                result = self.bind(
+                    [self.lane_run(lost(), rerun_ok())], comments, threads
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_what_the_lane_posted_outside_attempt_one_does_not_hold(self) -> None:
+        # Attempt 2's own posts come after its start.
+        late = self.comment(
+            "2026-01-01T02:30:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        other_lane = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-security-review`"
+        )
+        for comments in ([*both_markers(), late], [*both_markers(), other_lane]):
+            with self.subTest(body=comments[-1]["body"][-30:]):
+                result = self.bind(
+                    [self.lane_run(lost(), rerun_ok())], comments, []
+                )
+                self.assertTrue(result["claude-review"].bound)
+
+    def test_an_unreadable_start_does_not_bind(self) -> None:
+        for first_start in (None, "x"):
+            with self.subTest(first_start=first_start):
+                first = lost()
+                first["run_started_at"] = first_start
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_a_lost_first_is_not_allowed(self) -> None:
+        second = lost()
+        second.update(run_attempt=2, run_started_at="2026-01-01T01:00:00Z")
+        second["jobs"][0]["run_attempt"] = 2
+        third = rerun_ok()
+        third["run_attempt"] = 3
+        third["jobs"][0]["run_attempt"] = 3
+        result = self.bind([self.lane_run(lost(), second, third)])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_run_that_never_reached_its_lane_job_counts_nothing(self) -> None:
+        # An earlier head's run lost before its lane job (no jobs listed)
+        # neither unbinds the lane nor adds a finding.
+        older = run("claude-review", S0, attempts=[lost(lane_job=False)])
+        result = self.bind([older, whole("claude-review", S)])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_lane_posted_counts_unreadable_input_as_posted(self) -> None:
+        for comments, threads in ((None, []), ([1], []), ([], None), ([], [1])):
+            with self.subTest(comments=comments, threads=threads):
+                self.assertTrue(
+                    ev.lane_posted(
+                        "claude-review", S, FIRST_STARTED, None, comments, threads
+                    )
+                )
+        self.assertFalse(
+            ev.lane_posted("claude-review", S, FIRST_STARTED, None, [], [])
+        )
 
 
 # The caller workflows' `Report the kill switch` notice

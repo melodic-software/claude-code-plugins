@@ -175,7 +175,24 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
+      # The post-merge report the last scheduled or hand-started run kept
+      # (its pr-merge-post-merge-report artifact), which the check below
+      # reuses while nothing it reads has moved. Read only from a trusted run
+      # on main, as the lane records are. Rules:
+      # .github/scripts/pr-merge/last-report.mjs. Any error leaves no report,
+      # and the check runs.
+      - name: Read the post-merge report the last run kept
+        if: steps.mode.outputs.live == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/last-report.mjs
 
       - name: Check earlier lane merges
         id: post-merge
@@ -186,11 +203,32 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          last=$RUNNER_TEMP/post-merge-last
+          scripts=.base/plugins/source-control/skills/babysit-prs/scripts
+          code='' code_sha=''
+          # An idle tick: the last run's report, from a check that passed
+          # (exit 0 or 5), stands while the lane room's reuse rule keeps it
+          # and nothing else the check reads has moved (settle --idle-tick).
+          # Its computedAt, code and commit are kept as they were, so the
+          # reuse ends SHARED_MAX_AGE after the check that made it.
+          if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
+            last_code=$(cat "$last/post-merge-code")
+            last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
+            if [[ $last_code =~ ^[05]$ ]] &&
+              python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
+                --postmerge-result "$last/post-merge.json" --code-sha "$last_sha"; then
+              cp "$last/post-merge.json" "$RUNNER_TEMP/post-merge.json"
+              code=$last_code code_sha=$last_sha
+              echo "::notice::the last run's post-merge check (exit $code) still stands: nothing it reads has moved; reused, not run again"
+            fi
+          fi
+          if [ -z "$code" ]; then
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            code=0
+            python3 "$scripts/babysit_postmerge.py" \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
@@ -225,6 +263,8 @@ jobs:
           cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
           echo "$code" >"$kept/post-merge-code"
           git -C .base rev-parse HEAD >"$kept/post-merge-code-sha" || true
+          # A reused report keeps the commit whose code made it.
+          [ -z "$code_sha" ] || echo "$code_sha" >"$kept/post-merge-code-sha"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
@@ -234,7 +274,8 @@ jobs:
       # lane room's reuse rule keeps it (babysit_verify_evidence.py settle)
       # and the check's code at that job's commit reads as at the kept one:
       # neither runs the check again then. They download it from this run
-      # only.
+      # only. The next run's post-merge-dispatch reads it too (the step
+      # above), and reuses it while it is younger than SHARED_MAX_AGE.
       - name: Keep the post-merge report for enable-auto-merge
         if: steps.post-merge.conclusion == 'success'
         continue-on-error: true

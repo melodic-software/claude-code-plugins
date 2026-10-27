@@ -16,8 +16,9 @@ Contract enforced here (encoded as code, not convention):
   workflow run when its check run carries a failure annotation the review
   evidence binds a re-run after and the gate re-runs (`class=rate-limit` or
   the lane's publish failure on GitHub's API rate limit, five hours after the
-  failure; the lane's `install-failed` failure at once), once per run on the
-  pinned live head. No other failure class is re-run, and the
+  failure; the lane's `install-failed` failure at once), or that an outage lost
+  (cancelled, timed out) before its lane posted on the head, at once; once per
+  run on the pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
@@ -312,10 +313,18 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # five hours after the failure that window has reset whenever it started. A
 # weekly limit outlasts it; the re-run then fails again and stays failed,
 # since a run is re-run at most once. A failed install is re-run at once: a
-# slow package mirror is not a window to wait out. Any class the gate re-runs
-# that is not listed here waits.
+# slow package mirror is not a window to wait out. So is a run an outage lost
+# (`review_evidence.LOST`), once nothing shows its lane posted on the head. Any
+# class the gate re-runs that is not listed here waits.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
-NO_WAIT_RERUN_CLASSES = frozenset({review_evidence.INSTALL_FAILED})
+NO_WAIT_RERUN_CLASSES = frozenset(
+    {review_evidence.INSTALL_FAILED, review_evidence.LOST}
+)
+# The rollup states of a check whose run an outage lost.
+LOST_CHECK_STATES = frozenset(c.upper() for c in review_evidence.LOST_CONCLUSIONS)
+# The opening of the report reason for a lost run whose lane already posted
+# (babysit_merge_skip.STABLE_RERUNS keys on it).
+LEFT_TO_A_PERSON = "left to a person: "
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
 
@@ -345,11 +354,14 @@ def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> 
 
 
 def rerun_rate_limited_review(
-    repo: str, head: str, check: dict[str, Any]
+    repo: str, head: str, check: dict[str, Any], number: int | None = None
 ) -> dict[str, Any]:
     """Re-run one failed AI review check's workflow run when it failed on a
     class in `review_evidence.GATE_RERUN_CLASSES`, a rate limit has reset, and
-    the run was not re-run before.
+    the run was not re-run before; or when an outage lost it (cancelled or
+    timed out) before its lane posted on the head of pull request
+    `number`: no completion record on its job, and no reviewed-head marker or
+    other lane comment since the run started (`review_evidence.lane_posted`).
 
     Every other case is reported with its reason and left alone: another
     failure class is never re-run. The whole run is re-run, not its failed
@@ -371,7 +383,8 @@ def rerun_rate_limited_review(
         if job.get("head_sha") != head:
             report["reason"] = "the job ran on another head"
             return report
-        if job.get("conclusion") != "failure":
+        lost = job.get("conclusion") in review_evidence.LOST_CONCLUSIONS
+        if job.get("conclusion") != "failure" and not lost:
             report["reason"] = f"job conclusion is {job.get('conclusion')!r}"
             return report
         if int(job.get("run_attempt") or 1) > 1:
@@ -401,7 +414,21 @@ def rerun_rate_limited_review(
         ),
         "",
     )
-    classes = review_evidence.rerun_classes(lane, {"annotations": annotations})
+    if lost:
+        classes = frozenset({review_evidence.LOST})
+        if not lane:
+            report["reason"] = (
+                f"job conclusion is {job.get('conclusion')!r} on a job no review"
+                " lane names"
+            )
+            return report
+        if review_evidence.recorded({"annotations": annotations}):
+            report["reason"] = (
+                LEFT_TO_A_PERSON + "its lane recorded a review on this head"
+            )
+            return report
+    else:
+        classes = review_evidence.rerun_classes(lane, {"annotations": annotations})
     # A class left to a person (a rejected credential) refuses even beside one
     # the gate re-runs: the re-run would spend the one allowed attempt.
     if not classes or not classes <= review_evidence.GATE_RERUN_CLASSES:
@@ -422,19 +449,53 @@ def rerun_rate_limited_review(
         )
         return report
     # The binding takes attempt 2 only after an attempt 1 that concluded
-    # failure (review_evidence.rerun_binds), so the re-run must too.
+    # failure, or for a lost run one an outage lost before its lane posted
+    # (review_evidence.rerun_binds), so the re-run must too.
     try:
-        conclusion = json_object(
+        first = json_object(
             gh_json(["api", f"repos/{repo}/actions/runs/{run_id}/attempts/1"])
-        ).get("conclusion")
+        )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["reason"] = f"could not read the attempt: {type(exc).__name__}: {exc}"
         return report
-    if conclusion != "failure":
+    conclusion = first.get("conclusion")
+    # A lane job can finish while a sibling job keeps its run open; the gate
+    # reads the attempt again until it concludes.
+    if conclusion is None:
+        report["reason"] = "attempt 1 has not concluded yet"
+        return report
+    if not (
+        conclusion in review_evidence.LOST_CONCLUSIONS
+        if lost
+        else conclusion == "failure"
+    ):
         report["reason"] = (
             f"attempt 1 concluded {conclusion!r}, so a re-run would not bind"
         )
         return report
+    if lost:
+        if number is None:
+            report["reason"] = "no pull request number, so what the lane posted is unread"
+            return report
+        try:
+            comments = fetch_paginated_api(
+                f"repos/{repo}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
+            )
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            report["reason"] = (
+                f"could not read the comments: {type(exc).__name__}: {exc}"
+            )
+            return report
+        # The binding reads the lane's review threads too; a re-run whose
+        # lane opened one is left unbound for a person.
+        if review_evidence.lane_posted(
+            lane, head, first.get("run_started_at"), None, comments, ()
+        ):
+            report["reason"] = (
+                LEFT_TO_A_PERSON + "its lane posted on this head after the run started"
+            )
+            return report
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/actions/runs/{run_id}/rerun"]
     )
@@ -465,11 +526,19 @@ def rerun_rate_limited_reviews(
         or not isinstance(head, str)
     ):
         return reruns
+    number = _pr_number(result.get("pr"))
     return [
-        rerun_rate_limited_review(repo, head, check)
+        rerun_rate_limited_review(repo, head, check, number=number)
         for check in result.get("aiReviewChecks") or []
         if check.get("effective_state") == "FAILURE"
+        or check.get("effective_state") in LOST_CHECK_STATES
     ] + reruns
+
+
+def _pr_number(ref: Any) -> int | None:
+    """The number in a report's `pr` (`owner/repo#n`), or None."""
+    match = re.fullmatch(r"[^#\s]+#(\d+)", ref) if isinstance(ref, str) else None
+    return int(match.group(1)) if match else None
 
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
