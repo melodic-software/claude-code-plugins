@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-10-27
+
+### Changed
+
+- `rule-admit.sh` reads its charge words from `scripts/charge-words.json`, the one definition
+  intake admission reads too, and exits 8 when that file is unreadable.
+
 ## [3.8.0] - 2026-10-27
 
 ### Added

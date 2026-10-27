@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-27
+
+### Fixed
+
+- The `local-file` findings buffer's `append.sh` takes perl's `flock` on `.work/buffer/.lock` where `flock` is absent and perl calls flock(2) itself, so an appender killed with SIGKILL no longer leaves a lock that fails every later append until an operator removes it. Where neither is available, the `.lockdir` lock stays as before.
+
 ## [0.8.0] - 2026-10-26
 
 ### Added
