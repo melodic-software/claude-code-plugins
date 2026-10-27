@@ -2511,9 +2511,9 @@ review threads `address-feedback` works exactly as the reviewer bot's (owner dec
 to the adjudicator as a code-review lane finding does, `publish-feedback` resolves what it fixed,
 and the trusted-person and human-gated rules above apply unchanged. Codex states severity as a
 shields.io badge opening the finding's first line (`![P1 Badge](https://img.shields.io/badge/P1-…)`),
-not a `severity:` line: a P0 counts as CRITICAL and is never adjudicated, and a finding whose
-first line does not open with a P0-P3 badge whose alt text and URL agree also goes to a person.
-P1 to P3 are adjudicated, since lane findings have no HIGH rule either. Past the round cap such a
+not a `severity:` line: a P0 or P1 counts as CRITICAL and is never adjudicated (owner decision
+2026-10-27), and a finding whose first line does not open with a P0-P3 badge whose alt text and
+URL agree also goes to a person. Only P2 and P3 are adjudicated. Past the round cap such a
 finding goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
 count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account

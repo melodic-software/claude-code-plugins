@@ -82,8 +82,8 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 // comment keepThreads tagged with the code-review lane (a github-actions[bot]
 // footer; claude[bot] writes its own body, so it names no lane) or as a
 // listed review bot's (from its account id) whose first line opens with a
-// P1-P3 severity badge (LISTED_BADGE; a P0 or an unreadable badge goes to a
-// person), that carries no `severity: CRITICAL` line. A CRITICAL finding, a security-review
+// P2 or P3 severity badge (LISTED_BADGE; a P0, a P1 or an unreadable badge
+// goes to a person), that carries no `severity: CRITICAL` line. A CRITICAL finding, a security-review
 // finding, one of no tagged lane, and a pr-verify verifier note (resolving it
 // leaves the verifier's FAIL holding the merge, and pr-verify judges each
 // head once) always go to a person.
@@ -93,9 +93,10 @@ export const adjudicable = (comments) => {
     return false;
   }
   if (root.listed === true) {
-    // P0 is the listed bot's CRITICAL; a badge that does not read fails closed.
+    // P0 and P1 are the listed bot's CRITICAL; a badge that does not read
+    // fails closed.
     const level = LISTED_BADGE.exec(firstLine(root.body))?.[1];
-    return level !== undefined && level !== "0";
+    return level === "2" || level === "3";
   }
   return root.lane === "claude-review";
 };

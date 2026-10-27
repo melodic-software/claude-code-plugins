@@ -401,7 +401,7 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
 
 // A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
 // opened: keepThreads tags it listed from the account id, never from its text.
-const CODEX_REVIEW = "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  The lock is read first**\n\n`lib/lock.mjs:40` reads it.";
+const CODEX_REVIEW = "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  The lock is read first**\n\n`lib/lock.mjs:40` reads it.";
 const listedThread = (id, body = CODEX_REVIEW) => thread(id, [{ id: 1, author: "reviewer", listed: true, body }]);
 
 test("disputes adjudicates a listed review bot's finding like the code lane's, but not a CRITICAL one or the reviewer bot's own", () => {
@@ -418,8 +418,10 @@ test("disputes adjudicates a listed review bot's finding like the code lane's, b
 // (P2); a P0 carries the same shape.
 const badged = (level, color) => `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  The lock is read first**\n\n\`lib/lock.mjs:40\` reads it.`;
 
-test("a listed review bot's P0 finding is never adjudicated, as a CRITICAL lane finding is not", () => {
+test("a listed review bot's P0 and P1 findings are never adjudicated, as a CRITICAL lane finding is not; P2 and P3 are", () => {
   assert.deepEqual(disputes(fileOf(listedThread("PRRT_2", badged("P2", "yellow"))), incorrect("PRRT_2")).slots.map((slot) => slot.thread), ["PRRT_2"]);
+  assert.deepEqual(disputes(fileOf(listedThread("PRRT_3", badged("P3", "green"))), incorrect("PRRT_3")).slots.map((slot) => slot.thread), ["PRRT_3"]);
+  assert.deepEqual(disputes(fileOf(listedThread("PRRT_1", badged("P1", "orange"))), incorrect("PRRT_1")).slots, []);
   assert.deepEqual(disputes(fileOf(listedThread("PRRT_0", badged("P0", "red"))), incorrect("PRRT_0")).slots, []);
 });
 
@@ -437,22 +439,24 @@ test("a listed review bot's finding whose severity badge cannot be read goes to 
   }
 });
 
-test("settleDisputes sends an INCORRECT reply on a listed bot's P0 finding to a person, whatever verdict arrived", async () => {
-  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
-  const result = await settleDisputes({
-    api,
-    pr: 42,
-    adjudicatedSha: HEAD,
-    posted: [{ thread: "PRRT_0", disposition: "INCORRECT" }],
-    replies: [],
-    shown: new Map([["PRRT_0", { comment_ids: [1] }]]),
-    now: new Map([["PRRT_0", listedThread("PRRT_0", badged("P0", "red"))]]),
-    verdicts: new Map([["PRRT_0", { verdict: "lane", question: "none" }]]),
-    pushed: false,
-    headMoved: async () => false,
-    resolveAfterReply: async () => assert.fail("not resolved"),
-    escalationReason: "",
-    log: () => {},
+for (const level of ["P0", "P1"]) {
+  test(`settleDisputes sends an INCORRECT reply on a listed bot's ${level} finding to a person, whatever verdict arrived`, async () => {
+    const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
+    const result = await settleDisputes({
+      api,
+      pr: 42,
+      adjudicatedSha: HEAD,
+      posted: [{ thread: "PRRT_0", disposition: "INCORRECT" }],
+      replies: [],
+      shown: new Map([["PRRT_0", { comment_ids: [1] }]]),
+      now: new Map([["PRRT_0", listedThread("PRRT_0", badged(level, "red"))]]),
+      verdicts: new Map([["PRRT_0", { verdict: "lane", question: "none" }]]),
+      pushed: false,
+      headMoved: async () => false,
+      resolveAfterReply: async () => assert.fail("not resolved"),
+      escalationReason: "",
+      log: () => {},
+    });
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
   });
-  assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
-});
+}
