@@ -53,6 +53,7 @@ if (!validate(table)) {
 }
 
 const families = table.families;
+const COMPUTED = /^\$\{\{\s*steps\.[A-Za-z0-9_-]+\.outputs\.retention-days\s*\}\}$/;
 const days = (value) => (value === "max" ? MAX_DAYS : value);
 const said = (value) => (value === "max" ? `max (${MAX_DAYS})` : String(value));
 const pathOf = (reader) => reader.split(/\s/, 1)[0].replace(/:\d+(-\d+)?$/, "");
@@ -63,6 +64,9 @@ for (const [key, row] of Object.entries(families)) {
     if (!existsSync(path.join(root, reader))) {
       findings.push(`${TABLE}: family \`${key}\` reader ${reader} names no file`);
     }
+  }
+  if (row["computed-by"] !== undefined && !existsSync(path.join(root, row["computed-by"]))) {
+    findings.push(`${TABLE}: family \`${key}\` computed-by ${row["computed-by"]} names no file`);
   }
   if (row["retention-days"] === "max") {
     const maxReader = row["max-reader"];
@@ -167,6 +171,9 @@ for (const step of steps) {
   const raw = step.retention;
   if (raw === undefined || raw === null || raw === "") {
     findings.push(`${label} sets no retention-days; ${TABLE} family \`${key}\` says ${said(want)}`);
+    continue;
+  }
+  if (families[key]["computed-by"] !== undefined && COMPUTED.test(String(raw))) {
     continue;
   }
   const value = typeof raw === "number" ? raw : /^\d+$/.test(String(raw)) ? Number(raw) : Number.NaN;

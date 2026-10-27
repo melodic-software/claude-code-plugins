@@ -375,7 +375,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -692,7 +692,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -961,7 +961,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'

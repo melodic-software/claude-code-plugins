@@ -94,7 +94,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -113,6 +113,14 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
         return { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"], message: `Could not resolve to an issue or pull request with the number of ${n}.` }] };
       }
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
+    }
+    // The pull request's RenamedTitleEvent timeline, oldest first; `renames`
+    // may also be a whole answer.
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
+      assert.equal(body.variables.number, 41);
+      if (!Array.isArray(renames)) return renames;
+      const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
+      return { data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
     }
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
@@ -401,6 +409,46 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   // A closing issue here keeps it the spec.
   const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
   assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
+});
+
+// #9115: the title joins the spec, so a title someone else renamed last is
+// not the author's intent either; only the latest rename counts, as only the
+// body's latest edit does.
+test("a PR whose title another actor renamed last is not its own spec", async () => {
+  const RELEASE = 337859524;
+  const opts = {
+    verifyAuthors: "lane-or-owner",
+    humans: new Set([100, OWNER_ID]),
+    ownerIds: [OWNER_ID, RELEASE],
+    specFromBodyApps: [RELEASE],
+  };
+  const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
+  const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
+  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  const by = (databaseId, __typename = "User") => ({ __typename, databaseId });
+  for (const [label, pr, renames, expected] of [
+    ["never renamed", owner, [], spec],
+    ["renamed by its author", owner, [by(OWNER_ID)], spec],
+    ["renamed by the App that opened it", releasePr, [by(RELEASE, "Bot")], spec],
+    ["renamed by another trusted person", releasePr, [by(100)], spec],
+    ["renamed by someone else", owner, [by(4242)], []],
+    ["renamed by a model's App", releasePr, [by(209825114, "Bot")], []],
+    ["renamed by an actor GitHub cannot name", owner, [null], []],
+    ["renamed by someone else, then by its author", owner, [by(4242), by(OWNER_ID)], spec],
+    ["renamed by its author, then by someone else", owner, [by(OWNER_ID), by(4242)], []],
+  ]) {
+    const result = await resolve({ pulls: [pr], issues: [], renames }, opts);
+    assert.deepEqual(result.specText, expected, label);
+    assert.equal(result.specKind, expected.length ? "pull-request" : "none", label);
+  }
+  // A rename read with no timeline stops the run rather than trusting the title.
+  await assert.rejects(resolve({ pulls: [owner], issues: [], renames: { data: { repository: { pullRequest: null } } } }, opts), /timelineItems could not be read/);
+  // A PR with a closing issue, or one whose body is not its intent, never reads its renames.
+  for (const setup of [{ pulls: [owner] }, { pulls: [pull({ title: "t", body: "b" })], issues: [] }]) {
+    const result = await resolve({ ...setup, renames: { data: null } }, opts);
+    assert.equal(result.proceed, true, JSON.stringify(setup.pulls[0].user));
+  }
 });
 
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {

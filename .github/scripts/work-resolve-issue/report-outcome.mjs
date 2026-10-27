@@ -28,7 +28,9 @@
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
 //             invalid outcome file is stopped; with a scan refusal marker
-//             (SCAN_REFUSED_DIR) the comment names the refusal instead.
+//             (SCAN_REFUSED_DIR) the comment names the refusal instead, and
+//             otherwise, when lane.json's class says the issue file was never
+//             written (readIssueStop), it names why.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -52,7 +54,8 @@
 //             PR always carries the hold line, so a human reads them.
 //   refused  a done run whose patch apply-issue-patch refused
 //             (ESCALATION_REASON patch-protected-path, patch-invalid or
-//             patch-not-applied) hands back like stopped, naming the reason;
+//             patch-not-applied), or whose apply job failed before giving one
+//             (patch-apply-failed), hands back like stopped, naming the reason;
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): comments the next step with an
@@ -450,6 +453,7 @@ export const PATCH_REASONS = {
   "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
   "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
+  "patch-apply-failed": "apply-issue-patch failed before it committed or refused the patch",
 };
 
 // The step that must come before the lane can run an issue its dimensions
@@ -732,6 +736,7 @@ export function decide({
   turnCap = null,
   turnCapRestarts = 0,
   funding = null,
+  issueStop = null,
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
@@ -741,6 +746,10 @@ export function decide({
   unmarked = null,
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
+  // A run that never started left no outcome; its record names why.
+  if (issueStop && outcome.unread) {
+    outcome = { ...outcome, reason: issueStop };
+  }
   const onResumed = !branch && resumed !== "";
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -759,7 +768,8 @@ export function decide({
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
-  if (outcome.exit === "done" && escalation && escalation !== "patch-empty") {
+  // patch-apply-failed is only the job's result, so a branch it did make wins.
+  if (outcome.exit === "done" && escalation && escalation !== "patch-empty" && !(escalation === "patch-apply-failed" && branch)) {
     return handBack({
       outcome: stopped(
         `The run reported done, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,
@@ -1103,6 +1113,25 @@ export function readLimit(dir) {
   }
 }
 
+// Why the run never started, from lane.json's class, or null: the runner set
+// issue-edited when write-issue refused because the issue's title or body
+// changed after the label, and issue-file when it wrote no issue file for
+// another reason. Either way no model ran.
+export function readIssueStop(dir) {
+  try {
+    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    if (lane?.class === "issue-edited") {
+      return "The run did not start: the issue's title or body changed after `agent-ready` was added, so the runner wrote no issue file for the skill and no model ran.";
+    }
+    if (lane?.class === "issue-file") {
+      return "The run did not start: the runner could not write the issue file for the skill, so no model ran. The run job's `Write the issue for the skill` step names the reason.";
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // The runner's funding record in lane.json: {regain} (epoch ms, or null when
 // no date is readable) when the run failed on a spend limit or zero balance
 // (api_error_status 400 with "regain access on <date>") or a disabled key
@@ -1412,6 +1441,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
     const funding = readFunding(dir);
+    // A scan refusal means a model ran, so it outranks a not-started record.
+    const issueStop = refusal ? null : readIssueStop(dir);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     const unreported = reuse && (outcome === null || outcome.unread);
     // The summary counts only while the branch is still at the tip it read; a
@@ -1534,6 +1565,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           turnCap,
           turnCapRestarts,
           funding,
+          issueStop,
           limits: readLimits(resolvedPath),
           now,
           runId,

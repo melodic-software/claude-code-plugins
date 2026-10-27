@@ -43,6 +43,11 @@
           "minLength": 1
         },
         "reason": { "type": "string", "minLength": 1 },
+        "computed-by": {
+          "description": "The script whose step output sets each upload's retention-days as `${{ steps.<id>.outputs.retention-days }}`; retention-days records the longest it returns.",
+          "type": "string",
+          "minLength": 1
+        },
         "pending-cut": {
           "description": "A shorter retention found safe or under owner review and not yet made; the row still records today's value.",
           "type": "string",

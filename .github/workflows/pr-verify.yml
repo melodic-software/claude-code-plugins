@@ -373,8 +373,8 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
           if-no-files-found: error
-          retention-days: 90
 
       - name: Summarize the verdict
         if: steps.verdict.outcome == 'success'
@@ -727,8 +727,8 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
           if-no-files-found: error
-          retention-days: 90
 
       - name: Summarize the verdict
         if: steps.verdict.outcome == 'success'
@@ -1058,8 +1058,8 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
           if-no-files-found: error
-          retention-days: 90
 
       - name: Summarize the verdict
         if: steps.verdict.outcome == 'success'

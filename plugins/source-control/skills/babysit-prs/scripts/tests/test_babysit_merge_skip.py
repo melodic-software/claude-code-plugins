@@ -570,7 +570,8 @@ class TheRecordKeepsOnlyRefusalsTheNextGateWouldRepeat(unittest.TestCase):
                 {
                     "check": "claude-review",
                     "rerun": False,
-                    "reason": "failure class is not rate-limit; never re-run",
+                    "reason": "failure class is not one the gate re-runs"
+                    " (install-failed, publish-rate-limit, rate-limit); never re-run",
                 }
             ]
         )

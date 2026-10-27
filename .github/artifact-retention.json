@@ -13,8 +13,8 @@
         "scripts/credential-sweep.sh --since defaults to 90 days ago, GitHub's default artifact retention"
       ],
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-      "reason": "A FAIL verdict must outlive the 80-day FAIL look-back (babysit_verify_evidence.py TOO_OLD_DAYS = 80, ten days under 90): a shorter retention drops earlier FAILs, and the gate then stops refusing verify:earlier-fail and the FAIL cap. scripts/credential-sweep.sh also assumes 90-day artifacts. PASS and FAIL share one upload, so both keep the maximum.",
-      "pending-cut": "PASS and PASS-NOTES could keep 30 days (an expired PASS fails closed as verify:missing); needs a per-verdict retention at upload and the verifier owner's decision. FAIL stays at max.",
+      "reason": "A FAIL verdict must outlive the 80-day FAIL look-back (babysit_verify_evidence.py TOO_OLD_DAYS = 80, ten days under 90): a shorter retention drops earlier FAILs, and the gate then stops refusing verify:earlier-fail and the FAIL cap. scripts/credential-sweep.sh also assumes 90-day artifacts. write-verdict.mjs retentionDays keeps FAIL at max and PASS or PASS-NOTES 30 days (an expired PASS fails closed as verify:missing); the row records the longest.",
+      "computed-by": ".github/scripts/pr-verify/write-verdict.mjs",
       "uploads": [
         ".github/workflows/pr-verify.yml#check-intent",
         ".github/workflows/pr-verify.yml#check-intent-subscription",
@@ -209,11 +209,18 @@
       "reason": "Read by its own run; 1 day is the minimum."
     },
     "findings-*": {
-      "retention-days": 1,
+      "retention-days": 3,
       "readers": [
-        ".github/workflows/maintenance-audit-lane-runs.yml findings-* download, same run"
+        ".github/workflows/maintenance-audit-lane-runs.yml findings-* download by the file job, same run"
       ],
-      "reason": "Read only by its own run (the file job downloads findings-*)."
+      "reason": "Only its own run reads it (the file job downloads findings-*); a manual re-run of the file job may read an earlier attempt, so 3 days covers a weekend, as for patch-*."
+    },
+    "mutation-range": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml downloads it from the triggering run on workflow_run"
+      ],
+      "reason": "Read by the run its workflow_run event starts; 7 days covers a manual re-run of that run."
     },
     "selection-audit-*": {
       "retention-days": 7,

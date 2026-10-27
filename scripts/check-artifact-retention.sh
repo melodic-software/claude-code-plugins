@@ -24,7 +24,10 @@
 # A step with no name, a name matching no family, or a name two families claim
 # is a finding. So is a step with no `retention-days`, one whose value is not a
 # whole number of days (an expression), and one whose value differs from its
-# family's. `max` is the repository maximum, 90 days.
+# family's. `max` is the repository maximum, 90 days. One expression passes: a
+# row naming `computed-by` (the script that sets it, which must exist) lets its
+# steps read `${{ steps.<id>.outputs.retention-days }}`; the row's value records
+# the longest that script returns.
 #
 # The table is held to its own rules too: it must pass
 # .github/artifact-retention.schema.json; each reader and max-reader must start

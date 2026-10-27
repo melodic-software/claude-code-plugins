@@ -194,6 +194,18 @@ run_case "a non-literal retention-days fails" 1 \
   "subst $WORKFLOW 'retention-days: 7' 'retention-days: \${{ inputs.days }}'" \
   "retention-days is not a whole number of days"
 
+run_case "a step-output retention-days passes when its row names computed-by" 0 \
+  "subst $WORKFLOW 'retention-days: 90' 'retention-days: \${{ steps.name.outputs.retention-days }}' && edit $TABLE 't.families[\"verdict-*\"][\"computed-by\"]=\".github/workflows/build.yml\"'" \
+  "check-artifact-retention: 4 upload step(s) match"
+
+run_case "a step-output retention-days fails when its row names no computed-by" 1 \
+  "subst $WORKFLOW 'retention-days: 90' 'retention-days: \${{ steps.name.outputs.retention-days }}'" \
+  "retention-days is not a whole number of days"
+
+run_case "a computed-by naming no file of the tree fails" 1 \
+  "edit $TABLE 't.families[\"verdict-*\"][\"computed-by\"]=\"scripts/gone.mjs\"'" \
+  "$TABLE: family \`verdict-*\` computed-by scripts/gone.mjs names no file"
+
 run_case "a row no upload matches fails" 1 \
   "edit $TABLE 't.families[\"old-*\"]={\"retention-days\":1,\"readers\":[\".github/workflows/build.yml\"],\"reason\":\"gone\"}'" \
   "$TABLE: family \`old-*\` matches no upload step"
