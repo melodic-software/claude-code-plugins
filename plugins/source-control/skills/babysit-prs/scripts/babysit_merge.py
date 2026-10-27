@@ -3202,7 +3202,7 @@ def _lane_evidence(
 
 
 # The review lanes' comment authors: `review_evidence.bind()` reads only theirs.
-_LANE_AUTHORS = review_evidence.ACTIONS_LOGINS | review_evidence.CLAUDE_APP_LOGINS
+_LANE_AUTHORS = review_evidence.LANE_AUTHORS
 _EDITS_QUERY = (
     "query($ids:[ID!]!){nodes(ids:$ids){... on IssueComment"
     "{id lastEditedAt editor{__typename login}}}}"

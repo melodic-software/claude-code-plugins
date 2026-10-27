@@ -668,9 +668,33 @@ class ReadOnlyWorkflowTests(Base):
                 text = READ_ONLY.replace("permissions:\n  contents: read", perms, 1)
                 self.assertBinds(self.bound({WORKFLOW: text}))
 
-    def test_a_deleted_workflow_binds(self) -> None:
-        # It runs nothing at the head; the reader proved it removed.
-        self.assertBinds(self.bound({WORKFLOW: None}))
+    def test_a_deleted_workflow_stays_a_lane_source(self) -> None:
+        # What a deleted workflow enforced goes with it.
+        for path in (
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-require-checks.yml",
+            ".github/workflows/pr-verify.yml",
+            WORKFLOW,
+        ):
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: None}))
+
+    @NEEDS_YAML
+    def test_a_read_only_rewrite_of_a_floor_workflow_stays_a_lane_source(
+        self,
+    ) -> None:
+        floored = [
+            path
+            for path, _ in risk.FLOOR_CLASSES
+            if ev.WORKFLOW_PATH_RE.match(path) and path not in ev.REVIEW_CALLERS
+        ]
+        self.assertIn(".github/workflows/pr-merge.yml", floored)
+        self.assertIn(".github/workflows/pr-require-checks.yml", floored)
+        for path in floored:
+            stem = ev.WORKFLOW_PATH_RE.match(path)[1]
+            text = READ_ONLY.replace("name: lint-docs", f"name: {stem}", 1)
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: text}))
 
     @NEEDS_YAML
     def test_each_unsafe_workflow_stays_a_lane_source(self) -> None:
@@ -1263,9 +1287,7 @@ class LostRerunTests(Base):
         )
         for comments in ([*both_markers(), late], [*both_markers(), other_lane]):
             with self.subTest(body=comments[-1]["body"][-30:]):
-                result = self.bind(
-                    [self.lane_run(lost(), rerun_ok())], comments, []
-                )
+                result = self.bind([self.lane_run(lost(), rerun_ok())], comments, [])
                 self.assertTrue(result["claude-review"].bound)
 
     def test_an_unreadable_start_does_not_bind(self) -> None:
@@ -3135,7 +3157,8 @@ class EditedCommentTests(Base):
     def runs(self) -> list[dict[str, Any]]:
         return [whole(lane, S) for lane in LANES]
 
-    def test_a_marker_edited_by_another_identity_unbinds_its_lane(self) -> None:
+    def test_a_marker_edited_by_another_identity_unbinds_every_lane(self) -> None:
+        # The edited text cannot say which lane's marker it was.
         for name, edit in (
             ("a person", self.HUMAN_EDIT),
             ("another App", self.APP_EDIT),
@@ -3145,8 +3168,8 @@ class EditedCommentTests(Base):
         ):
             with self.subTest(name):
                 result = self.bind(self.runs(), self.markers(edit))
-                self.assertUnbound(result[self.SEC], "comment-edited")
-                self.assertTrue(result["claude-review"].bound)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "comment-edited")
 
     def test_a_marker_the_producer_edited_still_binds(self) -> None:
         # ci-workflows publish.cjs writeMarker updates the lane's marker on
@@ -3184,6 +3207,39 @@ class EditedCommentTests(Base):
                 }
                 result = self.bind(runs, threads=[item])
                 self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_finding_whose_footer_a_person_deleted_fails_closed(self) -> None:
+        # Without its footer the body no longer names the lane; the edit is
+        # read before the body, so it unbinds rather than leaving the count.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        for name, login in (
+            ("github-actions", "github-actions"),
+            ("Claude App", "claude"),
+        ):
+            with self.subTest(name):
+                item = thread(
+                    "x\n\nseverity: CRITICAL",
+                    author={"__typename": "Bot", "login": login},
+                )
+                item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+                item["comments"][0]["editor"] = {
+                    "__typename": "User",
+                    "login": "pusher",
+                }
+                result = self.bind(runs, threads=[item])
+                self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_summary_whose_footer_a_person_deleted_unbinds(self) -> None:
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:30:00Z",
+            "body": "summary\n\ncritical-findings: 1",
+            "edit": self.HUMAN_EDIT,
+        }
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1)]
+        result = self.bind(runs, [*both_markers(), summary])
+        self.assertUnbound(result[self.SEC], "comment-edited")
 
     def test_a_thread_whose_edit_fields_were_not_read_fails_closed(self) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]

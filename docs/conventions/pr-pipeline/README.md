@@ -859,16 +859,18 @@ the rules that only tighten in
     path the head's checkout feeds or forges its own review from (`LANE_SOURCE_PREFIXES` and
     `readonly_workflow` in `babysit_review_evidence.py` state the rule). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
-    secret: a top-level `.yml` other than the two review callers, deleted, or with every job's
-    `permissions:` read-only and set explicitly, no `pull_request_target`, `workflow_run` or
-    `workflow_call` trigger, no `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal
-    to its file stem. So `pr-merge.yml` (`pull_request_target`, write scopes) and `pr-require-checks.yml`
-    (write scopes) stay lane sources and a person still clears an edit to either. The `merge` and
+    secret: a top-level `.yml` other than the two review callers and the floor workflows
+    (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
+    set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
+    `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
+    workflow stays a lane source, and so do `pr-merge.yml` and `pr-require-checks.yml` whatever
+    their content, so a person clears any change to either. The `merge` and
     `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
-    that read; without it no workflow change clears. A lane comment the review reads (the
-    reviewed-head marker, a summary's `critical-findings:` line, an inline finding's first
-    comment) binds only while its last editor is its own author: anyone with write access can edit
-    a comment, so one edited by another identity unbinds the lane as `comment-edited`.
+    that read; without it no workflow change clears. A comment by a lane author
+    (`github-actions[bot]` or the Claude App) binds only while its last editor is its own author:
+    anyone with write access can edit a comment, so one edited by another identity unbinds the
+    review as `comment-edited`. The edit is read before the body, so an edit that removes the
+    lane footer or the marker line still unbinds.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the

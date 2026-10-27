@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import LaneEvidence
+from babysit_risk import FLOOR, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -211,6 +211,9 @@ LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
 # GraphQL drops the suffix). Such a comment is the lane's only when its last
 # non-blank line is that lane's footer.
 ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
+# Every author a lane comment can have; the caller attaches each one's edit
+# record (babysit_merge._attach_edits).
+LANE_AUTHORS = ACTIONS_LOGINS | CLAUDE_APP_LOGINS
 
 
 def _footer_lane(body: str) -> str | None:
@@ -346,11 +349,14 @@ def lane_source(path: Any) -> bool:
 
 
 def _readonly_candidate(path: Any) -> bool:
-    """A lane source `readonly_workflow` may clear by its content."""
+    """A lane source `readonly_workflow` may clear by its content: a workflow
+    that is neither a review caller nor on the merge floor
+    (`babysit_risk.FLOOR`), whose text no rewrite may clear."""
     return (
         isinstance(path, str)
         and bool(WORKFLOW_PATH_RE.match(path))
         and path not in REVIEW_CALLERS
+        and not any(glob_match(glob, path) for glob in FLOOR)
     )
 
 
@@ -360,10 +366,10 @@ def readonly_workflow(
     base_sha: str | None,
 ) -> bool:
     """Whether a changed workflow file cannot post as github-actions[bot] with
-    write access, nor reach a credential that could: deleted at the head (a
-    deleted file runs nothing), or a head copy that passes
-    `_readonly_workflow_text`. A review caller, any other lane source, and any
-    doubt (no reader, no base, a read that fails) are not cleared."""
+    write access, nor reach a credential that could: a head copy that passes
+    `_readonly_workflow_text`. A deleted workflow is not cleared, since what it
+    enforced goes with it; nor is a review caller, a floor workflow, any other
+    lane source, or any doubt (no reader, no base, a read that fails)."""
     if not _readonly_candidate(path) or head_file is None:
         return False
     if not isinstance(base_sha, str) or not SHA_RE.match(base_sha):
@@ -373,7 +379,7 @@ def readonly_workflow(
     except Exception:  # noqa: BLE001 - unread is not cleared
         return False
     if text is None:
-        return True
+        return False
     stem = WORKFLOW_PATH_RE.match(path)[1]  # type: ignore[index]
     return isinstance(text, str) and _readonly_workflow_text(text, stem)
 
@@ -1039,10 +1045,12 @@ def _require_marker(
         user = comment.get("user")
         if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
             continue
+        # Before the body is read: an edit could change the line that makes
+        # it a marker.
+        if _edited_by_another(user, comment.get("edit")):
+            raise Unbound("comment-edited")
         first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
         match = MARKER_RE.match(first_line)
-        if match and match[1] == lane and _edited_by_another(user, comment.get("edit")):
-            raise Unbound("comment-edited")
         if not match or match[1] != lane or not (newest_only or match[2] == head):
             continue
         key = (
@@ -1078,10 +1086,14 @@ def _summary_comments(
             user.get("login") != MARKER_AUTHOR or user.get("type") != "Bot"
         ):
             continue
+        # Before the body is read: an edit could drop the footer that makes
+        # it the lane's.
+        if user.get("login") in LANE_AUTHORS and _edited_by_another(
+            user, comment.get("edit")
+        ):
+            raise Unbound("comment-edited")
         if not _lane_comment(lane, user.get("login"), body):
             continue
-        if _edited_by_another(user, comment.get("edit")):
-            raise Unbound("comment-edited")
         if created is not None:
             found.append((created, body))
     return found
@@ -1429,10 +1441,8 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
         return False
     if author.get("__typename") != "Bot":
         return False
-    if not _lane_comment(lane, author.get("login"), str(first.get("body") or "")):
-        return False
-    # Judged by its author, never its edited text: an edit could drop the
-    # footer that makes it the lane's.
-    if _edited_by_another(author, first):
+    # Before the body is read: an edit could drop the footer that makes it
+    # the lane's.
+    if author.get("login") in LANE_AUTHORS and _edited_by_another(author, first):
         raise Unbound("comment-edited")
-    return True
+    return _lane_comment(lane, author.get("login"), str(first.get("body") or ""))
