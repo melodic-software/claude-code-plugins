@@ -29,14 +29,17 @@ chmod +x "$STUB_DIR/gh"
 export PATH="$STUB_DIR:$PATH"
 
 # Fixture: the main checkout on main, and the PR's branch in a linked worktree with one more
-# commit. Each tree's scripts/check-affected.sh prints the files its tree changed since main and
-# which tree ran it, so the gate output shows whose tree was checked.
+# commit. Each tree's scripts/check-affected.sh prints the files the checked tree changed since
+# main and which tree it checked, so the gate output shows whose tree was checked. The stub takes
+# that tree from CHECK_DATA_ROOT, else from the working directory, never from its own location, so
+# the gate assertions fail unless the gate itself names the PR's tree.
 MAIN="$TEST_TMPDIR/main"
 git init -q -b main "$MAIN"
 mkdir -p "$MAIN/scripts"
 cat >"$MAIN/scripts/check-affected.sh" <<'EOF'
 #!/usr/bin/env bash
-top=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+top=$(git -C "${CHECK_DATA_ROOT:-$PWD}" rev-parse --show-toplevel) || exit 2
+top=$(cd "$top" && pwd -P)
 echo "checked $top"
 git -C "$top" diff --name-only main HEAD | sed 's/^/changed: /'
 EOF

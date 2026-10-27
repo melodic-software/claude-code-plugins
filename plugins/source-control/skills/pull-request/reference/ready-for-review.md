@@ -209,11 +209,11 @@ with the forge's PR checkout and run the gate again.
 
 - `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
   shell command, so `pass` is never typed by hand. The gate runs the PR worktree's own
-  `scripts/check-affected.sh`, which checks the tree that holds it, and the record names that
-  tree's HEAD:
+  `scripts/check-affected.sh` with `CHECK_DATA_ROOT` naming that tree, so the tree checked never
+  depends on the shell's directory, and the record names that tree's HEAD:
 
   ```bash
-  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; if bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; if CHECK_DATA_ROOT="$PR_TREE" bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
   ```
 
   Without `scripts/check-affected.sh` in the PR worktree, the `if` holds §1.5's ecosystem-native
