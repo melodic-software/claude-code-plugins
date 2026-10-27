@@ -3130,6 +3130,48 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
+    @staticmethod
+    def undated(name: str, run_id: int, artifact_id: int) -> dict[str, Any]:
+        """A listed artifact whose dates GitHub gives as null (its artifact
+        schema marks `created_at` and `expires_at` nullable)."""
+        return artifact(name, run_id) | {
+            "id": artifact_id,
+            "created_at": None,
+            "expires_at": None,
+        }
+
+    def test_a_whole_listing_with_an_undated_artifact_lists_fully(self) -> None:
+        # No carry: the whole listing's top-up stops on its dated entries, and
+        # the undated FAIL is kept, so the listing holds the live count.
+        fake = self.fake(self.undated(named(HEAD, "fail"), 2, 850))
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1000, 900, 850, 800, 700])
+
+    def test_an_undated_carried_entry_is_kept_below_the_new_pages(self) -> None:
+        # The carry holds an undated FAIL below the pages read now: no date
+        # prunes it, and the incremental listing still holds the live count.
+        fail = self.undated(named(HEAD, "fail"), 2, 850)
+        self.write_carry([*self.base[:2], fail, *self.base[2:]])
+        fake = self.fake(fail)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+
+    def test_an_undated_upload_since_is_read_and_paging_stops_on_dated_ones(
+        self,
+    ) -> None:
+        self.write_carry(self.base)
+        fake = self.fake(self.undated(named(HEAD, "fail"), 2, 1100))
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
+
     def test_a_refresh_builds_on_the_listing_it_drops(self) -> None:
         # The gate's re-list before an allow (babysit_merge.py `refresh`)
         # pages only past the run's own listing.

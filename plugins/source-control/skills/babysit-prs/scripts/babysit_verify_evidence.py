@@ -732,16 +732,20 @@ def _is_artifact_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _dated_entry(item: Any) -> bool:
+def _listed_entry(item: Any) -> bool:
     """A listed artifact `Reader._incremental` can place: a positive id, a
-    boolean `expired`, and a `created_at` and `expires_at` with a zone."""
+    boolean `expired`, and a `created_at` and `expires_at` each present and
+    null (GitHub's artifact schema marks both nullable) or a time with a
+    zone."""
     return (
         is_json_object(item)
         and _is_artifact_id(item.get("id"))
         and item["id"] > 0
         and isinstance(item.get("expired"), bool)
-        and _when(item.get("created_at")) is not None
-        and _when(item.get("expires_at")) is not None
+        and all(
+            key in item and (item[key] is None or _when(item[key]) is not None)
+            for key in ("created_at", "expires_at")
+        )
     )
 
 
@@ -939,7 +943,7 @@ class Reader:
 
     def _incremental_base(self) -> tuple[datetime, list[dict[str, Any]]] | None:
         """The newest whole listing begun at most `LISTING_CARRY_MAX_AGE` ago
-        whose every entry `_dated_entry` takes: this Reader's own, the run's
+        whose every entry `_listed_entry` takes: this Reader's own, the run's
         saved one, or the one a trusted run carried (`carry_path`)."""
         bases = [
             base
@@ -950,7 +954,7 @@ class Reader:
             )
             if base is not None
             and _recent(base[0], LISTING_CARRY_MAX_AGE)
-            and all(_dated_entry(a) for a in base[1])
+            and all(_listed_entry(a) for a in base[1])
         ]
         return max(bases, key=lambda base: base[0], default=None)
 
@@ -993,18 +997,20 @@ class Reader:
 
         The listing comes newest id first. Pages are read from the first
         until one holds an artifact at or below the base's highest id that
-        was created `LISTING_OVERLAP` or more before the base was read: every
-        lower id was created before the base was read, so the base holds it.
+        was created `LISTING_OVERLAP` or more before the base was read (an
+        undated one never stops it): every lower id was created before the
+        base was read, so the base holds it.
         Those pages decide every id down to the lowest they hold, an id the
         base holds there and they do not (deleted, or an overwrite's old
         copy) included; below it the base's entries stand, less each one
-        expired or past its `expires_at` by the first page's `Date`. The
+        expired or past its `expires_at` by the first page's `Date` (one with
+        no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count. Any other count, no base, an entry or page of
         another shape, a missing `Date`, or any failed read gives None.
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
-        if base is not None and not all(_dated_entry(a) for a in base[1]):
+        if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
         if base is None:
@@ -1039,7 +1045,7 @@ class Reader:
             if (
                 proc.returncode != 0
                 or not is_json_array(items)
-                or not all(_dated_entry(a) for a in items)
+                or not all(_listed_entry(a) for a in items)
             ):
                 return None
             if page == 1:
@@ -1052,8 +1058,12 @@ class Reader:
                     return None
             for item in items:
                 fresh.setdefault(item["id"], item)
+            # Only a dated entry can show its id was created before the base.
             reached = any(
-                a["id"] <= high and _when(a["created_at"]) < floor for a in items
+                a["id"] <= high
+                and a["created_at"] is not None
+                and _when(a["created_at"]) < floor
+                for a in items
             )
             if reached or len(items) < LISTING_PAGE_SIZE:
                 break
@@ -1067,7 +1077,7 @@ class Reader:
             for a in carried
             if a["id"] < lowest
             and a["expired"] is False
-            and _when(a["expires_at"]) > server_now
+            and (a["expires_at"] is None or _when(a["expires_at"]) > server_now)
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
         return listing if len(listing) == total else None
