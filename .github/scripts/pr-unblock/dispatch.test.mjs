@@ -1284,7 +1284,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");
