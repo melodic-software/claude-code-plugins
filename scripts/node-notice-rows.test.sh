@@ -129,7 +129,9 @@ node_absent_cases() {
 
   if PWSH="$(command -v pwsh)"; then
     # A version-manager shim (mise, asdf) dispatches on its name and refills PATH: use the real binary.
-    PWSH="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
+    real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
+    real="${real%$'\r'}"
+    [[ -n "$real" ]] && PWSH="$real"
     PS_TOOLS="$WORK/ps-tools"
     mkdir -p "$PS_TOOLS" "$WORK/tmp-ps"
     ln -s "$PWSH" "$PS_TOOLS/powershell"
