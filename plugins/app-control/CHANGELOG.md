@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-10-27
+
+### Fixed
+
+- `/app-control:drive` names how to get `python3` for the integrated-app pin check: app-control now declares it in `prerequisites.json`, and drive runs the bundled checker for the install command when it is missing.
+
 ## [0.14.0] - 2026-10-27
 
 ### Added

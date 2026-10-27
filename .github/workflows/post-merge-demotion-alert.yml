@@ -403,6 +403,9 @@ jobs:
               node .base/.github/scripts/post-merge-demotion-alert/failing-checks.mjs "$@"
             }
             now="$(mktemp)"
+            kept="$(mktemp)"
+            before="$(mktemp)"
+            trap 'rm -f -- "$now" "$now.new" "$kept" "$before"' EXIT
             failing_checks "$RUN_ID" "$RUN_ATTEMPT" >"$now"
             if [[ ! -s "$now" ]]; then
               echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
@@ -410,13 +413,11 @@ jobs:
             fi
             # The checks also failing on the baseline run, for the judge: one
             # whose suite's quarantine expired demotes all the same.
-            kept="$(mktemp)"
             baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
             if [[ -n "$baseline" ]]; then
               IFS=$'\t' read -r base_id base_attempt base_conclusion <<<"$baseline"
-              before="$(mktemp)"
               if [[ "$base_conclusion" != success ]]; then
                 failing_checks "$base_id" "$base_attempt" --baseline >"$before"
               fi

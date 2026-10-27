@@ -545,6 +545,8 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 <empty, populated by /planning:plan>
 ```
 
+**The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
+
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
 
 **The criteria bullet stays a plain bullet.** `- AC<n>: <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- AC<n>: [<pattern>] <criterion>`. `AC<n>` is the criterion's id, numbered from `AC1` in order and never reused: `/planning:plan` maps each id to the phases that satisfy it and `/work-items:decompose` to the slices that carry it. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.

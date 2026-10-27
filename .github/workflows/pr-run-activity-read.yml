@@ -2499,9 +2499,10 @@ jobs:
               return stat.isFile() ? fs.readFileSync(file) : null;
             };
             let hit = null;
+            let scratch = null;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
-              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
+              scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               // The gate's commit, from this job's own token: the default
               // branch's tip now, never a run job output, which head code with
               // sudo on that runner could have forged.
@@ -2735,6 +2736,8 @@ jobs:
               }
             } catch (error) {
               hit = { label: `no finished scan (${error.name})`, credential: false };
+            } finally {
+              if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
