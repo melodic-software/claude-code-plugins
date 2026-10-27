@@ -2592,6 +2592,56 @@ class TestArchivedPrerequisiteIsMet(OpsCase):
         self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
 
 
+class TestOffPathQuestionTakesNoDecision(OpsCase):
+    """#9715: a decision on a superseded question is 409 superseded, `by` naming the end of its
+    supersededBy chain, and one on an archived question is 409 archived; nothing is written. Ask
+    still saves, and accept-audit leaves a superseded question out."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("Q59", supersededBy="Q60"),
+            question("Q60", supersededBy="Q61"),
+            question("Q61"),
+            question("Q62", archived=gone),
+            question("Q63", archived=gone, supersededBy="Q60"),
+        )
+
+    def test_1_a_decision_is_409_and_names_the_end_two_hops_away(self):
+        decisions = (
+            ("accept", {}),
+            ("alt", {"alt": "a"}),
+            ("own", {"text": "Mine."}),
+            ("defer", {}),
+            ("hedged", {"text": "If it holds."}),
+            ("reopen", {}),
+        )
+        for kind, extra in decisions:
+            code, data = self.post({"id": "Q59", "kind": kind, **extra})
+            self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q63", "kind": "accept", "contentRev": 0})
+        self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q62", "kind": "accept"})
+        self.assertEqual((code, data), (409, {"error": "archived"}))
+        events = self.state()["responses"]["events"]
+        self.assertFalse(any(e.get("id") in ("Q59", "Q62", "Q63") for e in events))
+
+    def test_2_ask_still_saves_and_the_end_takes_the_decision(self):
+        code, data = self.post({"id": "Q59", "kind": "ask", "text": "Why replace it?"})
+        self.assertEqual(code, 200, data)
+        self.decide("Q61")
+
+    def test_3_accept_audit_leaves_a_superseded_question_out(self):
+        items = [{"id": "Q60", "contentRev": 0}]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        skipped = [{"id": "Q60", "reason": "ineligible"}]
+        self.assertEqual(
+            (code, data), (409, {"error": "nothing accepted", "skipped": skipped})
+        )
+
+
 class TestFrontierLockConfirm(OpsCase):
     """frontierLock confirm, the default: a decision ahead of an open prerequisite saves, the
     event keeps the outOfOrder the page sent, and the prerequisite's first decision marks the

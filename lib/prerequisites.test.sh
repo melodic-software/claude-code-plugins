@@ -48,6 +48,10 @@ else
 fi
 
 if PWSH="$(command -v pwsh)"; then
+  # A version-manager shim (mise, asdf) puts its tools, node included, back on PATH: run the real binary.
+  real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
+  real="${real%$'\r'}"
+  [[ -n "$real" ]] && PWSH="$real"
   out="$(PATH="$EMPTY" "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" check "$WORK")"
   rc=$?
   out="${out%$'\r'}"
