@@ -2648,6 +2648,19 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
+      # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+      # hosted image does not carry; Ubuntu's signed archive provides both. Its own
+      # step timeout makes a stalled apt call fail in two minutes, naming this step,
+      # instead of spending the leg's whole budget (run 40467313844 stalled here).
+      - name: Install ffmpeg for demo-video
+        timeout-minutes: 2
+        run: |
+          leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
+            { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
+          [[ "$leg_needs" == *demovideo* ]] || exit 0
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
+          ffprobe -version | head -n 1
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -2678,13 +2691,6 @@ jobs:
             requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
-          # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
-          # hosted image does not carry; Ubuntu's signed archive provides both.
-          if [[ "$leg_needs" == *demovideo* ]]; then
-            sudo apt-get -o Acquire::Retries=3 update -qq
-            sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
-            ffprobe -version | head -n 1
-          fi
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             node node_modules/playwright/cli.js install --only-shell chromium
