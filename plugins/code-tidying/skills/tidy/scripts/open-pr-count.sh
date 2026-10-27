@@ -6,12 +6,17 @@
 set -u
 
 THROTTLE_LIMIT=3
+# Open PRs are listed without a search and filtered by head branch here: a
+# degraded search can answer a false empty with no signal gh passes on. A
+# listing that fills its limit may be missing tidy PRs, so it throttles.
+LIST_LIMIT=1000
 
 usage() {
   cat <<EOF
 open-pr-count.sh — count open chore/tidy-* PRs (backlog-throttle facts).
 
-Throttle active when count >= ${THROTTLE_LIMIT} and gh exit 0.
+Throttle active when count >= ${THROTTLE_LIMIT} and gh exit 0, or when the
+open-PR listing reaches its ${LIST_LIMIT}-PR limit.
 
 Usage:
   open-pr-count.sh [--help]
@@ -39,10 +44,20 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-count="$(gh pr list --state open --search 'head:chore/tidy-' --json number --jq 'length' 2>/dev/null | tr -d '\r')"
-if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+counts="$(gh pr list --state open --limit "$LIST_LIMIT" --json headRefName \
+  --jq '"\(length) \(map(select(.headRefName | startswith("chore/tidy-"))) | length)"' 2>/dev/null | tr -d '\r')"
+if [[ ! "$counts" =~ ^[0-9]+\ [0-9]+$ ]]; then
   emit_unknown "gh pr list failed"
   exit 1
+fi
+listed="${counts% *}"
+count="${counts#* }"
+
+if [[ "$listed" -ge "$LIST_LIMIT" ]]; then
+  printf 'Open tidy PR count: %s or more\n' "$count"
+  printf 'Throttle active: yes\n'
+  printf 'Detail: the open-PR listing reached its %s-PR limit; the count may be higher\n' "$LIST_LIMIT"
+  exit 0
 fi
 
 printf 'Open tidy PR count: %s\n' "$count"
