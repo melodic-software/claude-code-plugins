@@ -308,6 +308,10 @@ class PostMergeVerdict:
     # Each pin the check read, by merge number (None: no pin), which a later
     # tick reads again before it reuses the report (`idle_refusal`).
     pins: Mapping[int, str | None] = field(default_factory=dict)
+    # When the earliest canary in a merge's window still running was created:
+    # it can still turn red and fail a merge judged verified, so a later tick
+    # lists runs back to it before it reuses the report (`idle_refusal`).
+    outstanding_since: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -379,6 +383,9 @@ class PostMergeVerdict:
                 self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
             ),
             "pins": {str(n): sha for n, sha in sorted(self.pins.items())},
+            "outstandingSince": (
+                self.outstanding_since.isoformat() if self.outstanding_since else None
+            ),
         }
 
 
@@ -1901,6 +1908,7 @@ class _Tally:
     reruns: dict[int, Rerun] = field(default_factory=dict)
     flakes: dict[str, None] = field(default_factory=dict)
     unattributed: dict[str, None] = field(default_factory=dict)
+    outstanding: list[datetime] = field(default_factory=list)
 
 
 def _judge(
@@ -2016,15 +2024,13 @@ def _judge(
         elif state == PENDING:
             pending.append(f"{signal}-run-in-progress:{run.id}")
     for run in canaries:
-        if in_window(run) and ctx.outcome(run, attributable=False)[0] == RED:
-            failures.append(
-                Failure(
-                    SIGNAL_CANARY,
-                    merge,
-                    ctx.sighting(run),
-                    ctx.outcome(run, attributable=False)[1],
-                )
-            )
+        if not in_window(run):
+            continue
+        state, detail = ctx.outcome(run, attributable=False)
+        if state == RED:
+            failures.append(Failure(SIGNAL_CANARY, merge, ctx.sighting(run), detail))
+        elif state == PENDING:
+            tally.outstanding.append(run.created_at)
 
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
@@ -2308,6 +2314,7 @@ def check(
         quarantines=tuple(ctx.quarantines.values()),
         excuses_expire_at=ctx.excuses_expire_at,
         pins=pins,
+        outstanding_since=min(tally.outstanding, default=None),
     )
 
 
@@ -3381,11 +3388,14 @@ def pending_runs_unchanged(
     passed `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
     failure, and no quarantine that excused a failing suite has expired
     (`excusesExpireAt`; an answer without the field is False). Those are
-    `_judge`'s time-based excuses. A listing that cannot be read or is not
+    `_judge`'s time-based excuses. The listing reaches back to the earliest
+    canary still running in a verified merge's window too
+    (`outstandingSince`; an answer without the field is False), which can
+    still turn red and fail it. A listing that cannot be read or is not
     whole, or an entry without a merge time, is False."""
     report = shared.gate.report
     pending = _pending_merges(report)
-    if not pending or "excusesExpireAt" not in report:
+    if not pending or not {"excusesExpireAt", "outstandingSince"} <= report.keys():
         return False
     now = now or datetime.now(UTC)
     try:
@@ -3395,10 +3405,13 @@ def pending_runs_unchanged(
             excuse is not None and now >= _time(excuse)
         ):
             return False
+        outstanding = report["outstandingSince"]
         return _verifying_runs_unchanged(
             repo,
             branch,
-            created=earliest,
+            created=earliest
+            if outstanding is None
+            else min(earliest, _time(outstanding)),
             since=shared.computed_at - policy.SINCE_CLOCK_MARGIN,
         )
     except PostMergeReadError:
@@ -3460,8 +3473,10 @@ def idle_refusal(
     - an unverified merge past `DISPATCH_DEADLINE`;
     - verifying runs: none completed since `computedAt` (less
       `SINCE_CLOCK_MARGIN`) among those created since the earliest unverified
-      merge or the `_lane_reruns` lookback (`red-main.confirm-wait-minutes`
-      plus `FULL_RUN_ALLOWANCE`, once more for a baseline run still going);
+      merge, the earliest canary still running in a merge's window
+      (`outstandingSince`), or the `_lane_reruns` lookback
+      (`red-main.confirm-wait-minutes` plus `FULL_RUN_ALLOWANCE`, once more
+      for a baseline run still going);
     - quarantine issues: none carrying the marker changed since;
     - pins: each recorded one reads the same again, so an edited, new or
       deleted pin refuses.
@@ -3486,6 +3501,7 @@ def idle_refusal(
             "lane-reruns-unread",
         ),
         (not is_json_object(report.get("pins")), "pins-unrecorded"),
+        ("outstandingSince" not in report, "outstanding-unrecorded"),
         (
             now + IDLE_HEADROOM - shared.computed_at > policy.SHARED_MAX_AGE,
             "stale-soon",
@@ -3505,6 +3521,8 @@ def idle_refusal(
             if now > earliest + DISPATCH_DEADLINE:
                 return "dispatch-deadline"
             created = min(created, earliest)
+        if report["outstandingSince"] is not None:
+            created = min(created, _time(report["outstandingSince"]))
         if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
             return "runs-changed"
         if _quarantine_touched(repo, since):

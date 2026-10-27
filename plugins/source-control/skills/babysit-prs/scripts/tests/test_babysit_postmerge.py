@@ -760,6 +760,27 @@ class Verification(CheckCase):
         after = self.check(now=datetime(2026, 10, 12, 16, 1, tzinfo=UTC))
         self.assertEqual([f.signal for f in after.failures], ["dispatch"])
 
+    def test_the_report_records_the_earliest_canary_still_queued_in_a_window(
+        self,
+    ) -> None:
+        # A canary queued before the green one that verified the merge is in
+        # its window and fails it once it turns red, so a later tick that
+        # reuses the report must list runs back to it (`idle_refusal`).
+        self.all_green()
+        self.assertIsNone(self.check().report()["outstandingSince"])
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(
+                20, conclusion=None, status="queued", created_at="2026-10-12T10:00:10Z"
+            ),
+        )
+        verdict = self.check()
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(
+            verdict.report()["outstandingSince"], "2026-10-12T10:00:10+00:00"
+        )
+
     def test_red_canary_is_a_failure(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(

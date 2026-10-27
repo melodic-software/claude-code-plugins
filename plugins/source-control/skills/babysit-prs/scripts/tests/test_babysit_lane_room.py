@@ -23,6 +23,7 @@ import unittest
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest import mock
+from urllib.parse import unquote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -54,6 +55,7 @@ PENDING = {
         {"number": 5, "verified": False, "mergedAt": "2026-10-01T00:00:00Z"}
     ],
     "excusesExpireAt": None,
+    "outstandingSince": None,
 }
 STALE_NOW = FLOOR + timedelta(minutes=3)
 
@@ -785,6 +787,20 @@ class PendingRunsUnchanged(unittest.TestCase):
             ]
         )
 
+    def test_a_canary_still_queued_in_a_verified_window_is_listed(self) -> None:
+        # A verified merge's canary queued before the unverified merge can
+        # still turn red and fail it, so the listing reaches back to it; an
+        # answer that does not say whether one is outstanding is False.
+        queued = FLOOR - timedelta(hours=1)
+        answer, calls = self.unchanged(
+            [], report={**PENDING, "outstandingSince": queued.isoformat()}
+        )
+        self.assertTrue(answer)
+        for call in calls:
+            self.assertIn("created=%3E%3D2026-09-30T23%3A00%3A00Z", call[1])
+        unsaid = {k: v for k, v in PENDING.items() if k != "outstandingSince"}
+        self.assertEqual(self.unchanged([], report=unsaid), (False, []))
+
 
 class SettleShared(unittest.TestCase):
     """`settle_shared`: the one reuse rule the room and the merge job's
@@ -973,6 +989,7 @@ SETTLED = {
     "warnings": [],
     "excusesExpireAt": None,
     "pins": {"5": SHA_PINNED},
+    "outstandingSince": None,
 }
 CONFIRM_WAIT = 40
 
@@ -1000,9 +1017,18 @@ class IdleRefusal(unittest.TestCase):
         def read(args: list[str], label: str) -> object:
             self.calls.append(args[1])
             if "/actions/workflows/" in args[1]:
+                # The listing answers only runs created at or after its floor.
+                floor = datetime.fromisoformat(
+                    unquote(args[1].split("&created=")[1].split("&")[0])[2:]
+                )
+                listed = [
+                    r
+                    for r in runs
+                    if datetime.fromisoformat(str(r["created_at"])) >= floor
+                ]
                 return {
-                    "total_count": len(runs) if runs_total is None else runs_total,
-                    "workflow_runs": list(runs),
+                    "total_count": len(listed) if runs_total is None else runs_total,
+                    "workflow_runs": listed,
                 }
             return list(issues)
 
@@ -1059,6 +1085,7 @@ class IdleRefusal(unittest.TestCase):
         for key, reason in (
             ("excusesExpireAt", "excused"),
             ("pins", "pins-unrecorded"),
+            ("outstandingSince", "outstanding-unrecorded"),
         ):
             with self.subTest(f"no {key}"):
                 report = {k: v for k, v in SETTLED.items() if k != key}
@@ -1108,6 +1135,23 @@ class IdleRefusal(unittest.TestCase):
         late = merged + pm.DISPATCH_DEADLINE + timedelta(seconds=1)
         with mock.patch.object(policy, "SHARED_MAX_AGE", timedelta(days=1)):
             self.assertEqual(self.refusal(pending, now=late), "dispatch-deadline")
+
+    def test_a_canary_still_queued_at_the_report_is_listed_however_old(
+        self,
+    ) -> None:
+        # A verified merge's window holds a canary queued before the green
+        # one that verified it; `_judge` fails the merge once it turns red,
+        # however long before the `_lane_reruns` lookback it was created.
+        queued = FLOOR - timedelta(hours=4)
+        report = {**SETTLED, "outstandingSince": queued.isoformat()}
+        red = run(
+            "post-merge-detect-silent-revert.yml",
+            status="completed",
+            updated=NOW,
+            created=queued,
+        )
+        self.assertEqual(self.refusal(report, runs=[red]), "runs-changed")
+        self.assertIn("created=%3E%3D2026-09-30T20%3A00%3A00Z", self.calls[0])
 
     def test_a_quarantine_issue_changed_since_refuses(self) -> None:
         marked = {"number": 3, "body": "<!-- post-merge-quarantine suite=x -->\nbody"}
