@@ -69,7 +69,7 @@ import { pathToFileURL } from "node:url";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
-import { PROTECTED_REFUSALS } from "./protected-paths.mjs";
+import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 
 export { segments } from "./protected-paths.mjs";
@@ -89,9 +89,19 @@ const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
+// Path refusals a row may add to the universal set, in any case and through
+// any .. segment; rename-into-refused does not read them.
+const ROW_PATH_RULES = {
+  // A path under a skills/ directory at any depth.
+  skills: (s) => s.slice(0, -1).includes("skills"),
+  "skill-md": (s) => s.at(-1) === "skill.md",
+};
+const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
+
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and the `optional` ones, which apply only
+// to a row that names them; any match refuses the whole patch, and `kind`
+// picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
   backslash: PROTECTED_REFUSALS.backslash,
@@ -102,10 +112,13 @@ export const REFUSALS = {
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
+  skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
+  "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
 };
 
-// The names of the refusals that match one changed entry; by default all.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default all but
+// the optional ones, which apply only to a row that names them.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 // GitHub prefixes from
@@ -273,7 +286,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !REFUSALS[name].optional && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }

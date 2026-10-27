@@ -109,14 +109,16 @@ patch outputs under the names a caller that takes nothing from a run job reads.
 
 A scan refusal is no output: a failed scan fails the caller's job for the whole read file, and a
 failed job's outputs are not documented to reach a `workflow_call` caller. When the scan job fails
-or is cancelled in PR mode, the `scan-refusal` job, which needs the scan job alone, uploads
+or is cancelled, the `scan-refusal` job, which needs the scan job alone, uploads
 `scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
 cap and `output` otherwise. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
 read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
-person. In issue mode no marker is written: the [issue-fields job](#the-issue-fields-job), which
-ends green, sets `scan-issue-run-started`, so the caller's report job still runs on a failed or
-skipped scan, finds no outcome and stops the run.
+person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends green, sets
+`scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
+downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
+fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file. A
+failed download there names no refusal.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
@@ -448,9 +450,12 @@ running `npm ci --ignore-scripts` there once when it has a `package-lock.json` a
 `node_modules`; all
 without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
-wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open. When the stage grants its wrapper,
-the write runner sets up Python from the base `.python-version` and installs the base's
-hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
+refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
+effect is not `read`: the write runner's run job holds the lane token and `id-token: write`, and
+only a read skill with `applied-by.patch`, in the read runner's run job that holds neither, may
+list them. For the same reason the schema refuses, in such a skill's `checks` and `self-checks`,
+the scripts that run the checkout's test files ([README.md](README.md#activities)). `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the

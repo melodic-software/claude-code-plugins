@@ -28,6 +28,7 @@ import {
   RESUMABLE,
   reusePlan,
   trustedLabeler,
+  unmarkedAnswer,
 } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
@@ -727,6 +728,7 @@ function env(dir) {
     GITHUB_API_URL: "https://api.example",
     GITHUB_SERVER_URL: "https://example",
     GITHUB_RUN_ID: "123",
+    GITHUB_RUN_ATTEMPT: "1",
     TRACKER_CONFIG: join(dir, "absent.json"),
     RUNNER_CHECKS: existsSync(join(dir, "runner-checks")) ? readFileSync(join(dir, "runner-checks"), "utf8") : "",
   };
@@ -820,6 +822,86 @@ test("main on done with apply-issue-patch's escalation reason hands the issue ba
     assert.doesNotMatch(comment, /committed nothing/);
     assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
   });
+});
+
+// The read runner's scan job refused the run's output (say a patch over its
+// 262144-byte cap), so it uploaded no outcome and its scan-refusal job a
+// scan-refused-<attempt>.txt marker instead. The
+// hand-back names the refusal, not a missing outcome file; the marker's text
+// picks one fixed sentence and never reaches the comment.
+async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success", attempt = "1" } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "outcome-"));
+  try {
+    if (outcome) {
+      writeFileSync(join(dir, "work-outcome.json"), JSON.stringify(outcome));
+      writeFileSync(join(dir, "lane.json"), JSON.stringify({ branch: "" }));
+    }
+    const refusedDir = join(dir, "scan-refused");
+    mkdirSync(refusedDir);
+    if (marker !== null) {
+      writeFileSync(join(refusedDir, name), marker);
+    }
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), GITHUB_RUN_ATTEMPT: attempt, SCAN_REFUSED_DIR: refusedDir, SCAN_REFUSED_READ: read }, fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+    assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
+    return calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("main hands back a run whose scan refused an oversize patch naming the patch cap, not a missing outcome", async () => {
+  const comment = await scanRefusedComment({ marker: "patch\n" });
+  assert.ok(comment.includes("too-large: the patch was over its 262144-byte cap"), comment);
+  assert.doesNotMatch(comment, /no readable outcome file/);
+  assert.equal(parseOutcomeMarker(comment).outcome, "stopped");
+});
+
+test("main hands back a run whose scan refused any other output naming the scan refusal", async () => {
+  const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt", attempt: "2" });
+  assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
+  assert.doesNotMatch(comment, /no readable outcome file|262144|too-large/);
+});
+
+test("a forged scan refusal marker's text never reaches the hand-back", async () => {
+  const comment = await scanRefusedComment({ marker: "patch @someone #1 https://evil.example" });
+  assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
+  assert.doesNotMatch(comment, /someone|evil|262144|too-large/);
+});
+
+test("a file that is not a scan refusal marker is no refusal", async () => {
+  const comment = await scanRefusedComment({ marker: "patch", name: "scan-refused-0.txt" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+});
+
+test("an earlier attempt's refusal marker is no refusal of the current attempt", async () => {
+  const comment = await scanRefusedComment({ marker: "patch", name: "scan-refused-1.txt", attempt: "2" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+  assert.doesNotMatch(comment, /scan job refused|262144/i);
+});
+
+test("with no readable run attempt no refusal marker is read", async () => {
+  const comment = await scanRefusedComment({ marker: "patch", attempt: "" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+  assert.doesNotMatch(comment, /scan job refused|262144/i);
+});
+
+test("a readable outcome wins over a scan refusal marker", async () => {
+  const comment = await scanRefusedComment({ outcome: { exit: "stopped", reason: "The issue names no file." }, marker: "patch" });
+  assert.ok(comment.includes("The issue names no file."), comment);
+  assert.doesNotMatch(comment, /262144|scan job refused/i);
+});
+
+test("a failed marker download claims no refusal: the hand-back keeps the missing-outcome text", async () => {
+  const comment = await scanRefusedComment({ read: "failure" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+  assert.doesNotMatch(comment, /scan job refused/i);
 });
 
 test("main refuses an escalation reason it does not know and writes nothing", async () => {
@@ -2762,4 +2844,71 @@ test("an outcome marker reads back after the escalation marker line, and after n
   assert.deepEqual(parseOutcomeMarker(`<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r\n${outcome}`), read);
   assert.equal(parseOutcomeMarker(`<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${outcome}`), null);
   assert.equal(parseOutcomeMarker(`Quoting <!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n${outcome}`), null);
+});
+
+// The run counts a listed human's comment as an answer only when its first
+// line is `**Decision recorded.**` (write-issue.mjs), so a pushback links the
+// owner's newest comment that lacks it and shows the line (#7916).
+const commentUrl = (id) => `https://github.com/o/r/issues/77#issuecomment-${id}`;
+const issueComment = (id, userId, body, extra = {}) => ({ id, user: { id: userId }, body, html_url: commentUrl(id), performed_via_github_app: null, ...extra });
+const STRANGER_ID = 999;
+
+test("unmarkedAnswer names the newest listed human's own comment only when it lacks the decision line", () => {
+  const unmarked = issueComment(2, OWNER_ID, "Use `claude auth status`.");
+  const pick = (comments) => unmarkedAnswer(comments, HUMANS, BOT);
+  assert.equal(pick([issueComment(1, OWNER_ID, "**Decision recorded.** Option 1."), unmarked]), commentUrl(2));
+  assert.equal(pick([unmarked, issueComment(3, STRANGER_ID, "Me too.")]), commentUrl(2), "a stranger's comment is not the owner's");
+  assert.equal(pick([unmarked, issueComment(3, OWNER_ID, "**Decision recorded.** Via an App.", { performed_via_github_app: { slug: "x" } })]), null, "an App-posted newest comment links no older one");
+  for (const body of ["> **Decision recorded.** Quoted.", "Context first.\n**Decision recorded.** Option 2.", "**Decision recorded.**Option 2."]) {
+    assert.equal(pick([issueComment(4, OWNER_ID, body)]), commentUrl(4), body);
+  }
+  for (const body of ["**Decision recorded.** Option 2.", "\n  **Decision recorded.**\nOption 2.", "**Decision recorded.**"]) {
+    assert.equal(pick([unmarked, issueComment(5, OWNER_ID, body)]), null, body);
+  }
+  assert.equal(pick([]), null);
+  assert.equal(pick([issueComment(6, STRANGER_ID, "Hi.")]), null);
+  for (const html_url of ["https://evil.example/o/r/issues/77#issuecomment-6 extra", "javascript:alert(1)", undefined]) {
+    assert.equal(pick([issueComment(6, OWNER_ID, "Hi.", { html_url })]), null, String(html_url));
+  }
+  // A comment the lane's last outcome comment already answered is not linked again.
+  const report = { id: 7, user: { login: BOT }, body: `${ESC}<!-- work-resolve-issue outcome=pushback run=5 -->\nWhy.`, html_url: commentUrl(7) };
+  assert.equal(pick([unmarked, report]), null);
+  assert.equal(pick([unmarked, report, issueComment(8, OWNER_ID, "Still option 1.")]), commentUrl(8));
+  assert.equal(pick([unmarked, { ...report, user: { login: "someone" } }]), commentUrl(2), "only the lanes App's marker counts");
+});
+
+test("a pushback links the unmarked comment, shows the decision line, and its retry text names the line", () => {
+  const plain = { issueNumber: 77, issueLabels: [], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const pushback = { exit: "pushback", reason: "Which file?", title: "", summary: "" };
+  const linked = decide({ ...plain, outcome: pushback, unmarked: commentUrl(2) }).comment;
+  assert.ok(linked.includes(`The newest comment from a listed maintainer, ${commentUrl(2)}, does not start with \`**Decision recorded.**\``), linked);
+  assert.ok(linked.includes("\n```\n**Decision recorded.** <answer>\n```\n"), linked);
+  const retry = "To retry, answer the question in a comment whose first line is `**Decision recorded.**`, then remove `needs-human` and add `agent-ready` again.";
+  assert.ok(linked.endsWith(retry), linked);
+  const unlinked = decide({ ...plain, outcome: pushback }).comment;
+  assert.ok(!unlinked.includes("newest comment") && unlinked.endsWith(retry), unlinked);
+  const stopped = decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" }, unmarked: commentUrl(2) }).comment;
+  assert.ok(!stopped.includes(commentUrl(2)) && !stopped.includes("**Decision recorded.**"), stopped);
+});
+
+test("main on a pushback reads the issue's comments and links the owner's unmarked one; a failed read leaves it out", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "Which file?", title: "", summary: "" });
+  for (const [route, linked] of [
+    [["GET", /\/issues\/77\/comments$/, 200, [issueComment(2, OWNER_ID, "Use `claude auth status`.")]], true],
+    [["GET", /\/issues\/77\/comments$/, 500, { message: "boom" }], false],
+  ]) {
+    await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        route,
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.equal(comment.includes(commentUrl(2)), linked, comment);
+      assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then remove `needs-human`/);
+    });
+  }
 });

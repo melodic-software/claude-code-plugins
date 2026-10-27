@@ -203,6 +203,25 @@ test("a lanes App PR whose ci-status failed is dispatched fix-ci with the dispat
   ]);
 });
 
+// A fork PR that pushed the same commit lists its runs under the same head SHA.
+// Its newer run, still going, would read as a re-run in flight and hold fix-ci
+// off (reconcilerOwns); readRequiredRun keeps it out of the tested run.
+test("a fork's newer run at the same head SHA does not suppress a fix-ci dispatch", async () => {
+  const own = { ...tested(2), path: REQUIRED, head_repository: { full_name: "octo/repo" } };
+  const fork = { ...rerunning(1, "in_progress"), id: 40119285049, path: REQUIRED, created_at: new Date(NOW - 600_000).toISOString(), head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: MIXED_JOBS.length, jobs: MIXED_JOBS }];
+  const rest = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async () => ({ ok: true, status: 200, json: async () => responses.shift() }),
+  });
+  const api = { ...fakeApi({ pages: [[pr(5)]] }), readRequiredRun: (sha, path) => rest.readRequiredRun(sha, path) };
+  const result = await dispatchCiFixes({ api, runId: "4242", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 5, workflowRunId: "7005" }], failed: 0 });
+});
+
 test("other authors, drafts, forks, other bases and held PRs are left alone", async () => {
   const { result } = await run({
     pages: [
