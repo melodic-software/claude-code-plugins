@@ -52,13 +52,15 @@ STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUB_DIR/sleep"
 # The forge's first head read returns STUB_STALE, later reads STUB_FORGE (default: the pushed
-# commit). Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
+# commit); pr-worktree.sh's head read returns STUB_BRANCH and STUB_OID. Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
 # run list logs the commit it asked about; `pr ready` logs the flip.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 case "$1 $2" in
 "pr view")
-  if [[ ! -e "$STUB_STATE/read" ]]; then
+  if [[ "$*" == *headRefName* ]]; then
+    echo "$STUB_BRANCH $STUB_OID"
+  elif [[ ! -e "$STUB_STATE/read" ]]; then
     : >"$STUB_STATE/read"
     echo "$STUB_STALE"
   else
@@ -95,10 +97,13 @@ new_state() {
   [[ -z "${1:-}" ]] || READY_VERIFY_DIR="$STATE/verify" bash "$SKILL_DIR/scripts/verify-gate.sh" record --head "$1" --result pass
 }
 
-# run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made.
+# run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made, from
+# $FLOW_CWD (default: the PR's checkout), with pr-worktree.sh reading STUB_OID (default: the
+# pre-push head, as a lagging read returns it).
+STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
-  (cd "$REPO" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
-    STUB_FORGE="${3:-$PUSHED}" \
+  (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
+    STUB_FORGE="${3:-$PUSHED}" STUB_BRANCH="$STUB_BRANCH" STUB_OID="${STUB_OID:-$BEFORE}" \
     READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
 }
 
@@ -131,6 +136,26 @@ out=$(run_flow "$PEER" "$BEFORE" "$PEER")
 assert_contains "the forge's head is a peer commit: the guard refuses" "$out" "FLIP_EXIT=1"
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
 assert_eq "the forge's head is a peer commit: the PR is not flipped" "no" "$flipped"
+
+# The session's shell sits in another checkout of the repository, on another branch at the
+# pre-push commit: HEAD_SHA is still the PR worktree's HEAD.
+git -C "$REPO" worktree add -q -b other "$TEST_TMPDIR/other" "$BEFORE"
+new_state "$PUSHED"
+out=$(FLOW_CWD="$TEST_TMPDIR/other" run_flow "$BEFORE" "$BEFORE")
+assert_contains "from another checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
+assert_contains "from another checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
+
+new_state "$PUSHED"
+out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_BRANCH=gone run_flow "$BEFORE" "$BEFORE")
+[[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
+assert_eq "the PR's head branch is checked out nowhere: the PR is not flipped" "no" "$flipped"
+assert_contains "the PR's head branch is checked out nowhere: the refusal names the branch" "$out" "'gone'"
+
+new_state "$PUSHED"
+out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_OID="$PEER" run_flow "$BEFORE" "$BEFORE")
+[[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
+assert_eq "the worktree on the head branch lacks the PR's head commit: the PR is not flipped" "no" "$flipped"
+assert_contains "the worktree on the head branch lacks the PR's head commit: the refusal names it" "$out" "$PEER"
 
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

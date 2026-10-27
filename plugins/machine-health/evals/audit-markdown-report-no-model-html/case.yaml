@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: audit-markdown-report-no-model-html
+graders:
+  - name: names-markdown-report
+    type: regex
+    pattern: 'reports[\\/]+health-[^`''"\n]*?\.md'
+    flags: i
+    target: last_message
+  - name: names-history-append
+    type: regex
+    pattern: 'history\.jsonl'
+    flags: i
+    target: last_message
+  - name: no-model-written-html
+    type: llm
+    criteria: "PASS only if the reply lists a dated markdown report under the report root's reports folder (health-<UTC timestamp>.md) as this run's report and names no HTML rendering of that report that the session writes itself. The decision page under the state root's views folder (checkup-<run stamp>.html), built by the plugin's build-checkup-view script, does not count against the reply. FAIL if the reply says it will write, generate or render a static HTML view, HTML copy or HTML version of the health report, including as an optional or conditional extra."

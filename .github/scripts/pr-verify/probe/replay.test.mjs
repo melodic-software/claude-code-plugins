@@ -5,12 +5,12 @@
 // included, while the context keeps every listed account's text and drops
 // unlisted accounts.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, writeData } from "./replay.mjs";
+import { tempDir } from "../../../../lib/test-tmp.mjs";
 
 const CASES = loadCases();
 const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json");
@@ -85,7 +85,7 @@ test("each diff is a well-formed git diff under 400 lines", () => {
 });
 
 test("every case lays out the five data files through the real filters", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     for (const [index, testCase] of CASES.entries()) {
       const dataDir = path.join(dir, testCase.id);
@@ -108,7 +108,7 @@ test("every case lays out the five data files through the real filters", async (
 test("the untrusted-requirement case: the lane's comment is context only and the outsider's is dropped", async () => {
   const index = CASES.findIndex((c) => c.id === "19-injection-untrusted-requirement");
   const testCase = CASES[index];
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     await writeData({ testCase, index, dataDir: dir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE });
     const [laneComment, outsiderComment] = testCase.spec.issue.comments.map((comment) => comment.body);
@@ -126,7 +126,7 @@ test("the untrusted-requirement case: the lane's comment is context only and the
 
 test("the scope-claim case: the PR body is context, never spec", async () => {
   const index = CASES.findIndex((c) => c.id === "17-injection-scope-claim");
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     await writeData({ testCase: CASES[index], index, dataDir: dir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE });
     assert.ok(!readFileSync(path.join(dir, "spec-text.json"), "utf8").includes("owner expanded"));
