@@ -129,12 +129,12 @@ assert_eq "a value failing the pattern leaves the earlier one" "$v|$CFG_SOURCE" 
 # A YAML layer outside the parser's subset is named on stderr and skipped whole.
 printf '%s\n' 'budgets: {corpus_fetch_ceiling: 5}' >"$YAML_LOCAL"
 err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
-assert_eq "an unparseable YAML layer is named on stderr" \
+assert_eq "an unparsable YAML layer is named on stderr" \
   "$([[ "$err" == *"$YAML_LOCAL does not parse"* ]] && echo named || echo "$err")" "named"
 cfg_layers_init "$ROOT" 2>/dev/null
-assert_eq "an unparseable YAML layer is not a layer" "$(layers)" "$YAML_TEAM"
+assert_eq "an unparsable YAML layer is not a layer" "$(layers)" "$YAML_TEAM"
 cfg_scalar v budgets.corpus_fetch_ceiling
-assert_eq "an unparseable YAML layer supplies nothing" "$v|$CFG_SOURCE" "40|$YAML_TEAM"
+assert_eq "an unparsable YAML layer supplies nothing" "$v|$CFG_SOURCE" "40|$YAML_TEAM"
 
 # A list key is present after a byte-order mark and when quoted.
 printf '\xEF\xBB\xBF%s\n' 'excluded_paths: []' >"$YAML_LOCAL"
