@@ -9,8 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { main as headRefs } from "./head-ref-map.mjs";
+import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
+import { mainCall } from "./on-main.fixture.mjs";
 import { main, rotate, sharedReads } from "./rotation.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -165,6 +166,7 @@ async function job({ shared, total } = {}) {
     reads: shared ? join(dir, `reads-${n}.json`) : undefined,
   };
   writeFileSync(paths.candidates, JSON.stringify(prs(30, 10, 20)));
+  forgetMainTip();
   const calls = [];
   const sha = (id) => String(id).padStart(40, "a");
   const kept = {
@@ -177,7 +179,8 @@ async function job({ shared, total } = {}) {
     if (/\/actions\/workflows\/pr-merge\.yml\/runs\?/.test(path)) {
       return { workflow_runs: [999, 8, 7].map((id) => ({ ...wf(id, "schedule"), head_sha: sha(id) })) };
     }
-    if (/\/compare\//.test(path)) return { status: "ahead" };
+    const onMain = mainCall(path);
+    if (onMain !== undefined) return onMain;
     const [, id, query] = /\/actions\/runs\/(\d+)\/artifacts\?(.*)$/.exec(path);
     const artifacts = [{ name: "pr-merge-summary", expired: false }, ...(id === "7" ? Object.keys(kept).map((name) => ({ name, expired: false })) : [])];
     if (query.startsWith("name=")) return { artifacts: artifacts.filter((a) => a.name === query.slice(5)) };
@@ -208,8 +211,10 @@ async function job({ shared, total } = {}) {
 test("a job's readers share one run listing, each run's artifact list and each compare", async () => {
   const alone = await job();
   const shared = await job({ shared: true });
-  assert.equal(alone.calls.length, 11);
-  assert.equal(shared.calls.length, 4);
+  // The tag named main and main's tip are read once per process
+  // (head-ref-map.mjs onMain), here once for both readers.
+  assert.equal(alone.calls.length, 13);
+  assert.equal(shared.calls.length, 6);
   // Every reader still finds its own file, so the answers are the same.
   for (const result of [alone, shared]) {
     assert.deepEqual(result.order, [20, 30, 10]);

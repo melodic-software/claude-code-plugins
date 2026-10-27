@@ -131,6 +131,20 @@
         "Each variant has a direction name and a stated axis",
         "The handover does not pre-pick a favorite"
       ]
+    },
+    {
+      "id": 12,
+      "name": "existing-app-mockup-keeps-app-look",
+      "prompt": "Our clinic booking app already exists. Its stylesheet: `body { margin: 0; font-family: 'Source Sans 3', Arial, sans-serif; background: #f4f6f8; color: #1d2733; } .topbar { background: #0e5a63; color: #fff; padding: 12px 24px; } .card { background: #fff; border: 1px solid #d5dde5; border-radius: 6px; padding: 16px; } .btn { background: #0e5a63; color: #fff; border: 0; border-radius: 4px; padding: 8px 14px; }`. The page around the panel: `<header class=\"topbar\">Northside Clinic · Signed in as Dana Ruiz</header><nav>Schedule · Patients · Reminders</nav><main><section id=\"reminders\" class=\"card\">(3 upcoming reminders)</section></main>`. Give me three layout options for the reminders panel, each as a standalone HTML file another page can frame in a sandbox. Keep everything else as it is.",
+      "expected_output": "The variants change one feature of an existing app, so the HTML mockup builds every variant from that app's own styling and markup: the given CSS inlined (never linked), the surrounding header and navigation reproduced with synthetic values in place of the real ones, and only the reminders panel varying. The explicit request for separate files overrides one page per run, so each variant is its own self-contained file. All variants share the app's look and differ structurally (layout, information hierarchy, primary affordance); no variant gets its own palette or typeface, since no redesign was asked.",
+      "files": [],
+      "expectations": [
+        "Every variant inlines the given CSS and keeps the surrounding header, navigation and page around the panel",
+        "All variants share the app's colors (#0e5a63 top bar and buttons, #f4f6f8 background) and font stack; none declares its own background, accent or typeface",
+        "The variants differ structurally in the reminders panel: layout, information hierarchy or primary affordance",
+        "Each variant is its own file, self-contained: the CSS is inlined, not linked, under the restrictive CSP",
+        "Real values in the surrounding page (the clinic name, the signed-in user) are replaced with synthetic ones"
+      ]
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+  "claim": "Under dontAsk with the write lane's tool lists, Read(/<workspace>/.git/**) denies a Read of the checkout's .git/config.",
+  "tags": ["Read rule", "deny rule", "disallowedTools", "allowedTools", "dontAsk"],
+  "permission_mode": "dontAsk",
+  "tool_rules": "lane-write-tools.json",
+  "verdict_only": true,
+  "platforms": ["linux"],
+  "requires": ["git"],
+  "target": {
+    "tool": "Read",
+    "input_match": "\"file_path\": \"[^\"]*/\\.git/config\"",
+    "example": { "file_path": "/tmp/cc-probe-dry/.git/config" }
+  },
+  "outcome": "deny",
+  "control": "lane-permissions/read-in-checkout-runs"
+}

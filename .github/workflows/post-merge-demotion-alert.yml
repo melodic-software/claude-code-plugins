@@ -869,6 +869,9 @@ jobs:
     concurrency:
       group: red-main-report
       cancel-in-progress: false
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip

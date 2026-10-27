@@ -536,6 +536,19 @@ runs:
               allowed+=("Bash($lane/git/git-read *)")
               denied+=("Edit(./.lane/git/**)" "Write(./.lane/git/**)" "NotebookEdit(./.lane/git/**)")
               preamble="$preamble Read the repository's state and history only with $lane/git/git-read status, diff, log or show and their arguments, each as one plain command; it refuses --output, --no-index and a path outside the checkout, and no other git command runs."
+              # The paths apply-issue-patch refuses (patch-rules.json's issue
+              # row), built from protected-paths.mjs's path rules and denied to
+              # the file tools, Bash redirects included: a run whose change
+              # needs one is denied at its first write and stops, instead of
+              # finishing and being refused at the push. Wrapper subprocesses
+              # are not covered (https://code.claude.com/docs/en/permissions#read-and-edit),
+              # so apply-issue-patch still refuses every path itself.
+              protected=$(node "$BASE_PATH/.github/scripts/apply-patch/deny-rules.mjs" "$BASE_PATH" issue) ||
+                fail "cannot build the issue row's protected-path rules"
+              mapfile -t protected <<<"$protected"
+              denied+=("${protected[@]}")
+              patterns=$(printf '%s\n' "${protected[@]}" | sed 's/^Edit(\(.*\))$/\1/' | paste -sd ',' - | sed 's/,/, /g')
+              preamble="$preamble The lane cannot push a change to a path these patterns match, from the checkout root, and the file tools are denied them: $patterns. When the issue's change needs such a path, which you may see before your first edit or learn from a denied write, stop at once without working around it: write work-outcome.json with exit stopped and a reason that starts with patch-protected-path: and names the path."
             fi
             # The check and verify-script copies go to .lane/checks and
             # .lane/verify, which the runner makes read-only, and are denied

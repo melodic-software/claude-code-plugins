@@ -192,11 +192,13 @@ say(refuseDependency >= 0 && refuseDependency < mint && /steps\.config\.outputs\
   "a dependency-review activity fails red before the mint");
 say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)) && !/DEPENDENCY_REVIEW|CLASSIFY_SHA256|inFixScope|fixRefusal/.test(promoteScript),
   "the write runner selects no dependency pull request, promotes no dependency fix and collects no verdict");
-// apply-patch runs from a base copy, so each pr-unblock module its
-// predicates import must be copied beside it.
-const predicateImports = [...readFileSync(".github/scripts/apply-patch/predicates.mjs", "utf8").matchAll(/from "\.\.\/pr-unblock\/([^"]+)"/g)].map((m) => m[1]);
-say(predicateImports.length > 0 && predicateImports.every((name) => (byId("apply-base").run ?? "").includes(`cp .base/.github/scripts/pr-unblock/${name} "$RUNNER_TEMP/pr-unblock/"`)),
-  "the apply-patch base copy holds every pr-unblock module its predicates import");
+// apply-patch runs from a base copy, so each sibling-directory module it or
+// its predicates import must be copied beside it.
+const siblingImports = ["apply-patch.mjs", "predicates.mjs"].flatMap((file) =>
+  [...readFileSync(`.github/scripts/apply-patch/${file}`, "utf8").matchAll(/from "\.\.\/([a-z-]+)\/([^"/]+)"/g)].map((m) => [m[1], m[2]]));
+say(siblingImports.length > 0 && siblingImports.every(([dir, name]) => (byId("apply-base").run ?? "").includes(`cp .base/.github/scripts/${dir}/${name} "$RUNNER_TEMP/${dir}/"`)
+  && new RegExp(`mkdir -p [^\\n]*"\\$RUNNER_TEMP/${dir}"`).test(byId("apply-base").run ?? "")),
+  "the apply-patch base copy holds every sibling-directory module apply-patch.mjs and its predicates import");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),

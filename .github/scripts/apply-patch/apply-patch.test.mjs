@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -31,6 +31,41 @@ function scratch(t) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
+
+// --- the REST client ---
+
+// A read, and a write that repeats to the same state, survives one dropped
+// socket; createRef is sent once, since a resend after a create that landed
+// answers 422.
+test("createGitHubApi sends a read and each repeatable write again after a dropped socket, and createRef once", async () => {
+  const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
+  const script = [dropped(), { number: 7 }, dropped(), { sha: "b" }, dropped(), { sha: "t" }, dropped(), { sha: "c" }, dropped(), {}, dropped()];
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method} ${url}`);
+    const answer = script.shift();
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return new Response(JSON.stringify(answer), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} });
+  assert.deepEqual(await api.getPull(7), { number: 7 });
+  assert.equal(await api.createBlob("Zm9v"), "b");
+  assert.equal(await api.createTree("base", []), "t");
+  assert.equal(await api.createCommit("m", "t", ["p"]), "c");
+  await api.updateRef("heads/x", "a".repeat(40), false);
+  await assert.rejects(api.createRef("refs/heads/x", "a".repeat(40)), TypeError);
+  const twice = (line) => [line, line];
+  assert.deepEqual(sent, [
+    ...twice("GET https://api/repos/o/r/pulls/7"),
+    ...twice("POST https://api/repos/o/r/git/blobs"),
+    ...twice("POST https://api/repos/o/r/git/trees"),
+    ...twice("POST https://api/repos/o/r/git/commits"),
+    ...twice("PATCH https://api/repos/o/r/git/refs/heads/x"),
+    "POST https://api/repos/o/r/git/refs",
+  ]);
+});
 
 // --- the refusal table: each refused path or mode, one case each ---
 
@@ -808,6 +843,36 @@ test("a hold label set while the model worked drops the patch uncommitted", asyn
   const api = fakeApi(fix.repo, fix.head, { labels: [{ name: "needs-human" }] });
   assert.deepEqual(await pushWith(fix, api), { outcome: "held" });
   assert.deepEqual(writes(api), []);
+});
+
+// #8998: a `Hold:` line opening a body line, in any case, after any
+// whitespace (NBSP included), with a bare CR ending a line, holds a PR the
+// lanes App did not open; on the lanes App's own PR it holds the merge only.
+const OWNER = { login: "maintainer", type: "User" };
+const LANES_BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
+const bodyPull = (user, body) => ({ draft: false, head: { repo: { full_name: "o/r" } }, user, body });
+
+test("a Hold: line in an owner PR's body drops the patch uncommitted", async (t) => {
+  for (const body of ["Fixes it.\n\nHold: until the release", "hold: wait", "Fixes it.\n Hold: wait", "Fixes it.\rHold: wait", "Fixes it.\r\n  HOLD: wait"]) {
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+    const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, body) });
+    assert.deepEqual(await pushWith(fix, api), { outcome: "held" }, JSON.stringify(body));
+    assert.deepEqual(writes(api), [], JSON.stringify(body));
+  }
+});
+
+test("a Hold: line in the lanes App's own PR body does not hold the patch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this") });
+  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
+});
+
+test("an owner PR body that only mentions Hold: mid-line pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes the Hold: parser.") });
+  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
 });
 
 // --- the credential scan: any shape refuses the whole patch ---

@@ -674,7 +674,8 @@ hook::repo_root_to() {
 # One tokenization per event (HOW above). The record is one string's parse,
 # as flat arrays: per segment its argv count and redirection count, then the
 # words, their HOOK_SEG_WORD_QUOTED flags and the five HOOK_SEG_REDIR_* arrays
-# end to end. Only an outermost call records or stores, so a callback's
+# end to end, plus the parse's HOOK_HEREDOC_BODIES, which a replay sets once
+# its last callback returns. Only an outermost call records or stores, so a callback's
 # re-parse of a substring cannot evict the event's command; the depth is reset
 # before each guard, because a guard's `exit` inside a callback never unwinds
 # it.
@@ -690,6 +691,7 @@ RUN_GUARDS_BPS_RFD=()
 RUN_GUARDS_BPS_RTGT=()
 RUN_GUARDS_BPS_RQ=()
 RUN_GUARDS_BPS_ROPQ=()
+RUN_GUARDS_BPS_HD=()
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::bash_parse_segments() {
@@ -717,6 +719,7 @@ hook::bash_parse_segments() {
   RUN_GUARDS_BPS_RTGT=(${__rg_bps_rtgt[@]+"${__rg_bps_rtgt[@]}"})
   RUN_GUARDS_BPS_RQ=(${__rg_bps_rq[@]+"${__rg_bps_rq[@]}"})
   RUN_GUARDS_BPS_ROPQ=(${__rg_bps_ropq[@]+"${__rg_bps_ropq[@]}"})
+  RUN_GUARDS_BPS_HD=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
   RUN_GUARDS_BPS_HAVE=1
 }
 
@@ -777,6 +780,7 @@ run_guards::bps_replay() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
+  HOOK_HEREDOC_BODIES=(${RUN_GUARDS_BPS_HD[@]+"${RUN_GUARDS_BPS_HD[@]}"})
   RUN_GUARDS_BPS_DEPTH=$__rg_depth
 }
 

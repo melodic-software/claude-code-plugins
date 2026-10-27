@@ -974,6 +974,39 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
   );
 });
 
+// A read, a GraphQL query and a write that repeats to the same state survive
+// one dropped socket; an issue and a mutation are sent once.
+test("createGitHubApi sends reads, GraphQL queries and repeatable writes again after a dropped socket, and an issue or a mutation once", async () => {
+  const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  const threads = { data: { repository: { pullRequest: { reviewThreads: { nodes: [{ id: "T" }], pageInfo: { hasNextPage: false } } } } } };
+  const script = [dropped(), { number: 42 }, dropped(), threads, dropped(), { state: "closed" }, dropped(), {}, dropped(), dropped()];
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method ?? "GET"} ${url}`);
+    const answer = script.shift();
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return new Response(JSON.stringify(answer), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://api/graphql", fetch, sleep: async () => {} });
+  assert.deepEqual(await api.getPull(42), { number: 42 });
+  assert.deepEqual(await api.listThreads(42), [{ id: "T" }]);
+  assert.deepEqual(await api.closePull(42), { state: "closed" });
+  await api.updateRef("heads/x", "a".repeat(40), false);
+  await assert.rejects(api.createIssue({ title: "t" }), TypeError);
+  await assert.rejects(api.resolveThread("T"), TypeError);
+  const twice = (line) => [line, line];
+  assert.deepEqual(sent, [
+    ...twice("GET https://api/repos/o/r/pulls/42"),
+    ...twice("POST https://api/graphql"),
+    ...twice("PATCH https://api/repos/o/r/pulls/42"),
+    ...twice("PATCH https://api/repos/o/r/git/refs/heads/x"),
+    "POST https://api/repos/o/r/issues",
+    "POST https://api/graphql",
+  ]);
+});
+
 // #8116's thread PRRT_kwDOTCGFQM6tojDu: the reviewer bot's finding on
 // write-transcript.js, then the owner's fix request naming run-transcript.js,
 // refused at 2026-10-19T02:31Z as outside every kept thread's scope.
