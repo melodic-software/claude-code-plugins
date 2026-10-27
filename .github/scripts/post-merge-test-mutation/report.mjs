@@ -81,8 +81,10 @@ export function scores(mutants) {
   return { count, coveredScore: percent(detected, covered), mutationScore: percent(detected, valid) };
 }
 
-// The pull requests into main that the commit belongs to: after a merge, the
-// one that merged it. A failed read is `null`, never an empty list.
+// The pull requests into main that merged the commit. A pull request closed
+// unmerged also lists the commit (any author can open one on main's tip and
+// close it), so only a set `merged_at` counts. A failed read is `null`, never
+// an empty list.
 export async function mergedPulls({ github, repository, sha }) {
   try {
     const pulls = await commitPulls({
@@ -91,7 +93,7 @@ export async function mergedPulls({ github, repository, sha }) {
       readRest: () => github("GET", `/repos/${repository}/commits/${sha}/pulls?per_page=100`),
       readGraphQL: graphQLReader(github),
     });
-    return pulls.filter((pull) => pull?.base?.ref === "main" && pull.state === "closed" && Number.isSafeInteger(pull.number)).map((pull) => pull.number);
+    return pulls.filter((pull) => pull?.base?.ref === "main" && pull.state === "closed" && Boolean(pull.merged_at) && Number.isSafeInteger(pull.number)).map((pull) => pull.number);
   } catch {
     return null;
   }

@@ -77,20 +77,25 @@ test("model text in the detail stays inside a fence it cannot close", () => {
   assert.match(text, /\n`````text\nx ```` y\n`````/);
 });
 
-test("mergedPulls keeps the closed pull requests into main and falls back to GraphQL", async () => {
+// A pull request opened on main's tip and closed unmerged lists the commit
+// too; only the merged one counts, on the REST read and the GraphQL fallback.
+test("mergedPulls keeps the merged pull requests into main and falls back to GraphQL", async () => {
   const rest = [
-    { number: 7, state: "closed", base: { ref: "main" } },
-    { number: 8, state: "open", base: { ref: "main" } },
-    { number: 9, state: "closed", base: { ref: "other" } },
+    { number: 7, state: "closed", merged_at: "2026-10-26T10:00:00Z", base: { ref: "main" } },
+    { number: 6, state: "closed", merged_at: null, base: { ref: "main" } },
+    { number: 8, state: "open", merged_at: null, base: { ref: "main" } },
+    { number: 9, state: "closed", merged_at: "2026-10-26T10:00:00Z", base: { ref: "other" } },
   ];
   assert.deepEqual(await mergedPulls({ github: async () => rest, repository: "o/r", sha: AFTER }), [7]);
+  assert.deepEqual(await mergedPulls({ github: async () => [rest[1]], repository: "o/r", sha: AFTER }), []);
+  const node = (number, state, mergedAt) => ({ number, state, mergedAt, isDraft: false, baseRefName: "main", labels: { nodes: [], pageInfo: { hasNextPage: false } } });
   const graphql = {
     data: {
       repository: {
         object: {
           associatedPullRequests: {
             pageInfo: { hasNextPage: false },
-            nodes: [{ number: 5, state: "MERGED", isDraft: false, baseRefName: "main", labels: { nodes: [], pageInfo: { hasNextPage: false } } }],
+            nodes: [node(5, "MERGED", "2026-10-26T10:00:00Z"), node(4, "CLOSED", null)],
           },
         },
       },
@@ -131,7 +136,7 @@ function run(env, pulls = []) {
     });
 }
 
-const merged = (number, over = {}) => ({ number, state: "closed", base: { ref: "main" }, ...over });
+const merged = (number, over = {}) => ({ number, state: "closed", merged_at: "2026-10-26T10:00:00Z", base: { ref: "main" }, ...over });
 
 test("main passes a report with survivors, since no score gates the lane", async () => {
   const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived", disposition: "unclassified", cause: "unclassified" })])) });
@@ -270,6 +275,12 @@ test("main writes the comment body and the pull output for exactly one merged pu
   assert.match(out.summary, /free text/);
 });
 
+test("main comments on the merged pull request when another closed unmerged on the head", async () => {
+  const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([])) }, [merged(42), merged(43, { merged_at: null })]);
+  assert.equal(out.output, "pull=42\n");
+  assert.notEqual(out.comment, null);
+});
+
 test("main writes a no-result comment too, without the violation text", async () => {
   const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: "{}" }, [merged(42)]);
   assert.equal(out.code, 1);
@@ -282,6 +293,7 @@ test("main writes no comment and no pull output for no, several or an unread mer
   const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([])) };
   for (const [label, pulls, notice] of [
     ["a direct push", [], /0 pull requests merged the head/],
+    ["a direct push with a pull request closed unmerged on the head", [merged(3, { merged_at: null })], /0 pull requests merged the head/],
     ["several", [merged(1), merged(2)], /2 pull requests merged the head/],
     ["a failed lookup", new Error("down"), /lookup failed/],
   ]) {
