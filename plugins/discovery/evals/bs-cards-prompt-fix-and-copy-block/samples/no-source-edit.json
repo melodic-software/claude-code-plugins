@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "refund",
+            "path": "src"
+          }
+        }
+      ],
+      "why": "search only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "notes.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edit outside source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/payments/refunds.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "implements the change"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "tests/test_refunds.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits a test"
+    }
+  ]
+}

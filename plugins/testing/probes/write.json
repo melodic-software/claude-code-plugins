@@ -1,0 +1,34 @@
+{
+  "skill": "testing:write",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/write",
+  "ranking_note": "Authored by a fresh agent from the description at commit 4ba1a0a43716830e41af11661daea92030d94643, before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Filed from #9596: the k36-cart-total natural-phrasing case fired /testing:write in 0 of 16 runs, so the positives lean on feature requests that ask for tests in passing. Competitors are the sibling testing skills a test request can land on instead.",
+  "competitors": [
+    "testing:diagnose",
+    "testing:plan",
+    "testing:audit",
+    "testing:test-value"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "Add remove_item(sku) and clear() methods to the Cart class, with unit tests in tests/test_cart.py covering each acceptance criterion. Done when every criterion has a test and the full suite is green."},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "I just finished the parse_duration helper in utils/time.py. Can you add pytest coverage for it, including weird inputs like '1h90m', negative numbers and empty strings?"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Implement rate limiting on the /login endpoint (5 attempts per minute per IP) and include tests proving the 6th request gets a 429 and the counter resets after a minute."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "Where would a test for the new OrderMapper belong in this repo? I'm not sure if it counts as unit or integration. Put one there once you've decided."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Before I refactor this legacy invoice rounding function, pin down what it currently does with some tests so I'll know if I changed behavior."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "Let's TDD this: start with a failing test for slugify handling unicode input, make it pass, then move on to the next case one at a time."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "Add a --dry-run flag to the deploy CLI command that prints the plan without applying it, and add tests for it next to the existing CLI tests."},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "can you add a jest spec for formatCurrency in src/lib/money.ts? should cover negative amounts, zero, and rounding of half cents"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "I'm porting the CSV exporter from Python to Rust. Set up tests that feed the same inputs to both implementations and check the outputs match."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "Here's my new LRU cache class. Throw some hypothesis property tests at it: size never exceeds capacity, and the most recently read key is never the one evicted."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "test_checkout_total started blowing up after I bumped the decimal library. Here's the traceback. What broke?"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "The websocket integration test passes locally but fails on CI about one run in five. Can you figure out what's going on?"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "This branch has a big diff touching auth and billing. Before I merge, what needs to be tested, and in what order of priority?"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Scan our test suite for tests with no asserts, or ones that would pass no matter what the code does, and list them. Don't change anything."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "This test checks that repository.save was called exactly once. Is that worth asserting, or is it just coupling the test to the implementation?"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Run the whole test suite plus lint and tell me if anything is red."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Fix the failing tests in tests/api/. Three of them have been throwing KeyError since yesterday's merge."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Where are we light on coverage in the payments module? Just give me the gaps ranked by risk, don't write any tests yet."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "In test_tax.py the expected values come from calling the same function under test. Should I hardcode them instead, and where should they come from?"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Add a dark mode toggle to the settings page and save the choice in localStorage. It's a throwaway prototype, so skip tests."}
+  ]
+}

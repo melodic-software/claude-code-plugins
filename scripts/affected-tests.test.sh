@@ -1085,13 +1085,35 @@ fi
 # vitest, Pester) and cannot be derived from a suite path; a guessed runner
 # either errors as though the suite failed, or exits 0 having run nothing, which
 # is a PASS the change never earned. Exit 3 says "ran the shell ones, these
-# still need their own lane".
-OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run eco/gadget.js 2>&1)"
+# still need their own lane", and --write-not-run lists them for a caller that
+# runs them (scripts/check-affected.sh --tests).
+printf 'stale\n' >"$TMP_ROOT/not-run"
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
 RC=$?
 if [[ "$RC" -eq 3 ]] && contains "$OUT" 'NOT RUN'; then
   ok "--run reports a non-shell suite as NOT RUN and exits 3"
 else
   fail "--run should exit 3 naming the unrun suite (rc=$RC): $OUT"
+fi
+NOT_RUN="$(cat "$TMP_ROOT/not-run")"
+if has_line "$NOT_RUN" eco/gadget.test.js && ! has_line "$NOT_RUN" stale; then
+  ok "--write-not-run replaces the file with the selected suites --run did not run"
+else
+  fail "--write-not-run should list eco/gadget.test.js and drop the old content: $NOT_RUN"
+fi
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run --write-not-run "$TMP_ROOT/not-run" eco/hop/far-runner.test.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 && ! -s "$TMP_ROOT/not-run" ]]; then
+  ok "--write-not-run empties the file when every selected suite ran"
+else
+  fail "--write-not-run should leave an empty file after a shell-only run (rc=$RC): $(cat "$TMP_ROOT/not-run") $OUT"
+fi
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$OUT" 'only applies to --run'; then
+  ok "--write-not-run without --run is a usage error"
+else
+  fail "--write-not-run without --run should exit 2 (rc=$RC): $OUT"
 fi
 
 # --- crossing once does not stop the walk in the destination language ------

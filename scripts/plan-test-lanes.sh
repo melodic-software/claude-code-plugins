@@ -58,7 +58,8 @@
 # run at a time, so about 40 s of wall) up to 6 legs, and the whole tree always
 # takes 6; test-python takes 180 s a leg (one suite at a time) up to 5. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
-# over whole-tree CI runs; a suite the file does not list counts 5, and a suite
+# over whole-tree CI runs; a suite the file does not list counts the mean of
+# the listed suites of its runner, rounded and at least 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
 # seconds. A leg's load is the larger of its suite-seconds and its serial
 # suite-seconds plus three times its longest suite that runs three at a time,
@@ -335,11 +336,22 @@ done <<<"$packages"
 # <workers> times its longest parallel suite.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
-  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" '
-    FILENAME == ARGV[1] { if ($0 !~ /^[[:blank:]]*(#|$)/) secs[$1] = $2; next }
+  local runner
+  case "$lane" in
+    python) runner='(^|/)test_[^/]*[.]py$' ;;
+    *) runner='[.]test[.]sh$' ;;
+  esac
+  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" -v runner="$runner" '
+    FILENAME == ARGV[1] {
+      if ($0 ~ /^[[:blank:]]*(#|$)/) next
+      secs[$1] = $2
+      if ($1 ~ runner) { n++; sum += $2 }
+      next
+    }
     FILENAME == ARGV[2] { sub(/#.*/, ""); if (NF) alone[$1] = 1; next }
     NF {
-      s = ($1 in secs) ? secs[$1] : def
+      if (u == "") { u = n ? int(sum / n + 0.5) : 0; if (u < def) u = def }
+      s = ($1 in secs) ? secs[$1] : u
       printf "%s\t%s\t%s\n", s * (($1 in alone) ? workers : 1), $1, ($1 in alone) ? 0 : s * workers
     }' \
     "$SECONDS_LIST" "$serial" "$list" |

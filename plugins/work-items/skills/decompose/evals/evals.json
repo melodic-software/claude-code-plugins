@@ -163,6 +163,19 @@
         "The printed-roster item carries the nightly-snapshot assumption row and not the app-account row",
         "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path"
       ]
+    },
+    {
+      "id": 13,
+      "name": "base-commit-check-flags-met-criterion-and-asks-each-slice-demo",
+      "prompt": "/work-items:decompose — the topic is refund-export and its approved PLAN.md has one phase, Phase 1: add a `--month` flag to the refund export. Its acceptance criteria are AC1: `refunds export --month 2026-09` writes only September refunds, and AC2: `refunds export --help` exits 0. There is no checkout; take these facts as read from the default branch's current commit: the export command exists and its `--help` already exits 0, and it has no `--month` flag. Draft the breakdown.",
+      "expected_output": "Runs the base-commit check against the default branch's current commit: AC1 fails there, AC2 already passes, so AC2 is flagged. The Step 3 approval round names the base commit as the default branch's current commit and asks by name whether to sharpen AC2 until it fails at base or leave it out as already met, and names a Demo for each item (for the flag slice, running the export for one month and seeing only that month's refunds), asking the user what each slice demos. Nothing is published before approval.",
+      "files": [],
+      "expectations": [
+        "Flags AC2 as already passing at the base commit and does not flag AC1",
+        "Asks the user by name whether to sharpen AC2 until it fails at base or leave it out as already met, rather than dropping or keeping it silently",
+        "Shows a Demo line for each draft item and asks the user what each slice demos",
+        "Publishes nothing before the user approves the breakdown"
+      ]
     }
   ]
 }
