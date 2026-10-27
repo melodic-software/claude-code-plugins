@@ -6,12 +6,12 @@
 // window: GitHub's run listing returns at most 1,000 runs per filtered search
 // (REST "List workflow runs for a workflow"), so a range over that is split.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { createBudget, DETAIL_RESERVE, listRuns, main, selectUnits, tailLog } from "./collect.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const run = (id, path, conclusion, over = {}) => ({
   id,
@@ -197,7 +197,7 @@ test("the listing reads every run of the window, splitting a range the 1,000 cap
 });
 
 test("the reserve covers the dearest unit mix: four A units, no D unit and four C units", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-"));
+  const dir = tempDir("lane-sweep-");
   const trusted = join(dir, "trusted.json");
   writeFileSync(trusted, JSON.stringify({ actors: [{ id: 1 }] }));
   const output = join(dir, "output");
@@ -298,7 +298,7 @@ test("a listing the budget cuts short names the workflow, what it read and its c
 });
 
 test("a unit from a part-read workflow is marked incomplete, and the run warns", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-"));
+  const dir = tempDir("lane-sweep-");
   const trusted = join(dir, "trusted.json");
   writeFileSync(trusted, JSON.stringify({ actors: [] }));
   const output = join(dir, "output");

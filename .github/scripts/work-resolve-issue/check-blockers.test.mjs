@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { main } from "./check-blockers.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HUMAN = { id: 101, login: "person" };
 const STRANGER = { id: 202, login: "stranger" };
 const APP = { id: 303, login: "melodic-automation-lanes[bot]" };
 const UNTRUSTED = "work-class: untrusted-provenance";
-const dir = mkdtempSync(join(tmpdir(), "check-blockers-"));
+const dir = tempDir("check-blockers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));

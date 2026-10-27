@@ -5,8 +5,7 @@
 // read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -30,6 +29,7 @@ import {
   infraComment,
   skipText,
 } from "./label-unblocked.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -299,7 +299,7 @@ function world({
 }
 
 function envFor(event = {}, extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "work-unblock-"));
+  const dir = tempDir("work-unblock-");
   const eventPath = join(dir, "event.json");
   writeFileSync(
     eventPath,
@@ -1219,7 +1219,7 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
 // The sweep reads the resolved config's `limits` (hours and counts) from the
 // file resolve-config wrote.
 const withLimits = (limits) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-limits-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify({ limits }));
   return { RESOLVED_CONFIG: path };
 };
@@ -1624,7 +1624,7 @@ test("a run that did no work waits until an hour after it ended, past any rate-l
 // The sweep reads the resolved config's `limits` and `wip`; a past pause-from
 // lets the issue lane pause over its cap.
 const withConfig = (config) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-config-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify(config));
   return { RESOLVED_CONFIG: path };
 };
@@ -3693,7 +3693,7 @@ test("the App's close of a split made by hand counts as done for what it blocks"
 });
 
 test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const dir = tempDir("label-unblocked-budget-");
   const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
   process.env.API_BUDGET_TOKEN = "lanes-app";
   process.env.RUNNER_TEMP = dir;

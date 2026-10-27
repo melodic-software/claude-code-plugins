@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: capture needs elevation\", \"grant\": \"a person present to approve the shown script\"}]}",
+      "why": "threads before the reason"
+    },
+    {
+      "answer": "{\"blocked\": [{\"reason\": \"blocked: capture needs elevation\", \"capture\": \"threads\"}]}",
+      "why": "reason before threads"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty report"},
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: launched process no longer matches\"}]}",
+      "why": "a different blocked reason"
+    }
+  ]
+}

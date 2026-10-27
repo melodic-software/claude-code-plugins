@@ -25,6 +25,8 @@ WORKFLOW="$ROOT/.github/workflows/post-merge-demotion-alert.yml"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+# The workflow step makes its own mktemp files; keep them inside the trapped root.
+export TMPDIR="$TMP_ROOT"
 
 NAME='File or comment on the demotion issue'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }

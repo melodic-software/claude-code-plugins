@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## [6.0.3] - 2026-10-27
+
+### Changed
+
+- pr-merge's merge job uploads its last saved artifact listing as `pr-merge-verify-listing` (scheduled and hand-started runs, one day), and the merge job, enable-auto-merge and ci-status's merge-queue reader fetch it from the newest such run on main (`.github/scripts/pr-merge/listing-carry.mjs`), so the verdict reader lists only the artifacts uploaded since instead of every page, one GITHUB_TOKEN request each (69 pages on 2026-10-27).
+
+### Fixed
+
+- In the pr-merge lane, adoption's idle rule reads a person's pull request's newest activity, not its raw `updatedAt` (#9136): the pull request's opening, the head's arrival, and each comment, review, inline review comment, label change, title edit, review request, ready for review, reopen or force push whose actor id is on the trusted-actor list. Another account's comments no longer keep an owner pull request from going idle there, unless one is a repository owner's, member's or collaborator's hold: a changes-requested review, or a person's comment or review saying "do not merge" or opening a line with `Hold:`, still refuses; a trusted person's request to wait still refuses. fix-ci still reads the last update.
+
+## [6.0.2] - 2026-10-27
+
+### Changed
+
+- The merge-authority and verifier sections point at loop-lane's [When work stops for the owner](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner) instead of restating the owner's rule.
+
 ## [6.0.1] - 2026-10-27
 
 ### Changed
