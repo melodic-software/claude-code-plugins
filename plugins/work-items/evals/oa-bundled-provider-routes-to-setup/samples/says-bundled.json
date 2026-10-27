@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Jira is one of the bundled providers, so this skill does not apply.",
+      "why": "bundled"
+    },
+    {
+      "answer": "The plugin already ships a hardened jira adapter.",
+      "why": "already ships"
+    },
+    {
+      "answer": "jira is built in; no consumer-owned adapter is needed.",
+      "why": "built in"
+    },
+    {
+      "answer": "Jira is already supported out of the box.",
+      "why": "already supported"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Jira is not bundled, so I'll generate an adapter.",
+      "why": "negated"
+    },
+    {
+      "answer": "Generated the jira adapter under tools/work-item-tracker/adapters/jira.",
+      "why": "generated instead"
+    },
+    {
+      "answer": "Your tracker isn't supported yet; let's start the interview.",
+      "why": "no provider named as bundled"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
