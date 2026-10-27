@@ -1,9 +1,11 @@
-"""A `--merge` run re-runs an AI review check that failed on the usage limit.
+"""A `--merge` run re-runs an AI review check that failed on the usage limit
+or on its runner install.
 
 The re-run fires only for a failure annotation the review evidence accepts a
-re-run after (`class=rate-limit`, or this lane's publish failure on GitHub's
-API rate limit), only five hours after the failure, only on the pinned live
-head, and only on a run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
+re-run after and the gate re-runs (`class=rate-limit` or this lane's publish
+failure on GitHub's API rate limit, five hours after the failure; this lane's
+`install-failed` failure at once), only on the pinned live head, and only on a
+run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
 """
 
 from __future__ import annotations
@@ -45,6 +47,7 @@ RATE_LIMITED = (
     "Claude review exited with: failure class=rate-limit -- an infrastructure "
     "failure, not a code-quality signal"
 )
+INSTALL_FAILED = evidence_tests.INSTALL_FAILURE["message"]
 SECURITY_CHECK = {
     **CHECK,
     "name": "pr-review-security / security-review",
@@ -128,21 +131,99 @@ class RerunRateLimitedReview(unittest.TestCase):
                 self.assertIn(conclusion, report["reason"])
                 self.assertEqual(posts, [])
 
-    def test_before_the_reset_waits_without_reading_annotations(self) -> None:
+    def test_before_the_reset_a_rate_limit_waits(self) -> None:
         report, posts = self._run(now="2026-10-09T14:59:00Z")
         self.assertFalse(report["rerun"])
         self.assertIn("2026-10-09T15:00:00Z", report["reason"])
         self.assertEqual(posts, [])
-        self.assertEqual(len(self.reads), 1)
+        # The job and its annotations, not the attempt.
+        self.assertEqual(len(self.reads), 2)
 
     def test_other_failure_class_is_never_rerun(self) -> None:
         for text in (
             "Claude review exited with: failure class=timeout",
             "Claude review exited with: failure class=other",
+            # Classes the evidence binds a re-run after, but the gate leaves
+            # to a person.
+            evidence_tests.AUTH_FAILURE["message"],
         ):
             report, posts = self._run(annotations=[text])
             self.assertFalse(report["rerun"])
+            self.assertTrue(
+                report["reason"].startswith("failure class is not "), report
+            )
             self.assertEqual(posts, [], text)
+
+    def test_an_install_failure_reruns_at_once(self) -> None:
+        security = INSTALL_FAILED.replace("claude-review:", "claude-security-review:", 1)
+        for check, text in ((CHECK, INSTALL_FAILED), (SECURITY_CHECK, security)):
+            with self.subTest(check["name"]):
+                report, posts = self._run(
+                    job=_job(name=check["name"], workflow_name=check["workflow_name"]),
+                    annotations=[text],
+                    check=check,
+                    # A minute after the failure: no wait.
+                    now="2026-10-09T10:01:00Z",
+                )
+                self.assertTrue(report["rerun"], report)
+                self.assertEqual(
+                    posts,
+                    [["api", "-X", "POST", f"repos/{REPO}/actions/runs/{RUN_ID}/rerun"]],
+                )
+
+    def test_an_install_failure_is_rerun_once(self) -> None:
+        report, posts = self._run(
+            job=_job(run_attempt=2), annotations=[INSTALL_FAILED]
+        )
+        self.assertFalse(report["rerun"])
+        self.assertIn("re-run at most once", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_an_install_failure_beside_a_rate_limit_waits(self) -> None:
+        report, posts = self._run(
+            annotations=[INSTALL_FAILED, RATE_LIMITED], now="2026-10-09T10:01:00Z"
+        )
+        self.assertFalse(report["rerun"])
+        self.assertIn("2026-10-09T15:00:00Z", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_credential_failure_beside_an_install_failure_is_never_rerun(
+        self,
+    ) -> None:
+        report, posts = self._run(
+            annotations=[INSTALL_FAILED, evidence_tests.AUTH_FAILURE["message"]],
+            now="2026-10-09T10:01:00Z",
+        )
+        self.assertFalse(report["rerun"])
+        self.assertTrue(report["reason"].startswith("failure class is not "), report)
+        self.assertEqual(posts, [])
+
+    def test_an_install_failure_lookalike_is_never_rerun(self) -> None:
+        for text in (
+            # Another lane's line.
+            INSTALL_FAILED.replace("claude-review:", "claude-security-review:", 1),
+            # Not at the message start.
+            f"quoted: {INSTALL_FAILED}",
+            # Another class sharing the prefix.
+            "claude-review: failure-class=install-failed-x: something else",
+        ):
+            with self.subTest(text[:50]):
+                report, posts = self._run(
+                    annotations=[text], now="2026-10-09T10:01:00Z"
+                )
+                self.assertFalse(report["rerun"])
+                self.assertEqual(posts, [])
+
+    def test_the_gate_reruns_only_classes_whose_rerun_binds(self) -> None:
+        # A re-run the evidence would not bind spends the one allowed attempt
+        # for nothing.
+        self.assertLessEqual(
+            merge.review_evidence.GATE_RERUN_CLASSES,
+            set(merge.review_evidence.RERUN_CLASSES),
+        )
+        self.assertLessEqual(
+            merge.NO_WAIT_RERUN_CLASSES, merge.review_evidence.GATE_RERUN_CLASSES
+        )
 
     def test_a_rate_limit_notice_is_not_a_failure_class(self) -> None:
         report, posts = self._run(

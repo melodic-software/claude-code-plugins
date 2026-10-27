@@ -14,9 +14,10 @@ Contract enforced here (encoded as code, not convention):
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
-  evidence binds a re-run after (`class=rate-limit`, or the lane's publish
-  failure on GitHub's API rate limit), five hours after the failure, once per
-  run on the pinned live head. No other failure class is re-run, and the
+  evidence binds a re-run after and the gate re-runs (`class=rate-limit` or
+  the lane's publish failure on GitHub's API rate limit, five hours after the
+  failure; the lane's `install-failed` failure at once), once per run on the
+  pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
@@ -194,7 +195,6 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
-    low_headroom,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -299,18 +299,22 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # An AI review check that failed on the Claude usage limit carries a
 # `class=rate-limit` annotation on its check run (ci-workflows
 # `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
-# API rate limit carries the lane's publish failure line. Under `--merge` the
-# gate re-runs that check's workflow run once the limit has reset, instead of
-# holding on it until a person re-runs it, on exactly the annotations
-# `review_evidence.rate_limited` accepts, so the re-run's attempt binds
-# (`review_evidence.rerun_binds` accepts more: a rejected credential or a
-# kill-switch stop, which the gate leaves to a person).
-# "Reset" is conservative: the shortest plan limit is a five-hour session
-# window (https://support.claude.com/en/articles/11145838, checked
-# 2026-10-09), so five hours after the failure that window has reset whenever
-# it started. A weekly limit outlasts it; the re-run then fails again and
-# stays failed, since a run is re-run at most once.
+# API rate limit, or whose runner isolation or CLI install failed, carries the
+# lane's publish failure line. Under `--merge` the gate re-runs that check's
+# workflow run instead of holding on it until a person re-runs it, on exactly
+# the classes `review_evidence.GATE_RERUN_CLASSES` names, so the re-run's
+# attempt binds (`review_evidence.rerun_binds` accepts more: a rejected
+# credential or a kill-switch stop, which the gate leaves to a person).
+# A rate limit is re-run once it has reset. "Reset" is conservative: the
+# shortest plan limit is a five-hour session window
+# (https://support.claude.com/en/articles/11145838, checked 2026-10-09), so
+# five hours after the failure that window has reset whenever it started. A
+# weekly limit outlasts it; the re-run then fails again and stays failed,
+# since a run is re-run at most once. A failed install is re-run at once: a
+# slow package mirror is not a window to wait out. Any class the gate re-runs
+# that is not listed here waits.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
+NO_WAIT_RERUN_CLASSES = frozenset({review_evidence.INSTALL_FAILED})
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
 
@@ -342,13 +346,14 @@ def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> 
 def rerun_rate_limited_review(
     repo: str, head: str, check: dict[str, Any]
 ) -> dict[str, Any]:
-    """Re-run one failed AI review check's workflow run when it failed on the
-    usage limit, the limit has reset, and the run was not re-run before.
+    """Re-run one failed AI review check's workflow run when it failed on a
+    class in `review_evidence.GATE_RERUN_CLASSES`, a rate limit has reset, and
+    the run was not re-run before.
 
     Every other case is reported with its reason and left alone: another
     failure class is never re-run. The whole run is re-run, not its failed
     jobs, because a lane whose status job reads a separate review job's output
-    would re-read the cached rate-limit result and fail again.
+    would re-read the cached failed result and fail again.
     """
     report: dict[str, Any] = {"check": check["name"], "rerun": False}
     match = ACTIONS_JOB_URL_RE.search(check.get("details_url") or "")
@@ -375,13 +380,6 @@ def rerun_rate_limited_review(
         if completed is None:
             report["reason"] = "job completion time unreadable"
             return report
-        due = completed + RATE_LIMIT_RERUN_DELAY
-        if _now() < due:
-            report["reason"] = (
-                "waiting for the usage limit to reset; re-run due at "
-                + due.isoformat().replace("+00:00", "Z")
-            )
-            return report
         annotations = json_array(
             gh_json(
                 [
@@ -402,8 +400,25 @@ def rerun_rate_limited_review(
         ),
         "",
     )
-    if not review_evidence.rate_limited(lane, {"annotations": annotations}):
-        report["reason"] = "failure class is not rate-limit; never re-run"
+    classes = review_evidence.rerun_classes(lane, {"annotations": annotations})
+    # A class left to a person (a rejected credential) refuses even beside one
+    # the gate re-runs: the re-run would spend the one allowed attempt.
+    if not classes or not classes <= review_evidence.GATE_RERUN_CLASSES:
+        # babysit_merge_skip.STABLE_RERUNS keys on this reason's opening.
+        report["reason"] = (
+            "failure class is not one the gate re-runs ("
+            + ", ".join(sorted(review_evidence.GATE_RERUN_CLASSES))
+            + "); never re-run"
+        )
+        return report
+    due = completed + (
+        timedelta(0) if classes <= NO_WAIT_RERUN_CLASSES else RATE_LIMIT_RERUN_DELAY
+    )
+    if _now() < due:
+        report["reason"] = (
+            "waiting for the usage limit to reset; re-run due at "
+            + due.isoformat().replace("+00:00", "Z")
+        )
         return report
     # The binding takes attempt 2 only after an attempt 1 that concluded
     # failure (review_evidence.rerun_binds), so the re-run must too.
@@ -2957,9 +2972,6 @@ RISK_ESCALATION_LINE = (
     "the pr-merge lane added the human-gated label."
 )
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
-# The most of a verdict's summary a verify:repeated-fail escalation quotes
-# (judgment).
-VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # Cleared by clear-escalations.mjs once the head moves, like the verify one.
@@ -3544,63 +3556,17 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(
-    refusal: str,
-    head: str,
-    summary: str | None = None,
-    carried: tuple[str, str] | None = None,
-) -> str:
+def verify_escalation_body(refusal: str, head: str) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal, the head and the quoted fail summary only, so a rerun renders the
-    same body. The summary is model text, quoted as data in a text fence and
-    cut to `VERIFY_SUMMARY_MAX` characters. `carried`, the (head, text) an
-    earlier comment quoted (`_carried_quote`), is quoted as it was when there
-    is no `summary`."""
-    lines = [
-        VERIFY_ESCALATION_MARKER,
-        f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-        f"`{head}`. That refusal needs a human, who merges in person; the "
-        "pr-merge lane will not merge this pull request.",
-    ]
-    quote = carried
-    if summary:
-        text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
-        if len(text) > VERIFY_SUMMARY_MAX:
-            text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
-        # A lone surrogate from a JSON escape cannot be encoded for `gh`.
-        text = text.encode("utf-8", "replace").decode("utf-8")
-        quote = (head, text.replace("```", "'''"))
-    if quote:
-        lines += [
-            "",
-            f"The verifier's summary of its fail verdict at `{quote[0]}`, as it "
-            "wrote it:",
-            "",
-            "```text",
-            quote[1],
-            "```",
+    refusal and the head only, so a rerun renders the same body."""
+    return "\n".join(
+        [
+            VERIFY_ESCALATION_MARKER,
+            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+            f"`{head}`. That refusal needs a human, who merges in person; the "
+            "pr-merge lane will not merge this pull request.",
         ]
-    return "\n".join(lines)
-
-
-_QUOTE_RE = re.compile(
-    r"\nThe verifier's summary of its fail verdict at `([0-9a-f]{40})`, as it "
-    r"wrote it:\n\n```text\n(.*)\n```\Z",
-    re.S,
-)
-
-
-def _carried_quote(
-    comments: list[dict[str, Any]], identity: str
-) -> tuple[str, str] | None:
-    """The (head, text) the identity's newest verify escalation quotes, read
-    back verbatim so a rerun that cannot read the summary renders the same
-    body, and an earlier-fail keeps the reason of the fail before it."""
-    newest = _newest_marker_comment(comments, identity, VERIFY_ESCALATION_MARKER)
-    if newest is None:
-        return None
-    match = _QUOTE_RE.search(str(newest.get("body") or ""))
-    return (match[1], match[2]) if match else None
+    )
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3653,49 +3619,11 @@ def escalate_verify(
     identity: str,
     refusal: str,
     inputs: Mapping[str, Any],
-    summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A
-    `verify:repeated-fail` with no `summary` (unreadable, or no fail at the
-    head) quotes the last fail summary its comment carried, so an unreadable
-    artifact rewrites nothing and the reason outlives the head."""
+    """`escalate` for a needs-human verifier refusal."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    carried = None
-    if summary is None and refusal == verify_evidence.REPEATED_FAIL:
-        comments = inputs.get("comments")
-        if comments is None:
-            comments = fetch_paginated_api(
-                f"repos/{repo}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-            )
-            inputs = {**inputs, "comments": comments}
-        carried = _carried_quote(comments, identity)
-    body = verify_escalation_body(refusal, head, summary, carried)
+    body = verify_escalation_body(refusal, head)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
-
-
-def _fail_summary(
-    verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
-) -> str | None:
-    """The summary of the head FAIL a `verify:repeated-fail` refusal names,
-    read through the gate's verdict reader; None for any other refusal, with
-    no FAIL at the head, when the record cannot be read, or below the read
-    floor: the quote is report-only, and the escalation stands without it."""
-    fail = json_object(verify.get("headFail"))
-    reader = inputs.get("verify_reader")
-    run_id, name = fail.get("run"), fail.get("artifact")
-    if (
-        low_headroom()
-        or verify.get("refusal") != verify_evidence.REPEATED_FAIL
-        or not isinstance(reader, verify_evidence.Reader)
-        or not isinstance(run_id, int)
-        or not isinstance(name, str)
-    ):
-        return None
-    try:
-        return reader.fail_summary(run_id, name, number, str(verify.get("head")))
-    except verify_evidence.SummaryUnreadable:
-        return None
 
 
 def escalate(
@@ -4132,7 +4060,6 @@ def unattended_writes(
                 identity,
                 str(verify.get("refusal")),
                 inputs,
-                _fail_summary(verify, inputs, number),
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

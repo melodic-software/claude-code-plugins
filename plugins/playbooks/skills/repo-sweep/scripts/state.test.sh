@@ -22,7 +22,7 @@ cat >"$TMP/bin/gh" <<'EOF'
 printf '%s\n' "$*" >>"$GH_LOG"
 case "$*" in
 "pr list --state all --head "*" --limit 1000 "*) cat "$GH_DIR/head.json" ;;
-"pr list --state open --search head:chore/repo-sweep- --limit 1000 "*) cat "$GH_DIR/open.json" ;;
+"pr list --state open --limit 1000 "*) cat "$GH_DIR/open.json" ;;
 *) printf 'gh stub: unexpected: %s\n' "$*" >&2; exit 64 ;;
 esac
 EOF
@@ -197,8 +197,18 @@ assert_eq "text-mode jq on msys: exit 14 branch carries no CR" "14 pr 7
 branch $sweep
 pr-state OPEN" "$rc $out"
 case "$(cat "$TMP/gh.log")" in
-*"--search head:chore/repo-sweep- --limit 1000"*) pass "discovery searches head:chore/repo-sweep- with --limit 1000" ;;
-*) fail "discovery gh args" "--search head:chore/repo-sweep- --limit 1000" "$(cat "$TMP/gh.log")" ;;
+*--search*) fail "discovery gh args" "no --search" "$(cat "$TMP/gh.log")" ;;
+*"pr list --state open --limit 1000"*) pass "discovery lists open PRs unsearched with --limit 1000" ;;
+*) fail "discovery gh args" "pr list --state open --limit 1000" "$(cat "$TMP/gh.log")" ;;
+esac
+
+# A listing at its limit may be missing the sweep PR: an error, never "no sweep PR".
+jq -n '[range(1000) | {number: (. + 1), state: "OPEN", headRefName: "feat/x-\(.)", isCrossRepository: false}]' >"$TMP/gh/open.json"
+run
+assert_eq "other branch, full open-PR page: exit 1, never 10" "1" "$rc"
+case "$(cat "$TMP/err")" in
+*"reached its 1000-PR limit"*) pass "full open-PR page names the limit" ;;
+*) fail "full open-PR page message" "reached its 1000-PR limit" "$(cat "$TMP/err")" ;;
 esac
 
 {

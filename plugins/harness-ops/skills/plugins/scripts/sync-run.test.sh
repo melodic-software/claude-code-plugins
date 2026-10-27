@@ -315,10 +315,12 @@ setup_case() {
 }
 
 # Runs sync-run.sh against a case fixture. Extra args are sync-run.sh's own.
+# CLAUDE_CODE_REMOTE is dropped so a run under a remote session tests the same
+# script; a case that wants it sets it through EXTRA_ENV.
 run_sync() {
   local case_dir="$1"
   shift
-  env \
+  env -u CLAUDE_CODE_REMOTE \
     FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
@@ -1225,6 +1227,42 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 assert_exit "render withheld: exit 0" 0 "$REPORT_RC"
 assert_golden "render withheld: the report matches the golden" withheld-downgrade.txt "$REPORT_TEXT"
+
+# --- autoUpdate off, with the enable-it suggestion silenced -----------------
+# The slot still says off; only the suggestion goes, and only for a named
+# marketplace. Without the option the suggestion stays, as in the golden above.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 false
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+  --quiet-auto-update other,market1
+assert_exit "quiet autoUpdate: exit 0" 0 "$REPORT_RC"
+assert_golden "quiet autoUpdate: the report matches the golden" auto-update-off-quiet.txt "$REPORT_TEXT"
+assert_eq "quiet autoUpdate: the digest carries the names" '["other","market1"]' \
+  "$(jq -c '.quiet_auto_update' <<<"$REPORT_DIGEST")"
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+  --quiet-auto-update other
+assert_contains "quiet autoUpdate: another marketplace's name leaves the suggestion" "$REPORT_TEXT" \
+  "(autoUpdate: off; enable it so the catalog refreshes automatically)"
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_contains "quiet autoUpdate: unset, the suggestion shows" "$REPORT_TEXT" \
+  "(autoUpdate: off; enable it so the catalog refreshes automatically)"
+assert_eq "quiet autoUpdate: unset, the digest carries an empty list" "[]" \
+  "$(jq -c '.quiet_auto_update' <<<"$REPORT_DIGEST")"
+# An --only-install re-entry renders the same slot from the run's saved flags.
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+  --quiet-auto-update market1)
+out=$(run_sync "$case_dir" --only-install "" --run-dir "$(head -n 1 <<<"$out" | jq -r '.run_dir')" --render)
+assert_contains "quiet autoUpdate: the re-entry keeps the silenced slot" "$out" \
+  "Marketplace: market1: current (autoUpdate: off)"
+# The pull policy takes ask or never; anything else runs as ask and is named.
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+  --source-pull sometimes
+assert_eq "source pull policy: an invalid value runs as ask and is named" '["ask","sometimes"]' \
+  "$(jq -c '[.source_pull, .source_pull_invalid]' <<<"$REPORT_DIGEST")"
+assert_contains "source pull policy: the invalid value renders under Action needed" "$REPORT_TEXT" \
+  'directory_source_pull value "sometimes" is not ask or never; this run used ask'
 
 # --- a self-update whose row is not the first moved row ------------------------
 # alpha sorts ahead of zeta, and zeta is the plugin running the sync, so the note
@@ -2139,6 +2177,9 @@ assert_eq "render behind: the digest carries the checkout state" \
   "$(jq -c '.marketplaces[0].source_checkout | del(.path)' <<<"$REPORT_DIGEST")"
 assert_eq "render behind: HEAD, the remote-tracking ref and the index are untouched" "$before" \
   "$(git -C "$case_dir/mkt" rev-parse HEAD origin/main) $(cksum <"$case_dir/mkt/.git/index")"
+assert_eq "render behind: a dirty checkout is not offered a fast-forward" \
+  '{"status":"skipped","reason":"tracked files modified"}' \
+  "$(jq -c '.marketplaces[0].source_pull' <<<"$REPORT_DIGEST")"
 # The states that cannot say how fresh the checkout is: each renders its own
 # row and never the behind status or its Action needed bullet.
 checkout_case() {
@@ -2154,6 +2195,145 @@ git -C "$case_dir/mkt" checkout -q --detach
 checkout_case "detached" detached "a git checkout at a detached HEAD; freshness not checked; tracked files modified"
 rm -rf "$case_dir/mkt/.git"
 checkout_case "not a repo" not_a_repo "not a git work tree; freshness not checked"
+
+# --- a requested fast-forward of a directory source's checkout ---------------
+# ff_fixture <case_dir>: the fleet above with a clean clone two commits behind
+# its origin as of its last fetch.
+ff_fixture() {
+  local case_dir="$1" src_path
+  golden_fixture "$case_dir" 0.1.0 0.1.0 true
+  git init -q -b main "$case_dir/origin"
+  printf 'one\n' >"$case_dir/origin/f"
+  fixture_git "$case_dir/origin" add f
+  fixture_git "$case_dir/origin" commit -q -m one
+  git clone -q "$case_dir/origin" "$case_dir/mkt"
+  fixture_git "$case_dir/origin" commit -q --allow-empty -m two
+  fixture_git "$case_dir/origin" commit -q --allow-empty -m three
+  git -C "$case_dir/mkt" fetch -q
+  src_path="$case_dir/mkt"
+  command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
+  write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+}
+# The checkout's HEAD, index and tracked file, to show a refused pull left them.
+ff_state() { printf '%s %s %s' "$(git -C "$case_dir/mkt" rev-parse HEAD)" "$(cksum <"$case_dir/mkt/.git/index")" "$(cksum <"$case_dir/mkt/f")"; }
+
+# A clean, behind-only checkout the caller asked for is fast-forwarded before
+# the refresh, and the run goes on with the refreshed catalog.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+ff_fixture "$case_dir"
+ff_from=$(git -C "$case_dir/mkt" rev-parse HEAD)
+ff_to=$(git -C "$case_dir/origin" rev-parse HEAD)
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "fast-forward: unrequested, a clean behind-only checkout is offered" '{"status":"offered","reason":""}' \
+  "$(head -n 1 <<<"$out" | jq -c '.marketplaces[0].source_pull')"
+assert_eq "fast-forward: an offer alone pulls nothing" "$ff_from" "$(git -C "$case_dir/mkt" rev-parse HEAD)"
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --pull-source market1
+assert_exit "fast-forward: exit 0" 0 "$REPORT_RC"
+REPORT_TEXT=${REPORT_TEXT//"${ff_from:0:12}"/<from>}
+REPORT_TEXT=${REPORT_TEXT//"${ff_to:0:12}"/<to>}
+assert_golden "fast-forward: the report matches the golden" directory-source-fast-forwarded.txt "$REPORT_TEXT"
+assert_eq "fast-forward: the checkout is at its upstream" "$ff_to" "$(git -C "$case_dir/mkt" rev-parse HEAD)"
+assert_eq "fast-forward: the digest records the pull and both commits" \
+  "{\"status\":\"pulled\",\"reason\":\"\",\"from\":\"$ff_from\",\"to\":\"$ff_to\"}" \
+  "$(jq -c '.marketplaces[0].source_pull' <<<"$REPORT_DIGEST")"
+assert_eq "fast-forward: the checkout reads as no longer behind" "0" \
+  "$(jq -r '.marketplaces[0].source_checkout.behind' <<<"$REPORT_DIGEST")"
+ff_journal="$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/journal.log"
+ff_pull_line=$(grep -n -F 'pull --ff-only' "$ff_journal" | head -n 1 | cut -d: -f1)
+ff_refresh_line=$(grep -n -F '$ claude plugin marketplace update market1' "$ff_journal" | head -n 1 | cut -d: -f1)
+assert_eq "fast-forward: the pull is journaled before the marketplace refresh" "true" \
+  "$([[ -n "$ff_pull_line" && -n "$ff_refresh_line" ]] && ((ff_pull_line < ff_refresh_line)) && echo true || echo false)"
+
+# The guard refuses every other checkout, says why, and changes nothing in it.
+ff_refused() {
+  local label="$1" reason="$2" before out journal
+  shift 2
+  before=$(ff_state)
+  out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+    --render --pull-source market1 "$@")
+  assert_exit "refused $label: exit 0" 0 $?
+  assert_eq "refused $label: the digest names the reason" "{\"status\":\"refused\",\"reason\":\"$reason\"}" \
+    "$(head -n 1 <<<"$out" | jq -c '.marketplaces[0].source_pull')"
+  assert_contains "refused $label: the report names the refusal" "$out" "refused, nothing changed: $reason"
+  assert_eq "refused $label: HEAD, the index and the work tree are untouched" "$before" "$(ff_state)"
+  journal="$(head -n 1 <<<"$out" | jq -r '.run_dir')/journal.log"
+  assert_not_contains "refused $label: no pull ran" "$(cat "$journal")" "pull --ff-only"
+  assert_contains "refused $label: the refresh still ran" "$(cat "$journal")" '$ claude plugin marketplace update market1'
+}
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+ff_fixture "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+printf 'edited\n' >"$case_dir/mkt/f"
+ff_refused "dirty" "tracked files modified"
+git -C "$case_dir/mkt" checkout -q -- f
+fixture_git "$case_dir/mkt" commit -q --allow-empty -m local
+ff_refused "diverged" "diverged from origin/main: 1 ahead, 2 behind"
+git -C "$case_dir/mkt" reset -q --hard origin/main
+fixture_git "$case_dir/mkt" commit -q --allow-empty -m local
+ff_refused "ahead" "1 local commit(s) ahead of origin/main"
+git -C "$case_dir/mkt" reset -q --hard origin/main
+ff_refused "not behind" "not behind origin/main"
+git -C "$case_dir/mkt" checkout -q -b local-only
+ff_refused "no upstream" "no upstream branch"
+git -C "$case_dir/mkt" checkout -q --detach
+ff_refused "detached" "detached HEAD"
+
+# Policy never, and an autonomous session, refuse before reading the checkout and
+# turn the offer into a skip.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+ff_fixture "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+ff_refused "policy never" "policy never" --source-pull never
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --source-pull never --render)
+assert_eq "policy never: no offer" '{"status":"skipped","reason":"policy never"}' \
+  "$(head -n 1 <<<"$out" | jq -c '.marketplaces[0].source_pull')"
+assert_contains "policy never: the behind bullet is unchanged" "$out" \
+  "pull --ff-only\`, then rerun \`/harness-ops:plugins sync market1\`"
+assert_not_contains "policy never: no refusal is reported for a pull nobody asked for" "$out" "requested fast-forward"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1 CLAUDE_CODE_REMOTE=true)
+ff_refused "autonomous" "autonomous session (CLAUDE_CODE_REMOTE set)"
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "autonomous: no offer, and the run's policy reads never" \
+  '["never",{"status":"skipped","reason":"autonomous session (CLAUDE_CODE_REMOTE set)"}]' \
+  "$(head -n 1 <<<"$out" | jq -c '[.source_pull, .marketplaces[0].source_pull]')"
+
+# A pull that fails leaves the checkout and the behind bullet as they were, and
+# the run goes on.
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+mv "$case_dir/origin" "$case_dir/origin-gone"
+before=$(ff_state)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
+  --render --pull-source market1)
+assert_exit "failed pull: exit 0" 0 $?
+assert_eq "failed pull: the digest records the failure" "failed true" \
+  "$(head -n 1 <<<"$out" | jq -r '.marketplaces[0].source_pull | "\(.status) \(.rc != 0)"')"
+assert_contains "failed pull: the report names it" "$out" "failed (exit "
+assert_contains "failed pull: the source row says a pull was tried" "$out" \
+  "(a requested git pull --ff-only failed; see Action needed)"
+assert_contains "failed pull: the behind bullet stays" "$out" "pull --ff-only\`, then rerun"
+assert_eq "failed pull: the checkout is untouched" "$before" "$(ff_state)"
+assert_contains "failed pull: the refresh still ran" \
+  "$(cat "$(head -n 1 <<<"$out" | jq -r '.run_dir')/journal.log")" '$ claude plugin marketplace update market1'
+
+# A source that is not a directory is refused by name and nothing is pulled.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --pull-source market1)
+assert_eq "pull source: a github source is refused" '{"status":"refused","reason":"not a directory source"}' \
+  "$(head -n 1 <<<"$out" | jq -c '.marketplaces[0].source_pull')"
+
+# --pull-source is a sync request, and a name outside the run is reported.
+out=$(run_sync "$case_dir" --marketplace market1 --audit --pull-source market1)
+assert_exit "pull source: audit refuses the request" 2 $?
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --pull-source nope)
+assert_contains "pull source: a name outside the run is a run error" \
+  "$(head -n 1 <<<"$out" | jq -r '.errors[]')" "--pull-source names no marketplace in this run: nope"
 
 # ============================================================================
 # Case: sync mode without --journal-root is a usage error, not a silent scratch run

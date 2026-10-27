@@ -863,21 +863,24 @@ lane_comment_marker_matches() {
   esac
 }
 
-# `gh issue list --search` is a fuzzy full-text match, so the title is re-checked
+# The issue search is a fuzzy full-text match, so the title is re-checked
 # EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
 # unrelated comment stream. The search term deliberately omits the colon, which
 # GitHub search would read as a qualifier separator.
-# Returns 1 — never empty output — when the LIST itself failed, for the same
-# reason `lane_comment_bodies` does: empty means "no issue carries this title",
-# and coercing an API failure to it would report an unreachable forge as a
-# routine `no-telemetry` tick, leaving an unattended consumer apparently healthy
-# while it never observes that lane's request. The caller turns a non-zero
-# return into its own `api-error` decision.
+# Returns 1 — never empty output — when the search failed or its answer is not
+# marked complete (`incomplete_results` other than false; REST search reports
+# it, `gh issue list --search` does not), for the same reason
+# `lane_comment_bodies` does: empty means "no issue carries this title", and
+# coercing a failed or partial read to it would report an unreachable forge as
+# a routine `no-telemetry` tick, leaving an unattended consumer apparently
+# healthy while it never observes that lane's request. The caller turns a
+# non-zero return into its own `api-error` decision.
 resolve_issue_by_title() {
   local repo="$1" title="$2" raw
-  raw="$(gh issue list --repo "$repo" --state open --limit 100 \
-    --search "Lane telemetry in:title" --json number,title 2>/dev/null)" || return 1
-  jq -r --arg t "$title" '[ .[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
+  raw="$(gh api --method GET search/issues -f per_page=100 \
+    -f q="repo:$repo is:issue is:open Lane telemetry in:title" 2>/dev/null)" || return 1
+  jq -e '.incomplete_results == false' <<<"$raw" >/dev/null 2>&1 || return 1
+  jq -r --arg t "$title" '[ .items[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
     <<<"$raw" 2>/dev/null || return 1
 }
 
@@ -1075,7 +1078,7 @@ process_lane() {
   fi
   if [[ -z "$issue" && -z "$TELEMETRY_JSON_FILE" ]]; then
     if ! issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane")"; then
-      record "$lane" "api-error" "could not list open issues on $repo (gh issue list); telemetry issue unresolved, not restarting" null "$now"
+      record "$lane" "api-error" "could not read a complete issue search on $repo; telemetry issue unresolved, not restarting" null "$now"
       fail_lane "api-error($lane)" 5
       return 0
     fi
