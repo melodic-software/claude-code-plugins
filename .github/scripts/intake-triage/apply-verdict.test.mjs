@@ -1001,6 +1001,8 @@ describe("run", () => {
       }),
     );
     assert.equal(seen.length, 1);
+    // Admission refuses a body edited after the lane comment it read.
+    assert.equal(seen[0].writtenAt, laneComment().updated_at);
   });
 
   test("an admission error still rewords the comment and reports the verdict", async () => {

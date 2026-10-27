@@ -27,6 +27,10 @@
           "round": {"type": "integer"},
           "stage": {"type": "string"},
           "at": {"type": "string"},
+          "kind": {
+            "description": "From `add-round`'s `meta.kind`: `sweep` marks a round whose questions come from the assumption sweep, which the page labels `Sweep: reconciling earlier answers`. Absent on an ordinary round.",
+            "enum": ["sweep"]
+          },
           "restate": {
             "type": "object",
             "required": ["text", "decided", "open"],
@@ -369,6 +373,11 @@
         "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
         "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
         "followUpOf": {"type": "string"},
+        "reconciles": {
+          "description": "The earlier questions whose answers this question reconciles, each already in the register when it is added; the page shows each one's decision beside the question.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "supersedes": {"type": "string"},
         "supersededBy": {"type": "string"},
         "waiting": {"type": "boolean"},

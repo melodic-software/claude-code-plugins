@@ -1,5 +1,22 @@
 # Changelog: discovery plugin
 
+## [0.39.3] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.39.2] - 2026-10-27
+
+### Added
+
+- Outcome eval cases for `blindspot`, `check`, `explore`, `read-docs`, `research` and `trace-intent`, and held-out triggering probes under `probes/` ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
+### Changed
+
+- **`blindspot`, `explore`, `trace-intent`:** shorter skill bodies with the same directives, measured against the previous text on Opus and Sonnet with no loss beyond the 0.05 margin ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
 ## [0.39.1] - 2026-10-25
 
 ### Changed
