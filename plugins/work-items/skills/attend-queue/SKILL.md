@@ -286,8 +286,11 @@ never compress this restatement away.
     closed. That is intended, not a leak: a floor-class item has no autonomous completion route,
     and the human-gated role label keeps it in front of an operator.
 
-Answers and dispositions written by the agent on the operator's behalf carry triage's AI
-disclaimer; the operator's own words need none.
+Answers and dispositions written by the agent on the operator's behalf carry the AI disclaimer
+when the setting resolves `true`
+([`${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md`](${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md),
+`{lane}` → `attend-queue`; the per-user value it reads is `${user_config.ai_disclaimer}`); the
+operator's own words need none.
 
 Each answer opens with the decision and stops there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed;
 otherwise apply that discipline inline. It never trims the per-row restatement above.

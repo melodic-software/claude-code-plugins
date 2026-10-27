@@ -229,6 +229,16 @@ export function artifactName(verdict) {
   return name;
 }
 
+// How many days the verdict's artifact lasts. A PASS or PASS-NOTES counts
+// only at the head it names, so one that expires refuses as verify:missing
+// until pr-verify judges the head again. A FAIL, or anything else, keeps 90
+// days, the maximum: the merge gate counts an earlier FAIL until the pull
+// request is TOO_OLD_DAYS (80) old (babysit_verify_evidence.py), and
+// carry-run-cache.mjs RETENTION_DAYS matches it.
+export function retentionDays(verdict) {
+  return ["pass", "pass-notes"].includes(verdict) ? 30 : 90;
+}
+
 export function main(env = process.env) {
   for (const key of [
     "EXECUTION_FILE",
@@ -287,7 +297,7 @@ export function main(env = process.env) {
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
-  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\n`);
+  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict)}\n`);
   console.log(`write-verdict: ${name}`);
 }
 

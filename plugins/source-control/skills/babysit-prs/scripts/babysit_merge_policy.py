@@ -591,8 +591,8 @@ class PipelineConfig:
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
-    # one pull request at which it holds for a human whatever a later pass
-    # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
+    # one pull request at which it holds, never to merge unattended, whatever
+    # a later pass says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
     # but a whole number of at least 1 is 1, so any earlier FAIL holds.
     max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.check-inputs`: git pathspecs of what the pull request checks
@@ -4709,11 +4709,19 @@ def _demotion_changed(
 
 
 def _shared_age_refusal(shared: SharedPostMerge, age: timedelta) -> str | None:
-    """`stale` past `SHARED_MAX_AGE` (or from the future), `unverified-stale`
-    past `SHARED_UNVERIFIED_MAX_AGE` while it passes with a merge unverified,
-    else None."""
+    """`stale` past `SHARED_MAX_AGE` (or from the future), `excuse-expired`
+    once a quarantine that excused a failing suite has expired
+    (`excusesExpireAt`, or one that cannot be read), after which the same
+    red run demotes, `unverified-stale` past `SHARED_UNVERIFIED_MAX_AGE`
+    while it passes with a merge unverified, else None."""
     if not timedelta(0) <= age <= SHARED_MAX_AGE:
         return "stale"
+    excuse = shared.gate.report.get("excusesExpireAt")
+    try:
+        if excuse is not None and shared.computed_at + age >= _time(excuse):
+            return "excuse-expired"
+    except PolicyReadError:
+        return "excuse-expired"
     # A refusing answer refuses whatever was verified since, so only a
     # passing one with a merge still unverified is read again.
     if (
@@ -4744,7 +4752,8 @@ def shared_refusal(
     None: it must name the same identity, self logins and lane, give this
     base the floor its own read would (`merged_since_floor` with the shared
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
-    while it passes with a merge unverified), have no demotion record filed
+    while it passes with a merge unverified) nor past a quarantine excuse's
+    end (`_shared_age_refusal`), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an
