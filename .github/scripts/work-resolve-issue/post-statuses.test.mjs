@@ -4,12 +4,12 @@
 // prep steps are posted as it reported them, the two lane jobs from their
 // GitHub job results, and nothing is posted without a lane branch.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main, plan } from "./post-statuses.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 const SHA = "c".repeat(40);
@@ -145,7 +145,7 @@ function fakeFetch(routes) {
 }
 
 async function withOutcome(files, run) {
-  const dir = mkdtempSync(join(tmpdir(), "statuses-"));
+  const dir = tempDir("statuses-");
   try {
     for (const [name, text] of Object.entries(files)) {
       writeFileSync(join(dir, name), text);

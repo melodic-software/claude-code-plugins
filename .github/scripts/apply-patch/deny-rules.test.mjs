@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { loadRules, REFUSALS } from "./apply-patch.mjs";
 import { PATH_RULES, segments } from "./protected-paths.mjs";
 import { denyRules, main, PATTERNS } from "./deny-rules.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO_ROOT = join(import.meta.dirname, "../../..");
 const ISSUE_REFUSE = loadRules(REPO_ROOT).issue.refuse;
@@ -102,7 +102,7 @@ test("the rules match only paths apply-patch refuses, plugins/ settings files in
 });
 
 test("main prints the row's rules for the base's top-level directories", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "deny-rules-"));
+  const base = tempDir("deny-rules-");
   t.after(() => rmSync(base, { recursive: true, force: true }));
   for (const dir of [".git", ".github/actions/resolve-config", "plugins", "lib"]) mkdirSync(join(base, dir), { recursive: true });
   writeFileSync(join(base, "README.md"), "");

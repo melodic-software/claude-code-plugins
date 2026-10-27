@@ -6,8 +6,7 @@
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -31,6 +30,7 @@ import {
   trustedLabeler,
   unmarkedAnswer,
 } from "./report-outcome.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 // The first line of every hand-back comment: the attended queue's escalation
@@ -50,7 +50,7 @@ const NO_CHECKS = { tip: CHECKED_TIP, results: [] };
 const branchTip = (branch = BRANCH, sha = CHECKED_TIP) => ["GET", new RegExp(`/git/ref/heads/${branch}$`), 200, { object: { sha } }];
 
 function withDir(files, run) {
-  const dir = mkdtempSync(join(tmpdir(), "outcome-"));
+  const dir = tempDir("outcome-");
   try {
     for (const [name, text] of Object.entries(files)) {
       writeFileSync(join(dir, name), text);
@@ -776,7 +776,7 @@ test("main on a run whose issue changed after agent-ready comments that reason, 
 // agent-ready starts this lane, so a run that added it would start the next.
 test("main refuses a human-gated label that is agent-ready and writes no label", async () => {
   // Not withDir: main reads the tracker config after its first await.
-  const dir = mkdtempSync(join(tmpdir(), "outcome-"));
+  const dir = tempDir("outcome-");
   try {
     writeFileSync(join(dir, "tracker.json"), JSON.stringify({ config: { role_labels: { "human-gated": " Agent-Ready" } } }));
     const { fetch, calls } = fakeFetch([
@@ -853,7 +853,7 @@ test("main on done with apply-issue-patch's escalation reason hands the issue ba
 // hand-back names the refusal, not a missing outcome file; the marker's text
 // picks one fixed sentence and never reaches the comment.
 async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success", attempt = "1", lane = null } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "outcome-"));
+  const dir = tempDir("outcome-");
   try {
     if (lane) {
       writeFileSync(join(dir, "lane.json"), JSON.stringify(lane));
@@ -2095,7 +2095,7 @@ test("with no lane branch and no closing PR the run goes ahead as before", () =>
 // findPriorMain against a fake GitHub API: its only effect is the step
 // outputs, and it writes nothing to GitHub.
 async function withAsyncDir(files, run) {
-  const dir = mkdtempSync(join(tmpdir(), "prior-"));
+  const dir = tempDir("prior-");
   try {
     for (const [name, text] of Object.entries(files)) {
       writeFileSync(join(dir, name), text);
@@ -2690,7 +2690,7 @@ test("a stop the skill reported goes to a person even with a funding record", ()
 // collect-base-activity runs a script activity from a copy of its own
 // directory under $RUNNER_TEMP, so every import must resolve inside it.
 test("the script loads from a copy of its own directory alone", async () => {
-  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  const copy = tempDir("base-script-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
     const module = await import(pathToFileURL(join(copy, "report-outcome.mjs")).href);
@@ -2739,7 +2739,7 @@ function runChecks({
   extraCheck = "true",
   unrelatedBase = false,
 }) {
-  const root = mkdtempSync(join(tmpdir(), "run-checks-"));
+  const root = tempDir("run-checks-");
   try {
     const base = join(root, "base");
     const laneDir = join(root, "lane");

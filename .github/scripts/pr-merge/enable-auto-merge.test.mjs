@@ -8,8 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -55,6 +54,7 @@ import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mj
 import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const LANES = { __typename: "Bot", login: "melodic-automation-lanes" };
@@ -254,7 +254,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
-  const output = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-")), "output");
+  const output = join(tempDir("enable-auto-merge-"), "output");
   writeFileSync(output, "");
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -1190,7 +1190,7 @@ const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026
   authorAssociation: "OWNER",
 });
 function trustedKyle() {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
   return { TRUSTED_ACTORS: join(dir, "actors.json") };
 }
@@ -1254,7 +1254,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
   assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");
 
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
   const cost = [{ filename: "infra/main.tf" }];
   const decided = `Closes #1040\n\nCost decision: ${COST_LINK}`;
@@ -1276,7 +1276,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
 // ci-status runs merge-holds.mjs on the live files with the base config's
 // denied paths, by the same pathHold that decides arming above.
 test("merge-holds.mjs holds a changed or renamed-from hold path from the command line", () => {
-  const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
+  const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
   const cli = (files, denied, reviews = []) => {
     writeFileSync(join(dir, "body"), "Closes #1");
@@ -1711,7 +1711,7 @@ test("an event run still disarms an armed pull request that now holds", async ()
 });
 
 test("a reader that fails, prints no JSON or reports another head arms nothing and disarms", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   const scripts = {
     exits: "import sys\nsys.stderr.write('boom\\n')\nsys.exit(1)\n",
     garbage: "print('not json')\n",
@@ -1751,7 +1751,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
 // and an issue carrying a label naming untrusted work, in any spelling, refuses
 // for a person, a label added after admission included.
 test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs, a failed read or an untrusted issue", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-link-"));
+  const dir = tempDir("enable-auto-merge-link-");
   const wrapper = join(dir, "lane_link.py");
   writeFileSync(
     wrapper,
@@ -1844,7 +1844,7 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
 // that reads the listing: every candidate is allowed, so a run that lists again before an
 // allow on the saved listing would page once per candidate.
 test("a reader run pages the artifact listing once for all its candidates", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-listing-"));
+  const dir = tempDir("enable-auto-merge-listing-");
   const wrapper = join(dir, "shared_listing.py");
   writeFileSync(
     wrapper,
@@ -1997,7 +1997,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
     [{ ...ROOM, refusal: "rung-off:demotion" }, "pr-merge's gate holds its lane off (rung-off:demotion); left unarmed: #1, #2"],
   ];
   for (const [lane, expected] of cases) {
-    const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+    const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
     writeFileSync(summary, "");
     const { lines } = await run(pulls, { GITHUB_STEP_SUMMARY: summary }, {}, lane);
     assert.deepEqual(
@@ -2007,7 +2007,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
     assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
   }
   // A lane with room raises neither.
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
@@ -2023,7 +2023,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
 // it was not.
 test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const lane = { ...ROOM, refusal: "rung-off:demotion" };
   const { lines, code } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary }, { disarmError: new Error("POST /graphql failed with status 502") }, lane);
@@ -2038,7 +2038,7 @@ test("a held room names a pull request whose disarm failed as still armed, at er
 
 test("a held room in report-only names the armed pull request a disarm would have turned off, not as unarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const lane = { ...ROOM, unreadable: "post-merge answer missing or unreadable" };
   const { lines, writes } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary, REPORT_ONLY: "true" }, {}, lane);
@@ -2086,7 +2086,7 @@ test("readRoom takes only lane-room's shape", () => {
 });
 
 test("pythonRoom passes the post-merge report, its check's commit, the rung cap as read, and the reader's token", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-"));
+  const dir = tempDir("enable-auto-merge-room-");
   const script = join(dir, "room.py");
   writeFileSync(
     script,
@@ -2178,7 +2178,7 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
 });
 
 test("the step summary carries each verifier read's cost even when the run raised nothing", async () => {
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const { github, writes } = world([pull(1)]);
   const verify = async ({ headRefOid: head }) => ({ ...PASSED, head });
@@ -2225,7 +2225,7 @@ raise gh.RateLimitExhausted("core", 4102444800, "x-ratelimit-reset reset, HTTP 4
 }
 
 test("a gate reader stopped on a rate limit ends the run: no later pull request is read", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-stopped-"));
+  const dir = tempDir("enable-auto-merge-stopped-");
   const env = { ...ENV, PATH: process.env.PATH, RUNNER_TEMP: "", VERIFY_EVIDENCE_SCRIPT: stoppedReader(dir) };
   const pulls = [pull(1), pull(2)];
   const { github, writes, calls, notes } = world(pulls);
@@ -2262,7 +2262,7 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
 // A lane-room reader stopped on a rate limit: its child wrote `pool` to the
 // job's stop file before exiting 75.
 async function roomStoppedOn(pool, pulls) {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-stop-"));
+  const dir = tempDir("enable-auto-merge-room-stop-");
   const stopFile = join(dir, "stop");
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
   const stderr =
@@ -2316,7 +2316,7 @@ test("a lane-room reader stopped on the GraphQL pool sends no disarm and fails n
 });
 
 test("a verifier read stopped on a rate limit disarms the armed lanes pull requests after it and arms nothing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-verify-stop-"));
+  const dir = tempDir("enable-auto-merge-verify-stop-");
   const stopFile = join(dir, "stop");
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
   const armed = { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } };
@@ -2376,7 +2376,7 @@ test("a review-lane hold the gate reads arms nothing and disarms an armed pull r
 // stays regular may rate below HIGH, so a symlink or a submodule pointer a
 // lane pull request adds holds, and a plain documentation change arms.
 test("a lane pull request adding a symlink or a submodule pointer is not armed, or is disarmed; a doc change arms", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-risk-"));
+  const dir = tempDir("enable-auto-merge-risk-");
   const wrapper = join(dir, "risk.py");
   writeFileSync(
     wrapper,
@@ -2439,7 +2439,7 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
 // from the config (merge.max-queue-ejections, default 2), so only Python
 // holds either. One removal arms; two, or an unread count, do not.
 test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-queue-"));
+  const dir = tempDir("enable-auto-merge-queue-");
   const wrapper = join(dir, "queue.py");
   writeFileSync(
     wrapper,
