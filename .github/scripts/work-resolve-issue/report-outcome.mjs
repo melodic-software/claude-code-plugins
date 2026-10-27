@@ -256,7 +256,19 @@ const TEST_RUN =
 const subjectOf = (what) =>
   what.match(/^\s*`([^`]*)`/)?.[1] ??
   what.split(/[:;,(]|\.\s|\s(?:was|were|is|are|could|did|not|failed|because)\b/i)[0];
-const isTestRun = (what) => TEST_RUN.test(subjectOf(what));
+// A test run names no other check: every command, script or check-* name in
+// its first clause is a test runner, and no later clause (after `;` or
+// `, and`) reports a non-test check as not run.
+const NAMED = /`[^`]*`|[\w./-]+\.sh\b|\bcheck-[\w-]+/g;
+const UNRUN = /\b(?:not (?:run|executed)|skipped)\b/i;
+const isTestRun = (what) => {
+  const [head, ...rest] = what.split(/;|,\s+and\s+/);
+  return (
+    TEST_RUN.test(subjectOf(what)) &&
+    (head.split(":")[0].match(NAMED) ?? []).every((name) => TEST_RUN.test(name)) &&
+    !rest.some((clause) => UNRUN.test(clause) && !TEST_RUN.test(subjectOf(clause)))
+  );
+};
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
