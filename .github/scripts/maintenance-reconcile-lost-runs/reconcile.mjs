@@ -51,9 +51,12 @@
 //   later is left to a person, since pr-verify trusts only a recorded attempt 2.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
-// github-actions[bot] starts. A merge-group run is not covered: a re-run puts
-// no PR back in the queue, and pr-merge re-enqueues its own PRs once their
-// checks pass.
+// github-actions[bot] starts. Their own paths recover them instead: the babysit
+// merge gate re-runs a lost review run under the owner's token, and the
+// dispatchers send refine and feedback dispatch a fresh attempt-1 run
+// (fix-docs-dispatch.mjs, feedback-dispatch.mjs). A merge-group run is not
+// covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
+// own PRs once their checks pass.
 //
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
