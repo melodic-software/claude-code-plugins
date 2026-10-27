@@ -98,6 +98,11 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+# post-merge-dispatch also sends a red full run to post-merge-demotion-alert.yml
+# and records it in an artifact named `<prefix><run id>`, the one job and events
+# of the re-run record; `_Context.lane_alerted` reads it.
+LANE_ALERT_ARTIFACT = "pr-merge-alerted-"
+LANE_ALERT_EVENTS = LANE_RERUN_EVENTS
 # A record found once stays found: pr-merge.yml names a file here that holds
 # the records earlier checks proved (.github/scripts/pr-merge/lane-records.mjs
 # reads it from the last trusted pr-merge run's artifact). A record in it is
@@ -1558,28 +1563,47 @@ class _Context:
             if self._carried_record(artifact, events):
                 self.lane_cache[artifact] = True
                 return True
-            repo = f"{self.owner}/{self.name}"
-            senders = self._lane_senders(repo, artifact)
-            if not senders and reread:
-                senders = self._lane_senders(repo, artifact)
-                if not senders:
-                    self.lane_empty.add(artifact)
-            found = False
-            for sender, item in senders.items():
-                if not isinstance(sender, int):
-                    continue
-                record = json_object(
-                    _read(
-                        ["api", f"repos/{repo}/actions/runs/{sender}"],
-                        f"run {sender}",
-                    )
-                )
-                if self._lane_sender(record, events):
-                    found = True
-                    self._prove(run, artifact, item, record)
-                    break
-            self.lane_cache[artifact] = found
+            proof = self._lane_proof(artifact, events, reread=reread)
+            if proof is not None:
+                self._prove(run, artifact, *proof)
+            self.lane_cache[artifact] = proof is not None
         return self.lane_cache[artifact]
+
+    def lane_alerted(self, run_id: int) -> bool:
+        """Whether post-merge-dispatch already sent full run `run_id` to
+        post-merge-demotion-alert.yml: its `pr-merge-alerted-<id>` artifact was
+        uploaded by a run `_lane_sender` accepts. A same-name artifact any
+        other run uploaded is no record. A failed read raises."""
+        return (
+            self._lane_proof(f"{LANE_ALERT_ARTIFACT}{run_id}", LANE_ALERT_EVENTS)
+            is not None
+        )
+
+    def _lane_proof(
+        self, artifact: str, events: frozenset[str], *, reread: bool = False
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """The first artifact named `artifact` whose uploading run passes
+        `_lane_sender`, with that run's record; None when no such run uploaded
+        one. With `reread`, an empty listing is read once more, and a second
+        empty one is noted in `lane_empty`. A failed read raises."""
+        repo = f"{self.owner}/{self.name}"
+        senders = self._lane_senders(repo, artifact)
+        if not senders and reread:
+            senders = self._lane_senders(repo, artifact)
+            if not senders:
+                self.lane_empty.add(artifact)
+        for sender, item in senders.items():
+            if not isinstance(sender, int):
+                continue
+            record = json_object(
+                _read(
+                    ["api", f"repos/{repo}/actions/runs/{sender}"],
+                    f"run {sender}",
+                )
+            )
+            if self._lane_sender(record, events):
+                return item, record
+        return None
 
     def _lane_senders(self, repo: str, artifact: str) -> dict[Any, dict[str, Any]]:
         """The runs that uploaded an artifact named `artifact`: each run's id
@@ -3549,6 +3573,18 @@ def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) ->
     return 2 if refusal else 0
 
 
+def _lane_alerted(repo: str, branch: str, run_id: int) -> int:
+    """`--lane-alerted`: 0 when `_Context.lane_alerted`, 1 when not, 3 when a
+    read failed. A rate limit exits 75 through babysit_gh."""
+    try:
+        owner, name = _split_repo(repo)
+        alerted = _Context(owner, name, "", branch=branch).lane_alerted(run_id)
+    except PostMergeReadError as exc:
+        print(f"lane-alerted {run_id}: {exc}", file=sys.stderr)
+        return EXIT_UNREADABLE
+    return 0 if alerted else EXIT_FAILURE
+
+
 def _judge_run(args: argparse.Namespace) -> int:
     """`--judge-run`: which of one red full run's newly failing checks demote
     (`_Context.demoting`), with the identity read from the default branch
@@ -3698,6 +3734,17 @@ def main(argv: list[str] | None = None) -> int:
         help="with --judge-run: file or comment on each excused suite's quarantine issue",
     )
     mode.add_argument(
+        "--lane-alerted",
+        type=int,
+        metavar="RUN_ID",
+        help=(
+            "with --branch: exit 0 when pr-merge.yml's post-merge-dispatch on the "
+            "branch already sent full run RUN_ID to post-merge-demotion-alert.yml "
+            "(its pr-merge-alerted-<id> record, from a sender `_lane_sender` "
+            "accepts), 1 when not, 3 unreadable; read-only"
+        ),
+    )
+    mode.add_argument(
         "--preflight",
         action="store_true",
         help=(
@@ -3709,6 +3756,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
+    if args.lane_alerted is not None:
+        if not args.branch:
+            parser.error("--lane-alerted needs --branch")
+        return _lane_alerted(args.repo, args.branch, args.lane_alerted)
     if args.file_quarantine and args.judge_run is None:
         parser.error("--file-quarantine needs --judge-run")
     if args.judge_run is not None:

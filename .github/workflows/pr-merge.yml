@@ -596,12 +596,29 @@ jobs:
                 continue
               fi
             fi
-            if ! sent=$(gh api "repos/$REPO/actions/artifacts?name=pr-merge-alerted-$id&per_page=1" --jq .total_count 2>"$err"); then
-              stopped "the record read of run $id"
-              echo "::warning::the record read of run $id failed; the next run tries again"
-              continue
-            fi
-            [ "$sent" = 0 ] || continue
+            # Already sent only when pr-merge.yml's own post-merge-dispatch on
+            # main uploaded the record (_Context.lane_alerted, the sender rule
+            # of the dispatch and re-run records): a same-name artifact any
+            # other run uploads is no record. 0 sent, 1 not, 75 a rate limit.
+            code=0
+            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$REPO" --branch main --lane-alerted "$id" </dev/null >/dev/null 2>"$err" || code=$?
+            case $code in
+              0) continue ;;
+              1) ;;
+              75)
+                stopped "the record read of run $id"
+                echo "::error title=GitHub rate limit::the record read of run $id was rate limited (an unrecorded pool until its reset); nothing more is sent"
+                echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                echo "stop=an unrecorded pool until its reset" >>"$GITHUB_OUTPUT"
+                exit 1
+                ;;
+              *)
+                cat "$err" >&2
+                echo "::warning::the record read of run $id failed (exit $code); the next run tries again"
+                continue
+                ;;
+            esac
             # As the dispatch: at most three sends, sent again after a capped
             # full-jitter wait only when gh's error shows the request never
             # left. A rate limit is never sent again.

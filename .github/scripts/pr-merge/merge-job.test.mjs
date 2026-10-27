@@ -1506,6 +1506,20 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 // 7(b)): GITHUB_TOKEN started the full run, so it raises no workflow_run
 // event, and post-merge-demotion-alert.yml hears of a red one only from here.
 const ALERT_SHA = "0123456789abcdef0123456789abcdef01234567";
+// main's tip, and the run of pr-merge.yml's post-merge-dispatch on it that a
+// trusted pr-merge-alerted-<id> record comes from (babysit_postmerge.py
+// _lane_sender: this repository's pr-merge.yml, a schedule or
+// workflow_dispatch run, head_branch main, head commit on main's tip).
+const ALERT_TIP = "fedcba9876543210fedcba9876543210fedcba98";
+const ALERT_SENDER = {
+  id: 900,
+  path: ".github/workflows/pr-merge.yml",
+  event: "schedule",
+  head_branch: "main",
+  head_sha: ALERT_TIP,
+  repository: { full_name: "o/r" },
+  head_repository: { full_name: "o/r" },
+};
 const alertSend = (id, sha = ALERT_SHA) =>
   `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
 const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing } = {}) => {
@@ -1534,8 +1548,17 @@ const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"],
       const n = jobs[r.id] ?? 3;
       fixture(`jobs.${r.id}`, n === "x" || n === "limited" ? n : { total_count: n, jobs: [] });
       const s = sent[r.id] ?? 0;
-      fixture(`sent.${r.id}`, s === "x" || s === "limited" ? s : { total_count: s, artifacts: [] });
+      const record = (sender) => ({ id: 1, name: `pr-merge-alerted-${r.id}`, workflow_run: { id: sender } });
+      if (s === "x" || s === "limited") fixture(`sent.${r.id}`, s);
+      else if (typeof s === "number") fixture(`sent.${r.id}`, { total_count: s, artifacts: Array.from({ length: s }, () => record(900)) });
+      else {
+        // One same-name record from run 901: the trusted sender with `s` over it.
+        fixture(`sent.${r.id}`, { total_count: 1, artifacts: [record(901)] });
+        fixture("run.901", { ...ALERT_SENDER, id: 901, ...s });
+      }
     }
+    fixture("run.900", ALERT_SENDER);
+    fixture("tip", { object: { sha: ALERT_TIP } });
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash
@@ -1560,6 +1583,8 @@ case "$endpoint" in
   */attempts/1/jobs*) f=jobs.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
   */attempts/1) f=first.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
   */artifacts\\?name=pr-merge-alerted-*) f=sent.$(sed -E 's#.*pr-merge-alerted-([0-9]+).*#\\1#' <<<"$endpoint") ;;
+  repos/o/r/actions/runs/90[01]) f=run.\${endpoint##*/} ;;
+  repos/o/r/git/ref/heads/main) f=tip ;;
   *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 esac
 v=$(cat "${dir}/$f")
@@ -1650,6 +1675,31 @@ test("a run past attempt 1 is judged on attempt 1", () => {
   assert.deepEqual(red.sends, [alertSend(41)], red.out);
   const green = runAlert({ runs: [{ id: 41, attempt: 2, conclusion: "failure" }], firsts: { 41: { conclusion: "success" } } });
   assert.deepEqual(green.sends, [], green.out);
+});
+
+// Review finding on #10491 (claude-security-review): a run sent counts only
+// when pr-merge.yml's own post-merge-dispatch on main uploaded its record, by
+// babysit_postmerge.py's sender rule (_lane_sender), which this step runs. A
+// same-name artifact from any other run, such as a pull request run, does
+// not suppress the send.
+test("a same-name record from a run that is not pr-merge.yml's on main does not suppress the alert", () => {
+  const trusted = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: {} } });
+  assert.equal(trusted.status, 0, trusted.out);
+  assert.deepEqual(trusted.sends, [], "control: the lane's own record is a send already made");
+  assert.ok(trusted.calls.includes("api repos/o/r/actions/runs/901"), trusted.calls.join("\n"));
+  for (const forged of [
+    { event: "pull_request" },
+    { event: "pull_request_target" },
+    { event: "push" },
+    { path: ".github/workflows/ci.yml" },
+    { head_branch: "feature" },
+    { head_repository: { full_name: "outsider/r" } },
+    { repository: { full_name: "outsider/r" } },
+  ]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: forged } });
+    assert.equal(run.status, 0, run.out);
+    assert.deepEqual(run.sends, [alertSend(41)], JSON.stringify(forged));
+  }
 });
 
 test("one run per job: the oldest red one unsent, the next on the next run", () => {

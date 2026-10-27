@@ -1648,6 +1648,73 @@ class LaneDispatch(CheckCase):
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
 
+class LaneAlerted(CheckCase):
+    """pr-merge.yml's alert step skips a red full run only when its own
+    post-merge-dispatch on main recorded the send (`pr-merge-alerted-<id>`):
+    the same sender rule as the dispatch and re-run records. A same-name
+    artifact any other run uploaded is no record (review finding on #10491)."""
+
+    SENDER = 600
+
+    def alerted(self, **sender: Any) -> None:
+        self.gh.artifacts["pr-merge-alerted-11"] = [
+            {
+                "id": 7,
+                "name": "pr-merge-alerted-11",
+                "workflow_run": {"id": self.SENDER},
+            }
+        ]
+        record = {
+            "id": self.SENDER,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+        record.update(sender)
+        self.gh.run_records[self.SENDER] = record
+
+    def cli(self) -> int:
+        with contextlib.redirect_stderr(io.StringIO()):
+            return pm.main(["--repo", REPO, "--branch", "main", "--lane-alerted", "11"])
+
+    def test_a_record_from_post_merge_dispatch_on_main_counts(self) -> None:
+        for event in ("schedule", "workflow_dispatch"):
+            self.alerted(event=event)
+            self.assertEqual(self.cli(), 0, event)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_a_same_name_record_from_any_other_run_does_not_count(self) -> None:
+        for sender in (
+            {"event": "pull_request"},
+            {"event": "pull_request_target"},
+            {"event": "push"},
+            {"path": ".github/workflows/ci.yml"},
+            {"head_branch": "feature"},
+            {"repository": {"full_name": "example-org/other"}},
+            {"head_repository": {"full_name": "outsider/example-repo"}},
+            {"head_sha": OTHER_SHA},
+        ):
+            self.alerted(**sender)
+            self.assertEqual(self.cli(), 1, sender)
+
+    def test_no_record_does_not_count(self) -> None:
+        self.assertEqual(self.cli(), 1)
+
+    def test_an_unreadable_record_or_sender_exits_3(self) -> None:
+        self.alerted()
+        self.gh.fail_reads.add(f"actions/runs/{self.SENDER}")
+        self.assertEqual(self.cli(), 3)
+        self.gh.fail_reads = {"artifacts?name=pr-merge-alerted-11"}
+        self.assertEqual(self.cli(), 3)
+
+    def test_it_needs_a_branch(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            pm.main(["--repo", REPO, "--lane-alerted", "11"])
+
+
 class EmptyLaneRecordListing(CheckCase):
     """An artifact listing that answers empty for a run the lane dispatched
     (a degraded API) must not read as "not the lane's run": the listing is
