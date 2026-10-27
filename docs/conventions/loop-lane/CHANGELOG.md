@@ -11,7 +11,8 @@ Minor. Guidance only; no topology, escalation-contract mechanism, capability-tie
 
 - **When work stops for the owner.** §2 quotes the owner's rule of 2026-10-27 and tables the three
   reasons an item goes to a person (an intent or vision change, an implementation finding that
-  alters intent or the primary design, a HIGH or CRITICAL security issue), each with its label and
+  alters intent or the primary design, a HIGH or CRITICAL security issue such as a leaked token or
+  secret, an account compromise or real money at risk), each with its label and
   the lane that decides. Cost is not a stop; a new charge is out of bounds.
 
 ## [12.7.0] - 2026-10-26
