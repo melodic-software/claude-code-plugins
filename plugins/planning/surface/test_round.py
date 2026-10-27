@@ -1570,6 +1570,36 @@ class TestStatusLive(DirCase):
         g1 = json.loads(out)["groups"][0]
         self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
 
+    def test_an_answer_superseded_after_it_counts_nowhere(self):
+        """#9715: status reads supersededBy before the decision, as export-ledger does, so the two
+        agree once an answered question is superseded."""
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at}]
+        )
+        ledger = self.tmp / "ledger.md"
+
+        def counts():  # (answered per status --json, Q1's export-ledger status)
+            rc, out, err = self.rp("status", "--json")
+            self.assertEqual(rc, 0, out + err)
+            answered = sum(g["answered"] for g in json.loads(out)["groups"])
+            rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+            self.assertEqual(rc, 0, out + err)
+            rows = [
+                line.split(" | ")
+                for line in ledger.read_text(encoding="utf-8").splitlines()
+                if line.startswith("- Q")
+            ]
+            return answered, next(r[1] for r in rows if r[0] == "- Q1")
+
+        self.assertEqual(counts(), (1, "answered"))
+        rc, out, err = self.rp(
+            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(counts(), (0, "withdrawn"))
+
     def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
         doc = base_doc()
         doc["questions"][0]["commits"] = ["No network"]

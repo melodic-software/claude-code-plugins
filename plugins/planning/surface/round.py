@@ -2099,9 +2099,12 @@ def cmd_status(d, a):
             if q.get("archived") or prop == "decline"
             else "proposed"
             if prop == "pending"
+            # before the decision, as export-ledger reads it: a superseded answer counts nowhere
+            else "superseded"
+            if q.get("supersededBy")
             else "waiting"
-            if q.get("waiting") and not q.get("supersededBy")
-            else dec or ("superseded" if q.get("supersededBy") else "open")
+            if q.get("waiting")
+            else dec or "open"
         )
         label = exporters.hold_label(q)
         rows.setdefault(q.get("group"), []).append(

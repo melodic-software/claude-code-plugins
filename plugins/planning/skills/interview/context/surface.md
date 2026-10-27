@@ -180,6 +180,14 @@ Ask, Rephrase and Research this stay enabled in every mode, `reopen` is never lo
 
 An `upstream-changed` question ([Changed answers](#changed-answers)) is locked under `confirm` and `hard` alike: Save stays disabled with no Answer anyway, and the server answers its decisions 409 `{"error": "upstream-changed", "changedBy": [<ids>]}` until Claude revises or reconfirms it. Under `off` it saves, and that decision clears the state.
 
+### Archived and superseded questions
+
+An archived question (the `archive` op, or a declined proposal) and a superseded one (its `supersededBy` set by a later question's `supersedes`) take no decision on the page. The page disables their Decide choices, Save and Reopen, and keeps Ask, Rephrase and Research this; an Ask is sent as typed. On a question with `supersededBy` it adds a primary `Go to <id>` button, and its banner says to answer that id instead, naming the end of the `supersededBy` chain: each hop is followed while the next id names a known question not already passed, so Q59 superseded by Q60, itself superseded by Q61, reads `Go to Q61`.
+
+The server answers a decision (`accept`, `alt`, `own`, `defer`, `hedged`, `reopen`) on a superseded question 409 `{"error": "superseded", "by": "<id>"}`, with `by` the same chain end, and on an archived one with no `supersededBy` 409 `{"error": "archived"}`; a decision on a declined proposal stays the 400 it was. Accept-all and accept-audit leave a superseded question out. An `undo`, `ask`, `rephrase`, `research` or `cancel-research` on one still saves.
+
+The page meter, `round.sh status` and `export-ledger` all read `supersededBy` before the decision: an answer recorded before the question was superseded counts nowhere, so the question is neither live nor answered and its register row exports `withdrawn` (`superseded by <id>`, or `archived: <why>` when it is archived too).
+
 ### Auto-handled events
 
 The server marks a plain `accept` (no `text`) and a plain `confirm` handled when it saves them (the event carries `autoHandled: true`), so the watcher wakes only for events that need a reply. They are recorded in `responses.json` as usual, so `sync-ledger` and `export-brief` count them like any other. Every other kind stays unhandled until you `handle` or reply to it: `ask`, `own`, `rephrase`, `note`, `research`, `cancel-research`, `undo`, `wrapup`, `confirm-understanding`, `accept-audit`, and an `accept` with `text`. The accept that leaves no open question in its round is not auto-handled, so it wakes you and you learn the round is complete. An auto-handled accept stays undoable until you handle a later event; after that, the undo is refused with `Claude already handled it`, as for an event you handled yourself.
