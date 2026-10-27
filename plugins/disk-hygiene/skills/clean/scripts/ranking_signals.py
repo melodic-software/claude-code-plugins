@@ -34,7 +34,7 @@ SIGNAL_READS = {
     SIGNAL_SIZE_COLLISION: ["path", "kind", "stat_size", "device", "inode"],
 }
 # Siblings whose modification times chain together with no gap wider than this
-# are one cluster: one write-second plus the neighbour it rounds into.
+# are one cluster: one write-second plus the neighbor it rounds into.
 MTIME_CLUSTER_WINDOW_NS = 2_000_000_000
 RANKING_BASIS = (
     "Presentation order only. A signal is evidence, never proof an entry is "
