@@ -31,9 +31,26 @@ for s in check-shell-portability check-changelog-fragments check-stale-base-over
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
+# The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
+# as the real one lists the selected suites it did not run.
+cat >"$repo/scripts/affected-tests.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "affected-tests ran" >&2
+while (($#)); do
+  [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
+  shift
+done
+exit "${STUB_AFFECTED_TESTS:-0}"
+STUB
 printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
   >"$repo/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
+# The real Node package runner, over one registered fixture package.
+mkdir -p "$repo/scripts/lib"
+cp "$SELF_DIR/lib/read-list.sh" "$repo/scripts/lib/"
+cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
+printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
+printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 : >"$repo/_typos.toml"
 chmod +x "$repo"/scripts/*.sh
 # A typos stand-in on every run's PATH, so a typos on the machine never sees the
@@ -180,8 +197,44 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
+check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
 run STUB_AFFECTED_TESTS=3 -- --base base --tests
-check "--tests passes when only another ecosystem's suites went unrun" '[[ $RC == 0 ]]'
+check "--tests does not pass an exit 3 that names no unrun suite" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: affected-tests exited 3 but named no unrun suite)"* ]]'
+mkdir -p "$repo/eco"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/eco/w.test.sh"
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/w.test.mjs\n' -- --base base --tests
+check "--tests counts a Node suite beside its .test.sh wrapper as run" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
+rm -rf "$repo/eco"
+run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'fixtures/case.test.js\n' -- --base base --tests
+check "--tests counts no path under outside-node-exclusions.txt as an unrun suite" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
+# A selected Node suite in a registered package runs through the package's own
+# npm test, and a failing one fails tests.
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  mkdir -p "$repo/pkg/demo"
+  printf '{"name":"demo","private":true,"scripts":{"test":"node --test x.test.mjs"}}\n' >"$repo/pkg/demo/package.json"
+  node_suite='import test from "node:test";\nimport assert from "node:assert";\ntest("planted", () => assert.equal(1, %s));\n'
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 2 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests
+  check "--tests fails on a failing selected Node suite in a registered package" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 1 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests
+  check "--tests passes when the selected Node package suites pass and nothing is left unrun" \
+    '[[ $RC == 0 && $ERR != *"SKIP tests"* && $ERR != *"FAIL tests"* ]]'
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\neco/test_x.py\n' -- --base base --tests
+  check "--tests runs the Node package suites and still skips, counting, the ones left unrun" \
+    '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 1 selected suite(s) not run here"* ]]'
+  rm -rf "$repo/pkg"
+else
+  ok "SKIP Node package cases (node, npm or jq not installed)"
+fi
 run STUB_AFFECTED_TESTS=1 -- --base base --tests
 check "--tests fails on a failing suite" '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
 
