@@ -51,9 +51,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    holds. A repository plugin folder is a `.claude/skills/*/` folder that the plugin pages load as
    a plugin from the skills directory (read which folders qualify at the repository plugins pointer
    below). Search each one as step 2 searches a listed plugin's folder, in place of the dropped
-   files. Of the files left and those found, keep each whose folder name, file name without `.md`,
-   or frontmatter `name` is `control-<app>` (no `<app>`: starts with `control-`). Its source is
-   `project`.
+   files, and apply step 2's inline-command `blocked:` case to its manifest. Of the files left and
+   those found, keep each whose folder name, file name without `.md`, or frontmatter `name` is
+   `control-<app>` (no `<app>`: starts with `control-`). Its source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports whose
    folder step 1 did not already search, take the folder the list reports for it (see the plugin
    list below) and search the skill and command files it loads from its default folders and its
@@ -66,9 +66,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    folder with no manifest takes the name the manifest page gives it (see the manifest file below).
    Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each
    only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
-   when step 1 kept no repository match for that app: a listed plugin whose manifest defines
-   `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
-   see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
+   when step 1 kept no repository match for that app: a listed plugin, or a repository plugin
+   folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
+   file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
