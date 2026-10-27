@@ -57,7 +57,7 @@ in every lane, floor or not and whatever `floor_exempt` says (owner rule,
 (the base tree was not listed); a file renamed or copied into a workflow or
 `pr-pipeline.yaml` path from outside one, or into a `_MODEL_CODE` path from
 outside those; a `.github/workflows/` file whose
-patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, a `model:` or
+patch adds, outside a `#` comment line, a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, a `model:` or
 `max-turns:` key, a `_MODEL_FLAG`), or, unless `RiskInput.public` is True, a
 `runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`, a
 `_MODEL_ACTION` (a local `uses: ./` included) or a `_MODEL_PACKAGE` run,
@@ -1010,14 +1010,18 @@ _ANCHOR = re.compile(r"(?:^|(?<=[\s\[{,:]))&([\w.-]+)\s+([^\s,}\]#]+)")
 _Path = tuple[str, ...]
 
 
-def _timeouts(text: str) -> tuple[dict[_Path, list[str]], set[_Path]]:
-    """Each timeout value in workflow text by its key path, and every key path
-    the text holds. A job's steps share one path; a flow mapping's timeouts
+def _timeouts(
+    text: str,
+) -> tuple[dict[_Path, list[str]], set[_Path], Counter[_Path]]:
+    """Each timeout value in workflow text by its key path, every key path the
+    text holds, and the item count of each `steps` list. A job's steps share
+    one path; a flow mapping's timeouts
     take their place on the line. A value on the lines below its key or behind
     an alias (the last anchor before it) is read there, and an expression's
     value also counts what it reads (`_feeds`)."""
     values: dict[_Path, list[str]] = {}
     paths: set[_Path] = set()
+    steps: Counter[_Path] = Counter()
     stack: list[tuple[int, str]] = []
     anchors: dict[str, str] = {}
     lines = text.split("\n")
@@ -1029,6 +1033,8 @@ def _timeouts(text: str) -> tuple[dict[_Path, list[str]], set[_Path]]:
         while stack and stack[-1][0] >= col:
             stack.pop()
         path = tuple(key for _, key in stack)
+        if path[-1:] == ("steps",) and line.lstrip(" ").startswith("-"):
+            steps[path] += 1
         keyed = _key_of(body)
         rest = keyed[1] if keyed else body
         for name, value in _ANCHOR.findall(rest.split(" #", 1)[0]):
@@ -1059,7 +1065,7 @@ def _timeouts(text: str) -> tuple[dict[_Path, list[str]], set[_Path]]:
     read: dict[str, list[str]] = {}
     for vals in values.values():
         vals += _feeds(text, vals, read)
-    return values, paths
+    return values, paths, steps
 
 
 def _timeout_gains(new: list[str], old: list[str]) -> list[str]:
@@ -1090,8 +1096,10 @@ def _raised_timeouts(
     not be read) that the change raises, sets to an expression or removes: the
     patch's added values against the ones it removes (`_timeout_gains`), and,
     with both sides read, the same per key path (`_timeouts`), plus a timeout
-    removed while its job stays (the default is the longest). With a side
-    unread, a patch that removes more timeouts than it adds holds."""
+    removed while its job stays (the default is the longest). A key path new
+    to the head whose values a vanished job's same key held (a renamed job) is
+    not a gain, and a step deleted with its timeout is not a removal. With a
+    side unread, a patch that removes more timeouts than it adds holds."""
     if f.status == "removed":
         return []
     contents = getattr(raw, "contents", None)
@@ -1102,22 +1110,34 @@ def _raised_timeouts(
     if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
         return []
     new = [s for line in added for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))]
-    old = [s for line in removed for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))]
+    old = [
+        s for line in removed for _, v in _TIMEOUT.findall(line) if (s := _scalar(v))
+    ]
     found = [f"timeout raised to {v}" for v in _timeout_gains(new, old)]
     if not (isinstance(base, str) and isinstance(head, str)):
         if len(old) > len(new):
             found.append("timeout removed")
         return found
-    (was, _), (now, kept) = _timeouts(base), _timeouts(head)
+    (was, _, steps_was), (now, kept, steps_now) = _timeouts(base), _timeouts(head)
+    gone = [
+        (p[-1], sorted(v))
+        for p, v in was.items()
+        if p not in now and not _kept_parent(p, kept)
+    ]
     for path in sorted(set(was) | set(now)):
         at = "/".join(path)
+        renamed = path not in was and (path[-1], sorted(now[path])) in gone
+        if renamed:
+            gone.remove((path[-1], sorted(now[path])))
+            continue
         found += [
             f"timeout at {at} raised to {v}"
             for v in _timeout_gains(now.get(path, []), was.get(path, []))
         ]
-        if len(now.get(path, [])) < len(was.get(path, [])) and _kept_parent(
-            path, kept
-        ):
+        lost = len(was.get(path, [])) - len(now.get(path, []))
+        if path[-2:-1] == ("steps",):
+            lost -= steps_was[path[:-1]] - steps_now[path[:-1]]
+        if lost > 0 and _kept_parent(path, kept):
             found.append(f"timeout at {at} removed")
     return list(dict.fromkeys(found))
 
@@ -1175,7 +1195,11 @@ def _cost_reasons(
                 )
             else:
                 patterns = [_COST_WORKFLOW_LINE if steps else _MODEL_FLAG]
-            found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
+            found = [
+                s.strip()
+                for s in added
+                if not s.lstrip().startswith("#") and any(p.search(s) for p in patterns)
+            ]
             if steps:
                 found += [
                     f"new model leg {n}"

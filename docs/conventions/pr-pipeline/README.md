@@ -865,12 +865,14 @@ the rules that only tighten in
     list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside,
     or into an action's `action.yml` or `.github/scripts/` from outside those;
-  - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
-    model credits), a `model:` or `max-turns:` key (a model step's input), a `--model` or
-    `--max-turns` flag, or an `ANTHROPIC_*MODEL` or `CLAUDE_CODE_*MODEL` variable; or that gains
+  - a workflow patch that adds, on a line that is not a `#` comment, a `cron:` key in any YAML
+    or JSON spelling (a schedule can spend model credits), a `model:` or `max-turns:` key (a
+    model step's input), a `--model` or `--max-turns` flag, or an `ANTHROPIC_*MODEL` or
+    `CLAUDE_CODE_*MODEL` variable; or that gains
     any `secrets` reference (`secrets.NAME`, `secrets.*`, `secrets['NAME']`, `secrets: inherit`,
     and the whole context: `${{ secrets }}`, `toJSON(secrets)`, `contains(secrets, ...)`, or
-    `secrets` opening a line or an expression and ending the line, as a folded scalar splits it), a `uses:` of
+    `secrets` before `)`, after `&&` or `||`, or opening a line or an expression and ending the
+    line, as a folded scalar splits it), a `uses:` of
     `run-claude-cli`, any `claude-code*` action
     or image (matched ignoring case), or a local reusable workflow or composite action
     (`uses: ./...`, whose text the gate does not read), or a run line invoking
@@ -881,7 +883,8 @@ the rules that only tighten in
     `timeout-minutes` or `leg-timeout-minutes`, in block or flow style, that the change raises,
     sets to an expression, or removes while its job stays (the default is the longest): the
     patch's added values against the ones it removes, paired largest first, and with both sides
-    read, each job's values against its own (a job's step timeouts together), counting a value on
+    read, each job's values against its own (a job's step timeouts together; a renamed job keeping
+    its values and a step deleted with its timeout are not changes), counting a value on
     the lines below its key, behind an alias, or in the matrix values, input default or `env`
     value an expression reads;
   - a runner value the workflow's head text gains over its base text, counting the matrix values

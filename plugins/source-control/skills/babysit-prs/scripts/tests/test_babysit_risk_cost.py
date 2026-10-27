@@ -513,6 +513,51 @@ class ProbeShapes(unittest.TestCase):
         wf = _file(WORKFLOW, patch=patch, contents=(base, head))
         self.assertFalse(self._held(wf))
 
+    def test_a_job_renamed_with_its_timeout_does_not_hold(self):
+        base, head = _jobs(a="30"), _jobs(b="30")
+        patch = _patch("-  a:", "+  b:")
+        wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+        self.assertFalse(self._held(wf))
+
+    def test_a_job_renamed_with_a_raised_timeout_holds(self):
+        base, head = _jobs(a="30"), _jobs(b="300")
+        patch = _patch(
+            "-  a:", "+  b:", "-    timeout-minutes: 30", "+    timeout-minutes: 300"
+        )
+        wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+        self.assertTrue(self._held(wf))
+
+    def _steps(self, *timeouts: str) -> str:
+        text = _jobs() + "  a:\n    steps:\n"
+        for n, value in enumerate(timeouts):
+            text += f"      - run: step{n}\n"
+            if value:
+                text += f"        timeout-minutes: {value}\n"
+        return text
+
+    def test_a_step_deleted_with_its_timeout_does_not_hold(self):
+        for base, head, patch in (
+            (
+                self._steps("5", "10"),
+                self._steps("10"),
+                _patch("-      - run: step0", "-        timeout-minutes: 5"),
+            ),
+            (
+                self._steps("", "5"),
+                self._steps(""),
+                _patch("-      - run: step1", "-        timeout-minutes: 5"),
+            ),
+        ):
+            with self.subTest(base=base):
+                wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+                self.assertFalse(self._held(wf))
+
+    def test_a_step_timeout_removed_while_the_step_stays_holds(self):
+        base, head = self._steps("5", "10"), self._steps("", "10")
+        patch = _patch("-        timeout-minutes: 5")
+        wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+        self.assertTrue(self._held(wf))
+
     def test_a_flow_style_timeout_raise_holds(self):
         def flow(value):
             return f"  a: {{runs-on: ubuntu-24.04, timeout-minutes: {value}}}"
@@ -675,7 +720,9 @@ class ProbeShapes(unittest.TestCase):
         ):
             with self.subTest(line=line):
                 self.assertTrue(self._held(_file(action, patch=_patch(line))))
-        script = _file(".github/scripts/x.sh", patch=_patch("+npx @anthropic-ai/claude-code"))
+        script = _file(
+            ".github/scripts/x.sh", patch=_patch("+npx @anthropic-ai/claude-code")
+        )
         self.assertTrue(self._held(script))
 
     def test_a_new_local_reusable_workflow_or_composite_action_holds(self):
@@ -701,6 +748,19 @@ class ProbeShapes(unittest.TestCase):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
                 self.assertTrue(self._held(wf))
+
+    def test_a_comment_naming_a_model_key_or_flag_does_not_hold(self):
+        for line in (
+            "+  # pick the model: see docs",
+            "+          #   max-turns: 200",
+            "+          # claude_args: --model opus",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertFalse(self._held(wf))
+        live = _patch("+  # pick the model", "+          model: opus  # see docs")
+        wf = _file(WORKFLOW, patch=live, contents=("", "jobs: {}\n"))
+        self.assertTrue(self._held(wf))
 
     def test_model_flags_in_action_and_script_files_hold(self):
         for path in (
@@ -777,7 +837,8 @@ class ProbeShapes(unittest.TestCase):
             ),
             (
                 MATRIX + "        os:\n          - ubuntu-24.04\n",
-                MATRIX + "        os:\n          - ubuntu-24.04\n          - big-runner\n",
+                MATRIX
+                + "        os:\n          - ubuntu-24.04\n          - big-runner\n",
                 _patch("+          - big-runner"),
             ),
             (
@@ -797,7 +858,8 @@ class ProbeShapes(unittest.TestCase):
         wf = _file(
             WORKFLOW,
             patch=_patch(
-                "-        os: [ubuntu-24.04]", "+        os: [ubuntu-24.04, windows-2025]"
+                "-        os: [ubuntu-24.04]",
+                "+        os: [ubuntu-24.04, windows-2025]",
             ),
             contents=(
                 MATRIX + "        os: [ubuntu-24.04]\n",
