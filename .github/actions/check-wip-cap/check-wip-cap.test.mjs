@@ -11,14 +11,14 @@
 // 2026-10-21). A read that fails keeps the last known pause, or with none
 // fails open (owner decision 2026-10-21, #8804).
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
 import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const AUTHOR = "author:app/melodic-automation-lanes";
@@ -485,7 +485,7 @@ const BASE_FILES = [
   ".github/CODEOWNERS",
 ];
 async function runMain(answers, extraEnv = {}, config) {
-  const dir = mkdtempSync(join(tmpdir(), "check-wip-cap-"));
+  const dir = tempDir("check-wip-cap-");
   const base = join(dir, "base");
   mkdirSync(base);
   if (config !== undefined) {
@@ -577,7 +577,7 @@ const pastConfig = () =>
 const unsetConfig = () =>
   readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1""');
 function stateFile(prior) {
-  const path = join(mkdtempSync(join(tmpdir(), "check-wip-cap-state-")), "state.json");
+  const path = join(tempDir("check-wip-cap-state-"), "state.json");
   if (prior !== undefined) {
     writeFileSync(path, JSON.stringify(prior));
   }

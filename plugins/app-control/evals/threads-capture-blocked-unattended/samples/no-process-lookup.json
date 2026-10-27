@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat evidence/report.json", "description": "Read the record, no ps or pgrep lookup"}}],
+      "why": "ps and pgrep only in the description"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -c threads evidence/report.json", "description": "Count threads rows"}}],
+      "why": "an unrelated command"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "evidence/report.json"}}],
+      "why": "a different tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ps -p 5120 -o pid,cmd", "description": "Check the pid"}}],
+      "why": "ps at the start of the command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "echo checking\nps aux", "description": "List processes"}}],
+      "why": "ps after an escaped newline"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "pgrep -f shop/server.py", "description": "Find the server"}}],
+      "why": "lookup by name"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "true;pidof python3", "description": "Find python"}}],
+      "why": "pidof after a separator with no space"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "sha256sum < /proc/5120/cmdline", "description": "Hash the command line"}}],
+      "why": "reads the process table for the pid"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat /proc/$pid/status", "description": "Read the status"}}],
+      "why": "process table read through a variable"
+    }
+  ]
+}

@@ -4,9 +4,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
 
@@ -40,7 +40,7 @@ function git(cwd, ...args) {
 }
 
 before(() => {
-  root = mkdtempSync(path.join(tmpdir(), "trusted-base-"));
+  root = tempDir("trusted-base-");
   const home = path.join(root, "home");
   mkdirSync(home);
   env = { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
