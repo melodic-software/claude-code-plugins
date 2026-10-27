@@ -73,6 +73,8 @@ whose alternative may not repeat or contain the recommendation).
 add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
 independent; `--depends none` on the flags) or names a question still open in its own round; with
 the requireDepends setting on, both refuse.
+add, add-round and apply warn when one write supersedes three or more questions one for one, and
+point to revise, which keeps a question's id, thread and answer. archive clears any hold.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -179,12 +181,29 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 RESTATE_SENTENCES = 3
+# One write superseding this many questions one for one is a re-issue `revise` should do (G6).
+MASS_SUPERSEDE = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
     r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
     re.IGNORECASE,
 )
+# A criterion that opens on a request to the user ("Say add both, add one, or neither.").
+ASKS_USER_LEAD = re.compile(r"^(?:say|choose)\b", re.IGNORECASE)
+# A restated line's bullet or number, checkbox, AC<N> id and EARS tag, ahead of its text.
+CRITERION_LEAD = re.compile(
+    r"^(?:[-*+]\s+|[0-9]+[.)]\s+)?(?:\[[ xX]\]\s*)?(?:AC[0-9]+\s*:\s*)?(?:\[[\w-]+\]\s*)?"
+)
+# The TLDR labels the --brief gate reads; a restated TLDR line above them must not wear one.
+GATE_LABEL = re.compile(r"^(?:Restatement|Page title):")
+TLDR_BULLETS = 5
+VISUAL_REF = re.compile(
+    r"\b(?:the|this|that|these|those)\s+(?:[\w-]+\s+)?"
+    r"(?:table|visual|diagram|chart|figure|matrix|mockup|wireframe|sketch)s?\b",
+    re.IGNORECASE,
+)
+FACTS_TABLE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
@@ -693,6 +712,21 @@ def warn_rec_asks(qid, rec):
         )
 
 
+def warn_rec_visual(doc, q, rec, commits):
+    """Warn when a recommendation points at a table or visual and has no commitments while the
+    file holds a visual or the question's facts a table: the Brief carries the recommendation and
+    its commitments, never a visual or the facts."""
+    shown = any(not v.get("archived") for v in doc.get("visuals") or []) or (
+        FACTS_TABLE.search(q.get("facts") or "")
+    )
+    if shown and not commits and VISUAL_REF.search(CODE_SPAN.sub("", str(rec or ""))):
+        warn(
+            f"{q['id']} recommendation refers to a table or visual and has no commitments; the "
+            "Brief carries only the recommendation and its commitments, so write that content "
+            "(the criteria, the rows) into one of them"
+        )
+
+
 BASIS_LABEL = re.compile(
     r"^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b"
     r"|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$",
@@ -728,7 +762,7 @@ def warn_bare_file_ref(qid, field, text):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -742,6 +776,7 @@ def lint_questions(doc, qs):
                 f"break (budget {REC_BUDGET}, R12)"
             )
         warn_rec_asks(q["id"], rec)
+        warn_rec_visual(doc, q, rec, q.get("commits"))
         basis = (q.get("basis") or "").strip()
         n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
         if n > BASIS_SENTENCES:
@@ -766,6 +801,21 @@ def lint_questions(doc, qs):
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
                         "file; spell it out or use the question's id"
                     )
+    warn_mass_supersede(qs)
+
+
+def warn_mass_supersede(qs):
+    """Warn when one write supersedes MASS_SUPERSEDE or more questions one for one: a re-issued
+    round starts each question over under a new id, where `revise` keeps the id, thread and
+    answer (G6)."""
+    pairs = [f"{q['supersedes']} by {q['id']}" for q in qs if q.get("supersedes")]
+    if len(pairs) >= MASS_SUPERSEDE:
+        shown = ", ".join(pairs[:5]) + (f" and {len(pairs) - 5} more" if len(pairs) > 5 else "")
+        warn(
+            f"this write supersedes {len(pairs)} questions one for one ({shown}); "
+            "to reword a question or change its recommendation, alternatives or commitments, "
+            "use revise <id>, which keeps its id, thread and answer"
+        )
 
 
 def group_members(doc, gid):
@@ -1334,6 +1384,8 @@ def op_revise(d, doc, a):
             "seq", 0
         )
         changed.append("commitments")
+    if a.rec is not None or commits is not None:
+        warn_rec_visual(doc, q, q.get("recommendation"), q.get("commits"))
     moved = None
     if deps is not None and deps != (q.get("dependsOn") or []):
         moved = f"{', '.join(q.get('dependsOn') or []) or 'none'} -> {', '.join(deps) or 'none'}"
@@ -1464,13 +1516,23 @@ def op_record_terminal(d, doc, a):
 
 
 def op_archive(d, doc, a):
-    """Record why a question left the path; the server derives its archived state."""
+    """Record why a question left the path; the server derives its archived state. Any hold on it
+    is cleared, as `wait --clear` clears one (the setAside stamps stay), so an archived question
+    carries no `waiting` hold (G6)."""
     if not (a.why or "").strip():
         sys.exit("archive needs --why")
     capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
     for q in qs:
+        held = q.get("waiting")
+        label = HOLD_LABELS.get(q.get("waitingBy"), HOLD_LABELS["claude"])
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            q.pop(key, None)
+        if held:
+            q.setdefault("history", []).append(
+                {"at": at, "by": "claude", "text": f"No longer {label}."}
+            )
         q["archived"] = {"why": a.why, "at": at}
         q.setdefault("history", []).append(
             {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
@@ -1703,6 +1765,7 @@ def op_confirm_commitments(d, doc, a):
 
 
 RESTATE_SECTIONS = (
+    "tldr",
     "problem",
     "goal",
     "workSize",
@@ -1713,6 +1776,42 @@ RESTATE_SECTIONS = (
     "deferred",
     "planningOwned",
 )
+
+
+def restated_lines(s, key):
+    """A restate section's non-blank lines, each without its bullet, checkbox, AC<N> id or tag,
+    its whitespace runs one space as the export writes them."""
+    text = s.get(key) if isinstance(s.get(key), str) else ""
+    return [
+        CRITERION_LEAD.sub("", " ".join(x.split()), count=1)
+        for x in text.splitlines()
+        if x.strip()
+    ]
+
+
+def check_restated_lines(s):
+    """Refuse an acceptance line that asks the user something (the Brief would carry a question
+    as a criterion) and a tldr line wearing a label the --brief gate reads; warn on a tldr over
+    the Brief template's bullet budget."""
+    for line in restated_lines(s, "acceptance"):
+        if rec_asks_user(line) or ASKS_USER_LEAD.match(line):
+            sys.exit(
+                f"refused: restate acceptance line asks the user something ({line!r}); a "
+                "criterion states a checkable outcome, so ask the question on the page (the "
+                "coverage prompt as a note-reply with needsAnswer) and restate once it is answered"
+            )
+    tldr = restated_lines(s, "tldr")
+    for line in tldr:
+        if GATE_LABEL.match(line):
+            sys.exit(
+                f"refused: restate tldr line {line!r} opens with a label the --brief gate reads "
+                "in the TLDR (Restatement:, Page title:); reword it"
+            )
+    if len(tldr) > TLDR_BULLETS:
+        warn(
+            f"restate tldr has {len(tldr)} lines; the Brief's TLDR holds at most {TLDR_BULLETS} "
+            "scope bullets, so ask the user which items to defer"
+        )
 
 
 def op_restate(d, doc, a):
@@ -1730,6 +1829,7 @@ def op_restate(d, doc, a):
         sys.exit("refused: restate needs at least one non-empty section")
     for k, v in s.items():
         capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
+    check_restated_lines(s)
     kept = exporters.restatement_revs(doc)
     rev = max((r["rev"] for r in kept), default=0) + 1
     doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}

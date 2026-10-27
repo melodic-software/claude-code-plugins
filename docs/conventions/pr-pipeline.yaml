@@ -7,12 +7,13 @@ activities:
     args: fix
     # Runs the skill's detect script on head files, so no write token: the
     # read runner turns its uncommitted fixes into a patch that apply-patch
-    # pushes under patch-rules.json's default row.
+    # pushes under patch-rules.json's markdown-only docs row (pr-refine.yml
+    # passes patch-prepare: docs).
     effect: read
     applied-by:
       patch: apply-patch
-    # No web access: under the default row apply-patch can push more than
-    # markdown, so a page the run read could steer a push or carry a key out.
+    # No web access: a page the run read could still steer the markdown a
+    # push carries, or carry a key out in it.
     gating: advisory
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
@@ -849,9 +850,10 @@ red-main:
 # PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
 # account on .github/standards/trusted-actors/trusted-actors.json opened (by
 # id, a person or an App), with no hold label and no `Hold:` body line, and,
-# for a person's PR, whose last update and head commit are both idle-hours
-# old. fix-ci fixes its failed ci-status; pr-merge merges it under its usual
-# gates. Without this section nothing is adopted.
+# for a person's PR, whose activity and head commit are both idle-hours old
+# (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last
+# update). fix-ci fixes its failed ci-status; pr-merge merges it under its
+# usual gates. Without this section nothing is adopted.
 adoption:
   # 24: a day with no push, comment or label change means the person left it.
   idle-hours: 24

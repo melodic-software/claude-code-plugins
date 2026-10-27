@@ -55,6 +55,13 @@
       ],
       "reason": "Read by the next run; 1 day is the minimum."
     },
+    "pr-merge-verify-listing": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/listing-carry.mjs LISTING_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run as its listing base; 1 day is the minimum."
+    },
     "pr-merge-head-refs": {
       "retention-days": 1,
       "readers": [

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -9,6 +8,7 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 // The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
@@ -483,7 +483,7 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   const ci = { ...ciFixPull(61), labels: { nodes: [{ name: "needs-human" }] } };
   const docs = { ...docsPull(61), labels: { nodes: [{ name: "needs-human" }] } };
   const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], docsPulls: [docs], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -694,7 +694,7 @@ test("a 15-digit workflow_run_id is accepted", async () => {
 
 // main against a fake API, with GITHUB_OUTPUT a real file it appends to.
 async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   const output = join(dir, "output");
   writeFileSync(output, "");
   try {
@@ -852,7 +852,7 @@ test("main records fix-docs dispatches beside the others, capped by limits.fix-d
 async function mainWithFailedListing(error) {
   const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], docsPulls: [docsPull(183)], workflowRuns: error });
   const lines = [];
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -899,7 +899,7 @@ async function mainWithHistoryAnswers(answers, pulls) {
   const adapter = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
   const api = { ...fakeApi({ pages: [[]], docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
   const lines = [];
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -965,7 +965,7 @@ test("the adapter marks a run listing budgetedFetch gave up on as rate limited, 
 });
 
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const output = join(dir, "output");
     writeFileSync(output, "");
@@ -981,7 +981,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
 });
 
 test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const file = join(dir, "ids");
     const api = fakeApi({ pages: [[pr(160), pr(161)]], runIds: new Map([["161", undefined]]) });
@@ -1266,7 +1266,7 @@ test("only a finished run that handles the head for good is recorded", async () 
 });
 
 test("main carries the record in DISPATCH_RECORD and writes it only when it changed", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const dir = tempDir("pr-unblock-record-");
   const output = join(dir, "output");
   const path = join(dir, "record.json");
   const env = {
@@ -1333,7 +1333,7 @@ test("a head capped by refused-credential stops names the class in its cap warni
 });
 
 test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns once, and reads nothing for it on the next run", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const dir = tempDir("pr-unblock-record-");
   const output = join(dir, "output");
   const path = join(dir, "record.json");
   const env = {
