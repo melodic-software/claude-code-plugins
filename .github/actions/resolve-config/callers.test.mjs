@@ -430,6 +430,17 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   }
 });
 
+test("intake-triage.yml: the model may apply duplicate, which admission refuses, and is told to name the candidate and not park a duplicate", () => {
+  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
+  assert.ok(intake.with["allowed-labels"].trim().split("\n").includes("duplicate"));
+  const rules = JSON.parse(read("./admission-rules.json"));
+  assert.ok(rules["refuse-labels"].includes("duplicate"));
+  const text = intake.with.instructions.replace(/\s+/g, " ");
+  assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
+  assert.match(text, /name the candidate by number/);
+  assert.match(text, /apply no `status: needs-decision`/);
+});
+
 test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
@@ -1040,6 +1051,15 @@ test("no job using pr-run-activity-write.yml runs the resolve-issue model step, 
   assert.equal(evaluate(refuse.if, context("7", "script")), false);
   assert.equal(evaluate(refuse.if, context("", "skill")), false);
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+});
+
+// The write runner's run job holds the lane token and id-token: write, so it
+// prepares no runner for head test files: the schema refuses run-test-file.sh
+// and check-skill.sh on a write-effect skill (verify-scripts.test.mjs), and a
+// read skill runs them in pr-run-activity-read.yml, whose run job holds neither
+// (pinned below with its read-only permissions).
+test("pr-run-activity-write.yml prepares no head test-file runner", () => {
+  assert.doesNotMatch(read("../../workflows/pr-run-activity-write.yml"), /run-test-file|check-skill/);
 });
 
 // The admission gate: on an issue anyone can open, only a listed human's
@@ -2715,7 +2735,7 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   assert.equal(runs(ctx("cancelled"), true), true, "a cancelled scan");
   assert.equal(runs(ctx("success")), false);
   assert.equal(runs(ctx("skipped")), false);
-  assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");
+  assert.equal(runs(ctx("failure", "", "7")), true, "issue mode: report-outcome names the refusal");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
   const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
@@ -2726,14 +2746,27 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
   const download = steps.find((step) => step.id === "scan-refused");
   const script = steps.find((step) => step.id === "act-script");
-  for (const [mode, activity] of [["inputs.review-replies", "address-feedback"], ["inputs.dependency-verdict", "review-dependency"]]) {
-    const values = { "inputs.review-replies": mode === "inputs.review-replies", "inputs.dependency-verdict": mode === "inputs.dependency-verdict", "inputs.lane": "pr-unblock", "runner.temp": "/t" };
-    const name = sub(upload.with.name, { ...ctx("failure"), "inputs.activity": activity });
+  for (const [mode, activity, lane, issue] of [
+    ["inputs.review-replies", "address-feedback", "pr-unblock", ""],
+    ["inputs.dependency-verdict", "review-dependency", "pr-unblock", ""],
+    ["", "resolve-issue", "work-resolve-issue", "7"],
+  ]) {
+    const values = {
+      "inputs.review-replies": mode === "inputs.review-replies",
+      "inputs.dependency-verdict": mode === "inputs.dependency-verdict",
+      "inputs.issue-number": issue,
+      "inputs.lane": lane,
+      "runner.temp": "/t",
+      "steps.lane-token.outputs.token": "t",
+      "steps.config.outputs.kind": "script",
+    };
+    const name = sub(upload.with.name, { ...ctx("failure", "", issue), "inputs.lane": lane, "inputs.activity": activity });
     const pattern = sub(download.with.pattern, values);
     assert.ok(pattern.endsWith("-*") && name.startsWith(pattern.slice(0, -1)), `${activity}: ${pattern} matches ${name}`);
+    assert.equal(evaluate(download.if, values), true, activity);
     assert.equal(sub(download.with.path, values), "/t/scan-refused", activity);
   }
-  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}");
+  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '') && format('{0}/scan-refused', runner.temp) || '' }}");
   assert.equal(download["continue-on-error"], true);
   assert.equal(download.with["merge-multiple"], true);
   assert.equal(script.env.SCAN_REFUSED_READ, "${{ steps.scan-refused.outcome }}");

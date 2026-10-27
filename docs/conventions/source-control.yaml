@@ -18,6 +18,11 @@
 # standards components/pr-convention-policy/policy.json `title.allowedTypes`, the scope is optional,
 # and git's own `Merge ...` and `Revert "..."` subjects pass. Single-quoted, with no single quote
 # inside, so every reader gets it unescaped. dialect: posix-ere is the only dialect enforcement reads.
+#
+# The babysit_loop_* keys are the /source-control:babysit-loop lane's repository policy: a standing
+# lane at the worker tier, merge authority up to the c2-mechanical rung, and a 30-minute activity
+# grace window. Landing them here is the lane's tracked adoption. .claude/source-control.md keeps
+# the same four values until the cleanup slice deletes it; change both while it exists.
 pr_open_state: ready
 pr_body_required_sections:
   - Summary
@@ -27,3 +32,7 @@ pr_body_required_sections:
 dialect: posix-ere
 subject_pattern: '^((build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\(.+\))?!?: .+|Merge .+|Revert ".+)'
 pr_title_pattern: "Same as `subject_pattern`."
+babysit_loop_stop_mode: standing
+babysit_loop_tier: worker
+babysit_loop_merge: c2-mechanical
+babysit_loop_grace_window_minutes: 30

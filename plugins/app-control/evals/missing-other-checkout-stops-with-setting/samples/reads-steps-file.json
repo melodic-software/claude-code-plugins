@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/orders/history/steps.yaml"
+          }
+        }
+      ],
+      "why": "read the feature's steps file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/SKILL.md"
+          }
+        }
+      ],
+      "why": "never opened the steps file, so the include was not seen"
+    }
+  ]
+}

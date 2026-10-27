@@ -1708,7 +1708,7 @@ else
 fi
 
 # The shipping tree itself, clean and with zero warnings, is the job of
-# scripts/validate-plugins.sh in check-plugins, which runs this validator over
+# scripts/validate-plugins.sh in check-catalog, which runs this validator over
 # the whole tree on every pull request; run here, it read every plugin file.
 
 test_harness::report
