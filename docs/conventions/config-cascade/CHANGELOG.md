@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`work-items` gains `ai_disclaimer`.** The Implementers row, renamed `work-items` (settings
+  keys), adds the key beside the triage keys; this repository's `docs/conventions/work-items.yaml`
+  now exists and sets it `false`.
 - **`knowledge` gains Implementers and root-rule rows.** Its `upstream_records_dir` key lives in
   `<home>/knowledge.yaml`, with no `userConfig` layer and no overlay, and a per-run `--out`
   argument over it.

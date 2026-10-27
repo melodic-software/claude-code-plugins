@@ -312,7 +312,9 @@ check. A patch that pushed escalates nothing, whatever the model escalated besid
 head's CI decides, and a red new head gets its own run. The one exception: a run at
 `model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
-`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). The retry posts its own
+`pr-unblock / fix-ci` check, which the dispatcher counts toward `limits.limit-stops-per-head` like
+any other run, so that cap bounds rung-ups on a head too. `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
@@ -563,7 +565,7 @@ head:
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
-| `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, the repeated-fail cap, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
+| `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
@@ -1254,12 +1256,11 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear (owner rule 2026-10-26: an intent or design change or a
-CRITICAL security issue, with cost and trust holds and a hold no lane can clear kept): that hold
+label only for a cause a person must clear (owner rules 2026-10-26 and 2026-10-27: an intent or
+design change or a CRITICAL security issue, with cost and trust holds kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
-a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, the
-repeated-FAIL round cap, a pull request too old to verify, a security finding, a high path, a
-trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
+security finding, a high path, a trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
 unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
 listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
 lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one
@@ -1838,16 +1839,15 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
-`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a human;
-`verify:spec-changed` holds for the lanes (owner rule 2026-10-26). While `merge.report-only` is
-false the lane escalates such a
-refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
-keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
-for `verify:repeated-fail` with a `fail` at the head quoting as data the first 1500 characters of
-the `summary` in the newest head `fail` verdict when its record can be read and names this pull
-request. The comment is rewritten only when any of these changes. A `verify:repeated-fail` with no
-summary to quote keeps the summary the lane's last such comment quoted, under the head it was given
-at, so a failed read rewrites nothing and the reason outlives a push. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
+`verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes (owner rules
+2026-10-26 and 2026-10-27): each still refuses the merge, with no label. The last two never clear,
+so such a pull request never merges unattended, and address-feedback's own round cap bounds the
+fix rounds on it. While `merge.report-only` is
+false the lane escalates `verify:untrusted-spec`
+on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
+rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that
@@ -2182,12 +2182,12 @@ at the start and end of each run, not the broker's own quota record, which this 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
 Each profile under `models.profiles` names:
 
-- `model`: an alias (`default`, `best`, `fable`, `opus` or `sonnet`), never a full model ID, passed
+- `model`: an alias (`default`, `opus` or `sonnet`), never a full model ID, passed
   as `--model`. `default` passes no `--model`, so the account's default model runs.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
   passes none, so the model's default effort applies.
-- `subagent-model` (optional, default `inherit`): an alias set as `CLAUDE_CODE_SUBAGENT_MODEL`
-  through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
+- `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
+  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
@@ -2248,8 +2248,10 @@ reader rejects a key that is not a complexity and a value that is not a profile.
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
-rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
-waits on an owner decision and a per-week Fable allowance for the lanes.
+rung is off: the schema admits neither `fable` nor `best` for `model` or `subagent-model`, so the
+config reader rejects a profile naming either and no route, rung or Complexity reaches it. It
+waits on an owner decision and a per-week Fable allowance for the lanes; the schema admits the two
+values again when that allowance is set.
 
 ## Funding
 

@@ -118,7 +118,7 @@ outcome or lane edit.
 
 Step 3 posts it on a passed verification, before the label edit that applies `status: confirmed`.
 If the comment cannot be posted, apply no label. In an autonomous session it starts with the AI
-disclaimer.
+disclaimer when the setting resolves `true` ([`reference/ai-disclaimer.md`](../../../reference/ai-disclaimer.md)).
 
 ```markdown
 **Verified: <bug reproduced | request valid | PR behaves as described>**
@@ -139,7 +139,7 @@ checked and what it showed.
 Posted with the brief by every outcome that applies the autonomous-eligible role label, when
 `triage_objection_window_hours` resolved above 0. `<end>` is the post time plus that many hours, in
 UTC, written `YYYY-MM-DDTHH:MM:SSZ`. The marker line is first so the work-loop admission gate can
-find it; in an autonomous session the AI disclaimer follows it.
+find it; in an autonomous session the AI disclaimer, when the setting adds one, follows it.
 
 Post it before the label edit that applies the autonomous-eligible role label. If the comment
 cannot be posted, apply no label at all: the item keeps its raw marker and the next sweep retries

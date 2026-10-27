@@ -227,6 +227,8 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/pytest-python.sh
+. "$SCRIPT_DIR/lib/pytest-python.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
@@ -1612,6 +1614,12 @@ if [[ -n "$not_run_file" && ${#delegated[@]} -gt 0 ]] &&
   ! printf '%s\n' "${delegated[@]}" >"$not_run_file"; then
   echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
+fi
+
+# The suites run under the CI venv's python when one exists (PyYAML and the
+# rest of .github/requirements-ci.txt), not whatever python3 the host has.
+if venv_bin=$(pytest_python::venv_bin); then
+  PATH="$venv_bin:$PATH"
 fi
 
 failed=0
