@@ -331,7 +331,7 @@ sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" 
 # sync_stale_base <checkout>: the sync-stale-base step of the header. Returns
 # 0 to push; exits 4 on a conflict.
 sync_stale_base() {
-  local wd="$1" root="" on="$SYNC" base="${PR_BASE_REF:-}" out ref rc mb tip paths_base paths_head sign=()
+  local wd="$1" root="" on="$SYNC" base="${PR_BASE_REF:-}" out ref rc mb tip paths_base paths_head overlap sign=()
   [[ -n "$wd" ]] && root=$(git -C "$wd" rev-parse --show-toplevel 2>/dev/null)
   if [[ -z "$on" && -n "$root" ]] &&
     git -C "$root" ls-files --error-unmatch -- docs/conventions/source-control.yaml >/dev/null 2>&1; then
@@ -387,15 +387,15 @@ sync_stale_base() {
       return 0
     fi
     [[ "$mb" != "$tip" ]] || return 0
-    LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head") |
-      grep -q . || return 0
+    overlap=$(LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head"))
+    [[ -n "${overlap//$'\n'/}" ]] || return 0
   fi
-  if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true ]] &&
-    git -C "$wd" cat-file commit HEAD | grep -qE '^gpgsig(-sha256)? '; then
+  out=$(git -C "$wd" cat-file commit HEAD)
+  if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true && "$out" =~ (^|$'\n')gpgsig(-sha256)?\  ]]; then
     sign=(-S)
   fi
   if git -C "$wd" merge --no-edit ${sign[@]+"${sign[@]}"} "$ref" >&2; then
-    echo "push-branch.sh: merged $ref into '$BRANCH' (stale base with overlapping paths)" >&2
+    echo "push-branch.sh: merged $ref into '$BRANCH' (stale base with overlapping paths); HEAD is now $(git -C "$wd" rev-parse HEAD)" >&2
     return 0
   fi
   out=$(git -C "$wd" diff --name-only --diff-filter=U)

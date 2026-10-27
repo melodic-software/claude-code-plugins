@@ -77,7 +77,10 @@ value and its unset fallback.
   depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
   worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
   the head assertion holds, push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`
-  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Inside a lane (a
+  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Attended, with
+  `sync_stale_base` on, it may first add one base-merge commit whose first parent is that asserted
+  `HEAD`, or exit 4 on a conflict with nothing pushed, which stops the push like any refusal
+  ([create.md](../../pull-request/reference/create.md) §2.4.1). Inside a lane (a
   `[bot]` login) it hands the push to `lane-push.sh --pr <N>` as the target's
   `merge.agent-identity` (the loop-lane convention's "Lane write identity"), which reads the PR's
   head repository and branch from the forge and pushes to `https://github.com/<owner>/<repo>.git`,
