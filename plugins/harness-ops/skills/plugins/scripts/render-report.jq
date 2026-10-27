@@ -12,7 +12,8 @@
 # misstate a number, an id, or a scope the digest carries. In audit mode every
 # call sync would make carries the `would run:` prefix. A remedy sync never runs
 # itself (the `git -C … pull`, a project-scope enable) is the operator's in both
-# modes and carries no prefix, since sync would not run it either. The
+# modes and carries no prefix, since sync would not run it either; a pull the
+# user agreed to, which the script ran, renders on the source row instead. The
 # `Would withhold` row appears beside `Would update` whether or not a downgrade
 # was found. Errors in a block's `errors[]` render under that block's
 # `Action needed`; the run's own `errors[]` render under the trailing one.
@@ -39,10 +40,12 @@ def reported:
 def pair: "\(.old) → \(.new)" + (if .direction == "unknown" then " (direction unknown)" else "" end);
 def scoped: "\(.id) (\(.scope))";
 def ids: map(.id) | join(", ");
-def auto_update_slot:
+# `$quiet`: the user silenced the enable-it suggestion for this marketplace.
+def auto_update_slot($quiet):
   if . == true then "on"
-  elif . == false then "off; enable it so the catalog refreshes automatically"
+  elif . == false then (if $quiet then "off" else "off; enable it so the catalog refreshes automatically" end)
   else "unreadable" end;
+def short_sha: (. // "?") | .[0:12];
 def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
 
 # The slowest timed step of a block's timings object, or null.
@@ -127,11 +130,13 @@ def block($d):
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
+  | (.source_pull // null) as $pull
   | (($src.behind // 0) > 0) as $behind
+  | (.name as $n | any(($d.quiet_auto_update // [])[]; . == $n)) as $quiet
   | [
       "Marketplace: \(.name): \(if $needs then "needs update" elif $behind then "source checkout behind \($src.upstream)" else "current" end)"
       + (if $pending > 0 then ", \($pending) action(s) pending" else "" end)
-      + " (autoUpdate: \(.auto_update | auto_update_slot))",
+      + " (autoUpdate: \(.auto_update | auto_update_slot($quiet)))",
       # A directory source is read as it is on disk; this row says how fresh that is.
       (if $src == null then empty
        elif $src.state == "not_a_repo" then
@@ -142,7 +147,11 @@ def block($d):
             elif $src.state == "no_upstream" then "a git checkout on \($src.branch) with no upstream; freshness not checked"
             else "on \($src.branch), \($src.behind) behind and \($src.ahead) ahead of \($src.upstream) as of its last fetch" end)
          + (if $src.dirty then "; tracked files modified" else "" end)
-         + " (this run does not fetch or pull it)"
+         + (if $pull.status == "pulled" then
+              " (fast-forwarded by this run from \($pull.from | short_sha) to \($pull.to | short_sha) with git pull --ff-only, before the refresh)"
+            elif $pull.status == "failed" then
+              " (a requested git pull --ff-only failed; see Action needed)"
+            else " (this run does not fetch or pull it)" end)
        end),
       (if $audit then
          "  would run: claude plugin marketplace update \(.name) (audit: predicted against the unrefreshed catalog, lastUpdated \(.catalog_last_updated // "unknown"); a lower bound on what sync would update)"
@@ -369,6 +378,13 @@ def block($d):
             + (if $src.ahead > 0 then "; it also carries \($src.ahead) local commit(s), so --ff-only refuses until they are reconciled" else "" end)
             + (if $src.dirty then "; tracked files are modified, and the pull refuses if it would overwrite them" else "" end)
           else empty end),
+         # A requested fast-forward that did not happen. HEAD and the work tree are
+         # as they were, so the behind bullet above, when there is one, still stands.
+         (if $pull.status == "refused" then
+            "requested fast-forward of \($src.path // "the source checkout") refused, nothing changed: \($pull.reason)"
+          elif $pull.status == "failed" then
+            "requested fast-forward of \($src.path // "the source checkout") failed (exit \($pull.rc)): \($pull.reason)"
+          else empty end),
          (if $install_deferred then
             "install gap deferred (marketplace refresh failed): \(.install_gap | join(", "))"
           else empty end),
@@ -423,6 +439,9 @@ def block($d):
     ([
        (if $d.install_new_invalid != null then
           "install_new value \"\($d.install_new_invalid)\" is not all, none, or ask; this run used ask"
+        else empty end),
+       (if ($d.source_pull_invalid // null) != null then
+          "directory_source_pull value \"\($d.source_pull_invalid)\" is not ask or never; this run used \($d.source_pull // "ask")"
         else empty end),
        ($d.errors[] | "error: \(.)")
      ] | if length == 0 then empty else "Action needed:", (.[] | "  - \(.)") end)

@@ -613,6 +613,7 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
 const UNBOUND = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review: not bound: rerun-not-allowed)";
 const SECURITY = "pr-merge's gate holds it on its risk score (security-finding: 1 open CRITICAL finding)";
 const REPEATED = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
+const TOO_OLD = "pr-merge's gate refuses its verifier verdict (verify:too-old)";
 const UNTRUSTED = "pr-merge's lane does not take its issue link (untrusted-provenance)";
 const UNTRUSTED_SPEC = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
 const COST = "pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)";
@@ -649,6 +650,11 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
     // A lane verdict now passes, and the risk score it hid names only lane causes.
     [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
+    // Owner rule 2026-10-27: the repeated-FAIL cap and an old pull request
+    // hold for the lanes, so their labels come off at the head where the
+    // reader still refuses them (#10134's shape).
+    [REPEATED, refusing("verify:repeated-fail")],
+    [TOO_OLD, refusing("verify:too-old")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
@@ -666,13 +672,10 @@ const PERSON_CLASS = [
   risk("high-path:**: a symlink"),
   risk("high-path:.github/workflows/**: .github/workflows/ci.yml"),
   UNTRUSTED_SPEC,
-  REPEATED,
   UNTRUSTED,
   // A link reason, the reader's own unread link included.
   "pr-merge's lane does not take its issue link (unreadable: timed out)",
-  // Off the lane list: a refusal that recurs at the same head, or one the
-  // reader always pairs with a link answer.
-  "pr-merge's gate refuses its verifier verdict (verify:too-old)",
+  // Off the lane list: one the reader always pairs with a link answer.
   "pr-merge's gate refuses its verifier verdict (verify:ineligible)",
   // A code not known to be a lane's, matched whole, or a person's beside a lane's.
   risk("a-new-code: x"),

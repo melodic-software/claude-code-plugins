@@ -224,7 +224,11 @@ fi
 # caller's environment points every git variable at another repository. This is
 # the incident scripts/check-fixture-git-isolation.sh exists to stop, asserted
 # against the builder rather than against a grep of a suite's source.
-fixture_tree::build poison_root --git
+if ! fixture_tree::build poison_root --git || [[ ! -d "$poison_root/.git" ]]; then
+  fail "poison fixture not built; refusing to write its identity: '$poison_root'"
+  test_harness::report
+  exit 1
+fi
 git_test_config "$poison_root" config user.email caller@example.test
 out="$(
   run_child "

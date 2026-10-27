@@ -41,6 +41,22 @@
         "none"
       ]
     },
+    "directory_source_pull": {
+      "type": "string",
+      "title": "Directory-source pull",
+      "description": "Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls.",
+      "default": "ask",
+      "options": [
+        "ask",
+        "never"
+      ]
+    },
+    "quiet_auto_update_marketplaces": {
+      "type": "string",
+      "title": "Marketplaces without the autoUpdate hint",
+      "description": "Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off.",
+      "default": ""
+    },
     "skill_usage_audit_enabled": {
       "type": "boolean",
       "title": "Skill-usage-audit hook",
