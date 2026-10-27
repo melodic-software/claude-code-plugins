@@ -261,6 +261,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+    (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
+    (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)

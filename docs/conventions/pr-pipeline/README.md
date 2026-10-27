@@ -848,7 +848,8 @@ the rules that only tighten in
   - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    and the `retry-fetch.mjs` copy in each of those two directories)
+    the `retry-fetch.mjs` copy in each of those two directories, and the stop routes
+    `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
