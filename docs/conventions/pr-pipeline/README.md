@@ -209,6 +209,16 @@ upstream it records, except that only `pr-unblock / address-feedback` check runs
 `pr-verify` run was created count, and the head's handled record is not read, since the notes are
 new work at a head an earlier round may have handled; with none yet, the review run dispatches when it completes. The fix round's
 push gives a head the verifier judges again.
+When the run uploaded a `pass` or `pass-notes` verdict instead, `post-verify-notes` posts and
+resolves nothing: on an open PR still at that head it reads the review threads, and when an
+unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
+by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
+sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
+check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
+job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
+PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
+`pass-only`, which the dispatcher's release reads pass over. Resolving a thread
+takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -302,7 +312,9 @@ check. A patch that pushed escalates nothing, whatever the model escalated besid
 head's CI decides, and a red new head gets its own run. The one exception: a run at
 `model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
-`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). The retry posts its own
+`pr-unblock / fix-ci` check, which the dispatcher counts toward `limits.limit-stops-per-head` like
+any other run, so that cap bounds rung-ups on a head too. `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
@@ -331,8 +343,9 @@ role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
 `fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
 read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
 credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
-pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
-set, every agent instruction path and more than 300 paths. No change is the common case, so an
+pushing it as one commit under `patch-rules.json`'s `docs` row (`patch-prepare: docs`), which
+admits only markdown and refuses the universal set, any path under a `skills/` directory, any
+`SKILL.md` and more than 300 paths. No change is the common case, so an
 `empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
 unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
@@ -353,6 +366,15 @@ run older than 50 commits, or a force-push that dropped its commit, costs one mo
 at most `limits.fix-docs-per-run` per run, none for a PR whose `fix-docs` run is still queued or
 going, and the run ids join the dispatched-runs record. A PR that turns ready waits for the next
 push to the default branch.
+
+A `fix-docs` run whose run job emits an empty head posts no check (`post-decline: false`), so the
+dispatch record also keeps the `fix-docs` runs dispatched on each head. Once
+`limits.limit-stops-per-head` are kept, the dispatcher reads each one's status and jobs through
+the Actions API, and a head with that many runs whose `fix-docs / broker-allowed` job succeeded (a
+fact no run job can write) gets one `::warning::` and joins the record's handled heads until a new
+push. A run the broker refused, or one a hold skipped, ran no model turn: it does not count and
+leaves the list once it ends, as a run that is gone does. A head whose runs cannot be read is not
+dispatched. A lost record restarts the count, at most that many runs more.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -544,7 +566,7 @@ head:
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
-| `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, the repeated-fail cap, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
+| `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
@@ -565,7 +587,8 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `docs` for a push job that passes
-`patch-prepare: docs` to hold a patch to markdown, `default` for one with no prepare mode, and
+`patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
+one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
 fix-docs's, resolve-conflicts's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
@@ -684,7 +707,9 @@ held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an
 round whose model never ran, so the scan uploaded no replies), `finding-stands` (an
 address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
 did not move, so no review run starts the round that fixes it), `clean-merge` (a resolve-conflicts
-round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
+round whose base merge left no conflict, so no model ran and the push job commits the merge),
+`pass-only` (a pass-only address-feedback round's reply job, which ran no model and only resolved
+fail-note threads a pr-verify pass superseded; the dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
@@ -1179,7 +1204,7 @@ collaborator) whose newest comment, review or inline comment with text says "do 
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
 `HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
-run, and whose
+run, unless a person on the trusted-actor list approved that head as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1203,7 +1228,9 @@ gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a pu
 count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
 armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+report that job keeps as an artifact (on an idle tick the last run's report, which that job reuses
+unchanged while nothing its check reads has moved, `babysit_verify_evidence.py settle --idle-tick`;
+`babysit_verify_evidence.py lane-room`; with no report it
 holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
 as the gate does; one refused only because a demotion record was filed or changed since is first
 kept when the demotion records alone read as they were; one past the gate's
@@ -1233,12 +1260,11 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear (owner rule 2026-10-26: an intent or design change or a
-CRITICAL security issue, with cost and trust holds and a hold no lane can clear kept): that hold
+label only for a cause a person must clear (owner rules 2026-10-26 and 2026-10-27: an intent or
+design change or a CRITICAL security issue, with cost and trust holds kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
-a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, the
-repeated-FAIL round cap, a pull request too old to verify, a security finding, a high path, a
-trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
+security finding, a high path, a trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
 unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
 listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
 lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one
@@ -1323,7 +1349,14 @@ request event and in the merge queue, where a red group removes the pull request
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
-body hold or veto, and arming still skips the pull request, so that person merges it.
+body hold or veto. `enable-auto-merge` reads the same approval (`pathLifters`) and stops holding
+the pull request on the hold path, and the gate's risk score (`evidence --lane-reviews`,
+`lane_risk_refusal`) drops its `high-path:` reasons for a path on `babysit_risk.HIGH_FLOOR` or in
+`merge.diff-check.denied-paths` on the same approval (`babysit_merge_policy.path_lifters`, which
+`test_merge_holds_sync.py` holds equal to `pathLifters`), so its other checks decide. The approval
+lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost, trust-gate,
+manifest, file-cap or review-lane hold, and a review list or trusted-actor list that does not read
+lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
@@ -1810,16 +1843,15 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
-`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a human;
-`verify:spec-changed` holds for the lanes (owner rule 2026-10-26). While `merge.report-only` is
-false the lane escalates such a
-refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
-keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
-for `verify:repeated-fail` with a `fail` at the head quoting as data the first 1500 characters of
-the `summary` in the newest head `fail` verdict when its record can be read and names this pull
-request. The comment is rewritten only when any of these changes. A `verify:repeated-fail` with no
-summary to quote keeps the summary the lane's last such comment quoted, under the head it was given
-at, so a failed read rewrites nothing and the reason outlives a push. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
+`verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes (owner rules
+2026-10-26 and 2026-10-27): each still refuses the merge, with no label. The last two never clear,
+so such a pull request never merges unattended, and address-feedback's own round cap bounds the
+fix rounds on it. While `merge.report-only` is
+false the lane escalates `verify:untrusted-spec`
+on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
+rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that
@@ -2035,10 +2067,12 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   failed jobs, annotations and log tails; slice D, every run of each of the two lane workflows with
   the most runs, successes included, with sampled green runs' failed steps; slice C, ten open pull
   requests by listed authors per unit, with labels, ages and head check results. Runs from forks
-  never count. It lists the window workflow by workflow: one `per_page=1` call reads each workflow's
-  run count, and a range at the listing's 1,000-run cap is halved until each part fits, so every run
-  of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
-  so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
+  never count. It lists the window workflow by workflow, busiest first: each range's first page of
+  100 runs carries its run count, and a range at the listing's 1,000-run cap is halved until each
+  part fits, so every run of the 24 hours is read. It stops at 350 REST calls, keeping 184 of them
+  for the open pull request and issue reads and the units (the dearest mix: four slice A units and
+  four slice C units), and says so: a
+  workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
 - **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
   on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
@@ -2137,7 +2171,7 @@ a short page; a run that spends its call budget there stops before writing. A st
 the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
-no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
+no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
 the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
@@ -2152,12 +2186,12 @@ at the start and end of each run, not the broker's own quota record, which this 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
 Each profile under `models.profiles` names:
 
-- `model`: an alias (`default`, `best`, `fable`, `opus` or `sonnet`), never a full model ID, passed
+- `model`: an alias (`default`, `opus` or `sonnet`), never a full model ID, passed
   as `--model`. `default` passes no `--model`, so the account's default model runs.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
   passes none, so the model's default effort applies.
-- `subagent-model` (optional, default `inherit`): an alias set as `CLAUDE_CODE_SUBAGENT_MODEL`
-  through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
+- `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
+  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
@@ -2218,8 +2252,10 @@ reader rejects a key that is not a complexity and a value that is not a profile.
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
-rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
-waits on an owner decision and a per-week Fable allowance for the lanes.
+rung is off: the schema admits neither `fable` nor `best` for `model` or `subagent-model`, so the
+config reader rejects a profile naming either and no route, rung or Complexity reaches it. It
+waits on an owner decision and a per-week Fable allowance for the lanes; the schema admits the two
+values again when that allowance is set.
 
 ## Funding
 
@@ -2294,7 +2330,7 @@ with defaults.
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
-| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
@@ -2486,8 +2522,10 @@ pull-request`, and the pr-merge gate accepts it with no closing issue. Any other
 App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
 would also have written the spec it is graded against.
 
-The body counts only if it was never edited, or was last edited by its author or a trusted person;
-the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
+The body counts only if it was never edited, or was last edited by its author or a trusted person,
+and the title only if it was never renamed, or was last renamed by its author or a trusted person
+(its latest `RenamedTitleEvent`); otherwise the PR is not its own spec. The verdict records the
+sha256 of that title and body (`intent_sha256`), and the gate refuses the pass
 (`verify:spec-changed`) once the live title and body differ.
 
 In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the

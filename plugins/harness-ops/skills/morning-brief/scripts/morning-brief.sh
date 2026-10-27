@@ -1032,6 +1032,18 @@ count_label_rest() {
   jq '[ .[] | select(has("pull_request") | not) ] | length' "$WORK/count.rest" >"$1"
 }
 
+# A search read can answer an empty result with nothing in the reply to say the
+# index was incomplete. search_zero_unconfirmed LABEL [prs] holds such a 0
+# against the REST issue listing, which is not search-backed: it returns 0
+# (unconfirmed) when that listing reads more than 0 or cannot be read. With
+# prs, open pull requests count too, for a search that returns them.
+SEARCH_ZERO_NOTE="the search read 0 and the REST issue listing did not confirm it"
+search_zero_unconfirmed() {
+  count_label_rest "$WORK/count.check" "$1" || return 0
+  [[ "${2:-}" == prs ]] && jq 'length' "$WORK/count.rest" >"$WORK/count.check"
+  [[ "$(cat "$WORK/count.check")" != "0" ]]
+}
+
 print_queues() {
   echo "== Queues (open issues per label) =="
   local labels_to_show=() label n labels_available=0
@@ -1061,7 +1073,7 @@ print_queues() {
   else
     labels_to_show=("${QUEUE_LABELS[@]}")
   fi
-  local rows=() capped=() via_list
+  local rows=() capped=() unavailable=() via_list
   for label in "${labels_to_show[@]}"; do
     via_list=0
     if [[ -n "$COUNTS_JSON" ]]; then
@@ -1092,6 +1104,9 @@ print_queues() {
     if ((via_list && n >= COUNT_LIMIT)); then
       capped+=("$label")
       n="$n+"
+    elif ((via_list && n == 0)) && search_zero_unconfirmed "$label"; then
+      unavailable+=("$label")
+      n="count unavailable"
     fi
     rows+=("$(printf '  %-24s %s' "$label" "$n")")
   done
@@ -1100,6 +1115,10 @@ print_queues() {
   if ((${#capped[@]} > 0)); then
     label="$(printf '%s, ' "${capped[@]}")"
     echo "  PARTIAL: ${label%, }: count reached the $COUNT_LIMIT-issue read cap; the true count may be higher"
+  fi
+  if ((${#unavailable[@]} > 0)); then
+    label="$(printf '%s, ' "${unavailable[@]}")"
+    echo "  PARTIAL: ${label%, }: count unavailable: $SEARCH_ZERO_NOTE"
   fi
   echo
 }
@@ -1112,7 +1131,9 @@ print_queues() {
 # GraphQL search per label, with the label events inside the search, so it stays
 # one call per page rather than one per item. Search returns at most 1,000
 # results; an item with no such event among its last 100 timeline events is
-# listed as `days unknown` after the dated ones, never dropped.
+# listed as `days unknown` after the dated ones, never dropped. A live search
+# that returns no item is held against the REST issue listing, and a label it
+# does not confirm is reported as count unavailable, never as none.
 # fetch_stuck_label_gql OUTFILE LABEL
 # Writes one GraphQL page document per page, the shape `gh api` emits.
 STUCK_PAGE_LIMIT=10 # 10 pages of 100 is the search ceiling
@@ -1167,7 +1188,7 @@ STUCK_QUERY='
 
 print_stuck() {
   echo "== Stuck (open items in a queue label for more than ${STUCK_DAYS}d) =="
-  local label pages="$WORK/stuck.pages" items="$WORK/stuck.items" err ceiling=() out
+  local label pages="$WORK/stuck.pages" items="$WORK/stuck.items" err ceiling=() unavailable=() out
   if [[ -n "$STUCK_JSON" ]]; then
     # A fixture is held to the same standard as a live read: an error document
     # is an unreadable source, never an all-clear.
@@ -1221,6 +1242,13 @@ print_stuck() {
       unreadable stuck "$label: could not parse the search pages"
       return
     }
+    if [[ -z "$STUCK_JSON" ]] &&
+      jq -s -e '[ .. | objects | select(has("data")) | .data.search.nodes[]? ] | length == 0' \
+        "$pages" >/dev/null 2>&1 &&
+      search_zero_unconfirmed "$label" prs; then
+      unavailable+=("$label")
+      continue
+    fi
     # The search reports more matches than it hands back once it reaches its ceiling.
     if jq -s -e '
       [ .. | objects | select(has("data")) | .data.search | objects ] as $p
@@ -1267,8 +1295,12 @@ print_stuck() {
   }
   if [[ -n "$out" ]]; then
     echo "$out"
-  else
+  elif ((${#unavailable[@]} == 0)); then
     echo "  (none — no open item has held a queue label for more than ${STUCK_DAYS}d)"
+  fi
+  if ((${#unavailable[@]})); then
+    label="$(printf '%s, ' "${unavailable[@]}")"
+    echo "  PARTIAL: ${label%, }: count unavailable: $SEARCH_ZERO_NOTE"
   fi
   if ((${#ceiling[@]})); then
     label="$(printf '%s, ' "${ceiling[@]}")"

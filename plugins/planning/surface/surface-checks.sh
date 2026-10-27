@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=118)
+declare -A CHECKS=([ab]=97 [c]=201 [e]=20 [journey]=235 [live]=18 [page]=118)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -131,6 +131,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
     [[ -z "${pg:-}" ]] || bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
+    [[ -z "${sd:-}" ]] || bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -256,7 +257,30 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     pw run-code --filename "$(script_path "$tmp/ui_c6.js")" >"$tmp/ui_c6.out" 2>&1
     wait "$handler" 2>/dev/null
     bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
-    for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+
+    # ui_c phases 7 and 8 (#9715) run against a sixth server holding only D1: phase 7 answers it,
+    # the shell supersedes it with D2 and reads export-ledger, and phase 8 checks the page meter
+    # agrees with the ledger's live and answered rows.
+    sd="$tmp/s3"
+    mkdir -p "$sd"
+    cp tests/fixtures/ui_d/questions.json "$sd/"
+    bash "$here/round.sh" --dir "$sd" ensure-running --port 0 >/dev/null
+    sport=$(sed -n 's/^PORT=//p' "$sd/.interview-session.env" | tr -d '\r')
+    sed "s/__PORT__/$sport/; s/__PHASE__/7/" tests/ui_c.js >"$tmp/ui_c7.js"
+    pw run-code --filename "$(script_path "$tmp/ui_c7.js")" >"$tmp/ui_c7.out" 2>&1
+    read -r -a seqs <<<"$(unhandled "$sd")"
+    [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$sd" handle --seq "${seqs[@]}" >/dev/null
+    bash "$here/round.sh" --dir "$sd" add --id D2 --group base --stage interview --short Again --title "Should the step run now?" \
+      --rec "Yes." --depends none --commit none --alt a:No --alt b:Later --supersedes D1 >/dev/null || bad "ui_c.8: add --supersedes D1 refused"
+    bash "$here/round.sh" --dir "$sd" export-ledger --out "$tmp/s3-ledger.md" >/dev/null || bad "ui_c.8: export-ledger refused"
+    ledger=$("$py" -c 'import json, sys
+rows = [l.split(" | ") for l in open(sys.argv[1], encoding="utf-8") if l.startswith("- Q") and " | " in l]
+live = [r for r in rows if r[1] != "withdrawn"]
+print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in live), **{r[4].split("]")[0].lstrip("["): r[1] for r in rows}}))' "$tmp/s3-ledger.md")
+    sed "s/__PORT__/$sport/; s/__PHASE__/8/; s/__LEDGER__/$ledger/" tests/ui_c.js >"$tmp/ui_c8.js"
+    pw run-code --filename "$(script_path "$tmp/ui_c8.js")" >"$tmp/ui_c8.out" 2>&1
+    bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
+    for n in 1 2 3 4 5 6 7 8; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   }
 
   group_e() {

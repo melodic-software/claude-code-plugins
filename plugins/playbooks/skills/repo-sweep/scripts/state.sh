@@ -25,7 +25,8 @@
 #
 # Exit:
 #   0  next step found; under an in-progress step a dirty tree means resume
-#   1  error: no markers in the body; any other unlisted code is a failed gh, git, or jq
+#   1  error: no markers in the body, or the open-PR listing reached its limit; any other
+#      unlisted code is a failed gh, git, or jq
 #   10 no sweep PR
 #   11 the sweep PR is merged or closed
 #   12 dirty tree and the next step is pending, not in progress
@@ -46,6 +47,10 @@ esac
 
 prefix=chore/repo-sweep-
 fields=number,state,mergeable,headRefName,baseRefName,body,isCrossRepository
+# Off a sweep branch every open PR is listed, unsearched, and filtered by head branch here: a
+# degraded search can answer a false empty with no signal gh passes on, and a false empty here
+# files a duplicate sweep. A listing that fills its limit may be missing one, so it is an error.
+limit=1000
 # Branch names, playbook names, and step ids reach commands the agent builds, so all three are
 # restricted to safe characters, and fork PRs never count as a sweep.
 safe_branch='^chore/repo-sweep-[A-Za-z0-9._-]+$'
@@ -56,11 +61,16 @@ trap 'rm -rf "$tmp"' EXIT
 
 branch=$(git symbolic-ref -q --short HEAD || true)
 if [[ $branch == "$prefix"* ]]; then
-  gh pr list --state all --head "$branch" --limit 1000 --json "$fields" >"$tmp/prs"
+  gh pr list --state all --head "$branch" --limit "$limit" --json "$fields" >"$tmp/prs"
   jq '[.[] | select(.isCrossRepository | not)] | (map(select(.state == "OPEN")) + .)[0] // empty' \
     "$tmp/prs" >"$tmp/pr"
 else
-  gh pr list --state open --search "head:$prefix" --limit 1000 --json "$fields" >"$tmp/prs"
+  gh pr list --state open --limit "$limit" --json number,headRefName,isCrossRepository >"$tmp/prs"
+  listed=$(jq length "$tmp/prs")
+  if ((listed >= limit)); then
+    printf 'state.sh: the open-PR listing reached its %s-PR limit; a sweep PR may be missing from it\n' "$limit" >&2
+    exit 1
+  fi
   jq -r --arg re "$safe_branch" \
     '.[] | select((.isCrossRepository | not) and (.headRefName | test($re))) | "sweep \(.number) \(.headRefName)"' \
     "$tmp/prs" >"$tmp/open"

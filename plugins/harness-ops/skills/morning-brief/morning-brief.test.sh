@@ -821,7 +821,8 @@ assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
 #            Keys: label-list, pr-list, issue-list-label-<sanitized label>,
 #            issue-list-search, issue-view-<n>, and api-graphql-<cursor> (first
 #            page: api-graphql-first), and api-graphql-stuck-<sanitized label>-
-#            <cursor> for a label search. `api graphql --paginate` follows the
+#            <cursor> for a label search; any other `api` call is served by its
+#            repos/ path, sanitized as in rest. `api graphql --paginate` follows the
 #            cursors to the last page, as gh does. Every key served is logged
 #            to MB_GH_LOG when set; a missing fixture fails the call.
 GH_STUB_DIR="$TMP/gh-stub"
@@ -874,6 +875,11 @@ case "$mode" in
       }
       cat "$f"
     }
+    if [[ "$1" == api && "$2" != graphql ]]; then
+      for a in "$@"; do
+        [[ "$a" == repos/* ]] && { serve "$(san "$a")"; exit 0; }
+      done
+    fi
     cmd="$1 $2"
     shift 2
     limit="" q="" label="" search=0 cursor="first" num="" paginate=0 squery=""
@@ -1310,6 +1316,7 @@ jq -n '[range(501) | {name: "label-\(.)"}]' >"$CAPS/label-list.json"
 printf '[{"number": 1}]\n' >"$CAPS/issue-list-label-needs-triage.json"
 jq -n '[range(1001) | {number: .}]' >"$CAPS/issue-list-label-status__ready.json"
 printf '[]\n' >"$CAPS/issue-list-label-needs-human.json"
+printf '[]\n' >"$CAPS/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
 jq -n '[range(201) | {number: (. + 1), title: "decision \(.)", url: "http://x/d", body: "RECOMMENDED: go", comments: []}]' \
   >"$CAPS/issue-list-label-status__needs-decision.json"
 jq -n '[range(201) | {number: (. + 1), title: "pr \(.)", url: "http://x/p", isDraft: true, mergeStateStatus: "BLOCKED", reviewDecision: ""}]' \
@@ -1332,6 +1339,22 @@ assert_contains "caps: a decision list at its cap is PARTIAL" "$(section "$OUT_C
 TEL_CAPS="$(section "$OUT_CAPS" "== Lane telemetry")"
 assert_contains "caps: a telemetry search at its cap is PARTIAL" "$TEL_CAPS" "PARTIAL: the telemetry issue search reached its 100-issue cap"
 assert_contains "caps: the telemetry search still picks the oldest match it read" "$TEL_CAPS" "source: issue #1000"
+assert_not_contains "caps: a search 0 the REST listing confirms is not flagged" "$QUEUES_CAPS" "count unavailable"
+
+# --- A search 0 the REST listing contradicts is count unavailable -------------
+# The search index can answer an empty result with nothing in the reply to say so.
+FALSE0="$TMP/gql-false-zero"
+cp -r "$CAPS" "$FALSE0"
+printf '[{"number": 9}]\n' >"$FALSE0/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
+QUEUES_FALSE0="$(section "$(MB_GH_FIXTURES="$FALSE0" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")"
+assert_contains "false zero: a search 0 against a REST count above 0 is count unavailable" "$QUEUES_FALSE0" \
+  "needs-human              count unavailable"
+assert_contains "false zero: the section says why" "$QUEUES_FALSE0" \
+  "PARTIAL: needs-human: count unavailable: the search read 0 and the REST issue listing did not confirm it"
+rm "$FALSE0/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
+assert_contains "false zero: a REST check that fails is count unavailable too" \
+  "$(section "$(MB_GH_FIXTURES="$FALSE0" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")" \
+  "needs-human              count unavailable"
 
 # --- Stranded: paging stops at the cutoff; the bookmark widens the window ----
 # Pages are newest-updated first. NOW is 2026-07-20T08:00Z, so the 3-day floor
@@ -1472,6 +1495,10 @@ for stk_label in needs-triage status__needs-decision needs-human; do
 {"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}}
 EOF
 done
+# The REST issue listing confirms each empty search.
+for stk_label in needs-triage status%3A%20needs-decision needs-human; do
+  printf '[]\n' >"$STK/$(rest_key "$R/issues?state=open&per_page=100&labels=$stk_label").json"
+done
 OUT_STUCK_LIVE="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$STK" MB_GH_LOG="$TMP/log-stuck" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
 RC_STUCK_LIVE=$?
 STUCK_LIVE_SEC="$(section "$OUT_STUCK_LIVE" "== Stuck")"
@@ -1481,6 +1508,19 @@ assert_contains "stuck live: an item on the second page is listed" "$STUCK_LIVE_
 assert_eq "stuck live: oldest first across pages" "#301#302" "$(stuck_order "$STUCK_LIVE_SEC")"
 assert_contains "stuck live: the page past the first is read" "$(cat "$TMP/log-stuck")" "api-graphql-stuck-status__ready-p2"
 assert_contains "stuck live: every queue label is searched" "$(cat "$TMP/log-stuck")" "api-graphql-stuck-needs-human-first"
+assert_not_contains "stuck live: an empty search the REST listing confirms is not flagged" "$STUCK_LIVE_SEC" "count unavailable"
+
+# Every search empty, one contradicted by the REST listing: no all-clear. The
+# stuck search returns PRs too, so an open PR alone contradicts it.
+STK0="$TMP/gql-stuck-false-zero"
+cp -r "$STK" "$STK0"
+cp "$STK0/api-graphql-stuck-needs-human-first.json" "$STK0/api-graphql-stuck-status__ready-first.json"
+printf '[]\n' >"$STK0/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20ready").json"
+printf '[{"number": 9, "pull_request": {"url": "x"}}]\n' >"$STK0/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
+STUCK_FALSE0="$(section "$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$STK0" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")" "== Stuck")"
+assert_contains "stuck live: a search 0 against an open PR in the REST listing is count unavailable" "$STUCK_FALSE0" \
+  "PARTIAL: needs-human: count unavailable: the search read 0 and the REST issue listing did not confirm it"
+assert_not_contains "stuck live: a contradicted empty search never renders an all-clear" "$STUCK_FALSE0" "(none"
 
 mkdir -p "$TMP/gql-stuck-none"
 OUT_STUCK_FAIL="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$TMP/gql-stuck-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"

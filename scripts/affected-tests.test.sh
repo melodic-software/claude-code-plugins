@@ -563,6 +563,41 @@ else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
 
+# --- --run puts the CI venv's bin first on PATH, when there is one ----------
+# A suite records the PATH it sees. The fake venv's python imports pytest, which
+# is what the shared lookup (scripts/lib/pytest-python.sh) asks of a venv.
+cat >"$repo/lib/pathprobe.test.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$PATH" >"${MARKER_FILE:-/dev/null}"
+EOF
+printf 'probe\n' >"$repo/lib/pathprobe.sh"
+mkdir -p "$repo/.work/venv/bin"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/.work/venv/bin/python"
+chmod +x "$repo/.work/venv/bin/python"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$repo/.work/venv/bin:"* ]]; then
+  ok "--run puts the CI venv's bin first on PATH for a suite"
+else
+  fail "--run did not put the venv first (rc=$RC): $(cat "$marker")"
+fi
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --jobs 2 lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$repo/.work/venv/bin:"* ]]; then
+  ok "--run --jobs 2 puts the CI venv's bin first on PATH too"
+else
+  fail "--run --jobs 2 did not put the venv first (rc=$RC): $(cat "$marker")"
+fi
+rm -rf "$repo/.work"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$PATH" ]]; then
+  ok "--run leaves PATH unchanged with no CI venv"
+else
+  fail "--run changed PATH with no venv (rc=$RC): $(cat "$marker")"
+fi
+rm -f "$repo/lib/pathprobe.sh" "$repo/lib/pathprobe.test.sh"
+
 # --- --run --jobs N hands the same selection to run-plugin-tests.sh ---------
 #
 # The property is that the SET of suites executed does not change with the job

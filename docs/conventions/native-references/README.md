@@ -209,7 +209,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic**: built, in the same self-check |
 | The phrase uses the presence gate rather than an availability assertion | **Deterministic**: built. The overlap self-check flags a description that names a bundled or built-in surface behind a presence condition with no gate token. Deciding whether some other sentence asserts availability remains a judgment about meaning; the built check is the greppable candidate, and it blocks as an advisory (exit 3), not as a store defect |
 | A `wrap` row's Native step and a `suggest` row's sentence trace to the store | **Deterministic**: built, in the same self-check. Forward parity looks for the heading `## Native step: <name> (<class>)` and for the sentence shape `If /<name> is available in your session (`. Reverse parity scans bodies for that sentence shape only, never the bare phrase |
-| The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design |
+| The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design: a person or a session acting on the owner's recorded direction writes each one, never an unattended run |
 
 ## Adopters
 

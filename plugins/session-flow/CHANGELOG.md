@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- **`/session-flow:audit-sessions correction`, a judged correction lens ([#5928](https://github.com/melodic-software/claude-code-plugins/issues/5928)).** The session's own model judges each short turn the collector flagged as a correction or not, reading the excerpts as untrusted data. `sweep.py --correction-candidates` prints those excerpts with a stable `turn_id`, and `sweep.py --judged <file>` merges the verdicts into a separate `Judged (unranked)` section whose findings carry `"confidence": "judged"`. They never enter the measured findings, suggestions or exit code, and no agreement figure exists yet. The skill deletes the verdict file after the merge, and `--judged` refuses `--write-report`, so no saved report holds an excerpt.
+
+## [1.5.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [1.5.0] - 2026-10-27
 
 ### Added

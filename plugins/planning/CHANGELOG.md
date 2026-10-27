@@ -3,6 +3,49 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.115.1] - 2026-10-27
+
+### Fixed
+
+- `/planning:interview`: the page lane's `user_config` substitution record no longer claims that an unset key with a `default` substitutes that default. The manifest reference does not say so, and our own probe (the `/harness-ops:plugins` record "`userConfig`: an unset key renders the literal placeholder") found the token stays literal. The record now treats a token the lane table shows literal as unset, whatever the key's saved state. It names each key's fallback (`surface` to `terminal`, emoji markers to off), points at that probe, and rechecks when a fresh-session probe records whether a saved boolean substitutes (`skills/interview/context/lane-page.md`).
+
+## [0.115.0] - 2026-10-27
+
+### Changed
+
+- The Brief is the spec, and each planning value has one owner. `/planning:interview`'s Brief template owns the Goal, the acceptance criteria and the deferred questions. `/planning:plan` writes no Goal of its own under `## Plan` and points at the Brief's. A minimal Brief written by plan now includes `### Acceptance criteria`. A plan with no Brief puts a one-line `Goal:` under its `No Brief: <reason>` line instead.
+- `/planning:plan`'s Test strategy is the one place test boundaries are decided. `/planning:design`'s Test-seam posture thread sketches candidates for it and no longer asks the user to confirm them separately.
+- PLAN.md has one `## Execution shape` section. It holds the routing table, the scope-fencing tables and the sequential fallback, so the `### Execution shape` subsection under `## Handoff to implementation` is gone. The `## Open questions` section is also gone: a question the plan raises is a Step 1 Open Decision, and a deferred question stays in the Brief's `### Deferred questions`, and Step 5 asks for a reply to each one still open as `USER-RESERVED`. Step 4.6 tags decisions in `## Execution shape` too. `/planning:design-handoff` sends uncovered dimensions to those Step 1 Open Decisions.
+
+### Fixed
+
+- The interview page no longer takes a decision on an archived or superseded question: its Decide
+  choices, Save and Reopen are disabled, Ask, Rephrase and Research this still work, and a primary
+  `Go to <id>` button opens the end of its `supersededBy` chain. The page server answers such a
+  decision 409 `{"error": "superseded", "by": "<id>"}`, or `{"error": "archived"}`, and
+  accept-audit leaves a superseded question out.
+- An answer recorded before its question was superseded no longer counts as answered and live in
+  the page meter or `round.sh status`: both now read `supersededBy` before the decision, as
+  `export-ledger` already did, so they agree with the exported `withdrawn` row.
+
+## [0.114.1] - 2026-10-27
+
+### Fixed
+
+- Shared sessions: in the chat that covers the page (below 1100 px wide), a pop-up now moves with the typing line when the message box grows, empties after a send, or the reply bar or a list of attached files opens. Before, it kept the place it was given when it showed, so a box grown to several lines could slide under it.
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.114.0] - 2026-10-27
+
+### Added
+
+- **`/planning:interview` checks each draft round against earlier answers before it is shown.** Every round after the first gets a pre-round contradiction pass: a fresh-context sub-agent runs only the assumption sweep's contradiction category over the draft round, the answered register rows and the confirmed constraints, and each conflict is fixed in the draft (a revised recommendation, or one question naming both sides) before the round is asked inline or posted with `add-round`. `context/assumption-sweep.md` "Pre-round contradiction pass" holds the rule, with an eval case.
+- **Sweep rounds are labeled on the page.** `add-round` takes `meta.kind: "sweep"`, stored on the round's `rounds` entry rather than in meta, and the page labels that round `Sweep: reconciling earlier answers`. A question's new `reconciles` list names the earlier questions whose answers it reconciles, and the page shows each one's decision beside the question. `add-round` refuses an unknown `kind`, a `kind` on a round with no questions, and a `reconciles` id that is not in the register, naming it.
+
 ## [0.113.1] - 2026-10-27
 
 ### Fixed

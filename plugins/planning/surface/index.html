@@ -719,12 +719,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
-    if (q.waiting && !q.supersededBy) return q.waitingBy === "user" ? "need" : "wait";
+    if (q.supersededBy) return "sup"; // before the decision, as export-ledger reads it: a superseded answer counts nowhere
+    if (q.waiting) return q.waitingBy === "user" ? "need" : "wait";
     const d = counted(q);
     if (d) return d.decision;
-    if (q.supersededBy) return "sup";
     return "open";
   }
+  function chainEnd(q){ // where q's supersededBy chain ends, as the server's chain_end walks it: the question to answer instead
+    const seen = new Set([q.id]); let cur = q;
+    while (cur.supersededBy && Q[cur.supersededBy] && !seen.has(cur.supersededBy)) { seen.add(cur.supersededBy); cur = Q[cur.supersededBy]; }
+    return cur === q ? q.supersededBy || "" : cur.id;
+  }
+  const offWhy = q => q.supersededBy ? "Superseded: " + q.id + " takes no decision. Answer " + chainEnd(q) + " instead." : "Archived: " + q.id + " takes no decision.";
   const isAnswered = st => !["open", "wait", "need", "arch", "prop"].includes(st);
   const isOpen = st => st === "open" || st === "need" || st === "prop";
   const live = q => !["sup", "arch"].includes(stateOf(q));
@@ -1372,7 +1378,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       link("Unblocks", unblocks) + (chainOf(q).length ? '<span id="askedAs">' + chainHtml(q) + "</span>" : link("Supersedes", q.supersedes ? [q.supersedes] : []));
     if (links) h += '<div class="links">' + links + "</div>";
     h += reconcilesHtml(q);
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
@@ -1386,7 +1392,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     const ups = lockMode() === "off" || !live(q) ? [] : openPrereqs(q);
     if (ups.length) h += '<div class="lockban" id="frontierLock">' + LOCK_SVG + "<b>Locked:</b> waits on " + ups.map(refHtml).join(" ") + ", still open. " + esc(lockAdvice(q)) + "</div>";
-    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
+    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead.</div>"; // the chain's end, as the Go to button names it
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
@@ -1440,10 +1446,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     note.disabled = false;
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
-    const st = stateOf(q);
+    const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
     $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
-        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
+        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision
       ? '<span class="chip s-' + esc(d.decision) + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
@@ -1455,16 +1461,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const armed = armedOf(cs);
     const other = c => !c.re && ["own", "defer", "hedged"].includes(c.kind); // the answers that rest on the note: the second column of a wide Decide pane, in the same row order
     const row = c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.rich || c.text) + "</span></label>";
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can && !off ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.rich || c.text) + "</span></label>";
     $("choices").innerHTML = '<div class="cg">' + cs.filter(c => !other(c)).map(row).join("") + '</div><div class="cg">' + cs.filter(other).map(row).join("") + "</div>";
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const hardLock = lockMode() === "hard" ? openPrereqs(q) : [], ul = upLock(q); // only a decision waits; Ask, Rephrase and Research this stay enabled
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
+    $("decideRow").innerHTML = (end ? '<button class="act primary" data-go="' + esc(end) + '">Go to ' + esc(end) + "</button>" : "") + // the live end of the supersededBy chain takes the answer instead
+      '<button class="act' + (off ? "" : " primary") + '" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && !off && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (off ? esc(offWhy(q)) : shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
-      (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
+      (d && d.decision && !d.aside && !off ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
       (st === "wait"
@@ -1573,7 +1580,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["tldr", "Scope (TLDR)"], ["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
@@ -2029,6 +2036,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
+    if (!live(q)) { toast("Not saved. " + offWhy(q), true); return; } // before any dialog: an archived or superseded question takes no decision
     const c = armedOf(choicesOf(q));
     if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
     if (!c) { toast("Pick a choice first.", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
@@ -2090,8 +2098,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (closed()) { toast(closedWhy(), true); return; }
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
-    if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
+    if (kind === "ask" && live(q)) { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } } // an off-path question takes no option, so its ask goes as typed
     if (isDec && stateOf(q) === "prop") return; // the keyboard: a proposal takes Accept, Edit or Not this, never a decision
+    if (isDec && !live(q)) { toast("Not saved. " + offWhy(q), true); return; } // the choices are disabled; this catches the keyboard
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     if (isDec && kind !== "reopen" && upLock(q).length) { toast("Not saved: " + upText(q), true); return; } // Save is disabled; this catches the keyboard
     const waits = isDec && kind !== "reopen" && lockMode() !== "off" ? openPrereqs(q) : [];
@@ -2119,6 +2128,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (res.status === 409 && data.error === "upstream-changed") { // the server's lock: Claude has not revised or reconfirmed it since an upstream answer changed
         S.busy = false; toast("Not saved: the answer to " + joinIds((data.changedBy || []).map(String)) + " changed, and Claude has not revised or reconfirmed " + q.id + " yet.", true); await refresh().catch(() => {}); renderAll(); return;
+      }
+      if (res.status === 409 && (data.error === "superseded" || data.error === "archived")) { // the server's refusal: the question left the path after this page last read it
+        S.busy = false; toast("Not saved: " + q.id + (data.by ? " is superseded. Answer " + data.by + " instead." : " is archived."), true); await refresh().catch(() => {}); renderAll(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
       saved = true; S.conflict = null;

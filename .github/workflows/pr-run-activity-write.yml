@@ -280,7 +280,9 @@ on:
       patch-prepare:
         description: >-
           The patch-activity's prepare mode in the base config (ci-context for
-          fix-ci), which picks its patch-rules.json row; empty for none.
+          fix-ci), which picks its patch-rules.json row; docs for fix-docs,
+          which has no prepare mode and takes the markdown-only row; empty for
+          none.
         required: false
         type: string
         default: ""
@@ -593,7 +595,7 @@ jobs:
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
-            patch-empty | patch-invalid | patch-not-applied | patch-protected-path)
+            patch-empty | patch-invalid | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
                 exit 1
@@ -1383,7 +1385,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1.0.263
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc

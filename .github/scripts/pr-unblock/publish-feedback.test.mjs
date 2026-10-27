@@ -1405,3 +1405,81 @@ test("the script loads from a copy of its own directory alone", async () => {
     rmSync(copy, { recursive: true, force: true });
   }
 });
+
+// A pass-only round (address-feedback.mjs select with VERIFY_PASS_HEAD):
+// run.json lists the stale fail-note threads, and no model ran.
+const NOTE = "<!-- pr-verify:fail-note -->\nThe pr-verify verifier failed head.";
+const noteThread = (id, { resolved = false, commit = GATED, author = ACTIONS_BOT, body = NOTE } = {}) => ({
+  id,
+  isResolved: resolved,
+  comments: { totalCount: 1, nodes: [{ databaseId: 1 }] },
+  root: { nodes: [{ author: { databaseId: author }, body, originalCommit: { oid: commit } }] },
+});
+const staleRun = (ids, head = NOW) => JSON.stringify({ version: 1, head_sha: head, pr_paths: [], threads: [], stale_notes: ids });
+const staleApi = (threads, { failOn = [], moved = false } = {}) => {
+  const calls = [];
+  return {
+    calls,
+    resolved: () => calls.filter((call) => call[0] === "resolve").map((call) => call[1]),
+    listThreads: async () => threads,
+    readBranch: async () => (moved ? PUSHED : NOW),
+    resolveThread: async (id) => {
+      calls.push(["resolve", id]);
+      if (failOn.includes(id)) throw new Error("POST https://api.github.com/graphql returned 502");
+      return true;
+    },
+    listIssueComments: async () => assert.fail("a pass-only round posts no round marker"),
+    createIssueComment: async () => assert.fail("a pass-only round posts no round marker"),
+    replyToComment: async () => assert.fail("a pass-only round posts no reply"),
+  };
+};
+
+test("a pass-only round resolves each listed fail-note thread still open from an earlier head, and posts nothing", async () => {
+  const api = staleApi([
+    noteThread("PRRT_old"),
+    noteThread("PRRT_also_old"),
+    noteThread("PRRT_now", { commit: NOW }),
+    noteThread("PRRT_done", { resolved: true }),
+    noteThread("PRRT_reviewer", { author: REVIEWER }),
+    noteThread("PRRT_plain", { body: "finding" }),
+  ]);
+  const result = await run(api, null, staleRun(["PRRT_old", "PRRT_also_old", "PRRT_now", "PRRT_done", "PRRT_reviewer", "PRRT_plain"]));
+  assert.deepEqual(api.resolved(), ["PRRT_old", "PRRT_also_old"]);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a pass-only round re-run with nothing left open resolves none and succeeds", async () => {
+  const api = staleApi([noteThread("PRRT_old", { resolved: true })]);
+  const result = await run(api, null, staleRun(["PRRT_old"]));
+  assert.deepEqual(api.resolved(), []);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a failed resolve does not stop the others from being tried, and fails the job after them", async () => {
+  const api = staleApi([noteThread("PRRT_a"), noteThread("PRRT_b"), noteThread("PRRT_c")], { failOn: ["PRRT_a"] });
+  await assert.rejects(run(api, null, staleRun(["PRRT_a", "PRRT_b", "PRRT_c"])), /PRRT_a/);
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b", "PRRT_c"]);
+});
+
+test("a pass-only round resolves nothing once the head moved past the passing one", async () => {
+  for (const [api, runText] of [
+    [staleApi([noteThread("PRRT_old")], { moved: true }), staleRun(["PRRT_old"])],
+    [staleApi([noteThread("PRRT_old")]), staleRun(["PRRT_old"], GATED.replace(/a/g, "e"))],
+  ]) {
+    const result = await run(api, null, runText);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(result.escalationReason, "");
+  }
+});
+
+test("a malformed stale_notes list reads as a malformed run.json", async () => {
+  const api = fakeApi();
+  const result = await run(api, null, JSON.stringify({ version: 1, head_sha: NOW, threads: [], stale_notes: ["not a thread"] }));
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("a pass-only round skips pass-only, so the dispatcher can tell its reply check from a round's", async () => {
+  const result = await run(staleApi([noteThread("PRRT_old")]), null, staleRun(["PRRT_old"]));
+  assert.equal(result.skipReason, "pass-only");
+});

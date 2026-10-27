@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: operator
-  summary: Map native Claude Code surfaces against this repo's components and record human-gated verdicts
+  summary: Map native Claude Code surfaces against this repo's components and record owner-directed verdicts
   cadence: weekly
 ---
 
@@ -19,11 +19,12 @@ wake up duplicating one, and nothing in the product says so. Plugin skills are n
 native surface never shadows ours and the collision is silent. The model then picks between two
 overlapping capabilities from descriptions alone.
 
-This skill makes the overlap visible, records a human verdict per pair in a committed store, and, only when asked, bakes the resulting routing guidance into the components themselves.
+This skill makes the overlap visible, records a ruled verdict per pair in a committed store, and, only when asked, bakes the resulting routing guidance into the components themselves.
 
 Three things it is not: it is not an availability oracle (nothing here asserts a native surface is
-present in anyone's session), it is not a verdict engine (every verdict is a human's), and it is
-not a fleet editor (bare invocation mutates nothing at all).
+present in anyone's session), it is not a verdict engine (a person, or a session acting on the
+owner's recorded direction, writes every verdict, never an unattended run), and it is not a fleet
+editor (bare invocation mutates nothing at all).
 
 ## Scope boundary
 
@@ -65,7 +66,7 @@ surface.
 would silently audit the wrong fleet.
 
 Seeded candidate pairs live beside this skill in `reference/canonical-pairs.json`. They are
-candidates, never verdicts: a pair there proposes a row for a human to rule on.
+candidates, never verdicts: a pair there proposes a row for someone to rule on.
 
 ## Run it
 
@@ -82,7 +83,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" g
 # Freshness: the deterministic gate.
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" self-check
 
-# Dismissal: record a human's "not an overlap" ruling (see Dismissals below).
+# Dismissal: record a "not an overlap" ruling (see Dismissals below).
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" dismiss \
   --inventory ./claude-inventory.json --native rename \
   --component naming:name-it-better --reason "shared word only: ..."
@@ -128,8 +129,8 @@ Every candidate carries `native.invocable_by` (`model+user`, `user-only`, `model
 rule reads. From it comes `recommended_integration`: `suggest` for a user-only surface, `route` or
 `route-or-wrap` for a model-invocable one (`route` for a built-in command, bundled workflow,
 subagent, or tool, none of which takes `wrap`), and nothing when unknown. It is a label for the
-human writing the row, never a store value. Built-in subagents and tools carry the invocability
-`/harness-ops:inventory` records for them; the store takes `route` only for both.
+person or session writing the row, never a store value. Built-in subagents and tools carry the
+invocability `/harness-ops:inventory` records for them; the store takes `route` only for both.
 
 Three rules:
 
@@ -146,7 +147,7 @@ Three rules:
   this run); the other lanes' counts stand. Only when every lane is broken does the report omit
   every native-side count.
 - **Never auto-verdict.** Detection emits candidates with evidence. The verdict column is empty
-  until a human fills it.
+  until a person, or a session acting on the owner's recorded direction, fills it.
 - **Accept human-added candidates.** A pair nobody's heuristic found is a first-class row; add it
   to the store directly, or to the seeded pairs file when it generalizes.
 
@@ -219,10 +220,11 @@ Five values, no blanket preference rule:
 | `superseded` | The native surface fully absorbed ours; ours is a retirement candidate |
 | `defer` | Undetermined. Gated, experimental, or unverifiable from this session's evidence |
 
-<!-- fresh-eyes-exempt: external-input -- recommendations are judgments about components and native surfaces this context did not produce; the binding verdict is the human reviewer's, recorded in the store, never this run's -->
+<!-- fresh-eyes-exempt: external-input -- recommendations are judgments about components and native surfaces this context did not produce; the binding verdict is written by a person or by a session acting on the owner's recorded direction, recorded in the store, never this run's -->
 A run may **recommend** a verdict with its reasoning; it never records one. The recommendation goes
-into the report labeled as a recommendation, and a human writes the store row. No component file
-is touched before a verdict exists in the store.
+into the report labeled as a recommendation, and a person, or a session acting on the owner's
+recorded direction, writes the store row; an unattended run never does. No component file is
+touched before a verdict exists in the store.
 
 Session-provided (cloud) surfaces are observation-only: they are absent from any binary extraction,
 so their rows carry a live-roster observation, a `defer` verdict, and no baked line, until an
@@ -267,8 +269,9 @@ row.
 
 ## Dismissals
 
-A candidate a human rules is not an overlap (a shared generic word, two jobs that only sound alike)
-is recorded as a dismissal, not a verdict row, so discovery stops proposing it every run:
+A candidate ruled not an overlap (a shared generic word, two jobs that only sound alike), by a
+person or a session acting on the owner's recorded direction and never by an unattended run, is
+recorded as a dismissal, not a verdict row, so discovery stops proposing it every run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" dismiss \
@@ -287,10 +290,11 @@ same pair refreshes the record. Then run `generate`.
 
 `detect` suppresses a dismissed pair while both fingerprints match. When either side's hashed text
 changes, the pair comes back as a candidate flagged "resurfaced: description changed", naming the
-side, and a human rules on it again: re-dismiss, or write a verdict row in its place. A side the
-run did not observe is not compared. A verdict row always wins: a ruled overlap never resurfaces,
-and the self-check rejects a dismissal beside a verdict row for the same pair. Nothing else is
-hand-listed: the dismissals are the rulings, and discovery re-derives everything else each run.
+side, and a person, or a session acting on the owner's recorded direction, rules on it again (an
+unattended run never does): re-dismiss, or write a verdict row in its place. A side the run did
+not observe is not compared. A verdict row always wins: a ruled overlap never resurfaces, and the
+self-check rejects a dismissal beside a verdict row for the same pair. Nothing else is hand-listed:
+the dismissals are the rulings, and discovery re-derives everything else each run.
 
 ## The apply step
 
