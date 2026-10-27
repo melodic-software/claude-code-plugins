@@ -1242,6 +1242,12 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "deferred", reasons: [why] };
   }
   await github("POST", `${base}/labels`, { labels: [AGENT_READY] });
+  // A manual re-dispatch skips intake-reenter, which lifts the parked
+  // status: confirmed; lift it here, as a refusal lifts status: ready, so
+  // the issue keeps one status label.
+  if (names(issue.labels).includes(CONFIRMED)) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
+  }
   log(`admit: #${number} labeled ${AGENT_READY}`);
   return { outcome: "admitted", reasons: [] };
 }
