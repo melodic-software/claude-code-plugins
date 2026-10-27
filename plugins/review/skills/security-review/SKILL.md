@@ -131,8 +131,9 @@ finding is CRITICAL only when the review shows all three, each with file and lin
    pull request, issue or comment author, a forked head, an outside package or repository, a
    newly trusted login.
 2. **What it gets:** a concrete path to a security impact: a token or secret exposed, privilege
-   gained, code run in a trusted context, a merge gate or verifier bypassed, code injected into
-   what users install.
+   gained, code run in a trusted context, code injected into what users install, or a merge gate
+   or verifier bypassed that stops one of those (a hold that guards only spend, quality or style
+   is not one).
 3. **Nothing stops it:** no existing control blocks that path, checked rather than assumed:
    rulesets and required reviews, `permissions:` blocks, `if:` conditions, trusted-actor checks,
    the merge gate's veto, review-state and thread holds, and every gate the diff leaves unchanged.
@@ -145,7 +146,8 @@ a pin) quotes the line it read, with file and line; a value assumed is not evide
 
 Fail closed. Lowering a severity needs the check that settles it. When, after reading the code,
 the review cannot tell whether an attacker reaches the change or whether a control blocks it, the
-finding is unsettled: rate it CRITICAL and name what is unsettled. "Not sure, so rate lower" is
+finding is unsettled: rate it CRITICAL and name what is unsettled. A finding whose impact is not a
+security impact (part 2) is never CRITICAL, settled or not. "Not sure, so rate lower" is
 wrong; "checked, and no path reaches it" is the only ground for lowering.
 
 **Trusted paths.** A changed file matching a glob the wrapper lists under `TRUSTED PATHS:` gets
@@ -167,11 +169,14 @@ that reasoning. If you find no security issues, say so plainly.
 
 **Trust controls.** No path holds the merge for being trusted alone, so this lane is what stops a
 change to the controls that decide who and what the automation trusts. A change widens one when
-it lets through something the base stopped. A widening meets parts 1 and 2 of the severity bar by
-itself (the newly admitted actor, scope or text is the attacker input, and what it now gets is the
-impact), so it is CRITICAL unless part 3 finds a control that still stops it, cited; for a merge
-hold, part 3 checks the gates that still run after it. A change that widens nothing is not a
-finding for touching a control. A widening finding says which control and what now gets through:
+it lets through something the base stopped. A widening of who is trusted, of what a token may do,
+of what untrusted text or code reaches a lane, or of the kill switch's reach meets parts 1 and 2
+of the severity bar by itself (the newly admitted actor, scope or text is the attacker input, and
+what it now gets is the impact), so it is CRITICAL unless part 3 finds a control that still stops
+it, cited. A weakened merge hold shows parts 1 and 2 like any other finding: who sends the pull
+request it now lets through, and what security impact that merge carries; part 3 checks the gates
+that still run after it. A change that widens nothing is not a finding for touching a control. A
+widening finding says which control and what now gets through:
 
 - it widens who passes the trusted-trigger check (in this repository
   `.github/actions/check-trusted-trigger/`, which reads the trusted-actor list);
@@ -253,7 +258,10 @@ or runs code, a `plugin.json` `hooks`, `mcpServers`, `lspServers`, `monitors`,
 or renamed, an entry's `source`, or the marketplace `name`, is CRITICAL when that code starts
 running for users who already have the marketplace, on update and with no step of theirs: an
 entry added or renamed that is on by default, a key added to a plugin that is on by default, an
-entry's `source` moved off the repository, the marketplace `name` changed. Read whether an entry
+entry's `source` moved off the repository, the marketplace `name` changed. Such code meets parts
+1 and 2 of the severity bar by itself, whatever it does today (the pull request's author reaches
+every installed user's machine, and code run there is the impact), so only an opt-in or another
+cited control lowers it. Read whether an entry
 is on by default from its `defaultEnabled` line and quote it: `"defaultEnabled": false` means
 nothing installs until a user enables it, and an entry without that line is treated as on.
 Such a flag on code that installs nothing until a user opts in is IMPORTANT. Every other flag is
