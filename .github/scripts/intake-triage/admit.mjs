@@ -44,8 +44,10 @@
 // - the body was not edited after the lane comment the verdict came from;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
-//   OS, a paid eval, a run repeated N times, a measurement over time, or a
-//   page on a host outside resolve-issue's web-access domains. The refusal
+//   OS, a paid eval (trigger probes and before-and-after eval numbers
+//   included), a live Claude Code CLI run, a run repeated N times, a
+//   measurement over time, a comment on the issue instead of a file change,
+//   or a page on a host outside resolve-issue's web-access domains. The refusal
 //   recommends splitting those items into a needs-human child issue, which
 //   refine.mjs files when some items are left for the lane;
 // - 10: check-wip-cap's status: over the queued cap, with a queued count it
@@ -246,6 +248,11 @@ export async function openPullsFor(github, repository, number) {
 // names a host, a threshold or a retention period passes.
 const N = String.raw`(?:\d+|two|three|four|five|seven|ten|fourteen|twenty|thirty|fifty|hundred)`;
 const UNIT = String.raw`(?:hours?|days?|weeks?|months?|nights?)`;
+// A no-spend form in the rest of the clause: validation calls no model.
+const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
+// The trigger-probe harness or the plugin-eval command, not its own test;
+// the harness's validate, score, compare and emit-plugin-eval run no model.
+const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
@@ -253,7 +260,22 @@ const UNRUNNABLE = [
   ],
   [
     "a paid eval",
-    /\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b))/i,
+    new RegExp(
+      [
+        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
+        // The trigger probes and plugin evals a measured skill rewrite reports:
+        // the harness with a run before it or a measured output after it.
+        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}${EVAL_HARNESS}`,
+        String.raw`${EVAL_HARNESS}[^,;:.]{0,60}\b(?:trigger (?:scores?|rates?)|with and without|deltas?|before and (?:the )?after)\b`,
+        String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
+      ].join("|"),
+      "i",
+    ),
+  ],
+  // The lane's Bash runs only named wrappers, and a nested CLI gets no credential.
+  [
+    "a live Claude Code CLI run",
+    /\b(?:run|records?|reports? from|output (?:of|from))\b[^,;:]{0,40}\bclaude (?:-p|--print)\b|\bclaude (?:-p|--print)\b[^,;:.]{0,60}\b(?:exits?|prints?)\b|\brun\b[^,;:]{0,40}\bclaude plugin (?:test|install|update|configure)\b|\bclaude plugin (?:test|install|update|configure)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|\b(?:run|records?)\b[^,;:]{0,40}\bheadless (?:claude|Claude Code)\b|\bheadless (?:claude|Claude Code) (?:runs?|sessions?)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
   ],
   [
     "a repeated run",
@@ -280,6 +302,13 @@ const UNRUNNABLE = [
         return this.window.test(text) && !this.retention.test(text);
       },
     },
+  ],
+  // resolve-issue cannot write the tracker, and its pull request is the deliverable.
+  // The comment must carry a payload the lane collects, and an output a named
+  // script owns (work-unblock's result) is that script's behavior.
+  [
+    "a comment instead of a file change",
+    /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's

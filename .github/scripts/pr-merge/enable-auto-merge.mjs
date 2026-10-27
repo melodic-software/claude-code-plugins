@@ -98,11 +98,11 @@
 // person's, and left alone while the reason and head are unchanged
 // (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner rule
-// 2026-10-26: an intent or design change or a CRITICAL security issue, with
-// cost and trust holds and a hold no lane can clear kept: untrusted
-// provenance or an untrusted spec, the repeated-FAIL cap, a pull request too
-// old to verify, a security finding, a high path, a trusted-actor widening,
-// a real charge or a listing too long to check, see verifyClears; a hold path, a configured denied path
+// 2026-10-26 and 2026-10-27: an intent or design change or a CRITICAL
+// security issue, with cost and trust holds kept: untrusted
+// provenance or an untrusted spec, a security finding, a high path, a
+// trusted-actor widening, a real charge or a listing too long to check, see
+// verifyClears; a hold path, a configured denied path
 // or the floor, which only a trusted approval lifts; and the lane's own hold
 // line, owner decision Q-HOLDLINE) also gets the human-gated label, put back
 // while the comment stands unless a person removed it since. Every other
@@ -508,9 +508,9 @@ export function verifyHold(evidence, head) {
 // read whole, more than the 100 the read lists, which no later read changes.
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
-// Who clears the refusal verifyHold reads in `evidence` at `head` (owner rule
-// 2026-10-26: a person only for an intent or design change, or a CRITICAL
-// security issue; cost and trust holds and a hold no lane can clear stay a
+// Who clears the refusal verifyHold reads in `evidence` at `head` (owner
+// rules 2026-10-26 and 2026-10-27: a person only for an intent or design
+// change, or a CRITICAL security issue; cost and trust holds stay a
 // person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
@@ -1021,7 +1021,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1046,8 +1046,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const onResponse = (response) => {
       answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
     };
+    const injected = github !== undefined;
     latch ??= rateLimitLatch;
     github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse, latch }), { sleep, random });
+    // The lane runs, jobs and annotations a cost decision's decided head is
+    // read from, on the job token (actions: read, checks: read), as the
+    // verifier reads take it; the lanes App token holds neither.
+    actions =
+      actions ??
+      (!injected && env.BABYSIT_VERIFY_GH_TOKEN
+        ? withRetry(createGitHub({ token: env.BABYSIT_VERIFY_GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }), { sleep, random })
+        : github);
     // A reader child that stops on a rate limit writes its stop to the job's
     // stop file; set from then on. Its stop holds every lanes App pull request
     // as an unread room does, so an armed one is disarmed, unless the disarm's
@@ -1201,7 +1210,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
             detail = await wholeDiscussion(github, variables, detail);
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid) : null;
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters: headLifters(detail, humans, pull.headRefOid) };
           }
         } catch (error) {

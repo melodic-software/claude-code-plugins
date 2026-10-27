@@ -25,7 +25,6 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
-import babysit_merge as merge
 import babysit_verify_evidence as verify_evidence
 
 SCRIPTS = pathlib.Path(__file__).resolve().parent.parent
@@ -291,20 +290,12 @@ class HeadroomShares(GuardCase):
         self.assertEqual(shares["writer-pause"], 0.3)
         self.assertEqual(shares["read-floor"], file_default("read-floor"))
 
-    def test_below_the_read_floor_report_only_reads_are_skipped(self) -> None:
+    def test_below_the_read_floor_headroom_is_low(self) -> None:
         floor = self.shares("github-token")["read-floor"]
         just_below = int(floor * 5000) - 1
         self.answer(0, head(200, **core(just_below)) + "{}")
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertTrue(gh.low_headroom())
-        reader = mock.Mock(spec=verify_evidence.Reader)
-        verify = {
-            "refusal": verify_evidence.REPEATED_FAIL,
-            "headFail": {"run": 7, "artifact": "a"},
-            "head": "h",
-        }
-        self.assertIsNone(merge._fail_summary(verify, {"verify_reader": reader}, 1))
-        reader.fail_summary.assert_not_called()
 
     def test_at_the_read_floor_the_read_runs(self) -> None:
         os.environ["API_BUDGET_TOKEN"] = "lanes-app"
