@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [5.19.4] - 2026-10-27
+
+### Changed
+
+- The collector reads each range's run count from its first page of 100 runs and keeps those runs, where it made a `per_page=1` count call and then read page 1 again, and it lists workflows busiest first, so a short budget leaves the smaller ones part-read (`.github/scripts/maintenance-audit-lane-runs/collect.mjs`).
+
+### Fixed
+
+- The lane sweep's collector keeps 184 calls for the open pull request and issue reads and the units, not 170: with four slice A units, no slice D unit and four slice C units they cost 4 + 4 × 5 × 7 + 4 × 10 calls, so that mix no longer runs out partway through its slice C units and marks the run incomplete ([#9339](https://github.com/melodic-software/claude-code-plugins/issues/9339)).
+
+## [5.19.3] - 2026-10-27
+
+### Changed
+
+- intake-triage.yml now adds the `needs-triage` floor label itself, in an `intake-label-needs-triage` job that calls the same pinned ci-workflows reusable, so one run per issue event does both and the separate intake-label-needs-triage.yml workflow, with its own kill-switch and born-triaged jobs, is gone. The workflow also takes `reopened`: on a reopen only the kill switch and the floor label run, since born-triaged and the triage job are gated to `opened` (or a dispatch from main). A dispatch never adds the floor label. Each job keeps its own permissions; the label job holds `issues: write` only, as before.
+- born-triaged reads its gate before it resolves the triage model, so a model config that fails still leaves the floor label its skip.
+- The lost-run reconciler watches intake-triage.yml for a failed first attempt of an issues run and re-runs its failed jobs only when the `intake-label-needs-triage` job is the only one that failed. A run where triage, a gate or a broker job failed is left alone, so none of them runs again as github-actions[bot]. It lists a candidate's jobs only while the run ended in the last 2 hours (four passes), so a run it leaves alone costs at most 4 job listings, not one on every pass of the 24-hour lookback.
+
+### Fixed
+
+- pr-merge requests a whole review of an adopted owner pull request held only by findings a clean whole review would close, with the same bounds as a lane pull request, and the lane's own whole-review record at the current head no longer resets the adoption idle clock while no person has spoken since it ([README.md, The pr-merge lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
 ## [5.19.2] - 2026-10-27
 
 ### Changed
