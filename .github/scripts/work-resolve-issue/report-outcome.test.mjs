@@ -27,6 +27,7 @@ import {
   readChecks,
   readIssueStop,
   readOutcome,
+  readScanRefusal,
   readTurnCap,
   RESUMABLE,
   reusePlan,
@@ -3203,4 +3204,17 @@ test("main on a rerun after its own retry marker posts nothing again", async () 
     assert.equal(await main({ env: env(dir), fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
   });
+});
+
+test("a current attempt with a patch and an output scan marker reads as output, in either order", () => {
+  for (const [base, rungUp] of [["patch", "output"], ["output", "patch"]]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(readScanRefusal(dir, "1"), "output", `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });

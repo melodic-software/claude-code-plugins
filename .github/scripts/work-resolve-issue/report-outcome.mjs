@@ -273,11 +273,12 @@ export function readHoldPaths(path) {
   }
 }
 
-// The read runner's scan refusal markers, as address-feedback.mjs scanRefusal
-// reads them; the runner copies only this script's directory, so it cannot
-// import that one. `patch` when a marker names a patch over its cap, `output`
-// for any other, '' for none or an unreadable directory: a failed download
-// claims no refusal here, since the hand-back would name a false cause. Only
+// The read runner's scan refusal markers, the ones address-feedback.mjs
+// scanRefusal reads; the runner copies only this script's directory, so it
+// cannot import that one. `patch` when every marker names a patch over its
+// cap, `output` when any names another (it may be a credential shape), so a
+// mixed set fails closed; '' for none or an unreadable directory: a failed
+// download claims no refusal here, since the hand-back would name a false cause. Only
 // the current attempt's markers count (the download pattern spans every
 // attempt's), and with no readable attempt none does. A
 // marker's text only picks one of the fixed sentences below, so a forged one
@@ -294,7 +295,7 @@ export function readScanRefusal(dir, attempt) {
   } catch {
     return "";
   }
-  return kinds.length === 0 ? "" : kinds.includes("patch") ? "patch" : "output";
+  return kinds.length === 0 ? "" : kinds.every((kind) => kind === "patch") ? "patch" : "output";
 }
 
 // The scan job's refusals, as its decode step names them.
