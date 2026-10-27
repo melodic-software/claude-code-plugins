@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.45.1] - 2026-10-27
+
+### Fixed
+
+- **`run-python-hook.sh` ignores a tmp launch-marker directory this user does not own.** With no plugin data root, the `--launch-marker` and `--skip-unless-marker` markers live under the shared `${TMPDIR:-/tmp}/disk-hygiene-<subdir>`, so another local user could pre-create that directory, or a symlink in its place, and plant or suppress a `.launched` marker; an empty planted directory reads as "no guard launched" and skips the guard-launch monitor. A tmp marker directory that is a symlink or that this user does not own is now neither read nor written by the launcher, the same check its no-interpreter notice already made, and the launcher creates its marker directories with mode 700. The node launcher's own pre-bash skip (`hooks/exec-bash.mjs`) does not check ownership yet.
+
+## [0.45.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
 ## [0.44.1] - 2026-10-26
 
 ### Fixed

@@ -3,6 +3,40 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-10-27
+
+### Changed
+
+- `/testing:audit`'s cannot-fail scan runs its per-file rule engine on every core in a whole-tree scan, or on `$CANT_FAIL_SCAN_JOBS` files at a time, then reads the results in scan order, so findings, counts, the coverage block and exit codes are those of a serial run. A `--file` scan, which the edit hooks run, is unchanged. On this repository's 1372 test files a four-job scan takes a third of the serial time (31 s against 93 s).
+
+## [1.1.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- A `/testing:write` invocation probe set (`probes/write.json`), weighted toward feature requests
+  that ask for tests in passing: the k36-cart-total natural-phrasing case fired the skill in 0 of
+  16 runs.
+
+### Fixed
+
+- The k36 `refactor-after-green` grader now reads a Bash command with a double quote before the
+  redirect or `sed -i`, such as `sed -i "s/a/b/" cart.py` or `printf "x" > cart.py`, with
+  samples for both and for two quoted near-misses.
+- The k36 `no-zero-assertion` grader now says why it approximates the `/testing:audit` scan: no
+  `claude plugin eval` grader type runs a script, and the scaffold runs before Claude starts.
+
+## [1.1.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
 ## [1.0.3] - 2026-10-27
 
 ### Changed

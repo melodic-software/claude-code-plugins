@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "This is one contested migration question, so it takes the deep tier.\n\nYou can run `/deep-research should we migrate from Celery to Dramatiq?` instead of or alongside this skill; it fans out web searches and votes on each claim.\n\nShall I dispatch the discovery researcher, or would you rather run /deep-research yourself?",
+      "why": "skill wording"
+    },
+    {
+      "answer": "Option: run /deep-research <question> yourself. Do you want me to proceed with the research skill instead?",
+      "why": "short offer"
+    },
+    {
+      "answer": "I can't start it for you, but you can run /deep-research <question> yourself.",
+      "why": "cannot start it, still offered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll research Celery vs Dramatiq now. Shall I proceed?",
+      "why": "no offer"
+    },
+    {
+      "answer": "See /discovery:deep-research-sweep for details.",
+      "why": "different command"
+    },
+    {
+      "answer": "Run /plugin:deep-research later.",
+      "why": "namespaced, not the bundled workflow"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "/deep-research isn't available here, so I will dispatch the researcher.",
+      "why": "negated"
+    }
+  ]
+}

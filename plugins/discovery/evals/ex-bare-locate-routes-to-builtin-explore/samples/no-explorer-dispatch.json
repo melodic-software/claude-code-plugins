@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Locate convert_amount",
+            "prompt": "Find where convert_amount is defined. Thoroughness: quick.",
+            "subagent_type": "Explore"
+          }
+        }
+      ],
+      "why": "built-in only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "convert_amount"
+          }
+        }
+      ],
+      "why": "grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Locate convert_amount",
+            "prompt": "Find where convert_amount is defined. Thoroughness: quick.",
+            "subagent_type": "discovery:explorer"
+          }
+        }
+      ],
+      "why": "plugin explorer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Locate convert_amount",
+            "prompt": "Find where convert_amount is defined. Thoroughness: quick.",
+            "subagent_type": "Explore"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Locate convert_amount",
+            "prompt": "Find where convert_amount is defined. Thoroughness: quick.",
+            "subagent_type": "discovery:explorer"
+          }
+        }
+      ],
+      "why": "both"
+    }
+  ]
+}

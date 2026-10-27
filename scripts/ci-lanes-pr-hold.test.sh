@@ -61,6 +61,13 @@ if [[ "$step" == *"github.event.pull_request.body"* ]]; then
 else
   ok "step reads the body live"
 fi
+# shellcheck disable=SC2016 # workflow literals to match, not shell expansions
+if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"* ]] &&
+  grep -qxF '            /docs/conventions/pr-pipeline.yaml' "$WORKFLOW"; then
+  ok "step reads the base commit's pr-pipeline.yaml and trusted-actor list from the base checkout"
+else
+  fail "step lacks BASE_CONFIG, or the base checkout lacks pr-pipeline.yaml"
+fi
 if [[ "$step" == *"GROUP_BASE_SHA: \${{ github.event.merge_group.base_sha }}"* && "$step" != *"pull_request.base"* ]]; then
   ok "step takes only the queue's base from the payload; a pull request's base is read live"
 else
@@ -79,16 +86,20 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 # The step reads the lanes App's numeric id from ci-status's job-level
-# LANES_APP_ID; it must be the trusted-actor entry for pr-pipeline.yaml's
-# merge.agent-identity.
-identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
-want_id="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
-LANES_APP_ID="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")"
-if [[ -n "$want_id" && "$LANES_APP_ID" == "$want_id" ]]; then
-  ok "ci-status's LANES_APP_ID is merge.agent-identity's ($identity, $want_id)"
+# LANES_APP_ID, whose one source is the AUTOMATION_LANES_APP_SENDER_ID
+# repository variable: the workflow names LANES_APP_ID once, as that variable,
+# and no step overrides it.
+pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
+if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
+  ok "ci-status's job-level LANES_APP_ID is the AUTOMATION_LANES_APP_SENDER_ID variable, set once"
 else
-  fail "ci-status's LANES_APP_ID '$LANES_APP_ID' is not $identity's trusted-actor id '$want_id'"
+  fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
+# The runs below stand the variable in with merge.agent-identity's
+# trusted-actor id, the account the variable names.
+identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
+LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
+[[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
 # of merge-holds.mjs prints the working tree's module, or answers 404 when
@@ -231,6 +242,12 @@ approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
+# The base commit's config, as the base_config checkout holds it: this tree's
+# pr-pipeline.yaml and trusted-actor list. STUB_BASE_CONFIG replaces its path.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
+cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
+
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
 WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value":{}}},"carried-fail-head-ref":{},"carried-on-branch":{}}'
@@ -249,7 +266,7 @@ expect() {
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -436,8 +453,8 @@ STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1'
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
-# Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): the narrow floor, with the
-# files that enforce it, holds with no denied path configured, a dot-prefixed
+# Owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B: the floor's
+# trust and gate entries hold with no denied path configured, a dot-prefixed
 # file and a renamed-from path included.
 for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
   .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
@@ -445,14 +462,22 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/actions/log-api-budget/rate-limits.json \
   .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py .github/workflows/pr-require-checks.yml \
-  .github/workflows/pr-merge.yml \
-  docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/address-feedback.mjs \
-  .github/scripts/pr-unblock/gate-source.mjs .github/scripts/pr-unblock/thread-scope.mjs \
-  .github/scripts/pr-unblock/retry-fetch.mjs .github/scripts/work-resolve-issue/report-outcome.mjs \
-  .github/scripts/work-resolve-issue/limits.mjs .github/scripts/work-resolve-issue/retry-fetch.mjs; do
+  .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py .github/workflows/pr-require-checks.yml \
+  .github/workflows/pr-merge.yml docs/conventions/pr-pipeline.yaml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
+done
+# Its enforcement entries are the merge gate's, which a clean security review
+# bound to the head clears; ci-status leaves them to it.
+for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
+  .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
+  .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/pr-unblock/retry-fetch.mjs \
+  .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs \
+  .github/scripts/work-resolve-issue/retry-fetch.mjs; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
@@ -461,7 +486,7 @@ expect "a rename away from a floor path fails on its old path" 1 3 "it changes .
 # never carries the workflows permission, so no lanes App push changes a
 # workflow.
 for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline/README.md \
-  plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-merge/gate-check.mjs .github/actions/other/action.yml \
+  plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-unblock/other.mjs .github/actions/other/action.yml \
   .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "$path is no hold path" 0 3 "no hold path"
@@ -803,6 +828,21 @@ expect "a pull request number that is not a number fails closed" 1 0 "is not a n
 unset PR_NUMBER
 export STUB_APP_ID=''
 expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
+# A numeric id that is not merge.agent-identity's trusted-actor id would read
+# the lanes App's pull request as another author's and skip every hold.
+export STUB_APP_ID=315045210
+expect "a LANES_APP_ID other than merge.agent-identity's fails the lanes App's pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id (337595936)"
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id"
+STUB_PULL="$(pull 'Closes #1')"
 unset STUB_APP_ID
+export STUB_BASE_CONFIG=''
+expect "an unreadable base config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
+mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
+printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
+cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
+expect "a base config with no merge.agent-identity fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+unset STUB_BASE_CONFIG
 
 test_harness::report

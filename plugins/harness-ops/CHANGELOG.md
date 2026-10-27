@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
+## [4.11.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [4.11.1] - 2026-10-27
+
+### Changed
+
+- `audit-native-overlap` now says who writes a native-overlap verdict or dismissal: a person, or a session acting on the owner's recorded direction, and never an unattended run ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)). It used to say a person and never a run. The new wording is in the skill's statements of the rule, its `summary`, the `canonical-pairs.json` note, and these `overlap.py` texts: the view header, the generated Dismissed section's lead sentence, the `detect` report note and the `dismiss` help. A run of the skill still only recommends a verdict and never records one. The skill's evals are unchanged.
+
+## [4.11.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
 ## [4.10.4] - 2026-10-26
 
 ### Changed

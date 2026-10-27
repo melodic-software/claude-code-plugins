@@ -6,9 +6,10 @@
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
 // are already in `status: ready`: apply-verdict withholds it on any flag
 // (triage flags security only for a very-high risk) or a hold label, and the
-// cost rule adds needs-human. Criterion 4 (no protected path named) applies
-// only to the paths the issue lane cannot push (unpushablePaths). This checks
-// the rest:
+// cost rule adds needs-human; criterion 6 is checked here too, on the charge
+// words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
+// Criterion 4 (no protected path named) applies only to the paths the issue
+// lane cannot push (unpushablePaths). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -40,14 +41,18 @@
 // - a `recurring` item's schedule row, read from the default branch's
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
+// - the body was not edited after the lane comment the verdict came from;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
-//   OS, a paid eval, a run repeated N times, a measurement over time, or a
-//   page on a host outside resolve-issue's web-access domains. The refusal
+//   OS, a paid eval (trigger probes and before-and-after eval numbers
+//   included), a live Claude Code CLI run, a run repeated N times, a
+//   measurement over time, a comment on the issue instead of a file change,
+//   or a page on a host outside resolve-issue's web-access domains. The refusal
 //   recommends splitting those items into a needs-human child issue, which
 //   refine.mjs files when some items are left for the lane;
-// - 10: check-wip-cap's status: over the queued cap, or with the lane paused
-//   over the WIP or held cap (from wip.pause-from), the issue gets
+// - 10: check-wip-cap's status: over the queued cap, with a queued count it
+//   could not read (fail-open), or with the lane paused over the WIP or held
+//   cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
 //   `admission-deferred`, so admission takes the oldest first (owner Q95).
@@ -243,6 +248,11 @@ export async function openPullsFor(github, repository, number) {
 // names a host, a threshold or a retention period passes.
 const N = String.raw`(?:\d+|two|three|four|five|seven|ten|fourteen|twenty|thirty|fifty|hundred)`;
 const UNIT = String.raw`(?:hours?|days?|weeks?|months?|nights?)`;
+// A no-spend form in the rest of the clause: validation calls no model.
+const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
+// The trigger-probe harness or the plugin-eval command, not its own test;
+// the harness's validate, score, compare and emit-plugin-eval run no model.
+const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
@@ -250,7 +260,22 @@ const UNRUNNABLE = [
   ],
   [
     "a paid eval",
-    /\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b))/i,
+    new RegExp(
+      [
+        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
+        // The trigger probes and plugin evals a measured skill rewrite reports:
+        // the harness with a run before it or a measured output after it.
+        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}${EVAL_HARNESS}`,
+        String.raw`${EVAL_HARNESS}[^,;:.]{0,60}\b(?:trigger (?:scores?|rates?)|with and without|deltas?|before and (?:the )?after)\b`,
+        String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
+      ].join("|"),
+      "i",
+    ),
+  ],
+  // The lane's Bash runs only named wrappers, and a nested CLI gets no credential.
+  [
+    "a live Claude Code CLI run",
+    /\b(?:run|records?|reports? from|output (?:of|from))\b[^,;:]{0,40}\bclaude (?:-p|--print)\b|\bclaude (?:-p|--print)\b[^,;:.]{0,60}\b(?:exits?|prints?)\b|\brun\b[^,;:]{0,40}\bclaude plugin (?:test|install|update|configure)\b|\bclaude plugin (?:test|install|update|configure)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|\b(?:run|records?)\b[^,;:]{0,40}\bheadless (?:claude|Claude Code)\b|\bheadless (?:claude|Claude Code) (?:runs?|sessions?)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
   ],
   [
     "a repeated run",
@@ -277,6 +302,13 @@ const UNRUNNABLE = [
         return this.window.test(text) && !this.retention.test(text);
       },
     },
+  ],
+  // resolve-issue cannot write the tracker, and its pull request is the deliverable.
+  // The comment must carry a payload the lane collects, and an output a named
+  // script owns (work-unblock's result) is that script's behavior.
+  [
+    "a comment instead of a file change",
+    /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's
@@ -361,6 +393,23 @@ export function issuePushRefusals() {
   );
   return pushRefusalNames;
 }
+
+let chargeWords;
+// The charge-word pattern rule-admit.sh matches too, read once from its one
+// definition in the default branch's checkout beside this script.
+export function chargePattern() {
+  if (chargeWords === undefined) {
+    const { cost } = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
+    if (typeof cost !== "string" || cost === "") {
+      throw new Error("plugins/work-items/scripts/charge-words.json: `cost` must be a pattern");
+    }
+    chargeWords = new RegExp(cost, "gi");
+  }
+  return chargeWords;
+}
+
+// The charge words `text` holds by `pattern`, lowercased, each once. Pure.
+export const chargeHits = (text, pattern) => [...new Set([...String(text ?? "").matchAll(pattern)].map((m) => m[0].toLowerCase()))];
 
 // A repository path a criterion names: a backticked span or a word, less a
 // trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
@@ -457,12 +506,16 @@ export function admissionSettled(labels, events, isMark) {
 
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
-// a person-held label (the owner's 2026-10-26 rule keeps a person out of
-// every other refusal), or done-when items a lane run cannot perform, which
-// refine splits only from needs-decision (refine.mjs splitOf). Pure but for
-// `pushRefusals`, read from patch-rules.json when not given; a file that does
-// not read throws out of decide, so no issue is admitted on a guess.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
+// a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
+// person out of every other refusal), or done-when items a lane run cannot
+// perform, which refine splits only from needs-decision (refine.mjs splitOf).
+// `verdict.writtenAt` is when the lane comment the verdict came from was last
+// written; a body edited after it refuses, since the verdict judged an older
+// body. The sweep reads no lane comment and passes none. Pure but for
+// `pushRefusals` and `charges`, read from patch-rules.json and
+// charge-words.json when not given; a file that does not read throws out of
+// decide, so no issue is admitted on a guess.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -538,6 +591,20 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
   if (unpushable.length > 0) {
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
+  }
+  // A metered or renewing charge needs the owner's decision, whatever the
+  // verdict flagged.
+  const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges);
+  if (charged.length > 0) {
+    refuse.push(`its title or body names a charge (${charged.join(", ")}), which needs an owner decision`);
+    hold = true;
+  }
+  if (verdict.writtenAt !== undefined) {
+    const judged = Date.parse(verdict.writtenAt);
+    const edited = spec?.lastEditedAt == null ? null : Date.parse(spec.lastEditedAt);
+    if (!Number.isFinite(judged) || (edited !== null && !(edited <= judged))) {
+      refuse.push("its body was edited after the triage verdict, which judged the body as it stood before");
+    }
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
@@ -1158,13 +1225,18 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "waiting", reasons: decision.reasons };
   }
   const s = await status();
-  const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
+  // A queued count check-wip-cap could not read (fail-open) admits nothing,
+  // as an incomplete search answer admits nothing.
+  const unread = s.admission_basis === "fail-open";
+  const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
   if (full || (await deferredAhead(github, repository, issue))) {
     const why = !full
       ? `an older ${DEFERRED} issue is ahead of it`
       : s.paused
         ? `the lane is paused (${s.pause_reason})`
-        : `admissions are closed (${s.admission_reason})`;
+        : unread
+          ? "the issue lane's queued count could not be read (admission_basis fail-open)"
+          : `admissions are closed (${s.admission_reason})`;
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };

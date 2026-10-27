@@ -18,10 +18,17 @@
 # Exit codes: 0 = allow, 2 = block (stderr reason returned to Claude)
 
 # Threat model: this is a best-effort NET, not a security boundary. It matches
-# command words, so obfuscation (eval, $(), base64, aliases) bypasses it by
-# design, and so does any wrapper in front of a `bash -c` or `sh -c` (sudo,
-# timeout, env, nohup, ssh, docker exec): only a shell at the command position
-# has its operand re-parsed (see hook::shell_c_operand in hook-utils.sh) — the goal is to catch the common
+# command words, so obfuscation (base64, aliases, a command built in a variable)
+# bypasses it by design. On the Bash tool the command lines a segment hands on
+# are parsed in turn (guard_parse below): a $() or backtick substitution bash
+# expands (in double quotes or an unquoted here-doc body), every eval operand, a
+# shell's -c operand behind any wrapper (sudo, timeout, env, xargs), an ssh
+# remote command, and the script a shell or ssh reads from stdin: a here-string,
+# a here-doc, or the segment piped into it. A script that reaches a shell any
+# other way (a file, a longer pipeline, process substitution) is not read.
+# Basis: the Bash manual's Double Quotes,
+# Redirections, Invoking Bash and eval pages, and ssh(1), read 2026-10-27.
+# Recheck: ssh(1) changes which options take a value. The goal is to catch the common
 # destructive spellings an agent might fumble and route them through the clean
 # skill's confirmation gate. The durable destructive-op boundary is the consumer's own
 # settings.json permissions.deny plus their git hooks, which apply independent
@@ -37,7 +44,9 @@
 # RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
 # a call that runs one of the skill's mutating scripts (dry-run included) refreshes
 # the marker, even a stale one, as does an acknowledged or destructive call;
-# ordinary calls do not. An unresolved CLAUDE_PLUGIN_DATA or a
+# ordinary calls do not. An unresolved CLAUDE_PLUGIN_DATA (unset, or one whose
+# last path segment does not name this plugin: run_marker_data_dir_ours), a
+# hook-utils.sh that did not load, or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
 # the no-jq mode, which cannot read the session_id. The marker cases are in
 # destructive-guard.test.sh.
@@ -58,8 +67,8 @@
 # `git push origin :ref` (also `+:ref`). A push with --dry-run/-n is a preview and is allowed.
 # The CLEAN_GUARD_ACK path lifts these blocks like every other, and the
 # ack-prefixed spelling is the documented way to run a bare `git branch -D`
-# during a clean session. Spellings the patterns do not parse (a global option
-# with a separate value, an alias) are not blocked. Local deletion through
+# during a clean session. A git alias is not resolved, so one that deletes is
+# not blocked. Local deletion through
 # git-branch-delete.sh runs `git update-ref -d`, so the confirmed path does not
 # go through these patterns. Basis: is_destructive() below and the branch and
 # push block cases in destructive-guard.test.sh. Recheck: is_destructive()
@@ -98,8 +107,10 @@ fi
 # rm's recursive (-r/-R/--recursive) and force (-f/--force) flags are matched
 # independently, so separated, reordered, capitalized, and long spellings are
 # caught — not only the adjacent -rf cluster. git's destructive subcommands
-# tolerate global options (-C <path>, -c <cfg>, --git-dir=…, flag-only ones such
-# as --no-pager) between `git` and the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
+# tolerate global options (-C <path>, -c <cfg>, --git-dir=… or --git-dir <path>,
+# flag-only ones such as --no-pager) between `git` and the subcommand; the ones
+# read with a separate value are hook::git_resolve_subcommand's list in
+# hook-utils.sh. git clean keys on the force flag (-f/--force) only: -x/-X/-d
 # without force are git no-ops, so blocking them (including dry-run -nx) is a
 # false positive.
 # The clean skill's mutating scripts: their names, and their basenames anywhere
@@ -109,7 +120,7 @@ CLEAN_SCRIPT_RE="(^|[[:space:][:punct:]])(${CLEAN_SCRIPT_NAMES})\\.sh([^[:alnum:
 
 is_destructive() {
   local cmd="$1"
-  local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+|(-[pP]|--[a-zA-Z-]+)[[:space:]]+)*'
+  local gopt='((-C|-c|--(config|config-env|git-dir|work-tree|namespace|super-prefix|attr-source|exec-path))[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+|(-[pP]|--[a-zA-Z-]+)[[:space:]]+)*'
   local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([^[:alnum:]_-]|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
@@ -152,9 +163,10 @@ is_destructive() {
 # argv_destructive <word>... : the same coverage as is_destructive(), over one
 # parsed segment's argv. Every test is on a whole word, so destructive text that
 # sits inside one quoted argument never matches. Returns 0 when destructive.
+# Needs hook-utils.sh to be sourced.
 argv_destructive() {
   local -a w=("$@")
-  local n=${#w[@]} i k j sub word base script=0 apply=0
+  local n=${#w[@]} i j sub word base script=0 apply=0
   local -a rest
   local recursive force dry del
   for ((i = 0; i < n; i++)); do
@@ -180,17 +192,10 @@ argv_destructive() {
       done
       ;;
     git)
-      # Skip git's global options, the way the raw pattern's gopt does.
-      k=$((i + 1))
-      while ((k < n)); do
-        case "${w[k]}" in
-        -C | -c) k=$((k + 2)) ;;
-        -p | -P | --*) k=$((k + 1)) ;;
-        *) break ;;
-        esac
-      done
-      sub="${w[k]:-}"
-      rest=("${w[@]:k+1}")
+      # The subcommand past git's global options, a separate value included.
+      hook::git_resolve_subcommand "$i" "${w[@]}" || continue
+      sub="$HOOK_GIT_SUB"
+      rest=("${w[@]:HOOK_GIT_SUB_IDX+1}")
       force=0
       for word in "${rest[@]}"; do
         [[ "$word" =~ ^-[a-zA-Z]*f || "$word" == --force ]] && force=1
@@ -235,16 +240,371 @@ argv_destructive() {
   return 1
 }
 
+# A command line nested deeper than GUARD_DEPTH_MAX is not decided, so it blocks.
 ARGV_HIT=0
+GUARD_DEPTH=0
+GUARD_DEPTH_MAX=32
+
+# guard_parse <command-line> : argv_segment over each segment of the line, then
+# guard_parse over each substitution bash expands in it. Needs hook-utils.sh.
+guard_parse() {
+  ((ARGV_HIT)) && return 0
+  if ((GUARD_DEPTH >= GUARD_DEPTH_MAX)); then
+    ARGV_HIT=1
+    return 0
+  fi
+  GUARD_DEPTH=$((GUARD_DEPTH + 1))
+  # argv_segment's state across the segments of this line (dynamic scope): the
+  # segment before the one it reads, with that segment's here-strings and
+  # here-doc numbers, the here-docs counted so far, and the numbers of the
+  # here-docs a command runs as its script.
+  local -a _gp_prev=() _gp_prev_hs=() _gp_prev_hd=() _gp_hd_feed=() _gp_subs=() _gp_bodies=()
+  local _gp_hd_seen=0 _gp_s _gp_e _gp_start _gp_end
+  hook::bash_parse_segments "$1" argv_segment
+  _gp_bodies=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
+  # A here-doc on a segment with no command word reaches no callback, so the
+  # count no longer numbers the bodies; then every body is read.
+  if ((${#_gp_hd_feed[@]} && ${#_gp_bodies[@]} != _gp_hd_seen)); then
+    _gp_hd_feed=("${!_gp_bodies[@]}")
+  fi
+  for _gp_s in ${_gp_hd_feed[@]+"${_gp_hd_feed[@]}"}; do
+    _gp_e="${_gp_bodies[_gp_s]-}"
+    [[ -n "$_gp_e" ]] || continue
+    _gp_start="${_gp_e%% *}"
+    _gp_e="${_gp_e#* }"
+    _gp_end="${_gp_e%% *}"
+    hook::_c_locale byte_slice_to _gp_e "$1" "$_gp_start" $((_gp_end - _gp_start))
+    guard_parse "$_gp_e"
+  done
+  substitutions_to _gp_subs "$1" ${_gp_bodies[@]+"${_gp_bodies[@]}"}
+  for _gp_s in ${_gp_subs[@]+"${_gp_subs[@]}"}; do
+    guard_parse "$_gp_s"
+  done
+  GUARD_DEPTH=$((GUARD_DEPTH - 1))
+  return 0
+}
+
+# byte_slice_to <var> <string> <offset> [<length>] : bytes of <string> from
+# <offset>, the rest or <length> of them. Run under hook::_c_locale, where a
+# character is a byte, so the offsets match the parser's.
+# shellcheck disable=SC2329  # reached through hook::_c_locale
+byte_slice_to() {
+  if (($# > 3)); then
+    printf -v "$1" '%s' "${2:$3:$4}"
+  else
+    printf -v "$1" '%s' "${2:$3}"
+  fi
+}
+
+# substitutions_to <array-var> <command> [<here-doc entry>...] : the command line
+# inside each $() and backtick substitution bash expands within double quotes or
+# an unquoted here-doc body of <command>. The entries are the parser's
+# HOOK_HEREDOC_BODIES for <command>, in byte offsets, so the scan is over bytes
+# too. Single quotes, $'' and a quoted here-doc body expand nothing. An unquoted
+# substitution is already its own segment to the parser, so only its inside is
+# scanned. A nested substitution stays in its operand, for that operand's parse.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+substitutions_to() {
+  local -n _st_out="$1"
+  local cmd="$2"
+  shift 2
+  local -a chars=() bodies=("$@")
+  local n i=0 b=0 nb=$# dq=0 hd=0 hd_end=0 c rest start j s
+  _st_out=()
+  # The parser's own byte split, into this function's chars (dynamic scope).
+  hook::_bps_chars "$cmd"
+  n=${#chars[@]}
+  while ((i < n)); do
+    ((hd && i >= hd_end)) && hd=0
+    if ((!hd && b < nb)); then
+      start="${bodies[b]%% *}"
+      if ((i >= start)); then
+        rest="${bodies[b]#* }"
+        hd_end="${rest%% *}"
+        rest="${rest#* }"
+        b=$((b + 1))
+        if [[ "${rest%% *}" == 1 ]]; then
+          i=$hd_end
+          continue
+        fi
+        hd=1
+      fi
+    fi
+    c="${chars[i]}"
+    case "$c" in
+    '\')
+      i=$((i + 2))
+      continue
+      ;;
+    "'")
+      if ((!dq && !hd)); then
+        i=$((i + 1))
+        while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do i=$((i + 1)); done
+      fi
+      ;;
+    '"')
+      ((hd)) || dq=$((!dq))
+      ;;
+    '$')
+      if ((dq || hd)) && [[ "${chars[i + 1]-}" == '(' ]]; then
+        subst_end_to j $((i + 2))
+        hook::_c_locale byte_slice_to s "$cmd" $((i + 2)) $((j - i - 2))
+        _st_out+=("$s")
+        i=$j
+      elif ((!dq && !hd)) && [[ "${chars[i + 1]-}" == "'" ]]; then
+        i=$((i + 2))
+        while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+          [[ "${chars[i]}" == '\' ]] && i=$((i + 1))
+          i=$((i + 1))
+        done
+      fi
+      ;;
+    '`')
+      if ((dq || hd)); then
+        s=""
+        for ((i++; i < n; i++)); do
+          [[ "${chars[i]}" == '`' ]] && break
+          [[ "${chars[i]}" == '\' && "${chars[i + 1]-}" == [\$\`\\\"] ]] && i=$((i + 1))
+          s+="${chars[i]}"
+        done
+        _st_out+=("$s")
+      fi
+      ;;
+    '#')
+      if ((!dq && !hd)) && { ((i == 0)) || [[ "${chars[i - 1]}" == [[:space:]\;\&\|\(\)] ]]; }; then
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do i=$((i + 1)); done
+      fi
+      ;;
+    *) ;;
+    esac
+    i=$((i + 1))
+  done
+}
+
+# subst_end_to <var> <from> : the index of the `)` that closes a $( whose text
+# starts at <from> in substitutions_to's cmd and chars (dynamic scope), or the
+# end of the text when none does. Quoted spans, escapes, comments and here-doc
+# bodies inside it hold no paren. Only a span holding `<<` pays for the parse
+# that finds the bodies.
+subst_end_to() {
+  local -n _se_out="$1"
+  local from="$2" close tail e
+  local -a hs=() he=()
+  paren_close_to close "$from"
+  hook::_c_locale byte_slice_to tail "$cmd" "$from" $((close - from))
+  if [[ "$tail" == *'<<'* ]]; then
+    hook::_c_locale byte_slice_to tail "$cmd" "$from"
+    hook::bash_parse_segments "$tail" :
+    for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+      hs+=("$((from + ${e%% *}))")
+      e="${e#* }"
+      he+=("$((from + ${e%% *}))")
+    done
+    paren_close_to close "$from"
+  fi
+  _se_out=$close
+}
+
+# paren_close_to <var> <from> : subst_end_to's scan, skipping the here-doc
+# bodies in its hs and he (dynamic scope).
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+paren_close_to() {
+  local -n _pc_out="$1"
+  local k="$2" depth=1 hb=0
+  while ((k < n)); do
+    if ((hb < ${#hs[@]} && k >= hs[hb])); then
+      k=${he[hb]}
+      hb=$((hb + 1))
+      continue
+    fi
+    case "${chars[k]}" in
+    '#')
+      if [[ "${chars[k - 1]}" == [[:space:]\;\&\|\(\)] ]]; then
+        while ((k + 1 < n)) && [[ "${chars[k + 1]}" != $'\n' ]]; do k=$((k + 1)); done
+      fi
+      ;;
+    '\') k=$((k + 1)) ;;
+    "'")
+      k=$((k + 1))
+      while ((k < n)) && [[ "${chars[k]}" != "'" ]]; do k=$((k + 1)); done
+      ;;
+    '"')
+      k=$((k + 1))
+      while ((k < n)) && [[ "${chars[k]}" != '"' ]]; do
+        [[ "${chars[k]}" == '\' ]] && k=$((k + 1))
+        k=$((k + 1))
+      done
+      ;;
+    '(') depth=$((depth + 1)) ;;
+    ')')
+      depth=$((depth - 1))
+      ((depth)) || break
+      ;;
+    *) ;;
+    esac
+    k=$((k + 1))
+  done
+  _pc_out=$k
+}
+
+# shell_reads_stdin <word>... : 0 when a shell given these arguments reads its
+# commands from stdin: -s, or no operand left after the options.
+shell_reads_stdin() {
+  local -a a=("$@")
+  local n=$# i=0 s=0
+  while ((i < n)); do
+    case "${a[i]}" in
+    --)
+      i=$((i + 1))
+      break
+      ;;
+    -o | +o | -O | +O | --rcfile | --init-file) i=$((i + 2)) ;;
+    -* | +*)
+      [[ "${a[i]}" =~ ^-[A-Za-z]*s[A-Za-z]*$ ]] && s=1
+      i=$((i + 1))
+      ;;
+    *) break ;;
+    esac
+  done
+  ((s || i >= n))
+}
+
+# ssh_command_to <var> <word>... : the remote command line of an ssh whose
+# arguments are <word>...: the words after the destination, joined by spaces,
+# empty when there are none. Returns 1 when no destination is given. The options
+# that take a value are the ones ssh(1)'s SYNOPSIS shows with one.
+ssh_command_to() {
+  local -n _sc_out="$1"
+  shift
+  local -a a=("$@")
+  local n=$# i=0 k t IFS=' '
+  _sc_out=""
+  while ((i < n)) && [[ "${a[i]}" == -* ]]; do
+    t="${a[i]}"
+    i=$((i + 1))
+    [[ "$t" == -- ]] && break
+    for ((k = 1; k < ${#t}; k++)); do
+      case "${t:k:1}" in
+      [BbcDEeFIiJLlmOoPpQRSWw])
+        ((k + 1 < ${#t})) || i=$((i + 1))
+        break
+        ;;
+      *) ;;
+      esac
+    done
+  done
+  ((i < n)) || return 1
+  _sc_out="${a[*]:i+1}"
+}
+
+# shell_name_to <var> <word> : <word>'s basename, case-folded and without .exe,
+# for matching a shell, eval or ssh by name.
+shell_name_to() {
+  local -n _sn_out="$1"
+  _sn_out="${2##*/}"
+  _sn_out="${_sn_out##*\\}"
+  _sn_out="${_sn_out,,}"
+  _sn_out="${_sn_out%.exe}"
+}
+
+# stdin_script_reader <word>... : 0 when the segment's command, past leading
+# assignments and wrapper commands, runs its stdin as a script: a shell with no
+# -c and no script operand, or an ssh with a destination and no remote command.
+# A wrapper option that takes a separate value (sudo -u root) ends the walk.
+stdin_script_reader() {
+  local -a w=("$@")
+  local n=$# i=0 wrapped=0 name line
+  while ((i < n)); do
+    shell_name_to name "${w[i]}"
+    if [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; then
+      :
+    elif ((wrapped)) && [[ "${w[i]}" == -* || "${w[i]}" =~ ^[0-9.]+[smhd]?$ ]]; then
+      :
+    else
+      case "$name" in
+      sudo | doas | env | timeout | nice | nohup | time | command | exec | stdbuf | setsid) wrapped=1 ;;
+      *) break ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
+  ((i < n)) || return 1
+  case "$name" in
+  bash | sh | zsh | dash | ksh | mksh) shell_reads_stdin "${w[@]:i+1}" ;;
+  ssh) ssh_command_to line "${w[@]:i+1}" && [[ -z "$line" ]] ;;
+  *) return 1 ;;
+  esac
+}
+
+# argv_segment <word>... : hook::bash_parse_segments callback. Sets ARGV_HIT when
+# the segment is destructive, or a command line it hands on is: an eval operand,
+# an ssh remote command or a shell's -c operand anywhere in the segment, and the
+# script a stdin_script_reader runs: its own here-strings and here-docs, and what
+# the segment before it writes (a pipe into it; the parser does not say which
+# operator joined them, so a `;` reads the same): that segment's operands,
+# escapes decoded as printf writes them, here-strings and here-docs.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 argv_segment() {
   ((ARGV_HIT)) && return 0
-  # `bash -c '<cmd>'` and kin: the operand is a command line, parsed in turn.
-  if hook::shell_c_operand "$@"; then
-    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" argv_segment
+  local -a w=("$@") prev=(${_gp_prev[@]+"${_gp_prev[@]}"})
+  local -a prev_hs=(${_gp_prev_hs[@]+"${_gp_prev_hs[@]}"}) prev_hd=(${_gp_prev_hd[@]+"${_gp_prev_hd[@]}"})
+  local -a ops=(${HOOK_SEG_REDIR_OP[@]+"${HOOK_SEG_REDIR_OP[@]}"})
+  local -a targets=(${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"})
+  local -a hs=() hd=()
+  local n=$# i j name line dec
+  for ((j = 0; j < ${#ops[@]}; j++)); do
+    case "${ops[j]}" in
+    '<<' | '<<-')
+      hd+=("$_gp_hd_seen")
+      _gp_hd_seen=$((_gp_hd_seen + 1))
+      ;;
+    '<<<') hs+=("${targets[j]}") ;;
+    *) ;;
+    esac
+  done
+  _gp_prev=("$@")
+  _gp_prev_hs=(${hs[@]+"${hs[@]}"})
+  _gp_prev_hd=(${hd[@]+"${hd[@]}"})
+  if argv_destructive "$@"; then
+    ARGV_HIT=1
     return 0
   fi
-  argv_destructive "$@" && ARGV_HIT=1
+  # The first command line handed on holds every word after it, so the walk
+  # stops there: each later eval or shell would only be parsed again.
+  for ((i = 0; i < n; i++)); do
+    shell_name_to name "${w[i]}"
+    case "$name" in
+    eval)
+      guard_parse "${w[*]:i+1}"
+      break
+      ;;
+    ssh)
+      if ssh_command_to line "${w[@]:i+1}" && [[ -n "$line" ]]; then
+        guard_parse "$line"
+        break
+      fi
+      ;;
+    bash | sh | zsh | dash | ksh | mksh | wsl)
+      if hook::shell_c_operand "${w[@]:i}"; then
+        guard_parse "$HOOK_SHELL_C_OPERAND"
+        break
+      fi
+      ;;
+    *) ;;
+    esac
+  done
+  ((ARGV_HIT)) && return 0
+  stdin_script_reader "$@" || return 0
+  _gp_hd_feed+=(${hd[@]+"${hd[@]}"} ${prev_hd[@]+"${prev_hd[@]}"})
+  for line in ${hs[@]+"${hs[@]}"} ${prev_hs[@]+"${prev_hs[@]}"}; do
+    guard_parse "$line"
+  done
+  line=""
+  for ((j = 1; j < ${#prev[@]}; j++)); do
+    hook::ansi_c_decode_to dec "${prev[j]}"
+    line+="$dec "
+  done
+  [[ -z "$line" ]] || guard_parse "$line"
   return 0
 }
 
@@ -292,7 +652,8 @@ invokes_clean_script() {
 # segments instead of the raw string. Needs hook-utils.sh to be sourced.
 is_destructive_bash() {
   ARGV_HIT=0
-  hook::bash_parse_segments "$1" argv_segment
+  GUARD_DEPTH=0
+  guard_parse "$1"
   ((ARGV_HIT))
 }
 
@@ -332,13 +693,17 @@ refresh_marker() {
 }
 
 MARKER_FILE="" MARKER_STATE=""
-if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
+if run_marker_data_dir_ours "${CLAUDE_PLUGIN_DATA:-}" &&
+  run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
   run_marker_state_to MARKER_STATE "$MARKER_FILE"
   [[ "$MARKER_STATE" != absent ]] || exit 0
 fi
 
 # shellcheck source=hook-utils.sh
-source "$SCRIPT_DIR/hook-utils.sh"
+source "$SCRIPT_DIR/hook-utils.sh" || {
+  echo "BLOCKED by the clean skill's destructive guard: $SCRIPT_DIR/hook-utils.sh did not load, so the guard cannot read the command." >&2
+  exit 2
+}
 
 # Running one of the skill's scripts is the run's own step, so it keeps even a
 # stale marker: an hour-long confirmation gate still reaches its apply gated.

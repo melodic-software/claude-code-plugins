@@ -17,10 +17,11 @@ source "$SCRIPT_DIR/lib/run-marker.sh"
 
 # The guard gates only while a run-open marker is live for the payload's
 # session_id under CLAUDE_PLUGIN_DATA. Every case below sends SESSION_ID, and the
-# marker is opened once here; section 2.0 changes its state on purpose.
+# marker is opened once here; section 2.1 changes its state on purpose. The data
+# dir's last segment names the plugin, as the guard requires.
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
-export CLAUDE_PLUGIN_DATA="$TEST_ROOT/data"
+export CLAUDE_PLUGIN_DATA="$TEST_ROOT/repo-hygiene"
 SESSION_ID="sess-live"
 LIVE_MARKER=""
 run_marker_path_to LIVE_MARKER "$CLAUDE_PLUGIN_DATA" "$SESSION_ID"
@@ -89,6 +90,70 @@ assert_exit "allows a shell -c operand that is benign" 0 "$(guard_exit "bash -c 
 
 assert_exit "still blocks a real branch delete after a quiet comment" 2 \
   "$(guard_exit "gh issue comment 1 --body 'x'; git branch -D feature/x")"
+
+# --- 2.0b Nested and wrapped commands: the command line bash runs is re-parsed ---
+# Each form sits inside one parsed word (or behind a wrapper), so matching that
+# word alone let it through.
+
+# shellcheck disable=SC2016  # the substitutions are guard input, never expanded here
+nested_cmds=(
+  'x="$(git stash drop)"'
+  '"$(rm -rf x)"'
+  'echo "`git stash drop`"'
+  'x="$(echo $(git stash drop))"'
+  $'echo "$(echo \'$(x)\'; git stash drop)"'
+  $'cat <<EOF\n$(git stash drop)\nEOF'
+  $'cat <<EOF\ndon\'t `git reset --hard`\nEOF'
+  $'gh pr create --body "$(cat <<EOF\nrun `git stash drop`\nEOF\n)"'
+  "sudo bash -c 'git stash drop'"
+  "timeout 5 bash -c 'git stash drop'"
+  "env X=1 bash -c 'git stash drop'"
+  "xargs bash -c 'git stash drop'"
+  "eval 'git stash drop'"
+  "eval \"git reset\" --hard"
+  "eval eval eval 'git stash drop'"
+  "ssh h \"git stash drop\""
+  "ssh -p 22 -o BatchMode=yes h 'git reset --hard'"
+  "bash <<< \"git stash drop\""
+  "printf 'git stash drop\n' | bash"
+  "echo 'rm -rf build' | sh -s"
+  "printf 'git stash drop' | sudo bash"
+  "echo 'git stash drop' | ssh h"
+  $'bash <<\'EOF\'\ngit stash drop\nEOF'
+  $'cat <<EOF | bash\ngit reset --hard\nEOF'
+  $'ssh h <<\'EOF\'\ngit reset --hard\nEOF'
+  "git --git-dir /r/.git reset --hard"
+  "git --work-tree /r stash drop"
+)
+for cmd in "${nested_cmds[@]}"; do
+  assert_exit "blocks a nested or wrapped command: $cmd" 2 "$(guard_exit "$cmd")"
+done
+
+# shellcheck disable=SC2016  # the substitutions are guard input, never expanded here
+literal_cmds=(
+  "echo '\$(git stash drop)'"
+  'echo "\$(git stash drop)"'
+  'gh pr create --body "run \`git stash drop\` by hand"'
+  $'cat <<\'EOF\'\n$(git stash drop) and `rm -rf x`\nEOF'
+  $'cat <<EOF\ndon\'t run git branch -D x\nEOF'
+  $'gh pr create --body "$(cat <<\'EOF\'\n1) don\'t run `git stash drop` (see "#1"\nEOF\n)"'
+  "echo \$'\$(git stash drop)'"
+  "eval 'echo hi'"
+  "ssh h ls"
+  "ssh -l h 'git stash drop'"
+  "printf 'git status\n' | bash"
+  $'bash <<\'EOF\'\necho hi\nEOF'
+  $'cat <<\'EOF\' > notes.md\ngit stash drop\nEOF'
+  "echo 'rm -rf build' | tee bash"
+  "bash scripts/x.sh <<< 'git stash drop'"
+  "git --git-dir /r/.git status"
+)
+for cmd in "${literal_cmds[@]}"; do
+  assert_exit "stays quiet on text bash does not run: $cmd" 0 "$(guard_exit "$cmd")"
+done
+
+assert_exit "PowerShell tool blocks a git global option with a separate value" 2 \
+  "$(guard_exit "git --git-dir /r/.git reset --hard" PowerShell)"
 
 # The parser comes from the generated copy of lib/hook-utils.sh. One direct call
 # shows it keeps a quoted argument as a single word, which is what the guard's
@@ -218,6 +283,33 @@ unresolved=$(
   echo $?
 )
 assert_exit "unset CLAUDE_PLUGIN_DATA keeps the guard armed" 2 "$unresolved"
+
+# Another plugin's data dir under the CLAUDE_PLUGIN_DATA name holds no marker of
+# this run: unresolved, so armed. A repo-hygiene-<marketplace> dir still resolves.
+data_dir_exit() {
+  jq -n --arg s "$SESSION_ID" '{tool_name:"Bash", session_id:$s, tool_input:{command:"git branch -D x"}}' |
+    CLAUDE_PLUGIN_DATA="$1" bash "$SCRIPT" >/dev/null 2>&1
+  echo $?
+}
+assert_exit "another plugin's CLAUDE_PLUGIN_DATA keeps the guard armed" 2 "$(data_dir_exit "$TEST_ROOT/other-plugin")"
+assert_exit "a CLAUDE_PLUGIN_DATA under a repo-hygiene-x dir keeps the guard armed" 2 \
+  "$(data_dir_exit "$TEST_ROOT/repo-hygiene-x/other-plugin")"
+assert_exit "repo-hygiene-<marketplace> data dir with no marker allows" 0 \
+  "$(data_dir_exit "$TEST_ROOT/repo-hygiene-market")"
+assert_exit "repo-hygiene-<marketplace> data dir with a trailing slash and no marker allows" 0 \
+  "$(data_dir_exit "$TEST_ROOT/repo-hygiene-market/")"
+
+# A guard whose parser did not load cannot read the command, so it blocks.
+NOHU_DIR="$TEST_ROOT/no-hook-utils"
+mkdir -p "$NOHU_DIR/lib"
+cp "$SCRIPT" "$NOHU_DIR/destructive-guard.sh"
+cp "$SCRIPT_DIR/lib/run-marker.sh" "$NOHU_DIR/lib/run-marker.sh"
+no_hook_utils=$(
+  jq -n --arg s "$SESSION_ID" '{tool_name:"Bash", session_id:$s, tool_input:{command:"git stash drop"}}' |
+    bash "$NOHU_DIR/destructive-guard.sh" >/dev/null 2>&1
+  echo $?
+)
+assert_exit "missing hook-utils.sh exits 2" 2 "$no_hook_utils"
 no_session=$(
   jq -n '{tool_name:"Bash", tool_input:{command:"git branch -D x"}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?

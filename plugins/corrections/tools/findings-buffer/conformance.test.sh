@@ -133,8 +133,8 @@ else
   fail "read.sh --since compares the top-level ts"
 fi
 
-# the mkdir lock (flock hidden from PATH): released after an append and on TERM,
-# and a lock left by a dead holder fails fast and stores nothing
+# the mkdir lock (flock and perl hidden from PATH): released after an append and on
+# TERM, and a lock left by a dead holder fails fast and stores nothing
 NOFLOCK="$TEST_TMPDIR/noflock-bin"
 mkdir -p "$NOFLOCK"
 for t in bash git jq mkdir rmdir rm mv cat sleep mktemp sync find wc grep; do
@@ -204,6 +204,107 @@ else
   fail "a dead holder's lock fails fast, names the lock and stores nothing" "exit $RC after $((SECONDS - start))s: $ERR"
 fi
 rm -rf "$REPO/.work/buffer/.lockdir"
+
+# perl's flock (flock hidden from PATH, perl present): it locks .lock, an append
+# after a SIGKILLed holder succeeds, and parallel appends never share the lock
+if perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; then
+  PERLBIN="$TEST_TMPDIR/perl-bin"
+  mkdir -p "$PERLBIN"
+  cp -P "$NOFLOCK"/* "$PERLBIN"/
+  ln -sf "$(command -v perl)" "$PERLBIN/perl"
+  PREPO="$TEST_TMPDIR/perl-repo"
+  git init -q -b main "$PREPO" >/dev/null 2>&1
+  pl_append() { (cd "$PREPO" && PATH="$PERLBIN" bash "$LOCAL/append.sh"); }
+  printf '{"obs_id":"pl1","ts":"2026-10-21T00:00:07Z"}\n' | pl_append
+  RC=$?
+  if [[ $RC -eq 0 && -f "$PREPO/.work/buffer/.lock" ]]; then
+    pass "append.sh without flock takes perl's flock on .lock"
+  else
+    fail "append.sh without flock takes perl's flock on .lock" "exit $RC"
+  fi
+
+  # A slow sync stub keeps the holder inside the lock and records the processes
+  # holding it: the shell that took the lock (its parent) and itself, as fd 9 is
+  # inherited. SIGKILL to all of them is a holder that dies without cleanup.
+  SLOWPERL="$TEST_TMPDIR/slow-perl-bin"
+  INSIDE="$TEST_TMPDIR/inside"
+  mkdir -p "$SLOWPERL"
+  cp -P "$PERLBIN"/* "$SLOWPERL"/
+  rm -f "$SLOWPERL/sync"
+  cat >"$SLOWPERL/sync" <<EOF
+#!$(command -v bash)
+printf '%s %s\n' "\$PPID" "\$\$" >"$INSIDE"
+exec $(command -v sleep) 10
+EOF
+  chmod +x "$SLOWPERL/sync"
+  (cd "$PREPO" && PATH="$SLOWPERL" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"pl-kill","ts":"2026-10-21T00:00:08Z"}') 2>/dev/null &
+  holder=$!
+  for _ in $(seq 1 50); do
+    [[ -s "$INSIDE" ]] && break
+    sleep 0.1
+  done
+  lock_shell="" stub=""
+  [[ -s "$INSIDE" ]] && read -r lock_shell stub <"$INSIDE"
+  kill -KILL "$holder" "${lock_shell:-$holder}" "${stub:-$holder}" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  start=$SECONDS
+  ERR="$(printf '{"obs_id":"pl2","ts":"2026-10-21T00:00:09Z"}\n' | pl_append 2>&1 >/dev/null)"
+  RC=$?
+  if [[ $RC -eq 0 && $((SECONDS - start)) -lt 5 \
+    && "$(grep -c '"obs_id":"pl2"' "$PREPO/.work/buffer/findings.jsonl")" -eq 1 ]]; then
+    pass "without flock, an append after a SIGKILLed holder exits 0 and stores its row"
+  else
+    fail "without flock, an append after a SIGKILLed holder exits 0 and stores its row" "exit $RC after $((SECONDS - start))s: $ERR"
+  fi
+  rm -rf "$PREPO/.work/buffer/.lockdir"
+
+  # A sync stub that finds another appender inside the lock records an overlap;
+  # each appender stays inside long enough for one to show.
+  PARPERL="$TEST_TMPDIR/par-perl-bin"
+  MARK="$TEST_TMPDIR/inside-lock"
+  OVERLAP="$TEST_TMPDIR/overlap"
+  mkdir -p "$PARPERL"
+  cp -P "$PERLBIN"/* "$PARPERL"/
+  rm -f "$PARPERL/sync"
+  cat >"$PARPERL/sync" <<EOF
+#!$(command -v bash)
+$(command -v mkdir) "$MARK" 2>/dev/null || echo overlap >>"$OVERLAP"
+$(command -v sleep) 0.2
+$(command -v rmdir) "$MARK" 2>/dev/null
+exit 0
+EOF
+  chmod +x "$PARPERL/sync"
+  N=12
+  for i in $(seq 1 $N); do
+    printf '{"obs_id":"p%d-a","ts":"2026-10-21T00:00:10Z"}\n{"obs_id":"p%d-b","ts":"2026-10-21T00:00:10Z"}\n' \
+      "$i" "$i" >"$TEST_TMPDIR/par-$i.jsonl"
+  done
+  pids=()
+  for i in $(seq 1 $N); do
+    (cd "$PREPO" && PATH="$PARPERL" bash "$LOCAL/append.sh") <"$TEST_TMPDIR/par-$i.jsonl" 2>/dev/null &
+    pids+=($!)
+  done
+  bad=0
+  for p in "${pids[@]}"; do wait "$p" || bad=$((bad + 1)); done
+  ids="$(jq -rR 'fromjson | .obs_id' "$PREPO/.work/buffer/findings.jsonl" 2>/dev/null)"
+  RC=$?
+  off=""
+  for i in $(seq 1 $N); do
+    for s in a b; do
+      cnt="$(grep -cx "p$i-$s" <<<"$ids")"
+      [[ "$cnt" == 1 ]] || off="$off p$i-$s(x$cnt)"
+    done
+  done
+  if [[ $bad -eq 0 && $RC -eq 0 && -z "$off" && ! -e "$OVERLAP" ]]; then
+    pass "without flock, $N parallel appends never share the lock, and every row is stored once, whole"
+  else
+    fail "without flock, $N parallel appends never share the lock, and every row is stored once, whole" \
+      "$bad call(s) failed, jq exit $RC, off:$off, overlaps: $(wc -l 2>/dev/null <"$OVERLAP" || echo 0)"
+  fi
+else
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'ok %d - perl flock checks # SKIP no perl with native flock(2)\n' "$CASE_NUM"
+fi
 
 # the buffer is git-ignored, and symlinks never redirect rows or truncate the lock
 LREPO="$TEST_TMPDIR/links"
