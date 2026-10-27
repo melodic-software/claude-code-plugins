@@ -193,9 +193,8 @@ Three sources, in precedence order, and **never** a synthesized value:
    section above already requires. It is the pre-update value by construction.
 2. **`<new>`**: the `claude plugin update` call's own output for that id when it names a version.
    Capture it as it runs; it is the only source that reflects the update immediately. The run
-   passes `--json` and reads `newVersion` when `updateOutcome` is `updated` or `up_to_date`; from a
-   CLI that prints no result line, it reads the `updated from X to Y` or `already at the latest
-   version (X)` sentence instead.
+   asks for the CLI's JSON result and falls back to its result sentence on a CLI that prints no
+   result line (`sync-run.sh`'s `cli_reported_version`).
 3. **`<new>` fallback**: that id's `installed[].version` from one `fleet-state.sh` re-read after
    the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
 
@@ -207,14 +206,19 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-**Two install facts have no `--json` field, so they stay a read of `message`.** The result line
-of `claude plugin install --json` carries `outcome`, `message` and, on failure, `failureCode`.
-Unset userConfig options (`<N> userConfig option(s) not yet set[ (<M> required)]`) and a
-disabled-by-default install (`This plugin is disabled by default`) appear only as sentences inside
-`message` (attended probe, Claude Code 2.1.310), so `sync-run.sh` matches those sentences in it.
+**Two install facts are read from the result's message text.** The probe found no result field
+for unset userConfig options or a disabled-by-default install, so `sync-run.sh` classifies both
+from the message (`unset_user_config_of`, `install_disabled_notice`). The shapes it matches live
+only in the script and its probe evidence, never here.
 
-An up-to-date result (`updateOutcome: up_to_date`, or the "already at the latest version (X)"
-sentence) is not a source for `<new>`: this run's call
+- **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
+  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
+  basis comment in `scripts/sync-run.sh`.
+- **As of**: 2026-10-25
+- **Recheck trigger**: a Claude Code release that adds a result field for either fact, or a sync
+  report that misses unset options `/plugin configure` shows.
+
+An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
 never dropped and never filed under `Updated:`.
