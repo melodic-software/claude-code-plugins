@@ -48,6 +48,17 @@
       "prompt": "Check my mutation config. It has `test-command: python -m pytest tests/` and nothing else changed.",
       "expected_output": "Runs check read-only and reports the test-command as a FAIL because it does not contain the `{tests}` placeholder: `audit --exercised` substitutes the test paths there, so without it every mutant would run against the whole suite. The remediation line proposes `python -m pytest {tests}`. Does not rewrite the config during check.",
       "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Set up mutation testing for this Gradle project.",
+      "expected_output": "Detects the JVM ecosystem from build.gradle and proposes PIT with its install step, asking before installing. In that same step, before asking anything about the diff target, names Gradle as the test runner and states that it only filters by name (`--tests`), so `audit --exercised` refuses and `/testing:cleanup`'s mutation gate cannot run (only its cannot-fail-only mode is available), while the diff, `--full` and `--paths` scopes still work; it lets the user stop there. Its check table carries the same capability line as an INFO row under the test-runner probe. Later proposes no `test-command`. Does not defer the notice to the mutate-paths step, and does not propose a `{tests}` form for Gradle.",
+      "files": [
+        "evals/fixtures/gradle-project/settings.gradle",
+        "evals/fixtures/gradle-project/build.gradle",
+        "evals/fixtures/gradle-project/src/main/java/shop/Discount.java",
+        "evals/fixtures/gradle-project/src/test/java/shop/DiscountTest.java"
+      ]
     }
   ]
 }
