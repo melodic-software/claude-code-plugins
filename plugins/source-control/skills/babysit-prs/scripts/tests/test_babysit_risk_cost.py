@@ -792,6 +792,8 @@ class ProbeShapes(unittest.TestCase):
             ("-  # forwards secrets", "+  ALL: ${{ toJSON(secrets) }}"),
             ("-  # reads org secrets.", "+  KEY: >-", "+    ${{ secrets.", "+    K }}"),
             ("+  ALL: ${{ toJSON(secrets.*) }}",),
+            ("-  # needs secrets.API_KEY", "+  KEY: ${{ secrets.API_KEY }}"),
+            ("-  X: 1 # secrets.API_KEY", "+  KEY: ${{ secrets.API_KEY }}"),
         ):
             with self.subTest(lines=lines):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
@@ -866,6 +868,14 @@ class ProbeShapes(unittest.TestCase):
                 self.assertFalse(self._held(wf))
         live = _patch("+  # pick the model", "+          model: opus  # see docs")
         wf = _file(WORKFLOW, patch=live, contents=("", "jobs: {}\n"))
+        self.assertTrue(self._held(wf))
+
+    def test_a_removed_comment_does_not_offset_a_new_model_leg(self):
+        patch = _patch(
+            "-      # - uses: ./.github/actions/run-judge",
+            "+      - uses: ./.github/actions/run-judge",
+        )
+        wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
         self.assertTrue(self._held(wf))
 
     def test_model_flags_in_action_and_script_files_hold(self):

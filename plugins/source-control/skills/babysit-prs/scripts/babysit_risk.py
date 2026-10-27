@@ -976,7 +976,7 @@ def _net_added(
     pattern: re.Pattern[str], added: list[str], removed: list[str]
 ) -> list[str]:
     """Each match `added` gains over `removed`, so a moved or repinned line
-    is not new."""
+    is not new. A removed comment offsets nothing: only its live text counts."""
     gained = Counter(
         re.sub(r"\s+", "", m).casefold()
         for line in added
@@ -985,7 +985,8 @@ def _net_added(
     gained.subtract(
         re.sub(r"\s+", "", m).casefold()
         for line in removed
-        for m in pattern.findall(line)
+        if not line.lstrip().startswith("#")
+        for m in pattern.findall(re.split(r"\s#", line, maxsplit=1)[0])
     )
     return sorted(m for m, n in gained.items() if n > 0)
 
