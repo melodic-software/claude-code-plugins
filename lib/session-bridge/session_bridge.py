@@ -27,6 +27,7 @@ rides in the `X-<Name>-Token` header. The contract is lib/session-bridge/README.
 
 import abc
 import ctypes
+import hashlib
 import http.client
 import json
 import os
@@ -124,6 +125,32 @@ def write_private(path, text):
     replace_into(tmp, path)
 
 
+def plugin_build(here=None):
+    """{pluginVersion, sourceHash} of the plugin copy in `here` (default: this file's folder): the
+    version in the plugin manifest beside `here`, and a SHA-256 of the non-test .py files in `here`.
+    Either is None when unreadable. A server records its own at start; a control script compares."""
+    here = Path(here or Path(__file__).resolve().parent)
+    try:
+        manifest = json.loads(
+            (here.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        version = manifest.get("version") if isinstance(manifest, dict) else None
+    except (OSError, ValueError):
+        version = None
+    digest = hashlib.sha256()
+    try:
+        for f in sorted(here.glob("*.py")):
+            if not f.name.startswith("test_"):
+                digest.update(f.name.encode("utf-8") + b"\0" + f.read_bytes() + b"\0")
+        source = digest.hexdigest()
+    except OSError:
+        source = None
+    return {
+        "pluginVersion": version if isinstance(version, str) else None,
+        "sourceHash": source,
+    }
+
+
 class Conflict(Exception):
     """A 409; the payload goes back to the client as-is."""
 
@@ -189,6 +216,8 @@ class LoopbackWatcher(Transport):
         self._watch_token = None
         # Differs on every start; the page tells a restart by it.
         self.instance = secrets.token_hex(6)
+        # The plugin version and source this process started from; start() records it.
+        self.build = {"pluginVersion": None, "sourceHash": None}
         self.cond = threading.Condition()
         self.waiters = 0
         self.streams = 0
@@ -489,6 +518,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     **self.hub.identity(),
+                    **self.hub.build,
                     "pid": os.getpid(),
                     "dataDir": str(self.hub.dir),
                     "consoleWindow": CONSOLE_WINDOW,
@@ -658,7 +688,8 @@ def bind_without_lookup(server):
 
 
 def start(handler, make_hub, port, nonce=""):
-    """Bind 127.0.0.1:port (0 picks a free one), build the hub, write the session files.
+    """Bind 127.0.0.1:port (0 picks a free one), build the hub, record its plugin_build(), write
+    the session files.
 
     make_hub(port) returns the LoopbackWatcher; the session files go to its data dir, mode 0600,
     because they hold the token. Returns (httpd, hub); the caller runs httpd.serve_forever().
@@ -667,6 +698,7 @@ def start(handler, make_hub, port, nonce=""):
     httpd.daemon_threads = True
     port = httpd.server_address[1]
     hub = make_hub(port)
+    hub.build = plugin_build()
     handler.hub = hub
     pid = os.getpid()
     session = {
@@ -677,8 +709,11 @@ def start(handler, make_hub, port, nonce=""):
         "dataDir": str(hub.dir),
         "nonce": nonce,
         "startedAt": now_iso(),
+        **hub.build,
     }
     env = f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\n"
+    if hub.build["pluginVersion"]:
+        env += f"PLUGIN_VERSION={hub.build['pluginVersion']}\n"
     # Only an app's own watcher token is written; without one, readers fall back to the page token.
     if hub._watch_token:
         session["watchToken"] = hub._watch_token
@@ -724,6 +759,22 @@ def running(d, s):
     """True only when the recorded port answers with the recorded PID for this data dir."""
     p = ping(s["port"])
     return bool(p) and p.get("pid") == s["pid"] and same_dir(p.get("dataDir") or "", d)
+
+
+def stale_build(s, here=None):
+    """Why the server session file `s` records started from another build than the plugin copy in
+    `here` (plugin_build), or None when its version and source hash match. A session file from
+    before builds were recorded holds neither, so it reads as stale."""
+    want = plugin_build(here)
+    got = {k: s.get(k) for k in want}
+    if got == want:
+        return None
+    if got["pluginVersion"] != want["pluginVersion"]:
+        return (
+            f"it runs {got['pluginVersion'] or 'a version that records none'}, "
+            f"this plugin is {want['pluginVersion'] or 'unversioned'}"
+        )
+    return "its source differs from this plugin's"
 
 
 def port_free(port):
