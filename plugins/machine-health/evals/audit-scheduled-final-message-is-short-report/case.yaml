@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: audit-scheduled-final-message-is-short-report
+graders:
+  - name: opens-on-fixed-first-line
+    type: regex
+    pattern: '^machine-health checkup WS-0142 2026-10-25T03:00:12Z(?:\r?\n|$)'
+    target: last_message
+  - name: no-code-fence
+    type: regex
+    pattern: '```'
+    match: not_contains
+    target: last_message
+  - name: ends-on-page-line
+    type: regex
+    pattern: 'page: not built\s*$'
+    target: last_message
