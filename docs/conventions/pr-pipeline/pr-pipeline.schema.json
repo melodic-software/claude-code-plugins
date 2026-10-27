@@ -839,8 +839,8 @@
       ],
       "properties": {
         "model": {
-          "enum": ["default", "best", "fable", "opus", "sonnet"],
-          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs."
+          "enum": ["default", "opus", "sonnet"],
+          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
         },
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
@@ -859,9 +859,9 @@
           "description": "The role whose effort the run takes, in place of its own role's."
         },
         "subagent-model": {
-          "enum": ["inherit", "best", "fable", "opus", "sonnet"],
+          "enum": ["inherit", "opus", "sonnet"],
           "default": "inherit",
-          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing."
+          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
         },
         "max-turns": {
           "type": "integer",
