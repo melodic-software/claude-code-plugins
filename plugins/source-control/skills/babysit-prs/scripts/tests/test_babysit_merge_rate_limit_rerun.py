@@ -24,6 +24,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge as merge
+import babysit_merge_skip as skip
 import test_babysit_merge as base
 import test_babysit_review_evidence as evidence_tests
 from repo_config_fake import RepoConfigFake
@@ -33,6 +34,7 @@ REPO = "owner/repo"
 RUN_ID = 111
 JOB_ID = 222
 FAILED_AT = "2026-10-09T10:00:00Z"
+STARTED_AT = "2026-10-09T09:50:00Z"
 # Shapes follow live payloads (2026-10-09): `gh pr view --json
 # statusCheckRollup` gives a CheckRun no id, and an Actions job's `id`, its
 # `check_run_url` tail and its check run's id are one number.
@@ -79,9 +81,16 @@ class RerunRateLimitedReview(unittest.TestCase):
         now: str = "2026-10-09T15:00:00Z",
         check: dict[str, Any] = CHECK,
         attempt_conclusion: str = "failure",
+        comments: list[dict[str, Any]] = (),  # type: ignore[assignment]
+        number: int | None = 7,
     ) -> tuple[dict[str, Any], list[list[str]]]:
         reads: list[list[str]] = []
         posts: list[list[str]] = []
+        self.comment_reads: list[str] = []
+
+        def pages(endpoint: str, label: str) -> list[dict[str, Any]]:
+            self.comment_reads.append(endpoint)
+            return list(comments)
 
         def gh_json(args: list[str]) -> Any:
             reads.append(args)
@@ -96,7 +105,11 @@ class RerunRateLimitedReview(unittest.TestCase):
                     for a in annotations
                 ]
             if args[1] == f"repos/{REPO}/actions/runs/{RUN_ID}/attempts/1":
-                return {"run_attempt": 1, "conclusion": attempt_conclusion}
+                return {
+                    "run_attempt": 1,
+                    "conclusion": attempt_conclusion,
+                    "run_started_at": STARTED_AT,
+                }
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         def capture(cmd: list[str]) -> Any:
@@ -107,9 +120,10 @@ class RerunRateLimitedReview(unittest.TestCase):
         with (
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "gh_capture", side_effect=capture),
+            mock.patch.object(merge, "fetch_paginated_api", side_effect=pages),
             mock.patch.object(merge, "_now", return_value=clock),
         ):
-            report = merge.rerun_rate_limited_review(REPO, HEAD, check)
+            report = merge.rerun_rate_limited_review(REPO, HEAD, check, number=number)
         self.reads = reads
         return report, posts
 
@@ -130,6 +144,14 @@ class RerunRateLimitedReview(unittest.TestCase):
                 self.assertFalse(report["rerun"])
                 self.assertIn(conclusion, report["reason"])
                 self.assertEqual(posts, [])
+
+    def test_an_attempt_still_running_is_read_again_by_the_next_gate(self) -> None:
+        # A sibling job can keep attempt 1 open after the lane job failed; a
+        # stable reason here would freeze the skip before the run concludes.
+        report, posts = self._run(attempt_conclusion=None)  # type: ignore[arg-type]
+        self.assertFalse(report["rerun"])
+        self.assertEqual(posts, [])
+        self.assertFalse(report["reason"].startswith(skip.STABLE_RERUNS), report)
 
     def test_before_the_reset_a_rate_limit_waits(self) -> None:
         report, posts = self._run(now="2026-10-09T14:59:00Z")
@@ -217,9 +239,10 @@ class RerunRateLimitedReview(unittest.TestCase):
     def test_the_gate_reruns_only_classes_whose_rerun_binds(self) -> None:
         # A re-run the evidence would not bind spends the one allowed attempt
         # for nothing.
+        # `LOST` is a conclusion, not an annotation; LostReviewRerun covers it.
         self.assertLessEqual(
             merge.review_evidence.GATE_RERUN_CLASSES,
-            set(merge.review_evidence.RERUN_CLASSES),
+            {*merge.review_evidence.RERUN_CLASSES, merge.review_evidence.LOST},
         )
         self.assertLessEqual(
             merge.NO_WAIT_RERUN_CLASSES, merge.review_evidence.GATE_RERUN_CLASSES
@@ -313,6 +336,120 @@ class RerunRateLimitedReview(unittest.TestCase):
         self.assertFalse(report["rerun"])
         self.assertIn("boom", report["reason"])
 
+    def test_a_plain_failure_is_never_rerun(self) -> None:
+        # A failure outside the listed classes, with no annotation at all:
+        # the lane judged the head, so a re-run could trade its verdict away.
+        report, posts = self._run(annotations=[])
+        self.assertFalse(report["rerun"])
+        self.assertTrue(report["reason"].startswith("failure class is not "), report)
+        self.assertEqual((posts, self.comment_reads), ([], []))
+
+
+def _marker(
+    lane: str = "claude-review",
+    sha: str = HEAD,
+    at: str = "2026-10-09T09:55:00Z",
+) -> dict[str, Any]:
+    return {
+        "id": 1,
+        "user": {"login": "github-actions[bot]", "type": "Bot"},
+        "created_at": at,
+        "body": f"<!-- claude-lane-reviewed-head lane={lane} sha={sha} -->\nreviewed",
+    }
+
+
+class LostReviewRerun(unittest.TestCase):
+    """A review run an outage lost (cancelled, timed out) is re-run at once,
+    once, only while nothing shows its lane posted on the head."""
+
+    _run = RerunRateLimitedReview._run
+
+    def _lost(self, conclusion: str = "cancelled", **kwargs: Any) -> Any:
+        kwargs.setdefault("annotations", [])
+        kwargs.setdefault("now", "2026-10-09T10:01:00Z")
+        kwargs.setdefault("attempt_conclusion", conclusion)
+        return self._run(job=kwargs.pop("job", _job(conclusion=conclusion)), **kwargs)
+
+    def test_a_lost_run_is_rerun_at_once(self) -> None:
+        for conclusion in ("cancelled", "timed_out"):
+            with self.subTest(conclusion):
+                report, posts = self._lost(conclusion)
+                self.assertTrue(report["rerun"], report)
+                self.assertEqual(
+                    posts,
+                    [["api", "-X", "POST", f"repos/{REPO}/actions/runs/{RUN_ID}/rerun"]],
+                )
+                self.assertEqual(
+                    self.comment_reads, [f"repos/{REPO}/issues/7/comments?per_page=100"]
+                )
+
+    def test_a_lost_security_run_is_rerun(self) -> None:
+        report, _ = self._lost(
+            job=_job(
+                conclusion="cancelled",
+                name=SECURITY_CHECK["name"],
+                workflow_name=SECURITY_CHECK["workflow_name"],
+            ),
+            check=SECURITY_CHECK,
+        )
+        self.assertTrue(report["rerun"], report)
+
+    def test_a_lost_run_that_recorded_a_review_is_left_to_a_person(self) -> None:
+        done = evidence_tests.record(
+            "claude-review", HEAD, "findings=0 inline=0 scope=whole"
+        )
+        report, posts = self._lost(annotations=[done])
+        self.assertFalse(report["rerun"])
+        self.assertTrue(report["reason"].startswith(merge.LEFT_TO_A_PERSON), report)
+        self.assertEqual(posts, [])
+
+    def test_a_lost_run_whose_lane_posted_is_left_to_a_person(self) -> None:
+        summary = {
+            "id": 2,
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-10-09T09:58:00Z",
+            "body": "Review summary\n\n`claude-lane: claude-review`",
+        }
+        for comments in ([_marker()], [summary]):
+            with self.subTest(comments[0]["body"][:30]):
+                report, posts = self._lost(comments=comments)
+                self.assertFalse(report["rerun"])
+                self.assertTrue(
+                    report["reason"].startswith(merge.LEFT_TO_A_PERSON), report
+                )
+                self.assertEqual(posts, [])
+
+    def test_what_the_lane_posted_elsewhere_does_not_hold_the_rerun(self) -> None:
+        for comments in (
+            # Before the run started: an earlier run's review.
+            [_marker(at="2026-10-09T09:00:00Z")],
+            # Another head, or the other lane.
+            [_marker(sha=base.STALE)],
+            [_marker(lane="claude-security-review")],
+        ):
+            with self.subTest(comments[0]["body"][:60]):
+                report, _ = self._lost(comments=comments)
+                self.assertTrue(report["rerun"], report)
+
+    def test_a_lost_rerun_is_not_rerun_again(self) -> None:
+        report, posts = self._lost(job=_job(conclusion="cancelled", run_attempt=2))
+        self.assertFalse(report["rerun"])
+        self.assertIn("re-run at most once", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_lost_job_in_a_failed_attempt_is_not_rerun(self) -> None:
+        # The binding reads attempt 1's conclusion: a failure there goes the
+        # failure-class way and binds no lost re-run.
+        report, posts = self._lost(attempt_conclusion="failure")
+        self.assertFalse(report["rerun"])
+        self.assertIn("'failure'", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_lost_run_with_no_pull_request_number_is_not_rerun(self) -> None:
+        report, posts = self._lost(number=None)
+        self.assertFalse(report["rerun"])
+        self.assertEqual((posts, self.comment_reads), ([], []))
+
 
 class RerunScope(unittest.TestCase):
     RESULT = {
@@ -339,7 +476,20 @@ class RerunScope(unittest.TestCase):
 
     def test_only_failed_checks_on_the_pinned_open_head_are_considered(self) -> None:
         one = self._reruns()
-        one.assert_called_once_with(REPO, HEAD, CHECK)
+        one.assert_called_once_with(REPO, HEAD, CHECK, number=None)
+
+    def test_lost_checks_are_considered_with_the_pr_number(self) -> None:
+        for state in ("CANCELLED", "TIMED_OUT", "STARTUP_FAILURE"):
+            with self.subTest(state):
+                lost = {**CHECK, "effective_state": state}
+                one = self._reruns(pr=f"{REPO}#7", aiReviewChecks=[lost])
+                one.assert_called_once_with(REPO, HEAD, lost, number=7)
+
+    def test_other_states_are_not_considered(self) -> None:
+        for state in ("SUCCESS", "SKIPPED", "NEUTRAL", "PENDING", "ACTION_REQUIRED"):
+            with self.subTest(state):
+                checks = [{**CHECK, "effective_state": state}]
+                self._reruns(aiReviewChecks=checks).assert_not_called()
 
     def test_unpinned_moved_draft_or_closed_heads_are_skipped(self) -> None:
         for overrides in (
@@ -366,7 +516,7 @@ class RerunScope(unittest.TestCase):
             merge, "rerun_rate_limited_review", return_value={"rerun": True}
         ) as one:
             reruns = merge.rerun_rate_limited_reviews(REPO, top)
-        one.assert_called_once_with(REPO, layer_head, CHECK)
+        one.assert_called_once_with(REPO, layer_head, CHECK, number=2)
         self.assertEqual(reruns, [{"pr": f"{REPO}#2", "rerun": True}])
 
 

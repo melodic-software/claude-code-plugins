@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [6.0.1] - 2026-10-27
+
+### Changed
+
+- `clear-escalations.mjs` `LANE_CAUSES.verdict` adds `verify:repeated-fail` and `verify:too-old`, so under `merge.lane-prs: native` a `needs-human` label `enable-auto-merge` placed for either comes off at its head (`refusal-cleared`) once the reader names only lane causes there. `lane-causes-person-codes.test.mjs` also pins `LANE_CAUSES.verdict` against `babysit_verify_evidence.NEEDS_HUMAN`.
+
+- pr-merge's post-merge-dispatch job reads the post-merge report that the last scheduled or hand-started run kept. It reads only a run on main and finds it the way it finds the lane records (`.github/scripts/pr-merge/last-report.mjs`). On an idle tick it reuses that report and does not run "Check earlier lane merges". It keeps the report's `computedAt`, exit code and code commit, so a chain of reuses ends `SHARED_MAX_AGE` after the check that made the report. Any refusal or failed read runs the check as before. `last-report.mjs` is gate code on the risk floor.
+
+### Fixed
+
+- fix-docs's patch now pushes only markdown outside `skills/` ([#8956](https://github.com/melodic-software/claude-code-plugins/issues/8956)). `pr-refine.yml`'s `apply-docs-patch` job passes `patch-prepare: docs`, so apply-patch holds the patch to `patch-rules.json`'s `docs` row in place of the `default` row: a path not ending in `.md`, a path under a `skills/` directory or any `SKILL.md` refuses the whole patch as `patch-protected-path`, and the run posts its `pr-refine / apply-patch` check neutral. Before, the `default` row let a fix-docs patch push any path outside the universal refusals, a plugin hook or script included.
+
 ## [6.0.0] - 2026-10-27
 
 ### Changed

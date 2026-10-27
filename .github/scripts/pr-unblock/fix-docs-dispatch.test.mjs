@@ -255,6 +255,24 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
   assert.deepEqual(numbers(api), ["51"]);
 });
 
+test("a fix-docs run an outage lost before its check gets a fresh dispatch from this dispatcher, never a re-run", async () => {
+  const { api } = await run({
+    pages: [[pr(52)]],
+    workflowRuns: [{ id: 4, status: "completed", conclusion: "cancelled", display_title: "pr-refine fix-docs #52" }],
+  });
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "52", activity: "fix-docs", "dispatcher-run-id": "4242" } },
+  ]);
+});
+
+test("a fix-docs run that pushed its lanes App commit is left alone: its check is on the commit before the push", async () => {
+  // pr-refine.yml's push job runs after the report job posted the check on
+  // fix-docs-head, so a pushed run's check sits one commit below the new head.
+  const { api, record } = await run({ pages: [[pr(53)]], histories: { 53: history([0, 1]) } });
+  assert.deepEqual(numbers(api), []);
+  assert.ok(isHandled(record, CHECK, pr(53).headRefOid));
+});
+
 test("a failed history read counts as a failure and dispatches nothing for that PR", async () => {
   const { api, result } = await run({ pages: [[pr(60), pr(61)]], failHistory: new Set([60]) });
   assert.deepEqual(numbers(api), ["61"]);
