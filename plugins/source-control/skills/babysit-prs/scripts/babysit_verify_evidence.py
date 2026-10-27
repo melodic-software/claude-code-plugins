@@ -129,12 +129,18 @@ running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
 job holds the lanes App token.
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
 `LISTING_ENV`: a successful listing is saved there, and later candidates of
-the run read it instead of paging again. No judgment uses a listing, saved
-or in memory, begun more than `LISTING_MAX_AGE` before it: an older one is
-read again and saved. A listing taken earlier in the run
-can only lack later uploads, so a refusal on it stands; before the gate's own
-candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
-again on a listing of its own. A listing that got a 5xx or a fast network
+the run read it instead of paging again. A listing taken earlier in the run
+can only lack later uploads. No judgment uses a listing, saved or in
+memory, begun more than `LISTING_MAX_AGE` before it (an older one is read
+again and saved), except the gate's own candidate's, which babysit_merge.py
+judges `provisional` on the listing at hand at any age: an allow stands on
+it until the gate would allow the candidate, when babysit_merge.py calls
+`refresh()` and judges it again on a listing of its own, and so does a
+refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
+cap, an old pull request). Any other refusal is judged again on a recent
+listing, so none dequeues the candidate's queued entry on an older one. A
+candidate the gate refuses for anything else lists nothing more; queued
+entries are judged on a recent listing. A listing that got a 5xx or a fast network
 error is read again after each of `LISTING_WAITS`, every read inside
 `LISTING_TIMEOUT_SECONDS` in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
@@ -263,8 +269,9 @@ LISTING_WAITS = (2.0, 4.0)
 # reads about 300 pages at 1 s a page, inside every reader's step timeout
 # (judgment).
 LISTING_TIMEOUT_SECONDS = 300.0
-# The oldest listing a judgment uses, saved or in memory (see the bound),
-# unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
+# The oldest listing a judgment uses, saved or in memory, but for a
+# provisional one's allow or `STANDING` refusal (`Reader.evidence`), unless
+# `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
 # The incremental listing (`Reader._incremental`). The listing comes newest id
 # first, but a lower id can be created after a higher one: across 6,835
@@ -321,6 +328,12 @@ INTENT_PULL_REQUEST = "pull-request"
 # gate and enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
 # LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
+# The refusals no upload after the listing clears (`Reader.evidence`): a
+# counted FAIL at the head or the cap's FAILs stay counted whatever is
+# uploaded later, as no pass clears them, and a pull request's age only
+# grows. A pass uploaded later can clear any other refusal, and a read may
+# answer otherwise.
+STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -813,6 +826,8 @@ class Reader:
     # The oldest listing a judgment uses; None (`evidence --shared-listing`)
     # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
+    # `evidence` is judging on the listing at hand at any age.
+    _any_age: bool = False
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -870,15 +885,10 @@ class Reader:
         without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        if self._artifacts is not None and _recent(
-            self._fetched_at, self.listing_max_age
-        ):
+        max_age = None if self._any_age else self.listing_max_age
+        if self._artifacts is not None and _recent(self._fetched_at, max_age):
             return self._artifacts
-        saved = (
-            None
-            if self._own
-            else self._load_saved(self.listing_path, self.listing_max_age)
-        )
+        saved = None if self._own else self._load_saved(self.listing_path, max_age)
         if saved is not None:
             self._fetched_at, self._artifacts = saved
             self._base = saved
@@ -1679,12 +1689,41 @@ class Reader:
         return {str(c.get("sha")) for c in commits}
 
     def evidence(
-        self, number: int, head: str, pr: dict[str, Any] | None = None
+        self,
+        number: int,
+        head: str,
+        pr: dict[str, Any] | None = None,
+        *,
+        provisional: bool = False,
     ) -> Evidence:
+        """The judgment at `head`, on a listing begun at most
+        `listing_max_age` before it. A `provisional` one, whose allow the
+        caller judges again on a listing of its own before acting on it
+        (babysit_merge.py `refresh()`), takes the listing at hand at any age:
+        an allow or a refusal no later upload clears (`STANDING`) stands on
+        it, and any other refusal on an older listing is judged again on a
+        recent one."""
+        judged = self._judge(number, head, pr, any_age=provisional)
+        if (
+            not provisional
+            or judged.refusal is None
+            or judged.refusal in STANDING
+            or self._fetched_at is None
+            or _recent(self._fetched_at, self.listing_max_age)
+        ):
+            return judged
+        return self._judge(number, head, pr, any_age=False)
+
+    def _judge(
+        self, number: int, head: str, pr: dict[str, Any] | None, *, any_age: bool
+    ) -> Evidence:
+        self._any_age = any_age
         try:
             return self._evidence(number, head, pr)
         except (_Unreadable, postmerge.PostMergeReadError) as exc:
             return Evidence(UNREADABLE, head, (), 0, str(exc))
+        finally:
+            self._any_age = False
 
     def _evidence(self, number: int, head: str, pr: dict[str, Any] | None) -> Evidence:
         if pr is None:

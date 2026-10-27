@@ -3309,7 +3309,9 @@ def score_unattended(
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
         )
-        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        # Provisional: an allow is judged again on a listing of this gate
+        # run's own below, once nothing else refuses.
+        verdict = reader.evidence(number, str(details["headSha"]), pr, provisional=True)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:
