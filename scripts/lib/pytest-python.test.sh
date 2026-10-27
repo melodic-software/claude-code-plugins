@@ -85,7 +85,36 @@ run_in "$w" SETUP_ENV_VENV="$TMP_ROOT/elsewhere"
 check "SETUP_ENV_VENV comes first" \
   '[[ $RC == 0 && $OUT == "venv $TMP_ROOT/elsewhere -m pytest -q -p no:cacheprovider -- tests/test_a.py" ]]'
 
+# venv_bin_in <dir> [VAR=value...]: pytest_python::venv_bin from <dir>; sets OUT, RC.
+venv_bin_in() {
+  local dir=$1
+  shift
+  : >"$log"
+  RC=0
+  OUT="$(cd "$dir" && env -u SETUP_ENV_VENV PATH="$stubs:$PATH" "$@" \
+    bash -c '. "$1/scripts/lib/pytest-python.sh" && pytest_python::venv_bin' _ "$c" 2>"$TMP_ROOT/err")" || RC=$?
+  ERR="$(cat "$TMP_ROOT/err")"
+}
+
+venv_bin_in "$w"
+check "venv_bin prints the main checkout's venv bin from a linked worktree" \
+  '[[ $RC == 0 && $OUT == "$c/.work/venv/bin" && ! -s $log ]]'
+
+venv_bin_in "$w" SETUP_ENV_VENV="$TMP_ROOT/elsewhere"
+check "venv_bin follows SETUP_ENV_VENV first" \
+  '[[ $RC == 0 && $OUT == "$TMP_ROOT/elsewhere/bin" ]]'
+
+mkdir -p "$TMP_ROOT/winvenv/Scripts"
+cp "$TMP_ROOT/elsewhere/bin/python" "$TMP_ROOT/winvenv/Scripts/python"
+venv_bin_in "$w" SETUP_ENV_VENV="$TMP_ROOT/winvenv"
+check "venv_bin names Scripts when the venv has one" \
+  '[[ $RC == 0 && $OUT == "$TMP_ROOT/winvenv/Scripts" ]]'
+
 rm -rf "$c/.work"
+venv_bin_in "$c" PY3_PYTEST=1
+check "with no venv, venv_bin fails with no output and builds nothing" \
+  '[[ $RC != 0 && -z $OUT && ! -s $log ]]'
+
 run_in "$c" PY3_PYTEST=1
 check "with no venv, a python3 that imports pytest runs the suite and setup-env does not run" \
   '[[ $RC == 5 && $OUT == "python3 -m pytest -q -p no:cacheprovider -- tests/test_a.py" && ! -s $log ]]'
