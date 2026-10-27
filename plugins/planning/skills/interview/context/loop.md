@@ -491,7 +491,7 @@ Two behaviors attach here, both defined in the SKILL.md section "Acceptance-crit
 
 Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, `optional-feature`. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
 
-**Captured assumptions:** what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The point of the section: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
+**Captured assumptions:** what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The point of the section: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later. A commitment the user confirmed is a decision, not an assumption: it stays with its decision, and only an unconfirmed one lands here, as a named risk.
 
 **Out-of-scope:** things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
@@ -507,7 +507,7 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 ## Brief
 
 ### TLDR
-<≤5 bullets: what's shipping. This is the scope-review surface a reviewer of a dense brief (>100 lines) reads first. A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling; surface back to the user and ask which items to defer>
+<≤5 bullets: what's shipping. This is the scope-review surface a reviewer of a dense brief (>100 lines) reads first. A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling; surface back to the user and ask which items to defer. A page export writes the confirmed restatement's `tldr` bullets here, ahead of its counts and stamp lines>
 
 ### Problem
 <gap, who / how many, frequency, trend, cost, evidence (rated), one line each, per ../../../context/problem-framing.md "Problem fields">
