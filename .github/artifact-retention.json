@@ -116,12 +116,11 @@
       "pending-cut": "3 days would still cover a weekend; changing the recorded owner decision needs the owner."
     },
     "patch-*": {
-      "retention-days": 7,
+      "retention-days": 3,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml patch-attempt download, same run, possibly an earlier attempt"
       ],
-      "reason": "A manual re-run of the write job reads an earlier attempt's patch.",
-      "pending-cut": "1 day, or 3 to keep weekend manual re-runs: every reader is in the same run."
+      "reason": "Every reader is in the same run; a manual re-run of the write job may read an earlier attempt, so 3 days covers a weekend."
     },
     "feedback-replies-*": {
       "retention-days": 1,
@@ -132,12 +131,11 @@
       "reason": "Read by its own run; 1 day is the minimum."
     },
     "dependency-verdict-*": {
-      "retention-days": 7,
+      "retention-days": 3,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml same run"
       ],
-      "reason": "A manual re-run of the write job reads it.",
-      "pending-cut": "1 day: every reader is in the same run."
+      "reason": "Every reader is in the same run; the manual re-run of either write job alone (pr-run-activity-write.yml) reads it, so 3 days covers a weekend."
     },
     "work-outcome-*": {
       "retention-days": 1,
@@ -211,12 +209,11 @@
       "reason": "Read by its own run; 1 day is the minimum."
     },
     "findings-*": {
-      "retention-days": 7,
+      "retention-days": 1,
       "readers": [
         ".github/workflows/maintenance-audit-lane-runs.yml findings-* download, same run"
       ],
-      "reason": "Read by its own run and that run's re-runs.",
-      "pending-cut": "1 day: every reader is in the same run."
+      "reason": "Read only by its own run (the file job downloads findings-*)."
     },
     "selection-audit-*": {
       "retention-days": 7,
