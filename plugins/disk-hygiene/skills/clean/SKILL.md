@@ -319,7 +319,7 @@ returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, 
 fanning a deeper scan out over that subtree, report those rows as coverage gaps, never as small or clean.
 `scan-complete` also carries `unhinted_entries`, `entries` minus `hinted_entries`, every inventoried entry no hint
 judged. So quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
-and the measurement: [the safety model](reference/safety-model.md). When a run needs the frontier ranked but not
+and the measurement: [the safety model](reference/safety-model.md). **Order the review by each entry's `review_rank` `position`**: name the signals and group beside each ranked row (`discovery-hint`, `sibling-mtime-cluster`, `size-collision`), show an `unranked` entry as unranked rather than in a middle position, and quote `ranked_entries` of `entries` beside the hint rate. A signal is provenance evidence for step 2, never a tier or an approval, and no eligibility decision reads it ([review ranking](reference/safety-model.md#review-ranking)). When a run needs the frontier ranked but not
 the rows themselves in context, add `--quiet`: the rollup stays complete in the snapshot and stops being duplicated
 onto stdout, where one row per immediate child dominates a wide target's payload.
 
