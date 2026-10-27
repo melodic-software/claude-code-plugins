@@ -33,7 +33,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, /attribution:audit leaves its config layers unread and audits with the defaults, and fetch-docs.sh and docs-cache.sh exit before reading anything, so a source page is read by the rung-2 fallback instead.",
+      "degrade": "Without jq, /attribution:audit leaves its JSON config layers unread (YAML layers are still read), and fetch-docs.sh and docs-cache.sh exit before reading anything, so a source page is read by the rung-2 fallback instead.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
