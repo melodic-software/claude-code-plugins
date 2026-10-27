@@ -1751,7 +1751,7 @@ class ReviewFlagClassTests(unittest.TestCase):
         self.assertTrue(holds(result))
 
     def test_subscription_spend_is_reported_and_does_not_hold(self):
-        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
+        patch = "@@ -1,1 +1,2 @@\n on: push\n+  claude_args: --model opus"
         result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
         self.assertEqual(_codes(result), ("cost-finding",))
         self.assertFalse(holds(result))

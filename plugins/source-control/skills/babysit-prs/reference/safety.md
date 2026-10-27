@@ -1111,7 +1111,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
    a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`.
+   (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
+   and a new secrets reference or model leg holds as `secret-exposure-review` or
+   `agent-surface-review`, which a person clears.
    Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

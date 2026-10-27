@@ -17,8 +17,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from babysit_risk import (
+    AGENT_SURFACE_CODE,
     COST_CODE,
     COST_FINDING_CODE,
+    SECRET_EXPOSURE_CODE,
     Risk,
     holding,
     holds,
@@ -54,6 +56,14 @@ class _Finding(unittest.TestCase):
             [c for c in held if not c.startswith("high-path:")], [], result.reasons
         )
 
+    def assertSecurityHold(self, result, code):
+        """A credential or agent-surface change: a person's hold, never cost."""
+        codes = _codes(result)
+        self.assertIn(code, codes)
+        self.assertNotIn(COST_CODE, codes)
+        self.assertNotIn(COST_FINDING_CODE, codes)
+        self.assertIn(code, [r.code for r in person_reasons(holding(result))])
+
 
 class CostHold(_Finding):
     def test_infrastructure_as_code_holds_floor_or_not(self):
@@ -80,11 +90,13 @@ class CostHold(_Finding):
         docs = _file("docs/guide.md", patch=_patch("+runs-on: macos-26", "+cron: x"))
         self.assertNotIn(COST_CODE, _codes(_cost([docs])))
 
-    def test_a_new_schedule_is_reported_not_held(self):
+    def test_a_new_schedule_holds_unless_public(self):
+        # A schedule runs hosted minutes, billed off a public repository.
         wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
-        for public in (True, False, None):
+        self.assertReported(_cost([wf], public=True))
+        for public in (False, None):
             with self.subTest(public=public):
-                self.assertReported(_cost([wf], public=public))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
 
     def test_a_larger_runner_holds_on_a_public_repository(self):
         for label in ("ubuntu-24.04-16-cores", "ubuntu-24.04-xlarge", "linux-gpu"):
@@ -136,7 +148,7 @@ class ModelSpendDetections(_Finding):
     model-leg timeout, and a new model leg. Each reports only a line that
     moves spend, and holds only where it starts a real charge."""
 
-    def test_an_added_model_credential_reference_is_reported(self):
+    def test_an_added_model_credential_reference_holds_for_security(self):
         for name in (
             "AUTOMATIONS_CLAUDE_API_KEY",
             "LANES_CLAUDE_TOKEN",
@@ -146,7 +158,7 @@ class ModelSpendDetections(_Finding):
             with self.subTest(name=name):
                 line = f"+          api-key: ${{{{ secrets.{name} }}}}"
                 wf = _file(WORKFLOW, patch=_patch(line))
-                self.assertReported(_cost([wf], public=True))
+                self.assertSecurityHold(_cost([wf], public=True), SECRET_EXPOSURE_CODE)
 
     def test_a_moved_secret_does_not_hold(self):
         moved = _patch(
@@ -157,6 +169,7 @@ class ModelSpendDetections(_Finding):
         codes = _codes(_cost([wf], public=True))
         self.assertNotIn(COST_CODE, codes)
         self.assertNotIn(COST_FINDING_CODE, codes)
+        self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
 
     def test_a_changed_spend_limit_in_the_pipeline_config_is_reported(self):
         config = "docs/conventions/pr-pipeline.yaml"
@@ -248,7 +261,7 @@ class ModelSpendDetections(_Finding):
         # Artifact storage past the free quota bills on a private repository;
         # Actions use on a public one is free.
         for patch in (
-            _patch("+          retention-days: 30"),
+            _patch("+          retention-days: 120"),
             _patch("-          retention-days: 5", "+          retention-days: 30"),
         ):
             with self.subTest(patch=patch):
@@ -256,6 +269,18 @@ class ModelSpendDetections(_Finding):
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
                 self.assertReported(_cost([wf], public=True))
+
+    def test_an_added_retention_within_the_default_does_not_count(self):
+        # GitHub keeps artifacts 90 days by default, so 7 stores less.
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("+          retention-days: 7"),
+            contents=("", "jobs: {}\n"),
+        )
+        for public in (True, False, None):
+            codes = _codes(_cost([wf], public=public))
+            self.assertNotIn(COST_CODE, codes)
+            self.assertNotIn(COST_FINDING_CODE, codes)
 
     def test_a_lowered_artifact_retention_does_not_count(self):
         lowered = _patch(
@@ -267,14 +292,14 @@ class ModelSpendDetections(_Finding):
             self.assertNotIn(COST_CODE, codes)
             self.assertNotIn(COST_FINDING_CODE, codes)
 
-    def test_a_new_model_leg_is_reported(self):
+    def test_a_new_model_leg_holds_for_security(self):
         for action in (
             "melodic-software/ci-workflows/.github/actions/run-claude-cli@abc",
             "anthropics/claude-code-action@abc",
         ):
             with self.subTest(action=action):
                 wf = _file(WORKFLOW, patch=_patch(f"+      - uses: {action}"))
-                self.assertReported(_cost([wf], public=True))
+                self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_repinned_model_leg_does_not_hold(self):
         bump = _patch(
@@ -282,7 +307,9 @@ class ModelSpendDetections(_Finding):
             "+      - uses: anthropics/claude-code-action@bbb # v1.1",
         )
         wf = _file(WORKFLOW, patch=bump, contents=("", MODEL_WORKFLOW))
-        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+        codes = _codes(_cost([wf], public=True))
+        self.assertNotIn(COST_CODE, codes)
+        self.assertNotIn(AGENT_SURFACE_CODE, codes)
 
 
 def _runner(value: str, public: bool | None = True) -> list[str]:
@@ -447,7 +474,7 @@ class SecurityAndCostHolds(_Finding):
         )
         self.assertReported(_cost([_file(config, patch=swap)], public=True))
 
-    def test_any_net_new_secret_reference_is_reported(self):
+    def test_any_net_new_secret_reference_holds_for_security(self):
         for line in (
             "+  KEY: ${{ secrets['ANTHROPIC_API_KEY'] }}",
             "+  ALL: ${{ toJSON(secrets) }}",
@@ -457,7 +484,8 @@ class SecurityAndCostHolds(_Finding):
             "+  K: ${{ secrets.claude_x }}",
         ):
             with self.subTest(line=line):
-                self.assertReported(_cost([self._wf(line)], public=True))
+                result = _cost([self._wf(line)], public=True)
+                self.assertSecurityHold(result, SECRET_EXPOSURE_CODE)
 
     def test_claude_actions_match_in_any_case_and_any_claude_code_name(self):
         for line in (
@@ -467,11 +495,12 @@ class SecurityAndCostHolds(_Finding):
             "+      - uses: Org/Repo/.github/actions/Run-Claude-CLI@abc",
         ):
             with self.subTest(line=line):
-                self.assertReported(_cost([self._wf(line)], public=True))
+                result = _cost([self._wf(line)], public=True)
+                self.assertSecurityHold(result, AGENT_SURFACE_CODE)
 
-    def test_a_run_line_invoking_the_claude_code_package_is_reported(self):
+    def test_a_run_line_invoking_the_claude_code_package_holds_for_security(self):
         wf = self._wf("+        run: npx @anthropic-ai/claude-code -p hi")
-        self.assertReported(_cost([wf], public=True))
+        self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_raised_timeout_on_a_claude_code_base_action_workflow(self):
         head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
@@ -506,6 +535,15 @@ class SecurityAndCostHolds(_Finding):
         result = _cost(files, public=True, cost_decision=DECISION)
         self.assertEqual(_codes(result), (COST_FINDING_CODE,))
         self.assertFalse(holds(result))
+
+    def test_an_owner_cost_decision_does_not_clear_a_security_hold(self):
+        wf = self._wf(
+            "+  K: ${{ secrets.LANE_TOKEN }}",
+            "+      - uses: anthropics/claude-code-action@abc",
+        )
+        result = _cost([wf], public=True, cost_decision=DECISION)
+        self.assertSecurityHold(result, SECRET_EXPOSURE_CODE)
+        self.assertSecurityHold(result, AGENT_SURFACE_CODE)
 
     def test_an_unlisted_base_tree_fails_closed(self):
         result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)

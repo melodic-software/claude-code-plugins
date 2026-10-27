@@ -60,24 +60,30 @@ under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
 None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
 no patch; and a `.github/workflows/` file whose patch, unless
-`RiskInput.public` is True, adds a `runs-on:`, `windows` or `macos` line, a
-raised timeout (below) or an artifact `retention-days` above every one it
-removes (storage past the free quota); or that gains a runner value (head text against base
-text, and added inline `runs-on:` lines) that is not `_FREE_RUNNER` on a
-public repository, or any on another. Only `RiskInput.cost_decision`, an
-owner decision the caller verified, clears it.
+`RiskInput.public` is True, adds a `runs-on:`, `windows`, `macos` or `cron`
+line (a schedule runs billed minutes), a raised timeout (below) or an artifact
+`retention-days` above every one it removes, or above
+`DEFAULT_ARTIFACT_RETENTION_DAYS` when it removes none (storage past the free
+quota); or that gains a runner value (head text against base text, and added
+inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository,
+or any on another. Only `RiskInput.cost_decision`, an owner decision the
+caller verified, clears it.
+
+A workflow patch that gains a `_SECRET_REF` rates HIGH as
+`secret-exposure-review`, and one that gains a `_MODEL_ACTION` or a
+`_MODEL_PACKAGE` run rates HIGH as `agent-surface-review`, each counted
+against the lines it removes so a move or repin is not new. They widen what a
+credential or an agent can reach, so both are a person's (`PERSON_CODES`)
+and no cost decision clears them.
 
 Spend that draws only on a subscription or prepaid credit is the MED
 `cost-finding`, reported and never held: a workflow patch that adds a
-`_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
-`--max-turns`); that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
-`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
-is not new; that, on a public repository, adds a `timeout-minutes` or
-`leg-timeout-minutes` above every one it removes, when its head text
-(`contents`) names a model leg or could not be read, or a raised
-`retention-days`; and a `pr-pipeline.yaml`
-change with any added or removed line off `_SAFE_PIPELINE_LINE`, unless it
-only edits trailing comments.
+`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
+`cron` key in any spelling); that, on a public repository, adds a
+`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
+its head text (`contents`) names a model leg or could not be read, or a raised
+`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
+line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -710,6 +716,11 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 COST_CODE = "cost-review-required"
 # Spend on a subscription or prepaid credit: reported, never held.
 COST_FINDING_CODE = "cost-finding"
+# A workflow that gains a secrets reference, or a new model leg, widens what
+# a credential or an agent can reach: a person's hold, which no cost decision
+# clears.
+SECRET_EXPOSURE_CODE = "secret-exposure-review"
+AGENT_SURFACE_CODE = "agent-surface-review"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
     "**/Pulumi.yaml",
@@ -721,15 +732,18 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that can charge in any repository: a schedule in any
-# YAML or JSON spelling (a scheduled lane spends model credits) and a model or
-# turn flag.
+# Added workflow lines that spend model usage: a schedule in any YAML or JSON
+# spelling and a model or turn flag.
 _COST_WORKFLOW_LINE = re.compile(
     r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
 )
 # Standard hosted runners are free only on public repositories, so on any
-# other a runs-on line or a Windows or macOS label (a matrix value) charges.
-_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b|\bwindows\b", re.IGNORECASE)
+# other a runs-on line, a Windows or macOS label (a matrix value) or a
+# schedule (recurring runs) charges.
+_COST_PRIVATE_LINE = re.compile(
+    r"\bruns-on\s*:|\bmacos\b|\bwindows\b|\bcron\s*:|[\"']cron[\"']\s*:",
+    re.IGNORECASE,
+)
 # Runner labels free on a public repository: GitHub's standard hosted labels
 # and the self-hosted managed labels (`.github/standards/runner-policy`). A
 # list holding `self-hosted` targets a self-hosted runner, which is free.
@@ -832,6 +846,9 @@ _MODEL_ACTION = re.compile(
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 _TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
 _RETENTION = re.compile(r"^\s*-?\s*retention-days\s*:\s*['\"]?([0-9]+)")
+# GitHub keeps artifacts and logs 90 days unless retention-days says otherwise:
+# https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization
+DEFAULT_ARTIFACT_RETENTION_DAYS = 90
 
 
 def is_workflow_path(path: str) -> bool:
@@ -924,10 +941,12 @@ def _raised_timeouts(
 
 def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
     """Artifact `retention-days` values the patch adds above every one it
-    removes: more storage held against the free quota."""
+    removes, or above GitHub's default when it removes none: more storage
+    held against the free quota."""
     new = [int(m[1]) for line in added if (m := _RETENTION.match(line))]
     old = [int(m[1]) for line in removed if (m := _RETENTION.match(line))]
-    return [f"retention raised to {n}" for n in new if not old or n > max(old)]
+    top = max(old, default=DEFAULT_ARTIFACT_RETENTION_DAYS)
+    return [f"retention raised to {n}" for n in new if n > top]
 
 
 def _cost_reasons(
@@ -937,8 +956,11 @@ def _cost_reasons(
     charge, unless `inp.cost_decision` names the owner decision that clears
     it; it holds in every lane, whatever the floor switch says. Spend that
     draws only on a subscription or prepaid credit is `cost-finding` (MED),
-    reported and never held (cost is not a stop, only a real new charge is)."""
-    charges, spends = [], []
+    reported and never held (cost is not a stop, only a real new charge is).
+    A net-new secrets reference (`secret-exposure-review`) or model leg
+    (`agent-surface-review`) is a security change, HIGH and a person's, which
+    the cost decision does not clear."""
+    charges, spends, secrets, agents = [], [], [], []
     for f, raw in zip(files, raw_files):
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
             charges.append(f"{f.path}: infrastructure as code")
@@ -979,17 +1001,17 @@ def _cost_reasons(
                     charge.append(s.strip())
                 elif _COST_WORKFLOW_LINE.search(s):
                     spend.append(s.strip())
-            spend += [
-                f"new secrets reference {n}"
-                for n in _net_added(_SECRET_REF, added, removed)
-            ]
-            spend += [
+            secret = _net_added(_SECRET_REF, added, removed)
+            if secret:
+                secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
+            agent = [
                 f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
-            ]
-            spend += [
+            ] + [
                 f"new model package run {n}"
                 for n in _net_added(_MODEL_PACKAGE, added, removed)
             ]
+            if agent:
+                agents.append(f"{f.path}: {'; '.join(agent)}")
             # Hosted minutes and artifact storage are free only on a public
             # repository.
             (spend if public else charge).extend(
@@ -1013,6 +1035,10 @@ def _cost_reasons(
     if spends:
         detail = "; ".join(spends) + "; subscription or prepaid spend, reported only"
         reasons.append(Reason(COST_FINDING_CODE, Risk.MED, detail))
+    if secrets:
+        reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
+    if agents:
+        reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
     return reasons
 
 
@@ -1196,15 +1222,23 @@ def holding(result: RiskResult) -> list[Reason]:
 # The holding reasons only a person clears (when a person is needed:
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
 # with real-charge and trust holds kept, and for a hold no lane can clear): a
-# CRITICAL security finding, a trusted-actor widening, a real-charge hold,
-# every high path
+# CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
+# new secrets reference or model leg, every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,
 # submodule or mode change) and a listing past the files API's cap. The lanes
 # clear every other holding reason, such as review evidence not yet bound to
 # the head or a listing a read did not finish, by judging again. The one list
 # both the merge gate and enable-auto-merge.mjs read.
 FILES_CAPPED_CODE = "files-capped"
-PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE, FILES_CAPPED_CODE})
+PERSON_CODES = frozenset(
+    {
+        LANES[_HOLDING_LANE][0],
+        COST_CODE,
+        SECRET_EXPOSURE_CODE,
+        AGENT_SURFACE_CODE,
+        FILES_CAPPED_CODE,
+    }
+)
 PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNBINDABLE_PATH_PREFIX)
 
 
