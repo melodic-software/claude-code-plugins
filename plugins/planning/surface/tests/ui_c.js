@@ -217,6 +217,14 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
     const dBan = await banners();
     ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
+    // #9715: archived D0 takes no decision: its choices, Save and Reopen are off, Ask still works, and a primary Go to names the end of its supersededBy chain
+    const archOff = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
+    await page.click("#note"); await page.keyboard.type("Why was this replaced?"); await page.waitForTimeout(150);
+    const askOn = await page.$eval('#talkRow [data-act="ask"]', el => !el.disabled);
+    ok("#9715: an archived question shows disabled decision choices, an enabled Ask and a primary Go to D1", archOff.radios.length > 0 && archOff.radios.every(Boolean) && archOff.save && !archOff.reopen && askOn && archOff.go.length === 1 && archOff.go[0] === "Go to D1|D1|true", JSON.stringify(archOff) + " ask " + askOn);
+    await page.click("#talkRow [data-clear]"); await page.waitForTimeout(100);
+    await page.click('#decideRow button[data-go="D1"]'); await page.waitForTimeout(200);
+    ok("#9715: Go to D1 opens D1", await sel() === "D1", await sel());
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     const xBan = await banners();
     ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
@@ -637,6 +645,23 @@ async page => {
     const sh = await tab.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent, line: document.getElementById("workLine").textContent}));
     ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
+  }
+  if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"}); await page.waitForTimeout(300);
+    if (await sel() !== "D1") await page.click('.qbtn[data-q="D1"]');
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    const ev = (await events()).filter(e => e.id === "D1");
+    ok("#9715: the page answers D1 and the meter counts it", ev.length === 1 && ev[0].kind === "accept" && await page.textContent("#meterText") === "1 of 1 answered", JSON.stringify(ev) + " " + await page.textContent("#meterText"));
+  }
+  if (PHASE === 8) { // the same server after the shell superseded the answered D1 with D2 and ran export-ledger
+    const ledger = JSON.parse('__LEDGER__');
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D2"]', {state: "attached"});
+    const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
+    ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

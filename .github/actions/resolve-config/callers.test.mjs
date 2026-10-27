@@ -551,9 +551,10 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["address-feedback-not-run"];
-  const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "") => ({
+  const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "", resolveOnly = "") => ({
     "inputs.activity": activity,
     "needs.address-feedback-select.outputs.proceed": proceed,
+    "needs.address-feedback-select.outputs.resolve-only": resolveOnly,
     "needs.address-feedback-select.outputs.head-sha": headSha,
     "needs.address-feedback-select.outputs.skip-reason": skip,
     "needs.address-feedback-select.outputs.not-run-detail": detail,
@@ -564,6 +565,10 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
     assert.equal(evaluate(jobs[id].if, context("false", head)), false, id);
     assert.equal(evaluate(jobs[id].if, context("", "")), false, `${id} after a kill-switch stop`);
   }
+  // A pass-only round runs the reply job alone, and no neutral check.
+  assert.equal(evaluate(jobs["publish-feedback"].if, context("", head, "", "address-feedback", "", "true")), true);
+  assert.equal(evaluate(jobs["address-feedback"].if, context("", head, "", "address-feedback", "", "true")), false);
+  assert.equal(evaluate(notRun.if, context("", head, "", "address-feedback", "", "true")), false);
   assert.equal(evaluate(notRun.if, context("true", head)), false);
   assert.equal(evaluate(notRun.if, context("false", head, "not-applicable")), true);
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
@@ -3604,6 +3609,54 @@ test("scan job: an issue run's outcome files round-trip sealed with every payloa
   assert.ok(runSteps().indexOf(collect) < runSteps().findIndex((s) => s.id === "carry"), "collected before it is carried");
 });
 
+// Run 40208736808 (#6377): write-issue refused because the issue changed after
+// agent-ready, and lane.json carried no class, so report-outcome could say
+// only that no outcome file was read.
+test("the collect step classes a run whose issue file was not written, ahead of the launcher's class", () => {
+  const steps = runSteps();
+  const collect = steps.find((s) => s.name === "Collect the issue outcome");
+  const write = steps.find((s) => s.name === "Write the issue for the skill");
+  assert.equal(write.id, "write-issue");
+  assert.ok(steps.indexOf(write) < steps.indexOf(collect));
+  const at = (context) =>
+    evaluate(collect.env.LANE_CLASS, {
+      "steps.write-issue.outputs.refused": "",
+      "steps.write-issue.outcome": "success",
+      "steps.act-key.outputs.lane-class": "",
+      "steps.act-token.outputs.lane-class": "",
+      "steps.act-fallback.outputs.lane-class": "",
+      ...context,
+    });
+  assert.equal(at({ "steps.write-issue.outputs.refused": "edited", "steps.write-issue.outcome": "failure" }), "issue-edited");
+  assert.equal(at({ "steps.write-issue.outcome": "failure" }), "issue-file");
+  assert.equal(at({ "steps.act-key.outputs.lane-class": "max-turns" }), "max-turns");
+  assert.equal(at({ "steps.act-token.outputs.lane-class": "rate-limit" }), "rate-limit");
+  assert.equal(at({ "steps.act-fallback.outputs.lane-class": "auth" }), "auth");
+  assert.equal(at({}), "");
+});
+
+// In that run the carry step then failed: the sealer copy runs after
+// write-issue and, with no status function, only while every step before it
+// succeeded, so `cp -R "$SEAL_DIR"` found nothing and the scan job refused the
+// unsealed lane.json. With the copy run after a failure, that lane.json
+// publishes like any other.
+test("a run whose issue file was not written still seals and publishes its lane.json", async (t) => {
+  const steps = runSteps();
+  const write = steps.findIndex((s) => s.id === "write-issue");
+  const copy = steps.findIndex((s) => s.name === "Copy the patch collector and the output sealer from the base");
+  const carried = steps.findIndex((s) => s.id === "carry");
+  assert.ok(write < copy && copy < carried, "the sealer copy sits between write-issue and the carry step");
+  // A step whose if names no status function runs only after every earlier step succeeded.
+  assert.match(steps[copy].if, /^always\(\) && /);
+  const lane = JSON.stringify({ branch: "", class: "issue-edited", resets: "", "max-turns": "75", resume: "", failed: "false", "api-error-status": "", "error-text": "" });
+  const outputs = { ...runOutputsAfterCarry(t, { "work-outcome/lane.json": lane }, { issue: true }), "act-outcome": "skipped", "patch-collected": "" };
+  const open = openStep(t, outputs);
+  assert.equal(open.status, 0, open.log);
+  const { failed, files } = await decode(t, decodeEnv(outputs, { "issue-number": "7" }, open, { "issue-run-started": "true", "resume-branch": "" }));
+  assert.equal(failed, null);
+  assert.equal(JSON.parse(files["lane.json"]).class, "issue-edited");
+});
+
 test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
   const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{"summary": "${KEY}"}\n`));
   assert.equal(clean, "false");
@@ -4782,15 +4835,21 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
-  const proceed = (upload, applies, decided) =>
-    evaluate(select.outputs.proceed, { "steps.upload.outcome": upload, "steps.slot.outputs.applies": applies, "steps.select.outputs.proceed": decided });
+  const proceed = (upload, applies, decided, resolveOnly = "") =>
+    evaluate(select.outputs.proceed, {
+      "steps.upload.outcome": upload,
+      "steps.slot.outputs.applies": applies,
+      "steps.select.outputs.proceed": decided,
+      "steps.select.outputs.resolve-only": resolveOnly,
+    });
   assert.equal(proceed("success", "true", "true"), "true");
   assert.equal(proceed("failure", "true", "true"), "", "a context that did not upload proceeds to nothing");
   assert.equal(proceed("skipped", "true", "false"), "false");
   assert.equal(proceed("skipped", "false", ""), "false", "a slot that does not apply");
   assert.equal(proceed("skipped", "", ""), "", "a kill-switch stop");
+  assert.equal(proceed("success", "true", "", "true"), "", "a pass-only round proceeds to no model");
   const upload = select.steps.find((s) => s.id === "upload");
-  assert.equal(upload.if, "steps.select.outputs.proceed == 'true'");
+  assert.equal(upload.if, "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 

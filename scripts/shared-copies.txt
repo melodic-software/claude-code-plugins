@@ -530,3 +530,6 @@ lib/git-hooks/git-hook-decisions.md plugins/instruction-placement/skills/setup/r
 lib/parse-concern-value.sh plugins/ai-slop/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/ai-slop/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/ai-slop/lib/resolve-convention-home.sh
+lib/prerequisites.mjs plugins/app-control/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/app-control/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1

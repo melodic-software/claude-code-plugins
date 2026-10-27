@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [5.20.0] - 2026-10-27
+
+### Added
+
+- The skip reason `pass-only` in `$defs/skip-reason`: the reply check of a pass-only address-feedback round, which ran no model and only resolved fail-note threads a pr-verify pass superseded. `feedback-dispatch.mjs` leaves such a check out of its release reads, so it neither releases a head nor hides the `no-model-turn` or `finding-stands` skip of the round before it. `pr-unblock.yml` takes the new `verify-pass-head` input for that round.
+
+### Fixed
+
+- A pr-verify `pass` or `pass-notes` verdict now clears the fail-note threads pr-verify left open on earlier heads, which kept a passing PR blocked under required thread resolution ([#10113](https://github.com/melodic-software/claude-code-plugins/issues/10113)). `pr-feedback-dispatch.yml`'s `post-verify-notes` job now downloads a pass verdict too, by `write-verdict.mjs` `NAME`'s grammar (`-i` is a fail's alone), and still fails on a verdict-shaped name no reader takes. For a pass on an open PR still at the judged head it posts and resolves nothing: it reads the review threads, and when an unresolved `<!-- pr-verify:fail-note -->` thread by `github-actions[bot]` from another head is open (`address-feedback.mjs` `staleVerifyNotes`, by the first comment's original commit), it names the head in the new `pass-head-sha` output. The dispatch job then sends `pr-unblock.yml` a pass-only round with the new `verify-pass-head` input, through the newest completed review run at that head. In that round `address-feedback-select` lists the stale threads in `run.json`'s `stale_notes`, its `proceed` output stays empty so no model job and no neutral check runs, and `publish-feedback` resolves each one still open and stale while the PR head is the passing one, as the lanes App, posting no reply and no round marker, and skips `pass-only`; a failed resolve does not stop the others, then fails the job. A pass with no such thread dispatches nothing, and the fail path's dispatch gate is unchanged. No job's permissions change.
+
+- report-outcome names why an issue run never started. Before, it said only that the run wrote no readable outcome file. When write-issue refuses because the issue's title or body changed after `agent-ready` was added, it now sets `refused=edited`, and the run job's collect step records class `issue-edited` in `lane.json`. Any other write-issue failure records `issue-file`. The run job now copies the output sealer even after an earlier step failed, so that `lane.json` is sealed and published; before, the carry step found no sealer, and the scan job refused the unsealed payload. report-outcome's hand-back comment then says the run did not start and why. A record of either class counts only for a run that left no outcome of its own (`.github/scripts/work-resolve-issue/write-issue.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs`, `.github/workflows/pr-run-activity-read.yml`).
+
+## [5.19.8] - 2026-10-27
+
+### Fixed
+
+- Intake admission refuses three more kinds of done-when item an unattended lane run cannot perform. A paid eval now also covers `measure-invocation` trigger probes, `/evals:plugin-eval`, and a PR body carrying before-and-after numbers, trigger rates or scores. A validate, dry-run or no-spend form, and `measure-invocation`'s model-free `score`, `compare` and `emit-plugin-eval`, still pass. A live Claude Code CLI run covers `claude -p`, `claude plugin test|install|update|configure` and a headless Claude Code run when the item runs it or names its exit or result (not when it only shows or edits the command), and a recorded probe tied to a Claude Code version. A comment instead of a file change covers an item that opens with a comment on this issue or records its output or result in one (not a script that posts one), and an item that is only "No file is changed". The parked concise-skills rollout issues and the CLI-probe issues re-entered the lane through admission after a person removed `needs-human`; they are now refused there (`.github/scripts/intake-triage/admit.mjs`).
+
+### Security
+
+- pr-verify's `resolve-pr.mjs` now checks who renamed a pull request's title before it uses the PR as its own spec, i.e. a trusted PR with no closing issue ([#9115](https://github.com/melodic-software/claude-code-plugins/issues/9115)). The title has to be never renamed, or last renamed by the PR author or a kind-human trusted actor. That is the rule the body's last editor already follows. When the title fails the check, the PR is not its own spec, the same result as an untrusted body edit. The rename read is `titleRenamers`, exported from `select-trusted-text.mjs` and shared with that action, which keeps its own rule: every renamer must be listed. In resolve-pr, a rename page that comes back with no node list is a failed read, so the title is never trusted on a misread. select-trusted-text now fails the same way on a rename or closing-issues page with no node list, where it used to read that page as empty.
+
+## [5.19.7] - 2026-10-27
+
+### Fixed
+
+- An issue run whose `apply-issue-patch` job failed without giving an escalation reason now hands back as `patch-apply-failed` ("apply-issue-patch failed before it committed or refused the patch"), not as "The run reported done but committed nothing". `work-resolve-issue.yml` sets the reason from the job's result, and the write runner's input check admits it in issue mode.
+
 ## [5.19.6] - 2026-10-27
 
 ### Fixed

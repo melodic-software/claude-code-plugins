@@ -277,7 +277,7 @@ export const COMMIT_PULLS_QUERY = `query($owner: String!, $name: String!, $oid: 
         associatedPullRequests(first: 100) {
           pageInfo { hasNextPage }
           nodes {
-            number state isDraft headRefName headRefOid baseRefName baseRefOid
+            number state isDraft mergedAt headRefName headRefOid baseRefName baseRefOid
             headRepository { nameWithOwner }
             author { __typename login ... on User { databaseId } ... on Bot { databaseId } }
             labels(first: 100) { nodes { name } pageInfo { hasNextPage } }
@@ -301,6 +301,7 @@ export function commitPullsFromGraphQL(data) {
     number: node.number,
     state: node.state === "OPEN" ? "open" : "closed",
     draft: node.isDraft,
+    merged_at: node.mergedAt ?? null,
     // REST spells an App's login `app[bot]`; GraphQL spells it `app`.
     user: node.author
       ? {
