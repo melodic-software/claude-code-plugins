@@ -1013,9 +1013,10 @@ except six:
   and Dependabot left out, at its newest time, a comment's edit included (`trusted_activity`).
   The raw `updatedAt` is not read: any account that can comment moves it. Another account's
   activity therefore never keeps the pull request from going idle, except a hold (owner decision
-  Q30): its changes-requested review, or its comment, review or inline review comment whose text
-  carries a body-hold phrase ("do not merge", "don't merge", a line opening with `Hold:`), counts
-  like a trusted account's. A trusted account's comment, such as a person's request to wait,
+  Q30): its changes-requested review, or a `User` account's comment, review or inline review
+  comment whose text carries a body-hold phrase ("do not merge", "don't merge", a line opening
+  with `Hold:`), counts like a trusted account's; a bot's text is not read, since review lanes
+  quote the phrase. A trusted account's comment, such as a person's request to wait,
   still refuses. A timeline or check suite listing
   that cannot be read whole, a head with no such suite on its branch, a listed event whose actor
   id cannot be read, or a counted event's unreadable time is not idle. While the

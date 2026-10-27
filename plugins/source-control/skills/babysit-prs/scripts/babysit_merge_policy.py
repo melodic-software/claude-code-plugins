@@ -2594,15 +2594,18 @@ ACTIVITY_EVENTS = frozenset(
 )
 
 
-def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any]) -> bool:
+def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any], who: Any) -> bool:
     """An act that holds the pull request whoever wrote it: a changes-requested
-    review, or a comment or review whose text carries a `BODY_MERGE_HOLD_RE`
-    phrase ("do not merge", a "Hold:" line)."""
+    review, or a `User`'s comment or review whose text carries a
+    `BODY_MERGE_HOLD_RE` phrase ("do not merge", a "Hold:" line). A bot's
+    text is not read, since review lanes and the lanes App quote the phrase."""
     if event.get("event") == "reviewed" and (
         str(act.get("state") or "").lower() == "changes_requested"
     ):
         return True
-    return bool(BODY_MERGE_HOLD_RE.search(str(act.get("body") or "")))
+    return json_object(who).get("type") == "User" and bool(
+        BODY_MERGE_HOLD_RE.search(str(act.get("body") or ""))
+    )
 
 
 def trusted_activity(
@@ -2620,8 +2623,8 @@ def trusted_activity(
     and a body hold refuses on its own.
     Any other account's activity moves nothing, so it cannot keep the pull
     request from going idle, but for a hold (`_untrusted_hold`, owner decision
-    Q30): its changes-requested review or its comment or review carrying a
-    `BODY_MERGE_HOLD_RE` phrase counts like a trusted account's. The lane's
+    Q30): its changes-requested review or a person's comment or review
+    carrying a `BODY_MERGE_HOLD_RE` phrase counts like a trusted account's. The lane's
     own pin and reasons comments do not count when `actor_ids` leaves the
     lane's identity out, as `trusted_actors(exclude=...)` does. An event whose
     actor id, or a counted one's time, cannot be read raises
@@ -2640,7 +2643,7 @@ def trusted_activity(
             uid = json_object(who).get("id")
             if type(uid) is not int:
                 raise PolicyReadError(f"{event.get('event')} event actor unreadable")
-            if uid not in actor_ids and not _untrusted_hold(event, act):
+            if uid not in actor_ids and not _untrusted_hold(event, act, who):
                 continue
             times = [
                 act.get(k)

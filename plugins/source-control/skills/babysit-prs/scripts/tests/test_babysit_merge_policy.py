@@ -4908,8 +4908,13 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_other_untrusted_activity_leaves_an_owner_pr_idle(self) -> None:
         comment = self.commented(self.STRANGER, FRESH)
         comment["body"] = "Looks fine; the do-not-merge label is gone."
+        # A bot's text is not read: review lanes quote the hold phrase.
+        bot = {"login": "github-actions[bot]", "id": 41898282, "type": "Bot"}
+        quoted = self.commented(bot, FRESH)
+        quoted["body"] = 'a collaborator comments "do not merge, this leaks X"'
         for event in (
             comment,
+            quoted,
             {
                 "event": "reviewed",
                 "user": self.STRANGER,
