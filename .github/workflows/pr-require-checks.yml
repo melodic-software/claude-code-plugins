@@ -2621,7 +2621,7 @@ jobs:
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
+      # check-skills. The shfmt, DuckDB, ffmpeg and lefthook downloads are cached by version (four
       # red main runs in two weeks were these downloads failing), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
@@ -2631,7 +2631,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2-ffmpeg-n8.1.3-9-g29e619e767
       - name: Install pinned shfmt
         env:
           SHFMT_VERSION: v3.14.1
@@ -2649,18 +2649,35 @@ jobs:
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
       # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
-      # hosted image does not carry; Ubuntu's signed archive provides both. Its own
-      # step timeout makes a stalled apt call fail in two minutes, naming this step,
-      # instead of spending the leg's whole budget (run 40467313844 stalled here).
+      # hosted image does not carry. Both come from BtbN's static GPL build (the
+      # Linux static build ffmpeg.org links; GPL for libx264), a month-end tag BtbN
+      # keeps, checked against its published SHA-256 and cached like shfmt. The step
+      # timeout makes a stalled download fail here instead of spending the leg.
       - name: Install ffmpeg for demo-video
         timeout-minutes: 2
+        env:
+          FFMPEG_RELEASE: autobuild-2026-09-30-13-08
+          FFMPEG_BUILD: n8.1.3-9-g29e619e767
+          FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
         run: |
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           [[ "$leg_needs" == *demovideo* ]] || exit 0
-          sudo apt-get -o Acquire::Retries=3 update -qq
-          sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
-          ffprobe -version | head -n 1
+          asset="ffmpeg-$FFMPEG_BUILD-linux64-gpl-8.1.tar.xz"
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools"
+          cached="$HOME/.cache/ci-tools/$asset"
+          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$cached" \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$asset"
+          echo "$FFMPEG_SHA256  $cached" | sha256sum -c - ||
+            { echo "::error::$asset does not match FFMPEG_SHA256"; exit 1; }
+          tar -xJf "$cached" -C "$HOME/.local/bin" --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          for tool in ffmpeg ffprobe; do
+            [ -x "$HOME/.local/bin/$tool" ] || { echo "::error::$asset holds no bin/$tool"; exit 1; }
+            line=$("$HOME/.local/bin/$tool" -version | sed -n 1p)
+            echo "$line"
+            [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
+          done
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
