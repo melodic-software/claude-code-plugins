@@ -334,8 +334,6 @@ Read the noise report's lines this way:
   delta line included, uses the normal method paired over cases whatever the setting, because a
   case score is not a proportion of trials. So a normal delta interval under `wilson` is the
   setting working as designed, and nothing needs checking.
-  [local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)
-  records the decision for a human reader.
 
 Spot-read outputs against verdicts before trusting any delta. For each case whose delta you
 report, open a few runs from each arm (the grader explanations in `results.json`, and the kept
@@ -356,9 +354,8 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- Spoke reach is version-bound: at 2.1.270 and 2.1.287 every with-arm `Read` under the plugin
-  directory was denied, so only the hub reached the model; at 2.1.289 `context/`, `reference/`,
-  `actions/` and `templates/` reads succeeded.
+- Spoke reach is version-bound ([records.md](reference/records.md#spoke-reach)): before 2.1.289
+  every with-arm `Read` under the plugin directory was denied, so only the hub reached the model.
   Check the trace for a denied `Read` before crediting a spoke.
 
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
@@ -427,16 +424,14 @@ pin both, each to a full model ID and never an alias such as `sonnet`, so a mode
 read as a plugin regression; pass `--trust-plugin` because a non-TTY job is otherwise refused; and
 read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
 but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
-reader which one happened and whether the arms were comparable at all. This section's pointer
-record is the CI pins row under [Sources](#sources).
+reader which one happened and whether the arms were comparable at all (pointer: the CI pins row).
 
 ## Boundary, the built-in `plugin eval` command
 
-- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the
-  JSON and the HTML report. It is gated by the version floor under Preflight, so this skill reads
-  the version and never assumes the command is available. This skill owns what surrounds a spend:
-  the preflight, the no-spend validation, the estimate and ceiling, target routing and the reading
-  discipline. It never re-implements grading and never simulates a run or a score.
+- The **CLI** owns execution, grading, the ablation arms, the JSON and the HTML report. It is gated
+  by the version floor under Preflight, so this skill reads the version and never assumes the
+  command is available. This skill owns what surrounds a spend: the preflight, the no-spend
+  validation, the estimate and ceiling, target routing and the reading discipline.
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
 - `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
   validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
