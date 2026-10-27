@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/plugin/discovery/hooks/hooks.json"}}], "why": "reads the registration"},
+    {"answer": [], "why": "no calls"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/plugin/discovery/hooks/hooks.json", "old_string": "[]", "new_string": "[{}]"}}], "why": "edits the registration"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "notes.md", "old_string": "a", "new_string": "b"}}], "why": "any edit"}
+  ]
+}
