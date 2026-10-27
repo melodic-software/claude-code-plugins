@@ -218,10 +218,10 @@ async page => {
     const dBan = await banners();
     ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
     // #9715: archived D0 takes no decision: its choices, Save and Reopen are off, Ask still works, and a primary Go to names the end of its supersededBy chain
-    const off = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
+    const archOff = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
     await page.click("#note"); await page.keyboard.type("Why was this replaced?"); await page.waitForTimeout(150);
     const askOn = await page.$eval('#talkRow [data-act="ask"]', el => !el.disabled);
-    ok("#9715: an archived question shows disabled decision choices, an enabled Ask and a primary Go to D1", off.radios.length > 0 && off.radios.every(Boolean) && off.save && !off.reopen && askOn && off.go.length === 1 && off.go[0] === "Go to D1|D1|true", JSON.stringify(off) + " ask " + askOn);
+    ok("#9715: an archived question shows disabled decision choices, an enabled Ask and a primary Go to D1", archOff.radios.length > 0 && archOff.radios.every(Boolean) && archOff.save && !archOff.reopen && askOn && archOff.go.length === 1 && archOff.go[0] === "Go to D1|D1|true", JSON.stringify(archOff) + " ask " + askOn);
     await page.click("#talkRow [data-clear]"); await page.waitForTimeout(100);
     await page.click('#decideRow button[data-go="D1"]'); await page.waitForTimeout(200);
     ok("#9715: Go to D1 opens D1", await sel() === "D1", await sel());
