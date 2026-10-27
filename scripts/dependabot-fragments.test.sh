@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unit tests for dependabot-fragments.sh, driven through its CLI against a
 # throwaway repository whose history holds Dependabot squash merges.
+# test-scope: .github/workflows/dependabot-fragments.yml .github/dependabot.yml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -113,5 +114,53 @@ else
   fail "em dash: out='$out' content='$(cat "$f/$out" 2>/dev/null)'"
 fi
 rm -rf "$f"
+
+# The workflow starts on a push to main that changes a manifest Dependabot
+# bumps under plugins/, and the hourly-to-push move holds only while that
+# filter covers every one: each manifest in every plugins/ directory
+# .github/dependabot.yml names must match a `paths:` pattern. A directory or
+# manifest the filter misses waits for the safety-net schedule.
+wf="$SELF_DIR/../.github/workflows/dependabot-fragments.yml"
+patterns=()
+mapfile -t patterns < <(awk '/^  push:/{p=1; next} p && /^  [a-z_]+:/{p=0} p && /^      - /{sub(/^      - /, ""); gsub(/\x27/, ""); print}' "$wf")
+dirs=()
+mapfile -t dirs < <(awk '/package-ecosystem:/{e=$3} /^    directory: \/plugins\//{print e " " $2}' "$SELF_DIR/../.github/dependabot.yml")
+missed="" checked=0
+for entry in "${dirs[@]}"; do
+  eco="${entry%% *}" dir="${entry#* /}"
+  case "$eco" in
+  npm) names=(package.json package-lock.json npm-shrinkwrap.json yarn.lock pnpm-lock.yaml) ;;
+  pip) names=(requirements*.txt requirements*.in pyproject.toml uv.lock poetry.lock Pipfile Pipfile.lock setup.py setup.cfg) ;;
+  *) missed+=" $dir(ecosystem $eco has no manifest list here)"; continue ;;
+  esac
+  for name in "${names[@]}"; do
+    for file in "$SELF_DIR/../$dir"/$name; do
+      [[ -f "$file" ]] || continue
+      rel="$dir/${file##*/}" hit=""
+      checked=$((checked + 1))
+      for pattern in "${patterns[@]}"; do
+        # shellcheck disable=SC2053  # the pattern is a glob on purpose
+        [[ "$rel" == $pattern ]] && hit=1 && break
+      done
+      [[ -n "$hit" ]] || missed+=" $rel"
+    done
+  done
+done
+if [[ ${#dirs[@]} -gt 0 && $checked -ge ${#dirs[@]} && -z "$missed" ]]; then
+  ok "the push paths cover every manifest Dependabot bumps under plugins/ ($checked files in ${#dirs[@]} directories)"
+else
+  fail "push paths miss:${missed:- none} (patterns: ${patterns[*]:-none}; ${#dirs[@]} directories, $checked files)"
+fi
+
+# The job runs a push only when it carries a Dependabot commit, matched by the
+# author the script itself walks.
+email="$(grep -o '49699333+dependabot[^>]*' "$SCRIPT" | head -1 | sed 's/\\//g')"
+if [[ "$email" == '49699333+dependabot[bot]@users.noreply.github.com' ]] &&
+  grep -qF "contains(github.event.commits.*.author.email, '$email')" "$wf" &&
+  grep -qE "^    - cron: '[^']+'" "$wf"; then
+  ok "a push runs the job only with a Dependabot commit, and a schedule stays as the safety net"
+else
+  fail "the job's Dependabot author check or the safety-net schedule is missing (script email: '$email')"
+fi
 
 test_harness::report
