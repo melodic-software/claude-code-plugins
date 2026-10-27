@@ -396,8 +396,8 @@ fi
 # machine-paths step, and the types are the composite's default `extensions`
 # input, which that step does not override (scripts/check-affected-gates.test.sh
 # holds both to the workflow). The boundary, the five scans and the exemptions
-# repeat the composite's entry script as read at ci-workflows v0.65.15
-# (30b251532b2e9f7e0c4215e1dee5be0d3c688743); recheck them when the pin moves.
+# repeat the composite's entry script as read at ci-workflows v0.65.17
+# (81a603a6e2b0319428c981bf28f3fe923032afb2); recheck them when the pin moves.
 machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 machine_paths_excludes=(
   ':(exclude)plugins/guardrails/lib/path-detection/**'
