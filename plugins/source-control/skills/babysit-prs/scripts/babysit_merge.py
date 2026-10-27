@@ -4167,7 +4167,8 @@ def _whole_review_record(
 ) -> tuple[str, dict[str, Any] | None]:
     """The reasons comment body with every whole-review record line the
     prior comment holds, and the request: `{"toggle": True}` when this run
-    records a new one. A lane pull request scored `wholeReviewWanted` whose
+    records a new one. A pull request the agent identity opened or the lane
+    adopted (`Eligibility.adoption`), scored `wholeReviewWanted`, whose
     comment is not escalated, with no record at this head and fewer than
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
@@ -4182,9 +4183,10 @@ def _whole_review_record(
     author = merge_policy.actor_key(
         {"__typename": user.get("type"), "login": user.get("login")}
     )
+    adopted = getattr(inputs.get("eligibility"), "adoption", None)
     if (
         (policy.details or {}).get("wholeReviewWanted") is not True
-        or author != str(inputs.get("identity") or "").casefold()
+        or (author != str(inputs.get("identity") or "").casefold() and not adopted)
         or text.endswith(RISK_ESCALATION_LINE)
     ):
         return kept, None
@@ -4410,13 +4412,20 @@ def unattended_enqueue(
     eligible_dependabot = getattr(eligible, "dependabot", None)
     if eligible_dependabot is not None:
         # The Dependabot class is read again whole: a human blocking comment
-        # or a `ci-status` rerun since the first read refuses.
+        # or a `ci-status` rerun since the first read refuses. Its default
+        # branch head inputs are read at the head now, never a shared read.
+        try:
+            _, main_sha = merge_policy._default_branch_head(repo, branch)
+        except merge_policy.PolicyReadError as exc:
+            step["optIn"] = f"unreadable: {exc}"
+            return hold(f"ineligible:{step['optIn']}")
         opt_in = merge_policy.dependabot_eligibility(
             repo,
             number,
             pr=inputs["pr"],
             agent_identity=identity,
             hold_majors=inputs["config"].dependabot_majors == "hold",
+            main_sha=main_sha,
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(

@@ -450,9 +450,12 @@ running `npm ci --ignore-scripts` there once when it has a `package-lock.json` a
 `node_modules`; all
 without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
-wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open. When the stage grants its wrapper,
-the write runner sets up Python from the base `.python-version` and installs the base's
-hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
+refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
+effect is not `read`: the write runner's run job holds the lane token and `id-token: write`, and
+only a read skill with `applied-by.patch`, in the read runner's run job that holds neither, may
+list them. For the same reason the schema refuses, in such a skill's `checks` and `self-checks`,
+the scripts that run the checkout's test files ([README.md](README.md#activities)). `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the
@@ -2004,7 +2007,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
+  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), hands the issue to a person naming
   that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
   (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals

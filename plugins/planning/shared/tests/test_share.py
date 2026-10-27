@@ -108,6 +108,17 @@ class TestEnsureRunning(Running):
         self.assertEqual((out["guestUrl"], out["resumed"]), (self.first["guestUrl"], True))
         self.assertEqual((self.session_record()["pid"], tunnel.read(self.d)["pid"]), (pid, cf))
 
+    def test_a_server_from_another_build_is_restarted_on_its_ports(self):
+        s = self.session_record()
+        (self.d / ".shared-session.json").write_text(json.dumps({**s, "pluginVersion": "0.0.0-old"}), encoding="utf-8")
+        cf = tunnel.read(self.d)["pid"]
+        code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+        self.assertIn("restarted the shared server: it runs 0.0.0-old", err)
+        now = self.session_record()
+        self.assertNotEqual(now["pid"], s["pid"])
+        self.assertEqual((now["port"], now["pluginVersion"], tunnel.read(self.d)["pid"]), (s["port"], s["pluginVersion"], cf))
+
     def test_the_owner_link_is_private_and_carries_the_token_in_the_fragment(self):
         link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
         self.assertRegex(link, r"^http://127\.0\.0\.1:\d+/#owner=[A-Za-z0-9_-]{43}$")

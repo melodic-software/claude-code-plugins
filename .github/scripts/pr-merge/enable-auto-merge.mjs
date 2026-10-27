@@ -24,8 +24,10 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job. A
-//   config that does not read arms nothing and labels nothing; the next run
-//   reads it again.
+//   trusted person's approving review of the head lifts it, as ci-status
+//   lifts it (merge-holds.pathLifters); it lifts no listing or check that
+//   could not run. A config that does not read arms nothing and labels
+//   nothing; the next run reads it again.
 // - Its head changes no cost path, unless its body links the owner's cost
 //   decision: merge-holds.costHold and costDecision, which ci-status runs too.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
@@ -139,7 +141,7 @@
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
-//                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
+//                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
@@ -152,6 +154,12 @@
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
+//   VERIFY_ANSWERS_IN, VERIFY_ANSWERS_OUT  the verifier answers the last run
+//                        kept (verify-answers.mjs) and the file this run keeps
+//   VERIFY_CACHE         merge.verify-cache: `serve` serves a kept refusal to
+//                        an unarmed pull request; anything else is `shadow`,
+//                        which reads in full and logs how a kept answer
+//                        compares (VERIFY_CACHE_PREFIX)
 //   GITHUB_API_URL
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -162,7 +170,7 @@ import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trust
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHoldKind, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -198,7 +206,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 // One candidate's discussion: the newest 100 of each, and wholeDiscussion
 // reads the rest of any list that has more.
 const COMMENT_FIELDS = "databaseId author { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
-const REVIEW_FIELDS = "author { __typename login } body submittedAt authorAssociation";
+const REVIEW_FIELDS = "author { __typename login ... on User { databaseId } } state commit { oid } body submittedAt authorAssociation";
 const THREAD_COMMENT_FIELDS = "author { __typename login } body createdAt authorAssociation";
 const THREAD_FIELDS = `id comments(last: 100) { totalCount nodes { ${THREAD_COMMENT_FIELDS} } }`;
 export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -397,19 +405,29 @@ export async function wholeDiscussion(github, variables, detail) {
   return { ...read, reviewThreads: { ...read.reviewThreads, nodes: threads } };
 }
 
+// One DETAIL_QUERY comment or review as a merge-holds item (fromRest's shape).
+const itemOf = (item) => ({
+  login: item?.author?.login,
+  userId: item?.author?.databaseId,
+  state: item?.state,
+  commitId: item?.commit?.oid,
+  isUser: item?.author?.__typename === "User",
+  association: item?.authorAssociation,
+  at: String(item?.submittedAt ?? item?.createdAt ?? ""),
+  body: String(item?.body ?? ""),
+});
+
+// The trusted people (`humans`) whose newest deciding review of `head` in
+// `detail` approves it, as ci-status reads them (merge-holds.pathLifters).
+const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
+
 // Why the discussion `detail` (DETAIL_QUERY's pullRequest) holds it, or null.
 export function discussionHold(detail) {
   const threads = detail?.reviewThreads;
   if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
     return "its comments could not all be read";
   }
-  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map((item) => ({
-    login: item?.author?.login,
-    isUser: item?.author?.__typename === "User",
-    association: item?.authorAssociation,
-    at: String(item?.submittedAt ?? item?.createdAt ?? ""),
-    body: String(item?.body ?? ""),
-  }));
+  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map(itemOf);
   const vetoes = vetoers(items);
   return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
 }
@@ -720,9 +738,29 @@ export function ghCalls(stderr) {
   return { total: payload.total, githubToken: sum((kind) => kind.startsWith("override ")), paginated: sum((kind) => kind.endsWith("+paginate")) };
 }
 
-// One pull request's reader cost, as logged and summarized.
-export const costLine = ({ number, calls, ms }) =>
-  `#${number} ${calls === null ? "calls=unknown" : `calls=${calls.total} github-token=${calls.githubToken} paginated=${calls.paginated}`} ms=${ms}`;
+// One pull request's reader cost, as logged and summarized; `cached` (a
+// read with answers files) is whether a kept answer served it.
+export const costLine = ({ number, calls, ms, cached }) =>
+  `#${number} ${calls === null ? "calls=unknown" : `calls=${calls.total} github-token=${calls.githubToken} paginated=${calls.paginated}`} ms=${ms}${cached === undefined ? "" : ` cached=${cached ? 1 : 0}`}`;
+
+// The reader's `cache` object as one greppable line: whether the key matched
+// a kept refusal, what was kept and read, and whether the two decide alike
+// (`agree` is n/a on a miss), or `cache=error` when the cache failed and the
+// read went on without it. Null for an answer without one.
+export const VERIFY_CACHE_PREFIX = "verify-cache ";
+export function cacheLine(number, cache) {
+  const word = (value) => (typeof value === "string" && /^[a-z:-]+$/.test(value) ? value : "?");
+  if (cache === null || typeof cache !== "object") {
+    return null;
+  }
+  if (cache.error === true) {
+    return `${VERIFY_CACHE_PREFIX}${word(cache.mode)}: #${number} cache=error`;
+  }
+  return `${VERIFY_CACHE_PREFIX}${word(cache.mode)}: #${number} key=${word(cache.key)} stored=${word(cache.stored)} fresh=${word(cache.fresh)} agree=${cache.agree === "n/a" ? "n/a" : word(cache.agree)}`;
+}
+
+// merge.verify-cache as the run applies it: `serve` only when it says so.
+export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "shadow");
 
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
@@ -730,9 +768,14 @@ export const costLine = ({ number, calls, ms }) =>
 // on it included, since ci-status's merge-queue step runs this reader again
 // at the head it merges (merge-holds.mjs evidenceHold).
 // Each read's cost goes to the log and to `verify.costs`.
+// With VERIFY_ANSWERS_OUT set, each read also keeps its answer for the next
+// run and compares it with the one the last run kept (VERIFY_ANSWERS_IN): a
+// kept refusal is served (`serve`) only to a pull request not armed, which is
+// always read in full, and never on `fresh`; `cacheOnly` reads only a kept
+// one, returning no `refusal` on a miss or when there is no file to read.
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
-  const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
+  const verify = async ({ number, headRefOid: head, baseRefOid: base, autoMergeRequest }, rung, { fresh = false, cacheOnly = false } = {}) => {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
@@ -741,11 +784,42 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
     if (typeof rung === "string") {
       args.push("--rung", rung);
     }
+    const answers = Boolean(env.VERIFY_ANSWERS_OUT);
+    if (answers) {
+      const serve = cacheMode(env) === "serve" && autoMergeRequest == null && !fresh;
+      args.push("--answers-out", env.VERIFY_ANSWERS_OUT, "--answers-mode", serve ? "serve" : "shadow");
+      if (env.VERIFY_ANSWERS_IN) {
+        args.push("--answers-in", env.VERIFY_ANSWERS_IN);
+      }
+      if (cacheOnly && serve) {
+        args.push("--answers-only");
+      }
+    }
+    if (cacheOnly && !args.includes("--answers-only")) {
+      // Never a full read in its place: one past the budget can outrun the step.
+      return { head, cached: false };
+    }
     const started = clock();
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const timeout = args.includes("--answers-only") ? CACHE_ONLY_TIMEOUT_MS : VERIFY_TIMEOUT_MS;
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout });
     const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
+    let evidence;
+    if (done.status === 0) {
+      try {
+        evidence = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+      } catch (error) {
+        evidence = error;
+      }
+    }
+    if (answers) {
+      cost.cached = evidence?.cached === true;
+    }
     verify.costs.push(cost);
     console.log(`enable-auto-merge: ${costLine(cost)}`);
+    const line = cacheLine(number, evidence?.cache);
+    if (line !== null) {
+      console.log(`enable-auto-merge: ${line}`);
+    }
     if (done.status === READER_RATE_LIMIT_EXIT) {
       throw new ReaderRateLimited(`#${number}'s verifier read`, done.stderr);
     }
@@ -757,7 +831,10 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
         .at(-1);
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${said ?? ""}`);
     }
-    return JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+    if (evidence instanceof Error) {
+      throw evidence;
+    }
+    return evidence;
   };
   verify.costs = [];
   return verify;
@@ -830,6 +907,11 @@ export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 // timeout still reads as unreadable, which holds the lane.
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
+// Under merge.verify-cache serve, how long past VERIFY_BUDGET_MS a read that
+// only looks up a kept refusal may start, and its own limit: the last ends
+// well before the last full read's VERIFY_TIMEOUT_MS would.
+export const CACHE_ONLY_WINDOW_MS = 60_000;
+export const CACHE_ONLY_TIMEOUT_MS = 30_000;
 
 // `pulls` started at an offset that moves with the run number, so a run
 // that reaches VERIFY_BUDGET_MS leaves different pull requests for the next
@@ -878,10 +960,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // A hold path a person clears; a listing or check that could not run is
-  // a lane's, which the next run reads again.
+  // A hold path a person clears, lifted by a trusted approval of the head
+  // (`lifters`) as ci-status lifts it; a listing or check that could not run
+  // is a lane's, which the next run reads again.
   const pathHeld = pathHoldKind(detail.files, holdPaths);
-  if (pathHeld !== null) {
+  if (pathHeld !== null && !(pathHeld.kind === "hold-path" && detail.lifters?.length > 0)) {
     return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: pathHeld.kind === "hold-path" ? "person" : "lane" };
   }
   const costHeld = costHold(detail.files, detail.costDecision);
@@ -910,6 +993,12 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (ejected !== null) {
     // A push resets the count: the lanes clear it, with the gate's comment.
     return { action: "none", reason: ejected.reason, ...(ejected.comment ? { clears: "lane", comment: ejected.comment } : {}) };
+  }
+  // A kept answer stands only for a refusal (babysit_verify_evidence.py
+  // answer_cacheable): one that holds nothing arms and keeps nothing, and is
+  // read again in full.
+  if (detail.verify?.cached === true) {
+    return { action: "verify", reason: "its kept verifier answer holds nothing, so it is read in full" };
   }
   return armed ? { action: "none", reason: "already armed" } : { action: "arm", reason: "no hold" };
 }
@@ -968,6 +1057,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const disarmStop = () => (stopped === null ? null : latch.until(`${env.GITHUB_API_URL || "https://api.github.com"}/graphql`));
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
+    const serve = cacheMode(env) === "serve";
     const pulls = await listPulls(github, repo[1], repo[2]);
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     // Only a reader run arms, so only it reads the room.
@@ -1034,6 +1124,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         statuses.push(status);
       }
       const writes = refusalWrites(pull, detail?.comments?.nodes, refusal, { bot: slug, label: humanGated, now: now() });
+      // A kept answer's refusal is the one already noted: a changed reason
+      // is written, an unchanged one puts back no label.
+      if (refusal.cached === true && writes?.body === null) {
+        return;
+      }
       // A lane's failing status withdrawn once the refusal is a person's:
       // the status job writes it only over a status already there.
       if (write && writes?.label && writes.commentId === null && writes.body !== null) {
@@ -1085,6 +1180,8 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       let withdraw;
       let detail = null;
       let decided = false;
+      // Whether the verdict decided on is a kept answer.
+      let cached = false;
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
       if (held?.disarm) {
@@ -1103,8 +1200,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           if (detail !== null) {
             detail = await wholeDiscussion(github, variables, detail);
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env), pull.headRefOid) : null;
-            detail = { ...detail, files, filesCapped: capped, costDecision: decision };
+            const humans = trustedHumans(env);
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid) : null;
+            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters: headLifters(detail, humans, pull.headRefOid) };
           }
         } catch (error) {
           // A read that fails decides nothing and writes nothing.
@@ -1113,31 +1211,44 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         }
         ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
+      // Past the budget, under serve with an answers file, an unarmed pull
+      // request is answered only from a kept refusal, which reads no more
+      // than its key, for CACHE_ONLY_WINDOW_MS.
+      const at = now();
+      const late = at > deadline;
+      const cacheOnly = late && at <= deadline + CACHE_ONLY_WINDOW_MS && serve && Boolean(env.VERIFY_ANSWERS_OUT) && pull.autoMergeRequest == null;
       if (action === "verify" && !reads) {
         ({ action, reason } =
           pull.autoMergeRequest != null
             ? { action: "none", reason: "already armed; the next scheduled run checks its verifier verdict" }
             : { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
-      } else if (action === "verify" && now() > deadline) {
+      } else if (action === "verify" && late && !cacheOnly) {
         ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
       } else if (action === "verify") {
-        let evidence = null;
-        try {
-          evidence = await verify(pull, lane?.rung);
-        } catch (error) {
-          // No decide and no note, whose writes would follow the stop: this
-          // and every later lanes App pull request is held as an unread room.
-          if (error instanceof ReaderRateLimited) {
-            stopped = error;
-            latch.reload?.();
-            laneHeld = `the lane's room could not be read (${error.message})`;
-            const armed = pull.autoMergeRequest != null;
-            roomHeld.set(pull.number, armed ? "armed" : "unarmed");
-            ({ action, reason, clears, comment } = { action: armed ? "disarm" : "none", reason: laneHeld, clears: undefined, comment: undefined });
-            decided = true;
-          } else {
-            console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
+        const read = async (options) => {
+          try {
+            return await verify(pull, lane?.rung, options);
+          } catch (error) {
+            // No decide and no note, whose writes would follow the stop: this
+            // and every later lanes App pull request is held as an unread room.
+            if (error instanceof ReaderRateLimited) {
+              stopped = error;
+              latch.reload?.();
+              laneHeld = `the lane's room could not be read (${error.message})`;
+              const armed = pull.autoMergeRequest != null;
+              roomHeld.set(pull.number, armed ? "armed" : "unarmed");
+              ({ action, reason, clears, comment } = { action: armed ? "disarm" : "none", reason: laneHeld, clears: undefined, comment: undefined });
+              decided = true;
+            } else {
+              console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
+            }
+            return null;
           }
+        };
+        let evidence = await read(cacheOnly ? { cacheOnly: true } : undefined);
+        if (cacheOnly && !decided && evidence?.cached !== true) {
+          ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+          decided = true;
         }
         // A read failing on every run holds every clean lane pull request: say why.
         if (typeof evidence?.queue?.readError === "string") {
@@ -1146,6 +1257,22 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         if (!decided) {
           ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
         }
+        // A kept answer that holds nothing: read in full once, never armed on.
+        if (!decided && action === "verify") {
+          if (now() > deadline) {
+            ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+          } else {
+            evidence = await read({ fresh: true });
+            if (!decided) {
+              ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+            }
+          }
+        }
+        cached = evidence?.cached === true;
+      }
+      // Only an arm, a disarm or nothing goes on from here.
+      if (action === "verify") {
+        ({ action, reason, clears, comment, withdraw } = { action: "none", reason: "its verifier verdict is not read yet" });
       }
       // A pull request armed earlier in this run counts toward the cap.
       const full = action === "arm" ? roomHold(pull) : null;
@@ -1167,7 +1294,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         if (reads && write && withdraw === true && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
           statuses.push({ sha: pull.headRefOid, state: "success", description: "its lanes refusal no longer stands" });
         }
-        await note(pull, detail, { clears, reason, comment });
+        await note(pull, detail, { clears, reason, comment, cached });
         continue;
       }
       if (!write) {

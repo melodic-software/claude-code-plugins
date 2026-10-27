@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/1.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no Write"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/invoices/csv.py",
+            "content": "def render(rows):\n    return ''\n"
+          }
+        }
+      ],
+      "why": "starts the work"
+    }
+  ]
+}

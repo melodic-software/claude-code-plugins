@@ -3,6 +3,40 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- A `/testing:write` invocation probe set (`probes/write.json`), weighted toward feature requests
+  that ask for tests in passing: the k36-cart-total natural-phrasing case fired the skill in 0 of
+  16 runs.
+
+### Fixed
+
+- The k36 `refactor-after-green` grader now reads a Bash command with a double quote before the
+  redirect or `sed -i`, such as `sed -i "s/a/b/" cart.py` or `printf "x" > cart.py`, with
+  samples for both and for two quoted near-misses.
+- The k36 `no-zero-assertion` grader now says why it approximates the `/testing:audit` scan: no
+  `claude plugin eval` grader type runs a script, and the scaffold runs before Claude starts.
+
+## [1.1.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [1.0.3] - 2026-10-27
+
+### Changed
+
+- The judge calibration sweep (`metrics.sh --sweep`) now runs Haiku at `low`, `medium` and `high` beside the Sonnet and Opus arms, and `calibration.md` records the Claude Haiku 5.5 result: `low` and `high` are significantly less accurate, and `medium` changed its verdict on 26 of 78 rows across three runs against 7 of 78 for the shipped `sonnet` `medium` default. Haiku stays out of the judge: `judge-lib.sh` no longer walks to it or accepts it as the fallback, and tests pin that. This round's sweep files sit in `sweep-haiku-5-5/`, apart from the older-prompt arms (#6286).
+
 ## [1.0.2] - 2026-10-26
 
 ### Changed

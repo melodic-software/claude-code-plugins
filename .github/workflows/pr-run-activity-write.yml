@@ -450,7 +450,9 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     # id-token: write is only for the broker request. Any step of this job can
     # request an OIDC token for another audience: an accepted residual (ADR
-    # 0058), bounded by the broker's one mint per job.
+    # 0058), bounded by the broker's one mint per job. So no step runs a
+    # PR-head test file: the schema refuses the verify-scripts, checks and
+    # self-checks that run checkout tests on a write-effect skill.
     permissions:
       contents: read
       pull-requests: read
@@ -591,7 +593,7 @@ jobs:
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
-            patch-empty | patch-invalid | patch-not-applied | patch-protected-path)
+            patch-empty | patch-invalid | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
                 exit 1
@@ -996,19 +998,6 @@ jobs:
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
 
-      # The run-test-file verify-script runs test_*.py under pytest, which the
-      # runner image lacks. When the stage granted its wrapper, install the
-      # base's hash-pinned CI requirements, before the head checkout replaces
-      # .base.
-      - name: Set up Python for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .base/.python-version
-      - name: Install the pinned pytest for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
-
       # A script reads the base's work-item tracker config (report-escalation's
       # human-gated role label), which the head checkout would replace. Its
       # SHA-256, or `absent`, is checked by the script step.
@@ -1394,7 +1383,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1.0.263
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc

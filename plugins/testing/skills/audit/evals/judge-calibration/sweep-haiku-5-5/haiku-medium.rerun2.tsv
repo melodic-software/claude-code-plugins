@@ -1,0 +1,78 @@
+seed-s3	UNKNOWN	haiku	medium	the proposed diff does not apply
+seed-g7	PASS	haiku	medium	
+seed-t3	FLAG	haiku	medium	
+seed-m2	PASS	haiku	medium	
+seed-m3	PASS	haiku	medium	
+seed-m5	PASS	haiku	medium	
+seed-m6	UNKNOWN	haiku	medium	
+seed-m7	UNKNOWN	haiku	medium	
+seed-s5	FLAG	haiku	medium	
+seed-g10	UNKNOWN	haiku	medium	
+adv-1	UNKNOWN	haiku	medium	the proposed diff does not apply
+adv-2	FLAG	haiku	medium	
+adv-3	UNKNOWN	haiku	medium	the proposed diff does not apply
+adv-4	FLAG	haiku	medium	
+adv-5	PASS	haiku	medium	
+adv-6	UNKNOWN	haiku	medium	
+adv-7	UNKNOWN	haiku	medium	
+adv-8	FLAG	haiku	medium	
+u01-1	PASS	haiku	medium	
+u01-2	PASS	haiku	medium	
+u02-1	PASS	haiku	medium	
+u03-1	PASS	haiku	medium	
+u03-2	PASS	haiku	medium	
+u03-3	PASS	haiku	medium	
+u03-4	PASS	haiku	medium	
+u03-5	PASS	haiku	medium	
+u04-1	PASS	haiku	medium	
+u05-1	PASS	haiku	medium	
+u05-2	PASS	haiku	medium	
+u05-3	PASS	haiku	medium	
+u05-4	PASS	haiku	medium	
+u05-5	PASS	haiku	medium	
+u06-1	PASS	haiku	medium	
+u07-1	PASS	haiku	medium	
+u08-1	PASS	haiku	medium	
+u09-1	PASS	haiku	medium	
+u10-1	PASS	haiku	medium	
+u11-1	UNKNOWN	haiku	medium	
+u12-1	PASS	haiku	medium	
+u13-1	PASS	haiku	medium	
+u13-2	PASS	haiku	medium	
+u14-1	PASS	haiku	medium	
+u14-2	UNKNOWN	haiku	medium	
+u15-1	UNKNOWN	haiku	medium	the proposed diff does not apply
+u16-1	PASS	haiku	medium	
+u17-1	PASS	haiku	medium	
+u18-1	UNKNOWN	haiku	medium	
+u19-1	UNKNOWN	haiku	medium	
+u20-1	PASS	haiku	medium	
+u21-1	PASS	haiku	medium	
+u22-1	UNKNOWN	haiku	medium	a quoted line is in no file of the repository
+u23-1	PASS	haiku	medium	
+u24-1	PASS	haiku	medium	
+u25-1	PASS	haiku	medium	
+u25-2	PASS	haiku	medium	
+u26-1	PASS	haiku	medium	
+u27-1	PASS	haiku	medium	
+u28-1	UNKNOWN	haiku	medium	
+u28-2	PASS	haiku	medium	
+u28-3	UNKNOWN	haiku	medium	the proposed diff does not apply
+u28-4	UNKNOWN	haiku	medium	the proposed diff does not apply
+u29-1	PASS	haiku	medium	
+u30-1	PASS	haiku	medium	
+u31-1	PASS	haiku	medium	
+u32-1	UNKNOWN	haiku	medium	the proposed diff does not apply
+u33-1	PASS	haiku	medium	
+u33-2	PASS	haiku	medium	
+u34-1	UNKNOWN	haiku	medium	the FLAG proposes no diff
+u35-1	PASS	haiku	medium	
+u36-1	PASS	haiku	medium	
+u37-1	PASS	haiku	medium	
+u37-2	PASS	haiku	medium	
+u37-3	PASS	haiku	medium	
+u37-4	PASS	haiku	medium	
+u38-1	UNKNOWN	haiku	medium	the proposed diff does not apply
+u38-2	UNKNOWN	haiku	medium	the proposed diff does not apply
+u38-3	UNKNOWN	haiku	medium	the proposed diff does not apply
+u39-1	PASS	haiku	medium	

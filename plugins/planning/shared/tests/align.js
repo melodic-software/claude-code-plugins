@@ -276,6 +276,18 @@ function views(page, CFG) {
     // Q2 has answers but no votes, so Lock top answer only shows a toast (no state change)
     "toast": async () => { await gotoQ("Q2"); const ok = await clickIn(".vf-anshead .vf-btn-brass"); await W(300); return ok; },
     "toast-chat": async () => { await gotoQ("Q2"); await clickIn(".vf-fab"); const ok = await clickIn(".vf-anshead .vf-btn-brass"); await W(300); return ok; },
+    // #9202: the message box grows to several lines under a shown toast; in the modal chat (below 1100 px) the toast
+    // moves up with the typing line, clear of it and of the box
+    "toast-chat-grow": async () => {
+      await gotoQ("Q2"); await clickIn(".vf-fab"); if (!(await clickIn(".vf-anshead .vf-btn-brass"))) return false; await W(300);
+      const ok = await page.evaluate(() => {
+        const t = document.querySelector(".vf-minput"); if (!t) return false;
+        const h = t.offsetHeight;
+        t.focus(); t.value = "One\ntwo\nthree\nfour\nfive"; t.dispatchEvent(new Event("input", { bubbles: true }));
+        return t.offsetHeight > h;
+      });
+      await W(100); return ok;
+    },
     "reader": async () => { await gotoQ("Q1"); await claudeTab(); return clickIn(".vf-res .vf-btn", "Full report"); },
     "host": () => mode("host"),
     "host-uploads": async () => { await mode("host"); return clickIn(".vf-qfilters .vf-fchip", "Uploads"); },

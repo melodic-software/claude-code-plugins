@@ -76,8 +76,7 @@
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
 // listed human or the App) did no work and left no lanes-App outcome marker since: a
-// crash before the report, a rerun the token broker refused as
-// workflow-modified, a run cancelled after admit passed and before any
+// crash before the report, a run cancelled after admit passed and before any
 // resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
 // or a run that ended green at the read runner's `Stop on stale workflow files`
 // step (it waited in its slot past a lane workflow change, so no model ran).
@@ -90,7 +89,12 @@
 //
 // A run that minted no lane token did no work and ran no model: the WIP cap
 // skipped its resolve-issue job, or its `Request the lane token` step failed
-// (GitHub's rate limit past the retry budget among the reasons). Such a run is
+// (GitHub's rate limit past the retry budget among the reasons), or
+// broker-check's `Ask the broker whether the lane may run` failed for any
+// reason but the kill switch (a broker 5xx, a workflow-modified refusal of a
+// rerun, a log that names no reason): the read runner resolve-issue calls has
+// no `Request the lane token` step, so that is its failed mint, and a fresh
+// label event runs on main's workflow files. Such a run is
 // re-fired with the same record: a failed mint up to limits.limit-stops-per-issue
 // times per version of the lane workflow files and then on the stranded
 // backoff, a WIP cap skip without a per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
@@ -104,15 +108,18 @@
 // refused job's log names the reason (the jobs listing reads the same for a
 // workflow-modified refusal). So is a run whose broker-check `Check the kill
 // switch` step saw a kill switch on and skipped the broker ask: that run ends
-// green, and the jobs listing alone shows it. It is re-fired limits.reset-clamp-min hours after
-// the run ended with a breaker record of its own, and after
+// green, and the jobs listing alone shows it. A trip at broker-check ran no
+// model, and the sweep runs only with the kill switch off, so the first sweep
+// after the switch clears re-fires it; a trip at a mint ran the model and is
+// re-fired limits.reset-clamp-min hours after the run ended. Each gets a
+// breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, on the stranded backoff. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
 // failed-mint bound and never raises another cause's backoff. Each run's log
 // is read once, from its one refused job and at most LOG_CAP_BYTES, and only
 // its failed step's last line counts: a refusal for another reason, or a log
-// that cannot be read, keeps the class it had before.
+// that cannot be read, is a failed mint.
 //
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
@@ -462,7 +469,8 @@ const closedElsewhere = (args) => (blocker) => {
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is
 // asked and counting each admission against its room. A lane paused over its
-// WIP or held cap admits nothing, as intake's admission does.
+// WIP or held cap, or a queued count that could not be read (fail-open),
+// admits nothing, as intake's admission does.
 function admissionGate(status) {
   let room;
   let reason;
@@ -474,13 +482,16 @@ function admissionGate(status) {
         ? `the issue lane is paused (${pause})`
         : reason === "search-incomplete"
           ? "GitHub search answered incomplete results"
-          : "queued work is at the queued cap",
+          : reason === "fail-open"
+            ? "the issue lane's queued count could not be read"
+            : "queued work is at the queued cap",
     take: async () => {
       if (room === undefined) {
         const s = await status();
         pause = s.paused ? s.pause_reason : null;
-        room = pause ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
-        reason = s.admission_reason;
+        const unread = s.admission_basis === "fail-open";
+        room = pause || unread ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
+        reason = unread ? "fail-open" : s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
         }
@@ -709,7 +720,7 @@ const strandedCause = {
   "failed-again": `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${STRANDED_HOURS} hours ago.`,
 };
 
-const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token.`;
+const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
 
 // The record of a re-fire after a kill-switch refusal, posted before the
 // label moves, once per re-fire. It names the refused run and when it ended,
@@ -762,25 +773,29 @@ async function laneRuns(actions, repo, number, addedAt) {
 
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
-// either had its `Request the lane token` step fail (`mint-failed`, which
-// wins), had the broker refuse it for the kill switch at broker-check or a
-// mint, or had broker-check skip its broker ask for the kill switch
-// (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
-// resolve-issue did not), or was skipped by the admit job's blocker gate
-// (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
-// refusal for another reason, or one whose log gives none, is none of these.
-// A run another gate stopped before its mint (an open closing PR, a reused
+// either had its `Request the lane token` step or broker-check's BROKER_STEP
+// fail for a reason other than the kill switch, or with no reason in its log
+// (`mint-failed`, which wins; the read runner resolve-issue calls has no
+// MINT_STEP, so its broker ask is the one the broker can fail), had the broker
+// refuse it for the kill switch at broker-check or a mint, or had broker-check
+// skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
+// cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
+// admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
+// not). A run another gate stopped before its mint (an open closing PR, a reused
 // branch) is none of these, so it is never re-fired here. Returned as
-// `stalled`, with `run` the run that made it a breaker trip.
+// `stalled`, with `run` the run that made it a breaker trip and `stage`
+// where: `check` at broker-check, before any model turn, or `token` at a mint.
 async function didNoWork(jobsOf, refusalOf, runs) {
   // A higher rank wins across runs; between equal ranks the first stays.
   const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
   let tripped = null;
-  const atLeast = (kind, run) => {
+  let stage = null;
+  const atLeast = (kind, run, at) => {
     if (rank[kind] > (rank[stalled] ?? 0)) {
       stalled = kind;
       tripped = run;
+      stage = at;
     }
   };
   for (const run of runs) {
@@ -808,8 +823,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     // One log per run: broker-check's when it refused, else the first failed mint's.
     const refused = killed ? null : checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
     if (killed || (await refused) === BREAKER) {
-      atLeast("breaker", run);
-    } else if (minting) {
+      atLeast("breaker", run, killed || checked ? "check" : "token");
+    } else if (minting || checked) {
       atLeast("mint-failed");
     } else if (capped) {
       atLeast("capped");
@@ -817,7 +832,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       atLeast("blocked");
     }
   }
-  return stalled && { stalled, run: tripped };
+  return stalled && { stalled, run: tripped, stage };
 }
 
 // The reason the broker refused `job`, from its log: the failed step's last
@@ -1167,7 +1182,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
   }
-  const { stalled, run: refused } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
+  const { stalled, run: refused, stage } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
@@ -1178,7 +1193,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
     );
     const trips = stalled === "breaker" ? markers.filter((marker) => marker.breaker && marker.at > from).length : 0;
     const over = trips - limits["limit-stops-per-issue"];
-    const due = over >= 0 ? backoffDue(ended, over) : ended + limits["reset-clamp-min"] * HOUR_MS;
+    // A broker-check trip ran no model, and this sweep runs only with the
+    // kill switch off, so it re-fires now; a mint trip ran the model and
+    // waits like any failed mint.
+    const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
+    const due = over >= 0 ? backoffDue(ended, over) : ended + clamp * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };

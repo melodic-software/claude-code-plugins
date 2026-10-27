@@ -1,7 +1,7 @@
 ---
-type: tool_used
-tool: Write
-input_match: '"content":"(?:[^"\\]|\\.)*## Outcome(?:[^"\\]|\\.)*\.work/|"content":"(?:[^"\\]|\\.)*\.work/(?:[^"\\]|\\.)*## Outcome'
-min: 0
-max: 0
+type: regex
+pattern: '\.work/'
+match: not_contains
+target: { source: file, path: .work-items/1.md }
+arm: both
 ---

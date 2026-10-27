@@ -41,6 +41,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh as gh
 import babysit_merge as merge
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
@@ -2814,11 +2815,11 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(sleeps, [2.0, 4.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
-        """Three 502s, the clock reading `clock` in turn, a 60s gh timeout."""
+        """Three 502s, the clock reading `clock` in turn, a 60s listing timeout."""
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
         with (
             mock.patch.object(ve, "_listing_clock", side_effect=clock),
-            mock.patch.object(ve, "gh_timeout_seconds", return_value=60.0),
+            mock.patch.object(ve, "LISTING_TIMEOUT_SECONDS", 60.0),
         ):
             self.judge(fake)
         return fake
@@ -2826,21 +2827,21 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
     def test_the_retries_share_one_read_timeout(self) -> None:
         # Deadline 0 + 60; each retry gets what is left after its wait ends.
         fake = self.timed([0.0, 1.0, 3.0, 20.0, 24.0])
-        self.assertEqual(fake.timeouts, [None, 60.0 - 3.0, 60.0 - 24.0])
+        self.assertEqual(fake.timeouts, [60.0, 60.0 - 3.0, 60.0 - 24.0])
 
     def test_a_late_sleep_shortens_the_retry_timeout(self) -> None:
         # The 2s sleep returned at 30s: the retry gets 30s, not 57s.
         fake = self.timed([0.0, 1.0, 30.0, 59.0])
-        self.assertEqual(fake.timeouts, [None, 30.0])
+        self.assertEqual(fake.timeouts, [60.0, 30.0])
 
     def test_no_retry_when_the_sleep_ends_past_the_deadline(self) -> None:
         fake = self.timed([0.0, 1.0, 61.0])
-        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.timeouts, [60.0])
         self.assertEqual(fake.listings(), 1)
 
     def test_no_retry_once_the_timeout_is_spent(self) -> None:
         fake = self.timed([0.0, 58.5])
-        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.timeouts, [60.0])
         self.assertEqual(fake.listings(), 1)
 
     def test_any_other_failure_is_not_read_again(self) -> None:
@@ -2851,6 +2852,41 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
                 self.assertEqual(evidence.refusal, "verify:unreadable")
                 self.assertEqual(fake.listings(), 1)
                 self.assertEqual(sleeps, [])
+
+
+class AListingOfManyPagesReadsWhole(unittest.TestCase):
+    """The pages share one timeout (babysit_gh._run_pages): 76 pages at 1 s a
+    page, as ci-status read 7,522 artifacts on 2026-10-27, outlast gh's 60 s
+    default and must still read whole."""
+
+    PAGES = 76
+
+    def test_76_pages_at_one_second_each_read_whole(self) -> None:
+        clock = [0.0]
+        sent: list[str] = []
+
+        def send(args, *, timeout_seconds, env_overrides, binary):
+            self.assertGreater(timeout_seconds, 0)
+            clock[0] += 1.0
+            sent.append(args[1])
+            page = len(sent)
+            link = (
+                f"<https://api.github.com/repositories/1/actions/artifacts"
+                f'?per_page=100&page={page + 1}>; rel="next"'
+                if page < self.PAGES
+                else ""
+            )
+            body = json.dumps({"total_count": 7522, "artifacts": [{"id": page}]})
+            return subprocess.CompletedProcess(args, 0, body, ""), {"link": link}
+
+        with (
+            mock.patch.object(gh, "_send", side_effect=send),
+            mock.patch.object(gh.time, "monotonic", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_listing_clock", side_effect=lambda: clock[0]),
+        ):
+            pages = ve.Reader(REPO, "main", now=NOW)._read_listing()
+        self.assertEqual(len(pages), self.PAGES)
+        self.assertEqual(len(sent), self.PAGES)
 
 
 # --- The --authority pr-merge path ------------------------------------------------
@@ -3506,7 +3542,11 @@ class TheConfigKey(unittest.TestCase):
             "version: 1\nmerge:\n  rung: C2\n  authority: pr-merge\n"
             "  agent-identity: agent-lanes[bot]\n" + line
         )
-        with mock.patch.object(policy, "_file_at", side_effect=[None, text]):
+
+        def file_at(owner: str, name: str, path: str, sha: str) -> str | None:
+            return text if path == policy.CONFIG_PATH else None
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
             return policy.read_config_at(REPO, "e" * 40)
 
     def test_absent_is_off_and_true_is_on(self) -> None:

@@ -26,7 +26,14 @@ if [[ "$1 $2" == "auth status" ]]; then
 fi
 if [[ "$1 $2" == "pr list" ]]; then
   [[ "${GH_STUB_LIST_FAIL:-}" == 1 ]] && exit 1
-  printf '[{"number":1,"headRefName":"fix/improve-a"},{"number":2,"headRefName":"feat/other"},{"number":3,"headRefName":"docs/improve-b"}]'
+  # Like gh, return only the fields --json asked for.
+  fields=""
+  while (($# > 0)); do
+    [[ "$1" == --json ]] && fields="$2"
+    shift
+  done
+  printf '[{"number":1,"headRefName":"fix/improve-a","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"}},{"number":2,"headRefName":"feat/other","isCrossRepository":true,"headRepositoryOwner":{"login":"forker"}},{"number":3,"headRefName":"docs/improve-b","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"}}]' |
+    jq -c --arg f "$fields" 'map(with_entries(select(.key as $k | any($f | split(",")[]; . == $k))))'
   exit 0
 fi
 [[ "$1" == api ]] || { echo "gh-stub: unrouted $*" >&2; exit 1; }
@@ -182,6 +189,13 @@ assert_eq "list --head-match keeps only matching head branches" "1,3" "$(jq -r '
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "list lifts gh's 30-row default" "$calls" "--limit 1000"
 assert_contains "list defaults to open pull requests" "$calls" "--state open"
+
+out=$(run list)
+assert_eq "list carries isCrossRepository and headRepositoryOwner for each pull request" "1 false acme,2 true forker,3 false acme" \
+  "$(jq -r 'map("\(.number) \(.isCrossRepository) \(.headRepositoryOwner.login)") | join(",")' <<<"$out")"
+calls=$(cat "$TEST_TMPDIR/calls")
+assert_contains "list asks for isCrossRepository" "$calls" "isCrossRepository"
+assert_contains "list asks for headRepositoryOwner" "$calls" "headRepositoryOwner"
 
 run list --head feat/x --state all >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")

@@ -301,6 +301,17 @@ out of scope until such a signal exists.
   tokenizer is linear in the command's length, one parse serves every guard,
   and a command over `MAX_COMMAND_LEN` is refused by the first guard that
   carries the ceiling before anything tokenizes it (#4528).
+- **A dispatcher that ends without a verdict denies the call.** Every guard
+  row passes `hooks/exec-bash.mjs --fail-closed --require-verdict` (#7681).
+  `--fail-closed` denies a signal or any exit other than 0 and 2. Under
+  `--require-verdict` the launcher names a marker file in
+  `EXEC_BASH_VERDICT_FILE`, `run-guards.sh` writes it as its last action at
+  each deliberate exit, and an exit 0 with no marker is denied: Windows Git
+  Bash reports a crashed bash (a stack overflow, 0xC0000005) as exit 0 with
+  empty output, which used to read as an allow. An abort in the dispatcher's
+  own code writes no marker either, so it is denied too. A guard's own crash
+  still settles through the boundary above, and the chain finishes with its
+  verdict.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the

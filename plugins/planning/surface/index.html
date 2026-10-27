@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="interview-token" content="%%TOKEN%%">
+<meta name="interview-build" content="%%PLUGIN_VERSION%% %%SOURCE_HASH%%">
 <title>Interview</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/question-shape.css">
@@ -62,7 +63,7 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
-#reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
+#reBanner[hidden],#oldServer[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
 #ledgerLine.synced{border-color:var(--line-strong);color:var(--muted);background:var(--panel)}
 .ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
 abbr.term{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
@@ -475,6 +476,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <button class="cline wline" id="workLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
       <div class="notice" id="notice" hidden></div>
     </div>
+    <div class="banner" id="oldServer" role="alert" hidden>This page's server is older than the page. Run ensure-running to restart.</div>
     <div class="banner" id="reBanner" hidden></div>
     <div class="handoff" id="hoBanner" role="status" hidden></div>
     <details class="cons" id="consPanel" hidden><summary id="consSum"></summary><ul id="consList"></ul></details>
@@ -559,6 +561,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 (function(){
   "use strict";
   const TOKEN = document.querySelector('meta[name="interview-token"]').content;
+  // "<plugin version> <source hash>" of the files the server read this page from; a server too old to fill it in leaves its placeholders.
+  const BUILD = document.querySelector('meta[name="interview-build"]').content;
+  const serverOld = data => BUILD.includes("%%") || BUILD !== (data.pluginVersion || "") + " " + (data.sourceHash || "");
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const byIdCmp = (a, b) => String(a.id).localeCompare(String(b.id), undefined, {numeric: true});
@@ -625,13 +630,25 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const who = () => setting("displayName") || "You";
 
   // ---------- markdown subset (escape first) ----------
+  const roundOf = q => (S.doc.rounds || []).find(x => (x.stage || "") === (q.stage || "") && x.round === (q.round || 1));
+  const SWEEP = "Sweep: reconciling earlier answers";
+  const sweepChip = q => (roundOf(q) || {}).kind === "sweep" ? '<span class="chip plain" title="' + SWEEP + '">Sweep</span>' : "";
   function roundRestateCard(q){ // the round's restate, pinned above the round's first question
-    const stage = q.stage || "", round = q.round || 1, r = (S.doc.rounds || []).find(x => (x.stage || "") === stage && x.round === round);
+    const stage = q.stage || "", round = q.round || 1, r = roundOf(q);
     if (!r || !r.restate) return "";
     const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
     if (!first || first.id !== q.id) return "";
     const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
-    return '<section class="blk roundrestate" id="roundRestate"><h4>Where round ' + esc(String(round)) + " starts</h4>" + md(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+    const head = r.kind === "sweep" ? SWEEP + " (round " + round + ")" : "Where round " + round + " starts";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + md(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+  }
+  function reconcilesHtml(q){ // each earlier answer a sweep question reconciles, beside the question
+    const ids = (q.reconciles || []).filter(id => Q[id]);
+    if (!ids.length) return "";
+    return '<section class="blk" id="reconciles"><h4>Earlier answers this reconciles</h4>' + ids.map(id => {
+      const p = Q[id], d = counted(p), t = d ? decidedText(p, d) : null;
+      return "<p>" + refHtml(id) + " " + (t ? inline(t[0]) + (t[1] ? ' <span class="kbd">' + inline(t[1]) + "</span>" : "") : '<span class="kbd">No answer counts yet</span>') + "</p>";
+    }).join("") + "</section>";
   }
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
   let termMemo = {key: null, re: null, defs: {}};
@@ -1330,7 +1347,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner() + roundRestateCard(q);
-    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + groupSpan(q, g) +
+    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + sweepChip(q) + addedChip(q) + groupSpan(q, g) +
       '<span class="chip s-' + esc(st) + '">' + stateLabel(q) + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
@@ -1340,6 +1357,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
+    h += reconcilesHtml(q);
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
@@ -2256,6 +2274,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.listener = data.listener || S.listener;
     if (S.instance && data.instance && data.instance !== S.instance) S.restarted = true; // a new server holds a new token: this page cannot save any more
     S.instance = data.instance || S.instance;
+    $("oldServer").hidden = S.restarted || !serverOld(data); // after a restart the newer server is not the one that served this page: the page is the old one, and the restart notice says reload
     S.finished = S.doc.finished || null; // kept in memory when the server goes away: its last frame is what the offline state reads
     const kept = finLoad();
     if (S.finished) { if (!kept || kept.session !== S.session || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }

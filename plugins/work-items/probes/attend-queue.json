@@ -1,0 +1,122 @@
+{
+  "skill": "work-items:attend-queue",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/attend-queue",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are triage, work-loop, track and work.",
+  "competitors": [
+    "work-items:triage",
+    "work-items:work-loop",
+    "work-items:track",
+    "work-items:work"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the human queue and answer whatever the lanes escalated to me."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which escalated items are waiting on my decision? Walk me through them one by one."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to ratify the first-drain admissions the loop is holding."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Clear the HITL queue: ask me about each blocked item and post my answers back on the issues."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What across the lanes needs my attention today? Handle the escalations first."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Some items got parked as needing a human. Interview me and unblock the ones my answers free up."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Time to attend the queue; the worker loop escalated a bunch of things overnight."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the escalation comments the agents left and reply with my decisions."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The loop flagged C3 admissions for me to approve. Let's go through them."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Flip whatever my answers unblocked back to autonomous-eligible so the loop can pick them up."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Work through the items labeled needs-human and record my answer on each."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Evaluate issue 412 and tell me if the bug report is real."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start the autonomous worker loop on this repo and let it drain the backlog."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just pick the next ticket and implement it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a new item to the backlog for the flaky login test."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Show me backlog stats and what's due this week."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this unsolicited PR from an outside contributor worth merging? Check it over."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Break this PRD into tickets and publish them."
+    }
+  ]
+}

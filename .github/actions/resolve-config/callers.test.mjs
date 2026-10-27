@@ -205,9 +205,10 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
 
   const intake = jobs["intake-triage"];
   assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false") =>
+  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "") =>
     evaluate(intake.if, {
       "github.event_name": event,
+      "github.event.action": action,
       "needs.born-triaged.outputs.skip": skip,
       "needs.born-triaged.outputs.claude-args": claudeArgs,
       "needs.born-triaged.outputs.rate-limited": limited,
@@ -218,6 +219,7 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("false", args), true);
   assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
   assert.equal(runs("true", args, "workflow_dispatch"), true, "a dispatch triages a born-triaged issue");
+  assert.equal(runs("false", args, "issues", "true", "false", "reopened"), false, "a reopened issue gets the floor label only, no triage");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
@@ -231,26 +233,26 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.deepEqual(intake.needs, ["born-triaged", "kill-switch"]);
   const killSwitch = jobs["kill-switch"];
   assertKillSwitchJob(killSwitch);
-  assert.equal(killSwitch.if, jobs["born-triaged"].if, "the kill switch runs wherever the gate runs");
+  const killRuns = (event, action, ref = "refs/heads/main") =>
+    evaluate(killSwitch.if, { "github.event_name": event, "github.event.action": action, "github.ref": ref });
+  assert.equal(killRuns("issues", "opened"), true);
+  assert.equal(killRuns("issues", "reopened"), true, "the floor label on a reopened issue reads the kill switch");
+  assert.equal(killRuns("workflow_dispatch", ""), true);
+  assert.equal(killRuns("workflow_dispatch", "", "refs/heads/feature"), false);
   assert.equal(killSwitch.outputs.proceed, "${{ steps.kill.outputs.proceed }}");
 });
 
-test("intake-label-needs-triage.yml: the kill switch stops the born-triaged check and the label", () => {
-  const { jobs } = workflow("intake-label-needs-triage.yml");
-  assertKillSwitchJob(jobs["kill-switch"]);
-  assert.equal(jobs["kill-switch"].outputs.proceed, "${{ steps.kill.outputs.proceed }}");
+test("intake-triage.yml: the kill switch stops the born-triaged check and the floor label", () => {
+  const { jobs } = workflow("intake-triage.yml");
   const gate = jobs["born-triaged"];
-  assert.equal(gate.needs, "kill-switch");
-  const checks = (action, proceed) =>
-    evaluate(gate.if, { "github.event.action": action, "needs.kill-switch.outputs.proceed": proceed });
-  assert.equal(checks("opened", "true"), true);
-  assert.equal(checks("opened", "false"), false, "the kill switch stops the born-triaged API reads");
-  assert.equal(checks("opened", ""), false, "a failed kill-switch job stops them too");
-  assert.equal(checks("reopened", "true"), false);
+  const checks = (action) => evaluate(gate.if, { "github.event_name": "issues", "github.event.action": action, "github.ref": "refs/heads/main" });
+  assert.equal(checks("opened"), true);
+  assert.equal(checks("reopened"), false, "a reopened issue re-acquires the floor label");
   const label = jobs["intake-label-needs-triage"];
   assert.deepEqual(label.needs, ["kill-switch", "born-triaged"]);
-  const labels = (proceed, skip, limited = "false") =>
+  const labels = (proceed, skip, limited = "false", event = "issues") =>
     evaluate(label.if, {
+      "github.event_name": event,
       "needs.kill-switch.outputs.proceed": proceed,
       "needs.born-triaged.outputs.skip": skip,
       "needs.born-triaged.outputs.rate-limited": limited,
@@ -262,13 +264,69 @@ test("intake-label-needs-triage.yml: the kill switch stops the born-triaged chec
   assert.equal(labels("", ""), false, "a failed kill-switch job stops the label");
   assert.equal(labels("true", "false", "true"), false, "a rate limit on the gate's read stops the label's calls");
   assert.equal(labels("true", "", ""), true, "a gate job that wrote no output still labels");
-  assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
+  assert.equal(labels("true", "false", "false", "workflow_dispatch"), false, "a dispatch triages and never labels");
+  assert.deepEqual(label.permissions, { issues: "write" });
+  assert.equal(label.concurrency, undefined);
+  assert.equal(label.secrets, undefined);
+  assert.match(label.uses, /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-label-needs-triage\.yml@[0-9a-f]{40}$/);
+  assert.deepEqual(label.with, { runner: "ubuntu-24.04", label: "needs-triage" });
+});
+
+// One run per issue event: intake-triage.yml takes the reopen too, for the
+// floor label only, so no job that triages, writes through the broker or
+// dispatches runs on it.
+test("intake-triage.yml: a reopened issue runs only the kill switch and the floor label", () => {
+  const { on, jobs } = workflow("intake-triage.yml");
+  assert.deepEqual(on.issues.types, ["opened", "reopened"]);
+  assert.equal(existsSync(new URL("../../workflows/intake-label-needs-triage.yml", import.meta.url)), false, "no second workflow on the same issue event");
+  const reopened = {
+    "github.event_name": "issues",
+    "github.event.action": "reopened",
+    "github.ref": "refs/heads/main",
+    "needs.kill-switch.outputs.proceed": "true",
+    // born-triaged is skipped, so its outputs are empty.
+    "needs.born-triaged.outputs.skip": "",
+    "needs.born-triaged.outputs.rate-limited": "",
+    "needs.born-triaged.outputs.claude-args": "--model sonnet",
+  };
+  const ran = new Set();
+  for (const [id, job] of Object.entries(jobs)) {
+    const needs = [job.needs ?? []].flat();
+    // A job whose needs did not all run is skipped, unless its if holds !cancelled().
+    if (needs.some((need) => !ran.has(need)) && !/!cancelled\(\)/.test(job.if ?? "")) continue;
+    const results = Object.fromEntries(needs.flatMap((need) => [[`needs.${need}.result`, ran.has(need) ? "success" : "skipped"]]));
+    const outputs = Object.fromEntries(
+      [...(job.if ?? "").matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)].map(([ref, need]) => [ref, ran.has(need) ? (reopened[ref] ?? "") : ""]),
+    );
+    if (job.if === undefined || evaluate(job.if, { ...reopened, ...results, ...outputs })) ran.add(id);
+  }
+  assert.deepEqual([...ran].sort(), ["intake-label-needs-triage", "kill-switch"]);
+});
+
+// Folding the floor label in gave no job a permission it did not hold in
+// intake-triage.yml or intake-label-needs-triage.yml.
+test("intake-triage.yml: each job keeps its own least-privilege permissions", () => {
+  const { permissions, jobs } = workflow("intake-triage.yml");
+  assert.deepEqual(permissions, {});
+  assert.deepEqual(Object.fromEntries(Object.entries(jobs).map(([id, job]) => [id, job.permissions])), {
+    "born-triaged": { contents: "read", issues: "read" },
+    "kill-switch": { contents: "read" },
+    "intake-label-needs-triage": { issues: "write" },
+    "intake-triage": { contents: "read", issues: "write" },
+    "apply-verdict": { contents: "read", "id-token": "write" },
+    "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
+    "refine-issue": { contents: "read" },
+    "apply-refinement": { contents: "read", "id-token": "write" },
+    "redispatch-refined": { actions: "write" },
+    "triage-split-children": { actions: "write" },
+  });
 });
 
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
   const { jobs } = workflow("intake-triage.yml");
   const gate = jobs["born-triaged"];
-  const runsOn = (event, ref) => evaluate(gate.if, { "github.event_name": event, "github.ref": ref });
+  const runsOn = (event, ref, action = event === "issues" ? "opened" : "") =>
+    evaluate(gate.if, { "github.event_name": event, "github.event.action": action, "github.ref": ref });
   assert.equal(runsOn("issues", "refs/heads/main"), true);
   assert.equal(runsOn("workflow_dispatch", "refs/heads/main"), true);
   assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
@@ -1051,6 +1109,15 @@ test("no job using pr-run-activity-write.yml runs the resolve-issue model step, 
   assert.equal(evaluate(refuse.if, context("7", "script")), false);
   assert.equal(evaluate(refuse.if, context("", "skill")), false);
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+});
+
+// The write runner's run job holds the lane token and id-token: write, so it
+// prepares no runner for head test files: the schema refuses run-test-file.sh
+// and check-skill.sh on a write-effect skill (verify-scripts.test.mjs), and a
+// read skill runs them in pr-run-activity-read.yml, whose run job holds neither
+// (pinned below with its read-only permissions).
+test("pr-run-activity-write.yml prepares no head test-file runner", () => {
+  assert.doesNotMatch(read("../../workflows/pr-run-activity-write.yml"), /run-test-file|check-skill/);
 });
 
 // The admission gate: on an issue anyone can open, only a listed human's
@@ -5055,9 +5122,14 @@ test("pr-run-activity-write.yml: the reply job reads run.json from the select jo
 test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
   const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
   assert.ok(job.needs.includes("apply-issue-patch"));
-  const context = (reason) => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason });
+  const context = (reason, result = "success") => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason, "needs.apply-issue-patch.result": result });
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
   assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
+  // Runs 40355135920 and 40354760854: apply-issue-patch crashed before giving
+  // a reason, and the hand-back said the run committed nothing.
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "failure")), "patch-apply-failed");
+  assert.equal(evaluate(job.with["escalation-reason"], context("patch-not-applied", "failure")), "patch-not-applied");
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
 });
 
 test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
@@ -5074,7 +5146,7 @@ test("pr-run-activity-write.yml: a patch-* escalation reason passes the input ch
           : { EVENT_NAME: "workflow_dispatch", PR_NUMBER: "42", TRUSTED_BASE: "pr-base" }),
       },
     }).status;
-  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]) {
+  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path", "patch-apply-failed"]) {
     assert.equal(status(reason, true), 0, `${reason} in issue mode`);
     assert.equal(status(reason, false), 1, `${reason} in PR mode`);
   }
