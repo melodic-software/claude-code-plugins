@@ -661,11 +661,12 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # the user's `confirm-understanding` event); that moves where the gate is shown, not whether
 # it runs, and the sweep still runs before it.
 # The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
+# The pre-round contradiction pass revises a draft recommendation or asks one question naming both sides before a round is shown; it resolves no row and qualifies neither STOP-on-gap nor the auto-guard.
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "b510e6db77b7c247fe18b91f799051da3ceb34f282c1a16a4734d297ccda6e6d"
+  "f6733e5d1cc322c674ab93b7fcb2a71ce947e4f7d0bd0363013abe84948957bf"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -687,9 +688,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
   "ac4456c25873fde66592daa3202789a242c15b7bea34b50cde9076a6864bbed2"
+# The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"
+  "d6f9547c32238ff246566ff0d31df39c159da40deb57563da6e775a5a6d1353d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -721,8 +723,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
 # Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
 # Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
+# Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "be9aac7e306b1066ea3d97eb65ca4f056c08a625d3de9a9460a17cafb9332d30"
+  "111ee4d6105972c243c9e11744e68f2387cceec06062c92bab3efeb647122f0d"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
