@@ -1121,7 +1121,8 @@ _PROJECT = re.compile(r"([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 
 def in_fix_scope(path: Any, config: Sequence[tuple[str, str]] | None) -> bool:
     """Whether a lanes App fix may change `path`: a fix manifest in a
-    directory of its ecosystem in `config` (the base dependabot.yml's pairs),
+    directory of its ecosystem in `config` (the dependabot.yml pairs the gate
+    reads),
     never under `.github/`. No config admits nothing."""
     text = str(path or "")
     name = posixpath.basename(text)

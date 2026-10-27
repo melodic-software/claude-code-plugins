@@ -565,6 +565,21 @@ test("a pr-verify run dispatches through the newest review run at the posted hea
   assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
 });
 
+// A fork PR that pushed the same commit lists its review runs at the head too:
+// its newer run is passed over, not taken as the upstream and then refused.
+test("a pr-verify run dispatches through this repository's review run, not a fork's newer one", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const api = verifyApi();
+  api.listCompletedRuns = async () => [
+    upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" }),
+    upstreamRun({ id: 14, created_at: "2026-10-17T11:30:00Z", head_repository: { full_name: "stranger/x" } }),
+  ];
+  const { output } = await verifyMain(dir, api);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
 // An earlier round at the head (a no-model-turn skip, or one that answered
 // without pushing) handled the reviewer's threads, not the notes posted since.
 test("a pr-verify run dispatches past a check run and a handled record from before its notes", async (t) => {

@@ -158,12 +158,19 @@ export function hasWorkableThread(threads, { reviewerId, reviewerIds = [], appId
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
 
-// The newest completed review run at `head` that reviewed something (not
-// skipped or cancelled), or null.
-export async function reviewRunAt({ api, head, settings = DEFAULTS }) {
+// The newest completed review run of this repository's head at `head` that
+// reviewed something (not skipped or cancelled), or null. A fork PR at the
+// same SHA lists its runs too; one must not stand in for this repository's.
+export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
   const runs = (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
     .flat()
-    .filter((run) => run.head_sha === head && run.event === "pull_request" && !["skipped", "cancelled"].includes(run.conclusion));
+    .filter(
+      (run) =>
+        run.head_sha === head &&
+        run.event === "pull_request" &&
+        run.head_repository?.full_name === repository &&
+        !["skipped", "cancelled"].includes(run.conclusion),
+    );
   runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
   return runs[0] ?? null;
 }
@@ -413,7 +420,7 @@ async function sweepOne({ api, pull, head, repository, appSenderId, log, setting
     log(`skip: #${pull.number}: head ${head} was released ${skips} times, the sweep's cap`);
     return null;
   }
-  const upstream = await reviewRunAt({ api, head, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
     return null;
@@ -654,7 +661,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     if (Number.isNaN(notesSince)) {
       throw new Error(`pr-verify run ${upstream.id} has no readable creation time`);
     }
-    upstream = await reviewRunAt({ api: client, head });
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
       return 0;

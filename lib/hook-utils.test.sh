@@ -4066,6 +4066,10 @@ bps_redir_case 'quoted operand carrying whitespace stays one target' \
 bps_redir_case 'here-doc opener with a redirect glued to the delimiter' \
   'cat <<EOF>file' \
   'ARGV:cat R:<<||EOF|0|0 R:>||file|0|0'
+# `)` is a metacharacter, so it ends the delimiter word as it does in bash.
+bps_redir_case 'here-doc delimiter ended by a closing parenthesis' \
+  "(cat <<'E')" \
+  'ARGV:cat R:<<||E|1|0'
 # An fd dup names an fd, not a file, and does not consume the following word —
 # so the later stdout redirect is still recorded as its own.
 bps_redir_case 'fd dup then a stdout redirect' \
@@ -4102,6 +4106,26 @@ if [[ "$bps_word_q" == "0 2 1" ]]; then
 else
   fail "bash_parse_segments per-word quoting provenance: got [$bps_word_q], want [0 2 1]"
 fi
+
+# Each here-doc body skipped, as `<start> <end> <quoted> <closed> <delimiter>`:
+# byte offsets of its first byte and of the byte past its delimiter line, read
+# once the parse returns.
+bps_hd_case() { # <desc> <command> <want entries joined by |>
+  hook::bash_parse_segments "$2" bps_collect
+  local got
+  got=$(join_a ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
+  if [[ "$got" == "$3" ]]; then
+    ok "bash_parse_segments heredoc bodies: $1"
+  else
+    fail "bash_parse_segments heredoc bodies $1: got [$got], want [$3]"
+  fi
+}
+bps_hd_case "three on one line: quoted, <<- double-quoted, unquoted" \
+  $'cat <<\'A\' <<-"B" <<C\na\nA\n\tb\n\tB\nc\nC\necho done' '21 25 1 1 A|25 31 1 1 B|31 35 0 1 C'
+bps_hd_case "a body with no delimiter line runs to the end" $'cat <<\\EOF\nx' '11 12 1 0 EOF'
+bps_hd_case "an opener inside double quotes is not one" $'echo "<<\'EOF\'"\nx\nEOF' ''
+bps_hd_case "a multibyte body is counted in bytes" $'cat <<\'E\'\né\nE\n' '10 15 1 1 E'
+bps_hd_case "a closing parenthesis ends the delimiter" $'(cat <<\'E\')\nx\nE\necho done' '12 16 1 1 E'
 
 # --- hook::bash_parse_segments: byte walk, caller's locale, linear cost ------
 # The command is split into bytes under C (#4528). A word reassembled from the
