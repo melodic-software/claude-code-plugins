@@ -471,8 +471,9 @@ and 1.54M live Token objects put `Toke` at 2,850 MB paged, `SeAt` 592 MB, `SeTd`
 wcifs attribution does not hold on that host, although it runs WSL2 and loads the same filter.
 Separately, on the host of the 2026-09-18 attribution runs, `SPI_GETFOREGROUNDLOCKTIMEOUT` read
 2,147,483,647 ms live while `HKCU\Control Panel\Desktop\ForegroundLockTimeout` held the 200,000
-default, which is the always-armed precondition the foreground-lock write-up names. What set it is
-unknown, and the A/B that would confirm the mechanism there is written and has not been run.
+default, which is the always-armed precondition the foreground-lock write-up names. The logon reset
+that the write-up linked under "The per-logon workaround" below reports is the likely cause; the
+A/B that would confirm the mechanism there is written and has not been run.
 
 **Four service arms came back NO CANDIDATE.** On 2026-09-18 the elevated runbook below was run
 four times over the NVIDIA display container, Razer Game Manager, THX spatial audio and Wispr
@@ -534,6 +535,43 @@ measurement, which the runbook takes under a fixed spawn load rather than at res
 charged it. Both thresholds are calibrated on this one host's two states, ten times its
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
+
+### The per-logon workaround, on trial on melo-lap-001
+
+We reapply the workaround after every logon because the write-up linked below reports that the
+live value is reset at logon; we have not yet observed that reset on melo-lap-001. We run it from
+the first interactive terminal because melo-lap-001's own probe (the rendered
+`foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26) shows a
+background caller is refused: `before=2147483647 after=2147483647 set=False error=87`.
+
+- **Pointer**: for why the live value reverts at logon and which callers may set it, read the
+  [gunrgbcr/windows-token-leak-logon-fix README](https://github.com/gunrgbcr/windows-token-leak-logon-fix#why-setting-it-to-0-doesnt-stick)
+  live; correlate with
+  [bentoner/windows-token-leak#1](https://github.com/bentoner/windows-token-leak/issues/1).
+  **As of**: 2026-10-26. **Recheck trigger**: either source changes its account of the logon
+  reset, or a Windows update's notes name win32k foreground or token handling.
+
+- **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.melo-lap-001.foregroundLockTimeoutAtLogon`
+  renders `AppData/Local/PowerShell/foreground-lock.ps1`, which the PowerShell profile's deferred
+  init runs in every interactive terminal. When the value differs it sets it, live only, and
+  appends one line to `%LOCALAPPDATA%\PowerShell\foreground-lock.log`. Deleting the key ends the
+  trial; the next logon restores 2,147,483,647 by itself.
+- **Side effect:** any application may take the foreground.
+- **Baseline, 2026-10-26, before the workaround:** build 26300.9711 (`win32kfull.sys`
+  10.0.26100.9711), uptime 121.3 h, 67,752 live Token objects against 1,948 Token handles,
+  213,373 system handles, 1,991 MB paged pool, live timeout 2,147,483,647, no input for 35 to
+  44 min. The arms from the 2026-09-23 method (60 s idle baseline, 300 spawns, 60 s reclaim wait)
+  settled at +5.98 per spawn for `bash_5ext` (1,793 for 300) and +1.04 for `cmd_child` (312 for
+  300), against null arms of +54 and +12. So the leak and its one-per-creator count are unchanged
+  on the 2026-10-13 build.
+- **After-measurement:** the same arms after a logon with the workaround active, then again at
+  day 7, with the log showing one successful set per logon. Expect about 0 per spawn. Results go
+  on melodic-software/claude-code-plugins#4372.
+
+**Probe record.** The baseline and the error-87 refusal come from `measure.py` (the
+2026-09-23 `arms.py` plus the live timeout per row) and the rendered `foreground-lock.ps1`, both
+run on melo-lap-001 on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
+after-measurement on #4372.
 
 ### Attribution runbook (the engine never does this)
 

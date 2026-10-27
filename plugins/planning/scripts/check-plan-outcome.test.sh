@@ -316,6 +316,50 @@ good_plan | sed '/^## Brief$/a\
 **Planned breakage:** build red until Phase 2 for src/: before any phase' >"$TMP/pb-outside.md"
 run "a declaration outside any phase section fails" 1 "$TMP/pb-outside.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:outside-phase$'
 
+# criteria: each AC<n> id under an Acceptance criteria heading maps to a phase's
+# **Satisfies:** line.
+run "a plan with no criteria passes criteria" 0 "$TMP/good.md" '^criterion=criteria status=pass ids=0$'
+
+traced_plan() {
+  good_plan | sed '/^Move dotfiles under chezmoi\.$/a\
+\
+### Acceptance criteria\
+- AC1: `chezmoi apply` manages the shell config\
+- AC2: [event-driven] WHEN chezmoi applies, the README names it' |
+    sed '/^### Phase 1:/a\
+**Satisfies:** AC1' |
+    sed '/^### Phase 3:/a\
+- **Satisfies:** AC2'
+}
+
+traced_plan >"$TMP/ac-traced.md"
+run "every criterion id satisfied by a phase passes" 0 "$TMP/ac-traced.md" '^criterion=criteria status=pass ids=2 mapped=2$'
+
+traced_plan | grep -v '^- \*\*Satisfies:\*\* AC2$' >"$TMP/ac-unmapped.md"
+run "a criterion id no phase satisfies fails and names the id" 1 "$TMP/ac-unmapped.md" '^criterion=criteria status=fail ids=2 mapped=1 unmapped=AC2$'
+
+traced_plan | sed 's/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC1, AC7/' >"$TMP/ac-unknown.md"
+run "a satisfied id no criterion defines fails and names the id" 1 "$TMP/ac-unknown.md" '^criterion=criteria status=fail ids=2 mapped=2 unknown=AC7$'
+
+traced_plan | sed 's/^- AC2: .*$/&\n- the README links the chezmoi docs/' >"$TMP/ac-noid.md"
+run "a criterion with no id beside ones with ids fails" 1 "$TMP/ac-noid.md" '^criterion=criteria status=fail ids=2 mapped=2 without-id=[0-9]+$'
+
+traced_plan | sed 's/^- AC2: .*$/&\n- AC1: a second criterion reusing the id/' >"$TMP/ac-dup.md"
+run "an id defined twice fails" 1 "$TMP/ac-dup.md" '^criterion=criteria status=fail ids=2 mapped=2 duplicate=AC1$'
+
+traced_plan | grep -v 'Satisfies' | sed 's/^- AC[0-9]*: /- /' >"$TMP/ac-bare.md"
+run "criteria with no id anywhere pass with a warning" 0 "$TMP/ac-bare.md" '^criterion=criteria status=pass ids=0$'
+run "the no-id warning counts the criteria" 0 "$TMP/ac-bare.md" '^warning=criteria-without-ids count=2 '
+
+traced_plan | grep -v '^- \*\*Satisfies:\*\* AC2$' | sed 's/^## Blast radius$/&\n**Satisfies:** AC2/' >"$TMP/ac-outside.md"
+run "a Satisfies line outside a phase maps nothing" 1 "$TMP/ac-outside.md" 'unmapped=AC2$'
+
+traced_plan | sed 's/^- AC1: /- [ ] **AC1:** /; s/^\*\*Satisfies:\*\* AC1$/**Satisfies:** AC10, AC1/' | sed 's/^- AC2: .*$/&\n- AC10: a tenth criterion/' >"$TMP/ac-forms.md"
+run "a checkbox or bold id maps, and AC10 is not AC1" 0 "$TMP/ac-forms.md" '^criterion=criteria status=pass ids=3 mapped=3$'
+
+{ traced_plan; printf '\n```markdown\n### Acceptance criteria\n- AC9: quoted\n```\n'; } >"$TMP/ac-fenced.md"
+run "a criterion inside a code fence is not graded" 0 "$TMP/ac-fenced.md" '^criterion=criteria status=pass ids=2 mapped=2$'
+
 run "the default run does not require an Approval line" 0 "$TMP/good.md" '^phases=3 status=ok$'
 run "the default run ignores an unapproved placeholder line" 0 "$TMP/ap-template.md" '^phases=3 status=ok$'
 

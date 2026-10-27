@@ -63,7 +63,12 @@ FLOOR_ENTRIES = (
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
 )
-IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
+# A relative import, or a module-relative file a module reads at load
+# (`new URL("./x.json", import.meta.url)`): data such as a routing table
+# decides as much as the code that reads it.
+IMPORT = re.compile(
+    r"""(?:(?:from|import)\s*\(?|new\s+URL\()\s*["'](\.{1,2}/[^"']+)["']"""
+)
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -164,6 +169,8 @@ FLOOR_PATHS = [
     ".github/actions/log-api-budget/Rate-Guard.MJS",
     ".github/actions/log-api-budget/action.yml",
     ".github/actions/log-api-budget/rate-guard.test.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
+    ".github/actions/log-api-budget/Rate-Limits.JSON",
     ".github/CODEOWNERS",
     ".github/codeowners",
     "CODEOWNERS",
@@ -216,8 +223,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 47)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 19)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 51)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 21)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -240,6 +247,9 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
         self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        # The rate-limit defaults rate-guard.mjs reads decide when the lanes
+        # stop short of GitHub's limits, so they are held like the module.
+        self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):

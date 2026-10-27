@@ -51,17 +51,30 @@
 # `$n` would skip the check. On the Bash tool, a command whose text is merge-
 # shaped (`pr merge` or `pr -R x merge` after a word that is gh or cannot be
 # read, a `pulls/.../merge` or `auto_merge` route, a merge mutation name; prose
-# such as "Gated PR Merge" is not) and holds a backtick anywhere is blocked before
-# it is parsed: the
+# such as "Gated PR Merge" is not) and holds a backtick is blocked whatever the
+# parse found: the
 # tokenizer splits a backtick substitution off, so the target it reads need not
 # be the one the shell runs (`5`echo 0`` reads #5, merges #50), and a merge
-# written inside the backticks would be hidden. Quoting is not judged (a comment
-# or heredoc apostrophe would fool a quote tracker), so a backtick in a quoted
-# --body is refused too; pass such a body with --body-file. Likewise a
+# written inside the backticks would be hidden. The pre-filter tracks no quotes
+# itself (a comment or heredoc apostrophe would fool a quote tracker), so a
+# backtick in a quoted --body is refused too; pass such a body with --body-file.
+# Likewise a
 # `pr merge` or REST merge route continued with a backslash-newline is blocked:
 # bash joins a continuation except in a comment, a quoted heredoc or after an
 # escaped backslash, so the command is never rewritten, and only the pre-filter
-# reads a joined copy. A command holding
+# reads a joined copy. Both tests read the command with the body of each quoted
+# heredoc (`<<'EOF'`, `<<"EOF"`, `<<\EOF`, `<<-'EOF'`) cut out, as the shared
+# parser bounds it: bash expands nothing there, so merge text in it is stdin
+# for the program, as in `python3 - <<'EOF'` or `git commit -F - <<'MSG'`. A
+# body stays in when the body may run as commands (a word of the command names
+# a shell, `sudo`, `su`, `ssh` or `at`, or the command word is `eval`, `source`,
+# `.`, a `.sh` script, or cannot be read); when it names a GraphQL merge
+# mutation, which `gh api graphql -F query=@-` would send; when it holds a
+# backslash-newline; when its delimiter is not a plain word or does not end it,
+# since the parser then bounded it differently from bash; and, with every body
+# after it, when a backtick, `$(`, `${`, `$[`, `((` or `[[` comes before it,
+# since its opener may sit where bash reads no heredoc. An unquoted heredoc's
+# body always stays in: bash runs its backticks. A command holding
 # more than one merge is blocked as well, so each merge runs, and is checked,
 # as its own command. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
@@ -94,8 +107,8 @@
 # `exec` and `nohup` prefixes are stepped over; `gh pr -R o/r merge` is read
 # with its repo. `gh pr merge --help` / `-h` and `--disable-auto` are not merges.
 #
-# KNOWN GAPS (stated, not chased): a merge from a script (Python, Node) or the
-# web UI; a merge command whose command word comes from expansion
+# KNOWN GAPS (stated, not chased): a merge from a script (Python, Node), a
+# quoted heredoc body included, or the web UI; a merge command whose command word comes from expansion
 # (`$GH pr merge`), `eval`, a wrapper such as
 # `sudo`, `env`, `nice`, `timeout` or `xargs`, a child shell (`bash -c '...'`),
 # a gh alias, brace expansion (`{gh,} pr merge`), a glob (`g? pr merge`) or
@@ -183,6 +196,7 @@ BUPM_CONT=0   # 1: merge-shaped text continued with a backslash-newline
 BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
 BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
 BUPM_HOST=""  # a host other than github.com that qualified the repo
+BUPM_SHELL=0  # 1: a heredoc body may run as commands (_bupm_runs_shell)
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -400,8 +414,40 @@ _bupm_segment() {
   # A directory change before a merge with no -R moves the repository gh reads
   # from the session's to another. Same prefixes stepped over as in _bupm_command.
   ((BUPM_MERGES == 0)) && _bupm_is_cd "$@" && BUPM_CD=1
+  _bupm_runs_shell "$@" && BUPM_SHELL=1
   _bupm_command "$@" && ((++BUPM_MERGES))
   return 0
+}
+
+# _bupm_runs_shell <argv>...: true when the segment may run a heredoc body as
+# commands: a word names a shell or a program that hands stdin to one (`bash`,
+# `xargs -0 sh`, `sudo -s`, `ssh host`), or the command word, past the prefixes
+# _bupm_command steps over, is `eval`, `source`, `.` or a `.sh` script, or
+# cannot be read (an expansion or a glob).
+# shellcheck disable=SC2329  # reached from _bupm_segment
+_bupm_runs_shell() {
+  local w lead=1
+  for w in "$@"; do
+    if ((lead)); then
+      case "$w" in
+      '{' | '}' | '!' | then | do | else | elif | if | while | until | command | builtin | time | exec | nohup | -p | --) continue ;;
+      *) ;;
+      esac
+      [[ "$w" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
+      lead=0
+      _bupm_literal "$w" || return 0
+      [[ "$w" != '[' && "$w" != '[[' && "$w" == *[\*\?\[]* ]] && return 0
+      case "${w,,}" in eval | source | . | *.sh) return 0 ;; *) ;; esac
+    fi
+    w="${w##*/}"
+    w="${w##*\\}"
+    w="${w,,}"
+    case "${w%.exe}" in
+    bash | sh | zsh | dash | ksh | mksh | ash | yash | csh | tcsh | fish | busybox | pwsh | powershell | sudo | doas | su | ssh | at | batch) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
 }
 
 # shellcheck disable=SC2329  # reached from _bupm_segment
@@ -489,8 +535,8 @@ else
   [[ "$_bupm_lc" == *gh_repo* || "$_bupm_bare" == *gh_repo* ||
     "$_bupm_lc" == *gh_host* || "$_bupm_bare" == *gh_host* ]] && BUPM_GHREPO=1
   # A backtick or a line continuation in merge-shaped text is refused below
-  # without parsing; in PowerShell a backtick is the escape character, not a
-  # substitution, and a backslash is not a continuation.
+  # whatever the parse found; in PowerShell a backtick is the escape character,
+  # not a substitution, and a backslash is not a continuation.
   # shellcheck disable=SC2016  # the backticks are literal regex text
   _bupm_rest_re='pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge'
   _bupm_pr_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge'
@@ -554,18 +600,56 @@ else
     done
     return 1
   }
-  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* ]] &&
+  # _bupm_strip_bodies: set _bupm_text to the command with each quoted heredoc
+  # body cut out (header, the backtick refusal), from the byte offsets the parse
+  # left in HOOK_HEREDOC_BODIES, so it runs under C.
+  # shellcheck disable=SC2329  # invoked through hook::_c_locale
+  _bupm_strip_bodies() {
+    local e s t q c d pre body at=0 out=""
+    _bupm_text="$COMMAND"
+    ((BUPM_SHELL)) && return 0
+    for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+      s="${e%% *}"
+      e="${e#* }"
+      t="${e%% *}"
+      e="${e#* }"
+      q="${e%% *}"
+      e="${e#* }"
+      c="${e%% *}"
+      d="${e#* }"
+      pre="${COMMAND:at:s-at}"
+      # An opener after one of these may sit where bash reads no heredoc
+      # (`${x:-<<'E' }`, `((1 <<'E' ))`), which the parser does not model.
+      # shellcheck disable=SC2016  # literal shell syntax
+      [[ "$out$pre" == *'`'* || "$out$pre" == *'$('* || "$out$pre" == *'${'* ||
+        "$out$pre" == *'$['* || "$out$pre" == *'(('* || "$out$pre" == *'[['* ]] && break
+      body="${COMMAND:s:t-s}"
+      out+="$pre"
+      at=$t
+      # The body is cut only when its delimiter line closed it and that
+      # delimiter is a plain word, so the parser bounded it as bash does.
+      [[ "$q" == 1 && "$c" == 1 && "$d" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ &&
+        "$body" != *$'\\\n'* && ! "${body,,}" =~ $_bupm_gql_re ]] && continue
+      out+="$body"
+    done
+    _bupm_text="$out${COMMAND:at}"
+  }
+  hook::bash_parse_segments "$COMMAND" _bupm_segment
+  _bupm_text="$COMMAND"
+  hook::_c_locale _bupm_strip_bodies
+  _bupm_joined="${_bupm_text,,}"
+  _bupm_joined="${_bupm_joined//$'\\\n'/}"
+  if [[ "$TOOL_NAME" != PowerShell && "$_bupm_text" == *'`'* ]] &&
     { [[ "$_bupm_joined" =~ $_bupm_rest_re|$_bupm_gql_re ]] || _bupm_gh_pr_shaped; }; then
     BUPM_BT=1
     BUPM_FORM=backtick
-  elif [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *$'\\\n'* && "$_bupm_joined" =~ $_bupm_cli_re ]]; then
+  elif [[ "$TOOL_NAME" != PowerShell && "$_bupm_text" == *$'\\\n'* && "$_bupm_joined" =~ $_bupm_cli_re ]]; then
     # GraphQL keeps the PR in a quoted query the parser reads, and fails closed
     # on anything but a literal node id, so only `pr merge` and the REST route
     # are refused here.
     BUPM_CONT=1
     BUPM_FORM=continuation
   else
-    hook::bash_parse_segments "$COMMAND" _bupm_segment
     [[ -n "$BUPM_FORM" ]] || exit 0
   fi
 fi

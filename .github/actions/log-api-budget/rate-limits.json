@@ -1,0 +1,7 @@
+{
+  "github-token": { "plan": 0.7, "writer-pause": 0.4, "breaker": 0.2, "read-floor": 0.1, "limit-cap": 1000 },
+  "lanes-app": { "plan": 0.7, "writer-pause": 0.4, "breaker": 0.2, "read-floor": 0.1 },
+  "graphql": { "plan": 0.7, "writer-pause": 0.4, "breaker": 0.2, "read-floor": 0.1 },
+  "owner-token": { "plan": 0.7, "writer-pause": 0.4, "breaker": 0.2, "read-floor": 0.1 },
+  "content-creation": { "plan": 0.7, "writer-pause": 0.4, "breaker": 0.2, "read-floor": 0.1, "per-minute": 80, "per-hour": 500 }
+}

@@ -287,6 +287,7 @@ class HighReasonTests(unittest.TestCase):
                 (".github/actions/check-kill-switch/**", "trust"),
                 (".github/actions/request-lane-token/**", "trust"),
                 (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
+                (".github/actions/log-api-budget/rate-limits.json", "gate"),
                 (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
                 (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
                 (".github/scripts/pr-merge/superseded.mjs", "gate"),
@@ -301,6 +302,7 @@ class HighReasonTests(unittest.TestCase):
                 (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
                 (".github/scripts/pr-merge/who.mjs", "gate"),
                 (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
+                (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
@@ -325,8 +327,10 @@ class HighReasonTests(unittest.TestCase):
                 (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
                 (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
                 (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
+                (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
             ),
         )  # fmt: skip
         self.assertEqual(
@@ -346,6 +350,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/actions/check-kill-switch/check-kill-switch.mjs", ".github/actions/check-kill-switch/**"),
             (".github/actions/request-lane-token/action.yml", ".github/actions/request-lane-token/**"),
             (".github/actions/log-api-budget/rate-guard.mjs", ".github/actions/log-api-budget/rate-guard.mjs"),
+            (".github/actions/log-api-budget/rate-limits.json", ".github/actions/log-api-budget/rate-limits.json"),
+            (".github/actions/log-api-budget/Rate-Limits.JSON", ".github/actions/log-api-budget/rate-limits.json"),
             (".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-merge/merge-holds.mjs"),
             (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
@@ -360,8 +366,10 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
             (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
             (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
+            (".github/scripts/pr-unblock/retry-fetch.mjs", ".github/scripts/pr-unblock/retry-fetch.mjs"),
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
+            (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
         ]  # fmt: skip
         unreviewed = (
             _lane("claude-review"),
@@ -1211,6 +1219,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/actions/check-kill-switch/action.yml",
             ".github/actions/request-lane-token/action.yml",
             ".github/actions/log-api-budget/rate-guard.mjs",
+            ".github/actions/log-api-budget/rate-limits.json",
             ".github/scripts/pr-merge/merge-holds.mjs",
             ".github/scripts/pr-merge/enable-auto-merge.mjs",
             ".github/scripts/pr-merge/superseded.mjs",
@@ -1226,8 +1235,10 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-unblock/address-feedback.mjs",
             ".github/scripts/pr-unblock/gate-source.mjs",
             ".github/scripts/pr-unblock/thread-scope.mjs",
+            ".github/scripts/pr-unblock/retry-fetch.mjs",
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
+            ".github/scripts/work-resolve-issue/retry-fetch.mjs",
         ):
             with self.subTest(path):
                 unreviewed = (
@@ -1789,7 +1800,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 19)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 21)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

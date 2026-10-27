@@ -1,0 +1,16 @@
+{
+  "claim": "Control: under dontAsk with the write lane's tool lists, a Read of a file inside the checkout runs.",
+  "tags": ["Read rule", "deny rule", "disallowedTools", "allowedTools", "dontAsk"],
+  "permission_mode": "dontAsk",
+  "tool_rules": "lane-write-tools.json",
+  "verdict_only": true,
+  "platforms": ["linux"],
+  "requires": ["git"],
+  "target": {
+    "tool": "Read",
+    "input_match": "\"file_path\": \"[^\"]*/notes\\.txt\"",
+    "example": { "file_path": "/tmp/cc-probe-dry/notes.txt" }
+  },
+  "outcome": "ran",
+  "match": "lane-probe-marker"
+}

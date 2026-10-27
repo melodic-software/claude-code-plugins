@@ -216,6 +216,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/check-kill-switch/**", "trust"),
     (".github/actions/request-lane-token/**", "trust"),
     (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
+    (".github/actions/log-api-budget/rate-limits.json", "gate"),
     (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
     (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
     (".github/scripts/pr-merge/superseded.mjs", "gate"),
@@ -230,6 +231,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
     (".github/scripts/pr-merge/who.mjs", "gate"),
     (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
+    (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
@@ -254,8 +256,10 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
     (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
+    (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)

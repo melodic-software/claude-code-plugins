@@ -11,6 +11,7 @@
 - [Execution-shape analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
 - [Decision ids (tagged decisions)](#decision-ids-tagged-decisions)
+- [Criterion ids (traced to phases)](#criterion-ids-traced-to-phases)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
 - [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
 - [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
@@ -384,6 +385,24 @@ A decision the plan tags `[EXEC-SHAPE]` or `[FALLBACK]` carries an id that its r
 ```
 
 The id sits at the start of the row's first column; the table keeps its `Decision | What it changes` header. Several tags may cite one id. A bare tag with no id still passes the gate, with a warning. Rules: [tag-decisions.md](tag-decisions.md) "Presentation contract".
+
+## Criterion ids (traced to phases)
+
+Every acceptance criterion carries an id, and every phase names the ids it satisfies, so the outcome gate's `criteria` criterion reports a criterion no phase covers:
+
+```markdown
+### Acceptance criteria
+- AC1: `chezmoi apply --dry-run` exits 0 on a fresh machine
+- AC2: the README names chezmoi as the dotfile manager
+
+### Phase 1: Integration slice [TODO]
+**Satisfies:** AC1
+```
+
+- The Brief's criteria keep the ids `/planning:interview` gave them. A Brief whose criteria have none gets `AC1`, `AC2`, ... prefixed in order, with no criterion's text changed.
+- A criterion the plan adds (a minimal Brief, or one the Brief lacked) goes under an `### Acceptance criteria` heading in `## Plan` with the next unused id; an id is never reused.
+- The `**Satisfies:**` line sits in the phase section, under its heading, and lists ids only. Several phases may satisfy one id. A phase that serves something a criterion needs (a test, a migration, a dead-code removal) without satisfying one carries no line.
+- The gate fails a criterion id no phase satisfies, a satisfied id no criterion defines, a criterion without an id beside ones with ids, and an id used twice. A plan whose criteria carry no id passes with a warning.
 
 ## Phase Review tags (optional per phase)
 

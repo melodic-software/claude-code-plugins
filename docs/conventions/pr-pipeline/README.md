@@ -457,7 +457,11 @@ Each leaf declares:
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
-  report. A script in both lists fails red.
+  report. A script in both lists fails red. On a skill whose effect is not `read`, whose run job
+  holds the lane token and `id-token: write`, neither list may name a script that runs the
+  checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`,
+  `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays
+  allowed, since from the base copy it skips the branch's tests.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
@@ -469,7 +473,9 @@ Each leaf declares:
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
   `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
-  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
+  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does. Those two run checkout
+  code, so the schema refuses them on a skill whose effect is not `read`: its run job holds the
+  lane token and `id-token: write`.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, the skill may search the web, fetch
   those domains, and run the research skills, wherever the runner gives it its edit tools
@@ -733,6 +739,11 @@ cap applies at once. So a tightening on the default branch reaches pull requests
 a loosening waits until a pull request's base includes it, and a pull request still cannot drop its
 base's declaration. A different authority, or an identity set on one side only, stops the lane
 and its queued entries leave; two different identities, or an unreadable head config, refuse.
+The pr-merge gate reads a Dependabot pull request's `.github/dependabot.yml` and Dependabot policy
+at the default branch head too (read once per run-cache window, and again before an enqueue), by
+the rules that only tighten in
+[Dependabot pull requests](#dependabot-pull-requests) and
+[Review-only dependencies](#review-only-dependencies).
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
@@ -795,14 +806,16 @@ and its queued entries leave; two different identities, or an unreadable head co
     whose output writer both actions use, `**/CODEOWNERS` and `**/.gitmodules`.
   - `gate`, a person merges it: the merge gate's own code and the config the token broker loads.
     `.github/actions/resolve-config/**`, whose code the broker runs from main in its signer
-    process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`), every script of
+    process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
+    defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
     `.github/scripts/pr-merge/`, `.github/workflows/pr-merge.yml` and
     `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`,
     `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition.
   - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-    `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`)
+    `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
+    and the `retry-fetch.mjs` copy in each of those two directories)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
@@ -1128,9 +1141,13 @@ while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
-in the same file as the carried verdict reads, the `pr-merge-run-cache` artifact a scheduled or
-hand-started run uploads and the next run reads from the newest such run on the default branch,
-found the way the head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`); it never passes
+in the run cache the next run starts from, built from two artifacts a scheduled or hand-started run
+uploads, each read from the newest such run on the default branch holding it, found the way the
+head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`). `pr-merge-run-cache`, from the
+`merge` job, carries the refusals and the carried verdict reads; `pr-merge-verify-run-cache`, from
+`enable-auto-merge` and only when it kept a read, carries the verifier's carried verdict reads, of
+which only the `carried-*` sections are added. A file that does not read is dropped with a warning
+and the other is still used. Neither passes
 through `actions/cache`, which any job in the default branch's cache scope can write. Even a forged
 file can only repeat a refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
 such as a demotion record, a ruleset, an edit to a comment older than the newest 50 or a gate import
@@ -1192,7 +1209,10 @@ and one error annotation and summary line naming each one still armed because it
 it posts no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
-saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and
+head-ref map and run cache and one artifact listing for the run, which its first pull request reads
+and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
+merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
+never arms, and
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
@@ -1225,6 +1245,44 @@ to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside t
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
 nothing.
 
+Each verifier read of a scheduled or hand-started run keeps its answer for the next run when it is
+a refusal of a stable kind (a verdict refusal other than `verify:unreadable`, a link refusal, a risk
+hold or a queue-ejection refusal, nothing in it unreadable), keyed by a hash of the read's inputs:
+the pull request's body, title, base, timeline count, comments (the lane's own refusal, pin and
+queue-ejection comments by id alone), review threads (resolved or not, and their comment counts)
+and head check suites, each linked issue's labels, edits, comments, timeline and closing pull
+requests, the verdict artifacts that can count against it, its PASS runs at the head, the config,
+the rung and main's trusted-actor and admission files. The key does not witness an edit to a
+review's body or to an inline comment, or who resolved a thread. Those are liveness-only: since an
+allow is never kept, such a change can keep a kept refusal standing until the entry expires, which
+delays an arm and never causes one. An entry expires an hour after its read, when the pull request
+turns too old to verify, or when a PASS artifact at the head expires, whichever comes first. The
+file crosses runs only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run
+on main (`verify-answers.mjs`, as the head-ref map is read), and one that cannot be loaded or is of
+another version, repository or reader code is no file; any other error of the cache's own leaves the
+plain full read. `merge.verify-cache` (default `shadow`; any other value fails the schema, so
+resolve-config stops the run) decides what a kept answer does:
+under `shadow` every pull request is still read in full and the run logs one
+`verify-cache shadow: #<n> key=hit|miss stored=<kind> fresh=<kind> agree=yes|no|n/a` line per read,
+where `agree` compares only on `key=hit`, or `verify-cache <mode>: #<n> cache=error` when the cache
+work failed and the read went on without it; under `serve` an unarmed pull request whose kept refusal's
+key still matches is left unarmed on it with no further read (`cached=1` on its cost line), and one
+past the read budget is answered only from a kept refusal, or not read at all when the run has no
+answers file. An armed pull request is always read in full, so the disarm path stays as fresh as
+before, and a kept answer that holds nothing is read again in full and never arms.
+
+`merge.verify-cache` moves to `serve` only on shadow evidence: at least a day of scheduled runs
+whose `verify-cache shadow` lines hold 50 or more `key=hit` lines in all, 5 or more for each
+`stored=<kind>` that appears among them, and none with `agree=no`. A day with too few hits, or a
+kind seen fewer than 5 times, keeps the lane in `shadow` until more runs add to the count, so a
+quiet day cannot pass the check on zero hits. Basis: judgment. A disagreement in 1 hit in 20 shows
+at least once in 50 hits about 92% of the time (1 - 0.95^50), and 5 per kind keeps one rare refusal
+kind from passing on a single agreeing hit. A day with any `cache=error` line does not qualify,
+whatever its hits say: the cache failed on reads it would have served. Both modes take the key
+before the full read, so a kept entry carries the key of the inputs the read saw: an input that
+moves during the read is a miss on the next run, never a hit on a stale refusal, and shadow's
+`agree` figures come from the same order serve runs.
+
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
 never scores, escalates, toggles or enqueues one; native auto-merge and `ci-status` are their whole
@@ -1236,6 +1294,10 @@ lane ran before this setting; the `enable-auto-merge` job arms them in both mode
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
+its first attempt, at most three per run, merge-critical first; while the switch is on it reads
+nothing.
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs
@@ -1264,14 +1326,41 @@ builds the group, and after a person lifts one with a later comment, `ci-status`
 
 In the merge queue the same step also requires a verifier pass at the queued pull request's live
 head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact, with or without the
-head-branch digest, looked up by exact name and uploaded by a completed, successful
+head-branch digest, taken by exact name and uploaded by a completed, successful
 `workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). Whatever
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
-`enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+verdict, and a pull request event makes no verdict read.
+
+The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
+from a checkout of main for the queued pull request at its live head, on a listing of its own, and
+holds on its report (`evidenceHold` in `merge-holds.mjs`): every FAIL class the gate counts (a FAIL
+at the head under any number, an earlier FAIL tied by number, commit or head branch, the
+`merge.max-verify-fails` cap with other pull requests' FAILs for its issues, an untied FAIL whose
+record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploaded after
+`enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
+(`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
+`linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
+it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
+with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
+names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
+run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
+on main (`carry-run-cache.mjs read`; `ci-status` restores no Actions cache), so it reads only what
+landed since that run: about 73 requests for one pull request, where a cold reader makes about 860
+(measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A head-ref map that does not read only
+leaves it reading more. With no carried run cache, or one whose carried sections are all empty
+(the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
+that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
+`/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
+at once goes cold together: the cold reader starts only when the token's core pool has at least 900
+requests (one cold read's cost) times `max_entries_to_build`, plus the read floor (`limits.api`
+`read-floor` of the planned limit, inlined in the job env), left: 4,600 with the queue building 5. A rule or rate limit that does not read, a stop in the
+job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
+ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
+about 6 to 11. It reads with `ci-status`'s token, which holds no `issues`
+scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
 The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
 already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
@@ -1351,7 +1440,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
     newest push is the head.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
-    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    ecosystem and directory `.github/dependabot.yml` lists at both the base and the default branch
+    head, matched literally (a pair only one side lists covers nothing, so neither side widens the
+    other) (npm `package.json`,
     `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
     and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
     `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
@@ -1359,8 +1450,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
     commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
-    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
-    lands), and one whose file
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this at the base before
+    the fix lands; the gate checks it against the pairs both sides list, and a fix outside them
+    refuses), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,
@@ -1425,7 +1517,9 @@ A non-major release of a hijacked package passes tier `auto` on a green `ci-stat
 that runs inside a job holding a secret or a write token is therefore listed in the standards
 Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
 `components/dependabot-policy/policy.json`), which the sync places at
-`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base, and the
+pr-merge gate reads it at the default branch head too, where an entry either side lists matches
+and either side unreadable makes it unreadable:
 
 - **Match.** An entry matches an update when its `repository` is this repository (any case), its
   `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
@@ -1933,11 +2027,19 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
   so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
-- **judge**, one model leg per unit, holds read permissions only, runs with `--setting-sources
-  user` and `--permission-mode dontAsk`, and has Read, Grep and Glob over its data and the main
-  checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
-  as data. It returns at most three findings, each citing at least one `path`, `line` and exact
-  `quote` from main.
+- **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
+  on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
+  dontAsk`, and has Read, Grep and Glob over its data and the main checkout and no shell. It takes
+  the `triage-issue` route's profile. CI logs and titles reach it as data. It returns at most three
+  findings, each citing at least one `path`, `line` and exact `quote` from main. A unit whose key
+  leg hands off (a credit stop, a 401 or 402, or an empty key) with no permission denial is judged
+  by **judge-subscription** on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`; with
+  `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a unit that leg hands off (a limit stop, a credit stop, a
+  401 or 402) is judged by **judge-fallback** on that token, which never hands off. Each leg is its
+  own job holding one credential. A leg that hands off uploads a marker artifact naming the unit and
+  the launcher's reason, and **judge-handoffs** and **judge-subscription-handoffs**, which hold no
+  secret, check each marker against a closed set and build the next leg's matrix
+  (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
   unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
   lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
@@ -2023,7 +2125,9 @@ the earlier one-issue-per-key form (a marker key without `family:`) is closed as
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
 no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
-cannot read is listed in the step summary and the other signals still run.
+cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
+to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -2132,7 +2236,10 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. The read runner's callers
+with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
+role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
+started by a route job from the previous leg's handoff markers
+([The lane sweep](#the-lane-sweep)). The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and with
@@ -2183,7 +2290,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to 1000, GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`, and the `github-token` entry). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
