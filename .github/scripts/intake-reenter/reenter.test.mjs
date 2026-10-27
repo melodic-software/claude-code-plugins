@@ -7,13 +7,13 @@
 // one intake admits on open (a listed human or the lanes App). Anything else
 // changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./reenter.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
@@ -24,7 +24,7 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]", type:
 const NUMBER = 42;
 const DECISION = "**Decision recorded.**\n\nOption 1.";
 
-const dir = mkdtempSync(join(tmpdir(), "intake-reenter-"));
+const dir = tempDir("intake-reenter-");
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(
   TRUSTED,

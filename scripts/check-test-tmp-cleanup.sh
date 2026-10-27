@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Check that every tracked *.test.sh that creates a temp path with mktemp also
-# installs a `trap ... EXIT` to remove it.
+# Check that every tracked test that creates a temp path also removes it on every
+# exit path: a *.test.sh that uses mktemp installs a `trap ... EXIT`, and a
+# *.test.mjs/js/cjs that makes a folder under os.tmpdir() registers its removal.
 #
 #   scripts/check-test-tmp-cleanup.sh          discover: list every offender
 #   scripts/check-test-tmp-cleanup.sh --check  same, explicit form matching the
@@ -15,6 +16,14 @@
 # delete its baseline line. Never add a suite to the baseline: give it the trap
 # instead. The match is lexical: `trap ... EXIT` inside a string a suite runs
 # in a child shell also counts, so a passing suite still needs its own trap.
+#
+# A JS suite offends when a non-comment line passes os.tmpdir() to mkdtemp or
+# mkdtempSync and the file never registers a removal that runs on failure too:
+# an import of lib/test-tmp.mjs (tempDir), an after/afterAll/afterEach/
+# onTestFinished/t.after hook, a finally block, or a process exit handler. A
+# folder whose only handle is the join(mkdtempSync(...), "file") expression can
+# never be removed by name, so that shape offends whatever else the file does.
+# Both are lexical: a file with a hook still has to remove every folder in it.
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one finding per line on stderr, the clean-run statement on
@@ -60,6 +69,20 @@ offends() {
   ' "$1"
 }
 
+# offends_js <file>: see the header.
+offends_js() {
+  awk '
+    /^[[:space:]]*(\/\/|\*|\/\*)/ { next }
+    /mkdtemp(Sync)?\(/ && /tmpdir\(\)/ { made = 1 }
+    /join\(\s*(fs\.)?mkdtemp(Sync)?\([^)]*tmpdir/ { unbound = 1 }
+    /test-tmp\.mjs/ { removed = 1 }
+    /(^|[^A-Za-z0-9_])(after|afterAll|afterEach|onTestFinished)\(/ { removed = 1 }
+    /finally[[:space:]]*\{/ { removed = 1 }
+    /process\.on\(["'"'"']exit/ { removed = 1 }
+    END { exit !((made && !removed) || unbound) }
+  ' "$1"
+}
+
 in_baseline() {
   local one
   for one in ${baseline+"${baseline[@]}"}; do
@@ -77,6 +100,14 @@ while IFS= read -r -d '' path; do
     findings+=("$path: mktemp without a trap ... EXIT; add the trap")
   fi
 done < <(git ls-files -z -- '*.test.sh')
+js_tracked=0
+while IFS= read -r -d '' path; do
+  js_tracked=$((js_tracked + 1))
+  # shellcheck disable=SC2310  # offends_js and in_baseline only test; nothing inside can fail the script
+  if offends_js "$path" && ! in_baseline "$path"; then
+    findings+=("$path: a folder under os.tmpdir() with no removal that runs on failure, or never bound to a name; use tempDir from lib/test-tmp.mjs")
+  fi
+done < <(git ls-files -z -- '*.test.mjs' '*.test.js' '*.test.cjs')
 
 for entry in ${baseline+"${baseline[@]}"}; do
   if [[ ! -f "$entry" ]]; then
@@ -84,13 +115,13 @@ for entry in ${baseline+"${baseline[@]}"}; do
     continue
   fi
   # shellcheck disable=SC2310  # offends only tests; nothing inside can fail the script
-  if ! offends "$entry"; then
+  if ! offends "$entry" && ! offends_js "$entry"; then
     findings+=("$entry: $BASELINE lists it, but it no longer offends; remove the entry")
   fi
 done
 
 if ((${#findings[@]} == 0)); then
-  printf 'check-test-tmp-cleanup: %d tracked *.test.sh checked; every mktemp user traps EXIT or is baselined.\n' "${#tracked[@]}"
+  printf 'check-test-tmp-cleanup: %d tracked *.test.sh and %d JS tests checked; every temp-folder user removes it or is baselined.\n' "${#tracked[@]}" "$js_tracked"
   exit 0
 fi
 

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./check-signed-commits.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY = "melodic-software/claude-code-plugins";
@@ -53,7 +53,7 @@ function fakeGitHub(routes) {
 
 let dir;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "signed-commits-"));
+  dir = tempDir("signed-commits-");
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });

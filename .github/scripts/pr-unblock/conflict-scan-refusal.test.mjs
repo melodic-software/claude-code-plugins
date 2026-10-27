@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main } from "./conflict-scan-refusal.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The escalation-reason main writes, given the markers in a fresh directory
 // and the download's outcome; no leg output is read.
 const run = (markers, read = "success") => {
-  const dir = mkdtempSync(join(tmpdir(), "conflict-scan-refusal-"));
+  const dir = tempDir("conflict-scan-refusal-");
   const scanRefused = join(dir, "scan-refused");
   mkdirSync(scanRefused);
   for (const [name, kind] of Object.entries(markers)) {

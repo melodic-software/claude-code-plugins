@@ -7,15 +7,15 @@
 // no pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
@@ -79,7 +79,7 @@ function runWait(conclusion, { dispatchFails = false, sendErrors = [], notModifi
     .split("\n")
     .map((l) => l.slice(10))
     .join("\n");
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-wait-"));
+  const dir = tempDir("pr-merge-wait-");
   mkdirSync(join(dir, "bin"));
   writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$*" >>"${dir}/sleeps"\n`, {
     mode: 0o755,
@@ -546,7 +546,7 @@ const limited = (headers, message = "API rate limit exceeded for installation") 
 });
 function runDispatch(answers, { jobId = "dispatch-full-run", cap, event = "push" } = {}) {
   const step = dispatchStep(jobId);
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-dispatch-"));
+  const dir = tempDir("pr-merge-dispatch-");
   mkdirSync(join(dir, "bin"));
   answers.forEach((a, i) => {
     const text =
@@ -858,7 +858,7 @@ async function runWho(
     res.end(JSON.stringify(found ? record : { message: "Not Found" }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-who-"));
+  const dir = tempDir("pr-merge-who-");
   try {
     symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
     writeFileSync(join(dir, "body.sh"), body);

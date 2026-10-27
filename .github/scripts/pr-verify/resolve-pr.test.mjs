@@ -12,13 +12,13 @@
 // artifacts with that name are returned) and the closingIssuesReferences
 // GraphQL field.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { main, resolvePull } from "./resolve-pr.mjs";
 import { loadRules } from "../intake-triage/admit.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -237,7 +237,7 @@ test("a Refs number that names no issue or pull request names no spec, and any o
 // The production helper throws on any GraphQL `errors` unless asked to keep
 // them, so main must read the Refs issue with one that keeps them.
 test("main with the real GitHub helper reads a Refs typo as no linked issue", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
   const env = {
@@ -404,7 +404,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
 });
 
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(
@@ -732,7 +732,7 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
 });
 
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(
     actors,
@@ -816,7 +816,7 @@ test("an issue whose comments are cut off fails the read", async () => {
 });
 
 test("main writes the outputs, the linked issues and the spec text the workflow reads", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const spec = path.join(dir, "spec.json");
   const specText = path.join(dir, "spec-text.json");
@@ -844,7 +844,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
 });
 
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const summary = path.join(dir, "summary");
   const actors = path.join(dir, "trusted-actors.json");
@@ -870,7 +870,7 @@ test("main reports a human's PR as skipped in the log and the step summary", asy
 });
 
 test("main reports an invalid verify-authors value in the step summary", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const summary = path.join(dir, "summary");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));

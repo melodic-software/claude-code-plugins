@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { keepThreads, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const APP = 337595936;
 const ACTIONS_BOT = 41898282;
@@ -180,7 +180,7 @@ test("an adopted PR the lanes App did not open gets the notes too, so its author
 });
 
 test("main names the PR and head only once the notes are on the PR", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verify-notes-"));
+  const dir = tempDir("verify-notes-");
   const env = {
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",

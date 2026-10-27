@@ -9,8 +9,7 @@
 // removalStands). Ids and logins are the shared
 // trusted-actors fixture's.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_LIST = path.join(HERE, "..", "..", "actions", "check-trusted-trigger", "fixtures", "trusted-actors.json");
@@ -92,7 +92,7 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
 let dir;
 let list;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "write-issue-"));
+  dir = tempDir("write-issue-");
   // The shared fixture plus cursoragent, a listed bot whose login has no [bot].
   const actors = JSON.parse(readFileSync(SHARED_LIST, "utf8"));
   actors.actors.push({ ...CURSOR_AGENT, kind: "bot" });

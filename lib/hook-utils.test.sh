@@ -29,6 +29,7 @@ ok() {
 source "$HOOK_DIR/hook-utils.sh"
 
 WORK="$(mktemp -d)"
+export TMPDIR="$WORK"
 cleanup_work() { rm -rf "$WORK"; }
 trap cleanup_work EXIT
 

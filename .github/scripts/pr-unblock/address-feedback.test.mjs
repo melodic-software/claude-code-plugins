@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -462,7 +463,7 @@ for (const [label, overrides] of [
 }
 
 test("trustedHumansFrom reads only the people on the list", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -847,7 +848,7 @@ test("injection-shaped finding text is carried as data and changes no decision",
 });
 
 test("main select writes outputs and the thread file; escalation writes no thread file", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(

@@ -10,12 +10,12 @@
 // id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, structuredOutput } from "./write-verdict.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -270,7 +270,7 @@ test("long model text is cut, not refused", () => {
 });
 
 test("main writes the verdict file and the artifact name, and nothing on bad output", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const spec = path.join(dir, "spec.json");
   writeFileSync(spec, JSON.stringify([ISSUE]));
   const execution = (name, output) => {
@@ -324,7 +324,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
 });
 
 test("checkKeyLeg clears the subscription job only for a readable log with no denial", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-key-leg-"));
+  const dir = tempDir("pr-verify-key-leg-");
   const file = (name, text) => {
     const target = path.join(dir, name);
     writeFileSync(target, text);
