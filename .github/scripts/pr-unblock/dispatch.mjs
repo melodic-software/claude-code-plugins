@@ -292,10 +292,17 @@ export function createGitHubApi({
   fetch = globalThis.fetch,
 }) {
   const [owner, name] = repository.split("/");
+  // Connection: close ends each socket after its answer, so no request goes
+  // out on a pooled one that sat idle through dispatchConflicting's waits and
+  // that GitHub has since dropped. A read that still fails on the network is
+  // sent again (budgetedFetch); a dispatch is not, since it may have started a
+  // run. A request's own Connection: close does not keep it off a pooled
+  // socket, so every request sends it, as enable-auto-merge.mjs does.
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
+    Connection: "close",
   };
 
   async function request(url, method = "GET", body) {
@@ -400,6 +407,14 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
+    // One check run's annotations: whether a cancelled job passed its time
+    // limit (infra-failure.mjs timeLimitNoted).
+    async listAnnotations(checkRunId) {
+      if (!Number.isSafeInteger(checkRunId) || checkRunId < 1) {
+        throw new Error("not a check run id");
+      }
+      return request(`${apiUrl}/repos/${owner}/${name}/check-runs/${checkRunId}/annotations?per_page=100`);
+    },
     // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
     // workflow at path (pr-require-checks unless named) on the head that
     // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
@@ -409,8 +424,10 @@ export function createGitHubApi({
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      // A fork PR at the same head SHA lists its runs here too; a newer one
+      // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
-        .filter((run) => run.path === path)
+        .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
       const tested = await testedRun(runs, async (run) => {
         const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);

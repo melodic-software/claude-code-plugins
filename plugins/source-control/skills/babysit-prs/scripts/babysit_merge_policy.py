@@ -29,6 +29,7 @@ import ntpath
 import os
 import posixpath
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -576,10 +577,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
-    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
-    # must have stood unchanged at the head before the gate adds the
-    # human-gated label; 0 is no minimum. Absent, or anything but a whole
-    # number, is `RISK_ESCALATION_MINUTES`.
+    # `merge.risk-escalation-minutes`: how long a reasons comment must have
+    # stood unchanged at the head before the gate adds the human-gated label
+    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # no minimum. Absent, or anything but a whole number, is
+    # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
     # one pull request at which it holds for a human whatever a later pass
@@ -4011,6 +4013,18 @@ def _changed_files(
     return tuple(files), complete
 
 
+# The most files GitHub's pull request files listing returns
+# (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
+FILES_API_CAP = 3000
+
+
+def files_capped(pr: Mapping[str, Any]) -> bool:
+    """Whether the REST pull request record changes more files than the
+    listing returns (`FILES_API_CAP`), so no read ever lists them all."""
+    count = pr.get("changed_files")
+    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+
+
 def changed_files(
     repo: str, pr: Mapping[str, Any]
 ) -> tuple[tuple[ChangedFile, ...], bool]:
@@ -4499,7 +4513,9 @@ def shared_refusal(
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an
-    answer when the demotion reads the same). The binding comes before the
+    answer only when a fresh demotion read equals the shared one in every
+    field: the records, the newest record's creation and the newest clear
+    move the floor and the evidence window too). The binding comes before the
     age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
     does not replace the run's answer. The floor is compared under the
     shared answer's demotion, which may be out of date; that changes only the
@@ -5084,11 +5100,125 @@ def _recompute_shared(
     )
 
 
+# The check's code: what decides a post-merge report, so a report kept from
+# another commit's code stands only while these read the same.
+CHECK_CODE_PATHS = (
+    "plugins/source-control/skills/babysit-prs/scripts",
+    "docs/conventions/pr-pipeline.yaml",
+)
+CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
+
+
+def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
+    """Whether the check's code (`CHECK_CODE_PATHS`) at `root`'s HEAD is the
+    code at `code_sha`, the commit a kept post-merge report's check ran. A
+    sha that is not 40 hex digits, a commit missing from the clone, a path
+    missing at HEAD (a diff of a path at neither commit is empty) or any git
+    failure is not unchanged."""
+    if not SHA_RE.fullmatch(code_sha):
+        return False
+    try:
+        for path in CHECK_CODE_PATHS:
+            if subprocess.run(
+                ["git", "-C", str(root), "cat-file", "-e", f"HEAD:{path}"],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            ).returncode:
+                return False
+        done = subprocess.run(
+            ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
+            + list(CHECK_CODE_PATHS),
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
+def settle_shared(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    default: str,
+    base_sha: str,
+    identity: str,
+    code_unchanged: bool,
+    now: datetime | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
+    keep: bool = True,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+) -> tuple[SharedPostMerge | None, str | None]:
+    """The answer to use for the run's post-merge check in place of
+    `shared`, or None and why not (`post-merge answer <refusal>`): the gate's
+    own reuse rule (`shared_refusal`) as a candidate at the default branch
+    head `base_sha` with the gate's self logins (none). With `keep`, two
+    refusals keep `shared`: `unverified-stale` when nothing it was read from
+    moved (`_still_current`, with `runs_unchanged`), and `demotion-changed`
+    when `read_demotion` reads the shared demotion again. Any other refusal
+    is read again with `post_merge` (`_recompute_shared`), or with none
+    refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
+    from other check code: `code-changed`, never reused or kept. One rule for
+    the lane room and the merge job's reuse of post-merge-dispatch's report."""
+    unusable = (
+        shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=identity,
+            self_logins=frozenset(),
+            lane=True,
+            authority=PR_MERGE,
+            now=now,
+        )
+        if code_unchanged
+        else "code-changed"
+    )
+    if not unusable:
+        return shared, None
+    # An unverified-stale answer is kept when nothing it was read from moved,
+    # a demotion-changed one when the demotion reads the same (an issue the
+    # lane opened that triage edited, most runs).
+    try:
+        if not keep:
+            current = False
+        elif unusable == "demotion-changed":
+            current = shared.demotion == read_demotion(
+                repo,
+                agent_identity=identity,
+                self_logins=frozenset(),
+                permission=permission_reader(repo),
+            )
+        else:
+            current = (
+                unusable == "unverified-stale"
+                and runs_unchanged is not None
+                and _still_current(repo, default, identity, shared, runs_unchanged)
+            )
+    except (RuntimeError, ValueError, OSError):
+        current = False
+    if current:
+        return shared, None
+    if post_merge is None:
+        return None, f"post-merge answer {unusable}"
+    try:
+        fresh = _recompute_shared(repo, default, identity, frozenset(), post_merge, now)
+    except (RuntimeError, ValueError, OSError) as exc:
+        return None, f"post-merge answer {unusable}: {exc}"
+    if fresh is None:
+        return None, f"post-merge answer {unusable}: unreadable"
+    return fresh, None
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
+    code_unchanged: bool,
     now: datetime | None = None,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
@@ -5097,8 +5227,9 @@ def lane_room(
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
-    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`,
+    settled by `settle_shared`, with `code_unchanged` whether its check ran
+    this checkout's code (`check_code_unchanged`). `post_merge` is `assess`'s: an answer the gate would not reuse, for any
     `shared_refusal`, is read again as the gate reads it
     (`_recompute_shared`, with the room's self logins, none), and a readable
     one stands in for `shared`. Two refusals are first kept: one refused only
@@ -5131,55 +5262,22 @@ def lane_room(
     identity = config.agent_identity
     if not identity:
         return LaneRoom(unreadable="no agent identity")
-    # The gate's own reuse rule, as a candidate at the default branch head
-    # with the gate's self logins (none): the same identity and lane, its
-    # age, no demotion record filed or changed since, and every lane merge
-    # the check would judge now counted (`new-merge:#<n>` otherwise).
-    unusable = shared_refusal(
+    settled, unusable = settle_shared(
         repo,
         shared,
-        branch=default,
+        default=default,
         base_sha=config.base_sha,
         identity=identity,
-        self_logins=frozenset(),
-        lane=True,
-        authority=PR_MERGE,
+        code_unchanged=code_unchanged,
         now=now,
+        runs_unchanged=runs_unchanged,
+        # With no check to read it again, the room keeps nothing either.
+        keep=post_merge is not None,
+        post_merge=post_merge,
     )
-    if unusable and post_merge is not None:
-        # As the gate, any refusal reads afresh; an unverified-stale answer
-        # is first kept when nothing it was read from moved, a
-        # demotion-changed one when the demotion reads the same (an issue
-        # the lane opened that triage edited, most runs).
-        try:
-            if unusable == "demotion-changed":
-                current = shared.demotion == read_demotion(
-                    repo,
-                    agent_identity=identity,
-                    self_logins=frozenset(),
-                    permission=permission_reader(repo),
-                )
-            else:
-                current = (
-                    unusable == "unverified-stale"
-                    and runs_unchanged is not None
-                    and _still_current(repo, default, identity, shared, runs_unchanged)
-                )
-        except (RuntimeError, ValueError, OSError):
-            current = False
-        if not current:
-            try:
-                fresh = _recompute_shared(
-                    repo, default, identity, frozenset(), post_merge, now
-                )
-            except (RuntimeError, ValueError, OSError) as exc:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
-            if fresh is None:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
-            shared = fresh
-        unusable = None
-    if unusable:
-        return LaneRoom(unreadable=f"post-merge answer {unusable}")
+    if settled is None:
+        return LaneRoom(unreadable=unusable)
+    shared = settled
     if shared.gate.refusal:
         return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)

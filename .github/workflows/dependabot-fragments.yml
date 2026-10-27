@@ -13,12 +13,10 @@ name: dependabot-fragments
 # GITHUB_TOKEN opens or updates starts no `pull_request` runs, and this one needs
 # `ci-status`. The commit goes through createCommitOnBranch, which GitHub signs,
 # so main's required_signatures rule accepts it (the pattern of
-# release-publish-plugins.yml). A fragment is named after its merge commit, so a rerun,
-# or the hourly schedule after a missed push, writes nothing twice.
+# release-publish-plugins.yml). It runs hourly, not on push: few merges are
+# Dependabot's, and a fragment up to an hour late still rides a release. A
+# fragment is named after its merge commit, so a rerun writes nothing twice.
 on:
-  push:
-    branches: [main]
-    paths: ['plugins/**']
   schedule:
     - cron: '23 * * * *'
   workflow_dispatch:

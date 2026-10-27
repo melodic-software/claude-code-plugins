@@ -59,6 +59,8 @@ jobs:
       issues: read # list the issue's blocked_by dependencies
     outputs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The gate cannot match an unset lanes App id, so the App's own
       # labels would read as a stranger's and its exception would never hold.
@@ -117,6 +119,14 @@ jobs:
         if: steps.blockers.outputs.untrusted == 'true'
         run: echo "untrusted provenance holds this issue; a person decides it"
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
   # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
   # expressions have no arithmetic operator, so a job computes it. A burst of
@@ -135,6 +145,9 @@ jobs:
       pull-requests: read # count the lanes App's open pull requests
       issues: read # read the issue's Size, Complexity and Uncertainty fields
     env:
+      API_BUDGET_TOKEN: github-token
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
       # At most this many resolve-issue runs at once. The one place to change it.
       SLOTS: 3
       ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -188,6 +201,14 @@ jobs:
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
           echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The lanes App's agent-ready label (work-unblock's) starts a run like a
   # listed human's; the App's other labels never start one. No step of this
@@ -459,6 +480,8 @@ jobs:
     permissions:
       contents: read
       statuses: write
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -492,6 +515,14 @@ jobs:
           RESOLVE_RESULT: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.result || needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.result || needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model's outcome file is its own word, so the runner runs the
   # resolve-issue activity's `checks` itself, on a fresh runner no model ran

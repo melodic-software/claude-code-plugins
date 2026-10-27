@@ -4,9 +4,10 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
+import { TARGETS } from "../apply-patch/apply-patch.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -373,6 +374,66 @@ describe("decide", () => {
       assert.equal(readSchedule(fileURLToPath(new URL("./no-such-schedule.json", import.meta.url))), null);
       assert.equal(readSchedule(fileURLToPath(new URL("./admit.mjs", import.meta.url))), null);
       assert.ok(Array.isArray(readSchedule().items));
+    });
+  });
+
+  // apply-patch refuses these paths on the issue row (patch-rules.json), so a
+  // run for a criterion that names one ends at patch-protected-path.
+  describe("a criterion naming a path the issue lane cannot push", () => {
+    const withCriteria = (...lines) => issueOf({ body: ["## Problem", "", "Basis: `.github/workflows/a.yml:3`", "", "## Done when", "", ...lines].join("\n") });
+    const pushReason = (path) => `a criterion names ${path}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
+
+    const refused = [
+      // #9398's criterion.
+      ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
+      ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
+      ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+    ];
+    for (const [line, path] of refused) {
+      test(`refuses, with no hold, on ${line}`, () => {
+        const issue = withCriteria(line);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
+    test("refuses on a path a criterion wraps onto an indented continuation line", () => {
+      const issue = withCriteria("- [ ] Update the permissions in", "  .github/workflows/a.yml for the new job.");
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+    });
+
+    test("admits a criterion whose nested bullet cites a protected path as evidence", () => {
+      for (const bullet of ["  - Basis: .github/workflows/pr-require-checks.yml:40", "  * see .github/CODEOWNERS", "  1. .gitmodules lists it"]) {
+        const issue = withCriteria("- [ ] The job times out at 3 minutes.", bullet);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] }, bullet);
+      }
+    });
+
+    const admitted = [
+      // #9137's shape.
+      "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
+      "- [ ] `plugins/x/cases/y/settings.json` sets the model.",
+      "- [ ] settings.json keeps its key.",
+      "- [ ] pr-require-checks.yml is unchanged.",
+      "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
+    ];
+    for (const line of admitted) {
+      test(`admits ${line}`, () => {
+        const issue = withCriteria(line);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+      });
+    }
+
+    test("reads the row apply-patch pushes an issue lane patch under", () => {
+      assert.equal(PATCH_ROW, TARGETS.issue.row(""));
+    });
+
+    test("turns an otherwise admissible issue into a refusal that parks at status: confirmed", () => {
+      const issue = withCriteria("- [ ] Line 3 says nineteen.", "- [ ] `.gitmodules` drops the old submodule.");
+      const result = decide(facts({ issue }));
+      assert.equal(decide(facts({ issue: withCriteria("- [ ] Line 3 says nineteen.") })).verdict, "admit");
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, undefined);
+      assert.deepEqual(result.reasons, [pushReason(".gitmodules")]);
     });
   });
 
@@ -1121,9 +1182,27 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ subIssues: [subIssues[1]] })), { verdict: "admit", reasons: [] });
   });
 
+  test("a parent with an open sub-issue waits on it instead of refusing for a mechanical reason or a pending split", () => {
+    const subIssues = [{ number: 8, state: "open" }];
+    const noCriteria = { ...humanSpec(issueOf({ body: "Make the README better." })) };
+    assert.deepEqual(decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: noCriteria, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+    assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+  });
+
+  test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {
+    const result = decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: humanSpec(issueOf({ body: "Make the README better." })), pulls: [41], subIssues: [{ number: 8, state: "open" }] }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["open pull request #41 is for it", "sub-issue #8 is open"], pulls: [41] });
+  });
+
+  test("a parent with an open sub-issue still refuses for a person when a hold applies", () => {
+    const result = decide(facts({ verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" }, subIssues: [{ number: 8, state: "open" }] }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, true);
+  });
+
   // fakeGitHub answers one issue's text; these reads add the parent's text,
   // sub-issue lists and other issues by number.
-  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {} }) => {
+  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {}, events = {} }) => {
     const github = async (method, path, body) => {
       if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
         fake.calls.push({ method, path, body });
@@ -1134,6 +1213,11 @@ describe("size split sub-issues", () => {
       if (method === "GET" && sub) {
         fake.calls.push({ method, path, body });
         return subIssues[sub[1]] ?? [];
+      }
+      const linked = /^\/repos\/o\/r\/issues\/(\d+)\/events/.exec(path);
+      if (method === "GET" && linked && linked[1] !== "7") {
+        fake.calls.push({ method, path, body });
+        return events[linked[1]] ?? [];
       }
       const read = /^\/repos\/o\/r\/issues\/(\d+)(\/comments)?(\?|$)/.exec(path);
       if (method === "GET" && read && read[1] !== "7") {
@@ -1164,15 +1248,20 @@ describe("size split sub-issues", () => {
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
     const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
-    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN } });
-    for (const [comments, expected] of [
+    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
+    // A split made by hand: a listed human linked each sub-issue.
+    const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+    for (const [comments, expected, links = []] of [
       [[record], "admitted"],
       [[], "waiting"],
+      [[], "admitted", [link(31), link(32)]],
+      [[], "waiting", [link(31), link(32, 4242)]],
     ]) {
       const fake = withIssues(fakeGitHub({ blockers: [blocker] }), {
         issues: { [PARENT]: blocker, 31: closedChild(31), 32: closedChild(32) },
         comments: { [PARENT]: comments },
         subIssues: { [PARENT]: [closedChild(31), closedChild(32)] },
+        events: { [PARENT]: links },
       });
       assert.equal((await go(fake)).outcome, expected);
     }

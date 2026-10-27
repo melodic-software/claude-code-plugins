@@ -13,7 +13,12 @@ import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 import {
+  breakerComment,
+  budgetLatch,
   checkCloser,
   escalationComment,
   main as runMain,
@@ -2086,6 +2091,50 @@ test("a run the broker refused at broker-check for the kill switch is a breaker 
   assert.deepEqual(writes(early.calls), []);
 });
 
+// The breaker record names the refused run and when it ended, so a reader
+// hours later sees a re-fire of that refusal, not a fresh one.
+const postedBody = (calls) => {
+  const posted = writes(calls).find((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `));
+  assert.ok(posted, writes(calls).join("\n"));
+  return JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+};
+const REFUSED_LINK = `[run 5030](https://github.com/${REPO}/actions/runs/5030)`;
+
+test("the breaker record links the refused run and its end time, and says it re-fires that earlier refusal", () => {
+  const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z") });
+  assert.ok(body.startsWith(`${BREAKER_MARKER}\n`), body);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("2026-10-16T10:05:00Z"), body);
+  assert.ok(body.includes("not a new refusal"), body);
+});
+
+test("a breaker trip's record names the run the broker refused and when it ended", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  const body = postedBody(calls);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("ended at 2026-10-16T10:05:00Z"), body);
+  // With a later run the WIP cap skipped for the same label, the record still
+  // names the refused run, not the newest.
+  const fake = world({
+    openReady: [ready(30)],
+    comments: { 30: [note()] },
+    events: { 30: [added(LABELED_AT, OWNER)] },
+    runs: [
+      { ...laneRun({ conclusion: "failure" }), updated_at: "2026-10-16T10:05:00Z" },
+      { ...laneRun({ at: "2026-10-16T10:00:04Z", conclusion: "success" }), id: 5031, updated_at: "2026-10-16T10:06:00Z" },
+    ],
+    jobs: { 5030: BROKER_REFUSED, 5031: WIP_CAPPED },
+    logs: CHECK_KILLED,
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github, now: Date.parse("2026-10-16T11:10:00Z") }), 0);
+  const both = postedBody(fake.calls);
+  assert.ok(both.includes(REFUSED_LINK), both);
+  assert.ok(both.includes("ended at 2026-10-16T10:05:00Z"), both);
+});
+
 test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
   // A run that minted its token and failed later, after one breaker re-fire on these workflow files.
   const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
@@ -3495,4 +3544,100 @@ test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as don
   });
   assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A split made by hand (#5901): no split record, but a listed human or the
+// App linked every sub-issue (the newest sub_issue_added naming it), the
+// parent is not `recurring`, and its body holds no open task-list item (the
+// admission rules' `- [ ] `), so its work is its sub-issues'.
+const linked = (number, actor = OWNER, repo = REPO) => ({
+  event: "sub_issue_added",
+  actor,
+  created_at: "2026-10-15T00:00:00Z",
+  sub_issue: { number, repository: { full_name: repo } },
+});
+function handSplitWorld({ parent = issue(30), links = [linked(31), linked(32)], failOn } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  const second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) });
+  return world({
+    closedList: [first],
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
+    subIssues: { 30: [first, second] },
+    events: { 30: links },
+    failOn,
+  });
+}
+
+test("a split made by hand closes once every sub-issue a listed human or the App linked is closed", async () => {
+  for (const links of [
+    [linked(31), linked(32)],
+    [linked(31, LANES_BOT), linked(32)],
+  ]) {
+    const { github, calls } = handSplitWorld({ links });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writtenPaths(calls), closeParentWrites, JSON.stringify(links));
+  }
+});
+
+test("a split made by hand stays open on an untrusted or missing link, an open task item, recurring, or a failed read", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const [setup, code] of [
+    [{ links: [linked(31), linked(32, outsider)] }, 0],
+    // The newest link of 32 is the outsider's re-add.
+    [{ links: [linked(31), linked(32), { ...linked(32, outsider), created_at: "2026-10-15T01:00:00Z" }] }, 0],
+    [{ links: [linked(31)] }, 0],
+    [{ links: [linked(31), linked(32, OWNER, "melodic-software/other")] }, 0],
+    [{ parent: { ...issue(30), body: "Split by hand.\n\n- [ ] One item left here." } }, 0],
+    [{ parent: issue(30, { labels: ["recurring"] }) }, 0],
+    [{ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/${REPO}/issues/30/events`) }, 1],
+  ]) {
+    const { github, calls } = handSplitWorld(setup);
+    assert.equal(await sweep({ github }), code, JSON.stringify(setup));
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split made by hand counts as done for what it blocks", async () => {
+  for (const [links, expected] of [
+    [[linked(31), linked(32)], [labeled(20)]],
+    [[linked(31)], []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: [] },
+      events: { 30: links },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});
+
+test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  process.env.RUNNER_TEMP = dir;
+  try {
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-used": "1", "x-ratelimit-reset": "1792378942", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    const latch = createRateLimitLatch();
+    const actions = budgetLatch("github-token", latch);
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
+    await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
+    const line = "200 5000 4999 1 1792378942 core\n";
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+  } finally {
+    for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });

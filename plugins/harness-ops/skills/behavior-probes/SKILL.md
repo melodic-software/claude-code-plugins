@@ -37,7 +37,7 @@ refuse a plugin with a top-level `bin/`. **Pointer**: when deciding whether this
 | `live` | `<probe> run --live [--case <id>]... [--area <area>]... [--retries 1]` | real model runs, capped |
 | `recheck` | `<probe> recheck --changelog <file> --range <A..B>` | none |
 | `table` | `<probe> table <results.jsonl>` | none |
-| `rejudge` | `<probe> rejudge --out <dir of a live run>` | none: re-reads the saved streams after an `expect.json` fix |
+| `rejudge` | `<probe> rejudge --out <dir of a live run>` | none: re-reads the saved streams after an `expect.json` fix; a verdict-only case keeps its row |
 
 Run `live` only when the user asks for a live run in this turn. Before it, state how many cases it
 selects and the ceilings in force (`--max-runs`, `--max-cost-usd`, each case's `max_budget_usd`); a
@@ -46,10 +46,27 @@ ceiling leaves. For what a run costs, point at
 [Manage costs](https://code.claude.com/docs/en/costs#track-your-costs).
 
 Each live case runs in its own temp directory with `--setting-sources project,local`, the case's
-`settings.json` as `--settings`, its permission mode, a driver system prompt that keeps the model
-attempting the call, and a child environment stripped of this session's variables. Results go to a
-temp directory the run prints; the raw stream of each run lands under its `raw/` and never enters the
-repository.
+`settings.json` as `--settings`, its permission mode, its tool lists as `--allowedTools` and
+`--disallowedTools` when it sets them, a driver system prompt that keeps the model attempting the
+call, and a child environment stripped of this session's variables. Results go to a temp directory
+the run prints; the raw stream of each run lands under its `raw/` and never enters the repository. A
+verdict-only case saves no stream, and its row carries the verdict and the Claude Code version but no
+tool output.
+
+The `lane-permissions` area runs the CI write lane's tool lists under `dontAsk`: five cases check that
+its Read deny rules keep Grep, Glob and Read out of `/proc/*/environ` and the checkout's `.git`, and
+two controls Grep and Read a file inside the checkout. Its cases are verdict-only, because a failed
+deny can return process environment or git config. The lists live once, in
+`cases/lib/lane-write-tools.json`, copied from this marketplace repository's `collect-base-activity`
+action; when the lane's lists change, change that file.
+
+The `autocompact` area checks which auto-compact window `/autocompact`, run with no argument, reports
+when a project settings file, the `--autocompact` flag and the environment variable each set one. Its
+cases judge the printed line, not a tool call. A base case sets only the project file's top-level
+window, and each other case adds one element to a case it names as its control. No case passes
+`/autocompact` an argument, which would save to the operator's user settings. Whether `claude -p`
+prints the window without a model turn is unconfirmed until the area's first live run; a model
+answer reads as `inconclusive`.
 
 ## Reading a result
 
@@ -57,7 +74,7 @@ repository.
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, the CLI did not start, or a negative case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, the CLI did not start, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
@@ -67,8 +84,8 @@ Exit codes: 0 all passed, 1 a fail or error, 3 inconclusive or skipped with no f
 
 A case is `cases/<area>/<name>/` with `settings.json` (`{}` when the case needs none), `prompt.md`,
 `expect.json` and an optional `scaffold.sh`. `${PROBE_WORKDIR}` and `${PROBE_CASE_DIR}` are
-substituted in `settings.json` and `prompt.md`; a scaffold gets them, plus `PROBE_LIB` (`cases/lib/`),
-as environment variables and runs in the temp directory.
+substituted in `settings.json` and `prompt.md`; a scaffold gets them, plus `PROBE_LIB` (`cases/lib/`)
+and `PROBE_MODEL` (the model the case runs), as environment variables and runs in the temp directory.
 
 `expect.json` fields: `claim`; `tags` (terms a changelog item would use for the surface, read by
 `recheck`); `target` (`tool`, `input_match` regex over the call's JSON input, `example` input for the
@@ -76,9 +93,19 @@ dry run, optional `in_subagent`, `select` of `first|any|all`, `count`); `outcome
 `ran` or `refused`: `allow` accepts `ran` or `refused`, `refused` is an error result with no
 permission denial); optional `reason_type` (the denial's `decision_reason_type`) and `match` (a
 case-insensitive substring of the denial reason or tool result); optional `permission_mode`, `cwd`,
-`env`, `max_turns`, `max_budget_usd`, `model`, `platforms`, `requires`. A `deny` or `refused` case
-names its positive control in `control`, a case that differs only in the element that causes the
+`env`, `max_turns`, `max_budget_usd`, `model`, `platforms`, `requires`; optional `allowed_tools` and
+`disallowed_tools` (lists of permission rules, no rule holding a comma, `${PROBE_WORKDIR}`
+substituted) or `tool_rules` (a JSON file in `cases/lib/` holding both lists, for cases that share
+them; a list the case sets itself wins); optional `verdict_only` (`true` on a case whose failure would
+return a secret: the run saves no stream and no tool output); optional `cli_args` (flag-value
+pairs, each flag and value of a shape the runner's `CLI_FLAGS` allows). Outcome `prints` judges what
+a slash command in `prompt.md` prints instead of a tool call: its `target` holds `text_match`, a
+regex over the first non-blank printed line, `example`, the text the dry run prints, and optional
+`printed_match`, a regex a line must match to be judged at all (else `inconclusive`). A `deny` or `refused`
+case names its positive control in `control`, a case that differs only in the element that causes the
 denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md).
+A `prints` case may name a `prints` control whose `example` its `text_match` rejects; either kind
+keeps a `pass` only while its control passes.
 Run `validate` and `dry-run`, then a live run of the new case and its control, and add its record.
 
 ## Next

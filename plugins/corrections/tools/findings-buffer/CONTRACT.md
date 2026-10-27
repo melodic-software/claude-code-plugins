@@ -1,8 +1,9 @@
 # Findings buffer contract
 
 A findings buffer is an append-only pool of observations that unattended scanners write and nobody
-fixes on sight. A person reads the grouped view of the pool later. The buffer stores rows and
-returns them; it does not interpret them.
+fixes on sight. A person reads the grouped view of the pool later, through the reader
+`scripts/group-findings.mjs` or `/corrections:codify group`. The buffer stores rows and returns
+them; it does not interpret them.
 
 This contract follows the shape of the tracker seam
 (`plugins/work-items/tools/work-item-tracker/CONTRACT.md`): two verbs per adapter, a

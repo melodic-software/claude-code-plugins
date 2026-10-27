@@ -30,12 +30,14 @@ const LISTING = `/repos/${REPO}/actions/workflows/pr-merge.yml/runs?status=pendi
 const dir = mkdtempSync(join(tmpdir(), "superseded-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-// `actor` started the run and `rerunner` (its triggering_actor) last re-ran it.
-const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main" } = {}) => ({
+// `actor` started the run and `rerunner` (its triggering_actor) started
+// attempt `attempt`.
+const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main", attempt = 1 } = {}) => ({
   id,
   event,
   status: "pending",
   head_branch: branch,
+  run_attempt: attempt,
   actor,
   triggering_actor: rerunner,
 });
@@ -46,7 +48,7 @@ const waiting = (name = "merge", status = "pending") => [{ name, status }];
 let n = 0;
 // `jobs` maps a run id to its jobs read; a run missing from it has `job`
 // waiting. `jobsFail` is thrown by every jobs read.
-async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail } = {}) {
+async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail, env: extra = {} } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
   const calls = [];
@@ -75,6 +77,7 @@ async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}
         ...(job === undefined ? {} : { SUPERSEDED_JOB: job }),
         GITHUB_OUTPUT: output,
         TRUSTED_ACTORS_PATH: join(HERE, "fixtures/trusted-actors.json"),
+        ...extra,
       },
       actions,
     });
@@ -267,4 +270,25 @@ test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a cond
     const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
     assert.equal(run.superseded, false);
   }
+});
+
+// A re-run keeps its event, and the who step lets a scheduled run's later
+// attempt on only when a listed human started that attempt; a scheduled run's
+// actor is whoever last changed the schedule, often a bot.
+test("a scheduled run counts on its first attempt, or on a later one a listed human started", async () => {
+  const first = await check({ runs: [pending(600, "schedule", QUEUE_BOT)] });
+  assert.equal(first.superseded, true);
+  const listed = await check({ runs: [pending(600, "schedule", QUEUE_BOT, { rerunner: OWNER, attempt: 2 })] });
+  assert.equal(listed.superseded, true);
+  const unlisted = await check({ runs: [pending(600, "schedule", QUEUE_BOT, { rerunner: LANES_BOT, attempt: 2 })] });
+  assert.equal(unlisted.superseded, false);
+  assert.deepEqual(unlisted.calls, [`GET ${LISTING}`]);
+  const unknown = await check({ runs: [pending(600, "schedule", OWNER, { rerunner: { login: OWNER.login }, attempt: 2 })] });
+  assert.equal(unknown.superseded, false);
+});
+
+test("a repository name GitHub cannot hold reads nothing and runs the job", async () => {
+  const run = await check({ runs: [pending(600, "schedule")], env: { GITHUB_REPOSITORY: "o/.." } });
+  assert.equal(run.superseded, false);
+  assert.deepEqual(run.calls, []);
 });

@@ -85,9 +85,9 @@ Contract enforced here (encoded as code, not convention):
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
   queue, an eligible MED or HIGH pull request gets one upserted
-  `<!-- babysit-merge-risk -->` comment (and the human-gated role label once
-  an earlier run's identical comment has stood for
-  `merge.risk-escalation-minutes`), a verifier refusal that
+  `<!-- babysit-merge-risk -->` comment (and, for a reason only a person
+  clears, the human-gated role label once an earlier run's identical comment
+  has stood for `merge.risk-escalation-minutes`), a verifier refusal that
   needs a human gets the tracker's human-gated role label and one upserted
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
@@ -404,6 +404,20 @@ def rerun_rate_limited_review(
     )
     if not review_evidence.rate_limited(lane, {"annotations": annotations}):
         report["reason"] = "failure class is not rate-limit; never re-run"
+        return report
+    # The binding takes attempt 2 only after an attempt 1 that concluded
+    # failure (review_evidence.rerun_binds), so the re-run must too.
+    try:
+        conclusion = json_object(
+            gh_json(["api", f"repos/{repo}/actions/runs/{run_id}/attempts/1"])
+        ).get("conclusion")
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        report["reason"] = f"could not read the attempt: {type(exc).__name__}: {exc}"
+        return report
+    if conclusion != "failure":
+        report["reason"] = (
+            f"attempt 1 concluded {conclusion!r}, so a re-run would not bind"
+        )
         return report
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/actions/runs/{run_id}/rerun"]
@@ -3103,15 +3117,39 @@ def _lane_evidence(
     return lanes, comments
 
 
+class HeadFileUnproven(RuntimeError):
+    """A verdict about one path (`_head_file`): it 404s at the head and the
+    comparison does not prove it removed. Another path may still read."""
+
+
 def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
     """`bind()`'s `head_file`: a file's text at `head`, or None only when the
     comparison from the thread's commit lists it removed. A rename, a capped
-    file list or any other failure raises, so the thread keeps its human test."""
+    file list or any other failure raises, so the thread keeps its human test.
+    After the first failed read (a refused or rate-limited contents or
+    comparison read) every later call raises without a read: it is never sent
+    again, however many threads or candidate heads
+    (review_evidence._carried_blocking) ask. `HeadFileUnproven` is a verdict
+    about its own path and latches nothing."""
     cache: dict[tuple[str, str], str | None] = {}
+    failed: list[str] = []
 
     def read(path: str, original: str) -> str | None:
         if (path, original) in cache:
             return cache[(path, original)]
+        if failed:
+            raise RuntimeError(f"head-file-not-read-after:{failed[0]}")
+        try:
+            text = _read_head_file(path, original)
+        except HeadFileUnproven:
+            raise
+        except Exception as exc:
+            failed.append(str(exc))
+            raise
+        cache[(path, original)] = text
+        return text
+
+    def _read_head_file(path: str, original: str) -> str | None:
         proc = gh_capture(
             [
                 "api",
@@ -3139,9 +3177,8 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
                     for item in files
                 )
             ):
-                raise RuntimeError(f"head-file-unproven:{path}")
+                raise HeadFileUnproven(f"head-file-unproven:{path}")
             text = None
-        cache[(path, original)] = text
         return text
 
     return read
@@ -3255,6 +3292,7 @@ def score_unattended(
     risk_input = babysit_risk.RiskInput(
         files=files,
         files_complete=complete,
+        files_capped=merge_policy.files_capped(pr),
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         lanes=lanes,
@@ -3403,6 +3441,9 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
         "A floor path holds it: a human merges it in person, never an agent or a lane."
         if _floor_held(risk)
         else "This pull request waits for one."
+        if babysit_risk.person_reasons(babysit_risk.holding(risk))
+        else "The lanes clear its holding reasons (a size reason holds nothing); "
+        "pr-merge judges it again each run."
     )
     lines = [
         RISK_MARKER,
@@ -3901,9 +3942,11 @@ def unattended_writes(
     this run refused it for itself (`own_refusal`) or its score holds it
     (`risk:<score>`). Then the reasons comment for an eligible
     pull request its score holds, on a path not stopped, escalated (`escalate`)
-    when the comment read before this run already says the same and has for
-    `merge.risk-escalation-minutes` (`_stood_unchanged`), the comment first
-    rewritten to end with `RISK_ESCALATION_LINE` (once); once the score no longer holds it, a refusal
+    when a holding reason is one only a person clears
+    (`babysit_risk.person_reasons`) and the comment read before this run
+    already says the same and has for `merge.risk-escalation-minutes`
+    (`_stood_unchanged`), the comment first rewritten to end with
+    `RISK_ESCALATION_LINE` (once); once the score no longer holds it, a refusal
     comment naming the head becomes `risk_cleared_body`; and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
@@ -4021,13 +4064,21 @@ def unattended_writes(
             text = _normalized((prior or {}).get("body"))
             # An escalated comment at this head stays escalated when its
             # reasons change, so the label never stands beside a comment that
-            # no longer says why.
-            if prior is not None and (
-                text == _normalized(escalated)
-                or (
-                    text.endswith(RISK_ESCALATION_LINE) and f" at head `{head}`" in text
+            # no longer says why. Only a reason a person clears escalates
+            # (babysit_risk.person_reasons, owner rule 2026-10-26); the lanes
+            # clear the rest, so their comment stays the record.
+            person = babysit_risk.person_reasons(babysit_risk.holding(risk))
+            if (
+                person
+                and prior is not None
+                and (
+                    text == _normalized(escalated)
+                    or (
+                        text.endswith(RISK_ESCALATION_LINE)
+                        and f" at head `{head}`" in text
+                    )
+                    or _stood_unchanged(prior, body, minutes)
                 )
-                or _stood_unchanged(prior, body, minutes)
             ):
                 escalation = escalate(
                     repo, number, identity, escalated, RISK_MARKER,

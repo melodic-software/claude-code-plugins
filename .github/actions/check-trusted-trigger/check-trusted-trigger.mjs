@@ -110,8 +110,9 @@ const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or
-// `{`, holds no `mutation` or `subscription` word anywhere, and whose request
-// names no operationName. A document can hold several operations and the
+// `{` past any `#` comments, holds no `mutation` or `subscription` word
+// anywhere in the raw text (so a `#` inside a string hides none), and whose
+// request names no operationName. A document can hold several operations and the
 // request pick one by name, so anything less than all three may run a mutation.
 const graphqlQuery = (url, init) => {
   if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
@@ -123,7 +124,7 @@ const graphqlQuery = (url, init) => {
     return (
       typeof query === "string" &&
       request.operationName === undefined &&
-      /^\s*(query\b|\{)/.test(query) &&
+      /^(query\b|\{)/.test(query.replace(/#[^\n]*/g, "").trim()) &&
       !/\b(mutation|subscription)\b/.test(query)
     );
   } catch {
@@ -590,10 +591,10 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
   }
 }
 
-// The run at headSha ran the default branch's own code: no tag shares the
-// branch's name (a run on that tag would report the same head_branch; only a
-// 404 proves it absent), and headSha is the branch tip or behind it.
-async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+// The default branch's tip, read only while no tag shares the branch's name
+// (a run on that tag would report the same head_branch; only a 404 proves it
+// absent).
+export async function readDefaultBranchTip(github, repository, defaultBranch, reason) {
   let tagAbsent = false;
   try {
     await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
@@ -607,10 +608,22 @@ async function requireOnDefaultBranch(github, repository, defaultBranch, headSha
   if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
     throw new Stop(reason);
   }
-  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tip.object.sha}`, reason);
+  return tip.object.sha;
+}
+
+// headSha is the tip `tipSha` or behind it.
+export async function requireBehindTip(github, repository, headSha, tipSha, reason) {
+  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tipSha}`, reason);
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop(reason);
   }
+}
+
+// The run at headSha ran the default branch's own code: no tag shares the
+// branch's name, and headSha is the branch tip or behind it.
+async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+  const tip = await readDefaultBranchTip(github, repository, defaultBranch, reason);
+  await requireBehindTip(github, repository, headSha, tip, reason);
 }
 
 // What a record name says about this run: null when it does not list it,

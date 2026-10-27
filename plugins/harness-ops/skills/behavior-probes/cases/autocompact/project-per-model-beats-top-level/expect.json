@@ -1,0 +1,21 @@
+{
+  "claim": "In one project settings file, a modelSettings.<model>.autoCompactWindow of 400000 for the running model beats the same file's top-level autoCompactWindow of 250000: /autocompact with no argument reports 400k.",
+  "tags": [
+    "/autocompact",
+    "autoCompactWindow",
+    "modelSettings",
+    "auto-compact window",
+    "project settings"
+  ],
+  "permission_mode": "default",
+  "model": "claude-sonnet-5-5",
+  "max_turns": 1,
+  "max_budget_usd": 0.25,
+  "target": {
+    "printed_match": "\\d",
+    "text_match": "(?i)\\b400(?:k|,000|000)\\b",
+    "example": "Auto-compact window: 400k"
+  },
+  "outcome": "prints",
+  "control": "autocompact/project-top-level-window-applies"
+}

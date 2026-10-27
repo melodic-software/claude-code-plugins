@@ -3,6 +3,32 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.4] - 2026-10-26
+
+### Fixed
+
+- `block-unresolved-pr-merge` no longer refuses a command just because merge-shaped text and a backtick appear in the body of a quoted heredoc fed to a program that is not a shell, such as `python3 - <<'EOF'` or `git commit -F - <<'MSG'` (#8949). The backtick and line-continuation refusals now read the command with those bodies cut out, as the shared parser bounds them. A body is cut only when all of these hold:
+  - it ends at its own plain-word delimiter;
+  - it holds no backslash-newline and names no GraphQL merge mutation;
+  - no word of the command names a shell, `sudo`, `su`, `ssh` or `at`;
+  - the command word is not `eval`, `source`, `.` or a `.sh` script, and it can be read;
+  - no backtick, `$(`, `${`, `$[`, `((` or `[[` comes before it.
+
+  An unquoted heredoc body is never cut, because bash runs its backticks.
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted. `run-guards.sh` replays that array along with the rest of a shared parse. A here-doc delimiter word now ends at `(` or `)`, as it does in bash, so `(cat <<'E')` no longer hides the commands after its body.
+
+## [0.59.3] - 2026-10-26
+
+### Added
+
+- The git-hook installer's shared plan (`lib/git-hooks/install.mjs plan --scope shared`, plain hooks, `core.hooksPath` not yet `.githooks`) returns a `shared-entries` decision before `hooks-path`, listing what setting `core.hooksPath` would also run that this plugin did not install: `<event>.d/` markers other than its own, any `.githooks/*.pre-checks` hook, any other hook file there that is not the dispatcher, and every tracked file under `.githooks/local/` ([#7613](https://github.com/melodic-software/claude-code-plugins/issues/7613)). Setup shows the list and sets `core.hooksPath` only on the user's yes. With none present the plan is unchanged.
+
+## [0.59.2] - 2026-10-26
+
+### Fixed
+
+- `secret_pattern_detection_allowed_roots` now grants a Windows write whose path reaches an allowed root through a junction into the temp folder, as it does on Linux. Git Bash answers such a junction in the `/tmp` mount spelling, and the long drive spelling of that answer is now taken from the existing ancestor alone, before the components still to be created are joined. A path that resolves outside every root, or that cannot be resolved, is still scanned.
+
 ## [0.59.1] - 2026-10-25
 
 ### Fixed

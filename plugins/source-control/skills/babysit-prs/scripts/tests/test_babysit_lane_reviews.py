@@ -93,6 +93,15 @@ def refusal(
     evidence: object = None,
     config: policy.PipelineConfig = CONFIG,
 ) -> str | None:
+    held = held_by(files, evidence, config)
+    return None if held is None else held[0]
+
+
+def held_by(
+    files: tuple[ChangedFile, ...] = (DOC,),
+    evidence: object = None,
+    config: policy.PipelineConfig = CONFIG,
+) -> tuple[str, bool] | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
     with (
@@ -153,6 +162,24 @@ class LaneRiskRefusal(unittest.TestCase):
         )
         self.assertTrue(str(held).startswith("unreadable: "), held)
 
+    def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
+        # Owner rule 2026-10-26: unbound review evidence, the manifest review
+        # and a failed read go back to the lanes; a CRITICAL finding and a
+        # symlink or submodule (an unsafe path) stay a person's.
+        after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
+        unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
+        cases = {
+            "critical finding": (held_by(evidence=lanes(critical=1)), True),
+            "symlink": (held_by((DOC, SYMLINK)), True),
+            "unbound review": (held_by(evidence=lanes(bound=False)), False),
+            "manifest": (held_by((DOC, manifest(after)), config=FLOOR_ON), False),
+            "failed read": (held_by(evidence=unproven), False),
+        }
+        for name, (held, person) in cases.items():
+            with self.subTest(name):
+                self.assertIsNotNone(held)
+                self.assertIs(held[1], person, held)
+
 
 class EvidenceCommandReadsTheRisk(unittest.TestCase):
     def cli(
@@ -162,6 +189,7 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         *,
         head: str = HEAD,
         rung: str | None = "C2",
+        person: bool = False,
     ) -> dict[str, object]:
         out = io.StringIO()
         argv = ["evidence", "--lane-reviews", "--repo", REPO, "--base-sha", BASE]
@@ -175,7 +203,9 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
             mock.patch.object(
                 ve.Reader, "evidence", lambda self, n, h, pr=None: evidence
             ),
-            mock.patch.object(ve, "lane_risk_refusal", return_value=risk) as read,
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, person)
+            ) as read,
             contextlib.redirect_stdout(out),
         ):
             ve.main([*argv, "41", HEAD])
@@ -188,6 +218,21 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
             (report["refusal"], report["reviews"]), (None, "unsafe-path: docs/link")
         )
         self.assertIsNone(self.cli(ve.Evidence(None, HEAD, (), 0), None)["reviews"])
+
+    def test_the_line_says_whether_only_a_person_clears_the_risk_hold(self) -> None:
+        passed = ve.Evidence(None, HEAD, (), 0)
+        for risk, person in (
+            ("security-finding: 1 open", True),
+            ("evidence-unbound:claude-review: not bound", False),
+            (None, False),
+        ):
+            with self.subTest(risk):
+                report = self.cli(passed, risk, person=person)
+                self.assertEqual(
+                    (report["reviews"], report["reviewsPerson"]), (risk, person)
+                )
+        unread = self.cli(passed, None, head="d" * 40)
+        self.assertIs(unread["reviewsPerson"], False)
 
     def test_no_rung_from_the_room_holds(self) -> None:
         for rung in (None, "off", "C9"):
@@ -244,7 +289,9 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                 "evidence",
                 lambda self, n, h, pr=None: evidence or ve.Evidence(None, HEAD, (), 0),
             ),
-            mock.patch.object(ve, "lane_risk_refusal", return_value=risk),
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, False)
+            ),
             mock.patch.object(
                 babysit_merge,
                 "read_merge_queue",

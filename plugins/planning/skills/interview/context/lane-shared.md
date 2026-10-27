@@ -197,7 +197,7 @@ frontier now; hold only the questions that pending async work can change.
 
 ## The wake
 
-The watcher exits with one JSON line: `{"seq", "timedOut", "events", "note", "dataDir", "next"}`.
+The watcher exits with one JSON line: `{"seq", "timedOut", "note", "events", "dataDir", "next"}`.
 What the wake notification carries is recorded in [`surface.md`](surface.md) "Wake payload:
 verification record" (pointer, as-of 2026-10-11, recheck trigger there). Read the task's output file
 for the JSON: on exit 0, take the last line that starts with `{`. With `timedOut` true and no events, re-arm

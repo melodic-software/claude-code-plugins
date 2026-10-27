@@ -85,11 +85,21 @@ function fakeApi({
   comments = new Map(),
   labelEvents = new Map(),
   history = new Map(),
+  annotations = new Map(),
   commitRuns = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], commit: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], annotations: [], commit: [] };
   return {
     calls,
+    // One check run's annotations, by its id; none unless the test names it.
+    async listAnnotations(id) {
+      calls.annotations.push(id);
+      const rows = annotations.get(id);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      return rows ?? [];
+    },
     // Every check run on the head over REST: the test's rows for the head,
     // else the rollup's runs in REST's shape, ids in rollup order.
     async listCommitCheckRuns(sha) {
@@ -191,6 +201,25 @@ test("a lanes App PR whose ci-status failed is dispatched fix-ci with the dispat
       inputs: { "pr-number": "5", activity: "fix-ci", "dispatcher-run-id": "4242" },
     },
   ]);
+});
+
+// A fork PR that pushed the same commit lists its runs under the same head SHA.
+// Its newer run, still going, would read as a re-run in flight and hold fix-ci
+// off (reconcilerOwns); readRequiredRun keeps it out of the tested run.
+test("a fork's newer run at the same head SHA does not suppress a fix-ci dispatch", async () => {
+  const own = { ...tested(2), path: REQUIRED, head_repository: { full_name: "octo/repo" } };
+  const fork = { ...rerunning(1, "in_progress"), id: 40119285049, path: REQUIRED, created_at: new Date(NOW - 600_000).toISOString(), head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: MIXED_JOBS.length, jobs: MIXED_JOBS }];
+  const rest = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async () => ({ ok: true, status: 200, json: async () => responses.shift() }),
+  });
+  const api = { ...fakeApi({ pages: [[pr(5)]] }), readRequiredRun: (sha, path) => rest.readRequiredRun(sha, path) };
+  const result = await dispatchCiFixes({ api, runId: "4242", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 5, workflowRunId: "7005" }], failed: 0 });
 });
 
 test("other authors, drafts, forks, other bases and held PRs are left alone", async () => {
@@ -384,6 +413,54 @@ test("a cancelled tested run with a check fix-ci-context counts as failing is st
     [5, 6, 7],
   );
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: tested run completed/cancelled)")), lines.join("\n"));
+});
+
+// #9828's head c1184e03 as recorded: pr-require-checks run 40118648493 ended
+// cancelled at attempt 2, its check run 120950643531 (test-bash (3)) cancelled
+// past its 9-minute limit, which only its annotations show, and ci-status
+// failed. fix-ci takes the slow or hanging test; a check cancelled with the
+// cancel note alone (a fail-fast sibling) still leaves the head skipped.
+const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
+const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
+const stranded = (number, notes) => {
+  const head = String(number).padStart(40, "a");
+  return {
+    pages: [[pr(number, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED"), check("ci-status", "FAILURE")] })]],
+    requiredRuns: new Map([[head, { run: { ...tested(2), id: 40118648493, conclusion: "cancelled" }, jobs: null }]]),
+    commitRuns: new Map([
+      [
+        head,
+        [
+          { id: 120950643531, ...toRest(check("test-bash (3)", "CANCELLED")) },
+          { id: 120952904939, ...toRest(check("ci-status", "FAILURE")) },
+        ],
+      ],
+    ]),
+    annotations: new Map([[120950643531, notes]]),
+  };
+};
+
+test("a head whose tested run ended cancelled with a check past its time limit is dispatched, naming the check", async () => {
+  const { api, lines, result } = await run(stranded(9828, TIME_LIMITED));
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [9828],
+  );
+  // Only the cancelled lane check's annotations are read, not ci-status's.
+  assert.deepEqual(api.calls.annotations, [120950643531]);
+  assert.ok(
+    lines.some((line) => line.startsWith("dispatched fix-ci #9828 ") && line.endsWith("(cause: tested run completed/cancelled, time limit in test-bash (3))")),
+    lines.join("\n"),
+  );
+});
+
+test("a cancelled check with no time-limit note leaves the head skipped; an unreadable note dispatches nothing", async () => {
+  const skipped = await run(stranded(9828, CANCEL_ONLY));
+  assert.deepEqual(skipped.result.dispatched, []);
+  assert.ok(skipped.lines.includes("skip fix-ci #9828: tested run 40118648493 attempt 2 ended cancelled and no check failed for fix-ci to fix"), skipped.lines.join("\n"));
+  const unreadable = await run(stranded(9828, Object.assign(new Error("HTTP 502"), { status: 502 })));
+  assert.deepEqual(unreadable.result, { dispatched: [], failed: 1 });
+  assert.ok(unreadable.lines.some((line) => line.startsWith("::error::#9828: could not read its cancelled checks' annotations")), unreadable.lines.join("\n"));
 });
 
 // A cancelled tested run's failed job that a later contract-only run skipped:
