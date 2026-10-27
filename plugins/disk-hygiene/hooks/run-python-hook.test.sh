@@ -908,6 +908,66 @@ assert_eq "a Stop with no candidate marker directory runs the monitor" \
   "ran" "$(target_state)"
 assert_eq "a Stop with no candidate marker directory exits 0" "0" "$blocked_rc"
 
+# --- a tmp marker directory this user does not own is not a candidate ---
+#
+# With no marker root, the tmp fallback is the only candidate, and it sits where
+# every local user can write. A planted empty directory, or a symlink to one,
+# would otherwise read as "the guard never launched" and skip the monitor for
+# every session; a symlink would also take this session's marker elsewhere.
+PLANTED_CASE="$PROBE_DIR/planted-case"
+mkdir -p "$PLANTED_CASE/link-tmp" "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/own-tmp"
+ln -s "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/link-tmp/disk-hygiene-guard-launch-monitor"
+
+tmp_launch() { # <tmpdir> <flag>: run with the tmp fallback as the only candidate
+  rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
+  printf '%s' "$MARKER_PAYLOAD" |
+    HOME="$MARKER_HOME" TMPDIR="$1" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      "$2" guard-launch-monitor "$MARKER_TARGET" "$MARKER_SEEN" 0 >/dev/null 2>&1 || true
+}
+
+MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/link-tmp" --skip-unless-marker
+assert_eq "a symlinked tmp marker directory does not skip the monitor" "ran" "$(target_state)"
+MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"PreToolUse"}'
+tmp_launch "$PLANTED_CASE/link-tmp" --launch-marker
+assert_eq "no launch marker is written through a symlinked tmp directory" "absent" \
+  "$([[ -e "$PLANTED_CASE/elsewhere/sess-4.launched" ]] && printf 'present' || printf 'absent')"
+
+# A directory another user owns: only root can make one, so this case runs as root.
+if [[ "$(id -u)" == 0 ]] && id nobody >/dev/null 2>&1; then
+  mkdir -p "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
+  chown nobody "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
+  MARKER_PAYLOAD='{"session_id":"sess-4","hook_event_name":"Stop"}'
+  tmp_launch "$PLANTED_CASE/foreign-tmp" --skip-unless-marker
+  assert_eq "a tmp marker directory another user owns does not skip the monitor" \
+    "ran" "$(target_state)"
+else
+  printf 'SKIP: %s\n' "a tmp launch-marker directory another user owns (needs root to create one)"
+fi
+
+# Stays quiet where it should: this user's own tmp directory, created by the
+# launch with mode 700, still skips an unrecorded session and runs a recorded one.
+MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"PreToolUse"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --launch-marker
+assert_eq "a launch records the session in its own tmp directory" "present" \
+  "$([[ -f "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor/sess-5.launched" ]] &&
+    printf 'present' || printf 'absent')"
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) ;;
+*)
+  assert_eq "the launch creates its tmp marker directory with mode 700" "700" \
+    "$(stat -c '%a' "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor" 2>/dev/null ||
+      stat -f '%Lp' "$PLANTED_CASE/own-tmp/disk-hygiene-guard-launch-monitor")"
+  ;;
+esac
+MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
+assert_eq "a recorded session in an own tmp directory runs the monitor" "ran" "$(target_state)"
+MARKER_PAYLOAD='{"session_id":"sess-6","hook_event_name":"Stop"}'
+tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
+assert_eq "an unrecorded session in an own tmp directory skips the monitor" \
+  "skipped" "$(target_state)"
+
 # --- both wirings carry the flag the other one depends on ---
 guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |
   select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("destructive_guard.py"))] | length' \
