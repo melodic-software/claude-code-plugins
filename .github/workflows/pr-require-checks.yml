@@ -3851,7 +3851,8 @@ jobs:
       # image's default. The same checkout of the default branch holds the
       # merge queue's verdict reader as main has it: babysit_verify_evidence.py
       # with its sibling modules and its config parser, and the pr-merge
-      # scripts that start its run cache and read its head-ref map, with every
+      # scripts that start its run cache and read its head-ref map and
+      # carried artifact listing, with every
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
@@ -3868,6 +3869,7 @@ jobs:
             /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
+            /.github/scripts/pr-merge/listing-carry.mjs
             /.github/scripts/pr-merge/rotation.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
@@ -4431,7 +4433,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4833,9 +4835,10 @@ jobs:
       # babysit_verify_evidence.py `evidence --base-sha <group base>` from
       # the .base checkout of main for the pull request at its head, the
       # reader enable-auto-merge armed it on, on a listing of its own (every
-      # page, saved to BABYSIT_VERIFY_LISTING) with pr-merge's head-ref map and
-      # carried run cache, so a FAIL uploaded after enable-auto-merge's one
-      # listing of its run still holds. Its report goes to merge-holds.mjs
+      # page, or the pages since pr-merge's last saved listing when they hold
+      # GitHub's live artifact count, saved to BABYSIT_VERIFY_LISTING) with
+      # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
+      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
@@ -4869,6 +4872,7 @@ jobs:
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -5013,6 +5017,10 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # pr-merge's last saved artifact listing: the reader lists only the
+            # pages since it and keeps that listing only when it holds GitHub's
+            # live artifact count, else lists every page, as with no file.
+            node "$PR_MERGE_SCRIPTS/listing-carry.mjs" || echo "::notice::no artifact listing from pr-merge's last run; the verdict reader lists every page."
             # A cold reader runs only with the headroom for it. With no carried
             # run cache, or one whose carried sections (carry-run-cache.mjs
             # carry) are all empty, the reader reads every FAIL: about 860

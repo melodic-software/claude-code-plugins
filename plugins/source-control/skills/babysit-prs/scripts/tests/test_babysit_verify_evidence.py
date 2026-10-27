@@ -2695,6 +2695,10 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
 
 # Every test runs without the backoff sleep; `judge` reads the waits off it.
 _no_sleep = mock.patch.object(ve, "_listing_sleep")
+# No test reads an incremental listing's page unless it patches this again.
+_no_pages = mock.patch.object(
+    ve, "gh_api_with_headers", side_effect=AssertionError("an unexpected page read")
+)
 
 
 # The tracker's human-gated label read an autonomous gate makes: stubbed so
@@ -2704,11 +2708,13 @@ _role_label = mock.patch.object(postmerge, "_role_label", return_value="needs-hu
 
 def setUpModule() -> None:
     _no_sleep.start()
+    _no_pages.start()
     _role_label.start()
 
 
 def tearDownModule() -> None:
     _role_label.stop()
+    _no_pages.stop()
     _no_sleep.stop()
 
 
@@ -2887,6 +2893,325 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
             pages = ve.Reader(REPO, "main", now=NOW)._read_listing()
         self.assertEqual(len(pages), self.PAGES)
         self.assertEqual(len(sent), self.PAGES)
+
+
+class PagedGitHub(FakeGitHub):
+    """Also answers the incremental listing's single pages
+    (`?per_page=<n>&page=<p>`) from `artifacts`, newest id first, each with
+    `total_count` (`live_total`, by default the artifacts' count, GitHub's
+    live count) and the response's `Date` header (`DATE`)."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.live_total: int | None = None
+        self.page_fail: str | None = None
+
+    def __call__(
+        self, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        prefix = f"repos/{REPO}/actions/artifacts?per_page="
+        path = args[1] if len(args) > 1 else ""
+        if path.startswith(prefix) and "&page=" in path:
+            self.calls.append(args)
+            if self.page_fail:
+                return subprocess.CompletedProcess(args, 1, "", self.page_fail)
+            size, page = (int(v) for v in path[len(prefix) :].split("&page="))
+            ordered = sorted(self.artifacts, key=lambda a: -a["id"])
+            body = {
+                "total_count": len(ordered)
+                if self.live_total is None
+                else self.live_total,
+                "artifacts": ordered[(page - 1) * size : page * size],
+            }
+            return subprocess.CompletedProcess(args, 0, json.dumps(body), "")
+        return super().__call__(args, **kwargs)
+
+    def pages(self) -> int:
+        return sum("&page=" in " ".join(c) for c in self.calls)
+
+    def full_listings(self) -> int:
+        return sum(
+            c[:2] == ["api", f"repos/{REPO}/actions/artifacts?per_page=100"]
+            for c in self.calls
+        )
+
+
+# The runner's clock while these tests list, and GitHub's `Date` a few seconds
+# later.
+LISTED_AT = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
+DATE = "Fri, 16 Oct 2026 12:00:05 GMT"
+
+
+def stamp(when: datetime) -> str:
+    return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def dated(
+    name: str,
+    run_id: int,
+    artifact_id: int,
+    created: datetime,
+    *,
+    expires: datetime | None = None,
+    expired: bool = False,
+) -> dict[str, Any]:
+    """A listed artifact as GitHub gives it: an id, created_at and expires_at."""
+    return artifact(name, run_id, expired=expired) | {
+        "id": artifact_id,
+        "created_at": stamp(created),
+        "expires_at": stamp(expires or created + timedelta(days=90)),
+    }
+
+
+class TheListingBuildsOnACarriedOne(unittest.TestCase):
+    """A listing a trusted pr-merge run saved (`BABYSIT_VERIFY_LISTING_CARRY`)
+    is a base: the reader pages only down past it, keeps the result only when
+    it holds the first page's live `total_count`, and lists every page on any
+    doubt."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.carry = pathlib.Path(tmp.name, "verify-listing-carry.json")
+        self.saved = pathlib.Path(tmp.name, "verify-listing.json")
+        for patcher in (
+            mock.patch.dict(
+                "os.environ",
+                {
+                    "BABYSIT_VERIFY_LISTING_CARRY": str(self.carry),
+                    "BABYSIT_VERIFY_LISTING": str(self.saved),
+                },
+            ),
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: LISTED_AT),
+            mock.patch.object(ve, "LISTING_PAGE_SIZE", 2),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        # The base: a pass at the head (run 1) and three older artifacts,
+        # read 10 minutes ago.
+        self.base_at = LISTED_AT - timedelta(minutes=10)
+        old = self.base_at - timedelta(hours=3)
+        self.base = [
+            dated(named(HEAD, "pass"), 1, 1000, self.base_at - timedelta(minutes=5)),
+            dated("pr-merge-gate-cursor", 3, 900, old),
+            dated("pr-merge-gate-cursor", 3, 800, old),
+            dated("pr-merge-gate-cursor", 3, 700, old),
+        ]
+
+    def write_carry(self, artifacts: list[Any], at: datetime | None = None) -> None:
+        self.carry.write_text(
+            json.dumps(
+                {"fetchedAt": (at or self.base_at).isoformat(), "artifacts": artifacts}
+            )
+        )
+
+    def fake(
+        self, *extra: dict[str, Any], base: list[Any] | None = None
+    ) -> PagedGitHub:
+        """GitHub now: the base's artifacts (or `base`) and `extra`."""
+        artifacts = [*(self.base if base is None else base), *extra]
+        fake = PagedGitHub(
+            artifacts, {1: run(1), 2: run(2)}, {named(HEAD, "pass"): record()}
+        )
+        return fake
+
+    def judge(self, fake: PagedGitHub) -> tuple[ve.Reader, ve.Evidence]:
+        def page(args: list[str], **kwargs: Any) -> Any:
+            return fake(args, **kwargs), {"date": DATE}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            return reader, reader.evidence(PR, HEAD, pull())
+
+    def test_a_fail_uploaded_since_is_read_from_the_first_page_alone(self) -> None:
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        # Page 1 holds 1100 and 1000 (created within the overlap), page 2
+        # holds 900, created before it: two pages, no full listing.
+        self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
+        saved = json.loads(self.saved.read_text())
+        self.assertEqual(saved["fetchedAt"], LISTED_AT.isoformat())
+        self.assertEqual(
+            [a["id"] for a in saved["artifacts"]], [1100, 1000, 900, 800, 700]
+        )
+
+    def test_the_overlap_reads_a_lower_id_created_after_the_base(self) -> None:
+        # 950 is below the base's highest id (1000) but was created after the
+        # base was read, so the base lacks it. The first page (1000, 990)
+        # already reaches the highest id; paging goes on to 900, created
+        # before the overlap, so the second page brings 950.
+        base = [
+            self.base[0],
+            dated("pr-merge-gate-cursor", 3, 990, self.base_at - timedelta(minutes=30)),
+            *self.base[1:],
+        ]
+        self.write_carry(base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 950, LISTED_AT), base=base)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
+
+    def test_an_expired_carried_entry_is_dropped_by_githubs_date(self) -> None:
+        # GitHub no longer lists 800 (its expiry passed by the page's Date,
+        # 12:00:05, though not by the runner's clock, 12:00:00) nor 700
+        # (marked expired); its live count leaves both out.
+        lapsed = dated(
+            "pr-merge-gate-cursor",
+            3,
+            800,
+            self.base_at,
+            expires=LISTED_AT + timedelta(seconds=2),
+        )
+        gone = dated("pr-merge-gate-cursor", 3, 700, self.base_at, expired=True)
+        self.write_carry([*self.base[:2], lapsed, gone])
+        fake = self.fake(base=self.base[:2])
+        reader, evidence = self.judge(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1000, 900])
+
+    def test_a_carried_entry_the_pages_no_longer_hold_is_dropped(self) -> None:
+        # An overwrite deletes 1000's artifact and uploads 1050 in its place.
+        self.write_carry(self.base)
+        fake = self.fake(
+            dated(named(HEAD, "pass"), 1, 1050, LISTED_AT), base=self.base[1:]
+        )
+        reader, evidence = self.judge(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1050, 900, 800, 700])
+
+    def test_a_count_other_than_githubs_lists_every_page(self) -> None:
+        # A forged carry drops an old FAIL (600): the live count holds it, so
+        # the merged listing is one short and every page is read.
+        fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
+        self.write_carry(self.base)
+        fake = self.fake(fail)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((fake.pages(), fake.full_listings()), (1, 1))
+
+    def test_a_live_count_off_by_any_amount_lists_every_page(self) -> None:
+        for delta in (-1, 1):
+            with self.subTest(delta):
+                self.write_carry(self.base)
+                self.saved.unlink(missing_ok=True)
+                fake = self.fake()
+                fake.live_total = len(self.base) + delta
+                reader, evidence = self.judge(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertEqual(reader.listing_mode, "full")
+                self.assertEqual((fake.pages(), fake.full_listings()), (1, 1))
+
+    def test_a_carry_past_its_age_bound_lists_every_page(self) -> None:
+        # The bound is three hours (LISTING_CARRY_MAX_AGE's basis).
+        for age, mode in (
+            (timedelta(hours=3), "incremental"),
+            (timedelta(hours=3, seconds=1), "full"),
+        ):
+            with self.subTest(age):
+                self.write_carry(self.base, LISTED_AT - age)
+                self.saved.unlink(missing_ok=True)
+                fake = self.fake()
+                reader, _ = self.judge(fake)
+                self.assertEqual(reader.listing_mode, mode)
+                self.assertEqual(fake.full_listings(), int(mode == "full"))
+
+    def test_a_carry_that_does_not_parse_lists_every_page(self) -> None:
+        undated = dict(self.base[1])
+        del undated["created_at"]
+        for text in (
+            "not json",
+            json.dumps({"artifacts": self.base}),
+            json.dumps({"fetchedAt": "2026-10-16T11:50:00", "artifacts": self.base}),
+            json.dumps({"fetchedAt": self.base_at.isoformat(), "artifacts": {}}),
+            json.dumps({"fetchedAt": self.base_at.isoformat(), "artifacts": [undated]}),
+            json.dumps(
+                {
+                    "fetchedAt": self.base_at.isoformat(),
+                    "artifacts": [self.base[0] | {"id": True}],
+                }
+            ),
+        ):
+            with self.subTest(text[:60]):
+                self.carry.write_text(text)
+                self.saved.unlink(missing_ok=True)
+                fake = self.fake()
+                reader, _ = self.judge(fake)
+                self.assertEqual(reader.listing_mode, "full")
+                self.assertEqual((fake.pages(), fake.full_listings()), (0, 1))
+
+    def test_no_carry_lists_every_page(self) -> None:
+        fake = self.fake()
+        reader, _ = self.judge(fake)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((fake.pages(), fake.full_listings()), (0, 1))
+
+    def test_a_failed_page_read_lists_every_page(self) -> None:
+        for error in ("gh: Bad Gateway (HTTP 502)", "gh: Not Found (HTTP 404)"):
+            with self.subTest(error):
+                self.write_carry(self.base)
+                self.saved.unlink(missing_ok=True)
+                fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+                fake.page_fail = error
+                reader, evidence = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertEqual(reader.listing_mode, "full")
+                self.assertEqual((fake.pages(), fake.full_listings()), (1, 1))
+
+    def test_a_page_with_no_date_or_an_odd_entry_lists_every_page(self) -> None:
+        self.write_carry(self.base)
+        fake = self.fake()
+
+        def undated(args: list[str], **kwargs: Any) -> Any:
+            return fake(args, **kwargs), {}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=undated),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            reader.evidence(PR, HEAD, pull())
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((fake.pages(), fake.full_listings()), (1, 1))
+        self.saved.unlink(missing_ok=True)
+        odd = self.fake(dated("x", 3, 1200, LISTED_AT) | {"expires_at": "soon"})
+        reader, _ = self.judge(odd)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((odd.pages(), odd.full_listings()), (1, 1))
+
+    def test_a_refresh_builds_on_the_listing_it_drops(self) -> None:
+        # The gate's re-list before an allow (babysit_merge.py `refresh`)
+        # pages only past the run's own listing.
+        self.write_carry(self.base)
+        fake = self.fake()
+        page = lambda args, **kwargs: (fake(args, **kwargs), {"date": DATE})  # noqa: E731
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+            self.assertTrue(reader.saved)
+            fake.artifacts.append(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+            reader.refresh()
+            self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
 
 
 # --- The --authority pr-merge path ------------------------------------------------

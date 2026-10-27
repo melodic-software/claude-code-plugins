@@ -226,6 +226,13 @@ import process from "node:process";
 appendFileSync(process.env.STUB_LOG, `head-ref-map ${process.argv.slice(2).join(" ")}\n`);
 process.exitCode = process.env.STUB_MAP_FAILS ? 1 : 0;
 EOF
+# The listing carry stub logs `listing-carry`; it always exits 0, as the real
+# one does after a warning.
+cat >"$TMP_ROOT/pr-merge/listing-carry.mjs" <<'EOF'
+import { appendFileSync } from "node:fs";
+import process from "node:process";
+appendFileSync(process.env.STUB_LOG, "listing-carry\n");
+EOF
 
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
@@ -322,6 +329,7 @@ for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit
   'PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge' \
   'ACTIONS_TOKEN: ${{ github.token }}' \
   'BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json' \
+  'BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json' \
   'BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json' \
   'HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json' \
   'BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json' \
@@ -344,8 +352,9 @@ else
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
 want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk)
-# Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
-queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
+# Every module head-ref-map.mjs, carry-run-cache.mjs and listing-carry.mjs
+# import, transitively.
+queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs .github/scripts/pr-merge/listing-carry.mjs)
 while ((${#queue[@]})); do
   file=${queue[0]}
   queue=("${queue[@]:1}")

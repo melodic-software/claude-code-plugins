@@ -1856,6 +1856,15 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+A listing read from the API builds on the newest whole listing begun within three hours (the
+reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
+hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`
+fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
+highest id until an artifact created two hours before that listing was read, keeps that listing's
+entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
+kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
+malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
+lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run

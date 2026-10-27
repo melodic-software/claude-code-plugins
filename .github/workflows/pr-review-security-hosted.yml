@@ -222,6 +222,7 @@ jobs:
         .github/scripts/pr-merge/who.mjs
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
+        .github/scripts/pr-merge/listing-carry.mjs
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/gate-source.mjs
         .github/scripts/pr-unblock/thread-scope.mjs

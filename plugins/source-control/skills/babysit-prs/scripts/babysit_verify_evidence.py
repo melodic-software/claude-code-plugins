@@ -86,8 +86,31 @@ pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
-`Reader`, every page, and filtered on the name here: the API's name filter
+`Reader`, every artifact, and filtered on the name here: the API's name filter
 matches whole names only, and a FAIL counts under any number and head.
+
+Carried reads. What an earlier run read is used only where it counts a FAIL
+(a carried record counts the FAIL when it shows origin; any other answer from
+it could turn the FAIL away, so it is read again), with one exception: the
+artifact listing. A listing begun at most `LISTING_CARRY_MAX_AGE` ago (this
+Reader's own, the run's saved one, or the one a scheduled or hand-started run
+of main's pr-merge.yml saved and `LISTING_CARRY_ENV` names, which
+.github/scripts/pr-merge/listing-carry.mjs fetches only from such a run whose
+head is on main) is a base: `Reader._incremental` reads only the newest pages,
+newest id first, down past the base's highest id until an artifact created
+`LISTING_OVERLAP` before the base was read, and keeps the base's entries below
+the lowest id those pages hold, less those expired or past `expires_at` by the
+first page's `Date`. Such a listing could hide a FAIL by leaving it out, so it
+is kept only when it holds exactly the first page's `total_count`, GitHub's
+live count of the repository's artifacts. A probe on 2026-10-27 saw that count
+fall by exactly the five artifacts whose `expires_at` had passed, and an
+incremental listing match a full one to the artifact; an artifact that expires
+during the read can only make the counts differ. Any other count, a base that
+is missing, older or of another shape, or any failed read lists every page as
+before. A carry forged to drop a FAIL must therefore also hold a fabricated
+entry in its place to match the live count, and forging it already needs code
+running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
+job holds the lanes App token.
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
 `LISTING_ENV`: a successful listing is saved there, and later candidates of
 the run read it instead of paging again. No judgment uses a listing, saved
@@ -136,6 +159,7 @@ import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -146,6 +170,7 @@ from babysit_classify import is_dependency_author
 from babysit_gh import (
     fetch_paginated_api,
     flatten_paginated_items,
+    gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
 )
@@ -155,6 +180,7 @@ WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
+LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # The head-ref map's version and its keys' shape, an artifact id
 # (head-ref-map.mjs writes both).
@@ -224,6 +250,22 @@ LISTING_TIMEOUT_SECONDS = 300.0
 # The oldest listing a judgment uses, saved or in memory (see the bound),
 # unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
+# The incremental listing (`Reader._incremental`). The listing comes newest id
+# first, but a lower id can be created after a higher one: across 6,835
+# artifacts listed on 2026-10-27 (created 2026-10-16 to 10-27) the largest lead
+# of a lower id's created_at over a higher id's was 58m49s, and each day's
+# largest was 34 to 59 minutes. Paging stops past the base's highest id only
+# at an artifact created `LISTING_OVERLAP` before the base was read, twice that
+# lead (judgment on that data).
+LISTING_OVERLAP = timedelta(hours=2)
+# The oldest base an incremental listing starts from. Scheduled pr-merge runs
+# come four times an hour (pr-merge.yml `cron`), and rotation.mjs asks at most
+# 10 trusted runs (`MAX_RUNS`), about 2.5 hours of them, for the carried
+# listing. At the most uploads seen in an hour on 2026-10-27 (255), a base this
+# old and the overlap page at most about 1,300 artifacts, 13 pages, against 69
+# for the whole listing that day (judgment on that data).
+LISTING_CARRY_MAX_AGE = timedelta(hours=3)
+LISTING_PAGE_SIZE = 100
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -469,8 +511,9 @@ RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
 # .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted runs'
-# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still used only where it counts a FAIL;
-# any other answer is read from GitHub.
+# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still
+# used only where it counts a FAIL; any other answer is read from GitHub (the
+# module docstring's "Carried reads", which names the listing's exception).
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
@@ -680,6 +723,19 @@ def _is_artifact_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _dated_entry(item: Any) -> bool:
+    """A listed artifact `Reader._incremental` can place: a positive id, a
+    boolean `expired`, and a `created_at` and `expires_at` with a zone."""
+    return (
+        is_json_object(item)
+        and _is_artifact_id(item.get("id"))
+        and item["id"] > 0
+        and isinstance(item.get("expired"), bool)
+        and _when(item.get("created_at")) is not None
+        and _when(item.get("expires_at")) is not None
+    )
+
+
 def load_head_refs(path: str | None, repo: str) -> dict[int, str]:
     """The head-ref map at `path` for `repo`, by artifact id. A missing or
     unreadable file, another version or repository, or any entry of another
@@ -725,6 +781,11 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
+    # The listing a trusted pr-merge run saved (`LISTING_CARRY_ENV`), which
+    # listing-carry.mjs fetched, as a base for `_incremental`.
+    carry_path: str | None = field(
+        default_factory=lambda: os.environ.get(LISTING_CARRY_ENV) or None
+    )
     # The head-ref map (`HEAD_REFS_ENV`), when pr-merge.yml names one.
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
@@ -742,6 +803,11 @@ class Reader:
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
     _own: bool = False  # `refresh()` asked for a listing of this Reader's own
+    # The last listing this Reader held and when it began to be read, kept
+    # past `refresh()` as a base for `_incremental`.
+    _base: tuple[datetime, list[dict[str, Any]]] | None = None
+    # How the last listing was read from the API: "full" or "incremental".
+    listing_mode: str | None = None
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
@@ -792,20 +858,30 @@ class Reader:
             self._fetched_at, self.listing_max_age
         ):
             return self._artifacts
-        saved = None if self._own else self._load_saved()
+        saved = (
+            None
+            if self._own
+            else self._load_saved(self.listing_path, self.listing_max_age)
+        )
         if saved is not None:
             self._fetched_at, self._artifacts = saved
+            self._base = saved
             self._saved = True
             return self._artifacts
         fetched_at = _wall_clock()
-        try:
-            listing = flatten_paginated_items(
-                self._read_listing(), "repository artifacts", items_key="artifacts"
-            )
-        except (_Unreadable, RuntimeError) as exc:
-            self._listing_error = str(exc)
-            raise _Unreadable(self._listing_error) from exc
+        listing = self._incremental()
+        self.listing_mode = "incremental"
+        if listing is None:
+            self.listing_mode = "full"
+            try:
+                listing = flatten_paginated_items(
+                    self._read_listing(), "repository artifacts", items_key="artifacts"
+                )
+            except (_Unreadable, RuntimeError) as exc:
+                self._listing_error = str(exc)
+                raise _Unreadable(self._listing_error) from exc
         self._artifacts, self._fetched_at = listing, fetched_at
+        self._base = (fetched_at, listing)
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
@@ -830,27 +906,124 @@ class Reader:
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
-    def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
-        """The run's saved listing and when it began to be read. A missing or
-        malformed file, or one with no `fetchedAt` within `listing_max_age`,
-        is none, so the listing is read from the API instead."""
-        if not self.listing_path:
+    def _load_saved(
+        self, path: str | None, max_age: timedelta | None
+    ) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The listing saved at `path` and when it began to be read. A
+        missing or malformed file, or one with no `fetchedAt` within
+        `max_age`, is none, so the listing is read from the API instead."""
+        if not path:
             return None
         try:
-            saved = json_object(
-                json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
-            )
+            saved = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
             fetched_at = datetime.fromisoformat(saved["fetchedAt"])
         except (OSError, ValueError, KeyError, TypeError):
             return None
         listing = saved.get("artifacts")
         if (
-            not _recent(fetched_at, self.listing_max_age)
+            not _recent(fetched_at, max_age)
             or not is_json_array(listing)
             or not all(map(is_json_object, listing))
         ):
             return None
         return fetched_at, listing
+
+    def _incremental_base(self) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The newest whole listing begun at most `LISTING_CARRY_MAX_AGE` ago
+        whose every entry `_dated_entry` takes: this Reader's own, the run's
+        saved one, or the one a trusted run carried (`carry_path`)."""
+        bases = [
+            base
+            for base in (
+                self._base,
+                self._load_saved(self.listing_path, LISTING_CARRY_MAX_AGE),
+                self._load_saved(self.carry_path, LISTING_CARRY_MAX_AGE),
+            )
+            if base is not None
+            and _recent(base[0], LISTING_CARRY_MAX_AGE)
+            and all(_dated_entry(a) for a in base[1])
+        ]
+        return max(bases, key=lambda base: base[0], default=None)
+
+    def _incremental(self) -> list[dict[str, Any]] | None:
+        """Every repository artifact, as the base (`_incremental_base`) and
+        the newest pages read now show them, or None for a full listing.
+
+        The listing comes newest id first. Pages are read from the first
+        until one holds an artifact at or below the base's highest id that
+        was created `LISTING_OVERLAP` or more before the base was read: every
+        lower id was created before the base was read, so the base holds it.
+        Those pages decide every id down to the lowest they hold, an id the
+        base holds there and they do not (deleted, or an overwrite's old
+        copy) included; below it the base's entries stand, less each one
+        expired or past its `expires_at` by the first page's `Date`. The
+        result must hold exactly the first page's `total_count` artifacts,
+        GitHub's live count. Any other count, no base, an entry or page of
+        another shape, a missing `Date`, or any failed read gives None."""
+        base = self._incremental_base()
+        if base is None:
+            return None
+        base_at, carried = base
+        high = max((a["id"] for a in carried), default=0)
+        floor = base_at - LISTING_OVERLAP
+        deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+        fresh: dict[int, dict[str, Any]] = {}
+        total: Any = None
+        server_now: datetime | None = None
+        page = 1
+        while True:
+            left = deadline - _listing_clock()
+            if left <= 0:
+                return None
+            try:
+                proc, headers = gh_api_with_headers(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    timeout_seconds=left,
+                    env_overrides=self._env(),
+                )
+                body = json_object(json.loads(proc.stdout))
+            except (RuntimeError, ValueError, OSError):
+                return None
+            items = body.get("artifacts")
+            if (
+                proc.returncode != 0
+                or not is_json_array(items)
+                or not all(_dated_entry(a) for a in items)
+            ):
+                return None
+            if page == 1:
+                total = body.get("total_count")
+                try:
+                    server_now = parsedate_to_datetime(headers.get("date", ""))
+                except (TypeError, ValueError):
+                    return None
+                if server_now.tzinfo is None or not _is_artifact_id(total):
+                    return None
+            for item in items:
+                fresh.setdefault(item["id"], item)
+            reached = any(
+                a["id"] <= high and _when(a["created_at"]) < floor for a in items
+            )
+            if reached or len(items) < LISTING_PAGE_SIZE:
+                break
+            page += 1
+        if server_now is None:
+            return None
+        # A short page ends the listing: no id is left below it.
+        lowest = min(fresh) if reached else 0
+        kept = [
+            a
+            for a in carried
+            if a["id"] < lowest
+            and a["expired"] is False
+            and _when(a["expires_at"]) > server_now
+        ]
+        listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
+        return listing if len(listing) == total else None
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
@@ -956,7 +1129,8 @@ class Reader:
         if shared and not cached:
             # A carried record counts the FAIL when it shows origin; any
             # other answer from it could turn the FAIL away, so the run is
-            # read instead.
+            # read instead ("Carried reads" in the module docstring, which
+            # also states the listing's exception and its guard).
             carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
             if is_json_object(carried):
                 try:
