@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { checkKillSwitch, writeOutputs } from "./check-kill-switch.mjs";
 import { readOutputs } from "./fixtures/read-outputs.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-kill-switch.mjs", import.meta.url));
 
 function runCli(env) {
-  const dir = mkdtempSync(path.join(tmpdir(), "kill-switch-"));
+  const dir = tempDir("kill-switch-");
   try {
     const outputPath = path.join(dir, "output");
     writeFileSync(outputPath, "");
@@ -69,7 +69,7 @@ test("CLI writes proceed=false when both variables are unset and exits 0", () =>
 });
 
 test("output values cannot inject a second output line", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "kill-switch-"));
+  const dir = tempDir("kill-switch-");
   try {
     const outputPath = path.join(dir, "output");
     writeFileSync(outputPath, "");

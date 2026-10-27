@@ -1,0 +1,29 @@
+{
+  "app": "shop",
+  "control_skill": "control-shop (project: .claude/skills/control-shop/SKILL.md)",
+  "fallback": null,
+  "mode": "interactive",
+  "launch": [
+    {
+      "app": "shop",
+      "pid": 5120,
+      "uid": 1000,
+      "start_time": 48213377,
+      "command_line": "sh scripts/start-shop.sh",
+      "command_line_sha256": "5d0e6c1b9a7f43e28c4b1d6f0a9e2c7b3f8d1a6e4c2b9f07d3e5a8c1b6f4e2d9"
+    }
+  ],
+  "ready": {
+    "environment": null,
+    "surfaces": ["http://127.0.0.1:8080"],
+    "services": [],
+    "build": null,
+    "data": null,
+    "telemetry": []
+  },
+  "steps": [],
+  "secrets_mark": [],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": null
+}

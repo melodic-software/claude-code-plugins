@@ -4,8 +4,7 @@
 // on main sets that position (a pull_request_target run runs the PR base
 // branch's copy). The cursor is found from the workflow's own run list.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
@@ -13,9 +12,10 @@ import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { main, rotate, sharedReads } from "./rotation.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-const dir = mkdtempSync(join(tmpdir(), "rotation-"));
+const dir = tempDir("rotation-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const prs = (...numbers) => numbers.map((number) => ({ number, head: `h${number}`, updatedAt: "u" }));
 const numbers = (list) => list.map((c) => c.number);

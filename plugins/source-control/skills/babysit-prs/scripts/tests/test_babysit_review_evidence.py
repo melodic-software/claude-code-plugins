@@ -1205,6 +1205,7 @@ class LostRerunTests(Base):
             "id": next(_ids),
             "user": {"login": "github-actions[bot]", "type": "Bot"},
             "created_at": at,
+            "edit": UNEDITED,
             "body": body,
         }
 

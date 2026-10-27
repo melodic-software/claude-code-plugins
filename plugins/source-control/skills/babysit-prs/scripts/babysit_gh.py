@@ -1013,6 +1013,23 @@ def gh_capture(
     )
 
 
+def gh_api_with_headers(
+    args: list[str],
+    *,
+    timeout_seconds: float | None = None,
+    env_overrides: Mapping[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, str]]:
+    """One `gh api` request, as `gh_capture` sends it, and its response
+    headers by lowercase name (none for a call `_includes_headers` sends
+    without -i)."""
+    return _send(
+        args,
+        timeout_seconds=timeout_seconds,
+        env_overrides=env_overrides,
+        binary=False,
+    )
+
+
 def gh_json(args: list[str], env_overrides: Mapping[str, str] | None = None) -> Any:
     text = _run_gh(
         args, timeout_seconds=None, check=True, env_overrides=env_overrides
