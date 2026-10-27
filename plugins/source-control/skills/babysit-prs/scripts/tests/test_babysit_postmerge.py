@@ -2518,6 +2518,73 @@ class NoFailedJobs(CheckCase):
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
 
+class ReplacedRuns(CheckCase):
+    """pr-require-checks.yml's main-dispatch concurrency group keeps one run
+    pending and cancels it when a newer dispatch takes its place
+    (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+    Such a run never starts: GitHub lists it cancelled with no job, as runs
+    40192695442 and 40112740615 of work-resolve-issue.yml read on 2026-10-27.
+    It is no signal; a run cancelled once its jobs started is still red."""
+
+    REPLACED = 10
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                self.REPLACED,
+                "cancelled",
+                head_sha=MERGE_SHA,
+                created_at="2026-10-12T10:02:00Z",
+            ),
+            dispatch_run(11),
+        )
+
+    def test_a_replaced_run_neither_holds_nor_reruns_the_merge(self) -> None:
+        self.gh.jobs[(self.REPLACED, 1)] = []
+        verdict = self.check()
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.reruns, ())
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_run_cancelled_after_its_jobs_started_still_waits_for_its_rerun(
+        self,
+    ) -> None:
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+
+    def test_a_replaced_run_is_no_baseline(self) -> None:
+        # Before the merge: a red run, then a replaced one. The red run is the
+        # baseline, so its failing check is no regression of the merge's run.
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                5, "failure", head_sha=HEAD_SHA, created_at="2026-10-12T09:20:00Z"
+            ),
+            dispatch_run(
+                6, "cancelled", head_sha=HEAD_SHA, created_at="2026-10-12T09:30:00Z"
+            ),
+        ]
+        self.gh.jobs[(6, 1)] = []
+        ctx = pm._Context(
+            pm._split_repo(REPO)[0],
+            pm._split_repo(REPO)[1],
+            IDENTITY,
+            branch="main",
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+        )
+        self.assertEqual(
+            ctx._baseline(
+                pm.SIGNAL_DISPATCH, datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
+            ),
+            frozenset({"test-bash"}),
+        )
+
+
 class DispatchCoverage(CheckCase):
     """Design "Post-merge" plus the accepted deadlock rule: an unverified
     auto-merge with no identity dispatch run on a SHA containing it needs one;

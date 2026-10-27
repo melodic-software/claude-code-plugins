@@ -833,6 +833,18 @@ quiet "a dispatched canary run files nothing" "$CANARY" workflow_dispatch failur
 quiet "a successful scheduled run files nothing" "$FULL" schedule success main o/r
 quiet "a successful canary push run files nothing" "$CANARY" push success main o/r
 CONCLUSION=cancelled files "a cancelled scheduled run files a record" schedule "$FULL" schedule '[]'
+# pr-require-checks.yml's main-dispatch group replaces a waiting dispatch with
+# a newer one, cancelling it before any job starts (GitHub lists such a run
+# cancelled with no job, as work-resolve-issue.yml runs 40192695442 and
+# 40112740615 read on 2026-10-27): no signal, so nothing is filed or re-run.
+ATTEMPT=1 JOBS='' run_step "$FULL" workflow_dispatch cancelled main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(grep -c '^POST ' <<<"$LOG")" -eq 0 && "$OUT" == *"cancelled before any job started"* ]]; then
+  ok "a dispatched run cancelled before any job started files nothing"
+else
+  fail "replaced dispatch: rc=$RC log='$LOG' out='$OUT'"
+fi
+# One cancelled after its jobs started is still red.
+CONCLUSION=cancelled files "a dispatched run cancelled once its jobs started files a record" dispatch "$FULL" workflow_dispatch '[]'
 quiet "a failed run on another branch files nothing" "$FULL" workflow_dispatch failure feat/x o/r
 quiet "a failed run from a fork's main files nothing" "$FULL" schedule failure main fork/r
 quiet "another workflow files nothing" "some-other-workflow" schedule failure main o/r

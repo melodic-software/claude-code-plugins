@@ -1,9 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml's
-  # `dispatch-full-run` starts one on main after every merge, whoever merged,
-  # collapsing a burst of merges into one run of the newest tip.
+  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
+  # for the merges since the last, whoever merged, at most one per 30 minutes,
+  # each of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -70,7 +70,8 @@ on:
 permissions:
   contents: read
 
-# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
+# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
+# CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
 # cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
 # the `ci-lanes` status once and finishes (see the `ci-status` job). The
@@ -83,16 +84,28 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches. A merge-group, schedule or dispatch run keeps the unique
-# `github.run_id` group, so it is never cancelled.
+# fork branches. A merge-group, schedule or other-branch dispatch run keeps
+# the unique `github.run_id` group, so it is never cancelled.
+#
+# A dispatch on main (pr-merge.yml's whole-suite run of main's tip) shares one
+# group with no `queue` key and `cancel-in-progress` false: one runs, one waits,
+# and a newer dispatch replaces the waiting one, which GitHub cancels before
+# any job starts. The newer one holds a later tip, so it covers every merge the
+# replaced one did. A running whole-suite run is never cancelled: the post-merge
+# check and post-merge-demotion-alert.yml read a cancelled run as red, and read
+# a replaced one (cancelled, no job) as no run. Only attempt 1 joins it: a
+# re-run keeps its own `github.run_id` group, so a newer dispatch can never
+# replace the one re-run a red run waits on.
 concurrency:
   group: >-
-    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    && 'pr-require-checks-main-dispatch'
+    || ((github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: true
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id)) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' || github.run_attempt != 1 }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards

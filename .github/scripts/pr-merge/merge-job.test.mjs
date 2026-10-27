@@ -53,10 +53,13 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Read the lane records the last run kept",
       "Check earlier lane merges",
       "Keep the post-merge report for enable-auto-merge",
+      "Read main's full-run cover",
       "Start the full CI run on main",
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
       "Record the re-run",
+      "Send a red full run to the demotion alert",
+      "Record the alert sent",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -72,7 +75,7 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.match(condition, /\(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
   const list = stepsOf(early);
   const dispatch = step("Start the full CI run on main", list);
-  assert.match(dispatch, /if: steps\.post-merge\.outputs\.needs-dispatch == 'true'/);
+  assert.match(dispatch, /steps\.post-merge\.outputs\.needs-dispatch == 'true'/);
   assert.match(dispatch, /actions\/workflows\/pr-require-checks\.yml\/dispatches"[\s\S]*-f ref=main /);
   const upload = step("Record the dispatched run", list);
   assert.match(upload, /uses: actions\/upload-artifact@/);
@@ -1463,9 +1466,9 @@ test("a rate-limited first read stops the step red before the re-run, naming the
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
 
-test("post-merge-dispatch's rate-limited output also carries the re-run step's stop", () => {
+test("post-merge-dispatch's rate-limited output also carries the re-run and alert steps' stops", () => {
   const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
-  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \}\}\n/);
+  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {
@@ -1488,6 +1491,243 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.rerun\.outputs\.recorded == 'true'"\n/);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
+});
+
+// The alert send's step, run with .base at this checkout (the rate guard)
+// against a fake gh that answers, through the guard's -i form and the step's
+// --jq filter, a listing of pr-require-checks.yml dispatches on main (`runs`:
+// {id, attempt, status, conclusion, sha, actor}), each later attempt's
+// attempt 1 (`firsts` by id), each run's attempt-1 job count (`jobs` by id,
+// default 3) and its pr-merge-alerted-<id> record count (`sent` by id,
+// default 0). A read whose answer is "x" fails with a 502, "limited" with
+// the rate-limited 403. `post` answers each send in turn: "ok", "unsent" (a
+// TLS handshake timeout, before the request left), "502" or "limited" (a
+// 429). The send replaces dispatch-full-run's wait step (efficiency plan item
+// 7(b)): GITHUB_TOKEN started the full run, so it raises no workflow_run
+// event, and post-merge-demotion-alert.yml hears of a red one only from here.
+const ALERT_SHA = "0123456789abcdef0123456789abcdef01234567";
+const alertSend = (id, sha = ALERT_SHA) =>
+  `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
+const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-alert-"));
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    const fixture = (name, value) => writeFileSync(join(dir, name), typeof value === "string" ? value : JSON.stringify(value));
+    fixture(
+      "listing",
+      listing ??
+        {
+          workflow_runs: runs.map((r) => ({
+            id: r.id,
+            run_attempt: r.attempt ?? 1,
+            status: r.status ?? "completed",
+            conclusion: r.conclusion ?? null,
+            head_sha: r.sha ?? ALERT_SHA,
+            head_branch: "main",
+            actor: { login: r.actor ?? "github-actions[bot]" },
+          })),
+        },
+    );
+    for (const [id, a] of Object.entries(firsts)) fixture(`first.${id}`, a === "x" || a === "limited" ? a : { status: "completed", ...a });
+    for (const r of runs) {
+      const n = jobs[r.id] ?? 3;
+      fixture(`jobs.${r.id}`, n === "x" || n === "limited" ? n : { total_count: n, jobs: [] });
+      const s = sent[r.id] ?? 0;
+      fixture(`sent.${r.id}`, s === "x" || s === "limited" ? s : { total_count: s, artifacts: [] });
+    }
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash
+inc=; args=()
+for a in "$@"; do if [ "$a" = -i ]; then inc=1; else args+=("$a"); fi; done
+set -- "\${args[@]}"
+echo "$*" >>"${dir}/calls"
+filter=.; for ((i = 1; i <= $#; i++)); do if [ "\${!i}" = --jq ]; then j=$((i + 1)); filter="\${!j}"; fi; done
+endpoint=$(printf '%s\\n' "$@" | grep -m1 '^repos/')
+head() { [ -z "$inc" ] || printf "$1"; }
+if [ "$2" = -X ]; then
+  p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"
+  case "\${p[$((s - 1))]:-\${p[-1]}}" in
+    ok) head 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;
+    unsent) echo 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout' >&2; exit 1 ;;
+    502) head 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
+    limited) head 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1 ;;
+  esac
+fi
+case "$endpoint" in
+  */workflows/pr-require-checks.yml/runs\\?*) f=listing ;;
+  */attempts/1/jobs*) f=jobs.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
+  */attempts/1) f=first.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
+  */artifacts\\?name=pr-merge-alerted-*) f=sent.$(sed -E 's#.*pr-merge-alerted-([0-9]+).*#\\1#' <<<"$endpoint") ;;
+  *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+v=$(cat "${dir}/$f")
+if [ "$v" = x ]; then head 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo '{}'; echo "gh: Server Error (HTTP 502)" >&2; exit 1; fi
+if [ "$v" = limited ]; then head '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi
+head 'HTTP/2.0 200 OK\\r\\n\\r\\n'
+jq -r "$filter" <<<"$v"
+`,
+    );
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    chmodSync(join(bin, "sleep"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Send a red full run to the demotion alert", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: join(dir, "output"),
+        GITHUB_RUN_ID: "700",
+        REPO: "o/r",
+        LOOKBACK_HOURS: /\n {10}LOOKBACK_HOURS: (\d+)\n/.exec(step("Send a red full run to the demotion alert", earlySteps()))[1],
+      },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    const calls = read("calls").split("\n").filter(Boolean);
+    return {
+      status: result.status,
+      out: result.stdout + result.stderr,
+      calls,
+      sends: calls.filter((c) => c.includes("-X POST")),
+      output: read("output"),
+      record: read("alerted.json"),
+      slept: read("slept").split("\n").filter(Boolean).map(Number),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("a red full run is sent to post-merge-demotion-alert.yml once, by its run id and head SHA, and recorded", () => {
+  const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }] });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, [alertSend(41)]);
+  assert.match(run.output, /^run-id=41$/m);
+  assert.deepEqual(JSON.parse(run.record), { alerter_run_id: 700, run_id: 41 });
+  assert.ok(run.calls[0].includes("actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D"), run.calls[0]);
+  const upload = step("Record the alert sent", earlySteps());
+  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.alert\.outputs\.run-id != ''"\n/);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.match(upload, /\n {10}name: pr-merge-alerted-\$\{\{ steps\.alert\.outputs\.run-id \}\}\n/);
+});
+
+// babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
+// demotion counts as red: a cancel once the jobs started is red too.
+test("every red conclusion of a full run is sent", () => {
+  for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion }] });
+    assert.equal(run.status, 0, `${conclusion}: ${run.out}`);
+    assert.deepEqual(run.sends, [alertSend(41)], conclusion);
+  }
+});
+
+test("a green, running or other actor's run, one already sent, and one the group replaced are sent nowhere", () => {
+  const run = runAlert({
+    runs: [
+      { id: 40, conclusion: "success" },
+      { id: 41, conclusion: "skipped" },
+      { id: 42, status: "in_progress" },
+      { id: 43, conclusion: "failure", actor: "maintainer" },
+      { id: 44, conclusion: "failure" },
+      { id: 45, conclusion: "cancelled" },
+    ],
+    sent: { 44: 1 },
+    jobs: { 45: 0 },
+  });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, []);
+  assert.match(run.out, /run 45 was replaced before it started: no signal/);
+  assert.equal(run.record, "");
+});
+
+// The re-run step may have made attempt 2 first: attempt 1 decides.
+test("a run past attempt 1 is judged on attempt 1", () => {
+  const red = runAlert({ runs: [{ id: 41, attempt: 2, conclusion: "success" }], firsts: { 41: { conclusion: "failure" } } });
+  assert.deepEqual(red.sends, [alertSend(41)], red.out);
+  const green = runAlert({ runs: [{ id: 41, attempt: 2, conclusion: "failure" }], firsts: { 41: { conclusion: "success" } } });
+  assert.deepEqual(green.sends, [], green.out);
+});
+
+test("one run per job: the oldest red one unsent, the next on the next run", () => {
+  const run = runAlert({
+    runs: [
+      { id: 52, conclusion: "failure", sha: "89abcdef0123456789abcdef0123456789abcdef" },
+      { id: 51, conclusion: "failure" },
+    ],
+  });
+  assert.deepEqual(run.sends, [alertSend(51)]);
+});
+
+test("a failed read of one run's jobs or record sends nothing for it and moves on", () => {
+  const run = runAlert({
+    runs: [
+      { id: 41, conclusion: "cancelled" },
+      { id: 42, conclusion: "failure" },
+      { id: 43, conclusion: "failure" },
+    ],
+    jobs: { 41: "x" },
+    sent: { 42: "x" },
+  });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, [alertSend(43)]);
+  assert.match(run.out, /::warning::the jobs read of run 41 failed/);
+  assert.match(run.out, /::warning::the record read of run 42 failed/);
+  const listing = runAlert({ listing: "x" });
+  assert.equal(listing.status, 0);
+  assert.match(listing.out, /::warning::the listing of main's full runs failed/);
+});
+
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), sent again only when the request never left, as the dispatch.
+test("an alert send that never left is sent again after a jittered wait, at most three times", () => {
+  const sent = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["unsent", "unsent", "ok"] });
+  assert.equal(sent.status, 0, sent.out);
+  assert.deepEqual(sent.sends, [alertSend(41), alertSend(41), alertSend(41)]);
+  assert.equal(sent.slept.length, 2);
+  assert.ok(sent.slept[0] >= 1 && sent.slept[0] <= 10, `${sent.slept[0]}`);
+  assert.ok(sent.slept[1] >= 1 && sent.slept[1] <= 20, `${sent.slept[1]}`);
+  const spent = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["unsent"] });
+  assert.equal(spent.status, 0, spent.out);
+  assert.equal(spent.sends.length, 3);
+  assert.match(spent.out, /::warning::could not send run 41 to post-merge-demotion-alert\.yml after 3 attempt\(s\); the next run tries again/);
+  assert.equal(spent.record, "");
+  // A send that may have reached GitHub is not sent again.
+  const answered = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["502", "ok"] });
+  assert.deepEqual(answered.sends, [alertSend(41)]);
+  assert.equal(answered.record, "");
+});
+
+test("a rate-limited read or send stops red with the stop as the job's output, sending nothing more", () => {
+  const send = runAlert({ runs: [{ id: 41, conclusion: "failure" }, { id: 42, conclusion: "failure" }], post: ["limited"] });
+  assert.equal(send.status, 1, send.out);
+  assert.deepEqual(send.sends, [alertSend(41)]);
+  assert.match(send.out, /::error title=GitHub rate limit::the send of run 41 to post-merge-demotion-alert\.yml was rate limited/);
+  assert.match(send.output, /^rate-limited=true$/m);
+  assert.match(send.output, /^stop=/m);
+  const read = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: "limited" } });
+  assert.equal(read.status, 1, read.out);
+  assert.deepEqual(read.sends, []);
+  assert.match(read.out, /::error title=GitHub rate limit::the record read of run 41 was rate limited/);
+  assert.match(jobBlock("post-merge-dispatch"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
+});
+
+// Every merge's run is sent, as dispatch-full-run starts it: whoever merged,
+// whatever the kill switch and report-only say, and after a dispatch or
+// re-run that failed for any reason but a rate limit.
+test("the alert send runs whatever the switches say, after the re-run, and stops only after a rate limit", () => {
+  const list = earlySteps();
+  const alert = step("Send a red full run to the demotion alert", list);
+  assert.match(
+    alert,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
+  );
+  assert.doesNotMatch(alert, /steps\.(kill|mode)\./);
+  const names = list.map((s) => s.name);
+  assert.deepEqual(names.slice(-2), ["Send a red full run to the demotion alert", "Record the alert sent"]);
 });
 
 // The merge job's check, run with this run's post-merge-dispatch report kept

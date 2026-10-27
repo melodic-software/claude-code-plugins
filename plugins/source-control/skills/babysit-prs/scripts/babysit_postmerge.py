@@ -1090,6 +1090,7 @@ class _Context:
     excuses_expire_at: datetime | None = None
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+    replaced_cache: dict[int, bool] = field(default_factory=dict)
     # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
     # and the final records this check proved, which `save_lane_records` adds.
     lane_records_path: str | None = field(
@@ -1333,6 +1334,35 @@ class _Context:
             run.head_sha, self._branch_tip()
         )
 
+    def replaced(self, run: Run) -> bool:
+        """Whether `run` is one pr-require-checks.yml's main-dispatch
+        concurrency group cancelled while it waited, replaced by a newer
+        dispatch: attempt 1 cancelled with no job. It never ran, so it is no
+        signal at all, neither red nor pending; the run that replaced it holds
+        a later tip. A run cancelled once its jobs started stays red."""
+        if (
+            run.attempt != 1
+            or run.status != "completed"
+            or run.conclusion != "cancelled"
+        ):
+            return False
+        if run.id not in self.replaced_cache:
+            listing = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/actions/runs/{run.id}"
+                        "/attempts/1/jobs?per_page=1",
+                    ],
+                    f"run {run.id} attempt 1 jobs",
+                )
+            )
+            total = listing.get("total_count")
+            if not isinstance(total, int):
+                raise PostMergeReadError(f"run {run.id}: an unknown jobs listing")
+            self.replaced_cache[run.id] = total == 0
+        return self.replaced_cache[run.id]
+
     def _newest_on_branch(self, runs: list[Run]) -> Run | None:
         """The newest of `runs` on the branch (`on_branch`)."""
         return next(
@@ -1401,6 +1431,7 @@ class _Context:
                 if r.created_at < before
                 and r.head_branch == self.branch
                 and r.status == "completed"
+                and not self.replaced(r)
             ]
             newest = self._newest_on_branch(runs)
             self.baseline_cache[key] = (
@@ -2039,6 +2070,7 @@ def _judge(
             if run_id not in listed
             and run.created_at <= deadline
             and run.actor in (LANE_DISPATCH_ACTOR, ctx.identity)
+            and not ctx.replaced(run)
         ]
         if missing:
             raise PostMergeReadError(
@@ -2122,6 +2154,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                and not ctx.replaced(run)
                 # Only a run that could be marked pays for the ancestry read,
                 # and one off the branch never reaches the affected set.
                 and ctx.on_branch(run)
@@ -2244,9 +2277,14 @@ def check(
             )
         ]
         # A listing filtered by branch name also returns runs on a tag named
-        # like the branch, whose red would be charged to the merge.
+        # like the branch, whose red would be charged to the merge. A run the
+        # concurrency group replaced before it started is no signal.
         full_runs = sorted(
-            (item for item in full_runs if ctx.on_branch(item[1])),
+            (
+                item
+                for item in full_runs
+                if ctx.on_branch(item[1]) and not ctx.replaced(item[1])
+            ),
             key=lambda item: item[1].created_at,
         )
         canary_runs = sorted(
