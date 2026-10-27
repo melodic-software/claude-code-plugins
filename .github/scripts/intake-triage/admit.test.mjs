@@ -4,7 +4,7 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -437,6 +437,64 @@ describe("decide", () => {
     });
   });
 
+  // rule-admit.sh's fixed checks: its charge words, read from one definition,
+  // and its body-edited-after-the-verdict refusal.
+  describe("a charge word in the title or body", () => {
+    const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
+
+    test("refuses and holds for a person, naming each word once", () => {
+      for (const [issue, words] of [
+        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku"],
+        [issueOf({ title: "chore: raise the Actions spending limit" }), "spending limit"],
+      ]) {
+        const result = decide(facts({ issue }));
+        assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, true);
+        assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
+      }
+    });
+
+    test("an issue that names no charge is still admitted", () => {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
+    });
+
+    // rule-admit.test.sh shows the script reads the same file.
+    test("reads the pattern from the one definition rule-admit.sh reads", () => {
+      const shared = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
+      assert.equal(chargePattern().source, new RegExp(shared.cost).source);
+      assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
+    });
+  });
+
+  describe("a body edited after the triage verdict", () => {
+    const at = (writtenAt) => ({ ...VERDICT, writtenAt });
+    const editedAt = (lastEditedAt) => ({ ...humanSpec(issueOf()), editor: USER(HUMAN), lastEditedAt });
+    const EDITED = "its body was edited after the triage verdict, which judged the body as it stood before";
+
+    test("refuses at status: confirmed, as no person must answer it", () => {
+      const result = decide(facts({ verdict: at("2026-10-22T12:05:00Z"), spec: editedAt("2026-10-22T12:06:00Z") }));
+      assert.deepEqual(result, { verdict: "refuse", reasons: [EDITED] });
+    });
+
+    test("a body never edited, or edited before the verdict, is still admitted", () => {
+      for (const spec of [humanSpec(issueOf()), editedAt("2026-10-22T12:04:59Z"), editedAt("2026-10-22T12:05:00Z")]) {
+        assert.deepEqual(decide(facts({ verdict: at("2026-10-22T12:05:00Z"), spec })), { verdict: "admit", reasons: [] });
+      }
+    });
+
+    test("a verdict time that does not parse refuses; the sweep, which passes none, is not judged on it", () => {
+      assert.deepEqual(decide(facts({ verdict: at("soon"), spec: humanSpec(issueOf()) })).reasons, [EDITED]);
+      assert.equal(decide(facts({ spec: editedAt("2026-10-22T12:06:00Z") })).verdict, "admit");
+    });
+
+    test("admit() reads the edit time and parks the issue at status: confirmed", async () => {
+      const fake = fakeGitHub({ spec: editedAt("2026-10-22T12:06:00Z") });
+      const result = await admit({ ...goArgs(fake), verdict: at("2026-10-22T12:05:00Z"), status: async () => assert.fail("a refusal reads no status") });
+      assert.deepEqual(result, { outcome: "refused", reasons: [EDITED], status: CONFIRMED });
+      assert.ok(!writes(fake.calls).some((line) => line.includes(AGENT_READY)), "no agent-ready label");
+    });
+  });
+
   test("skips an issue already agent-ready, or without status: ready", () => {
     assert.equal(
       decide(
@@ -730,6 +788,8 @@ describe("admit", () => {
         admission_reason: "search-incomplete",
       },
     ],
+    // On a failed queued read check-wip-cap leaves admissions open, room null.
+    ["check-wip-cap could not read the queued count", { ...open, admission_room: null, admission_basis: "fail-open" }],
   ];
   for (const [name, status] of full) {
     test(`defers, never agent-ready, when ${name}`, async () => {
@@ -1202,7 +1262,7 @@ describe("size split sub-issues", () => {
 
   // fakeGitHub answers one issue's text; these reads add the parent's text,
   // sub-issue lists and other issues by number.
-  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {} }) => {
+  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {}, events = {} }) => {
     const github = async (method, path, body) => {
       if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
         fake.calls.push({ method, path, body });
@@ -1213,6 +1273,11 @@ describe("size split sub-issues", () => {
       if (method === "GET" && sub) {
         fake.calls.push({ method, path, body });
         return subIssues[sub[1]] ?? [];
+      }
+      const linked = /^\/repos\/o\/r\/issues\/(\d+)\/events/.exec(path);
+      if (method === "GET" && linked && linked[1] !== "7") {
+        fake.calls.push({ method, path, body });
+        return events[linked[1]] ?? [];
       }
       const read = /^\/repos\/o\/r\/issues\/(\d+)(\/comments)?(\?|$)/.exec(path);
       if (method === "GET" && read && read[1] !== "7") {
@@ -1243,15 +1308,20 @@ describe("size split sub-issues", () => {
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
     const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
-    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN } });
-    for (const [comments, expected] of [
+    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
+    // A split made by hand: a listed human linked each sub-issue.
+    const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+    for (const [comments, expected, links = []] of [
       [[record], "admitted"],
       [[], "waiting"],
+      [[], "admitted", [link(31), link(32)]],
+      [[], "waiting", [link(31), link(32, 4242)]],
     ]) {
       const fake = withIssues(fakeGitHub({ blockers: [blocker] }), {
         issues: { [PARENT]: blocker, 31: closedChild(31), 32: closedChild(32) },
         comments: { [PARENT]: comments },
         subIssues: { [PARENT]: [closedChild(31), closedChild(32)] },
+        events: { [PARENT]: links },
       });
       assert.equal((await go(fake)).outcome, expected);
     }

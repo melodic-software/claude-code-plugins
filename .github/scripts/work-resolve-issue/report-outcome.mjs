@@ -23,9 +23,14 @@
 //             read for the branch's current tip is stopped, whatever the
 //             outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
+//             When a listed human's newest comment, posted since the lane's
+//             last outcome comment, does not open with DECISION_LINE, the
+//             comment links it and shows the line, since the lane counts no
+//             other comment as an answer.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
-//             invalid outcome file is stopped.
+//             invalid outcome file is stopped; with a scan refusal marker
+//             (SCAN_REFUSED_DIR) the comment names the refusal instead.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -82,6 +87,9 @@
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
 //                       key), or empty
+//   SCAN_REFUSED_DIR    the read runner's scan-refusal markers for this run,
+//                       when its scan job refused the run's output and so
+//                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
 //                       the issue dimensions skipped the run
 //                       (work-resolve-issue.yml report-skip), else empty
@@ -94,17 +102,20 @@
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
 //   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
-//                       apply the merge: human hold
+//                       apply the merge: human hold, and whose comments a
+//                       pushback reads
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
-import { appendFileSync, readFileSync } from "node:fs";
+//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
+//                       (the attempt whose scan-refusal markers are read)
+import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
+import { networkError, retryFetch } from "./retry-fetch.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
@@ -267,6 +278,36 @@ export function readHoldPaths(path) {
   }
 }
 
+// The read runner's scan refusal markers, as address-feedback.mjs scanRefusal
+// reads them; the runner copies only this script's directory, so it cannot
+// import that one. `patch` when a marker names a patch over its cap, `output`
+// for any other, '' for none or an unreadable directory: a failed download
+// claims no refusal here, since the hand-back would name a false cause. Only
+// the current attempt's markers count (the download pattern spans every
+// attempt's), and with no readable attempt none does. A
+// marker's text only picks one of the fixed sentences below, so a forged one
+// puts nothing of its own in the comment.
+const ATTEMPT = /^[1-9][0-9]{0,4}$/;
+export function readScanRefusal(dir, attempt) {
+  if (!ATTEMPT.test(attempt ?? "")) return "";
+  const markerFile = new RegExp(`^scan-refused-${attempt}(-rung-up)?\\.txt$`);
+  let kinds;
+  try {
+    kinds = readdirSync(dir)
+      .filter((name) => markerFile.test(name) && lstatSync(join(dir, name)).isFile())
+      .map((name) => readFileSync(join(dir, name), "utf8").trim());
+  } catch {
+    return "";
+  }
+  return kinds.length === 0 ? "" : kinds.includes("patch") ? "patch" : "output";
+}
+
+// The scan job's refusals, as its decode step names them.
+export const SCAN_REFUSALS = {
+  patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
+  output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
+};
+
 // The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
   let parsed;
@@ -345,9 +386,29 @@ const bullets = (items) =>
     .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
+// The first line that makes a listed human's issue comment a decision the run
+// builds (select-trusted-text's isDecisionComment, which write-issue.mjs
+// applies). A script activity runs from a copy of its own directory, so the
+// rule is restated here, not imported.
+export const DECISION_LINE = "**Decision recorded.**";
+const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
+const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*#issuecomment-[1-9][0-9]*$/;
+
+// The URL of a listed human's newest issue comment after the lanes App's
+// (`bot`) last outcome marker, when they posted it themselves (not through an
+// App) and its first line is not DECISION_LINE; else null. `comments` are
+// oldest first, as GET /issues/{n}/comments lists them.
+export function unmarkedAnswer(comments, humans, bot) {
+  const since = comments.findLastIndex((comment) => comment?.user?.login === bot && parseOutcomeMarker(comment.body) !== null);
+  const last = comments.slice(since + 1).filter((comment) => humans.has(comment?.user?.id)).at(-1);
+  const first = String(last?.body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+  return last && last.performed_via_github_app == null && !DECISION.test(first) && COMMENT_URL.test(last.html_url ?? "") ? last.html_url : null;
+}
+
 // The marker names the run, so --find-prior never reuses a branch whose work
-// this report already handed on.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false }) {
+// this report already handed on. `unmarked` is unmarkedAnswer's URL, which a
+// pushback links with the line it lacks.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null }) {
   const pushback = outcome.exit === "pushback";
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
@@ -361,6 +422,16 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   ]);
   if (outcome.notDone.length) {
     lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
+  }
+  if (pushback && unmarked) {
+    lines.push(
+      "",
+      `The newest comment from a listed maintainer, ${unmarked}, does not start with \`${DECISION_LINE}\`, so the lane did not count it as an answer. If it answers the question, post the answer again in a new comment whose first line is:`,
+      "",
+      "```",
+      `${DECISION_LINE} <answer>`,
+      "```",
+    );
   }
   if (branch) {
     lines.push(
@@ -376,7 +447,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question here, remove \`${humanLabel}\` and add \`agent-ready\` again.`
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then remove \`${humanLabel}\` and add \`agent-ready\` again.`
       : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
   );
   return {
@@ -660,7 +731,8 @@ export function reusePlan({
 // the runner's record ({cap}) when the run reached its turn cap, and
 // `turnCapRestarts` the restarts already made since a person last added
 // agent-ready. `checks` is readChecks' record for the branch's current tip;
-// null stops a done run.
+// null stops a done run. `unmarked` is the comment a pushback links
+// (unmarkedAnswer).
 export function decide({
   outcome,
   issueNumber,
@@ -682,6 +754,7 @@ export function decide({
   checks = null,
   resumed = "",
   escalation = "",
+  unmarked = null,
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   const onResumed = !branch && resumed !== "";
@@ -770,8 +843,24 @@ export function decide({
       runId,
     });
   }
+  // The lane denies the paths apply-issue-patch refuses and tells a run whose
+  // change needs one to stop with this reason, before it spends the run.
+  if (outcome.exit === "stopped" && /^\s*patch-protected-path\b/.test(outcome.reason)) {
+    return handBack({
+      outcome: {
+        ...outcome,
+        reason: `The run stopped early (\`patch-protected-path\`): its change needs a path the issue lane may not push, which a person changes instead. In the run's words: ${outcome.reason}`,
+      },
+      issueNumber,
+      branch,
+      humanLabel,
+      runUrl,
+      runId,
+      onResumed,
+    });
+  }
   if (outcome.exit !== "done") {
-    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed });
+    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked });
   }
   // The outcome file is model output, so its own report never clears this.
   const failed = checkFailures(checks);
@@ -1093,10 +1182,14 @@ export function countTurnCapRestarts({ comments, events, bot, humans, runId }) {
   }).length;
 }
 
-function api({ fetch, apiUrl, token }) {
-  return async (method, path, body) => {
+// A read, GraphQL queries included, and a write marked safeToResend, is sent
+// again after a network error or a 5xx (retry-fetch.mjs).
+function api({ fetch: rawFetch, apiUrl, token, sleep }) {
+  const fetch = retryFetch(rawFetch, { sleep });
+  return async (method, path, body, { safeToResend = false } = {}) => {
     const response = await fetch(`${apiUrl}${path}`, {
       method,
+      safeToResend,
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
@@ -1173,7 +1266,7 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. Any failed read, or an answer of the wrong shape, fails the step,
 // so the mint never follows it.
-export async function findPriorMain({ env = process.env, fetch = globalThis.fetch } = {}) {
+export async function findPriorMain({ env = process.env, fetch = globalThis.fetch, sleep } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
       throw new Error("ISSUE_NUMBER is not an issue number");
@@ -1186,7 +1279,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     const markers = (await paginate(github, `${repo}/issues/${issueNumber}/comments`))
       .filter((comment) => comment.user?.login === bot)
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
@@ -1269,11 +1362,13 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 }
 
 // A hand-back plan's edits. The label first, so a failed comment still leaves
-// the issue with a person.
+// the issue with a person. Adding a label the issue has, or removing one it
+// lacks (a 404 the catch logs), leaves the same labels, so both are resent;
+// the comment is not.
 async function applyHandBack(github, repo, plan) {
-  await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels });
+  await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   for (const name of plan.removeLabels) {
-    await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
+    await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`, undefined, { safeToResend: true }).catch((error) =>
       console.log(`report-outcome: could not remove ${name}: ${error.message}`),
     );
   }
@@ -1281,7 +1376,7 @@ async function applyHandBack(github, repo, plan) {
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
 }
 
-export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now() } = {}) {
+export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep } = {}) {
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -1304,7 +1399,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       throw new Error("REUSE_BRANCH is not this issue's lane branch");
     }
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
@@ -1318,7 +1413,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const ran = readBranch(dir, issueNumber);
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
-    const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    // A run whose scan refused its output left no outcome: say so.
+    const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR, env.GITHUB_RUN_ATTEMPT) : "";
+    if (refusal) {
+      outcome = { ...stopped(SCAN_REFUSALS[refusal]), unread: true };
+    }
     const branch = reuse || ran;
     // A resumed run that finished with no commit of its own deleted its
     // branch; decide() marks it so, and hands a done run back naming the
@@ -1419,6 +1519,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         })
       : 0;
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    // Only a pushback reads the comments; a failed read leaves the link out.
+    const unmarked =
+      !unreported && outcome?.exit === "pushback"
+        ? await paginate(github, `${repo}/issues/${issueNumber}/comments`)
+            .then((list) => unmarkedAnswer(list, readHumans(env.TRUSTED_ACTORS ?? ""), bot))
+            .catch(() => null)
+        : null;
     let plan = unreported
       ? reusePlan({
           issueNumber,
@@ -1452,6 +1559,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
           checks,
           escalation,
+          unmarked,
         });
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
@@ -1488,22 +1596,29 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
-      const open = (
-        await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)
-      ).find((candidate) => candidate.user?.login === bot);
-      const pull =
-        open ??
-        (await github("POST", `${repo}/pulls`, {
-          title: plan.title,
-          body: plan.body,
-          head: plan.branch,
-          base: base || (await github("GET", repo)).default_branch,
-          draft: false,
-        }));
+      const findOpen = async () =>
+        (await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)).find(
+          (candidate) => candidate.user?.login === bot,
+        );
+      let pull = await findOpen();
+      if (!pull) {
+        const fields = { title: plan.title, body: plan.body, head: plan.branch, base: base || (await github("GET", repo)).default_branch, draft: false };
+        try {
+          pull = await github("POST", `${repo}/pulls`, fields);
+        } catch (error) {
+          // A create that failed on the network may have opened the PR, so
+          // it is read back first, and created once more only when absent.
+          if (!networkError(error)) {
+            throw error;
+          }
+          pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
+        }
+      }
       // A plan with a tip opens only at it: a PR whose head moved off the
-      // checked tip is closed, and the issue goes to a person.
+      // checked tip is closed, and the issue goes to a person. Closing a
+      // closed PR changes nothing, so the close is resent.
       if (plan.tip && pull.head?.sha !== plan.tip) {
-        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" });
+        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
         console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
         plan = handBack({
           outcome: stopped(

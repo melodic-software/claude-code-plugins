@@ -20,7 +20,9 @@
 # (the issue lane's patch run) that commit makes each new or changed .sh or #!
 # file executable, as apply-patch will.
 #
-# Each check calls the script or tool CI calls; none restates a check's logic.
+# Each check calls the script or tool CI calls; none restates a check's logic
+# but machine-specific-paths, whose entry script is in ci-workflows, not here:
+# it repeats that script's scan and exemptions over the same patterns file.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
 # only, because that is what a push sends. The checks read the working tree,
 # so when a changed file has uncommitted edits every check SKIPs rather than
@@ -36,6 +38,9 @@
 #   - validate-plugins:    scripts/validate-plugins.sh --only <touched plugins>
 #   - ruff:                scripts/run-ruff.sh check on changed .py
 #   - typos:               typos --config _typos.toml on the changed files
+#   - machine-specific-paths: the check-machine-paths composite's scan, git grep
+#                          of each regex body in the guardrails plugin's
+#                          machine-path-patterns.sh, on the changed files
 #   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
 #   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
 #   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
@@ -45,7 +50,10 @@
 #                          file changed
 #   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
-#                          stale locked npm packages
+#                          stale locked npm packages, then the selected Node
+#                          suites of scripts/outside-node-packages.txt through
+#                          scripts/run-outside-node-suites.sh --paths; any
+#                          other selected suite left unrun makes tests a SKIP
 #
 # Every hygiene gate the CI jobs run that this does not is printed as
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
@@ -59,7 +67,9 @@
 # script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
 # reads only the copy's configs (a branch config can load a custom rule, which
 # is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
-# validate-plugins steps that report `SKIP` themselves.
+# validate-plugins steps that report `SKIP` themselves. plugin-options-docs
+# skips when the branch changes its generator, whose output the copy's older
+# generator would reject.
 #
 # CI is still the gate that decides: this covers the diff-scoped LINT tier and
 # the plugin and skill contract checks above, not CI's whole-repo scanners, and
@@ -179,7 +189,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -f "$out" "$out.failures"' EXIT
+trap 'rm -f "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.node"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -365,11 +375,143 @@ else
   run_check typos "typos --config _typos.toml ${changed[*]}" typos_check "$typos_config"
 fi
 
+# machine-specific-paths: the scan the workflow's check-machine-paths composite
+# (melodic-software/ci-workflows) runs, over the changed files of the types it
+# scans. The regex bodies come from the merge-base's guardrails plugin copy of
+# the patterns file the composite sources; no second copy of them is written
+# here. The exclusions mirror the `exclude:` input of the workflow's
+# machine-paths step, and the types are the composite's default `extensions`
+# input, which that step does not override (scripts/check-affected-gates.test.sh
+# holds both to the workflow). The boundary, the five scans and the exemptions
+# repeat the composite's entry script as read at ci-workflows v0.65.15
+# (30b251532b2e9f7e0c4215e1dee5be0d3c688743); recheck them when the pin moves.
+machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+machine_paths_excludes=(
+  ':(exclude)plugins/guardrails/lib/path-detection/**'
+  ':(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**'
+  ':(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json'
+  ':(exclude)plugins/harness-config/skills/audit-permission-state/reference/criteria.md'
+  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.sh'
+  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh'
+  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh'
+  ':(exclude)plugins/source-control/scripts/worktree-create.test.sh'
+)
+read -ra machine_paths_types <<<'*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.toml *.ts *.tsx *.yaml *.yml'
+declare -a machine_paths_files=()
+for f in ${changed[@]+"${changed[@]}"}; do
+  for g in "${machine_paths_types[@]}"; do
+    # shellcheck disable=SC2053 # $g is a glob on purpose.
+    if [[ "$f" == $g ]]; then
+      # literal, so a name holding * or a leading : is that file alone.
+      machine_paths_files+=(":(literal)$f")
+      break
+    fi
+  done
+done
+
+# machine_paths_load: defines the HPP_* regex bodies from the merge-base's
+# patterns file. Sourcing runs it, and the pre-push hook's TOOLING list does not
+# name it, so the branch's own copy is never the one loaded; CI scans with
+# ci-workflows' copy, not this tree's, either way.
+machine_paths_load() {
+  git show "$merge_base:$machine_paths_lib" >"$out.patterns" 2>/dev/null || return 1
+  # shellcheck source=../plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+  . "$out.patterns" || return 1
+  [[ -n "${HPP_WIN_USER_BODY-}" && -n "${HPP_MACOS_USER_BODY-}" && -n "${HPP_LINUX_USER_BODY-}" &&
+    -n "${HPP_WIN_REPO_BODY-}" && -n "${HPP_ESCAPED_WIN_REPO_BODY-}" ]]
+}
+
+# machine_paths_exempt <pattern> <macos> <content>: 0 when the line holds a
+# span and every span is a placeholder, a last segment of punctuation or an
+# ellipsis alone (`<user>` never matches), or, under the macOS body, the
+# shared folder of /Users ending a sentence. A line with no span is a finding,
+# as in CI.
+machine_paths_exempt() {
+  local span child rest trimmed n=0
+  while IFS= read -r span; do
+    [[ -n "$span" ]] || continue
+    n=$((n + 1))
+    child="${span##*[/\\]}"
+    rest="$(printf '%s' "$child" | LC_ALL=C tr -d '[:punct:]')" || return 1
+    rest="${rest//$'\342\200\246'/}"
+    [[ -n "$child" && -z "$rest" ]] && continue
+    if [[ "$2" == 1 ]]; then
+      trimmed="$(printf '%s\n' "$child" | LC_ALL=C sed 's/[^A-Za-z0-9._-]*$//')" || return 1
+      [[ "${trimmed%.}" == Shared ]] && continue
+    fi
+    return 1
+  done < <(printf '%s\n' "$3" | grep -oE -- "$1")
+  ((n))
+}
+
+# machine_paths_scan <label> <macos> <pattern>: prints each changed line the
+# pattern finds that no exemption covers; 0 none, 1 some, 2 git grep failed.
+machine_paths_scan() {
+  local matches line content rc=0 found=0
+  matches="$(git grep -nIE -e "$3" -- "${machine_paths_files[@]}" "${machine_paths_excludes[@]}")" || rc=$?
+  ((rc <= 1)) || return 2
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    content="${line#*:*:}"
+    if [[ "$content" != "$line" ]]; then
+      [[ "$content" == *machine-path:allow* ]] && continue
+      machine_paths_exempt "$3" "$2" "$content" && continue
+    fi
+    echo "$1: $line"
+    found=1
+  done <<<"$matches"
+  return "$found"
+}
+
+# machine_paths_check: the composite's five scans, in its order. The
+# slash-rooted bodies take its boundary prefix; the Windows ones anchor on the
+# drive letter.
+machine_paths_check() {
+  local boundary i rc found=0 errored=0
+  boundary=$'(^|[[:space:]"\'`(=]|file://)'
+  local -a labels=("Windows user path" "macOS user path" "Linux user path" "Windows repo path" "Escaped Windows repo path")
+  local -a patterns=("$HPP_WIN_USER_BODY" "$boundary$HPP_MACOS_USER_BODY" "$boundary$HPP_LINUX_USER_BODY"
+    "$HPP_WIN_REPO_BODY" "$HPP_ESCAPED_WIN_REPO_BODY")
+  for i in "${!labels[@]}"; do
+    rc=0
+    machine_paths_scan "${labels[i]}" "$((i == 1))" "${patterns[i]}" || rc=$?
+    case "$rc" in
+    0) ;;
+    1) found=1 ;;
+    *)
+      echo "${labels[i]}: git grep failed"
+      errored=1
+      ;;
+    esac
+  done
+  # A finding outranks a scan that could not run, so one never hides the other.
+  if ((found)); then
+    echo "Use portable placeholders (<repo-root>, <user>) or relative paths, or mark the line machine-path:allow."
+    return 1
+  fi
+  ((errored)) && return 2
+  return 0
+}
+
+if ((${#machine_paths_files[@]} == 0)); then
+  skip machine-specific-paths "no changed file of a type it scans"
+elif ! machine_paths_load; then
+  skip machine-specific-paths "no loadable $machine_paths_lib at the merge-base"
+else
+  run_check machine-specific-paths "scripts/check-affected.sh --base $base" machine_paths_check
+fi
+
 run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
   "$tools/scripts/check-spoke-plugin-root.sh" --check
 
-run_check plugin-options-docs "python3 scripts/sync-plugin-options-docs.py --check" \
-  python3 "$tools/scripts/sync-plugin-options-docs.py" --check
+# The generator writes the READMEs, so a copy's older generator fails a branch
+# that changes it and regenerates them.
+if ((foreign)) && grep -qx scripts/sync-plugin-options-docs.py <<<"$all_raw"; then
+  skip plugin-options-docs "the branch changes the generator; CI runs the branch's copy"
+else
+  run_check plugin-options-docs "python3 scripts/sync-plugin-options-docs.py --check" \
+    python3 "$tools/scripts/sync-plugin-options-docs.py" --check
+fi
 
 # The modes the pull_request run of the changelog-parity gates uses. The bump
 # check's collision findings are advisory there too: a branch only behind its
@@ -416,13 +558,62 @@ elif ((run_tests)); then
       tail -n 15 "$out"
     } >>"$out.failures"
   fi
-  # affected-tests exits 3 when it ran every shell suite but selected suites of
-  # another ecosystem it does not run; those are CI's, so that is a pass here.
+  # affected-tests exits 3 when it ran every shell suite it selected but also
+  # selected suites it does not run, which it writes to the --write-not-run
+  # file. One under a package of scripts/outside-node-packages.txt runs here as
+  # CI's test-node lane runs it, through run-outside-node-suites.sh and the
+  # package's own npm test, and a failing one fails tests. A Node suite beside
+  # a <stem>.test.sh ran through that wrapper (affected-tests' rule R9), and a
+  # path under scripts/outside-node-exclusions.txt is no suite. Any other is
+  # left to its own CI lane, so tests is a SKIP counting it, never a pass:
+  # exit 2, whose last line run_check puts in the skip.
   affected() {
-    local rc=0
-    "$tools/scripts/affected-tests.sh" --run --base "$base" || rc=$?
-    ((rc == 3)) && return 0
-    return "$rc"
+    local rc=0 s pkg ex t n=0 missing=
+    local -a pkgs=() exclusions=() node=() unrun=()
+    "$tools/scripts/affected-tests.sh" --run --base "$base" --write-not-run "$out.not-run" || rc=$?
+    ((rc == 3)) || return "$rc"
+    # shellcheck source=lib/read-list.sh
+    . "$tools/scripts/lib/read-list.sh" &&
+      read_list::into pkgs "$tools/scripts/outside-node-packages.txt" --comments inline &&
+      read_list::into exclusions "$tools/scripts/outside-node-exclusions.txt" --comments inline || return 2
+    while IFS= read -r s; do
+      [[ -n "$s" ]] || continue
+      n=$((n + 1))
+      for ex in ${exclusions[@]+"${exclusions[@]}"}; do
+        [[ "$s" == "$ex"* ]] && continue 2
+      done
+      for pkg in ${pkgs[@]+"${pkgs[@]}"}; do
+        if [[ "$s" == "$pkg"/* ]]; then
+          node+=("$s")
+          continue 2
+        fi
+      done
+      case "$s" in
+      *.test.js | *.test.mjs) [[ -f "${s%.test.*}.test.sh" ]] && continue ;;
+      *) ;;
+      esac
+      unrun+=("$s")
+    done <"$out.not-run"
+    if ((n == 0)); then
+      echo "affected-tests exited 3 but named no unrun suite"
+      return 2
+    fi
+    if ((${#node[@]})); then
+      for t in npm jq; do
+        command -v "$t" >/dev/null 2>&1 || missing+="${missing:+, }$t"
+      done
+    fi
+    if [[ -n "$missing" ]]; then
+      unrun+=("${node[@]}")
+    elif ((${#node[@]})); then
+      printf '%s\n' "${node[@]}" >"$out.node" || return 2
+      bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || return
+    fi
+    if ((${#unrun[@]})); then
+      printf 'not run here: %s\n' "${unrun[@]}"
+      echo "${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
+      return 2
+    fi
   }
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"

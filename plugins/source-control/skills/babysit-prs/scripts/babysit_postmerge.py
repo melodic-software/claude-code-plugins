@@ -1055,6 +1055,10 @@ class _Context:
     unknown_checks: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
+    # Each commit on the first clone's first-parent chain of the branch, by
+    # its position from the tip (`_chain_contains`); None until first read,
+    # empty when no clone yields one.
+    chain: dict[str, int] | None = None
     # Per live branch tip, the clone's copy of the branch when the compare
     # API read it as that tip's ancestor, else None (`_tip_bridge`).
     bridge_cache: dict[str, str | None] = field(default_factory=dict)
@@ -1736,27 +1740,7 @@ class _Context:
         its own compare, which raises on its own failure."""
         if tip not in self.bridge_cache:
             bridge = None
-            if self.local_clones is None:
-                self.local_clones = _full_history_clones()
-            refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
-            local = next(
-                (
-                    out.strip()
-                    for root in self.local_clones
-                    for ref in refs
-                    if (
-                        out := policy._git(
-                            root,
-                            "rev-parse",
-                            "--verify",
-                            "--quiet",
-                            f"{ref}^{{commit}}",
-                        )
-                    )
-                    and _FULL_SHA.fullmatch(out.strip())
-                ),
-                None,
-            )
+            local = (self._local_branch() or (None, None))[1]
             # A local tip leaves only the record's commit missing: no bridge.
             if local is not None and local != tip:
                 try:
@@ -1766,9 +1750,53 @@ class _Context:
             self.bridge_cache[tip] = bridge
         return self.bridge_cache[tip]
 
+    def _local_branch(self) -> tuple[Path, str] | None:
+        """The first full-history clone holding a copy of the branch, from
+        `refs/remotes/origin/<branch>` or else `refs/heads/<branch>`, and that
+        copy's commit; None when no clone holds one."""
+        if self.local_clones is None:
+            self.local_clones = _full_history_clones()
+        if not self.branch:
+            return None
+        refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
+        return next(
+            (
+                (root, out.strip())
+                for root in self.local_clones
+                for ref in refs
+                if (
+                    out := policy._git(
+                        root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"
+                    )
+                )
+                and _FULL_SHA.fullmatch(out.strip())
+            ),
+            None,
+        )
+
+    def _chain_contains(self, ancestor: str, sha: str) -> bool | None:
+        """`contains` from one `git rev-list --first-parent` of the clone's
+        copy of the branch, read once: of two commits on that chain, the one
+        listed later (older) is the other's ancestor, and the one listed
+        earlier is not, since it descends from the other. A commit off the
+        chain (reached only through a merge's second parent, or absent) is
+        None, so the merge-base read answers it."""
+        if self.chain is None:
+            self.chain = {}
+            if (local := self._local_branch()) is not None:
+                root, tip = local
+                listed = policy._git(root, "rev-list", "--first-parent", tip)
+                commits = (listed or "").split()
+                if commits[:1] == [tip] and all(map(_FULL_SHA.fullmatch, commits)):
+                    self.chain = {commit: i for i, commit in enumerate(commits)}
+        at, of = self.chain.get(ancestor), self.chain.get(sha)
+        return None if at is None or of is None else at >= of
+
     def _local_contains(self, ancestor: str, sha: str) -> bool | None:
         """`git merge-base --is-ancestor` in the first local clone that can
-        decide (exit 0 or 1), or None. Only full SHA-1 ids are asked: a ref
+        decide (exit 0 or 1), or None; two commits on the branch's
+        first-parent chain are answered from it (`_chain_contains`) with no
+        spawn. Only full SHA-1 ids are asked: a ref
         name can point elsewhere locally than on GitHub. A shallow clone is
         never asked, and graft files and replace refs are ignored, as any of
         them would cut history and answer False for an ancestor. A partial
@@ -1776,6 +1804,8 @@ class _Context:
         compare API answers."""
         if not (_FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha)):
             return None
+        if (chained := self._chain_contains(ancestor, sha)) is not None:
+            return chained
         if self.local_clones is None:
             self.local_clones = _full_history_clones()
         for root in self.local_clones:
@@ -2126,7 +2156,9 @@ def check(
 
     `is_human` is the Design's human test for one GraphQL actor (null included).
     `pinned_sha` returns the head SHA the wrapper pinned for a merge, or None when
-    no record exists, which leaves the merge unverified without failing it. Any
+    no record exists, which leaves the merge unverified without failing it;
+    its `prefetch(numbers)`, when it has one, is first given every merge
+    whose pin is read (`PinReader`). Any
     read failure makes the verdict unreadable, which is never ok."""
     if not agent_identity:
         return PostMergeVerdict(False, "agent-identity-unconfigured")
@@ -2225,6 +2257,10 @@ def check(
             ),
             key=lambda r: r.created_at,
         )
+        if (prefetch := getattr(pinned_sha, "prefetch", None)) is not None:
+            prefetch(
+                [m.number for m in merges if m.number in pinned_merges | optional_pins]
+            )
         states = tuple(
             _judge(
                 merge,
@@ -2519,6 +2555,13 @@ PIN_QUERY = (
 # Comment pages the pin read walks: 3000 comments. A longer thread reads as
 # no pin, which fails the read-back once the dispatch deadline passes.
 PIN_PAGE_LIMIT = 30
+# `read_pins`: pull requests per query, and the first comment page it reads
+# of each (no review or comment time: only `alone` reads them).
+PIN_BATCH = 20
+PIN_COMMENTS = (
+    "comments(first:100){pageInfo{hasNextPage endCursor} nodes{"
+    "author{__typename login} body lastEditedAt}}"
+)
 
 
 def pin_comment(sha: str) -> str:
@@ -2538,22 +2581,63 @@ def read_pin(
     anyone but the identity commented after that pin or submitted the newest
     review after it; a review list that cannot be read raises."""
     owner, name = _split_repo(repo)
+    thread = _pin_thread(owner, name, number)
+    return None if thread is None else _pin_sha(number, identity, *thread, alone=alone)
+
+
+def read_pins(
+    repo: str, numbers: Iterable[int], identity: str
+) -> dict[int, str | None]:
+    """`read_pin` for each of `numbers`, by number: the first comment page of
+    `PIN_BATCH` pull requests per query, and a pull request's later pages
+    one at a time, as `read_pin` reads them. Any failed read raises, and so
+    does a pull request the response leaves out."""
+    owner, name = _split_repo(repo)
+    wanted = list(dict.fromkeys(numbers))
+    pins: dict[int, str | None] = {}
+    for start in range(0, len(wanted), PIN_BATCH):
+        chunk = wanted[start : start + PIN_BATCH]
+        aliases = " ".join(f"p{n}:pullRequest(number:{n}){{...c}}" for n in chunk)
+        query = (
+            "query PostMergeHeadPins($o:String!,$r:String!){"
+            f"repository(owner:$o,name:$r){{{aliases}}}}} "
+            f"fragment c on PullRequest{{number {PIN_COMMENTS}}}"
+        )
+        data = _graphql(query, f"#{chunk[0]} pins", o=owner, r=name)
+        repository = json_object(data.get("repository"))
+        for n in chunk:
+            pull = repository.get(f"p{n}")
+            if not is_json_object(pull) or pull.get("number") != n:
+                raise PostMergeReadError(f"#{n} pin: no pull request in the response")
+            thread = _pin_thread(owner, name, n, first=pull)
+            pins[n] = None if thread is None else _pin_sha(n, identity, *thread)
+    return pins
+
+
+def _pin_thread(
+    owner: str, name: str, number: int, first: dict[str, Any] | None = None
+) -> tuple[list[dict[str, Any]], Any] | None:
+    """Every comment of `number` and its newest review, or None past
+    `PIN_PAGE_LIMIT` pages. `first` is a first page already read."""
     comments: list[dict[str, Any]] = []
     reviews: Any = None
     cursor: str | None = None
     for _ in range(PIN_PAGE_LIMIT):
-        args = ["api", "graphql", "-f", f"query={PIN_QUERY}", "-f", f"o={owner}"]
-        args += ["-f", f"r={name}", "-F", f"n={number}"]
-        if cursor:
-            args += ["-f", f"c={cursor}"]
-        payload = _read(args, f"#{number} pin")
-        if not is_json_object(payload) or payload.get("errors"):
-            raise PostMergeReadError(f"#{number} pin: the response carried no data")
-        pull = json_object(
-            json_object(json_object(payload.get("data")).get("repository")).get(
-                "pullRequest"
+        if first is not None:
+            pull, first = first, None
+        else:
+            args = ["api", "graphql", "-f", f"query={PIN_QUERY}", "-f", f"o={owner}"]
+            args += ["-f", f"r={name}", "-F", f"n={number}"]
+            if cursor:
+                args += ["-f", f"c={cursor}"]
+            payload = _read(args, f"#{number} pin")
+            if not is_json_object(payload) or payload.get("errors"):
+                raise PostMergeReadError(f"#{number} pin: the response carried no data")
+            pull = json_object(
+                json_object(json_object(payload.get("data")).get("repository")).get(
+                    "pullRequest"
+                )
             )
-        )
         page = json_object(pull.get("comments"))
         nodes, info = page.get("nodes"), json_object(page.get("pageInfo"))
         if not is_json_array(nodes) or not isinstance(info.get("hasNextPage"), bool):
@@ -2563,11 +2647,21 @@ def read_pin(
             reviews = json_object(pull.get("reviews")).get("nodes")
         cursor = info.get("endCursor")
         if not info["hasNextPage"]:
-            break
+            return comments, reviews
         if not isinstance(cursor, str) or not cursor:
             raise PostMergeReadError(f"#{number} pin: a next page with no cursor")
-    else:
-        return None
+    return None
+
+
+def _pin_sha(
+    number: int,
+    identity: str,
+    comments: list[dict[str, Any]],
+    reviews: Any,
+    *,
+    alone: bool = False,
+) -> str | None:
+    """`read_pin`'s answer from the comments and reviews it read."""
     mine = [_actor_key(c.get("author")) == _login_key(identity) for c in comments]
     pins = [
         i
@@ -2598,9 +2692,25 @@ def read_pin(
     return match[1] if match else None
 
 
-def pin_reader(repo: str, identity: str) -> Callable[[AutoMerge], str | None]:
-    """`check()`'s `pinned_sha` callable: the identity's pin on each merge."""
-    return lambda merge: read_pin(repo, merge.number, identity)
+class PinReader:
+    """`check()`'s `pinned_sha` callable: the identity's pin on each merge,
+    from the batch `prefetch` read for this check, else read on its own."""
+
+    def __init__(self, repo: str, identity: str) -> None:
+        self.repo, self.identity = repo, identity
+        self.pins: dict[int, str | None] = {}
+
+    def prefetch(self, numbers: Iterable[int]) -> None:
+        """Read every pin of `numbers` afresh, replacing any earlier read."""
+        self.pins = read_pins(self.repo, numbers, self.identity)
+
+    def __call__(self, merge: AutoMerge) -> str | None:
+        if merge.number in self.pins:
+            return self.pins[merge.number]
+        return read_pin(self.repo, merge.number, self.identity)
+
+
+pin_reader = PinReader
 
 
 def _demotion_issues(

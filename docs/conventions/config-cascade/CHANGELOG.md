@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`knowledge` gains Implementers and root-rule rows.** Its `upstream_records_dir` key lives in
+  `<home>/knowledge.yaml`, with no `userConfig` layer and no overlay, and a per-run `--out`
+  argument over it.
 - **`corrections` (`findings-buffer`) gains a user-scope adapter binding.** Its Implementers row
   declares two `userConfig` options, outside the file schema and read from user and managed
   settings only, that bind a repository's own adapter in that repository alone; the team file and

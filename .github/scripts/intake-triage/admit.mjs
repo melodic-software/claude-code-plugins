@@ -6,9 +6,10 @@
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
 // are already in `status: ready`: apply-verdict withholds it on any flag
 // (triage flags security only for a very-high risk) or a hold label, and the
-// cost rule adds needs-human. Criterion 4 (no protected path named) applies
-// only to the paths the issue lane cannot push (unpushablePaths). This checks
-// the rest:
+// cost rule adds needs-human; criterion 6 is checked here too, on the charge
+// words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
+// Criterion 4 (no protected path named) applies only to the paths the issue
+// lane cannot push (unpushablePaths). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -40,14 +41,16 @@
 // - a `recurring` item's schedule row, read from the default branch's
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
+// - the body was not edited after the lane comment the verdict came from;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
 //   page on a host outside resolve-issue's web-access domains. The refusal
 //   recommends splitting those items into a needs-human child issue, which
 //   refine.mjs files when some items are left for the lane;
-// - 10: check-wip-cap's status: over the queued cap, or with the lane paused
-//   over the WIP or held cap (from wip.pause-from), the issue gets
+// - 10: check-wip-cap's status: over the queued cap, with a queued count it
+//   could not read (fail-open), or with the lane paused over the WIP or held
+//   cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
 //   `admission-deferred`, so admission takes the oldest first (owner Q95).
@@ -362,6 +365,23 @@ export function issuePushRefusals() {
   return pushRefusalNames;
 }
 
+let chargeWords;
+// The charge-word pattern rule-admit.sh matches too, read once from its one
+// definition in the default branch's checkout beside this script.
+export function chargePattern() {
+  if (chargeWords === undefined) {
+    const { cost } = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
+    if (typeof cost !== "string" || cost === "") {
+      throw new Error("plugins/work-items/scripts/charge-words.json: `cost` must be a pattern");
+    }
+    chargeWords = new RegExp(cost, "gi");
+  }
+  return chargeWords;
+}
+
+// The charge words `text` holds by `pattern`, lowercased, each once. Pure.
+export const chargeHits = (text, pattern) => [...new Set([...String(text ?? "").matchAll(pattern)].map((m) => m[0].toLowerCase()))];
+
 // A repository path a criterion names: a backticked span or a word, less a
 // trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
 // or a root CODEOWNERS or .gitmodules, counts: a bare file name or an
@@ -457,11 +477,16 @@ export function admissionSettled(labels, events, isMark) {
 
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
-// a person-held label (the owner's 2026-10-26 rule keeps a person out of
-// every other refusal), or done-when items a lane run cannot perform, which
-// refine splits only from needs-decision (refine.mjs splitOf). Pure but for
-// `pushRefusals`, read from patch-rules.json when not given.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
+// a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
+// person out of every other refusal), or done-when items a lane run cannot
+// perform, which refine splits only from needs-decision (refine.mjs splitOf).
+// `verdict.writtenAt` is when the lane comment the verdict came from was last
+// written; a body edited after it refuses, since the verdict judged an older
+// body. The sweep reads no lane comment and passes none. Pure but for
+// `pushRefusals` and `charges`, read from patch-rules.json and
+// charge-words.json when not given; a file that does not read throws out of
+// decide, so no issue is admitted on a guess.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -537,6 +562,20 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
   if (unpushable.length > 0) {
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
+  }
+  // A metered or renewing charge needs the owner's decision, whatever the
+  // verdict flagged.
+  const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges);
+  if (charged.length > 0) {
+    refuse.push(`its title or body names a charge (${charged.join(", ")}), which needs an owner decision`);
+    hold = true;
+  }
+  if (verdict.writtenAt !== undefined) {
+    const judged = Date.parse(verdict.writtenAt);
+    const edited = spec?.lastEditedAt == null ? null : Date.parse(spec.lastEditedAt);
+    if (!Number.isFinite(judged) || (edited !== null && !(edited <= judged))) {
+      refuse.push("its body was edited after the triage verdict, which judged the body as it stood before");
+    }
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
@@ -946,19 +985,55 @@ export function splitRecord(body) {
   };
 }
 
-// Whether `issue`, as just read, is a parent a size split filed every
-// sub-issue for, closed as completed by the lanes App (`isApp(actor)`) once
-// each sub-issue was closed by a listed human or a merge (`trusted(number)`):
-// the one close by the App that counts as done (owner Q93).
-export async function splitParentClosed({ github, repository, issue, isApp, trusted }) {
+// The default branch's admission rules, beside this script like readSchedule's
+// file, read once.
+let baseRules;
+const baseTaskList = () =>
+  (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))))["task-list"];
+
+// Whether `issue` in this repository is a split parent, whose work is its
+// sub-issues' (owner Q93): the lanes App (`isApp(actor)`) posted a split
+// record with its sub-issues filed (refine.mjs), or it was split by hand:
+// `children` (its sub-issues as listed) is not empty, the newest
+// sub_issue_added naming each child was the App's or a listed human's, it is
+// not `recurring`, and its body holds no task-list item (the admission
+// rules' `task-list`, unticked). `comments` are its comments. A failed read
+// throws.
+export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
+  if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+    return true;
+  }
+  if (children.length === 0 || names(issue.labels).includes(RECURRING) || taskItems(issue.body, baseTaskList()).length > 0) {
+    return false;
+  }
+  const linker = new Map();
+  const events = await paginate(github, `/repos/${repository}/issues/${issue.number}/events`);
+  for (const event of events.filter((item) => item?.event === "sub_issue_added")) {
+    const key = `${String(event.sub_issue?.repository?.full_name).toLowerCase()}#${event.sub_issue?.number}`;
+    const newest = linker.get(key);
+    if (newest === undefined || !(Date.parse(event.created_at) < Date.parse(newest.created_at))) {
+      linker.set(key, event);
+    }
+  }
+  return children.every((child) => {
+    const actor = linker.get(`${repoOf(child?.repository_url)}#${child?.number}`)?.actor;
+    return actor !== undefined && (isApp(actor) || humans.has(actor?.id));
+  });
+}
+
+// Whether `issue`, as just read, is a split parent (isSplitParent) closed as
+// completed by the lanes App (`isApp(actor)`) once each sub-issue was closed
+// by a listed human or a merge (`trusted(number)`): the one close by the App
+// that counts as done (owner Q93).
+export async function splitParentClosed({ github, repository, issue, isApp, humans, trusted }) {
   if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
     return false;
   }
   const base = `/repos/${repository}/issues/${issue.number}`;
-  if (!(await paginate(github, `${base}/comments`)).some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  const children = await paginate(github, `${base}/sub_issues`);
+  if (!(await isSplitParent({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans }))) {
     return false;
   }
-  const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
     if (child?.state !== "closed" || !(await trusted(child.number))) {
       return false;
@@ -974,7 +1049,7 @@ export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = (actor) => appId !== undefined && actor?.id === appId;
   const trusted = async (number) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
-    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, trusted });
+    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
   };
   return trusted;
 };
@@ -1121,13 +1196,18 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "waiting", reasons: decision.reasons };
   }
   const s = await status();
-  const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
+  // A queued count check-wip-cap could not read (fail-open) admits nothing,
+  // as an incomplete search answer admits nothing.
+  const unread = s.admission_basis === "fail-open";
+  const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
   if (full || (await deferredAhead(github, repository, issue))) {
     const why = !full
       ? `an older ${DEFERRED} issue is ahead of it`
       : s.paused
         ? `the lane is paused (${s.pause_reason})`
-        : `admissions are closed (${s.admission_reason})`;
+        : unread
+          ? "the issue lane's queued count could not be read (admission_basis fail-open)"
+          : `admissions are closed (${s.admission_reason})`;
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };

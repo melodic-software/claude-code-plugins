@@ -3,6 +3,69 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.13.0] - 2026-10-27
+
+### Changed
+
+- `babysit_risk` splits its path floor by class (`FLOOR_CLASSES`): `HIGH_FLOOR` is now the `trust` and `gate` globs, and an `enforcement` glob (`REVIEW_FLOOR`) scores HIGH as `review-path:<glob>` unless the security lane's evidence is bound to the head with no open finding (`security_review_clean`). A clean code-review lane alone clears nothing. `NEVER_FLOOR_EXEMPT` keeps every floor glob.
+- An enforcement path in a pull request that also changes a lane source (a workflow, `CLAUDE.md`, `AGENTS.md`, `.claude/`, `docs/standards/`, `.gitattributes`) scores `review-path-unbindable:<glob>` instead: its security review can never bind at that head, so `person_reasons` names it and it goes to a person. An unbind a later review or read can clear stays the lane's `review-path:`.
+
+- `babysit_postmerge.py` answers whether a commit contains another from one `git rev-list --first-parent` of the local clone's copy of the branch when both commits are on that chain, and spawns `git merge-base --is-ancestor` only for a commit off it (reached through a merge's second parent, or absent). It reads the agent identity's pin comments for every judged merge 20 pull requests to a GraphQL query (`read_pins`), paging a pull request with more than 100 comments on its own. Verdicts are unchanged: an edited pin is still no pin, and a pull request the batch leaves out, or any failed read, still makes the verdict unreadable.
+
+## [3.12.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+- `babysit_loop_stop_mode`, `babysit_loop_tier`, `babysit_loop_merge` and `babysit_loop_grace_window_minutes` take their team value from `docs/conventions/source-control.yaml`, and `schemas/source-control.schema.json` declares them ([#9726](https://github.com/melodic-software/claude-code-plugins/issues/9726)). For one release a key the YAML lacks is still read from its `## <key>` section of `.claude/source-control.md`, and a YAML the shared reader rejects stops the lookup instead of falling back. Either file carrying a loop-lane key counts as tracked adoption.
+- `babysit_repo_config.py loop-keys <owner/repo>` reads those four keys from the target repository's default branch through the contents API, YAML first, and prints each value with the layer that supplied it and whether the repository adopted the lane. It exits 1 when a file it needs cannot be fetched, the YAML is rejected or names one of the four keys without a scalar value, or the supplying layer holds a value outside the key's table. `/source-control:babysit-loop` uses it when the checkout is not the target, and `lib/convention-key.sh` when it is.
+
+### Changed
+
+- The unattended merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from `docs/conventions/source-control.yaml` as well as `.claude/source-control.md` at the base SHA and takes the lower value, so a demotion written to either file holds the gate. While the legacy file exists it must set the key too, or the rung is off, so a raise needs both files; with no legacy file the rung stays off, as before, so the YAML alone never raises it. Either file the gate cannot read or trust (a rejected YAML or legacy file, an empty, non-scalar or unknown YAML value, an empty or repeated legacy H2) turns the rung off, never the other file's value alone.
+- The `babysit-loop` evals that adopt the lane at `c3-autonomous` now seed `docs/conventions/source-control.yaml` in place of `.claude/source-control.md`.
+
+## [3.11.0] - 2026-10-27
+
+### Added
+
+- The babysit-prs verdict-evidence script's `evidence` command takes `--answers-in`, `--answers-out`, `--answers-mode` and `--answers-only`. It hashes the read's inputs into a key: the pull request, its linked issues, the verdict artifacts that can count against it, its PASS runs at the head, the config, the rung and main's trust files. Review-body and inline-comment edits, and who resolved a thread, are not hashed; since only refusals are kept, a change there can only delay an arm until the entry expires. A fresh refusal of a stable kind is kept under that key; an allow, or any unreadable answer, never is. A kept entry expires within the hour, when the pull request turns too old to verify, or when a PASS artifact at the head expires. Under `serve` a matching kept refusal is answered with `cached: true` and no further read. Any other mode still reads in full and adds a `cache` object comparing the kept answer with the fresh one; `--answers-only` applies under `serve` alone. Any read behind the key that fails, any answers file that cannot be loaded or is of another version, repository or reader code, and any other error of the cache's own leads to a full read, or to no answer under `--answers-only`, with a `cache` object marking the error. Under `--answers-only` a pull request with no kept entry is a miss with no probe.
+
+## [3.10.4] - 2026-10-27
+
+### Changed
+
+- `/source-control:pull-request comments --ci` documents that the review-thread tool's `list` prints each thread's `review_commit` and `is_outdated`, and that an outdated thread's `line` may be stale.
+
+### Fixed
+
+- The pr-merge gate reads a Dependabot pull request's `.github/dependabot.yml` and standards Dependabot policy at the default branch head as well as at its base, so a tightening on main reaches pull requests opened before it. Main's head is read once per run-cache window, never saving a failed read, and read fresh again before an enqueue. A manifest directory counts as covered, for the content rule and for a lanes App fix, only when both sides list its ecosystem and directory, since a union would let either side widen coverage. A review-only entry that either side lists sends the update to review. A policy that either side cannot read makes every update `dependabot-policy-unreadable`, and a failed read refuses.
+
+## [3.10.3] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [3.10.2] - 2026-10-26
+
+### Changed
+
+- `babysit_merge_policy.settle_shared` holds the lane room's reuse rule for a run's post-merge report (`shared_refusal`, keeping an `unverified-stale` answer nothing moved since and a `demotion-changed` one whose demotion reads the same), and `lane_room` calls it. `babysit_verify_evidence.py settle` applies that rule without reading the report again, as the agent identity in the default branch's config: exit 0 when it stands, 1 otherwise. `settle` and `lane-room` take a required `--code-sha`, the commit whose code ran the report's check: `babysit_merge_policy.check_code_unchanged` compares the babysit-prs scripts and `docs/conventions/pr-pipeline.yaml` there with this checkout's HEAD, and a change, a missing or malformed commit or a git failure refuses the report (`code-changed`), which `lane_room` reads again.
+
+## [3.10.1] - 2026-10-26
+
+### Changed
+
+- babysit-prs holds the lanes' new retry-fetch modules for a person's review, as it holds the other lane scripts.
+
+## [3.10.0] - 2026-10-26
+
+### Added
+
+- `/source-control:pull-request prep` now runs `scripts/prep-warnings.sh` and lists two advisory warnings in its report before the first push: an existing `SKILL.md` or agent body that loses lines with no file added or changed under its eval home, and a changed path the unattended merge holds (`babysit_risk.HIGH_FLOOR` or the configured `merge.diff-check.denied-paths`, held for a person, or a plugin or marketplace manifest, which it compares base against head). The path rules are imported from `babysit_risk.py`, never restated. Neither warning blocks pull request creation. Found while landing #8714, where both cost extra push-and-review rounds.
+
 ## [3.9.0] - 2026-10-26
 
 ### Changed

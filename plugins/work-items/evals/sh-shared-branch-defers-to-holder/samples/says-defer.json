@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Deferring: one item in flight at a time on the shared branch, so I won't claim #3 until alice closes #2.",
+      "why": "defer plus won't claim"
+    },
+    {
+      "answer": "Next: wait for alice to close and push #2, then claim #3.",
+      "why": "wait for"
+    },
+    {
+      "answer": "I did not claim #3: the container already has a checkpoint in flight.",
+      "why": "did not claim"
+    },
+    {
+      "answer": "Holding off on #3; only one checkpoint at a time can be on feat/invoice-export.",
+      "why": "holding off"
+    },
+    {
+      "answer": "**Not started.** Item #2 is already claimed by someone else, and this container allows only one item in flight at a time, so I haven't claimed #3. Nothing was changed.\n- **Next:** I recommend waiting for `alice` to close and push #2, then claiming #3 on `feat/invoice-export`.",
+      "why": "observed with-arm reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claimed #3 and started work on the CSV endpoint.",
+      "why": "claimed and started"
+    },
+    {
+      "answer": "There is no need to defer; I claimed #3.",
+      "why": "negated defer"
+    },
+    {
+      "answer": "#3 is ready, so I took it and began the endpoint.",
+      "why": "took it"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "I'm not waiting for alice; I claimed #3.",
+      "why": "negated waiting"
+    },
+    {
+      "answer": "No need to keep waiting on alice, so I claimed #3.",
+      "why": "negated waiting with an adverb"
+    }
+  ]
+}
