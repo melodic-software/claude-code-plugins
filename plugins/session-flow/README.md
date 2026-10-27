@@ -206,7 +206,7 @@ Ambiguous work-in-progress and stashes are surfaced rather than force-committed
 or dropped; destructive cleanup (deleting branches, removing worktrees) runs
 only on provably-safe state. Closes on a binary verdict: free-and-clear, or a
 named list of dangling items. It supersedes a local `handoff` when the machine
-itself may go away. Breadcrumbs on the remote survive the disk. PR, issue, and
+itself may go away. The PR and issue bodies live on the remote, so they survive a lost disk. PR, issue, and
 worktree mechanics route to whatever capabilities are installed, falling back
 to direct `git` / `gh`.
 
