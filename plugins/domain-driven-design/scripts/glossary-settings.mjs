@@ -42,7 +42,7 @@ const isFileName = (key, value) => typeof value === "string" && new RegExp(schem
 
 /** The git root of `dir`, else `dir` itself: settings anchor at the repository root, never a subdirectory. */
 function gitRoot(dir) {
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 const project = resolvePath(opts.project ?? gitRoot(process.cwd()));

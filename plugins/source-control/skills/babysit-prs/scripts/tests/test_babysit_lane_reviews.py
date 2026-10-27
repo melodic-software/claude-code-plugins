@@ -101,10 +101,19 @@ def held_by(
     files: tuple[ChangedFile, ...] = (DOC,),
     evidence: object = None,
     config: policy.PipelineConfig = CONFIG,
+    reviews: object = (),
+    humans: frozenset[int] = frozenset(),
 ) -> tuple[str, bool] | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
+    read = reviews if isinstance(reviews, Exception) else None
     with (
+        mock.patch.object(
+            ve,
+            "fetch_paginated_api",
+            side_effect=read,
+            return_value=None if read else list(reviews),
+        ),
         mock.patch.object(policy, "changed_files", return_value=(files, True)),
         mock.patch.object(policy, "with_contents", side_effect=lambda repo, pr, f: f),
         mock.patch.object(policy, "pulumi_dirs_at", return_value=()),
@@ -117,7 +126,68 @@ def held_by(
             return_value=None if effect else (evidence, []),
         ),
     ):
-        return ve.lane_risk_refusal(REPO, 41, PR, config, 7)
+        return ve.lane_risk_refusal(REPO, 41, PR, config, 7, humans=lambda: humans)
+
+
+# A path on the floor (babysit_risk.HIGH_FLOOR), held as `high-path:` until a
+# trusted person approves the head, as ci-status lifts it (merge-holds.mjs
+# pathLifters). Kyle (id 5) is trusted, id 9 is not.
+FLOORED = dataclasses.replace(DOC, path=".github/actions/resolve-config/resolve.mjs")
+COST = dataclasses.replace(DOC, path="infra/main.tf")
+TRUSTED = frozenset({5})
+
+
+def review(
+    state: str, *, user: int = 5, sha: str = HEAD, at: str = "2026-10-26T16:41:00Z"
+) -> dict[str, object]:
+    return {
+        "user": {"id": user, "login": f"user{user}", "type": "User"},
+        "state": state,
+        "commit_id": sha,
+        "submitted_at": at,
+    }
+
+
+class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
+    def test_a_floor_path_approved_at_the_head_holds_nothing(self) -> None:
+        self.assertIsNone(
+            held_by((DOC, FLOORED), reviews=[review("APPROVED")], humans=TRUSTED)
+        )
+
+    def test_a_floor_path_holds_for_a_person_without_that_approval(self) -> None:
+        later = "2026-10-26T17:20:00Z"
+        cases = {
+            "no review": [],
+            "an older head": [review("APPROVED", sha="c" * 40)],
+            "an untrusted approver": [review("APPROVED", user=9)],
+            "changes requested since": [
+                review("APPROVED"),
+                review("CHANGES_REQUESTED", at=later),
+            ],
+            "the review list did not read": RuntimeError("reviews: HTTP 502"),
+        }
+        for name, reviews in cases.items():
+            with self.subTest(name):
+                held = held_by((DOC, FLOORED), reviews=reviews, humans=TRUSTED)
+                self.assertEqual(
+                    held,
+                    (
+                        "high-path:.github/actions/resolve-config/**: "
+                        ".github/actions/resolve-config/resolve.mjs",
+                        True,
+                    ),
+                )
+        # The trusted list that did not read lifts nothing either.
+        self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[review("APPROVED")]))
+
+    def test_the_approval_lifts_no_unsafe_path_or_cost_hold(self) -> None:
+        approved = [review("APPROVED")]
+        unsafe = held_by((FLOORED, SYMLINK), reviews=approved, humans=TRUSTED)
+        cost = held_by((FLOORED, COST), reviews=approved, humans=TRUSTED)
+        self.assertEqual(unsafe and unsafe[0].split(":", 2)[:2], ["high-path", "**"])
+        self.assertNotIn("resolve-config", str(unsafe))
+        self.assertEqual(str(cost and cost[0]).split(":")[0], "cost-review-required")
+        self.assertNotIn("high-path", str(cost))
 
 
 class LaneRiskRefusal(unittest.TestCase):
