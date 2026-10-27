@@ -153,6 +153,37 @@ class ServerCase(unittest.TestCase):
         return run_round(self.dir, *args)
 
 
+class TestBuild(ServerCase):
+    """The server reports the plugin version and source hash it started from, and the page carries
+    the build on disk, so a page newer than its server can tell (gap G10)."""
+
+    def test_state_reports_the_plugin_version_and_source_hash(self):
+        from session_bridge import plugin_build
+
+        manifest = HERE.parent / ".claude-plugin" / "plugin.json"
+        st = self.state()
+        self.assertEqual(
+            st["pluginVersion"],
+            json.loads(manifest.read_text(encoding="utf-8"))["version"],
+        )
+        self.assertRegex(st["sourceHash"], r"^[0-9a-f]{64}$")
+        self.assertEqual(st["sourceHash"], plugin_build(HERE)["sourceHash"])
+
+    def test_the_session_file_and_the_page_carry_the_same_build(self):
+        st = self.state()
+        s = session(self.dir)
+        self.assertEqual(
+            (s["pluginVersion"], s["sourceHash"]), (st["pluginVersion"], st["sourceHash"])
+        )
+        code, page, _ = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn(
+            f'<meta name="interview-build" content="{st["pluginVersion"]} {st["sourceHash"]}">',
+            page,
+        )
+        self.assertNotIn("%%", page.split("<style>", 1)[0])
+
+
 class TestApi(ServerCase):
     """The prototype API suite, one check per method, in order (the checks share one server's state)."""
 

@@ -4,7 +4,7 @@
 .SYNOPSIS
 Tests for skills/setup/scripts/Install-MonthlyRun.ps1, which setup's schedule
 step uses to copy the monthly wrapper, and its check step uses to tell whether
-that copy is current.
+that copy is current and to refresh a stale one.
 #>
 
 BeforeAll {
@@ -41,5 +41,12 @@ Describe 'Install-MonthlyRun and Test-MonthlyRunCurrent' -Tag 'lib' {
         (Test-MonthlyRunCurrent -StateBase $script:Base).WrapperCurrent | Should -BeFalse
         Remove-Item -LiteralPath $script:Installed.WrapperPath
         (Test-MonthlyRunCurrent -StateBase $script:Base).WrapperCurrent | Should -BeFalse
+    }
+
+    It 'refreshes a stale copy to current and leaves no temp file in the scheduler folder' {
+        Add-Content -LiteralPath $script:Installed.WrapperPath -Value '# older build'
+        Install-MonthlyRun -StateBase $script:Base | Out-Null
+        (Test-MonthlyRunCurrent -StateBase $script:Base).WrapperCurrent | Should -BeTrue
+        @(Get-ChildItem -LiteralPath (Join-Path $script:Base 'scheduler') -Force).Name | Should -Be @('monthly-run.ps1')
     }
 }

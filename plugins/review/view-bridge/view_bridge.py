@@ -4,7 +4,8 @@
 
 Usage: python view_bridge.py --dir DATA_DIR <command>
   ensure-running [--port P] [--idle-seconds S]
-                             start the server on the data dir (or reuse it); print its JSON
+                             start the server on the data dir (or reuse it, unless it started
+                             from another plugin build: then restart it); print its JSON
   serve --port P --nonce N [--idle-seconds S]
                              run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
@@ -320,7 +321,14 @@ def cmd_ensure_running(d, a):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     private_dir(d)
     s = bridge.read_session(d, NAME)
-    if not (s and bridge.running(d, s)):
+    live = bool(s and bridge.running(d, s))
+    stale = live and bridge.stale_build(s)
+    if stale:
+        # A server started before a plugin update runs the old code: start this build in its place.
+        end_server(d, s)
+        print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
+        live = False
+    if not live:
         ports = [a.port, bridge.kept_port(d, NAME)]
         port = next((p for p in ports if p and bridge.port_free(p)), 0)
         nonce = secrets.token_hex(8)
@@ -366,13 +374,18 @@ def cmd_stop(d, a):
             bridge.clear_session(d, NAME)
         print("not running")
         return
+    end_server(d, s)
+    print(f"stopped {s['pid']}")
+
+
+def end_server(d, s):
+    """End the running server `s` records and its watcher, then clear the session files."""
     bridge.end_watcher(d, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
     os.kill(s["pid"], signal.SIGTERM)
     deadline = time.monotonic() + START_SECONDS
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)
     bridge.clear_session(d, NAME)
-    print(f"stopped {s['pid']}")
 
 
 def cmd_lease(d, a):

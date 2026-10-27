@@ -43,7 +43,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
                   check-open-questions verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
-  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
+  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
+                  A running server whose recorded plugin version or source hash differs from this
+                  plugin's is restarted on its port (a stderr line says so)
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
                   posted, and clear its session files but the port
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it;
@@ -2694,6 +2696,17 @@ def cmd_ensure_running(d, a):
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
         settings, _ = Settings(repo_root(d)).resolve(d, layers)
+        stale = live and bridge.stale_build(s)
+        if stale:
+            # A server started before a plugin update runs the old code: start this build in its
+            # place, on the same port, with the same user file. No finish is posted and none is
+            # cleared, so the interview goes on and open tabs read a restart.
+            end_server(d, s, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
+            print(
+                f"restarted the page server: {stale}; reload the page and re-arm the watcher",
+                file=sys.stderr,
+            )
+            live = False
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
@@ -2701,7 +2714,8 @@ def cmd_ensure_running(d, a):
             if a.port is None:
                 ports.append(settings["port"]["value"])
             port = next((p for p in ports if p and bridge.port_free(p)), 0)
-            clear_finished(d)
+            if not stale:
+                clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
             s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
@@ -2711,8 +2725,8 @@ def cmd_ensure_running(d, a):
                 sys.exit(
                     f"the server did not start within {START_SECONDS} s (data dir {d})"
                 )
-        if user and s.get("userSettings") != user:
-            s["userSettings"] = user
+        if layers and s.get("userSettings") != layers:
+            s["userSettings"] = layers
             write_private(
                 d / bridge.session_files(NAME)[0], json.dumps(s, indent=2) + "\n"
             )
@@ -2766,13 +2780,18 @@ def cmd_stop(d, a):
             return
         watcher = (bridge.watcher_lease(d, NAME) or {}).get("pid")
         finish_on_stop(d)
-        end_watcher(d, watcher)
-        os.kill(s["pid"], signal.SIGTERM)
-        deadline = time.monotonic() + START_SECONDS
-        while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
-            time.sleep(0.05)
-        bridge.clear_session(d, NAME)
+        end_server(d, s, watcher)
     print(f"stopped {s['pid']}")
+
+
+def end_server(d, s, watcher):
+    """End the lease's watcher and the running server `s` records, then clear the session files."""
+    end_watcher(d, watcher)
+    os.kill(s["pid"], signal.SIGTERM)
+    deadline = time.monotonic() + START_SECONDS
+    while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
+        time.sleep(0.05)
+    bridge.clear_session(d, NAME)
 
 
 def cmd_lease(d, a):
