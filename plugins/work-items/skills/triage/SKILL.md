@@ -170,20 +170,20 @@ machine and changes no label but that one.
    carry a recommendation`, then one line per selected item: number, title, where the
    recommendation is. When `<n>` is 0, stop there.
 4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
-   from those `<n>` items. On yes, for each item in turn, post the comment below (after the
-   objection window comment when the objection window of triage workflow step 5, Apply outcome,
-   is on), then remove the label; a failed post leaves that item's label in place. Items the
-   operator excludes keep it. The edit applies no other label, so the item ends with no role
-   label. `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can
-   pick it from there. The issue lane and the work
-   loop's label path do not admit it: they admit only on the autonomous-eligible role label. The
-   one path that can still take it unattended is the work loop's rule admission
-   ([`../work-loop/reference/rule-admission.md`](../work-loop/reference/rule-admission.md)), when
-   a security binding enables it and an owner's C2 rule matches the item; that dispatch runs under
-   the rule's `human-merge` hold. A person who wants a lane to take it on the label path applies
-   the autonomous-eligible role label to it directly: with no role label and no trusted marker,
-   `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for
-   a maintainer by its `Decision defaulted` line.
+   from those `<n>` items. On yes, for each item in turn, post the comment below, then remove the
+   label; a failed post leaves that item's label in place. Items the operator excludes keep it. The
+   edit applies no other label, so the item ends with no role label, and the objection window of
+   triage workflow step 5, which only an autonomous-eligible label edit triggers, does not apply.
+   `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can pick it
+   from there. The issue lane and the work loop's label path do not admit it: they admit only on the
+   autonomous-eligible role label. The one path that can still take it unattended is the work loop's
+   rule admission
+   ([`../work-loop/reference/rule-admission.md`](../work-loop/reference/rule-admission.md)), when a
+   security binding enables it and an owner's C2 rule matches the item; that dispatch runs under the
+   rule's `human-merge` hold. A person who wants a lane to take it on the label path applies the
+   autonomous-eligible role label to it directly: with no role label and no trusted marker,
+   `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for a
+   maintainer by its `Decision defaulted` line.
 5. **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the count and
    the list, and change nothing, whatever the lane directive authorizes.
 
