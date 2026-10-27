@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:claude-code-plugin:machine-health:approvals",
   "title": "Approvals",
-  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState); do not edit it by hand, except check_overrides.services.service_exclusions, which setup cannot write yet.",
+  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState); do not edit it by hand.",
   "type": "object",
   "additionalProperties": false,
   "required": ["remediations", "schema_version"],
@@ -62,7 +62,7 @@
           },
           "service_exclusions": {
             "type": "array",
-            "description": "Service names Restart-StoppedService never starts (exact name, case-insensitive; per-host).",
+            "description": "Service names Restart-StoppedService never starts (exact name, case-insensitive; per-host). Written by /machine-health:setup apply exclude-service= and include-service=.",
             "items": { "type": "string" }
           }
         }

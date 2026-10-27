@@ -42,6 +42,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
@@ -211,7 +212,7 @@ async function pullsOfCommit(github, repository, head) {
 // pull request's head branch (write-verdict.mjs headRefDigest), which doubles
 // the lookups. Once write-verdict writes only digest names, the digest-free
 // lookups are needed only until the last artifact named that way expires
-// (90-day retention), and then go. Given `issues`, this PR's linked issue
+// (write-verdict.mjs retentionDays), and then go. Given `issues`, this PR's linked issue
 // numbers, it looks up only this PR's FAIL names with `-i` and those issues
 // (write-verdict.mjs artifactName), so the caller reads the issues only for a
 // head the names without them leave unjudged; issues no name carries (over
@@ -451,12 +452,20 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   // A person is a kind human id on the trusted list, not a GitHub User: a
   // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
   // A body someone else edited is not the author's intent, unless a trusted
-  // person did it; an editor GitHub cannot name is someone else.
+  // person did it; an editor GitHub cannot name is someone else. The title
+  // follows the same rule through its latest rename (titleRenamers, shared
+  // with select-trusted-text, which keeps a title only when every renamer is
+  // listed).
   const { bodyEditor, bodyEditedAt, ...spec } = specRead;
+  const byAuthorOrPerson = (id) => Number.isSafeInteger(id) && (id === pull.user?.id || humans.has(id));
   const bodyIsIntent =
     (humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id)) &&
-    (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
-  if (spec.linkedIssues.length === 0 && bodyIsIntent) {
+    (bodyEditor === null || byAuthorOrPerson(bodyEditor));
+  const titleIsIntent = async () => {
+    const renamers = await titleRenamers(github, repository, pull.number);
+    return renamers.length === 0 || byAuthorOrPerson(renamers.at(-1)?.databaseId);
+  };
+  if (spec.linkedIssues.length === 0 && bodyIsIntent && (await titleIsIntent())) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];

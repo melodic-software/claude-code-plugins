@@ -19,10 +19,24 @@
 # Usage:
 #   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
+#               [--source-pull ask|never] [--pull-source <names>]
+#               [--quiet-auto-update <names>]
 #   sync-run.sh [--marketplace <name> | --all] --audit
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
+#               [--source-pull ask|never] [--quiet-auto-update <names>]
 #   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 #               [--render]
+#
+# `--source-pull` is the rendered `directory_source_pull` option (ask, the
+# default, or never; any other value is treated as ask and named in the digest).
+# `--pull-source <names>` names the marketplaces whose `directory` checkout the
+# user agreed to fast-forward: before that marketplace's Step 1 refresh the script
+# runs `git -C <path> pull --ff-only`, but only when the policy is ask, no
+# CLAUDE_CODE_REMOTE is set, and the checkout is clean, on a branch with an
+# upstream, not ahead, and behind; otherwise it refuses with the reason and
+# touches nothing. `--quiet-auto-update <names>` drops the enable-it suggestion
+# from those marketplaces' `autoUpdate: off` slot. Both lists are comma- or
+# space-separated marketplace names.
 #
 # Step 6 is rendered here too: `render-report.jq` turns the digest into the
 # fixed-section report SKILL.md's Report section fixes, written to
@@ -58,12 +72,15 @@
 # Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`,
 # followed under `--render` by a blank line and the rendered report.
 #   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
+#    source_pull, source_pull_invalid, quiet_auto_update,
 #    timings:{total,outside_marketplaces,resolution[,passes]}, marketplaces:[…], errors:[…]}
+#   `source_pull` is the policy the run applied: `never` when the option says so
+#   or CLAUDE_CODE_REMOTE is set. `quiet_auto_update` is the names array.
 #   On a re-entry, `timings.passes` is `[{pass: "first", …}, {pass: "only_install", …}]`,
 #   each `{total, outside_marketplaces, resolution}`, and the top-level `total` and
 #   `outside_marketplaces` sum the two; the wait between the passes is in neither.
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
-#    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
+#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted}, project_root,
 #    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
@@ -112,7 +129,14 @@
 #   update the record, so it is not in `would_update`. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
-#   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
+#   not_a_repo, and the counts as of the checkout's last fetch (never fetched here
+#   except by a requested fast-forward). `source_pull` is null unless the checkout
+#   is behind or a fast-forward was requested; then it is `{status, reason}` with
+#   status `offered` (eligible, policy ask, sync mode: the caller may ask),
+#   `skipped` (not requested, and not eligible, policy never, an autonomous
+#   session, or audit), `refused` (requested, and the guard said no), `pulled`
+#   (plus `from` and `to` commits) or `failed` (plus `rc`, `from` and `to`).
+#   `marketplace_update` timing includes a requested pull.
 #   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
 #   local scope, and `project_enable_rows` is what it reports rather than writes.
 #   `pending_enable[]` is `{id, outcome}` (`enabled` or `enable_failed`) for each
@@ -256,6 +280,13 @@ RUN_DIR=""
 ONLY_INSTALL=""
 ONLY_INSTALL_MODE=0
 RENDER=0
+SOURCE_PULL="ask"
+SOURCE_PULL_INVALID=""
+# Why the run will not pull: empty, `policy never`, or the autonomous session.
+SOURCE_PULL_OFF=""
+PULL_SOURCES=""
+PULL_SOURCES_SET=0
+QUIET_AUTO_UPDATE=""
 
 usage() {
   cat <<'EOF'
@@ -264,8 +295,11 @@ sync-run.sh — run `sync`/`audit` Steps 1-5b and print one JSON digest.
 Usage:
   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
               [--install-new all|none|ask] [--allow-downgrade] [--render]
+              [--source-pull ask|never] [--pull-source <names>]
+              [--quiet-auto-update <names>]
   sync-run.sh [--marketplace <name> | --all] --audit
               [--install-new all|none|ask] [--allow-downgrade] [--render]
+              [--source-pull ask|never] [--quiet-auto-update <names>]
   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
               [--render]
 
@@ -273,6 +307,8 @@ Usage:
 digest line; the report is written to <run_dir>/report.txt either way.
 --audit is the dry run: it reads the fleet, predicts every claude call without
 issuing it, and leaves nothing behind.
+--pull-source fast-forwards each named marketplace's directory checkout before
+its refresh, only when the checkout is clean, tracking, not ahead and behind.
 
 Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
 2 usage error, jq missing, or a run-level failure that left no digest.
@@ -338,6 +374,31 @@ while [[ $# -gt 0 ]]; do
     ONLY_INSTALL_MODE=1
     shift 2
     ;;
+  --source-pull)
+    [[ $# -ge 2 ]] || {
+      echo "ERROR: --source-pull requires a value" >&2
+      exit 2
+    }
+    SOURCE_PULL="$2"
+    shift 2
+    ;;
+  --pull-source)
+    [[ $# -ge 2 ]] || {
+      echo "ERROR: --pull-source requires marketplace names" >&2
+      exit 2
+    }
+    PULL_SOURCES="$2"
+    PULL_SOURCES_SET=1
+    shift 2
+    ;;
+  --quiet-auto-update)
+    [[ $# -ge 2 ]] || {
+      echo "ERROR: --quiet-auto-update requires marketplace names" >&2
+      exit 2
+    }
+    QUIET_AUTO_UPDATE="$2"
+    shift 2
+    ;;
   -h | --help)
     usage
     exit 0
@@ -365,6 +426,40 @@ all | none | ask) ;;
   INSTALL_NEW="ask"
   ;;
 esac
+# The same rule for the pull policy. `ask` is the safe default here too: the
+# script pulls only a checkout the caller names after a yes.
+case "$SOURCE_PULL" in
+ask | never) ;;
+*)
+  SOURCE_PULL_INVALID="$SOURCE_PULL"
+  SOURCE_PULL="ask"
+  ;;
+esac
+# No human can answer the offer in an autonomous session, so the run neither
+# offers nor pulls there: the same test converge applies before touching anything.
+# Applied again after an --only-install re-entry restores the run's saved policy.
+apply_pull_policy() {
+  if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
+    SOURCE_PULL="never"
+    SOURCE_PULL_OFF="autonomous session (CLAUDE_CODE_REMOTE set)"
+  elif [[ "$SOURCE_PULL" == "never" ]]; then
+    SOURCE_PULL_OFF="policy never"
+  else
+    SOURCE_PULL_OFF=""
+  fi
+}
+apply_pull_policy
+
+if ((PULL_SOURCES_SET == 1)); then
+  if [[ "$MODE" == "audit" ]]; then
+    echo "ERROR: --pull-source is a sync-mode request; audit changes nothing" >&2
+    exit 2
+  fi
+  if ((ONLY_INSTALL_MODE == 1)); then
+    echo "ERROR: --pull-source runs before Step 1; an --only-install re-entry starts at Step 4" >&2
+    exit 2
+  fi
+fi
 
 if ((ONLY_INSTALL_MODE == 1)); then
   if [[ -z "$RUN_DIR" ]]; then
@@ -523,6 +618,14 @@ run_cli() {
   CLI_RC=${PIPESTATUS[0]}
   CLI_OUT=$(<"$sink")
   CLI_OUT="${CLI_OUT//$'\r'/}"
+  # A CLI older than `--json` (before 2.1.268) rejects it as an unknown option:
+  # run the call once more without it and read its text output.
+  if ((CLI_RC != 0)) && [[ " $* " == *" --json "* && "$CLI_OUT" == *"unknown option"*"--json"* ]]; then
+    local -a args=()
+    local arg
+    for arg in "$@"; do [[ "$arg" == --json ]] || args+=("$arg"); done
+    run_cli "${label/ --json/}" "${args[@]}"
+  fi
 }
 
 # audit's stand-in for run_cli: journals the prediction, issues nothing.
@@ -533,14 +636,60 @@ predict_cli() {
   CLI_OUT="would run: $label"
 }
 
-# `<new>` from the CLI's own line, which is the only source that reflects an update
-# immediately (sync.md's source 2). Empty when the line names no version. For an
-# already-current line it is the version in the line's parentheses, the install's
-# version as the CLI read it, which finalize_moves checks against the snapshots.
+# The result line `claude plugin install|update --json` prints (Claude Code
+# 2.1.268 or later): the last output line that is a JSON object with a `command`
+# key, or empty when there is none, as from a CLI older than the flag. stderr is
+# merged into the capture, so a `✘ Failed ...` line and a marketplace-declared
+# command's review text can sit beside it.
+#   Claim: update prints `updateOutcome` (`updated`, `up_to_date`), `oldVersion`
+#     and `newVersion`; install and update print `outcome` (`ok`, `failed`),
+#     `message` and, on failure, `failureCode`. No field names unset userConfig
+#     options or a disabled-by-default install: both are sentences in `message`.
+#   Basis: attended probe on Claude Code 2.1.310 (WSL2), captured in
+#     sync-run.test.sh's stub shapes; plugins CLI reference, plugin JSON result.
+#   As of: 2026-10-25.
+#   Recheck: a Claude Code release that adds a field for either sentence, or
+#     changes `updateOutcome`'s values.
+cli_json() {
+  local __var="$1"
+  local __text="$2"
+  local __line __found=""
+  while IFS= read -r __line || [[ -n "$__line" ]]; do
+    [[ "$__line" == '{'* ]] || continue
+    jq -e 'type == "object" and has("command")' <<<"$__line" >/dev/null 2>&1 && __found="$__line"
+  done <<<"$__text"
+  printf -v "$__var" '%s' "$__found"
+}
+
+# The text the sentence classifiers below read: the result's `message` when the
+# CLI printed a result line, the whole output otherwise.
+cli_message() {
+  local __var="$1"
+  local __text="$2"
+  local __json
+  cli_json __json "$__text"
+  if [[ -n "$__json" ]]; then
+    jq_to "$__var" -r '.message // ""' <<<"$__json"
+  else
+    printf -v "$__var" '%s' "$__text"
+  fi
+}
+
+# `<new>` from the CLI's own result, which is the only source that reflects an
+# update immediately (sync.md's source 2): `newVersion` when `updateOutcome` is
+# `updated` or `up_to_date`. Without a result line, the text's `updated from X to
+# Y` or `already at the latest version (X)`. Empty when neither names a version.
+# For an already-current result it is the install's version as the CLI read it,
+# which finalize_moves checks against the snapshots.
 cli_reported_version() {
   local __var="$1"
   local text="$2"
-  if [[ "$text" =~ updated\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
+  local json
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to "$__var" -r 'if .updateOutcome == "updated" or .updateOutcome == "up_to_date"
+      then .newVersion // "" else "" end' <<<"$json"
+  elif [[ "$text" =~ updated\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
     printf -v "$__var" '%s' "${BASH_REMATCH[2]}"
   elif [[ "$text" =~ already\ at\ the\ latest\ version\ \(([^\)[:space:]]+)\) ]]; then
     printf -v "$__var" '%s' "${BASH_REMATCH[1]}"
@@ -549,22 +698,20 @@ cli_reported_version() {
   fi
 }
 
-# The install's own line about userConfig options the user has not set, as a
-# JSON object `{options_unset, required}` or `null`. Classified at capture time
-# from the UNTRUNCATED output: the digest row keeps 400 characters, and the line
-# sits after the install's other output.
-#   Claim: `claude plugin install` ends with "<N> userConfig option(s) not yet
-#     set[ (<M> required)] … run /plugin configure <id> in Claude Code, or pass
-#     --config KEY=VALUE." when the installed manifest declares options the
-#     user has not set.
-#   Basis: the shipped binary's own strings (Claude Code 2.1.268); the plugins
-#     reference documents the option schema, not this line.
-#   As of: 2026-09-11.
-#   Recheck: a journaled install that names an unset option in other words, or
-#     a Claude Code release whose `plugin install` output changes shape.
+# The install's sentence about userConfig options the user has not set, as a
+# JSON object `{options_unset, required}` or `null`. The result line has no field
+# for it (cli_json's claim), so this reads the sentence in `message`. Classified at
+# capture time from the UNTRUNCATED output: the digest row keeps 400 characters.
+#   Claim: the sentence is "<N> userConfig option(s) not yet set[ (<M> required)]
+#     — run /plugin configure <id> in Claude Code, or pass --config KEY=VALUE."
+#   Basis: attended probe on Claude Code 2.1.310, `plugin install --json`
+#     `message` with two options and with three.
+#   As of: 2026-10-25.
+#   Recheck: as cli_json.
 unset_user_config_of() {
   local __var="$1"
-  local text="$2"
+  local text
+  cli_message text "$2"
   if [[ "$text" =~ ([0-9]+)\ userConfig\ options?\ not\ yet\ set(\ \(([0-9]+)\ required\))? ]]; then
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to "$__var" -c -n --arg n "${BASH_REMATCH[1]}" --arg r "${BASH_REMATCH[3]:-}" \
@@ -579,15 +726,26 @@ unset_user_config_of() {
 # update the state write has not landed for both read as "no version change" from a
 # post-sweep snapshot. Reporting the first as an update with an unknown version
 # would put most of an already-current fleet under `Updated:`.
-#   updated  the CLI named a version pair
-#   noop     the CLI said the id is already at the latest version. That is the
-#            CLI's text only: finalize_moves checks it against the snapshots
-#            before it drops the id, because an id that something else moved
-#            earlier in the run prints the same line
-#   other   the CLI named neither; the post-sweep read decides
+#   updated  `updateOutcome: updated`, or text naming a version pair
+#   noop     `updateOutcome: up_to_date`, or "already at the latest version". That
+#            is the CLI's word only: finalize_moves checks it against the
+#            snapshots before it drops the id, because an id that something else
+#            moved earlier in the run reads the same
+#   other    neither; the post-sweep read decides
 cli_move_result() {
   local __var="$1"
   local text="$2"
+  local json outcome=""
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to outcome -r '.updateOutcome // ""' <<<"$json"
+    case "$outcome" in
+    updated) printf -v "$__var" '%s' "updated" ;;
+    up_to_date) printf -v "$__var" '%s' "noop" ;;
+    *) printf -v "$__var" '%s' "other" ;;
+    esac
+    return 0
+  fi
   case "$text" in
   *"updated from"*) printf -v "$__var" '%s' "updated" ;;
   *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
@@ -600,11 +758,11 @@ cli_move_result() {
 # is not the journal's `$ <command>` echo is often a progress line, so the
 # failure reason has to be picked before truncation. The last line is the wrong
 # fallback: it can be a userConfig note or a truncated tail. The first line
-# that starts with ✘ or contains Failed or Error wins; otherwise the first
-# non-`$` line, which is what the report used to show unconditionally.
+# that starts with ✘ or contains Failed or Error wins; then the first line of a
+# result line's `message`; otherwise the first non-`$` line.
 cli_outcome_line() {
   local text="$1"
-  local line
+  local line json message
   local fallback=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line//$'\r'/}"
@@ -614,20 +772,31 @@ cli_outcome_line() {
       fallback="$line"
     fi
     if [[ "$line" == ✘* || "$line" == *Failed* || "$line" == *Error* ]]; then
+      [[ "$line" == '{'* ]] && continue
       printf '%s' "$line"
       return 0
     fi
   done <<<"$text"
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to message -r '.message // "" | split("\n")[0]' <<<"$json"
+    [[ -z "$message" ]] || {
+      printf '%s' "$message"
+      return 0
+    }
+  fi
   printf '%s' "$fallback"
 }
 
-# Whether the install's own output says the plugin was left disabled. Classified
-# from the untruncated output: install_one keeps 400 characters, and the notice
-# can sit past that. The catalog's defaultEnabled field is not the signal,
-# because the CLI's line and that field can disagree. The CLI writes an explicit
-# enabledPlugins false for this case.
+# Whether the install says the plugin was left disabled, read from `message` (no
+# field carries it; cli_json's claim). Classified from the untruncated output:
+# install_one keeps 400 characters, and the notice can sit past that. The
+# catalog's defaultEnabled field is not the signal, because the CLI's sentence and
+# that field can disagree. The CLI writes an explicit enabledPlugins false for
+# this case.
 install_disabled_notice() {
-  local text="$1"
+  local text
+  cli_message text "$1"
   case "$text" in
   *"disabled by default"* | *"Disabled by default"*) return 0 ;;
   *) return 1 ;;
@@ -922,7 +1091,7 @@ reset_marketplace_state() {
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
-  CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
+  CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
   # invocation did not run and reads `null` in the digest, never 0.
   T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
@@ -955,7 +1124,8 @@ persist_first_pass_rows() {
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
     --arg refresh_predicted "$REFRESH_PREDICTED" \
-    '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed,
+    --argjson source_pull "$SOURCE_PULL_JSON" \
+    '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed, source_pull: $source_pull,
       refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
@@ -992,6 +1162,96 @@ restore_first_pass_rows() {
   jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
   jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
+  jq_to SOURCE_PULL_JSON -c '.source_pull // null' "$sidecar"
+  [[ -n "$SOURCE_PULL_JSON" ]] || SOURCE_PULL_JSON="null"
+}
+
+# 0 when $1 is one of the comma- or space-separated names in $2.
+name_listed() {
+  local name
+  for name in ${2//,/ }; do
+    [[ "$name" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Why a `source_checkout` object may not be fast-forwarded, or "" when it may: a
+# clean checkout on a branch with an upstream, not ahead of it and behind it.
+# Anything else could lose or tangle the user's work, so the guard says no.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+FF_REFUSAL_DEF='def ff_refusal:
+  if . == null then "not a directory source"
+  elif .state == "not_a_repo" then "not a git work tree"
+  elif .state == "detached" then "detached HEAD"
+  elif .state == "no_upstream" then "no upstream branch"
+  elif .dirty == true then "tracked files modified"
+  elif (.ahead // 0) > 0 and (.behind // 0) > 0 then
+    "diverged from \(.upstream): \(.ahead) ahead, \(.behind) behind"
+  elif (.ahead // 0) > 0 then "\(.ahead) local commit(s) ahead of \(.upstream)"
+  elif (.behind // 0) == 0 then "not behind \(.upstream)"
+  else "" end;'
+
+# --- the guarded fast-forward of a directory source's checkout ---------------------
+# Runs before Step 1's refresh, only for a marketplace the caller named with
+# --pull-source after the user said yes. The guard lives here as well as in the
+# model's offer: the checkout is read again at this point and refused, with the
+# reason, unless the policy is ask and ff_refusal finds nothing, so a stale offer
+# or a mistyped name touches nothing. The pull is journaled like a CLI call, with
+# stdin closed and git's prompts off, and SOURCE_PULL_JSON records the outcome.
+source_fast_forward() {
+  local mp="$1"
+  local snapshot="$2"
+  local src=""
+  local checkout="null"
+  local refusal=""
+  local path=""
+  local from=""
+  local to=""
+  local rc=0
+  local out=""
+  local reason=""
+  local sink="$RUN_DIR/.last-git-out"
+  if [[ -n "$SOURCE_PULL_OFF" ]]; then
+    refusal="$SOURCE_PULL_OFF"
+  else
+    jq_to src -r '.marketplace.source // ""' "$snapshot"
+    source_checkout checkout "$src"
+    # An unreadable checkout fails closed: an empty path would point git at the
+    # current directory.
+    if ! jq_to path -r 'if type == "object" then .path // "" else "" end' <<<"${checkout:-null}" ||
+      { [[ -z "$path" ]] && [[ "$src" == directory:* ]]; }; then
+      refusal="source checkout unreadable"
+    else
+      jq_to refusal -r "$FF_REFUSAL_DEF"' ff_refusal' <<<"${checkout:-null}" || refusal="source checkout unreadable"
+    fi
+  fi
+  if [[ -n "$refusal" ]]; then
+    echo "fast-forward refused for $mp: $refusal" >>"$JOURNAL_LOG"
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to SOURCE_PULL_JSON -c -n --arg r "$refusal" '{status: "refused", reason: $r}'
+    return 0
+  fi
+  from=$(git -C "$path" rev-parse HEAD 2>/dev/null)
+  # No terminal prompt and no credential-manager dialog: a pull that needs one
+  # fails and is reported rather than waiting on a person who may not be there.
+  {
+    echo "\$ git -C $path pull --ff-only"
+    GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never git -C "$path" pull --ff-only 2>&1 </dev/null
+  } | tee -a "$JOURNAL_LOG" >"$sink"
+  rc=${PIPESTATUS[0]}
+  out=$(<"$sink")
+  to=$(git -C "$path" rev-parse HEAD 2>/dev/null)
+  if ((rc == 0)); then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to SOURCE_PULL_JSON -c -n --arg f "$from" --arg t "$to" \
+      '{status: "pulled", reason: "", from: $f, to: $t}'
+  else
+    reason=$(cli_outcome_line "${out//$'\r'/}")
+    trunc reason "$reason"
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to SOURCE_PULL_JSON -c -n --argjson rc "$rc" --arg r "$reason" --arg f "$from" --arg t "$to" \
+      '{status: "failed", rc: $rc, reason: $r, from: $f, to: $t}'
+  fi
 }
 
 # --- one snapshot read ----------------------------------------------------------
@@ -1067,6 +1327,11 @@ run_marketplace() {
       trunc REFRESH_OUT "$CLI_OUT"
     else
       clock_into T_MU_S
+      # A requested fast-forward goes first, so the refresh below reads the
+      # updated checkout and the rest of this run sees the newer catalog.
+      if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
+        source_fast_forward "$mp" "$pre_refresh"
+      fi
       run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
       clock_into T_MU_E
       REFRESH_RC="$CLI_RC"
@@ -1153,7 +1418,7 @@ run_marketplace() {
             '{id: $id, scope: $sc, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s $scope" plugin update "$id" -s "$scope"
+        run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1204,7 +1469,7 @@ run_marketplace() {
           US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s user" plugin update "$id" -s user
+        run_cli "claude plugin update $id -s user --json" plugin update "$id" -s user --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1228,8 +1493,8 @@ run_marketplace() {
       old="${old//$'\r'/}"
       new="${new//$'\r'/}"
       if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
-        run_cli "claude plugin update $id -s $scope   # downgrade $old -> $new" \
-          plugin update "$id" -s "$scope"
+        run_cli "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
+          plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1439,7 +1704,7 @@ install_one() {
   local unset_cfg="null"
   local reason=""
   local disabled="false"
-  run_cli "claude plugin install $id -s user" plugin install "$id" -s user
+  run_cli "claude plugin install $id -s user --json" plugin install "$id" -s user --json
   # Classify before truncation: the digest row keeps 400 characters, and both
   # the failure reason and the disabled-by-default notice can sit past that.
   reason=$(cli_outcome_line "$CLI_OUT")
@@ -2040,6 +2305,28 @@ monitor_rows() {
   json_array_of "$__var" ${rows[@]+"${rows[@]}"}
 }
 
+# The block's `source_pull`: what a requested fast-forward recorded, else what
+# the run does with a behind checkout. It offers one only when the guard would
+# let it through, the policy is ask and the mode is sync; otherwise it skips it
+# and says why. Null when nothing is behind and nothing was requested.
+source_pull_field() {
+  local __var="$1"
+  local checkout="$2"
+  if [[ "$SOURCE_PULL_JSON" != "null" ]]; then
+    printf -v "$__var" '%s' "$SOURCE_PULL_JSON"
+    return 0
+  fi
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to "$__var" -c --arg off "$SOURCE_PULL_OFF" --arg mode "$MODE" "$FF_REFUSAL_DEF"'
+    if . == null or (.behind // 0) == 0 then null
+    else ff_refusal as $r
+      | if $r != "" then {status: "skipped", reason: $r}
+        elif $off != "" then {status: "skipped", reason: $off}
+        elif $mode == "audit" then {status: "skipped", reason: "audit changes nothing"}
+        else {status: "offered", reason: ""} end
+    end' <<<"$checkout"
+}
+
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
@@ -2074,6 +2361,7 @@ emit_marketplace_block() {
   local extras
   local block
   local checkout
+  local pull
 
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
@@ -2096,6 +2384,7 @@ emit_marketplace_block() {
   report_extras extras "$mp"
   jq_to checkout -r '.catalog_source // ""' <<<"$extras"
   source_checkout checkout "$checkout"
+  source_pull_field pull "${checkout:-null}"
   monitor_rows monitors "$mp"
   # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
@@ -2133,7 +2422,7 @@ emit_marketplace_block() {
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" --argjson self_update "$SELF_UPDATE" \
-    --argjson extras "$extras" --argjson checkout "${checkout:-null}" \
+    --argjson extras "$extras" --argjson checkout "${checkout:-null}" --argjson pull "${pull:-null}" \
     --argjson unset_cfg "${unset_cfg:-[]}" --argjson installed_disabled "${installed_disabled:-[]}" \
     --argjson monitors "${monitors:-[]}" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
@@ -2176,6 +2465,7 @@ emit_marketplace_block() {
      timings: ($steps + {unattributed: $unattributed, total: $total, resolution: $resolution}),
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
+     source_pull: $pull,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
@@ -2237,6 +2527,21 @@ if ((ONLY_INSTALL_MODE == 1)); then
       ;;
     *) ;;
     esac
+    # The pull policy and the quiet list belong to the run too, so the digest
+    # that supersedes the first one renders the same Marketplace rows.
+    SAVED_SOURCE_PULL=""
+    jq_to SAVED_SOURCE_PULL -r '.source_pull // ""' "$RUN_DIR/flags.json" 2>/dev/null
+    case "$SAVED_SOURCE_PULL" in
+    ask | never)
+      SOURCE_PULL="$SAVED_SOURCE_PULL"
+      jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
+      jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
+      jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
+      # The saved reason stands unless this session is the autonomous one.
+      [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
+      ;;
+    *) ;;
+    esac
   fi
 else
   FLAG_AD="false"
@@ -2245,8 +2550,17 @@ else
   json_string_to FLAG_IN "$INSTALL_NEW"
   FLAG_INV="null"
   [[ -z "$INSTALL_NEW_INVALID" ]] || json_string_to FLAG_INV "$INSTALL_NEW_INVALID"
-  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s}\n' \
-    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" >"$RUN_DIR/flags.json"
+  FLAG_SP=""
+  json_string_to FLAG_SP "$SOURCE_PULL"
+  FLAG_SPI="null"
+  [[ -z "$SOURCE_PULL_INVALID" ]] || json_string_to FLAG_SPI "$SOURCE_PULL_INVALID"
+  FLAG_SPO="null"
+  [[ -z "$SOURCE_PULL_OFF" ]] || json_string_to FLAG_SPO "$SOURCE_PULL_OFF"
+  FLAG_QAU="[]"
+  # shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
+  json_strings_of FLAG_QAU ${QUIET_AUTO_UPDATE//,/ }
+  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s}\n' \
+    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" >"$RUN_DIR/flags.json"
 fi
 
 # The first pass's run-level timings, written by that pass once its clock stops
@@ -2348,6 +2662,17 @@ if ((ONLY_INSTALL_MODE == 1)); then
     ((claimed == 1)) || run_error "--only-install id matches no marketplace in this run: $id"
   done
 fi
+# A name no marketplace in the run carries would otherwise pull nothing and say
+# nothing.
+if ((PULL_SOURCES_SET == 1)); then
+  for name in ${PULL_SOURCES//,/ }; do
+    claimed=0
+    for mp in ${MPS[@]+"${MPS[@]}"}; do
+      [[ "$name" == "$mp" ]] && claimed=1
+    done
+    ((claimed == 1)) || run_error "--pull-source names no marketplace in this run: $name"
+  done
+fi
 
 BLOCKS='[]'
 [[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"
@@ -2360,6 +2685,9 @@ json_strings_of RUN_ERRS ${RUN_ERRORS[@]+"${RUN_ERRORS[@]}"}
 DIGEST=""
 ALLOW_DOWNGRADE_JSON="false"
 ((ALLOW_DOWNGRADE == 1)) && ALLOW_DOWNGRADE_JSON="true"
+QUIET_JSON='[]'
+# shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
+json_strings_of QUIET_JSON ${QUIET_AUTO_UPDATE//,/ }
 T_RUN_E=""
 clock_into T_RUN_E
 
@@ -2371,6 +2699,9 @@ jq_to DIGEST -c -n \
   --argjson allow_downgrade "$ALLOW_DOWNGRADE_JSON" \
   --arg install_new "$INSTALL_NEW" \
   --arg install_new_invalid "$INSTALL_NEW_INVALID" \
+  --arg source_pull "$SOURCE_PULL" \
+  --arg source_pull_invalid "$SOURCE_PULL_INVALID" \
+  --argjson quiet_auto_update "$QUIET_JSON" \
   --argjson marketplaces "$BLOCKS" \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
@@ -2407,6 +2738,9 @@ jq_to DIGEST -c -n \
   | {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
      install_new: $install_new,
      install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
+     source_pull: $source_pull,
+     source_pull_invalid: (if $source_pull_invalid == "" then null else $source_pull_invalid end),
+     quiet_auto_update: $quiet_auto_update,
      timings: $timings,
      marketplaces: $marketplaces, errors: $errors}'
 
