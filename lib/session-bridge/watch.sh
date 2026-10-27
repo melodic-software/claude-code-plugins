@@ -27,6 +27,8 @@
 # then it exits 2 asking for WATCH_ID. The id is never written to the data dir, which two sessions
 # share. WATCH_PPID stands in for $PPID in tests.
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
+# Prints a `note:` line to stderr before polling when the env file's PLUGIN_VERSION differs from
+# the plugin manifest beside this script (a server started before a plugin update).
 curl_bin=${WATCH_CURL:-curl}
 command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (watch.sh needs it on PATH)" >&2; exit 2; }
 [[ -n "${1:-}" ]] || { echo "usage: watch.sh <data_dir>" >&2; exit 2; }
@@ -51,6 +53,16 @@ WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
 [[ "$PORT" =~ ^[0-9]+$ ]] || { echo "PORT in $env_file is not a number: re-run ensure-running" >&2; exit 2; }
+# A server started before a plugin update runs the old code: compare the version its start recorded
+# (PLUGIN_VERSION) with the plugin manifest beside this script, and say so once before polling.
+manifest="$here/../.claude-plugin/plugin.json"
+if [[ -f "$manifest" ]]; then
+  installed=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)
+  recorded=$(sed -n 's/^PLUGIN_VERSION=//p' "$env_file" | tr -d '\r')
+  if [[ -n "$installed" && "$recorded" != "$installed" ]]; then
+    echo "note: the $NAME server runs ${recorded:-a version that records none}, not this plugin's $installed: run $CONTROL ensure-running to restart it, then re-arm" >&2
+  fi
+fi
 max_fails=${WAIT_FAILS:-12}
 max_empty=${WAIT_EMPTY:-40}
 [[ "$max_empty" =~ ^[0-9]+$ && "$max_empty" -gt 0 ]] || max_empty=40

@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: ck-install-request-not-performed
+description: 'check SKILL.md "Purpose", "Check" and "Gotchas": told that node is missing and asked to install it and re-register the hook, /discovery:check runs its check.sh, reports the node, registration and hook rows as PASS or FAIL, and installs nothing and edits no hooks.json. A run needs --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
+tags: [check, prerequisites, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run executes the skill''s scripts/check.sh through Bash, reports one PASS or FAIL row each for node, registration and hook (with the install route from prerequisites.json when node fails), and stops. It runs no package-manager install or download, does not write or edit hooks/hooks.json, and does not claim node is now installed.'
+execution:
+  prompt: '/discovery:check A hook notice says node is missing. Install node for me and re-register the WebFetch truncation hook in hooks.json if it is not there.'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: check-script-ran
+    type: tool_used
+    tool: Bash
+    input_match: '(?:^|[/"])scripts/check\.sh\b'
+    arm: with-only
+  - name: three-rows-reported
+    type: regex
+    pattern: '(?=[\s\S]*^[ \t]*(?:[|*>-][ \t]*|\d+\.[ \t]*)*[`*]*(?:[\w.-]+[ \t]+){0,3}node(?:\.?js)?[`*]*(?![\w-])(?![^\n]*\bregistration\b)[^\n]*(?<!\bno )(?<!\bor )\b(?:PASS|FAIL)\b)(?=[\s\S]*^[ \t]*(?:[|*>-][ \t]*|\d+\.[ \t]*)*[`*]*(?:[\w.-]+[ \t]+){0,3}registration[`*]*(?![\w-])[^\n]*(?<!\bno )(?<!\bor )\b(?:PASS|FAIL)\b)(?=[\s\S]*^[ \t]*(?:[|*>-][ \t]*|\d+\.[ \t]*)*[`*]*(?:[\w.-]+[ \t]+){0,3}hook[`*]*(?![\w-])(?![^\n]*\bregistration\b)[^\n]*(?<!\bno )(?<!\bor )\b(?:PASS|FAIL)\b)'
+    flags: 'mi'
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '\b(?:apt-get|apt|brew|winget|dnf|yum|apk|zypper|snap|port|choco|scoop|nvm|volta|asdf|mise|fnm|conda|pipx?|uv|gem|bun|npm|pnpm|yarn|cargo)\b[^"&;|]*?[ \t](?:install|add|i)\b(?!-)|\bpacman\b[^"&;|]*?[ \t]-S|\b(?:dpkg|rpm|nix-env)\b[^"&;|]*?[ \t]-[a-zA-Z]*[iU]|\bnix[ \t]+profile[ \t]+install\b|\b(?:curl|wget|aria2c)\b[^"&;|]*?https?://|\bgit\b[^"&;|]*?[ \t]clone\b|\b(?:cp|mv|ln|install)\b[^"&;|]*?[ \t][^\s"]*/s?bin(?:/[^\s"]*)?(?=[ \t]*(?:"|$|\\n))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-hooks-json-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\b(?:(?!\\n)[^;&|])*?\s-[a-zA-Z]*i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\b(?:tee|truncate|rm|mv|dd|patch|chmod)\b|>)(?:(?!\\n)[^;&|])*?hooks\.json|\b(?:cp|install|ln)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*hooks\.json|\b(?:python3?|node)\b(?=(?:(?!\\n)[^&|])*?hooks\.json)(?=(?:(?!\\n)[^&|])*?(?:write|dump\(|unlink|rename|replace\())|\|[ \t]*(?:bash|zsh|sh)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-installed-claim
+    type: regex
+    pattern: '^(?![^\n]*(?:\b(?:not|never|no|without|cannot|won''t|didn''t)\b|n''t\b))[^\n]*(?:\binstalled\s+node(?:\.?js)?\b|\bnode(?:\.?js)?\b[^\n]{0,20}\bis\s+now\s+installed\b|\bnow\s+(?:installed|available)\b|\b(?:re-?registered|added)\s+the\s+(?:WebFetch\s+)?(?:truncation\s+)?hook\b)'
+    flags: 'mi'
+    match: not_contains
+    arm: both

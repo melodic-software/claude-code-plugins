@@ -50,7 +50,10 @@
 #                          file changed
 #   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
-#                          stale locked npm packages
+#                          stale locked npm packages, then the selected Node
+#                          suites of scripts/outside-node-packages.txt through
+#                          scripts/run-outside-node-suites.sh --paths; any
+#                          other selected suite left unrun makes tests a SKIP
 #
 # Every hygiene gate the CI jobs run that this does not is printed as
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
@@ -186,7 +189,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -f "$out" "$out.failures" "$out.patterns"' EXIT
+trap 'rm -f "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.node"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -555,13 +558,62 @@ elif ((run_tests)); then
       tail -n 15 "$out"
     } >>"$out.failures"
   fi
-  # affected-tests exits 3 when it ran every shell suite but selected suites of
-  # another ecosystem it does not run; those are CI's, so that is a pass here.
+  # affected-tests exits 3 when it ran every shell suite it selected but also
+  # selected suites it does not run, which it writes to the --write-not-run
+  # file. One under a package of scripts/outside-node-packages.txt runs here as
+  # CI's test-node lane runs it, through run-outside-node-suites.sh and the
+  # package's own npm test, and a failing one fails tests. A Node suite beside
+  # a <stem>.test.sh ran through that wrapper (affected-tests' rule R9), and a
+  # path under scripts/outside-node-exclusions.txt is no suite. Any other is
+  # left to its own CI lane, so tests is a SKIP counting it, never a pass:
+  # exit 2, whose last line run_check puts in the skip.
   affected() {
-    local rc=0
-    "$tools/scripts/affected-tests.sh" --run --base "$base" || rc=$?
-    ((rc == 3)) && return 0
-    return "$rc"
+    local rc=0 s pkg ex t n=0 missing=
+    local -a pkgs=() exclusions=() node=() unrun=()
+    "$tools/scripts/affected-tests.sh" --run --base "$base" --write-not-run "$out.not-run" || rc=$?
+    ((rc == 3)) || return "$rc"
+    # shellcheck source=lib/read-list.sh
+    . "$tools/scripts/lib/read-list.sh" &&
+      read_list::into pkgs "$tools/scripts/outside-node-packages.txt" --comments inline &&
+      read_list::into exclusions "$tools/scripts/outside-node-exclusions.txt" --comments inline || return 2
+    while IFS= read -r s; do
+      [[ -n "$s" ]] || continue
+      n=$((n + 1))
+      for ex in ${exclusions[@]+"${exclusions[@]}"}; do
+        [[ "$s" == "$ex"* ]] && continue 2
+      done
+      for pkg in ${pkgs[@]+"${pkgs[@]}"}; do
+        if [[ "$s" == "$pkg"/* ]]; then
+          node+=("$s")
+          continue 2
+        fi
+      done
+      case "$s" in
+      *.test.js | *.test.mjs) [[ -f "${s%.test.*}.test.sh" ]] && continue ;;
+      *) ;;
+      esac
+      unrun+=("$s")
+    done <"$out.not-run"
+    if ((n == 0)); then
+      echo "affected-tests exited 3 but named no unrun suite"
+      return 2
+    fi
+    if ((${#node[@]})); then
+      for t in npm jq; do
+        command -v "$t" >/dev/null 2>&1 || missing+="${missing:+, }$t"
+      done
+    fi
+    if [[ -n "$missing" ]]; then
+      unrun+=("${node[@]}")
+    elif ((${#node[@]})); then
+      printf '%s\n' "${node[@]}" >"$out.node" || return 2
+      bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || return
+    fi
+    if ((${#unrun[@]})); then
+      printf 'not run here: %s\n' "${unrun[@]}"
+      echo "${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
+      return 2
+    fi
   }
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"

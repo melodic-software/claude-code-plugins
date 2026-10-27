@@ -248,15 +248,17 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
      `tool_used` grader fields.
 3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
    `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
-   against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot); a delta
+   against `probes/baselines/listing-overlap.json` beside the scored probes directory (or a later
+   model-graded snapshot), since `compare` needs both reports over the same skills; a delta
    reported "within noise" is not a gain. The action is complete when both splits are named; a
    single blended rate is not the done-condition.
 4. `listing-overlap` is a floor, not a model-graded auto-invocation rate. Say so when reporting.
    Do not treat a 1.0 positive rate on the floor as proof the description saturates live
    auto-invocation.
 
-The seed probe set is two skills chosen for competitor density (`skill-quality:check`,
-`mcp-tools:audit`). Fleet-wide description rewrites stay attended.
+The seed probe set is two skills chosen for competitor density (`skill-quality:check` here,
+`mcp-tools:audit` in the `mcp-tools` plugin's `probes/`). Fleet-wide description rewrites stay
+attended.
 
 ## Cross-skill invocation (doctrine)
 

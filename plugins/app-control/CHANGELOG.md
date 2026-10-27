@@ -3,6 +3,36 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-10-27
+
+### Added
+
+- `/app-control:drive`'s `report.json` gains `secrets_mark`: one entry per raw capture, and per report file once it holds a command line, with its path, the "may hold secrets; do not commit" mark and whether the run directory sits unignored in a git working tree.
+
+### Changed
+
+- `/app-control:drive`'s Pid binding rules move to the `drive/reference/pid-binding.md` spoke with only their links adjusted; the hub's launch row, `threads` capture row, `threads` rule and cleanup rule link it.
+
+### Removed
+
+- The control-skill contract's manual pointers for dotnet-stack, GDB `thread apply all` and `GOTRACEBACK`, since no `threads` row names those tools. The dotnet-trace and dotnet-gcdump pointers stay.
+
+## [0.12.2] - 2026-10-27
+
+### Fixed
+
+- `/app-control:map refresh` takes a listed pull request as the upkeep pull request only when it is from the repository itself. A fork's pull request on a same-named branch makes the outcome blocked and is named in the report, and the pass pushes nothing.
+
+## [0.12.1] - 2026-10-27
+
+### Added
+
+- Eval cases for a plugin control skill found only through a manifest path: a plugin eval case with a skills-folder plugin whose `commands` map points `control-shop` at a file outside `commands/`, and skill eval cases with a listed plugin whose `commands` path names a non-default folder beside a stale `commands/` file, and one whose `skills` path names an extra folder; and a plugin eval case where a skills-folder plugin's control skill, the repository's only one, is used as a project control skill when no app is named.
+
+### Fixed
+
+- `/app-control:drive` now finds a plugin's control skill at a path the plugin's manifest names. For each listed plugin it searches the skill and command files the plugin loads from its default folders and its manifest's `skills` and `commands` keys, located as the manifest reference says, keeps or drops a `commands` map entry's `source` file by the entry's key, and reads no path outside the plugin folder. A plugin kept in the repository's skills folder is searched the same way and stays a project control skill, so it still beats an installed plugin's control skill for the same app. Before, such a control skill was missed and drive fell back to its no-control-skill recipe.
+
 ## [0.12.0] - 2026-10-27
 
 ### Added

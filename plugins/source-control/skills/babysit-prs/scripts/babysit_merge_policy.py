@@ -43,6 +43,7 @@ from urllib.parse import quote
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
+import babysit_whole_review as whole_review
 from babysit_classify import (
     actor_kind,
     has_blocking_severity,
@@ -58,7 +59,7 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    HIGH_FLOOR,
+    FLOOR,
     ChangedFile,
     glob_match,
     is_trusted_actors_path,
@@ -2553,6 +2554,7 @@ def adoption_refusal(
     human_gated: str | None,
     now: datetime,
     queued_at_head: Callable[[], bool] = lambda: False,
+    toggled_at_head: Callable[[], bool] = lambda: False,
 ) -> str | None:
     """Why the pr-merge lane does not adopt this REST pull request, or None
     when it does (owner decisions Q22 and 2026-10-22): not a draft; opened by
@@ -2562,8 +2564,10 @@ def adoption_refusal(
     `idle_hours` old, an unreadable one not idle; and no hold: a
     `MERGE_HOLD_LABELS` label, the resolved `human_gated` role label, or a
     body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is excused while
-    `queued_at_head()` (`lane_queued_at_head`), read only then: the lane's
-    own pin comment and enqueue refresh it."""
+    `queued_at_head()` (`lane_queued_at_head`) or `toggled_at_head()`
+    (`lane_toggled_at_head`), read only then and in that order: the lane's
+    own pin comment and enqueue refresh it, and so do its whole-review
+    record, draft toggle and the review that toggle starts."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
     kind = user.get("type")
@@ -2595,7 +2599,11 @@ def adoption_refusal(
 
     if kind == "Bot":
         return None
-    if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
+    if (
+        not idle(lambda: pr.get("updated_at"))
+        and not queued_at_head()
+        and not toggled_at_head()
+    ):
         return "updated-fresh"
     if not idle(head_committed):
         return "head-fresh"
@@ -2635,6 +2643,44 @@ def lane_queued_at_head(
             and read_pin(repo, number, identity, alone=True) == head
         )
     except PostMergeReadError:
+        return False
+
+
+def lane_toggled_at_head(
+    repo: str, number: int, identity: str, head: str, node_id: str
+) -> bool:
+    """Whether the agent identity's newest reasons comment (its first or
+    second line `whole_review.RISK_MARKER`) records a whole-review request at
+    `head` (`whole_review.RECORD_RE`), the identity's newest conversion to
+    draft of pull request `node_id` belongs to that record
+    (`whole_review.toggled`), and no person has spoken since that record
+    (`_quiet_since`): the record, the draft toggle and the bots' whole review
+    it starts refresh `updated_at`, while a person asking to wait still
+    refuses. Anyone with write access can edit the record's time; the
+    conversion's server time bounds it. The comments are read first; the
+    conversion and the rest of the discussion only when they hold such a
+    record. Anything unreadable is not toggled."""
+    owner, name = _split_repo(repo)
+    try:
+        comments = _paginated(
+            f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+            f"#{number} comments",
+        )
+        mine = [
+            item
+            for item in comments
+            if actor_key(_rest_actor(item.get("user"))) == identity.casefold()
+            and whole_review.RISK_MARKER
+            in [line.rstrip() for line in str(item.get("body") or "").split("\n")[:2]]
+        ]
+        newest = max(mine, key=lambda c: str(c.get("created_at")), default=None)
+        body = (newest or {}).get("body")
+        stamps = [at for sha, at in whole_review.records(body) if sha == head]
+        if not SHA_RE.fullmatch(head) or not stamps:
+            return False
+        stamps = whole_review.toggled(node_id, identity, stamps)
+        return bool(stamps and _quiet_since(owner, name, number, identity, min(stamps)))
+    except (PolicyReadError, ValueError):
         return False
 
 
@@ -2771,11 +2817,13 @@ def lane_eligibility(
     queued_at_head: Callable[[], bool] = lambda: False,
     adoption_human_ids: Collection[int] = (),
     ejected_enqueue: Callable[[], Any] = lambda: None,
+    toggled_at_head: Callable[[], bool] = lambda: False,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
     (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
-    the resolved `human_gated` label and `queued_at_head`; None or empty
+    the resolved `human_gated` label, `queued_at_head` and
+    `toggled_at_head`; None or empty
     adopts nothing; a refusal only for not being idle is excused by
     `requeued_by_person` over `ejected_enqueue()` and `adoption_human_ids`),
     exactly one linked
@@ -2812,6 +2860,7 @@ def lane_eligibility(
                 human_gated=human_gated,
                 now=now or datetime.now(UTC),
                 queued_at_head=queued_at_head,
+                toggled_at_head=toggled_at_head,
             )
             if not_adopted == AUTHOR_NOT_OWNER:
                 return Eligibility(False, "not-lane-authored")
@@ -4203,8 +4252,9 @@ def foreign_paths(
 
 
 # Paths never a trusted author's own, whoever wrote them: the HIGH path floor
-# itself, so an adopted pull request's own lines hold there too.
-NEVER_FLOOR_EXEMPT = HIGH_FLOOR
+# itself, the entries a security review clears included, so an adopted pull
+# request's own lines hold there too.
+NEVER_FLOOR_EXEMPT = FLOOR
 
 
 # A model-driven App's own lines skip the denied paths and the manifest review
@@ -5052,6 +5102,13 @@ def assess(
             ),
             adoption_human_ids=trusted[1],
             ejected_enqueue=lambda: ejected_enqueue(repo, number),
+            toggled_at_head=lambda: lane_toggled_at_head(
+                repo,
+                number,
+                inputs["identity"],
+                str(json_object(pr.get("head")).get("sha") or ""),
+                str(pr.get("node_id") or ""),
+            ),
             **readers,
         )
         promoted = True

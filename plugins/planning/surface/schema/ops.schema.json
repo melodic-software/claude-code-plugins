@@ -145,7 +145,7 @@
       "properties": {
         "op": {"enum": ["add-round"]},
         "round": {"type": "integer"},
-        "meta": {"$ref": "#/$defs/metaSet"},
+        "meta": {"$ref": "#/$defs/roundMeta"},
         "groups": {"type": "array", "items": {"type": "object"}},
         "questions": {"type": "array", "items": {"type": "object"}},
         "visuals": {"type": "array", "items": {"type": "object"}},
@@ -216,6 +216,19 @@
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
         "repo": {"type": "string"}
+      }
+    },
+    "roundMeta": {
+      "description": "`add-round`'s meta: the `metaSet` keys, merged the same way, plus `kind`, which describes this round and is stored on its `rounds` entry, not in meta. `sweep` marks a round whose questions come from the assumption sweep; it needs questions.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "eyebrow": {"type": "string"},
+        "stages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "next": {"type": "string"},
+        "repo": {"type": "string"},
+        "kind": {"enum": ["sweep"]}
       }
     },
     "meta": {

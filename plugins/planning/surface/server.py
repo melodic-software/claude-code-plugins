@@ -32,6 +32,7 @@ from session_bridge import (
     LoopbackHandler,
     LoopbackWatcher,
     now_iso,
+    plugin_build,
     replace_into,
     serve,
     session_files,
@@ -90,6 +91,11 @@ QUESTION_SHAPE = {
 # A visual may never name a runtime file: the session files and their transient temp copies
 # hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
+
+
+def page_build():
+    """plugin_build() of the files on disk, as attribute-safe text ("" for an unreadable part)."""
+    return {k: html.escape(v or "") for k, v in plugin_build(HERE).items()}
 
 
 def runtime_path(rel):
@@ -1086,6 +1092,8 @@ class Hub(LoopbackWatcher):
             "session": self.session,
             "instance": self.instance,
             "api": API,
+            # The build this process started from; the page compares it with the one stamped in it.
+            **self.build,
         }, stale
 
     def record(self, msg):
@@ -1346,10 +1354,15 @@ class Handler(LoopbackHandler):
     def route_get(self, url, query):
         hub = self.hub
         if url.path in ("/", "/index.html"):
+            # The page carries the build on disk now; /api/state carries the one this process
+            # started from, so a page newer than its server can tell.
+            build = page_build()
             html = (
                 (HERE / "index.html")
                 .read_text(encoding="utf-8")
                 .replace("%%TOKEN%%", hub.token)
+                .replace("%%PLUGIN_VERSION%%", build["pluginVersion"])
+                .replace("%%SOURCE_HASH%%", build["sourceHash"])
             )
             return self.send(200, html.encode("utf-8"), "text/html")
         if url.path in QUESTION_SHAPE:

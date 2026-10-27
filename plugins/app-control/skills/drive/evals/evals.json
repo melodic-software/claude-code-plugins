@@ -268,6 +268,37 @@
         "Does NOT ask the user a question",
         "Does NOT fall back to the run skill or a project-type recipe"
       ]
+    },
+    {
+      "id": 20,
+      "name": "manifest-declared-plugin-control-skill-resolves",
+      "prompt": "/app-control:drive ready shop --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shopkit@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0. That folder has no skills/ folder; its .claude-plugin/plugin.json has name shopkit and \"commands\": [\"./tooling/\"], tooling/control-shop.md holds Launch, Ready, Capture and Cleanup sections, and a stale commands/control-shop.md is left over from an older release. Nobody is available to answer questions.",
+      "expected_output": "Reads the plugin's manifest, follows its commands path to tooling/control-shop.md under the install path, reads that file with the Read tool and never invokes it through the Skill tool, does not use the stale commands/control-shop.md the manifest's commands key leaves unloaded, names shopkit:control-shop with source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0/.claude-plugin/plugin.json",
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0/tooling/control-shop.md with the Read tool and uses it as the control skill",
+        "Does NOT use commands/control-shop.md as the control skill, and does not stop with a list of two candidates",
+        "Does NOT invoke shopkit:control-shop or any control-* skill through the Skill tool",
+        "Names the skill shopkit:control-shop and its source as a plugin in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "manifest-skills-path-plugin-control-skill-resolves",
+      "prompt": "/app-control:drive ready shop --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shopkit@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0. That folder has no skills/ or commands/ folder; its .claude-plugin/plugin.json has name shopkit and \"skills\": [\"./extra-skills/\"], and extra-skills/control-shop/SKILL.md holds Launch, Ready, Capture and Cleanup sections. Nobody is available to answer questions.",
+      "expected_output": "Reads the plugin's manifest, follows its skills path to extra-skills/control-shop/SKILL.md under the install path, reads that file with the Read tool and never invokes it through the Skill tool, names shopkit:control-shop with source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0/.claude-plugin/plugin.json",
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0/extra-skills/control-shop/SKILL.md with the Read tool and uses it as the control skill",
+        "Does NOT invoke shopkit:control-shop or any control-* skill through the Skill tool",
+        "Names the skill shopkit:control-shop and its source as a plugin in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
     }
   ]
 }

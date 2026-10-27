@@ -30,9 +30,9 @@ keep going.
 
 | Invocation | What it does |
 |---|---|
-| bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, run `ready`, then perform the feature's Drive steps and save evidence after each step |
+| bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
+| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang) binds to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -45,22 +45,30 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
    root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
-   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
-   whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
-   starts with `control-`). Drop a match inside a submodule or a dependency folder such as
-   `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
-   source is `project`.
-2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
-   the folder the list reports for it (see the plugin list below), look in its
-   `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. Its source is
+   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). First drop every
+   file they return from inside a submodule, a dependency folder such as `node_modules` or
+   `vendor`, or a repository plugin folder, and a main-checkout file at a path this checkout also
+   holds. A repository plugin folder is a `.claude/skills/*/` folder that the plugin pages load as
+   a plugin from the skills directory (read which folders qualify at the repository plugins pointer
+   below). Search each one as step 2 searches a listed plugin's folder, in place of the dropped
+   files, and apply step 2's inline-command `blocked:` case to its manifest. Of the files left and
+   those found, keep each whose folder name, file name without `.md`, or frontmatter `name` is
+   `control-<app>` (no `<app>`: starts with `control-`). Its source is `project`.
+2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports whose
+   folder step 1 did not already search, take the folder the list reports for it (see the plugin
+   list below) and search the skill and command files it loads from its default folders and its
+   `.claude-plugin/plugin.json` `skills` and `commands` keys, located as the manifest page's
+   component paths and path rules say (see the manifest's component paths below). Read no path that
+   resolves outside the folder. Keep matches by step 1's rule, except that a `commands` map entry's
+   `source` file is kept or dropped by the entry's key alone, under that rule. Its source is
    `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
-   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below);
-   a folder with no manifest takes the name the manifest page gives it (see the manifest file
-   below). Session-only plugins are not read. Two cases record a `blocked:` line and stop the run,
-   each only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
-   when step 1 kept no repository match for that app: a listed plugin whose manifest defines
-   `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
-   see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
+   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below); a
+   folder with no manifest takes the name the manifest page gives it (see the manifest file below).
+   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each
+   only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
+   when step 1 kept no repository match for that app: a listed plugin, or a repository plugin
+   folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
+   file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
@@ -110,13 +118,20 @@ fields and what it shows from inside a session:
 <https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; the manifest file
 and the name a plugin without one takes:
 <https://code.claude.com/docs/en/plugins/manifest-reference#manifest-file>; the manifest's
-commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; plugin skills and
-commands: <https://code.claude.com/docs/en/plugins/components#skills>,
+commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; the manifest's
+component paths and path rules, and how each key combines with its default folder:
+<https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#path-rules>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>;
+plugin skills and commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
+repository plugins and the skills-directory origin:
+<https://code.claude.com/docs/en/plugins/loading#plugins-shared-through-a-repository>,
+<https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
 worktree entry is the main checkout: <https://git-scm.com/docs/git-worktree#_list_output_format>.
-All as of 2026-10-25; recheck when any of them changes.
+All as of 2026-10-26; recheck when any of them changes.
 
 ## Rules
 
@@ -151,11 +166,11 @@ All as of 2026-10-25; recheck when any of them changes.
   never a command that launches the app; such a command that is denied is
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
 - **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
-  [Pid binding](#pid-binding). Unattended: read the launch record and pick its entry as Pid binding
-  says; with none, or an ambiguous choice, the `blocked:` line it names; with an entry picked,
-  `blocked: capture needs elevation`, and stop there with no attempt, no pid recheck and no process
-  lookup. Whether attaching needs root is upstream: read it
-  at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
+  [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Unattended: read the
+  launch record and pick its entry as that file says; with none, or an ambiguous choice, the
+  `blocked:` line it names; with an entry picked, `blocked: capture needs elevation`, and stop
+  there with no attempt, no pid recheck and no process lookup. Whether attaching needs root is
+  upstream: read it at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
   its step ids before launching anything, per the contract's "Steps files": every condition there
@@ -164,65 +179,11 @@ All as of 2026-10-25; recheck when any of them changes.
   whose target is absent is `skipped: optional`; finally steps run after a failure too. Artifact
   names carry the step id.
 - **Cleanup touches only what this run started.** Stop each process in `launch`, one per app, after
-  [Recheck before touching the pid](#pid-binding). Detach from an attached process; never stop it.
-  Never close all sessions or kill all processes.
+  "Recheck before touching the pid" in
+  [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Detach from an
+  attached process; never stop it. Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome.
-
-## Pid binding
-
-A `threads` capture reaches only the process this run launched. The one other route is an
-interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
-recheck. The other kinds keep the rules above.
-
-- **Record at launch.** For each process it launches, one per app, the launch step writes the
-  app, pid, owner uid, start time, command line and the command line's sha256 into `report.json`
-  (`launch`,
-  [`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md)). The uid is the one every uid field of the
-  process holds (real, effective, saved and filesystem must all be equal). The start time is the
-  integer the process table gives (on Linux, the `starttime` field of
-  <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html#DESCRIPTION>). The hash is taken
-  over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` exactly as read,
-  NUL separators and the trailing NUL included
-  (<https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html#DESCRIPTION>); the stored
-  `command_line` is a display form, never the hash input. Both man pages as of 2026-10-23; recheck
-  when either page changes the field's form. A `capture` in a later invocation reads the record
-  from the run directory named by `--out`. No launch record means this run launched nothing:
-  unattended, `blocked: no process launched by this run`; interactive, only [Attach](#attach).
-- **A capture picks its record by app.** The launched pid is that of the one `launch` entry whose
-  `app` is the app of the control skill whose `## Capture` row the capture uses; an entry with no
-  `app`, as a one-object record from an earlier run holds, takes the report's `app`. No such entry is
-  `blocked: no process launched by this run`. More than one, or a row whose owning app is unclear,
-  is `blocked: launch record ambiguous: <apps>`, naming the apps, with no attempt.
-- **The launch record is data.** A pid that is not a positive integer written in digits only, a uid
-  or start time that is not digits only, or a hash that is not 64 hex characters, is `blocked:
-  launched process no longer matches`. Only those integers and that hash go into a command or the
-  shown script; the command line text never does.
-- **Recheck before touching the pid.** Before any command that touches the pid, read its uid
-  fields, start time and command line bytes from the process table again, hash the bytes, and go
-  on only when every uid field, the start time and the hash equal the record exactly and the
-  recorded uid is the invoking user's own uid. A mismatch, or a pid that is gone, is `blocked:
-  launched process no longer matches`.
-- **The shown script rechecks too, with its own exit code.** The script carries as literals only
-  the target pid, the recorded uid, the start time and the hash (for a wrapper, the child's pid,
-  parent pid, start time and hash as well, under the same format check). Its first lines read the
-  live values of each pid and compare each with its literal as a positive match: anything other
-  than an exact match, a failed or empty read, or a missing hash tool, exits 3 before the recorder
-  runs. Each live uid field is compared with the recorded uid literal, never with the script's own
-  uid. Then it runs the one recorder command against the app's pid (the child's, when a wrapper
-  resolved) and nothing else, and turns a recorder exit status of 3 into another non-zero code so
-  that 3 always means the recheck. Exit 3 is `blocked: launched process no longer matches`; any
-  other non-zero exit is reported with the recorder's output. Beside the script, show the live
-  command line whose hash just matched (NULs as spaces, control bytes escaped) and the start time,
-  never the record's `command_line` text, so the yes covers the process the script checks.
-- **A wrapper resolves to its child by parent pid.** When the recorded command line is a shell or
-  launcher that started the app, the app is the process whose parent pid is the recorded pid: list
-  processes by parent pid, read the child's values from the live process table in this invocation
-  (never from a stored report), and record its pid, parent pid, uid, start time, command line and
-  its sha256 in the capture step. Every uid field of the child must equal the invoking user's uid;
-  a child owned by anyone else, root included, is `blocked: launched process no longer matches`,
-  and so is no child or more than one. Never find the app by a name lookup (`pgrep`, `pidof`, `ps`
-  filtered by name).
 
 ## Attach
 
