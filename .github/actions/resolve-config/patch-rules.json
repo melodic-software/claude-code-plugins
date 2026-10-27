@@ -50,6 +50,16 @@
       "conflict-patch-protected-path"
     ]
   },
+  "docs": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused", "skills", "skill-md"],
+    "allow": ["markdown"],
+    "max-files": 300,
+    "requires": [],
+    "commit": { "parents": ["head"], "message": "Apply {activity} on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": false,
+    "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
+  },
   "default": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],

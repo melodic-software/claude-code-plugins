@@ -1138,7 +1138,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
   const head = "c".repeat(40);
   const urls = [];
-  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } });
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
@@ -1187,6 +1187,27 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
+});
+
+test("the required-run read skips a fork's newer run at the same head SHA", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
+  // A fork PR pushed the same commit: its run is newer and still going.
+  const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "test-node", conclusion: "failure" }] }];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "test-node", conclusion: "failure" }] });
+  assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 
 // The record a run leaves: the next run, against the same GitHub state,

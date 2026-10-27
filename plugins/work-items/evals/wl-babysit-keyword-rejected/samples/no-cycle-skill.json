@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:work-loop",
+            "args": "--drain"
+          }
+        }
+      ],
+      "why": "the loop skill itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:triage"
+          }
+        }
+      ],
+      "why": "intake sweep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:work",
+            "args": "local-markdown:local/markdown#1"
+          }
+        }
+      ],
+      "why": "execute step"
+    }
+  ]
+}

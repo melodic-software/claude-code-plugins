@@ -68,6 +68,8 @@ merge:
     max-changed-lines: 200
 """
 SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
+LEGACY_WITHOUT_KEY = "## babysit_loop_tier\n\nworker\n"
+TEAM_YAML = "docs/conventions/source-control.yaml"
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -95,7 +97,9 @@ class GhFake:
 
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
-    the query's string variables, which may return a whole gh result. Any other call fails the test.
+    the query's string variables, which may return a whole gh result. Any other call fails the test,
+    except a read of the team `docs/conventions/source-control.yaml` no test set: that file is
+    absent from a readable tree, so a fixture written before it existed stays a legacy-only repo.
     """
 
     def __init__(self) -> None:
@@ -123,6 +127,10 @@ class GhFake:
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
+            prefix, _, ref = endpoint.partition(f"/contents/{TEAM_YAML}?ref=")
+            if ref:
+                self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
+                return http_error(404)
             raise AssertionError(f"unexpected gh call: {args}")
         answer = self.rest[endpoint]
         if isinstance(answer, int):
@@ -223,6 +231,7 @@ def config_fake(
     case: unittest.TestCase,
     pipeline: str | int | None,
     source: str | int | None = SOURCE_CONTROL,
+    team: str | int | None = None,
 ) -> GhFake:
     """Contents reads at SHA: text, an HTTP status, or None for an absent file."""
     gh = GhFake().install(case)
@@ -230,6 +239,7 @@ def config_fake(
     for path, value in (
         (policy.CONFIG_PATH, pipeline),
         (policy.SOURCE_CONTROL_PATH, source),
+        (TEAM_YAML, team),
     ):
         endpoint = f"repos/{REPO}/contents/{path}?ref={SHA}"
         gh.rest[endpoint] = (
@@ -452,6 +462,63 @@ class ReadConfigAt(unittest.TestCase):
         duplicate = SOURCE_CONTROL + "\n## babysit_loop_merge\n\nfull-autonomy\n"
         config_fake(self, PIPELINE, duplicate)
         self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
+
+    def test_the_lower_of_the_team_yaml_and_the_legacy_file_reaches_the_gate(
+        self,
+    ) -> None:
+        loose = "## babysit_loop_merge\n\nc3-autonomous\n"
+        for team, source, expected in (
+            # A demotion written only to the YAML holds the gate.
+            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "human-only"),
+            # A demotion written only to the legacy file still holds it.
+            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
+            ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
+            # With no legacy file the gate stays off whatever the YAML sets:
+            # the YAML alone never raises it.
+            ("babysit_loop_merge: c2-mechanical\n", None, None),
+            ("babysit_loop_merge: c3-autonomous\n", None, None),
+            # A YAML without the key falls back to the legacy value.
+            (None, SOURCE_CONTROL, "c2-mechanical"),
+            ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
+            # A legacy file without the key holds the gate off: a raise
+            # needs both files while the legacy file exists.
+            ("babysit_loop_merge: c3-autonomous\n", LEGACY_WITHOUT_KEY, None),
+            ("babysit_loop_merge: c2-mechanical\n", LEGACY_WITHOUT_KEY, None),
+            (None, None, None),
+        ):
+            with self.subTest(team=team, source=source):
+                config_fake(self, PIPELINE, source, team)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.loop_merge, expected)
+                self.assertEqual(config.notes, ())
+
+    def test_an_untrustworthy_team_yaml_holds_the_gate_over_the_legacy_value(
+        self,
+    ) -> None:
+        for team, noted in (
+            ("babysit_loop_merge: {a: b}\n", "rejects it"),
+            ("babysit_loop_merge:\n  - human-only\n", "not a scalar value"),
+            ("babysit_loop_merge: c3-this-run\n", "not a known value"),
+            (502, "unreadable"),
+        ):
+            with self.subTest(team=team):
+                config_fake(self, PIPELINE, SOURCE_CONTROL, team)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertIsNone(config.loop_merge)
+                self.assertTrue(any(noted in n for n in config.notes), config.notes)
+
+    def test_an_untrustworthy_legacy_file_holds_the_gate_over_the_team_value(
+        self,
+    ) -> None:
+        team = "babysit_loop_merge: c3-autonomous\n"
+        for source in (
+            502,
+            SOURCE_CONTROL + "\n## babysit_loop_merge\n\nhuman-only\n",
+            "## babysit_loop_merge\n\n## next\n",
+        ):
+            with self.subTest(source=source):
+                config_fake(self, PIPELINE, source, team)
+                self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
 
 
 class EffectiveRung(unittest.TestCase):
@@ -7162,6 +7229,8 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
+        # By default the default branch head is the base.
+        options.setdefault("main_sha", SHA)
         return policy.dependabot_eligibility(
             REPO, 7, pr=pr, agent_identity=IDENTITY, **options
         )
@@ -7718,6 +7787,122 @@ class DependabotEligibility(unittest.TestCase):
                     "dependabot-review:dependabot-policy-unreadable;"
                     "review-verdict-missing",
                 )
+
+    def moved_main(
+        self, main_config: Any = None, main_policy: Any = None, **options: Any
+    ) -> GhFake:
+        """The base's fake, with main moved to MAIN_SHA, whose dependabot.yml
+        and policy answer `main_config` and `main_policy` (the base's when
+        None; text, a payload or an HTTP status)."""
+        gh = self.fake(**options)
+        base = f"repos/{REPO}/contents/{{}}?ref={SHA}"
+        main = f"repos/{REPO}/contents/{{}}?ref={MAIN_SHA}"
+        for path, answer in (
+            (".github/dependabot.yml", main_config),
+            (POLICY, main_policy),
+        ):
+            if answer is None:
+                answer = gh.rest[base.format(path)]
+            elif isinstance(answer, str):
+                answer = file_payload(answer)
+            gh.rest[main.format(path)] = answer
+        gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+        return gh
+
+    def test_main_dropping_a_dependabot_directory_sends_its_files_to_review(
+        self,
+    ) -> None:
+        # Coverage only admits: a pair main no longer names is not covered.
+        self.moved_main(
+            main_config="updates:\n  - package-ecosystem: npm\n    directory: /x\n"
+        )
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:package-lock.json;"
+            "review-verdict-missing",
+        )
+
+    def test_main_adding_a_dependabot_directory_does_not_widen_the_base(
+        self,
+    ) -> None:
+        files = [{"filename": "plugins/x/package-lock.json"}]
+        wider = (
+            "updates:\n  - package-ecosystem: npm\n    directories:\n"
+            "      - /\n      - /plugins/x\n"
+        )
+        self.moved_main(main_config=wider, files=files)
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:plugins/x/package-lock.json;"
+            "review-verdict-missing",
+        )
+
+    def test_a_main_dependabot_yml_with_no_entry_is_unreadable(self) -> None:
+        for answer in (404, "version: 2\n"):
+            with self.subTest(answer=answer):
+                self.moved_main(main_config=answer)
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:dependabot-config-unreadable;"
+                    "review-verdict-missing",
+                )
+
+    def test_a_review_only_entry_on_either_side_sends_the_update_to_review(
+        self,
+    ) -> None:
+        for base, main in (([self.entry()], []), ([], [self.entry()])):
+            with self.subTest(base=base, main=main):
+                self.moved_main(
+                    main_policy=json.dumps({"autoMerge": {"reviewOnly": main}}),
+                    review_only=base,
+                )
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:review-only:x;review-verdict-missing",
+                )
+
+    def test_a_main_policy_unreadable_sends_every_update_to_review(self) -> None:
+        for answer in (404, "{not json", "{}"):
+            with self.subTest(answer=answer):
+                self.moved_main(main_policy=answer)
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
+
+    def test_a_failed_read_at_main_refuses(self) -> None:
+        for path in (".github/dependabot.yml", POLICY):
+            with self.subTest(path=path):
+                gh = self.moved_main()
+                gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = 502
+                reason = self.eligibility(main_sha=MAIN_SHA).reason
+                self.assertTrue(reason.startswith(f"unreadable: {path} at"), reason)
+
+    def test_main_unchanged_from_the_base_is_auto(self) -> None:
+        self.moved_main()
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_with_no_head_given_the_merge_configs_head_is_read(self) -> None:
+        self.moved_main(main_policy="{}")
+        head = mock.Mock(base_sha=MAIN_SHA)
+        with mock.patch.object(
+            policy, "_default_branch_config", return_value=head
+        ) as read:
+            reason = self.eligibility(main_sha=None, branch="trunk").reason
+        read.assert_called_once_with(REPO, "trunk")
+        self.assertIn("dependabot-policy-unreadable", reason)
+        with mock.patch.object(
+            policy,
+            "_default_branch_config",
+            side_effect=policy.PolicyReadError("head unreadable"),
+        ):
+            reason = self.eligibility(main_sha=None).reason
+        self.assertEqual(reason, "unreadable: head unreadable")
 
     def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
         zero = dependabot_commit(
