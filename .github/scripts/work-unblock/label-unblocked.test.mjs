@@ -2935,7 +2935,7 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
 });
 
 // A degraded search answers a false empty (total_count 0, incomplete_results
-// true): past pause-from that admits nothing, where a failed read fails open.
+// true): that admits nothing, with or without pause-from.
 test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   for (const config of [PAUSING, {}]) {
@@ -2946,6 +2946,19 @@ test("an incomplete search answer defers a newly unblocked issue, with or withou
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #20 admission deferred: GitHub search answered incomplete results"), lines.join("\n"));
   assert.ok(!lines.some((line) => line.includes("at the queued cap")), lines.join("\n"));
+});
+
+// A queued count check-wip-cap could not read (admission_basis fail-open)
+// admits nothing either, as intake's admission defers on it.
+test("a queued count that could not be read defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const config of [PAUSING, {}]) {
+    const { github, calls } = world({ ...oneDependentWorld(), openLanePrs: null });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [deferredLabel(20)], JSON.stringify(config));
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: the issue lane's queued count could not be read"), lines.join("\n"));
 });
 
 test("at the queued cap the deferral names the queued cap", async (t) => {
