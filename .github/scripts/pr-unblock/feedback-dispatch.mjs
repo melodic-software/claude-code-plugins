@@ -70,15 +70,6 @@
 // which the record names. A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
-// A head the human gate skipped at its review completion has no other
-// trigger once the label comes off: no round ran, so the sweep never finds a
-// releasing reply there. A person's or clear-escalations' unlabel (a user or
-// lanes App token, so the event starts runs) starts pr-merge.yml on
-// pull_request_target, and that run's completion starts this file: main()
-// takes only its head SHA and decides as above with the newest completed
-// review run at that head as the upstream (reviewRunAt). The run does not say
-// which label came off, so a head still gated skips at the gate as before.
-//
 // A run of this file an outage lost dispatched nothing the lanes trust when
 // re-run: check-trusted-trigger's dispatcher check accepts a dispatcher at
 // attempt 1 or re-run by a listed human, so re-runs stay person-only. When
@@ -92,6 +83,15 @@
 // own attempt-1 run, which the gate already trusts, and dispatchFeedback's
 // check-run and queued-run skips keep a head the lost run dispatched from a
 // second dispatch.
+//
+// A head the human gate skipped at its review completion has no other
+// trigger once the label comes off: no round ran, so the sweep never finds a
+// releasing reply there. A person's or clear-escalations' unlabel (a user or
+// lanes App token, so the event starts runs) starts pr-merge.yml on
+// pull_request_target, and that run's completion starts this file: main()
+// takes only its head SHA and decides as above with the newest completed
+// review run at that head as the upstream (reviewRunAt). The run does not say
+// which label came off, so a head still gated skips at the gate as before.
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
