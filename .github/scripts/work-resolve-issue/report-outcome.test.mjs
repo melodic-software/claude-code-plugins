@@ -3138,6 +3138,21 @@ test("main fails a crashed run whose retries are spent: agent-ready off, no labe
   });
 });
 
+test("main keeps agent-ready on a spent retry whose failed marker could not be posted, so the stranded sweep still finds it", async () => {
+  const earlier = (run, at) => ({ user: { login: "melodic-automation-lanes[bot]" }, body: `<!-- work-resolve-issue outcome=retry run=${run} -->`, created_at: at });
+  await withAsyncDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [earlier("1", "2026-10-17T01:00:00Z"), earlier("2", "2026-10-17T02:00:00Z")]],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 500, { message: "boom" }],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 1);
+    assert.ok(!calls.some((c) => c.method === "DELETE"), JSON.stringify(calls));
+  });
+});
+
 test("main on a rerun after its own retry marker posts nothing again", async () => {
   const own = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=retry run=123 -->", created_at: "2026-10-17T05:00:00Z" };
   await withAsyncDir({}, async (dir) => {

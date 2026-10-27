@@ -1458,19 +1458,26 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 }
 
 // A hand-back, host-run or fail plan's edits. The label first, so a failed
-// comment still leaves the issue on its route. Adding a label the issue has, or removing one it
-// lacks (a 404 the catch logs), leaves the same labels, so both are resent;
-// the comment is not.
+// comment still leaves the issue on its route. A fail plan adds none: its
+// comment's marker is the route, so it is posted before agent-ready goes, and
+// a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
+// label the issue has, or removing one it lacks (a 404 the catch logs), leaves
+// the same labels, so both are resent; the comment is not.
 async function applyHandBack(github, repo, plan) {
+  const comment = () => github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
+  } else {
+    await comment();
   }
   for (const name of plan.removeLabels) {
     await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`, undefined, { safeToResend: true }).catch((error) =>
       console.log(`report-outcome: could not remove ${name}: ${error.message}`),
     );
   }
-  await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  if (plan.addLabels.length) {
+    await comment();
+  }
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
 }
 
