@@ -284,7 +284,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 720,
-          "description": "Hours both a person's pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
+          "description": "Hours both a person's pull request (in pr-merge its trusted-actor activity and its head's arrival, in fix-ci its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
         },
         "spec-from-body-apps": {
           "type": "array",

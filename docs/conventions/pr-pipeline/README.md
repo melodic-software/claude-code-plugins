@@ -1016,23 +1016,41 @@ except six:
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
   refuses. An adopted pull request (owner decisions Q22 and 2026-10-22, [Adoption](#adoption)) is
   one a `User` or `Bot` on the trusted-actor list opened, matched by account id, never by
-  login, that is not a draft, and, for a `User`, whose `updatedAt` and head commit committer date
-  are both at least `adoption.idle-hours` old (absent adopts nothing; an unreadable date is not
-  idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting and the
-  list read at the default branch head,
+  login, that is not a draft, and, for a `User`, whose newest activity and head commit
+  committer date are both at least `adoption.idle-hours` old (absent adopts nothing; an unreadable
+  date is not idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting
+  and the list read at the default branch head,
   and that no hold applies to: the `do-not-merge` label, the
   tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
-  the body. While the lane's own merge-queue entry holds it at the current head (the lanes App
+  the body. Its activity is the newest of its opening, the head's arrival (the newest GitHub
+  Actions check suite for the head commit on its branch, since a commit's dates are its
+  pusher's; a `pull_request` workflow run that a label or title edit starts adds such a suite, so
+  any account's label change there also delays adoption, never grants it), and each comment, review, inline review comment, label change, title edit, review
+  request, ready for review, reopen or force push whose actor id is on the trusted-actor list,
+  the lanes App
+  and Dependabot left out, at its newest time, a comment's edit included (`trusted_activity`).
+  The raw `updatedAt` is not read: any account that can comment moves it. Another account's
+  activity therefore never keeps the pull request from going idle, except a hold (owner decision
+  Q30) by an OWNER, MEMBER or COLLABORATOR (`author_association`, as for the human merge veto;
+  on a public repository anyone else's would hold every pull request): its changes-requested
+  review, or a `User` account's comment, review or inline review comment whose text carries a
+  body-hold phrase ("do not merge", "don't merge", a line opening
+  with `Hold:`), counts like a trusted account's; a bot's text is not read, since review lanes
+  quote the phrase. A trusted account's comment, such as a person's request to wait,
+  still refuses. A timeline or check suite listing
+  that cannot be read whole, a head with no such suite on its branch, a listed event whose actor
+  id cannot be read, or a counted event's unreadable time is not idle. While the
+  lane's own merge-queue entry holds it at the current head (the lanes App
   enqueued it, its newest unedited pin comment names that head, and no other author has commented
-  or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
-  pin comment and the enqueue refresh it; any other comment or review, such as a request to
-  wait, refuses again, as does an unreadable one. The same holds after the lane's own
-  whole-review request at the current head: while the lanes App's newest reasons comment records
-  a request at that head, the App's newest conversion to draft falls within `CONVERT_WINDOW` of
-  the record's time (so an edited record time excuses nothing), and no person has commented,
-  reviewed or commented inline since the record's time, a recent `updatedAt` does not refuse, since the record, the draft toggle and the
-  whole review it starts refresh it (`lane_toggled_at_head`); bots do not count. The head commit
-  test and every hold still apply, and a draft still refuses. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  or submitted the newest review since that pin), recent trusted activity does not refuse; any
+  other comment or review after that pin refuses again, as does an unreadable one. The same holds
+  after the lane's own whole-review request at the current head: while the lanes App's newest
+  reasons comment records a request at that head, the App's newest conversion to draft falls
+  within `CONVERT_WINDOW` of the record's time (so an edited record time excuses nothing), and no
+  person has commented, reviewed or commented inline since the record's time, recent activity
+  does not refuse (`lane_toggled_at_head`); bots do not count. The head commit test and every
+  hold still apply, and a draft still refuses. A person's merge-queue enqueue that the queue
+  removed for failed checks also excuses
   both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
   (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
@@ -2487,8 +2505,13 @@ person opened. A PR is adopted when all of these hold:
   two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
   whitespace (NBSP included), with a bare CR also ending a line;
-- for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
-  at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
+- for a person's PR, its newest activity and its head commit's committer date are both at least
+  `idle-hours` old. Neither one alone is enough. pr-merge reads the activity from the PR's
+  opening, the head's arrival, and each comment, review, label change or title edit whose actor
+  id is on the trusted-actor list ([The pr-merge lane](#the-pr-merge-lane) lists every event
+  read), never the raw `updatedAt`, so another account's comments cannot keep the PR from going
+  idle there unless they are a member's or collaborator's hold (a changes-requested review or a
+  "do not merge" or `Hold:` phrase); fix-ci still reads the PR's last update (`updatedAt`). An App's PR does not wait.
 
 A person's PR also skips the wait when a person put it in the merge queue and the queue removed
 it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for
@@ -2565,7 +2588,7 @@ without one the tracker file and the trusted-actor list are not read, nothing is
 
 | Key | Default | Meaning |
 |---|---|---|
-| `idle-hours` | none | Hours both a person's PR and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
+| `idle-hours` | none | Hours both a person's PR (its activity, as the list above reads it) and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
 | `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
 
 ## Red main
