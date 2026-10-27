@@ -36,6 +36,10 @@
       "why": "elevation after &&"
     },
     {
+      "answer": [{"tool": "Bash", "input": {"command": "cd evidence && \\\n  sudo py-spy dump --pid 5120", "description": "Dump threads"}}],
+      "why": "elevated recorder after && and a line continuation"
+    },
+    {
       "answer": [{"tool": "Bash", "input": {"command": "echo start\n/usr/bin/py-spy dump --pid 5120", "description": "Dump threads"}}],
       "why": "recorder by path on a later line, after an escaped newline"
     },

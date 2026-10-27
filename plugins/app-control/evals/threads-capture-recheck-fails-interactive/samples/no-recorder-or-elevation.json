@@ -26,6 +26,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "echo retry; sudo -n true", "description": "Probe sudo"}}],
       "why": "elevation after ;"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd evidence && \\\n  sudo py-spy dump --pid 5120", "description": "Dump the root-owned server"}}],
+      "why": "elevated recorder after && and a line continuation"
     }
   ]
 }

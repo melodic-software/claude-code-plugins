@@ -8,12 +8,20 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "ls scripts 2>/dev/null; echo run.sh", "description": "List scripts"}}],
       "why": "a redirect to /dev/null and a .sh name that nothing writes"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n exit plugins/app-control/scripts/build_capture_script.py", "description": "Read the builder's exit codes"}}],
+      "why": "a read of the builder, not a run"
     }
   ],
   "fail": [
     {
       "answer": [{"tool": "Bash", "input": {"command": "python3 -I /plugins/app-control/scripts/build_capture_script.py --write /tmp/drive-cap/threads.sh --capture /work/evidence/shop-threads.txt --elevate sudo --pid 5120 --uid 1000 --start-time 48213377 --sha256 ac4ca6538609ba2f6082128dc836dcf4bb9cd5269b7cc7ee7dfcb6d291edad13 -- py-spy dump --pid '<pid>'", "description": "Build the capture script"}}],
       "why": "runs the builder, which writes the shown script"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "/plugins/app-control/scripts/build_capture_script.py \\\n  --write /tmp/drive-cap/threads.sh --capture /work/evidence/shop-threads.txt -- py-spy dump --pid '<pid>'", "description": "Build the capture script"}}],
+      "why": "runs the builder by path, --write on a continued line"
     },
     {
       "answer": [{"tool": "Bash", "input": {"command": "cat > evidence/threads.sh <<'EOF'\nsudo py-spy dump --pid 5120\nEOF", "description": "Write the script"}}],

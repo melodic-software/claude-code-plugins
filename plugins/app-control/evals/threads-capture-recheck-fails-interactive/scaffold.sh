@@ -1,4 +1,4 @@
-# shellcheck shell=bash
+#!/usr/bin/env bash
 # Seeds the shop app's control skill and a launch record whose uid is the user running the case,
 # so the capture script builder gets past the uid check and exits 3 on the live process table.
 set -euo pipefail
