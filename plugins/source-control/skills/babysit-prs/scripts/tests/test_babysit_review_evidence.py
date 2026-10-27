@@ -10,6 +10,7 @@ request whose two lanes were each re-run once after a successful attempt.
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
 import pathlib
 import re
@@ -474,7 +475,12 @@ class LaneSourceTests(Base):
             self.assertUnbound(result[lane], "changed-files-unread")
 
 
-BASE = "ba5e" * 10
+BASE = "b0" * 20
+# The gate reads workflow YAML with PyYAML; with none, nothing clears.
+NEEDS_YAML = unittest.skipUnless(
+    importlib.util.find_spec("yaml"),
+    "PyYAML not installed (CI's check-skills job installs it)",
+)
 WORKFLOW = ".github/workflows/lint-docs.yml"
 # A workflow whose token cannot write and that reaches no secret.
 READ_ONLY = """\
@@ -545,9 +551,11 @@ class ReadOnlyWorkflowTests(Base):
         for lane in LANES:
             self.assertUnbound(result[lane], "lane-source-changed")
 
+    @NEEDS_YAML
     def test_a_read_only_workflow_edit_binds(self) -> None:
         self.assertBinds(self.bound({WORKFLOW: READ_ONLY}))
 
+    @NEEDS_YAML
     def test_a_clean_review_clears_a_read_only_workflow_edit_end_to_end(self) -> None:
         # Owner direction 2026-10-27: a workflow-file pull request needs a
         # person only for a HIGH or CRITICAL security finding. The scorer
@@ -623,6 +631,7 @@ class ReadOnlyWorkflowTests(Base):
             ["security-finding"],
         )
 
+    @NEEDS_YAML
     def test_read_all_and_empty_permissions_bind(self) -> None:
         for perms in ("permissions: read-all", "permissions: {}"):
             with self.subTest(perms):
@@ -633,6 +642,7 @@ class ReadOnlyWorkflowTests(Base):
         # It runs nothing at the head; the reader proved it removed.
         self.assertBinds(self.bound({WORKFLOW: None}))
 
+    @NEEDS_YAML
     def test_each_unsafe_workflow_stays_a_lane_source(self) -> None:
         top = "permissions:\n  contents: read\njobs:"
         job = "    permissions:\n      contents: read\n      pull-requests: read\n"
@@ -656,7 +666,7 @@ class ReadOnlyWorkflowTests(Base):
             "a workflow_run trigger": READ_ONLY.replace(
                 "  push:\n", "  workflow_run:\n    workflows: [x]\n"
             ),
-            "unparseable YAML": READ_ONLY + "  bad: [unclosed\n",
+            "unparsable YAML": READ_ONLY + "  bad: [unclosed\n",
             "not a mapping": "- just\n- a list\n",
             "two documents": READ_ONLY + "---\n" + READ_ONLY,
             "a reusable call with secrets: inherit": READ_ONLY
