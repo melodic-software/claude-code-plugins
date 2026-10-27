@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome", "detail", "mutants"],
+  "properties": {
+    "outcome": { "enum": ["reported", "scope-empty", "refused", "restore-failed"] },
+    "detail": { "type": "string", "maxLength": 500 },
+    "mutants": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "operator", "state", "disposition", "cause"],
+        "properties": {
+          "path": { "type": "string", "maxLength": 300, "pattern": "^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$" },
+          "line": { "type": "integer", "minimum": 1 },
+          "operator": { "enum": ["SBR", "ROR", "AOR", "LCR", "UOI", "other"] },
+          "state": { "enum": ["killed", "survived", "no-coverage", "timeout", "invalid", "not-run"] },
+          "disposition": { "enum": ["none", "productive", "equivalent", "arid", "unclassified"] },
+          "cause": { "enum": ["none", "no-assertion", "input-gap", "unclassified"] }
+        }
+      }
+    }
+  }
+}

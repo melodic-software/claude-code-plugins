@@ -44,7 +44,8 @@ const TITLE_RENAMES = `query($owner: String!, $name: String!, $number: Int!, $af
 const MAX_GRAPHQL_PAGES = 50;
 
 // Every node of one PR connection (`closingIssuesReferences` or
-// `timelineItems`), page by page; more than the cap throws.
+// `timelineItems`), page by page; a page with no node list or more than the
+// cap throws.
 async function prConnection(github, query, field, repository, prNumber) {
   const [owner, name] = repository.split("/");
   const nodes = [];
@@ -55,13 +56,24 @@ async function prConnection(github, query, field, repository, prNumber) {
       variables: { owner, name, number: Number(prNumber), after },
     });
     const connection = answer?.data?.repository?.pullRequest?.[field];
-    nodes.push(...(connection?.nodes ?? []));
+    if (!Array.isArray(connection?.nodes)) {
+      throw new Error(`${field} could not be read`);
+    }
+    nodes.push(...connection.nodes);
     if (connection?.pageInfo?.hasNextPage !== true) {
       return nodes;
     }
     after = connection.pageInfo.endCursor;
   }
   throw new Error(`${field} exceeds ${MAX_GRAPHQL_PAGES} pages`);
+}
+
+// Who renamed the PR's title, one entry per rename, oldest first: the actor's
+// { __typename, databaseId }, or null when GitHub cannot name it. pr-verify's
+// resolve-pr.mjs reads renames through this too.
+export async function titleRenamers(github, repository, prNumber) {
+  const renames = await prConnection(github, TITLE_RENAMES, "timelineItems", repository, prNumber);
+  return renames.map((event) => event?.actor ?? null);
 }
 
 // PullRequest, Issue, IssueComment, PullRequestReview and
@@ -182,14 +194,8 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   // everyone who renamed it.
   let titleKept = prKept;
   if (prKept) {
-    const renames = await prConnection(
-      github,
-      TITLE_RENAMES,
-      "timelineItems",
-      repository,
-      prNumber,
-    );
-    titleKept = renames.every((event) => isListed(ids, { id: event?.actor?.databaseId }));
+    const renamers = await titleRenamers(github, repository, prNumber);
+    titleKept = renamers.every((actor) => isListed(ids, { id: actor?.databaseId }));
     if (!titleKept) {
       dropped["edited-by-untrusted"] += 1;
     }

@@ -3,6 +3,42 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-27
+
+### Added
+
+- The control-skill contract's hang (`threads`) row now names an all-thread dump command for JVM (`jcmd` `Thread.print`), .NET (`dotnet-stack report`) and Linux native (`gdb` `thread apply all bt`), each against the launched `<pid>`, and reads n/a for Node.js. Each new tool has a manual pointer with an as-of date and a recheck trigger. Go stays "not yet": its goroutine dump is served on the app's own endpoint, which drive's pid binding cannot hold to the launched process.
+
+## [0.14.1] - 2026-10-27
+
+### Fixed
+
+- `/app-control:drive` names how to get `python3` for the integrated-app pin check: app-control now declares it in `prerequisites.json`, and drive runs the bundled checker for the install command when it is missing.
+
+## [0.14.0] - 2026-10-27
+
+### Added
+
+- The `app-control:source-reader` agent, whose tool list holds Read, Grep and Glob only, for the `/app-control:map refresh` source wave.
+
+### Fixed
+
+- `/app-control:map refresh` sends its source wave through `app-control:source-reader`, so a subagent reading app source can no longer edit, write or run anything; before, the read-only limit was only an instruction in its prompt. When the agent does not resolve, the pass is blocked rather than sent through another agent. Each prompt now opens with the untrusted-content framing and quotes every repository value inside the item-content-trust fence. The working-tree tripwire is named a backstop, and the report states what it cannot see: writes under `.git/`, to ignored paths and outside the checkout.
+
+## [0.13.0] - 2026-10-27
+
+### Added
+
+- `/app-control:drive`'s `report.json` gains `secrets_mark`: one entry per raw capture, and per report file once it holds a command line, with its path, the "may hold secrets; do not commit" mark and whether the run directory sits unignored in a git working tree.
+
+### Changed
+
+- `/app-control:drive`'s Pid binding rules move to the `drive/reference/pid-binding.md` spoke with only their links adjusted; the hub's launch row, `threads` capture row, `threads` rule and cleanup rule link it.
+
+### Removed
+
+- The control-skill contract's manual pointers for dotnet-stack, GDB `thread apply all` and `GOTRACEBACK`, since no `threads` row names those tools. The dotnet-trace and dotnet-gcdump pointers stay.
+
 ## [0.12.2] - 2026-10-27
 
 ### Fixed

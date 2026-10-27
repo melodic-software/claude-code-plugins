@@ -383,6 +383,12 @@ jobs:
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.
+
+        DECISION REPLY. Whenever your comment asks numbered questions with `RECOMMENDED:` answers
+        (an intent question under ESCALATION, or (c) under RE-ENTRY), end it with the line
+        `To answer, post a comment that starts with this line:`, then a fenced code block holding
+        only `**Decision recorded.** <answer>`, so the owner can copy the one first line that counts
+        as an answer.
     # Named secrets only, never `secrets: inherit`. The central fallback token
     # runs only after the subscription token hands off.
     secrets:
@@ -826,7 +832,7 @@ jobs:
       - name: Refine the issue
         id: run
         if: steps.prompt.outcome == 'success'
-        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1.0.263
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
