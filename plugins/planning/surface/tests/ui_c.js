@@ -618,16 +618,21 @@ async page => {
     const hdr = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000}).then(() => true).catch(() => false);
     const pw = await page.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
     ok("lease held with no waiter: the header reads Claude is working, not Live or Not listening", hdr && /^Claude is working/.test(pw.text) && !/Live|Not listening/.test(pw.text), JSON.stringify(pw));
-    // A waiter arrives: Live.
-    const live = page.request.get(base + "api/wait?after=handled&timeout=6&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
-    const isLive = await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
-    ok("a waiter present: the header reads Live", isLive, await page.textContent("#pill"));
-    await live;
     const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
+    // A waiter arrives: Live. D1 is handled by now, so the wait holds for its whole timeout instead of
+    // taking D1; the header is checked only once the server itself counts the waiter.
+    const listening = async (pred, ms) => { for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(100)) if (pred((await state()).listener)) return true; return false; };
+    const live = page.request.get(base + "api/wait?after=handled&timeout=10&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
+    const waiting = await listening(l => l.waiters >= 1, 8000);
+    const isLive = waiting && await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("a waiter present: the header reads Live", isLive, (waiting ? "" : "the server counted no waiter in 8 s; ") + await page.textContent("#pill"));
+    await live;
     // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
+    // The server's own state is awaited first: the header read the working state while the lease was held, so a page check made before the release frame lands would pass on that.
     const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
-    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 20000, polling: 200}).then(() => true).catch(() => false);
+    const released = await listening(l => l.state === "reading" && !l.lease && l.waiters === 0, 20000);
+    const reading = released && await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000, polling: 200}).then(() => true).catch(() => false);
     const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
     const st = await state();
     ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));

@@ -1045,6 +1045,9 @@ class Hub(LoopbackWatcher):
             mtime(Path(user)) if user else 0,
             self.listener()["state"],
             self.lease_view() is not None,
+            # The header's Live needs a waiter: a wait starting or ending inside the listen grace,
+            # with the lease held, moves neither field above.
+            self.waiters > 0,
         )
 
     def watched(self):

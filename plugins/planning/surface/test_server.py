@@ -1484,6 +1484,67 @@ class TestEventStreamHandle(ServerCase):
             conn.close()
 
 
+class TestEventStreamWaiter(WaitCase):
+    """A waiter arriving or leaving reaches an open tab as a state frame, even while the lease
+    stays held and the listener stays inside its listen grace: the header's Live needs a waiter,
+    so the page must hear of one without waiting on some other change."""
+
+    def test_a_waiter_inside_the_listen_grace_pushes_frames(self):
+        frames, ready = [], threading.Event()
+
+        def read(resp):
+            event = None
+            while line := resp.fp.readline():
+                if line.startswith(b"event: "):
+                    event = line[7:].strip()
+                elif line.startswith(b"data: ") and event == b"state":
+                    frames.append(json.loads(line[6:])["listener"])
+                    ready.set()
+
+        def until(pred, seconds=3):
+            """True once the newest frame satisfies pred, within seconds."""
+            deadline = time.monotonic() + seconds
+            while time.monotonic() < deadline:
+                if pred(frames[-1]):
+                    return True
+                time.sleep(0.05)
+            return False
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            threading.Thread(
+                target=read, args=(conn.getresponse(),), daemon=True
+            ).start()
+            self.assertTrue(ready.wait(TIMEOUT), "no first state frame")
+            # The first wait claims the lease; once it ends the listener stays "listening" for
+            # LISTEN_GRACE (10 s) and the lease stays held, so neither moves for the next wait.
+            code, body, _ = self.wait("after=handled&timeout=1&watcher=w1")
+            self.assertEqual(code, 200, body)
+            self.assertTrue(
+                until(lambda f: f["lease"] and f["waiters"] == 0),
+                f"no frame with the lease held and no waiter: {frames}",
+            )
+            seen = len(frames)
+            box = {}
+            th = threading.Thread(
+                target=lambda: box.update(
+                    r=self.wait("after=handled&timeout=3&watcher=w1")
+                )
+            )
+            th.start()
+            arrived = until(lambda f: f["waiters"] >= 1)
+            th.join(TIMEOUT)
+            self.assertTrue(arrived, f"no frame carried the waiter: {frames[seen:]}")
+            self.assertEqual((box.get("r") or [None])[0], 200, box)
+            self.assertTrue(
+                until(lambda f: f["waiters"] == 0),
+                f"no frame after the waiter left: {frames[seen:]}",
+            )
+        finally:
+            conn.close()
+
+
 class TestEventStreamPush(ServerCase):
     """A rewrite of questions.json reaches an open stream even when the file's mtime did not move."""
 
