@@ -93,6 +93,13 @@ let root;
 let base;
 let resolved;
 
+// The issue lane's protected-path rules come from the base's apply-patch
+// and patch-rules.json, as committed; every issue-lane base needs them.
+const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/actions/resolve-config/patch-rules.json"];
+function copyPatchRules(dir) {
+  for (const file of PATCH_RULE_FILES) cpSync(path.join(REPO_ROOT, file), path.join(dir, file), { recursive: true });
+}
+
 before(() => {
   root = mkdtempSync(path.join(tmpdir(), "collect-base-activity-"));
   base = path.join(root, "base");
@@ -104,11 +111,7 @@ before(() => {
   writeFileSync(path.join(base, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
   resolved = path.join(root, "resolved.json");
   writeFileSync(resolved, JSON.stringify({ selected: { args: "ci" } }));
-  // The issue lane's protected-path rules come from the base's apply-patch
-  // and patch-rules.json, as committed.
-  for (const file of [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/actions/resolve-config/patch-rules.json"]) {
-    cpSync(path.join(REPO_ROOT, file), path.join(base, file), { recursive: true });
-  }
+  copyPatchRules(base);
 });
 
 after(() => {
@@ -1757,6 +1760,7 @@ function tidyBase() {
   }
   mkdirSync(path.join(dir, ".claude-plugin"));
   writeFileSync(path.join(dir, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  copyPatchRules(dir);
   return dir;
 }
 const tidyResolved = (tidy = TIDY, models = { "max-turns": 150 }) => launchResolved({ ...PATCH, tidy, models });
