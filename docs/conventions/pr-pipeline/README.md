@@ -2513,8 +2513,10 @@ pull-request`, and the pr-merge gate accepts it with no closing issue. Any other
 App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
 would also have written the spec it is graded against.
 
-The body counts only if it was never edited, or was last edited by its author or a trusted person;
-the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
+The body counts only if it was never edited, or was last edited by its author or a trusted person,
+and the title only if it was never renamed, or was last renamed by its author or a trusted person
+(its latest `RenamedTitleEvent`); otherwise the PR is not its own spec. The verdict records the
+sha256 of that title and body (`intent_sha256`), and the gate refuses the pass
 (`verify:spec-changed`) once the live title and body differ.
 
 In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the
