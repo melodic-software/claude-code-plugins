@@ -1014,6 +1014,7 @@ class Hub(LoopbackWatcher):
 
     def signature(self):
         user = self.user_settings()
+        listener = self.listener()
         return (
             mtime(self.questions),
             mtime(self.responses),
@@ -1023,8 +1024,11 @@ class Hub(LoopbackWatcher):
             mtime(self.dir / SESSION_JSON),
             mtime(self.layers.repo_file) if self.layers.repo_file else 0,
             mtime(Path(user)) if user else 0,
-            self.listener()["state"],
-            self.lease_view() is not None,
+            listener["state"],
+            # The header reads Live only while a watcher waits, and a wait inside the listen
+            # grace leaves state and lease unchanged.
+            listener["waiters"] > 0,
+            listener["lease"] is not None,
         )
 
     def watched(self):

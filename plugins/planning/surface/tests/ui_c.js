@@ -619,7 +619,9 @@ async page => {
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
     // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
     const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
-    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 20000, polling: 200}).then(() => true).catch(() => false);
+    // The pill already reads working from the lease, so wait for the bridge's reading state first.
+    for (const end = Date.now() + 20000; Date.now() < end && (await state()).listener.state !== "reading";) await page.waitForTimeout(200);
+    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000, polling: 200}).then(() => true).catch(() => false);
     const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
     const st = await state();
     ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
