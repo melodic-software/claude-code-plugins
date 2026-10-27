@@ -2,7 +2,8 @@
 
 One install for the marketplace's default-on plugins. `core` has no skills, agents or hooks of its
 own: its manifest lists those plugins in `dependencies`, so installing it installs and enables each
-of them.
+of them. `core` itself is off by default (`"defaultEnabled": false`), so taking the default-on set
+never installs it; installing it is an explicit choice.
 
 ```bash
 claude plugin install core@melodic-software
@@ -15,8 +16,9 @@ than `core` whose `defaultEnabled` is absent or `true`. The list is in
 [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json). The dependencies carry no version
 constraint, so each member tracks the version the marketplace publishes.
 
-When a plugin turns default-on or default-off, update the list in the same change; no check
-compares it with the catalog.
+When a plugin turns default-on or default-off, update the list in the same change:
+`scripts/validate-plugin-contracts.mjs` fails when the list differs from the catalog's default-on
+set, or when the `core` entry is not `"defaultEnabled": false`.
 
 No member declares a dependency on another member, so each member also installs and loads on its
 own.
