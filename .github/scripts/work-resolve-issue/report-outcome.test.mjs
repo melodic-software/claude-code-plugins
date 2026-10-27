@@ -567,6 +567,18 @@ test("a done outcome whose required gaps are only test runs opens the PR and def
   assert.ok(!gaps.includes("Deferred to PR CI: Did not render"), gaps);
 });
 
+test("a required non-test gap that mentions a test runner is not deferred", () => {
+  for (const what of [
+    "scripts/check-changelog-fragments.sh --check was not run: its setup failed the same way the test suite's did",
+    "`scripts/check-changelog-fragments.sh --check` was not run, like pytest",
+    "The review subagent step was not run because the bats test suites hung",
+  ]) {
+    const plan = decideDone({ outcome: { ...done, notDone: [{ what, required: true }] } });
+    assert.equal(plan.action, "hand-back", what);
+    assert.equal(plan.exit, "stopped", what);
+  }
+});
+
 test("a required test run left to PR CI does not excuse another required gap", () => {
   for (const other of ["scripts/check-changelog-fragments.sh --check: not run", "The review subagent step was not run; the diff is unreviewed"]) {
     const plan = decideDone({

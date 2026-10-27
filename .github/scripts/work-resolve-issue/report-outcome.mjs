@@ -233,11 +233,19 @@ const notDoneList = (value) =>
     .slice(0, MAX_ITEMS)
     .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
 
-// A not_done item that is a test run: a test runner or a test suite by name.
-// The lane runs no test runner (resolve-issue's verify-scripts leave them out),
-// and the PR's CI runs the suites.
+// A not_done item that is a test run: its subject names a test runner or a test
+// suite. The lane runs no test runner (resolve-issue's verify-scripts leave them
+// out), and the PR's CI runs the suites. The subject is what the item is about,
+// which the outcome schema puts first (work SKILL.md, "what you skipped ..., and
+// why"): a leading backticked command, else the text before the first clause
+// break. A runner named only in the why ("its setup failed the way the test
+// suite's did") does not make another check a test run.
 const TEST_RUN =
   /\b(?:pytest|unittest|node --test|npm (?:run )?test|jest|vitest|bats|(?:invoke-)?pester|go test|dotnet test|affected-tests\.sh|run-test-file\.sh|test suites?)\b/i;
+const subjectOf = (what) =>
+  what.match(/^\s*`([^`]*)`/)?.[1] ??
+  what.split(/[:;,(]|\.\s|\s(?:was|were|is|are|could|did|not|failed|because)\b/i)[0];
+const isTestRun = (what) => TEST_RUN.test(subjectOf(what));
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
@@ -785,7 +793,7 @@ export function decide({
   // A required test run the lane could not do is left to the PR's CI, which
   // runs the suites and has fix-ci repair a failure. `required` is the model's
   // own word, so reading its text grants the run nothing it lacked.
-  const deferred = (item) => item.required && TEST_RUN.test(item.what);
+  const deferred = (item) => item.required && isTestRun(item.what);
   if (outcome.notDone.some((item) => item.required && !deferred(item))) {
     return handBack({
       outcome: {
