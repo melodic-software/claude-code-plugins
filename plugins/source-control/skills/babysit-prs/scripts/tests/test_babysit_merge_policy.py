@@ -4205,10 +4205,11 @@ def owner_pr(**changes: Any) -> dict[str, Any]:
     pr = {
         "number": 7,
         "base": {"sha": SHA},
-        "head": {"sha": HEAD},
+        "head": {"sha": HEAD, "ref": "feat/x"},
         "changed_files": 1,
         "draft": False,
         "user": {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},
+        "created_at": IDLE,
         "updated_at": IDLE,
         "labels": [{"name": "enhancement"}],
         "body": "Closes #41\n\nA plain body.",
@@ -4219,8 +4220,8 @@ def owner_pr(**changes: Any) -> dict[str, Any]:
 
 class AdoptIdleOwnerPullRequests(unittest.TestCase):
     """Owner decision Q22: a ready, unheld pull request the owner account
-    opened, idle `adoption.idle-hours` by its update and its head commit, is
-    adopted by the pr-merge lane."""
+    opened, idle `adoption.idle-hours` by its trusted activity and its head
+    commit, is adopted by the pr-merge lane."""
 
     ISSUE = LaneEligibility.ISSUE
     TIMELINE = LaneEligibility.TIMELINE
@@ -4228,6 +4229,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     COMMENTS = LaneEligibility.COMMENTS
     COMMIT = f"repos/{REPO}/commits/{HEAD}"
     SUITES = f"repos/{REPO}/commits/{HEAD}/check-suites?app_id=15368&per_page=100"
+    PR_TIMELINE = f"repos/{REPO}/issues/7/timeline?per_page=100"
     issue_node = LaneEligibility.issue_node
     fake_lane = LaneEligibility.fake
 
@@ -4240,8 +4242,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         }
         args.update(kwargs)
         committed = args.pop("committed", IDLE)
+        activity = args.pop("activity", IDLE)
         return policy.adoption_refusal(
-            owner_pr() if pr is None else pr, lambda: committed, **args
+            owner_pr() if pr is None else pr,
+            lambda: committed,
+            activity=lambda: activity,
+            **args,
         )
 
     def test_an_idle_ready_unheld_owner_pr_is_adopted(self) -> None:
@@ -4249,7 +4255,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
 
     def test_idle_exactly_the_configured_hours_is_adopted(self) -> None:
         at = "2026-10-11T12:00:00Z"
-        self.assertIsNone(self.refusal(owner_pr(updated_at=at), committed=at))
+        self.assertIsNone(self.refusal(activity=at, committed=at))
 
     def test_a_draft_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(owner_pr(draft=True)), "draft")
@@ -4279,16 +4285,27 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         # Owner decision 2026-10-22: a trusted App's PR (the release App's)
         # is adopted at once; only a person may still be working on theirs.
         app = {"login": "melodic-plugin-release[bot]", "id": 337859524, "type": "Bot"}
-        fresh = owner_pr(user=app, updated_at=FRESH)
+        fresh = owner_pr(user=app)
         self.assertIsNone(
-            self.refusal(fresh, committed=FRESH, owner_ids=(OWNER_ID, 337859524))
+            self.refusal(
+                fresh,
+                committed=FRESH,
+                activity=FRESH,
+                owner_ids=(OWNER_ID, 337859524),
+            )
         )
-        self.assertEqual(self.refusal(fresh, committed=FRESH), "author-not-owner")
+        self.assertEqual(
+            self.refusal(fresh, committed=FRESH, activity=FRESH), "author-not-owner"
+        )
         org = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "Organization"}
         self.assertEqual(self.refusal(owner_pr(user=org)), "author-not-owner")
 
-    def test_a_recent_update_is_not_adopted(self) -> None:
-        self.assertEqual(self.refusal(owner_pr(updated_at=FRESH)), "updated-fresh")
+    def test_recent_trusted_activity_is_not_adopted(self) -> None:
+        self.assertEqual(self.refusal(activity=FRESH), "updated-fresh")
+
+    def test_the_raw_update_time_decides_nothing(self) -> None:
+        # Any commenter moves `updated_at` (#9136): only `activity` counts.
+        self.assertIsNone(self.refusal(owner_pr(updated_at=FRESH)))
 
     def test_a_recent_head_commit_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(committed=FRESH), "head-fresh")
@@ -4296,25 +4313,29 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_an_unreadable_time_is_not_idle(self) -> None:
         for bad in (None, "", "yesterday", "2026-10-10T00:00:00"):
             with self.subTest(bad=bad):
-                self.assertEqual(
-                    self.refusal(owner_pr(updated_at=bad)), "updated-fresh"
-                )
+                self.assertEqual(self.refusal(activity=bad), "updated-fresh")
                 self.assertEqual(self.refusal(committed=bad), "head-fresh")
 
         def unreadable() -> str:
             raise policy.PolicyReadError("502")
 
-        self.assertEqual(
-            policy.adoption_refusal(
-                owner_pr(),
-                unreadable,
-                idle_hours=24,
-                owner_ids=(OWNER_ID,),
-                human_gated="needs-human",
-                now=ADOPT_NOW,
-            ),
-            "head-fresh",
-        )
+        for committed, activity, refused in (
+            (unreadable, lambda: IDLE, "head-fresh"),
+            (lambda: IDLE, unreadable, "updated-fresh"),
+        ):
+            with self.subTest(refused=refused):
+                self.assertEqual(
+                    policy.adoption_refusal(
+                        owner_pr(),
+                        committed,
+                        activity=activity,
+                        idle_hours=24,
+                        owner_ids=(OWNER_ID,),
+                        human_gated="needs-human",
+                        now=ADOPT_NOW,
+                    ),
+                    refused,
+                )
 
     def test_the_owner_ids_come_from_the_caller(self) -> None:
         other = {"login": "other", "id": 77, "type": "User"}
@@ -4326,17 +4347,18 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         def unread() -> str:
             raise AssertionError("head commit read")
 
-        for pr in (
-            owner_pr(draft=True),
-            owner_pr(user={"login": "x", "id": 1, "type": "User"}),
-            owner_pr(updated_at=FRESH),
-            owner_pr(labels=[{"name": "do-not-merge"}]),
+        for pr, activity in (
+            (owner_pr(draft=True), IDLE),
+            (owner_pr(user={"login": "x", "id": 1, "type": "User"}), IDLE),
+            (owner_pr(), FRESH),
+            (owner_pr(labels=[{"name": "do-not-merge"}]), IDLE),
         ):
             with self.subTest(pr=pr):
                 self.assertIsNotNone(
                     policy.adoption_refusal(
                         pr,
                         unread,
+                        activity=lambda at=activity: at,
                         idle_hours=24,
                         owner_ids=(OWNER_ID,),
                         human_gated="needs-human",
@@ -4370,19 +4392,20 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     # --- While the lane's own queue entry is pending ------------------------
 
     def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
-        # The lane's pin comment and enqueue refresh `updated_at`; its own
-        # entry at this head must not then leave the queue as not adopted.
-        pr = owner_pr(updated_at=FRESH)
-        self.assertIsNone(self.refusal(pr, queued_at_head=lambda: True))
+        # The lane's own entry at this head must not leave the queue as not
+        # adopted while its activity is fresh.
+        self.assertIsNone(self.refusal(activity=FRESH, queued_at_head=lambda: True))
         self.assertEqual(
-            self.refusal(pr, queued_at_head=lambda: False), "updated-fresh"
+            self.refusal(activity=FRESH, queued_at_head=lambda: False),
+            "updated-fresh",
         )
-        self.assertEqual(self.refusal(pr), "updated-fresh")
+        self.assertEqual(self.refusal(activity=FRESH), "updated-fresh")
 
     def test_a_queued_entry_still_needs_an_idle_head_commit(self) -> None:
-        pr = owner_pr(updated_at=FRESH)
         self.assertEqual(
-            self.refusal(pr, committed=FRESH, queued_at_head=lambda: True),
+            self.refusal(
+                activity=FRESH, committed=FRESH, queued_at_head=lambda: True
+            ),
             "head-fresh",
         )
 
@@ -4394,8 +4417,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
-                pr["updated_at"] = FRESH
-                self.assertEqual(self.refusal(pr, queued_at_head=lambda: True), refused)
+                self.assertEqual(
+                    self.refusal(pr, activity=FRESH, queued_at_head=lambda: True),
+                    refused,
+                )
 
     def test_the_queue_is_not_read_for_an_idle_update(self) -> None:
         def unread() -> bool:
@@ -4429,7 +4454,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                         read.assert_called_once_with(REPO, 7, IDENTITY, alone=True)
 
     def test_a_comment_after_the_pin_ends_the_queued_excuse(self) -> None:
-        # A human asking to wait refreshes `updated_at`: with the lane's
+        # A human asking to wait is fresh trusted activity: with the lane's
         # entry still queued at the head, the next sweep refuses it again.
         pin = {
             "author": bot("agent-lanes"),
@@ -4478,7 +4503,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 ):
                     self.assertEqual(
                         self.refusal(
-                            owner_pr(updated_at=FRESH),
+                            activity=FRESH,
                             queued_at_head=lambda: policy.lane_queued_at_head(
                                 REPO, 7, "trunk", IDENTITY, HEAD
                             ),
@@ -4508,7 +4533,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_idle_hours_come_from_the_caller(self) -> None:
         self.assertEqual(self.refusal(idle_hours=26), "updated-fresh")
         self.assertIsNone(
-            self.refusal(owner_pr(updated_at=FRESH), committed=FRESH, idle_hours=1)
+            self.refusal(activity=FRESH, committed=FRESH, idle_hours=1)
         )
 
     # --- In the lane's eligibility ------------------------------------------
@@ -4526,13 +4551,24 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         args.update(kwargs)
         return policy.lane_eligibility(REPO, 7, pr=pr, **args)
 
-    def owner_fake(self, committed: str = IDLE) -> GhFake:
+    def owner_fake(
+        self, committed: str = IDLE, timeline: Any = (), pushed: str = IDLE
+    ) -> GhFake:
         gh = self.fake_lane(author=user(OWNER_LOGIN))
         gh.rest[self.COMMIT] = {
             "sha": HEAD,
             "commit": {"committer": {"date": committed}},
         }
+        self.idle_activity(gh, timeline, pushed)
         return gh
+
+    def idle_activity(self, gh: GhFake, timeline: Any = (), pushed: str = IDLE) -> None:
+        """The owner pull request's timeline and its head's check suites."""
+        gh.rest[self.PR_TIMELINE] = list(timeline) if timeline != 502 else 502
+        gh.rest[self.SUITES] = {
+            "total_count": 1,
+            "check_suites": [{"head_branch": "feat/x", "created_at": pushed}],
+        }
 
     def test_an_adopted_owner_pr_is_eligible_and_says_why(self) -> None:
         self.owner_fake()
@@ -4553,6 +4589,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             with self.subTest(closing=closing):
                 gh = self.fake_lane(author=user(OWNER_LOGIN), closing=closing)
                 gh.rest[self.COMMIT] = committed
+                self.idle_activity(gh)
                 result = self.eligibility(owner_pr())
                 self.assertEqual((result.reason, result.issue), (reason, issue))
         # Before the enqueue the issue is read again: still none here holds.
@@ -4572,6 +4609,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 gh = self.fake_lane(author=user(OWNER_LOGIN), closing=[], body=body)
                 gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
                 gh.rest[self.COMMIT] = committed
+                self.idle_activity(gh)
                 result = self.eligibility(owner_pr(body=body))
                 self.assertEqual((result.reason, result.issue), (None, issue))
                 self.assertEqual(result.body_is_intent, True)
@@ -4602,6 +4640,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     "sha": HEAD,
                     "commit": {"committer": {"date": IDLE}},
                 }
+                self.idle_activity(gh)
                 result = self.eligibility(
                     owner_pr(user=author),
                     adoption_owner_ids=ids,
@@ -4633,12 +4672,117 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
 
     def test_a_fresh_owner_pr_queued_by_the_lane_stays_adopted(self) -> None:
         self.owner_fake()
-        pr = owner_pr(updated_at=FRESH)
+        pr = owner_pr(created_at=FRESH)
         result = self.eligibility(pr, queued_at_head=lambda: True)
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.adoption, "idle-owner:24h")
         result = self.eligibility(pr, queued_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    # --- Idleness counts trusted activity only (#9136) ----------------------
+
+    OWNER = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"}
+    STRANGER = {"login": "stranger", "id": 99, "type": "User"}
+    LANE = {"login": "agent-lanes[bot]", "id": 2, "type": "Bot"}
+
+    @staticmethod
+    def commented(who: Any, at: str, edited: str | None = None) -> dict[str, Any]:
+        """A REST timeline `commented` event."""
+        return {
+            "event": "commented",
+            "actor": who,
+            "user": who,
+            "created_at": at,
+            "updated_at": edited or at,
+        }
+
+    def activity(self, *timeline: Any, ids: Any = (OWNER_ID,), **pr: Any) -> Any:
+        return policy._time(
+            policy.trusted_activity(owner_pr(**pr), list(timeline), ids)
+        )
+
+    def test_hourly_untrusted_comments_leave_an_owner_pr_idle(self) -> None:
+        hourly = [
+            self.commented(self.STRANGER, (ADOPT_NOW - timedelta(hours=h)).isoformat())
+            for h in range(1, 49)
+        ]
+        # The lane's own pin comment is not the owner's activity either.
+        pin = self.commented(self.LANE, NOW_ISH)
+        pin["body"] = babysit_postmerge.pin_comment(HEAD)
+        self.owner_fake(timeline=[*hourly, pin])
+        result = self.eligibility(owner_pr(updated_at=NOW_ISH))
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, "idle-owner:24h")
+
+    def test_a_trusted_actors_fresh_activity_is_not_adopted(self) -> None:
+        claude = {"login": "claude[bot]", "id": 209825114, "type": "Bot"}
+        for event, ids in (
+            (self.commented(self.OWNER, FRESH), (OWNER_ID,)),
+            (self.commented(self.OWNER, IDLE, edited=FRESH), (OWNER_ID,)),
+            (
+                {"event": "reviewed", "user": claude, "submitted_at": FRESH},
+                (OWNER_ID, claude["id"]),
+            ),
+            (
+                {"event": "labeled", "actor": self.OWNER, "created_at": FRESH},
+                (OWNER_ID,),
+            ),
+        ):
+            with self.subTest(event=event["event"]):
+                self.owner_fake(timeline=[event])
+                result = self.eligibility(owner_pr(), adoption_owner_ids=ids)
+                self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_an_unreadable_timeline_or_actor_is_not_idle(self) -> None:
+        for timeline in (
+            502,
+            [self.commented(None, IDLE)],
+            [self.commented({"login": OWNER_LOGIN, "type": "User"}, IDLE)],
+            [{"event": "commented", "actor": self.OWNER}],
+            [{"event": "labeled", "actor": self.OWNER, "created_at": "yesterday"}],
+        ):
+            with self.subTest(timeline=timeline):
+                self.owner_fake(timeline=timeline)
+                result = self.eligibility(owner_pr())
+                self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_a_fresh_push_of_an_old_commit_is_not_adopted(self) -> None:
+        # A commit's dates are its pusher's: the push counts when GitHub saw
+        # the head arrive, and an unreadable arrival is not idle.
+        self.owner_fake(pushed=FRESH)
+        result = self.eligibility(owner_pr())
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+        self.owner_fake().rest[self.SUITES] = 502
+        result = self.eligibility(owner_pr())
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_trusted_activity_reads_each_events_actor_and_time(self) -> None:
+        idle, fresh = policy._time(IDLE), policy._time(FRESH)
+        thread = {
+            "event": "line-commented",
+            "comments": [{"user": self.OWNER, "created_at": IDLE, "updated_at": FRESH}],
+        }
+        stranger_thread = {
+            "event": "line-commented",
+            "comments": [{"user": self.STRANGER, "created_at": FRESH}],
+        }
+        # A mention names the person mentioned, not the account that acted.
+        mention = {"event": "mentioned", "actor": self.OWNER, "created_at": FRESH}
+        commit = {"event": "committed", "committer": {"date": FRESH}}
+        for label, args, kwargs, expected in (
+            ("opening", (), {"created_at": FRESH}, fresh),
+            ("no activity", (), {}, idle),
+            ("inline thread", (thread,), {}, fresh),
+            ("stranger's inline thread", (stranger_thread,), {}, idle),
+            ("mention", (mention,), {}, idle),
+            ("commit", (commit,), {}, idle),
+            ("stranger", (self.commented(self.STRANGER, FRESH),), {}, idle),
+            ("owner", (self.commented(self.OWNER, FRESH),), {}, fresh),
+        ):
+            with self.subTest(label):
+                self.assertEqual(self.activity(*args, **kwargs), expected)
+        with self.assertRaises(policy.PolicyReadError):
+            self.activity(created_at=None)
 
     # --- After a person's enqueue left the queue on failed checks ----------
     # Owner decision Q-REQ (a): that person's enqueue of this head stands in
@@ -4882,7 +5026,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
 
     def test_a_fresh_owner_pr_a_person_enqueued_is_adopted(self) -> None:
         self.requeue_fake()
-        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        pr = owner_pr(created_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
         result = self.eligibility(
             pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
         )
@@ -4912,7 +5056,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "updated_at": "2026-10-11T14:00:00Z",
         }
         self.requeue_fake(comments=[wait])
-        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        pr = owner_pr(created_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
         result = self.eligibility(
             pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
         )
@@ -4929,7 +5073,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "updated_at": "2026-10-11T13:15:00Z",
         }
         self.requeue_fake(comments=[wait])
-        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        pr = owner_pr(created_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
         result = self.eligibility(
             pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
         )
@@ -4946,7 +5090,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 {"head_branch": "feat/x", "created_at": NOW_ISH},
             ],
         }
-        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        pr = owner_pr(created_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
         result = self.eligibility(
             pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
         )
@@ -4967,7 +5111,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(reason):
-                pr["updated_at"] = FRESH
+                pr["created_at"] = FRESH
                 result = self.eligibility(
                     pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=unread
                 )

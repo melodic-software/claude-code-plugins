@@ -1055,11 +1055,14 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
    person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
-   README's "The pr-merge lane"). The decision records why as `eligibility.adoption`; its path
+   README's "The pr-merge lane"), idleness read from trusted-actor activity
+   (`trusted_activity`) and the head's arrival (`_head_last_seen`), never the raw `updated_at`
+   any commenter moves. The decision records why
+   as `eligibility.adoption`; its path
    floor scores only changed paths a commit not the author's own (verified, author and, for a
    person, committer) touched (`foreign_paths`). The lane's
-   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
-   comment refreshed `updated_at`, until anyone else comments or reviews after that pin.
+   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though trusted
+   activity is fresh, until anyone else comments or reviews after its pin.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
