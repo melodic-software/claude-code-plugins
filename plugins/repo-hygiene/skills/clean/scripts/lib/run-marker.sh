@@ -12,6 +12,16 @@ readonly _CLEAN_RUN_MARKER_LOADED=1
 # One hour without a guarded tool call clears a marker nobody closed.
 RUN_MARKER_IDLE_SECONDS=3600
 
+# run_marker_data_dir_ours <dir>: 0 when the last path segment of <dir> names
+# this plugin (repo-hygiene, or repo-hygiene-<marketplace>). Another plugin's
+# hook can export its own data dir under the CLAUDE_PLUGIN_DATA name, so an
+# inherited value is trusted only when it passes.
+run_marker_data_dir_ours() {
+  local seg="${1%[/\\]}"
+  seg="${seg##*[/\\]}"
+  [[ "$seg" == repo-hygiene || "$seg" == repo-hygiene-* ]]
+}
+
 # run_marker_path_to <var> <data-dir> <session-id>
 # Writes the marker path into <var>. Returns 1, leaving <var> empty, when the
 # data directory is empty or still an unsubstituted ${...} reference, or the
