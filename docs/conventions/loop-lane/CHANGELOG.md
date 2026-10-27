@@ -9,11 +9,13 @@ table (§3); drift found by that audit is recorded here.
 
 Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
 
-- **When work stops for the owner.** §2 quotes the owner's rule of 2026-10-27 and tables the three
+- **When work stops for the owner.** §2 quotes the owner's rule of 2026-10-27 and tables the four
   reasons an item goes to a person (an intent or vision change, an implementation finding that
   alters intent or the primary design, a HIGH or CRITICAL security issue such as a leaked token or
-  secret, an account compromise or real money at risk), each with its label and
-  the lane that decides. Cost is not a stop; a new charge is out of bounds.
+  secret, an account compromise or real money at risk, and anything that can bill the owner), each
+  with its label and the lane that decides. It quotes the owner's standing direction on what is
+  and is not cost: model usage and promotional API credits are capacity, a breaker or kill switch
+  is a safety limit, and any other stop is a defect to fix.
 
 ## [12.7.0] - 2026-10-26
 

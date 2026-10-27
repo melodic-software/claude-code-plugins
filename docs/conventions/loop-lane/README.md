@@ -327,10 +327,21 @@ The owner's rule, 2026-10-27, verbatim:
 | Original intent or vision changes, or the item cannot answer an intent question | `status: needs-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
+| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
-A lane that hands an item to the owner for any other reason has a defect to fix. Trust holds
-(untrusted provenance, an untrusted spec) are security controls the owner keeps. Cost is not a
-stop; a new charge is out of bounds.
+The owner's standing direction on cost and other stops, 2026-10-27, verbatim:
+
+<!-- spellchecker:off -->
+> "Cost, which comes to me: anything that can bill me. That means Azure, GitHub (larger runners, Actions minutes or storage on private repositories, paid storage or artifact retention beyond the free quota, plan or seat changes) and any other billing account."
+>
+> "Not cost, so spend it freely: model usage under the Claude subscriptions, and each account's promotional $200 API credits. Extra usage is off and spending limits are set on all 12 accounts, so reaching a limit stops work and never bills; treat it as a capacity limit."
+>
+> "A limit that protects the host, a rate budget or plan usage (such as a breaker or kill switch) is a safety limit, not such a stop."
+>
+> "Any other stop is a defect to fix, not a reason to ask me."
+<!-- spellchecker:on -->
+
+Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
 
 ### Cross-lane PR hold
 
