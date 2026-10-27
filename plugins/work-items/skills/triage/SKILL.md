@@ -143,8 +143,8 @@ placeholder before running a command.
 ## Human-gated sweep (`sweep`)
 
 Re-checks items already wearing the human-gated role label (resolved from `config.role_labels`, as
-step 5 resolves it) against the label test. It runs no state machine and changes no label but that
-one.
+triage workflow step 5, Apply outcome, resolves it) against the label test. It runs no state
+machine and changes no label but that one.
 
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
@@ -158,8 +158,8 @@ one.
    - an earlier sweep comment: the label came back after it, which is an objection.
 2. **Select** an item only when it fails the label test and carries a recommendation:
    - a line starting `RECOMMENDED` in a comment from the tracker seam's write identity or a user
-     with `write`, `maintain` or `admin` (step 1's rule), or in the body while its author holds
-     that access;
+     with `write`, `maintain` or `admin` (the rule in triage workflow step 1, Gather context), or
+     in the body while its author holds that access;
    - or a comment from such a user, never an App, whose first line is exactly
      `**Decision recorded.**` and which was never edited.
 
@@ -171,10 +171,11 @@ one.
    recommendation is. When `<n>` is 0, stop there.
 4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
    from those `<n>` items. On yes, for each item in turn, post the comment below (after the
-   objection window comment when step 5's window is on), then remove the label; a failed post
-   leaves that item's label in place. Items the operator excludes keep it. The edit applies no
-   other label, so the item ends with no role label. `list-frontier --autonomous` lists it again,
-   and an attended `/work-items:work` run can pick it from there. The issue lane and the work
+   objection window comment when the objection window of triage workflow step 5, Apply outcome,
+   is on), then remove the label; a failed post leaves that item's label in place. Items the
+   operator excludes keep it. The edit applies no other label, so the item ends with no role
+   label. `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can
+   pick it from there. The issue lane and the work
    loop's label path do not admit it: they admit only on the autonomous-eligible role label. The
    one path that can still take it unattended is the work loop's rule admission
    ([`../work-loop/reference/rule-admission.md`](../work-loop/reference/rule-admission.md)), when
