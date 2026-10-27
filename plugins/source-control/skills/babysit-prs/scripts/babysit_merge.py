@@ -194,7 +194,6 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
-    low_headroom,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -2957,9 +2956,6 @@ RISK_ESCALATION_LINE = (
     "the pr-merge lane added the human-gated label."
 )
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
-# The most of a verdict's summary a verify:repeated-fail escalation quotes
-# (judgment).
-VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # Cleared by clear-escalations.mjs once the head moves, like the verify one.
@@ -3544,63 +3540,17 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(
-    refusal: str,
-    head: str,
-    summary: str | None = None,
-    carried: tuple[str, str] | None = None,
-) -> str:
+def verify_escalation_body(refusal: str, head: str) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal, the head and the quoted fail summary only, so a rerun renders the
-    same body. The summary is model text, quoted as data in a text fence and
-    cut to `VERIFY_SUMMARY_MAX` characters. `carried`, the (head, text) an
-    earlier comment quoted (`_carried_quote`), is quoted as it was when there
-    is no `summary`."""
-    lines = [
-        VERIFY_ESCALATION_MARKER,
-        f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-        f"`{head}`. That refusal needs a human, who merges in person; the "
-        "pr-merge lane will not merge this pull request.",
-    ]
-    quote = carried
-    if summary:
-        text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
-        if len(text) > VERIFY_SUMMARY_MAX:
-            text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
-        # A lone surrogate from a JSON escape cannot be encoded for `gh`.
-        text = text.encode("utf-8", "replace").decode("utf-8")
-        quote = (head, text.replace("```", "'''"))
-    if quote:
-        lines += [
-            "",
-            f"The verifier's summary of its fail verdict at `{quote[0]}`, as it "
-            "wrote it:",
-            "",
-            "```text",
-            quote[1],
-            "```",
+    refusal and the head only, so a rerun renders the same body."""
+    return "\n".join(
+        [
+            VERIFY_ESCALATION_MARKER,
+            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+            f"`{head}`. That refusal needs a human, who merges in person; the "
+            "pr-merge lane will not merge this pull request.",
         ]
-    return "\n".join(lines)
-
-
-_QUOTE_RE = re.compile(
-    r"\nThe verifier's summary of its fail verdict at `([0-9a-f]{40})`, as it "
-    r"wrote it:\n\n```text\n(.*)\n```\Z",
-    re.S,
-)
-
-
-def _carried_quote(
-    comments: list[dict[str, Any]], identity: str
-) -> tuple[str, str] | None:
-    """The (head, text) the identity's newest verify escalation quotes, read
-    back verbatim so a rerun that cannot read the summary renders the same
-    body, and an earlier-fail keeps the reason of the fail before it."""
-    newest = _newest_marker_comment(comments, identity, VERIFY_ESCALATION_MARKER)
-    if newest is None:
-        return None
-    match = _QUOTE_RE.search(str(newest.get("body") or ""))
-    return (match[1], match[2]) if match else None
+    )
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3653,49 +3603,11 @@ def escalate_verify(
     identity: str,
     refusal: str,
     inputs: Mapping[str, Any],
-    summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A
-    `verify:repeated-fail` with no `summary` (unreadable, or no fail at the
-    head) quotes the last fail summary its comment carried, so an unreadable
-    artifact rewrites nothing and the reason outlives the head."""
+    """`escalate` for a needs-human verifier refusal."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    carried = None
-    if summary is None and refusal == verify_evidence.REPEATED_FAIL:
-        comments = inputs.get("comments")
-        if comments is None:
-            comments = fetch_paginated_api(
-                f"repos/{repo}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-            )
-            inputs = {**inputs, "comments": comments}
-        carried = _carried_quote(comments, identity)
-    body = verify_escalation_body(refusal, head, summary, carried)
+    body = verify_escalation_body(refusal, head)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
-
-
-def _fail_summary(
-    verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
-) -> str | None:
-    """The summary of the head FAIL a `verify:repeated-fail` refusal names,
-    read through the gate's verdict reader; None for any other refusal, with
-    no FAIL at the head, when the record cannot be read, or below the read
-    floor: the quote is report-only, and the escalation stands without it."""
-    fail = json_object(verify.get("headFail"))
-    reader = inputs.get("verify_reader")
-    run_id, name = fail.get("run"), fail.get("artifact")
-    if (
-        low_headroom()
-        or verify.get("refusal") != verify_evidence.REPEATED_FAIL
-        or not isinstance(reader, verify_evidence.Reader)
-        or not isinstance(run_id, int)
-        or not isinstance(name, str)
-    ):
-        return None
-    try:
-        return reader.fail_summary(run_id, name, number, str(verify.get("head")))
-    except verify_evidence.SummaryUnreadable:
-        return None
 
 
 def escalate(
@@ -4132,7 +4044,6 @@ def unattended_writes(
                 identity,
                 str(verify.get("refusal")),
                 inputs,
-                _fail_summary(verify, inputs, number),
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

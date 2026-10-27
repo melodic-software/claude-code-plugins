@@ -370,18 +370,17 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-// Owner rule 2026-10-26: a person only for intent, design, a CRITICAL
-// security issue or a hold no lane can clear. The gate's `needsHuman`
-// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec, the terminal
-// repeated-FAIL cap, a pull request too old to verify) decides, so a changed
-// spec is a lane's.
-test("only a verifier refusal the gate marks needsHuman is a person's; a changed spec is a lane's", async () => {
+// Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
+// a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
+// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
+// changed spec, the repeated-FAIL cap and an old pull request are the lanes'.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are the lanes'", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", true) }),
-    pull(4, { verdict: refused("verify:too-old", true) }),
+    pull(3, { verdict: refused("verify:repeated-fail", false) }),
+    pull(4, { verdict: refused("verify:too-old", false) }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
@@ -389,10 +388,8 @@ test("only a verifier refusal the gate marks needsHuman is a person's; a changed
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: personNote(refusing("verify:too-old")) } },
-    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });
@@ -1502,7 +1499,7 @@ test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async 
   const { code, writes, verified } = await run([
     pull(1, { verdict: { refusal: "verify:missing", head: HEAD } }),
     pull(2, { verdict: { refusal: "verify:fail", head: HEAD } }),
-    pull(3, { verdict: { refusal: "verify:repeated-fail", head: HEAD, needsHuman: true } }),
+    pull(3, { verdict: { refusal: "verify:repeated-fail", head: HEAD, needsHuman: false } }),
     pull(4, { verdict: { refusal: "verify:earlier-fail", head: HEAD } }),
     pull(5, { verdict: { refusal: null, head: "c".repeat(40) } }),
     pull(6, { verdict: new Error("gh: rate limited") }),
@@ -2515,11 +2512,11 @@ test("a kept refusal on an armed pull request disarms it", async () => {
 });
 
 test("a kept refusal writes no label back; a changed reason is still written", async () => {
-  const reason = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
-  const repeated = { refusal: "verify:repeated-fail", needsHuman: true, head: HEAD, ineligible: null };
+  const reason = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
+  const untrusted = { refusal: "verify:untrusted-spec", needsHuman: true, head: HEAD, ineligible: null };
   const standing = (verdict) => pull(2, { verdict, discussion: { comments: [lanesSaid(personNote(reason))] } });
-  assert.deepEqual((await run([standing(repeated)])).notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
-  const kept = await run([standing({ ...repeated, cached: true })]);
+  assert.deepEqual((await run([standing(untrusted)])).notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
+  const kept = await run([standing({ ...untrusted, cached: true })]);
   assert.deepEqual(kept.notes, []);
   assert.equal(kept.calls.filter(({ body }) => body?.query === UNLABELED_QUERY).length, 0);
   const moved = await run([pull(1, { verdict: CACHED_MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } })]);
