@@ -731,10 +731,16 @@ class PendingRunsUnchanged(unittest.TestCase):
         ]
         answer, calls = self.unchanged(rows)
         self.assertTrue(answer)
-        # One listing call, of runs on main created since merge #5.
-        self.assertEqual(len(calls), 1)
-        self.assertIn("branch=main", calls[0][1])
-        self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", calls[0][1])
+        # One listing per verifying workflow, of runs on main created since
+        # merge #5: every workflow's runs on main filled 152 in under two
+        # hours on 2026-10-27, past one page.
+        self.assertEqual(
+            [c[1].split("/runs?")[0].rsplit("/", 1)[1] for c in calls],
+            ["pr-require-checks.yml", "post-merge-detect-silent-revert.yml"],
+        )
+        for call in calls:
+            self.assertIn("branch=main", call[1])
+            self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", call[1])
 
     def test_the_clock_margin_is_sixty_seconds_of_skew(self) -> None:
         # computedAt is stamped before the runs are read, so the margin covers
@@ -935,6 +941,192 @@ class SettleShared(unittest.TestCase):
         )
         self.runs.assert_not_called()
 
+    def test_an_answer_past_its_quarantine_excuse_is_refused(self) -> None:
+        # `_judge` reads the same red run as a demotion once the quarantine
+        # that excused it expires, with nothing else moving.
+        def excused(until: object) -> policy.SharedPostMerge:
+            return shared(report={**self.VERIFIED, "excusesExpireAt": until})
+
+        for until in ((NOW - timedelta(seconds=1)).isoformat(), "not a time"):
+            with self.subTest(until):
+                self.assertEqual(
+                    self.settle(excused(until)),
+                    (None, "post-merge answer excuse-expired"),
+                )
+        answer = excused((NOW + timedelta(seconds=1)).isoformat())
+        self.assertEqual(self.settle(answer), (answer, None))
+
+
+SHA_PINNED = "b" * 40
+# A passing answer an earlier tick kept: one verified lane merge whose pin the
+# check read, nothing to start and no quarantine excuse.
+SETTLED = {
+    "readable": True,
+    "ok": True,
+    "hold": None,
+    "needsDispatch": False,
+    "autoMerges": [{"number": 5, "verified": True, "mergedAt": "2026-09-30T20:00:00Z"}],
+    "failures": [],
+    "reruns": [],
+    "unattributed": [],
+    "quarantines": [],
+    "warnings": [],
+    "excusesExpireAt": None,
+    "pins": {"5": SHA_PINNED},
+}
+CONFIRM_WAIT = 40
+
+
+class IdleRefusal(unittest.TestCase):
+    """`idle_refusal`: the rest of what the post-merge check reads that can
+    change its verdict with no new lane merge, for post-merge-dispatch's
+    reuse of an earlier tick's report. Expected from the check's own rules:
+    `_judge` and `_lane_reruns` read verifying runs, quarantine issues
+    (`expired`, `demoting`) and pins (`read_pin`), and a pending merge fails
+    past `DISPATCH_DEADLINE`."""
+
+    def refusal(
+        self,
+        report: dict[str, object] = SETTLED,
+        *,
+        now: datetime = NOW,
+        runs: list[dict[str, object]] = (),  # type: ignore[assignment]
+        runs_total: int | None = None,
+        issues: list[dict[str, object]] = (),  # type: ignore[assignment]
+        pins: dict[int, str | None] | Exception | None = None,
+    ) -> str | None:
+        self.calls: list[str] = []
+
+        def read(args: list[str], label: str) -> object:
+            self.calls.append(args[1])
+            if "/actions/workflows/" in args[1]:
+                return {
+                    "total_count": len(runs) if runs_total is None else runs_total,
+                    "workflow_runs": list(runs),
+                }
+            return list(issues)
+
+        self.pins = mock.Mock(
+            side_effect=pins if isinstance(pins, Exception) else None,
+            return_value={5: SHA_PINNED} if pins is None else pins,
+        )
+        with (
+            mock.patch.object(pm, "_read", side_effect=read),
+            mock.patch.object(pm, "read_pins", self.pins),
+        ):
+            return pm.idle_refusal(
+                REPO,
+                shared(report=report),
+                "main",
+                confirm_wait_minutes=CONFIRM_WAIT,
+                now=now,
+            )
+
+    def test_a_settled_report_nothing_moved_since_stands(self) -> None:
+        self.assertIsNone(self.refusal())
+        # Two run listings, one issue listing, one batched pin read.
+        runs, issues = self.calls[:2], self.calls[2:]
+        self.assertEqual(len(issues), 1)
+        self.assertIn("issues?state=all&since=2026-09-30T23:59:00Z", issues[0])
+        # Runs created since the `_lane_reruns` lookback (confirm wait plus
+        # one allowance) and one more allowance for a baseline still going.
+        lookback = FLOOR - timedelta(minutes=CONFIRM_WAIT) - 2 * pm.FULL_RUN_ALLOWANCE
+        for call in runs:
+            self.assertIn(
+                "created=%3E%3D" + lookback.strftime("%Y-%m-%dT%H%%3A%M%%3A%SZ"),
+                call,
+            )
+        self.assertEqual(list(self.pins.call_args.args[1]), [5])
+        self.assertEqual(self.pins.call_args.args[2], IDENTITY)
+
+    def test_each_unsettled_part_of_the_report_refuses_before_any_read(
+        self,
+    ) -> None:
+        cases = {
+            "not-passing": {"ok": False},
+            "hold": {"hold": "unlisted-record"},
+            "needs-dispatch": {"needsDispatch": True},
+            "reruns": {"reruns": [{"runId": 9}]},
+            "unattributed": {"unattributed": ["https://run/1/attempts/1"]},
+            "quarantines": {"quarantines": [{"suite": "x"}]},
+            "excused": {"excusesExpireAt": (NOW + timedelta(days=1)).isoformat()},
+            "lane-reruns-unread": {"warnings": ["lane-rerun-unreadable: 502"]},
+        }
+        for reason, change in cases.items():
+            with self.subTest(reason):
+                self.assertEqual(self.refusal({**SETTLED, **change}), reason)
+                self.assertEqual(self.calls, [])
+        for key, reason in (
+            ("excusesExpireAt", "excused"),
+            ("pins", "pins-unrecorded"),
+        ):
+            with self.subTest(f"no {key}"):
+                report = {k: v for k, v in SETTLED.items() if k != key}
+                self.assertEqual(self.refusal(report), reason)
+                self.assertEqual(self.calls, [])
+
+    def test_it_leaves_the_later_jobs_their_headroom(self) -> None:
+        # Never re-stamped: the age is the original check's, and the merge
+        # and enable-auto-merge jobs settle the same report minutes later.
+        edge = FLOOR + policy.SHARED_MAX_AGE - pm.IDLE_HEADROOM
+        self.assertIsNone(self.refusal(now=edge))
+        self.assertEqual(self.refusal(now=edge + timedelta(seconds=1)), "stale-soon")
+
+    def test_a_verifying_run_that_completed_since_refuses(self) -> None:
+        since = FLOOR - policy.SINCE_CLOCK_MARGIN
+        for workflow in (
+            "pr-require-checks.yml",
+            "post-merge-detect-silent-revert.yml",
+        ):
+            with self.subTest(workflow):
+                done = run(workflow, status="completed", updated=since)
+                self.assertEqual(self.refusal(runs=[done]), "runs-changed")
+        # Finished before the report, or still running: nothing changed yet.
+        quiet = [
+            run(
+                "pr-require-checks.yml",
+                status="completed",
+                updated=since - timedelta(seconds=1),
+            ),
+            run("pr-require-checks.yml", status="in_progress", updated=NOW),
+        ]
+        self.assertIsNone(self.refusal(runs=quiet))
+        self.assertTrue(self.refusal(runs_total=101).startswith("unreadable"))
+
+    def test_an_unverified_merge_lists_runs_from_its_merge_and_ends_at_the_deadline(
+        self,
+    ) -> None:
+        merged = FLOOR - timedelta(hours=5)
+        pending = {
+            **SETTLED,
+            "autoMerges": [
+                {"number": 5, "verified": False, "mergedAt": merged.isoformat()}
+            ],
+        }
+        self.assertIsNone(self.refusal(pending))
+        self.assertIn("created=%3E%3D2026-09-30T19%3A00%3A00Z", self.calls[0])
+        late = merged + pm.DISPATCH_DEADLINE + timedelta(seconds=1)
+        with mock.patch.object(policy, "SHARED_MAX_AGE", timedelta(days=1)):
+            self.assertEqual(self.refusal(pending, now=late), "dispatch-deadline")
+
+    def test_a_quarantine_issue_changed_since_refuses(self) -> None:
+        marked = {"number": 3, "body": "<!-- post-merge-quarantine suite=x -->\nbody"}
+        self.assertEqual(self.refusal(issues=[marked]), "quarantine-changed")
+        # A full page may hide one.
+        page = [{"number": n, "body": ""} for n in range(100)]
+        self.assertEqual(self.refusal(issues=page), "quarantine-changed")
+        # An issue without the marker, or a pull request quoting it, is not one.
+        other = [{"number": 4, "body": "triaged"}, {**marked, "pull_request": {}}]
+        self.assertIsNone(self.refusal(issues=other))
+
+    def test_a_pin_that_reads_differently_refuses(self) -> None:
+        # An edited pin reads as None, a deleted one too, a new one another SHA.
+        for pins in ({5: None}, {5: "c" * 40}):
+            with self.subTest(pins):
+                self.assertEqual(self.refusal(pins=pins), "pins-changed")
+        failed = self.refusal(pins=pm.PostMergeReadError("#5 pin: 502"))
+        self.assertEqual(failed, "unreadable: #5 pin: 502")
+
 
 class CheckCodeUnchanged(unittest.TestCase):
     """`check_code_unchanged`: whether the check's code (the babysit-prs
@@ -1029,8 +1221,11 @@ class SettleCommand(unittest.TestCase):
         cfg: policy.PipelineConfig | None = None,
         config_error: Exception | None = None,
         code_sha: str = MAIN,
+        idle: str | None = None,
+        extra: tuple[str, ...] = (),
     ) -> tuple[int, dict, dict]:
         seen: dict[str, object] = {}
+        self.idle = mock.Mock(return_value=idle)
 
         def settle(repo: str, answer: object, **kwargs: object) -> object:
             seen.update(kwargs, repo=repo, answer=answer)
@@ -1050,6 +1245,7 @@ class SettleCommand(unittest.TestCase):
                 return_value=cfg or config(base_sha=NEW_MAIN),
             ) as read_config,
             mock.patch.object(policy, "settle_shared", side_effect=settle),
+            mock.patch.object(ve.postmerge, "idle_refusal", self.idle),
             contextlib.redirect_stdout(out),
         ):
             exit_code = ve.main(
@@ -1061,6 +1257,7 @@ class SettleCommand(unittest.TestCase):
                     "/tmp/x.json",
                     "--code-sha",
                     code_sha,
+                    *extra,
                 ]
             )
         self.code, self.read_config = code, read_config
@@ -1132,6 +1329,29 @@ class SettleCommand(unittest.TestCase):
         )
         self.assertEqual(code, 1)
         self.assertIn("head 502", out["reason"])
+
+    def test_an_idle_tick_also_needs_the_idle_rule(self) -> None:
+        # post-merge-dispatch's reuse of an earlier tick's report: the lane
+        # room's rule first, then `idle_refusal` on the same answer, at the
+        # default branch with the head config's confirm wait.
+        idle = ("--idle-tick",)
+        code, out, _ = self.main(("answer", None), extra=idle)
+        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
+        self.idle.assert_called_once_with(
+            REPO, "answer", "main", confirm_wait_minutes=config().confirm_wait_minutes
+        )
+        code, out, _ = self.main(("answer", None), extra=idle, idle="runs-changed")
+        self.assertEqual(
+            (code, out), (1, {"reuse": False, "reason": "idle tick runs-changed"})
+        )
+        # A report the lane room's rule refuses is never offered to it.
+        code, out, _ = self.main((None, "post-merge answer stale"), extra=idle)
+        self.assertEqual(code, 1)
+        self.idle.assert_not_called()
+        # Without the flag (the merge job's reuse of this run's report), no
+        # idle rule.
+        self.assertEqual(self.main(("answer", None), idle="runs-changed")[0], 0)
+        self.idle.assert_not_called()
 
 
 class LaneRoomCommand(unittest.TestCase):

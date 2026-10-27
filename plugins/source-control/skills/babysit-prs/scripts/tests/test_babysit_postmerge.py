@@ -1028,6 +1028,16 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertEqual(verdict.merges[0].pending, ())
         self.assertTrue(verdict.merges[0].verified)
 
+    def test_the_report_records_each_pin_it_read_once(self) -> None:
+        # A later tick reads them again before it reuses the report
+        # (`idle_refusal`), so the record is the read itself, None included.
+        self.all_green()
+        for pin in (HEAD_SHA, None):
+            with self.subTest(pin=pin):
+                report = self.check_unpinned(pin=pin).report()
+                self.assertEqual(report["pins"], {"7001": pin})
+                self.assertEqual(self.pin_reads, [7001])
+
     def test_a_pin_at_another_head_fails_the_read_back(self) -> None:
         # A push after the arm: the merged head is not the one pinned.
         self.all_green()

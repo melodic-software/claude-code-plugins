@@ -1212,7 +1212,9 @@ gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a pu
 count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
 armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+report that job keeps as an artifact (on an idle tick the last run's report, which that job reuses
+unchanged while nothing its check reads has moved, `babysit_verify_evidence.py settle --idle-tick`;
+`babysit_verify_evidence.py lane-room`; with no report it
 holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
 as the gate does; one refused only because a demotion record was filed or changed since is first
 kept when the demotion records alone read as they were; one past the gate's
