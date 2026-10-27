@@ -543,65 +543,6 @@ test("a done outcome whose not_done holds a skipped required check is stopped", 
   assert.match(plan.comment, /check-changelog-fragments/);
 });
 
-// The lane runs no test runner (pr-pipeline.yaml resolve-issue verify-scripts),
-// and the PR's CI runs the suites. These not_done lines are the ones runs
-// 40112451984 and 40113312256 reported.
-const LEFT_TO_CI = [
-  "`python3 -m pytest plugins/planning/surface/test_exporters.py -q` was not run: this run's Bash allows only the named wrapper scripts, so the new and updated tests are unexecuted",
-  "`bash scripts/affected-tests.sh --run` was not run for the same reason; check-affected did not execute the planning python tests",
-  "Surface test suite under plugins/planning/surface/ was not run: this run's Bash allows only the named wrappers, so no python or shell test could be executed",
-];
-
-test("a done outcome whose required gaps are only test runs opens the PR and defers them to PR CI", () => {
-  const plan = decideDone({
-    outcome: {
-      ...done,
-      notDone: [{ what: "Did not render the page", required: false }, ...LEFT_TO_CI.map((what) => ({ what, required: true }))],
-    },
-  });
-  assert.equal(plan.action, "open-pr");
-  const gaps = section(plan.body, "Not verified");
-  for (const what of LEFT_TO_CI) {
-    assert.ok(gaps.includes(`- Deferred to PR CI: ${what}\n`) || gaps.endsWith(`- Deferred to PR CI: ${what}`), gaps);
-  }
-  assert.ok(gaps.includes("- Did not render the page"), gaps);
-  assert.ok(!gaps.includes("Deferred to PR CI: Did not render"), gaps);
-});
-
-test("a required non-test gap that mentions a test runner is not deferred", () => {
-  for (const what of [
-    "scripts/check-changelog-fragments.sh --check was not run: its setup failed the same way the test suite's did",
-    "`scripts/check-changelog-fragments.sh --check` was not run, like pytest",
-    "The review subagent step was not run because the bats test suites hung",
-    "`pytest` was not run; the review subagent step was not run",
-    "test suite, and check-changelog-fragments was not run",
-    "`pytest` and `scripts/check-changelog-fragments.sh --check` were not run",
-    "`pytest` was not run. The review subagent step was not run.",
-    "`pytest` was not run, the review subagent step was not run",
-    "`pytest` was not run: `scripts/check-changelog-fragments.sh --check` was not run either",
-  ]) {
-    const plan = decideDone({ outcome: { ...done, notDone: [{ what, required: true }] } });
-    assert.equal(plan.action, "hand-back", what);
-    assert.equal(plan.exit, "stopped", what);
-  }
-});
-
-test("a required test run left to PR CI does not excuse another required gap", () => {
-  for (const other of ["scripts/check-changelog-fragments.sh --check: not run", "The review subagent step was not run; the diff is unreviewed"]) {
-    const plan = decideDone({
-      outcome: {
-        ...done,
-        notDone: [
-          { what: LEFT_TO_CI[0], required: true },
-          { what: other, required: true },
-        ],
-      },
-    });
-    assert.equal(plan.action, "hand-back", other);
-    assert.equal(plan.exit, "stopped", other);
-  }
-});
-
 test("the outcome file's structured fields are read as lists of text", () => {
   const file = {
     ...done,
@@ -675,6 +616,7 @@ for (const [reason, why] of [
   ["patch-protected-path", /a path the issue lane may not push/],
   ["patch-invalid", /not a valid patch/],
   ["patch-not-applied", /did not apply/],
+  ["patch-apply-failed", /failed before it committed or refused the patch/],
 ]) {
   test(`done whose patch apply-issue-patch refused (${reason}) hands back naming the reason, not an empty run`, () => {
     const plan = decideDone({ branch: "", escalation: reason, runUrl: "https://example/o/r/actions/runs/123" });
@@ -692,6 +634,13 @@ test("a refused patch on a resumed run hands back instead of opening the PR from
   assert.equal(plan.action, "hand-back");
   assert.ok(plan.comment.includes("`patch-protected-path`"), plan.comment);
   assert.ok(plan.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), plan.comment);
+});
+
+// A failure after apply-issue-patch made its branch (a later step) leaves the
+// branch's plan as it was.
+test("patch-apply-failed changes no plan for a run whose branch apply-issue-patch made", () => {
+  const branch = "work-resolve-issue/issue-77-100-1";
+  assert.deepEqual(decideDone({ branch, escalation: "patch-apply-failed" }), decideDone({ branch }));
 });
 
 test("patch-empty changes no plan: a done run with no commit, a resumed run, or a pushback", () => {

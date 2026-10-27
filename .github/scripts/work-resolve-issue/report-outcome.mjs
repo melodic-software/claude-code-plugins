@@ -17,11 +17,9 @@
 //             sections from the outcome's summary, changes, verification and
 //             not_done, and its Verification section the runner's check
 //             results (RUNNER_CHECKS). A done outcome whose not_done holds a
-//             required check is stopped, unless that check is a test run
-//             (TEST_RUN), which the lane cannot do: the body lists it as
-//             deferred to PR CI. One whose runner checks failed or cannot be
-//             read for the branch's current tip is stopped, whatever the
-//             outcome file says.
+//             required check is stopped, and so is one whose runner checks
+//             failed or cannot be read for the branch's current tip, whatever
+//             the outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //             When a listed human's newest comment, posted since the lane's
 //             last outcome comment, does not open with DECISION_LINE, the
@@ -54,7 +52,8 @@
 //             PR always carries the hold line, so a human reads them.
 //   refused  a done run whose patch apply-issue-patch refused
 //             (ESCALATION_REASON patch-protected-path, patch-invalid or
-//             patch-not-applied) hands back like stopped, naming the reason;
+//             patch-not-applied), or whose apply job failed before giving one
+//             (patch-apply-failed), hands back like stopped, naming the reason;
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): comments the next step with an
@@ -243,32 +242,6 @@ const notDoneList = (value) =>
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
     .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
-
-// A not_done item that is a test run: its subject names a test runner or a test
-// suite. The lane runs no test runner (resolve-issue's verify-scripts leave them
-// out), and the PR's CI runs the suites. The subject is what the item is about,
-// which the outcome schema puts first (work SKILL.md, "what you skipped ..., and
-// why"): a leading backticked command, else the text before the first clause
-// break. A runner named only in the why ("its setup failed the way the test
-// suite's did") does not make another check a test run.
-const TEST_RUN =
-  /\b(?:pytest|unittest|node --test|npm (?:run )?test|jest|vitest|bats|(?:invoke-)?pester|go test|dotnet test|affected-tests\.sh|run-test-file\.sh|test suites?)\b/i;
-const subjectOf = (what) =>
-  what.match(/^\s*`([^`]*)`/)?.[1] ??
-  what.split(/[:;,(]|\.\s|\s(?:was|were|is|are|could|did|not|failed|because)\b/i)[0];
-// A test run names no other check: every command, script or check-* name in
-// its first clause is a test runner, and no later clause reports a non-test
-// check as not run.
-const NAMED = /`[^`]*`|[\w./-]+\.sh\b|\bcheck-[\w-]+/g;
-const UNRUN = /\b(?:not (?:run|executed)|skipped)\b/i;
-const isTestRun = (what) => {
-  const [head, ...rest] = what.split(/[:;,]|\.\s/);
-  return (
-    TEST_RUN.test(subjectOf(what)) &&
-    (head.match(NAMED) ?? []).every((name) => TEST_RUN.test(name)) &&
-    !rest.some((clause) => UNRUN.test(clause) && !TEST_RUN.test(subjectOf(clause)))
-  );
-};
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
@@ -478,6 +451,7 @@ export const PATCH_REASONS = {
   "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
   "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
+  "patch-apply-failed": "apply-issue-patch failed before it committed or refused the patch",
 };
 
 // The step that must come before the lane can run an issue its dimensions
@@ -787,7 +761,8 @@ export function decide({
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
-  if (outcome.exit === "done" && escalation && escalation !== "patch-empty") {
+  // patch-apply-failed is only the job's result, so a branch it did make wins.
+  if (outcome.exit === "done" && escalation && escalation !== "patch-empty" && !(escalation === "patch-apply-failed" && branch)) {
     return handBack({
       outcome: stopped(
         `The run reported done, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,
@@ -891,11 +866,7 @@ export function decide({
       runId,
     });
   }
-  // A required test run the lane could not do is left to the PR's CI, which
-  // runs the suites and has fix-ci repair a failure. `required` is the model's
-  // own word, so reading its text grants the run nothing it lacked.
-  const deferred = (item) => item.required && isTestRun(item.what);
-  if (outcome.notDone.some((item) => item.required && !deferred(item))) {
+  if (outcome.notDone.some(({ required }) => required)) {
     return handBack({
       outcome: {
         ...outcome,
@@ -921,7 +892,7 @@ export function decide({
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
-  const gaps = outcome.notDone.map((item) => (deferred(item) ? `Deferred to PR CI: ${item.what}` : item.what));
+  const gaps = outcome.notDone.map(({ what }) => what);
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...(hold ? ["", HOLD_LINE] : []),
