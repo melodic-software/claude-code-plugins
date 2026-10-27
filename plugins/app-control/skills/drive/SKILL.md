@@ -32,7 +32,7 @@ keep going.
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
+| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -86,6 +86,14 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
+9. An include from an integrated app resolves through the contract's "Integrated apps", and its
+   control skill is read from disk at that app's checkout like any other. A missing checkout stops
+   that feature with the message that section gives. At each point its "Checkout off the pin"
+   names, the recheck before every included `cli:` call among them, run
+   `python3 -I ${CLAUDE_PLUGIN_ROOT}/scripts/verify_pin.py <checkout> <app> <sha>`, with `<sha>`
+   the `pins.<app>` value from this control skill's committed config or `""` when it is unset. A
+   non-zero exit stops that feature with the message the script prints. An included
+   `cli:` step runs that app's `cli/`, not this one's, as that section says.
 
 The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
@@ -110,12 +118,19 @@ All as of 2026-10-25; recheck when any of them changes.
 - **Ready means usable.** A port answering is not enough: the surface answers, the build is the one
   expected when the app exposes one, and it uses the expected data. Report each surface (URL, port,
   command), the build, the data and the telemetry the app exposes (log files, an OTLP endpoint, a
-  dashboard). A signal the app does not expose is listed as a capability gap.
+  dashboard). A signal the app does not expose is listed as a capability gap. Ready also checks
+  each dependency service of the selected environment (contract "Environments"): it answers, and,
+  where the app exposes its target (a sign-in redirect, a health field), the app sends to its url.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
-  run lacks, is not performed. The report names the narrowest grant that would allow it. A capture
+  run lacks, is not performed. The report names the narrowest grant that would allow it. Pass
+  `--attended` only with a person present, `--yes` only after that person said yes in this
+  session, and each write's `--step` key; the contract's "Safety floors" (Write grants,
+  Production, Unattended writes) says which writes they allow. A step those floors refuse, or one
+  that exits 4, is `blocked:` with the floor, never retried. Launch and Ready placeholders are
+  filled per the contract's "Environments". A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
-  one tool per run. Drive implements no capture and picks no tool of its own. When no tool is named,
+  one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research
   tools to install; an unattended run only reports.
 - **Unattended limits.** Never attach to a process this run did not start. Never drive a tool that
@@ -131,9 +146,10 @@ All as of 2026-10-25; recheck when any of them changes.
   never a command that launches the app; such a command that is denied is
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
 - **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
-  [Pid binding](#pid-binding). Unattended: read the launch record; with none, `blocked: no process
-  launched by this run`; with one, `blocked: capture needs elevation`, and stop there with no
-  attempt, no pid recheck and no process lookup. Whether attaching needs root is upstream: read it
+  [Pid binding](#pid-binding). Unattended: read the launch record and pick its entry as Pid binding
+  says; with none, or an ambiguous choice, the `blocked:` line it names; with an entry picked,
+  `blocked: capture needs elevation`, and stop there with no attempt, no pid recheck and no process
+  lookup. Whether attaching needs root is upstream: read it
   at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
@@ -142,7 +158,8 @@ All as of 2026-10-25; recheck when any of them changes.
   failed. Report each step by its id; an optional step
   whose target is absent is `skipped: optional`; finally steps run after a failure too. Artifact
   names carry the step id.
-- **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
+- **Cleanup touches only what this run started.** Stop each process in `launch`, one per app, after
+  [Recheck before touching the pid](#pid-binding). Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome.
@@ -153,8 +170,9 @@ A `threads` capture reaches only the process this run launched. The one other ro
 interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
 recheck. The other kinds keep the rules above.
 
-- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time,
-  command line and the command line's sha256 into `report.json` (`launch`,
+- **Record at launch.** For each process it launches, one per app, the launch step writes the
+  app, pid, owner uid, start time, command line and the command line's sha256 into `report.json`
+  (`launch`,
   [`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md)). The uid is the one every uid field of the
   process holds (real, effective, saved and filesystem must all be equal). The start time is the
   integer the process table gives (on Linux, the `starttime` field of
@@ -166,6 +184,11 @@ recheck. The other kinds keep the rules above.
   when either page changes the field's form. A `capture` in a later invocation reads the record
   from the run directory named by `--out`. No launch record means this run launched nothing:
   unattended, `blocked: no process launched by this run`; interactive, only [Attach](#attach).
+- **A capture picks its record by app.** The launched pid is that of the one `launch` entry whose
+  `app` is the app of the control skill whose `## Capture` row the capture uses; an entry with no
+  `app`, as a one-object record from an earlier run holds, takes the report's `app`. No such entry is
+  `blocked: no process launched by this run`. More than one, or a row whose owning app is unclear,
+  is `blocked: launch record ambiguous: <apps>`, naming the apps, with no attempt.
 - **The launch record is data.** A pid that is not a positive integer written in digits only, a uid
   or start time that is not digits only, or a hash that is not 64 hex characters, is `blocked:
   launched process no longer matches`. Only those integers and that hash go into a command or the

@@ -1016,6 +1016,48 @@ test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async ()
 // dispatch event", API version 2022-11-28: 200 with workflow_run_id only when
 // return_run_details is true, else 204; rest/checks/runs "List check runs
 // for a Git reference" with check_name) and the GraphQL listing.
+// The dispatch follows up to 5 x 10 s of waiting. A pooled socket that sat
+// idle that long may have been dropped by GitHub, and a dispatch is not resent,
+// so it must go out on a connection no earlier request used. Real fetch
+// against a local server that keeps idle sockets open, as a pool would see.
+test("the GitHub adapter sends the dispatch on a connection no earlier request used", async () => {
+  const { createServer } = await import("node:http");
+  const seen = new Map();
+  const used = [];
+  const server = createServer((req, res) => {
+    if (!seen.has(req.socket)) {
+      seen.set(req.socket, seen.size + 1);
+    }
+    used.push(`${req.method} ${req.url.split("?")[0]} socket ${seen.get(req.socket)}`);
+    const answers = {
+      "/graphql": { data: { repository: { pullRequests: { nodes: [pr(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } },
+      "/repos/octo/repo/commits/abc/check-runs": { total_count: 0, check_runs: [] },
+      "/repos/octo/repo/actions/workflows/pr-unblock.yml/dispatches": { workflow_run_id: 77 },
+    };
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(answers[req.url.split("?")[0]] ?? {}));
+  });
+  server.keepAliveTimeout = 60_000;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const apiUrl = `http://127.0.0.1:${server.address().port}`;
+    const api = createGitHubApi({ token: "t0ken", repository: "octo/repo", apiUrl, graphqlUrl: `${apiUrl}/graphql`, fetch: globalThis.fetch });
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 50));
+    await api.listOpenPulls({ base: "main" });
+    await pause();
+    await api.listCheckRuns({ sha: "abc", checkName: CHECK_NAME, appId: 15368 });
+    await pause();
+    assert.deepEqual(await api.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: {} }), { workflowRunId: 77 });
+    const socket = (line) => line.split(" socket ")[1];
+    const dispatch = used.at(-1);
+    assert.match(dispatch, /^POST \/repos\/octo\/repo\/actions\/workflows\/pr-unblock\.yml\/dispatches /);
+    assert.ok(!used.slice(0, -1).some((line) => socket(line) === socket(dispatch)), used.join("; "));
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});
+
 test("the GitHub adapter calls the documented endpoints", async () => {
   const requests = [];
   const responses = [
@@ -1096,7 +1138,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
   const head = "c".repeat(40);
   const urls = [];
-  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } });
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
@@ -1145,6 +1187,27 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
+});
+
+test("the required-run read skips a fork's newer run at the same head SHA", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
+  // A fork PR pushed the same commit: its run is newer and still going.
+  const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "test-node", conclusion: "failure" }] }];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "test-node", conclusion: "failure" }] });
+  assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 
 // The record a run leaves: the next run, against the same GitHub state,

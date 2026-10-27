@@ -16,7 +16,7 @@ export function segments(path) {
   return out;
 }
 
-const PATH_RULES = {
+export const PATH_RULES = {
   // The lane token has no workflows permission, so GitHub refuses the push.
   "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
   // The three places GitHub reads a CODEOWNERS file from
