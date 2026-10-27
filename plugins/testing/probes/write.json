@@ -2,7 +2,7 @@
   "skill": "testing:write",
   "plugin": "testing",
   "skill_dir": "plugins/testing/skills/write",
-  "ranking_note": "Authored by a fresh agent from the description at commit 4ba1a0a4, before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Filed from #9596: the k36-cart-total natural-phrasing case fired /testing:write in 0 of 16 runs, so the positives lean on feature requests that ask for tests in passing. Competitors are the sibling testing skills a test request can land on instead.",
+  "ranking_note": "Authored by a fresh agent from the description at commit 4ba1a0a43716830e41af11661daea92030d94643, before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Filed from #9596: the k36-cart-total natural-phrasing case fired /testing:write in 0 of 16 runs, so the positives lean on feature requests that ask for tests in passing. Competitors are the sibling testing skills a test request can land on instead.",
   "competitors": [
     "testing:diagnose",
     "testing:plan",
