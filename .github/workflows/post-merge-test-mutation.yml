@@ -15,8 +15,9 @@ name: post-merge-test-mutation
 # - prep: no model. Checks the kill switch and reads the range artifact.
 # - audit: the model, with contents: read only. Mutants run inside its Bash
 #   tool. CLAUDE_CODE_SUBPROCESS_ENV_SCRUB keeps the OAuth token out of every
-#   process the model starts, the mutated tests included; it keeps
-#   GITHUB_TOKEN, so that token is held to contents: read.
+#   process the model starts, the mutated tests included, and a model-free
+#   step after the audit fails the job when a Claude token is on disk; the
+#   scrub keeps GITHUB_TOKEN, so that token is held to contents: read.
 # - report: no model. Validates the structured result, finds the pull request
 #   that merged the head, and writes the job summary. When exactly one pull
 #   request merged the head, a second step posts the report there as one
@@ -251,7 +252,8 @@ jobs:
           # the checkout, less the paths the config's mutate list excludes,
           # where no mutant lands. These rules bound the model's own tools;
           # every mutant is code the covering tests run, so the token boundary
-          # is the env scrub, the contents: read token and the runner isolation.
+          # is the env scrub, the on-disk token check after the audit and the
+          # contents: read token. Egress stays open.
           # disallowedTools is single-quoted so the action's parse keeps `$`.
           allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit(./**),Agent"
           allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *),Bash(git restore -- *)"
@@ -305,6 +307,28 @@ jobs:
             --permission-mode dontAsk
             ${{ steps.models.outputs.claude-args }}
             ${{ steps.prompt.outputs.claude-args }}
+
+      # The scrub keeps the OAuth token out of the mutants' environment, but
+      # mutants read files as the runner user and egress is open, so a token
+      # the action or the CLI wrote to disk would reach them. The action
+      # passes it only as env (action.yml:336 at 16f9f71); this step checks
+      # every run that no file under home, the runner temp or /tmp holds a
+      # Claude token, and fails the job when one does. It names the file and
+      # never prints it. It holds no secret and runs with an empty env and
+      # absolute paths, since the mutants ran in this job before it.
+      - name: Check no Claude token was written to disk
+        if: always() && steps.audit.outcome != 'skipped'
+        shell: /usr/bin/env -i /usr/bin/bash --noprofile --norc -eu -o pipefail {0}
+        timeout-minutes: 5
+        run: |
+          home=$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/cut -d: -f6)
+          hits=$(/usr/bin/find "$home" /tmp "${{ runner.temp }}" -path "$home/work" -prune \
+            -o -type f -print0 2>/dev/null |
+            /usr/bin/xargs -0 -r /usr/bin/grep -lE 'sk-ant-[a-z]{3}[0-9]{2}-[A-Za-z0-9_-]{80,}' 2>/dev/null || true)
+          if [[ -n $hits ]]; then
+            printf '::error::a Claude token is on disk where the mutants could read it: %s\n' "${hits//$'\n'/, }"
+            exit 1
+          fi
 
       # The audit's own restore check is the model's report; this one is not.
       # Tracked files must equal the pushed head.
