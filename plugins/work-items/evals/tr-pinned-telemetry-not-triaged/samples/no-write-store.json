@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1'"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work/lanes/lanes.json"
+          }
+        }
+      ],
+      "why": "reads the item and lane config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/triage/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "note outside the store"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "reads then rewrites the item"
+    }
+  ]
+}

@@ -13,12 +13,26 @@ name: dependabot-fragments
 # GITHUB_TOKEN opens or updates starts no `pull_request` runs, and this one needs
 # `ci-status`. The commit goes through createCommitOnBranch, which GitHub signs,
 # so main's required_signatures rule accepts it (the pattern of
-# release-publish-plugins.yml). It runs hourly, not on push: few merges are
-# Dependabot's, and a fragment up to an hour late still rides a release. A
-# fragment is named after its merge commit, so a rerun writes nothing twice.
+# release-publish-plugins.yml). A fragment is named after its merge commit, so
+# a rerun writes nothing twice.
+#
+# It starts on a push to main that changes a manifest Dependabot bumps under
+# plugins/ (scripts/dependabot-fragments.test.sh checks the paths against
+# .github/dependabot.yml), and the job runs only when the push carries a
+# Dependabot commit, so most merges start no run. The schedule every six hours
+# is the safety net for what the filter cannot see: a manifest or directory it does
+# not list, or a push run GitHub lost. A fragment that late still rides a
+# release, which runs every three hours and on a push under .changes/**.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/**/package.json'
+      - 'plugins/**/package-lock.json'
+      - 'plugins/**/requirements*.txt'
+      - 'plugins/**/requirements*.in'
   schedule:
-    - cron: '23 * * * *'
+    - cron: '23 */6 * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -33,7 +47,12 @@ concurrency:
 
 jobs:
   write:
-    if: github.ref == 'refs/heads/main'
+    # A push runs it only when one of its commits is Dependabot's, by the
+    # author scripts/dependabot-fragments.sh walks.
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (github.event_name != 'push'
+      || contains(github.event.commits.*.author.email, '49699333+dependabot[bot]@users.noreply.github.com'))
     # The App's private key is an environment secret; the environment admits
     # only main (github-iac RepositoryEnvironments.cs).
     environment: plugin-release

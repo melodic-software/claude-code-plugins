@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        }
+      ],
+      "why": "scan only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/alpha/csv_tools.py"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/zeta/label.js",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a source file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/alpha/csv_tools.py",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes after the scan"
+    }
+  ]
+}

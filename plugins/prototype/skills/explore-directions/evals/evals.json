@@ -3,14 +3,15 @@
   "evals": [
     {
       "id": 1,
-      "name": "existing-page-sub-shape-a",
+      "name": "existing-page-defaults-to-mockup",
       "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like.",
-      "expected_output": "Because the prompt establishes an existing /settings route, the skill defaults to sub-shape A: variants rendered on the same route gated by a ?variant= param (or framework equivalent), existing data fetching/auth kept above the switcher, a floating switcher with keyboard nav, and 3 structurally-different variants.",
+      "expected_output": "No host was asked for, so the skill takes its default host, the HTML mockup: one self-contained file:// page under the restrictive CSP, written to a temp location outside the repository, holding 3 structurally different variants of /settings built from the app's own CSS and surrounding page with synthetic data, behind the bundled in-page switcher. It adds no ?variant= switcher or variant code to the app's /settings route.",
       "files": [],
       "expectations": [
-        "The response defaults to sub-shape A (variants on the existing route via a `?variant=` param or framework equivalent) rather than a new throwaway route",
-        "Existing data fetching / params / auth are kept above the switcher; only the rendered subtree swaps per variant",
-        "The response produces multiple (default 3) variants and a floating switcher with keyboard navigation"
+        "The response builds a single self-contained HTML file opened from `file://`, written to a temp location rather than a tracked repo path",
+        "The page carries the restrictive CSP meta tag and loads no remote script, font or data",
+        "The response does not add a `?variant=` switcher or variant components to the app's /settings route",
+        "Every variant keeps the app's own look (its CSS inlined, its surrounding page reproduced with synthetic values) and the variants differ structurally"
       ]
     },
     {
@@ -65,11 +66,11 @@
       "id": 6,
       "name": "no-direct-promotion-to-production",
       "prompt": "Variant B is perfect — just ship it straight to production as-is.",
-      "expected_output": "The skill declines to promote the prototype variant directly to production. Variant code was written under prototype constraints (no tests, minimal error handling), so it recommends rewriting/folding it in properly rather than shipping the throwaway variant as-is.",
+      "expected_output": "The skill declines to promote the prototype variant directly to production. Variant code was written under prototype constraints (no tests, minimal error handling), so it recommends rebuilding it with tests and error handling as it is folded in, rather than shipping the throwaway variant as-is.",
       "files": [],
       "expectations": [
         "The response declines to promote the prototype variant directly to production as-is",
-        "The response recommends rewriting / properly folding the winner in, citing the prototype constraints (no tests, minimal error handling) the variant was written under"
+        "The response recommends rebuilding the winner with tests and error handling as it is folded in, citing the prototype constraints (no tests, minimal error handling) the variant was written under"
       ]
     },
     {
@@ -88,11 +89,11 @@
       "id": 8,
       "name": "set-direction-skips-reference-pass",
       "prompt": "Our /billing page exists. Give me three layouts for it: a dense table, a card per invoice, and a timeline. Keep our existing design system.",
-      "expected_output": "The user has already named the directions, so the skill skips the reference pass and goes straight to sub-shape A: three variants on the existing /billing route behind the switcher, one per named direction.",
+      "expected_output": "The user has already named the directions, so the skill skips the reference pass and goes straight to building three variants of the existing /billing page behind the switcher, one per named direction, each in the app's existing design system.",
       "files": [],
       "expectations": [
         "The response does not run or offer a reference pass, because the user already named the three directions",
-        "The response builds the three named layouts as variants on the existing /billing route"
+        "The response builds the three named layouts as variants of the existing /billing page, each keeping the existing design system"
       ]
     },
     {
@@ -144,6 +145,31 @@
         "The variants differ structurally in the reminders panel: layout, information hierarchy or primary affordance",
         "Each variant is its own file, self-contained: the CSS is inlined, not linked, under the restrictive CSP",
         "Real values in the surrounding page (the clinic name, the signed-in user) are replaced with synthetic ones"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "real-stack-override-sub-shape-a",
+      "prompt": "Our web app already has a /settings page and the dev server is running. Build a few layout options for it on the real stack, inside the app, so I can judge them with our real data.",
+      "expected_output": "The request asks for the real stack, which overrides the HTML mockup default. The page exists, so the skill takes sub-shape A: variants on the existing /settings route selected by a ?variant= param (or framework equivalent), existing data loading, params and auth kept above the switcher, every write stubbed, a floating switcher with keyboard navigation, and 3 structurally different variants. It writes no standalone HTML mockup.",
+      "files": [],
+      "expectations": [
+        "The response takes sub-shape A: variants on the existing /settings route via a `?variant=` param or framework equivalent, not a new throwaway route and not an HTML mockup",
+        "Existing data loading, params and auth stay above the switcher; only the rendered subtree swaps per variant",
+        "Every write a variant can trigger is pointed at a stub, so the variants are read-only",
+        "The response produces multiple (default 3) variants and a floating switcher with keyboard navigation"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "running-dev-server-keeps-mockup-default",
+      "prompt": "Our dev server is up at localhost:3000 and the app has an /orders page. Show me three layout options for it.",
+      "expected_output": "A running dev server is not a request for the real stack, so the skill keeps its default host: one self-contained file:// HTML mockup of /orders in the app's own look, with synthetic data and the bundled switcher. It may suggest the real-stack override, but does not edit the app's /orders route or add a ?variant= switcher to it.",
+      "files": [],
+      "expectations": [
+        "The response builds a single self-contained HTML mockup opened from `file://`, not variants inside the running app",
+        "The response does not add a `?variant=` switcher or variant components to the app's /orders route",
+        "If the response mentions the real stack, it offers it as an option the user can ask for rather than switching to it"
       ]
     }
   ]
