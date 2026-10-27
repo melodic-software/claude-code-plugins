@@ -27,6 +27,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$TMP_ROOT"
 
 if ! ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" budget; then
   fail "no working 'Write the rate-limit-aware read helper' step, or no GH_READ_* env, in $WORKFLOW"

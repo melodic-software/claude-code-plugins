@@ -9,7 +9,6 @@
 // env.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,6 +17,7 @@ import { parse, stringify } from "yaml";
 
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../../..");
@@ -728,7 +728,7 @@ test("a run route that is not one of the five is undefined-route, as a model-rou
 });
 
 // main() with model-route against a base holding the live config.
-const scratch = mkdtempSync(join(tmpdir(), "resolve-models-"));
+const scratch = tempDir("resolve-models-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 function readOutputs(path) {

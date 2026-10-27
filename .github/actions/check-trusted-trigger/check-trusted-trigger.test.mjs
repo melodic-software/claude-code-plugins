@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -10,6 +9,7 @@ import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
 import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(HERE, "fixtures");
@@ -80,7 +80,7 @@ function fakeSleep() {
 
 let dir;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "trusted-trigger-"));
+  dir = tempDir("trusted-trigger-");
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });

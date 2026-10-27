@@ -21,6 +21,8 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not available"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$TEST_TMPDIR"
 
 BIN="$TEST_TMPDIR/bin"
 mkdir -p "$BIN"
