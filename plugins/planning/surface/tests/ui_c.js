@@ -646,6 +646,23 @@ async page => {
     ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
   }
+  if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"}); await page.waitForTimeout(300);
+    if (await sel() !== "D1") await page.click('.qbtn[data-q="D1"]');
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    const ev = (await events()).filter(e => e.id === "D1");
+    ok("#9715: the page answers D1 and the meter counts it", ev.length === 1 && ev[0].kind === "accept" && await page.textContent("#meterText") === "1 of 1 answered", JSON.stringify(ev) + " " + await page.textContent("#meterText"));
+  }
+  if (PHASE === 8) { // the same server after the shell superseded the answered D1 with D2 and ran export-ledger
+    const ledger = JSON.parse('__LEDGER__');
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D2"]', {state: "attached"});
+    const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
+    ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
+  }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
