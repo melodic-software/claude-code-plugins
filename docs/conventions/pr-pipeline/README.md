@@ -1879,6 +1879,10 @@ entries below the lowest id those pages hold, less those expired by the first pa
 kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
 malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
 lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
+A whole listing is held to the same count: deduplicated by id, added to the whole listings read
+before it and checked by a top-up from the first page, since one can skip an artifact at a page
+boundary while an earlier one expires (#10486); after three whole listings that never hold the
+live count the candidate refuses `verify:unreadable`.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run

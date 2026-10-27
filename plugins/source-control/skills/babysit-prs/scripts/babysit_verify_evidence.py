@@ -87,7 +87,16 @@ comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, every artifact, and filtered on the name here: the API's name filter
-matches whole names only, and a FAIL counts under any number and head.
+matches whole names only, and a FAIL counts under any number and head. No
+judgment uses a listing whose artifact ids, each counted once, are not
+exactly GitHub's live `total_count` (`Reader._incremental`'s check). A whole
+listing can skip the artifact at a page boundary when an earlier one expires
+while it pages, and return one twice when an upload moves it down a page
+(#10486). So a whole listing is deduplicated by id, added to the whole
+listings read before it, and checked by a top-up read from the first page
+(`Reader._complete_listing`); after `LISTING_READS` whole listings that never
+hold the live count it refuses `verify:unreadable`. The refresh before an
+allow reads the same way.
 
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
@@ -110,8 +119,8 @@ a full listing taken just after held, plus 0, 1 and 3 that the full listing
 skipped at its page boundaries though they still existed. An artifact that
 expires during the read can only make the counts differ. Any other count, a
 base that is missing, older or of another shape, or any failed read lists
-every page as before. A carry forged to drop a FAIL must therefore also hold a fabricated
-entry in its place to match the live count, and forging it already needs code
+every page, checked the same way. A carry forged to drop a FAIL must therefore
+also hold a fabricated entry in its place to match the live count, and forging it already needs code
 running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
 job holds the lanes App token.
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
@@ -269,6 +278,13 @@ LISTING_OVERLAP = timedelta(hours=2)
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
+# The whole listings `Reader._complete_listing` reads before it refuses. Of
+# three whole listings read on 2026-10-27, two skipped live artifacts at page
+# boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
+# other whole listing: a second read restores a skip, a third is margin
+# (judgment on that data). The reads and their top-ups share one
+# `LISTING_TIMEOUT_SECONDS`, as one read did: what does not fit refuses.
+LISTING_READS = 3
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -812,6 +828,8 @@ class Reader:
     # How the last listing was read from the API: "full" or "incremental".
     listing_mode: str | None = None
     _listing_error: str | None = None
+    # When the whole listings of one `_complete_listing` must end.
+    _read_deadline: float | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -877,9 +895,7 @@ class Reader:
         if listing is None:
             self.listing_mode = "full"
             try:
-                listing = flatten_paginated_items(
-                    self._read_listing(), "repository artifacts", items_key="artifacts"
-                )
+                listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
                 raise _Unreadable(self._listing_error) from exc
@@ -948,7 +964,40 @@ class Reader:
         ]
         return max(bases, key=lambda base: base[0], default=None)
 
-    def _incremental(self) -> list[dict[str, Any]] | None:
+    def _complete_listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact from whole listings: each read is added
+        to the ones before it by id, and the union is kept only when the
+        top-up `_incremental` reads on it holds GitHub's live `total_count`.
+        A whole listing can skip an artifact at a page boundary when an
+        earlier one expires while it pages, and the next read returns it.
+        Raises `_Unreadable` when `LISTING_READS` reads never hold the live
+        count, so no judgment allows on a listing that may lack a FAIL."""
+        union: dict[int, dict[str, Any]] = {}
+        deadline: float | None = None
+        for _ in range(LISTING_READS):
+            read_at = _wall_clock()
+            payload = self._read_listing(deadline)
+            deadline = self._read_deadline
+            for item in flatten_paginated_items(
+                payload, "repository artifacts", items_key="artifacts"
+            ):
+                if is_json_object(item) and _is_artifact_id(item.get("id")):
+                    union[item["id"]] = item
+                else:
+                    raise _Unreadable("repository artifacts: an entry with no id")
+            listing = self._incremental((read_at, list(union.values())), deadline)
+            if listing is not None:
+                return listing
+        raise _Unreadable(
+            f"repository artifacts: {LISTING_READS} whole listings never held "
+            "GitHub's live artifact count"
+        )
+
+    def _incremental(
+        self,
+        base: tuple[datetime, list[dict[str, Any]]] | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, Any]] | None:
         """Every repository artifact, as the base (`_incremental_base`) and
         the newest pages read now show them, or None for a full listing.
 
@@ -962,14 +1011,19 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date`. The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count. Any other count, no base, an entry or page of
-        another shape, a missing `Date`, or any failed read gives None."""
-        base = self._incremental_base()
+        another shape, a missing `Date`, or any failed read gives None.
+        `base` replaces `_incremental_base` and `deadline` its own
+        `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
+        if base is not None and not all(_dated_entry(a) for a in base[1]):
+            return None
+        base = base or self._incremental_base()
         if base is None:
             return None
         base_at, carried = base
         high = max((a["id"] for a in carried), default=0)
         floor = base_at - LISTING_OVERLAP
-        deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+        if deadline is None:
+            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
         fresh: dict[int, dict[str, Any]] = {}
         total: Any = None
         server_now: datetime | None = None
@@ -1039,19 +1093,26 @@ class Reader:
             tmp.write_text(json.dumps(payload), encoding="utf-8")
             os.replace(tmp, path)
 
-    def _read_listing(self) -> Any:
+    def _read_listing(self, deadline: float | None = None) -> Any:
         """The listing payload, read again after a 5xx or a fast network
         error while time is left: every page, read and wait fits in
         `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
-        case."""
+        case. A `deadline` set by an earlier read is kept; this read's is
+        saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
             "--paginate",
             "--slurp",
         ]
-        deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
-        timeout = LISTING_TIMEOUT_SECONDS
+        if deadline is None:
+            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+            timeout = LISTING_TIMEOUT_SECONDS
+        else:
+            timeout = deadline - _listing_clock()
+            if timeout <= 0:
+                raise _Unreadable("repository artifacts: no time left to list")
+        self._read_deadline = deadline
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
