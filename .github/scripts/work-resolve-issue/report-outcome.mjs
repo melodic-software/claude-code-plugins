@@ -21,9 +21,14 @@
 //             failed or cannot be read for the branch's current tip, whatever
 //             the outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
+//             When a listed human's newest comment, posted since the lane's
+//             last outcome comment, does not open with DECISION_LINE, the
+//             comment links it and shows the line, since the lane counts no
+//             other comment as an answer.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
-//             invalid outcome file is stopped.
+//             invalid outcome file is stopped; with a scan refusal marker
+//             (SCAN_REFUSED_DIR) the comment names the refusal instead.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -80,6 +85,9 @@
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
 //                       key), or empty
+//   SCAN_REFUSED_DIR    the read runner's scan-refusal markers for this run,
+//                       when its scan job refused the run's output and so
+//                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
 //                       the issue dimensions skipped the run
 //                       (work-resolve-issue.yml report-skip), else empty
@@ -92,12 +100,14 @@
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
 //   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
-//                       apply the merge: human hold
+//                       apply the merge: human hold, and whose comments a
+//                       pushback reads
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
-import { appendFileSync, readFileSync } from "node:fs";
+//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
+//                       (the attempt whose scan-refusal markers are read)
+import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -252,6 +262,36 @@ export function readHoldPaths(path) {
   }
 }
 
+// The read runner's scan refusal markers, as address-feedback.mjs scanRefusal
+// reads them; the runner copies only this script's directory, so it cannot
+// import that one. `patch` when a marker names a patch over its cap, `output`
+// for any other, '' for none or an unreadable directory: a failed download
+// claims no refusal here, since the hand-back would name a false cause. Only
+// the current attempt's markers count (the download pattern spans every
+// attempt's), and with no readable attempt none does. A
+// marker's text only picks one of the fixed sentences below, so a forged one
+// puts nothing of its own in the comment.
+const ATTEMPT = /^[1-9][0-9]{0,4}$/;
+export function readScanRefusal(dir, attempt) {
+  if (!ATTEMPT.test(attempt ?? "")) return "";
+  const markerFile = new RegExp(`^scan-refused-${attempt}(-rung-up)?\\.txt$`);
+  let kinds;
+  try {
+    kinds = readdirSync(dir)
+      .filter((name) => markerFile.test(name) && lstatSync(join(dir, name)).isFile())
+      .map((name) => readFileSync(join(dir, name), "utf8").trim());
+  } catch {
+    return "";
+  }
+  return kinds.length === 0 ? "" : kinds.includes("patch") ? "patch" : "output";
+}
+
+// The scan job's refusals, as its decode step names them.
+export const SCAN_REFUSALS = {
+  patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
+  output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
+};
+
 // The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
   let parsed;
@@ -330,9 +370,29 @@ const bullets = (items) =>
     .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
+// The first line that makes a listed human's issue comment a decision the run
+// builds (select-trusted-text's isDecisionComment, which write-issue.mjs
+// applies). A script activity runs from a copy of its own directory, so the
+// rule is restated here, not imported.
+export const DECISION_LINE = "**Decision recorded.**";
+const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
+const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*#issuecomment-[1-9][0-9]*$/;
+
+// The URL of a listed human's newest issue comment after the lanes App's
+// (`bot`) last outcome marker, when they posted it themselves (not through an
+// App) and its first line is not DECISION_LINE; else null. `comments` are
+// oldest first, as GET /issues/{n}/comments lists them.
+export function unmarkedAnswer(comments, humans, bot) {
+  const since = comments.findLastIndex((comment) => comment?.user?.login === bot && parseOutcomeMarker(comment.body) !== null);
+  const last = comments.slice(since + 1).filter((comment) => humans.has(comment?.user?.id)).at(-1);
+  const first = String(last?.body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+  return last && last.performed_via_github_app == null && !DECISION.test(first) && COMMENT_URL.test(last.html_url ?? "") ? last.html_url : null;
+}
+
 // The marker names the run, so --find-prior never reuses a branch whose work
-// this report already handed on.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false }) {
+// this report already handed on. `unmarked` is unmarkedAnswer's URL, which a
+// pushback links with the line it lacks.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null }) {
   const pushback = outcome.exit === "pushback";
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
@@ -346,6 +406,16 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   ]);
   if (outcome.notDone.length) {
     lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
+  }
+  if (pushback && unmarked) {
+    lines.push(
+      "",
+      `The newest comment from a listed maintainer, ${unmarked}, does not start with \`${DECISION_LINE}\`, so the lane did not count it as an answer. If it answers the question, post the answer again in a new comment whose first line is:`,
+      "",
+      "```",
+      `${DECISION_LINE} <answer>`,
+      "```",
+    );
   }
   if (branch) {
     lines.push(
@@ -361,7 +431,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question here, remove \`${humanLabel}\` and add \`agent-ready\` again.`
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then remove \`${humanLabel}\` and add \`agent-ready\` again.`
       : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
   );
   return {
@@ -645,7 +715,8 @@ export function reusePlan({
 // the runner's record ({cap}) when the run reached its turn cap, and
 // `turnCapRestarts` the restarts already made since a person last added
 // agent-ready. `checks` is readChecks' record for the branch's current tip;
-// null stops a done run.
+// null stops a done run. `unmarked` is the comment a pushback links
+// (unmarkedAnswer).
 export function decide({
   outcome,
   issueNumber,
@@ -667,6 +738,7 @@ export function decide({
   checks = null,
   resumed = "",
   escalation = "",
+  unmarked = null,
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   const onResumed = !branch && resumed !== "";
@@ -772,7 +844,7 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed });
+    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked });
   }
   // The outcome file is model output, so its own report never clears this.
   const failed = checkFailures(checks);
@@ -1321,7 +1393,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const ran = readBranch(dir, issueNumber);
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
-    const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    // A run whose scan refused its output left no outcome: say so.
+    const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR, env.GITHUB_RUN_ATTEMPT) : "";
+    if (refusal) {
+      outcome = { ...stopped(SCAN_REFUSALS[refusal]), unread: true };
+    }
     const branch = reuse || ran;
     // A resumed run that finished with no commit of its own deleted its
     // branch; decide() marks it so, and hands a done run back naming the
@@ -1422,6 +1499,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         })
       : 0;
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    // Only a pushback reads the comments; a failed read leaves the link out.
+    const unmarked =
+      !unreported && outcome?.exit === "pushback"
+        ? await paginate(github, `${repo}/issues/${issueNumber}/comments`)
+            .then((list) => unmarkedAnswer(list, readHumans(env.TRUSTED_ACTORS ?? ""), bot))
+            .catch(() => null)
+        : null;
     let plan = unreported
       ? reusePlan({
           issueNumber,
@@ -1455,6 +1539,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
           checks,
           escalation,
+          unmarked,
         });
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds

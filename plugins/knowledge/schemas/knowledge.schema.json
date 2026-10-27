@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/knowledge/schemas/knowledge.schema.json",
+  "title": "Knowledge team config",
+  "description": "Schema for a repository's docs/conventions/knowledge.yaml, the team layer of the knowledge plugin's settings. Keys and resolution: plugins/knowledge/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "upstream_records_dir": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/~\\\\])(?![A-Za-z]:)(?!(.*[/\\\\])?\\.\\.([/\\\\]|$)).+$",
+      "default": "docs/upstream",
+      "description": "Repository-relative directory where /knowledge:absorb-upstream writes its upstream record. Not absolute, no leading ~, no .. segment."
+    }
+  }
+}

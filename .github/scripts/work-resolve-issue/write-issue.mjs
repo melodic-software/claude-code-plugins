@@ -42,7 +42,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { REFINE_MARKER } from "../intake-triage/admit.mjs";
+import { REFINE_MARKER, removalStands } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -83,18 +83,29 @@ async function readIssueEdits(github, repository, number) {
 // with no such event at or before it, the run's is the first one after it.
 // The lanes App's remove-and-re-add after a limit stop (work-unblock's
 // restart) admits nothing new, so it anchors at the label it restarted,
-// which must be the App's or a listed human's.
+// which must be the App's or a listed human's. An App removal that a
+// `status: ready` from the App or a listed human followed before the re-add
+// no longer stands (admit.mjs removalStands): that re-add is a fresh
+// admission and anchors itself.
 async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId, humans, eventAt) {
-  const events = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
-    .filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label)
+  const all = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
     // Times are whole seconds; the event id breaks a tie in the order GitHub recorded them.
-    .sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at) || Number(a.id) - Number(b.id));
+    .sort((a, b) => timeOf(a?.created_at) - timeOf(b?.created_at) || Number(a?.id) - Number(b?.id));
+  const events = all.filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label);
+  const trusted = (event) => event.actor?.id === lanesAppId || humans.has(event.actor?.id);
+  const restart = (removal, readd) => removalStands(all.slice(0, all.indexOf(readd)), (event) => event === removal, trusted);
   const bySender = (event) => event.event === "labeled" && event.actor?.id === senderId;
   let index = events.findLastIndex((event) => bySender(event) && timeOf(event.created_at) <= eventAt);
   if (index < 0) {
     index = events.findIndex((event) => bySender(event) && timeOf(event.created_at) > eventAt);
   }
-  while (index > 0 && events[index].actor?.id === lanesAppId && events[index - 1].event === "unlabeled" && events[index - 1].actor?.id === lanesAppId) {
+  while (
+    index > 0 &&
+    events[index].actor?.id === lanesAppId &&
+    events[index - 1].event === "unlabeled" &&
+    events[index - 1].actor?.id === lanesAppId &&
+    restart(events[index - 1], events[index])
+  ) {
     index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
     if (index >= 0 && events[index].actor?.id !== lanesAppId && !humans.has(events[index].actor?.id)) {
       index = -1;
