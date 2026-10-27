@@ -6,6 +6,14 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.4.1] - 2026-10-27
+
+Patch: clarification. The enforceability verdict stays reasoning-only.
+
+- **The enforceability table says who writes a verdict.** A person or a session acting on the
+  owner's recorded direction writes each verdict, never an unattended run
+  ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)).
+
 ## [3.4.0] - 2026-10-01
 
 Minor: additive guidance. No required part of the description phrase, no canonical gate token and

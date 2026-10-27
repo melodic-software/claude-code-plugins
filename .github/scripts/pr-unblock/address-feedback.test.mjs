@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -1249,4 +1249,51 @@ test("reviewerIdsFrom reads one id per line, an unset value as none, and throws 
   assert.deepEqual(reviewerIdsFrom(""), []);
   assert.throws(() => reviewerIdsFrom("chatgpt-codex-connector[bot]"), /REVIEWER_IDS/);
   assert.throws(() => reviewerIdsFrom("0"), /REVIEWER_IDS/);
+});
+
+// pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at
+// the PR's head; the select job then lists only the stale fail-note threads.
+test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const OLD = "b".repeat(40);
+  const note = (id, commit = OLD, resolved = false) => ({
+    id,
+    isResolved: resolved,
+    comments: { totalCount: 1, nodes: [{ databaseId: 1 }] },
+    root: { nodes: [{ author: { databaseId: 41898282 }, body: `${VERIFY_NOTE_MARKER}\nfailed`, originalCommit: { oid: commit } }] },
+  });
+  const env = (name, extra = {}) => ({
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, `${name}.out`),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, `${name}.json`),
+    RUN_FILE: join(dir, `${name}.run.json`),
+    TRUSTED_ACTORS: join(dir, "absent.json"),
+    VERIFY_PASS_HEAD: HEAD,
+    DISPATCHER_RUN_ID: "5000",
+    ...extra,
+  });
+  const api = (threads) => ({ listThreads: async () => threads });
+  const out = (name) => (existsSync(join(dir, `${name}.out`)) ? readFileSync(join(dir, `${name}.out`), "utf8") : "");
+
+  await main(["select"], env("pass"), { api: api([note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)]), log: () => {} });
+  assert.equal(out("pass"), "resolve-only=true\n");
+  assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
+
+  // None stale, or the PR moved past the passing head: nothing to do, and no
+  // output, so neither a model job nor a neutral check runs.
+  await main(["select"], env("none"), { api: api([note("PRRT_now", HEAD)]), log: () => {} });
+  assert.equal(out("none"), "");
+  assert.equal(existsSync(join(dir, "none.run.json")), false);
+  await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
+  assert.equal(out("moved"), "");
+
+  // Only a dispatcher sends a pass head.
+  await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
+  await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
 });

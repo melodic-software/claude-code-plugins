@@ -14,12 +14,12 @@ The `find` lines are the count, the `du` `total` line is the size, and `df` give
 unreadable path reports `unknown`, never `0`. A non-zero `du` exit or a permission error means a
 partial total: report the size as `unknown` or `at least <total>`.
 
-Preflight removes nothing and blocks on neither field. When the count is above zero, print these
-for the user to run:
+Preflight removes nothing and blocks on neither field. When the count is above zero, print this
+for the user to run. A kept sandbox can hold a mode-000 `sealed/` directory that a recursive
+`chmod -R u+w` cannot enter, so each sandbox and its `sealed/` are opened first:
 
 ```bash
-chmod -R u+w <tmp>/claude-eval-*
-rm -rf <tmp>/claude-eval-*
+for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
 ```
 
 A directory `chmod` cannot enter still needs `sudo rm -rf`.
@@ -48,7 +48,9 @@ outside the system temp directory.
   the temp directory, the read-only `sealed/`, `out/` and `config/` subdirectories, and the
   `sealed/` directories only `sudo` could remove come from an observation on a WSL2 host on
   2026-10-13 (569 directories after about an hour of runs, issue #7431), and match the sandbox
-  paths in `plugins/testing/evals/sandbox-probe-plain/samples/echo-printed.json`.
-- **As of:** 2026-10-20.
+  paths in `plugins/testing/evals/sandbox-probe-plain/samples/echo-printed.json`. The mode-000
+  `sealed/` that refused `chmod -R u+w` and yielded to the per-sandbox loop above comes from a
+  WSL2 host on Claude Code 2.1.309 on 2026-10-23 (issue #9414).
+- **As of:** 2026-10-23.
 - **Recheck when:** a `--keep-temp` run prints a sandbox path outside `<tmp>/claude-eval-*`, the
   docs name the sandbox directory, or a release note says runs remove their sandboxes.

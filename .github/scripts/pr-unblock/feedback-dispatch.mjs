@@ -50,6 +50,15 @@
 // new work at a head an earlier round may have handled, so that dispatch
 // counts only check runs started after the pr-verify run was created
 // (notesSince, read back from the API) and skips the head's handled record.
+// A pr-verify pass whose post-verify-notes job found an open fail-note
+// thread from an earlier head names its head in VERIFY_PASS_HEAD_SHA instead.
+// That dispatch is a pass-only round (input verify-pass-head): it runs no
+// model and posts no address-feedback check, its reply job resolves those
+// threads as the lanes App, so neither the review markers, a workable thread,
+// the human gate (a needs-human PR dispatches here whoever applied the label)
+// nor the head's check runs decide it; the hold labels still skip it. It only
+// resolves notes a later pr-verify pass superseded, and the needs-human label
+// it leaves on still blocks the merge.
 //
 // A round whose reply job skipped no-model-turn, or finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
@@ -126,6 +135,9 @@ const startOf = (run) => Date.parse(run.started_at ?? "");
 // The reply check skips that leave the head for another round.
 const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands"]);
 const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
+// A pass-only round's reply check (publish-feedback.mjs PASS_ONLY_SKIP)
+// answers no thread, so it neither releases a head nor ends a release.
+const roundReplies = (runs) => runs.filter((run) => run.output?.title !== "Skipped: pass-only");
 
 // The SHA the newest marker of `lane` written by the marker author names, or "".
 export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAuthorId) {
@@ -207,6 +219,7 @@ export async function dispatchFeedback({
   now = Date.now(),
   record = emptyRecord(),
   notesSince = null,
+  passOnly = false,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -273,40 +286,44 @@ export async function dispatchFeedback({
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
-  const comments = await api.listIssueComments(number);
-  const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
-  if (unreviewed.length > 0) {
-    return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
-  }
-  const threads = await api.listReviewThreads(number);
-  // A human-gated PR dispatches only for a thread a trusted person with
-  // write access asked the lane to fix, unless a lane escalation put the
-  // label on and no review lane holds the PR. The label stays on either way:
-  // clear-escalations.mjs owns taking it off.
-  const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-  const gate = labeled
-    ? gateSource({
-        timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
-        label: humanGatedLabel,
-        head,
-        isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
-      })
-    : null;
-  const gated = labeled && gate.source !== "lane-escalation";
-  const fixers = await fixRequesters({
-    comments: threads.flatMap((thread) =>
-      thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
-    ),
-    trustedHumans,
-    permission: api.getPermission,
-  });
-  const requesters = gated ? fixers : null;
-  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, requesters, fixers })) {
-    return skip(
-      gated
-        ? `#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`
-        : `#${number} has no unresolved thread left by the reviewer bot alone, asked to be fixed, or answered by a trusted person`,
-    );
+  // A pass-only round reads its own threads and runs no model, so neither the
+  // review markers, a workable thread nor the human gate below decide it.
+  if (!passOnly) {
+    const comments = await api.listIssueComments(number);
+    const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
+    if (unreviewed.length > 0) {
+      return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
+    }
+    const threads = await api.listReviewThreads(number);
+    // A human-gated PR dispatches only for a thread a trusted person with
+    // write access asked the lane to fix, unless a lane escalation put the
+    // label on and no review lane holds the PR. The label stays on either way:
+    // clear-escalations.mjs owns taking it off.
+    const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+    const gate = labeled
+      ? gateSource({
+          timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
+          label: humanGatedLabel,
+          head,
+          isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
+        })
+      : null;
+    const gated = labeled && gate.source !== "lane-escalation";
+    const fixers = await fixRequesters({
+      comments: threads.flatMap((thread) =>
+        thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
+      ),
+      trustedHumans,
+      permission: api.getPermission,
+    });
+    const requesters = gated ? fixers : null;
+    if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, requesters, fixers })) {
+      return skip(
+        gated
+          ? `#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`
+          : `#${number} has no unresolved thread left by the reviewer bot alone, asked to be fixed, or answered by a trusted person`,
+      );
+    }
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
   // concurrency group. The first one's run posts no check until it ends, so
@@ -335,36 +352,38 @@ export async function dispatchFeedback({
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
-  // NaN compares false, so a run with no readable start still counts.
-  const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
-  let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
-  // A round whose reply job skipped no-model-turn (decided from the scan
-  // job's outputs and the select job's head) handled nothing, and one that
-  // skipped finding-stands left a thread for the next round at this head:
-  // the address-feedback check runs that started before that reply job
-  // stop counting, so the next trigger dispatches the head again. Each such
-  // round posted its round marker, so the select job's round cap ends it. A
-  // limit stop is never released: limit-stop.mjs still holds the head until
-  // its reset and counts it toward limits.limit-stops-per-head.
-  let replies = [];
-  if (anyHandles(existing, { now, limits: resolved.limits })) {
-    replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
-    const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-    if (releases(newest)) {
-      const cut = startOf(newest);
-      existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
+  if (!passOnly) {
+    // NaN compares false, so a run with no readable start still counts.
+    const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
+    let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
+    // A round whose reply job skipped no-model-turn (decided from the scan
+    // job's outputs and the select job's head) handled nothing, and one that
+    // skipped finding-stands left a thread for the next round at this head:
+    // the address-feedback check runs that started before that reply job
+    // stop counting, so the next trigger dispatches the head again. Each such
+    // round posted its round marker, so the select job's round cap ends it. A
+    // limit stop is never released: limit-stop.mjs still holds the head until
+    // its reset and counts it toward limits.limit-stops-per-head.
+    let replies = [];
+    if (anyHandles(existing, { now, limits: resolved.limits })) {
+      replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
+      const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+      if (releases(newest)) {
+        const cut = startOf(newest);
+        existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
+      }
     }
-  }
-  // The round's reply job posts its check after the round's address-feedback
-  // check, so until a reply check started after the newest address-feedback
-  // check, a releasing skip may still release the head: it is not
-  // recorded as handled yet (#9362). An unreadable start records nothing.
-  const newestCheck = Math.max(...existing.map(startOf));
-  if (permanentlyHandles(existing, { limits: resolved.limits }) && replies.some((run) => startOf(run) > newestCheck)) {
-    markHandled(record, settings.checkName, head);
-  }
-  if (anyHandles(existing, { now, limits: resolved.limits })) {
-    return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
+    // The round's reply job posts its check after the round's address-feedback
+    // check, so until a reply check started after the newest address-feedback
+    // check, a releasing skip may still release the head: it is not
+    // recorded as handled yet (#9362). An unreadable start records nothing.
+    const newestCheck = Math.max(...existing.map(startOf));
+    if (permanentlyHandles(existing, { limits: resolved.limits }) && replies.some((run) => startOf(run) > newestCheck)) {
+      markHandled(record, settings.checkName, head);
+    }
+    if (anyHandles(existing, { now, limits: resolved.limits })) {
+      return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
+    }
   }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,
@@ -373,6 +392,7 @@ export async function dispatchFeedback({
       "pr-number": String(number),
       activity: settings.activity,
       "dispatcher-run-id": String(runId),
+      ...(passOnly ? { "verify-pass-head": head } : {}),
     },
   });
   const id = String(workflowRunId);
@@ -410,7 +430,7 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
 }
 
 async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
-  const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
+  const replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }));
   const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
   if (!releases(newest)) {
     return null;
@@ -652,10 +672,15 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     return 0;
   }
   let notesSince = null;
+  let passOnly = false;
   if (upstream?.path === VERIFY_WORKFLOW) {
-    const head = env.VERIFY_HEAD_SHA ?? "";
+    if (env.VERIFY_HEAD_SHA && env.VERIFY_PASS_HEAD_SHA) {
+      throw new Error("a pr-verify run names exactly one head: VERIFY_HEAD_SHA or VERIFY_PASS_HEAD_SHA");
+    }
+    passOnly = Boolean(env.VERIFY_PASS_HEAD_SHA);
+    const head = (passOnly ? env.VERIFY_PASS_HEAD_SHA : env.VERIFY_HEAD_SHA) ?? "";
     if (!SHA.test(head)) {
-      throw new Error("a pr-verify run names no posted head in VERIFY_HEAD_SHA");
+      throw new Error("a pr-verify run names no posted head in VERIFY_HEAD_SHA, nor a passing one in VERIFY_PASS_HEAD_SHA");
     }
     notesSince = Date.parse((await client.getWorkflowRun(upstream.id)).created_at ?? "");
     if (Number.isNaN(notesSince)) {
@@ -667,7 +692,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       return 0;
     }
   }
-  const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince }).finally(summary);
+  const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince, passOnly }).finally(summary);
   if (dispatched !== null) {
     appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\nupstream-run-id=${upstream.id}\n`);
   }

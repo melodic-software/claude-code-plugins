@@ -1570,6 +1570,36 @@ class TestStatusLive(DirCase):
         g1 = json.loads(out)["groups"][0]
         self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
 
+    def test_an_answer_superseded_after_it_counts_nowhere(self):
+        """#9715: status reads supersededBy before the decision, as export-ledger does, so the two
+        agree once an answered question is superseded."""
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at}]
+        )
+        ledger = self.tmp / "ledger.md"
+
+        def counts():  # (answered per status --json, Q1's export-ledger status)
+            rc, out, err = self.rp("status", "--json")
+            self.assertEqual(rc, 0, out + err)
+            answered = sum(g["answered"] for g in json.loads(out)["groups"])
+            rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+            self.assertEqual(rc, 0, out + err)
+            rows = [
+                line.split(" | ")
+                for line in ledger.read_text(encoding="utf-8").splitlines()
+                if line.startswith("- Q")
+            ]
+            return answered, next(r[1] for r in rows if r[0] == "- Q1")
+
+        self.assertEqual(counts(), (1, "answered"))
+        rc, out, err = self.rp(
+            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(counts(), (0, "withdrawn"))
+
     def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
         doc = base_doc()
         doc["questions"][0]["commits"] = ["No network"]
@@ -4678,6 +4708,103 @@ class TestRoundRestate(DirCase):
         self.assertNotIn("rounds", self.doc())
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestSweepRound(DirCase):
+    """#9695: a round of sweep questions carries meta.kind "sweep", and a question names the
+    earlier answers it reconciles."""
+
+    def spec(self, meta=None, **extra):
+        q = question("Q4", round=2, dependsOn=[], reconciles=["Q1"], **extra)
+        body = {
+            "questions": [q],
+            "restate": {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]},
+        }
+        body["meta"] = {"kind": "sweep"} if meta is None else meta
+        return body
+
+    def post(self, spec):
+        path = self.tmp / "sweep-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_sweep_round_with_reconciles_is_posted(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertEqual(self.q("Q4")["reconciles"], ["Q1"])
+        self.assertNotIn("kind", self.doc()["meta"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_kind_beside_other_meta_keys_merges_the_rest(self):
+        spec = self.spec(meta={"kind": "sweep", "eyebrow": "Sweep"})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["eyebrow"], "Sweep")
+        self.assertNotIn("kind", self.doc()["meta"])
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_apply_posts_a_sweep_round(self):
+        op = {"op": "add-round", **self.spec()}
+        rc, out, err = self.rp("apply", "--file", self.post({"ops": [op]}))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_a_reconciles_id_not_in_the_register_is_refused_naming_it(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q1", "Q99"]
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q99", out)
+        self.assertIn("not in the register", out)
+        self.assertNotIn("Q1,", out)
+
+    def test_apply_refuses_an_unknown_reconciles_id(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q42"]
+        out = self.assert_refused("apply", "--file", self.post({"ops": [{"op": "add-round", **spec}]}))
+        self.assertIn("Q42", out)
+
+    def test_reconciles_must_be_a_list_of_ids(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = "Q1"
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("reconciles", out)
+
+    def test_an_unknown_kind_is_refused(self):
+        out = self.assert_refused("add-round", "--file", self.post(self.spec(meta={"kind": "audit"})))
+        self.assertIn("meta.kind", out)
+
+    def test_a_kind_on_a_round_without_questions_is_refused(self):
+        out = self.assert_refused(
+            "add-round", "--file", self.post({"meta": {"kind": "sweep"}, "groups": [{"id": "g3", "title": "T"}]})
+        )
+        self.assertIn("meta.kind", out)
+
+    def test_reconciles_may_not_name_a_question_of_the_same_write(self):
+        spec = self.spec()
+        spec["questions"].append(question("Q5", round=2, dependsOn=[], reconciles=["Q4"]))
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q5 reconciles Q4", out)
+
+    def test_a_later_write_to_the_sweep_round_keeps_its_kind(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        more = {
+            "questions": [question("Q5", round=2, stage="interview", dependsOn=[])],
+            "restate": {"text": "Q4 is open. Q5 joins it.", "decided": [], "open": ["Q4", "Q5"]},
+        }
+        rc, out, err = self.rp("add-round", "--file", self.post(more))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertIn("Q5 joins it", entry["restate"]["text"])
+
+    def test_an_ordinary_round_has_no_kind(self):
+        spec = self.spec(meta={})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("kind", self.doc()["rounds"][0])
 
 
 if __name__ == "__main__":

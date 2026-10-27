@@ -72,6 +72,11 @@ if [[ $rc -eq 1 && "$out" == *"STALE BASE"* && "$out" == *"shared.txt"* ]]; then
 else
   fail "overlapping behind-base: rc=$rc out='$out'"
 fi
+if [[ "$out" == *"integrate main (merge"* ]]; then
+  ok "the refresh hint names the base ref as given, with no origin/ prefix added"
+else
+  fail "refresh hint ref: out='$out'"
+fi
 
 # --- behind with disjoint paths ---
 repo="$scratch/disjoint"

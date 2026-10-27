@@ -14,9 +14,10 @@ Contract enforced here (encoded as code, not convention):
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
-  evidence binds a re-run after (`class=rate-limit`, or the lane's publish
-  failure on GitHub's API rate limit), five hours after the failure, once per
-  run on the pinned live head. No other failure class is re-run, and the
+  evidence binds a re-run after and the gate re-runs (`class=rate-limit` or
+  the lane's publish failure on GitHub's API rate limit, five hours after the
+  failure; the lane's `install-failed` failure at once), once per run on the
+  pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
@@ -299,18 +300,22 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # An AI review check that failed on the Claude usage limit carries a
 # `class=rate-limit` annotation on its check run (ci-workflows
 # `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
-# API rate limit carries the lane's publish failure line. Under `--merge` the
-# gate re-runs that check's workflow run once the limit has reset, instead of
-# holding on it until a person re-runs it, on exactly the annotations
-# `review_evidence.rate_limited` accepts, so the re-run's attempt binds
-# (`review_evidence.rerun_binds` accepts more: a rejected credential or a
-# kill-switch stop, which the gate leaves to a person).
-# "Reset" is conservative: the shortest plan limit is a five-hour session
-# window (https://support.claude.com/en/articles/11145838, checked
-# 2026-10-09), so five hours after the failure that window has reset whenever
-# it started. A weekly limit outlasts it; the re-run then fails again and
-# stays failed, since a run is re-run at most once.
+# API rate limit, or whose runner isolation or CLI install failed, carries the
+# lane's publish failure line. Under `--merge` the gate re-runs that check's
+# workflow run instead of holding on it until a person re-runs it, on exactly
+# the classes `review_evidence.GATE_RERUN_CLASSES` names, so the re-run's
+# attempt binds (`review_evidence.rerun_binds` accepts more: a rejected
+# credential or a kill-switch stop, which the gate leaves to a person).
+# A rate limit is re-run once it has reset. "Reset" is conservative: the
+# shortest plan limit is a five-hour session window
+# (https://support.claude.com/en/articles/11145838, checked 2026-10-09), so
+# five hours after the failure that window has reset whenever it started. A
+# weekly limit outlasts it; the re-run then fails again and stays failed,
+# since a run is re-run at most once. A failed install is re-run at once: a
+# slow package mirror is not a window to wait out. Any class the gate re-runs
+# that is not listed here waits.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
+NO_WAIT_RERUN_CLASSES = frozenset({review_evidence.INSTALL_FAILED})
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
 
@@ -342,13 +347,14 @@ def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> 
 def rerun_rate_limited_review(
     repo: str, head: str, check: dict[str, Any]
 ) -> dict[str, Any]:
-    """Re-run one failed AI review check's workflow run when it failed on the
-    usage limit, the limit has reset, and the run was not re-run before.
+    """Re-run one failed AI review check's workflow run when it failed on a
+    class in `review_evidence.GATE_RERUN_CLASSES`, a rate limit has reset, and
+    the run was not re-run before.
 
     Every other case is reported with its reason and left alone: another
     failure class is never re-run. The whole run is re-run, not its failed
     jobs, because a lane whose status job reads a separate review job's output
-    would re-read the cached rate-limit result and fail again.
+    would re-read the cached failed result and fail again.
     """
     report: dict[str, Any] = {"check": check["name"], "rerun": False}
     match = ACTIONS_JOB_URL_RE.search(check.get("details_url") or "")
@@ -375,13 +381,6 @@ def rerun_rate_limited_review(
         if completed is None:
             report["reason"] = "job completion time unreadable"
             return report
-        due = completed + RATE_LIMIT_RERUN_DELAY
-        if _now() < due:
-            report["reason"] = (
-                "waiting for the usage limit to reset; re-run due at "
-                + due.isoformat().replace("+00:00", "Z")
-            )
-            return report
         annotations = json_array(
             gh_json(
                 [
@@ -402,8 +401,25 @@ def rerun_rate_limited_review(
         ),
         "",
     )
-    if not review_evidence.rate_limited(lane, {"annotations": annotations}):
-        report["reason"] = "failure class is not rate-limit; never re-run"
+    classes = review_evidence.rerun_classes(lane, {"annotations": annotations})
+    # A class left to a person (a rejected credential) refuses even beside one
+    # the gate re-runs: the re-run would spend the one allowed attempt.
+    if not classes or not classes <= review_evidence.GATE_RERUN_CLASSES:
+        # babysit_merge_skip.STABLE_RERUNS keys on this reason's opening.
+        report["reason"] = (
+            "failure class is not one the gate re-runs ("
+            + ", ".join(sorted(review_evidence.GATE_RERUN_CLASSES))
+            + "); never re-run"
+        )
+        return report
+    due = completed + (
+        timedelta(0) if classes <= NO_WAIT_RERUN_CLASSES else RATE_LIMIT_RERUN_DELAY
+    )
+    if _now() < due:
+        report["reason"] = (
+            "waiting for the usage limit to reset; re-run due at "
+            + due.isoformat().replace("+00:00", "Z")
+        )
         return report
     # The binding takes attempt 2 only after an attempt 1 that concluded
     # failure (review_evidence.rerun_binds), so the re-run must too.
@@ -4167,7 +4183,8 @@ def _whole_review_record(
 ) -> tuple[str, dict[str, Any] | None]:
     """The reasons comment body with every whole-review record line the
     prior comment holds, and the request: `{"toggle": True}` when this run
-    records a new one. A lane pull request scored `wholeReviewWanted` whose
+    records a new one. A pull request the agent identity opened or the lane
+    adopted (`Eligibility.adoption`), scored `wholeReviewWanted`, whose
     comment is not escalated, with no record at this head and fewer than
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
@@ -4182,9 +4199,10 @@ def _whole_review_record(
     author = merge_policy.actor_key(
         {"__typename": user.get("type"), "login": user.get("login")}
     )
+    adopted = getattr(inputs.get("eligibility"), "adoption", None)
     if (
         (policy.details or {}).get("wholeReviewWanted") is not True
-        or author != str(inputs.get("identity") or "").casefold()
+        or (author != str(inputs.get("identity") or "").casefold() and not adopted)
         or text.endswith(RISK_ESCALATION_LINE)
     ):
         return kept, None

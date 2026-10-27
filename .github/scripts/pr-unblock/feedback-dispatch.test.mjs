@@ -675,6 +675,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
         number: 42,
         state: "OPEN",
         isDraft: false,
+        mergedAt: null,
         headRefName: "feat/x",
         headRefOid: HEAD,
         baseRefName: "main",
@@ -693,6 +694,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
       number: 42,
       state: "open",
       draft: false,
+      merged_at: null,
       user: { id: APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" },
       labels: [{ name: "needs-human" }],
       head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPOSITORY } },
@@ -1340,4 +1342,77 @@ test("main takes the listed review bots from REVIEWER_IDS", async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A pr-verify pass whose post-verify-notes job found an open fail-note thread
+// from an earlier head names its head in VERIFY_PASS_HEAD_SHA: the dispatch
+// sends a pass-only round, which needs no workable thread, no review marker
+// and no check-run room, since it runs no model and posts no address-feedback
+// check.
+async function passMain(dir, api, env = { VERIFY_PASS_HEAD_SHA: HEAD }) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, VERIFY_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      ...env,
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+test("a pr-verify pass with stale fail notes sends a pass-only round through the newest review run at its head", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
+  const api = verifyApi({ threads: [], comments: [], checkRuns: [after] });
+  const { output } = await passMain(dir, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs), [
+    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a pass-only round waits like any round: not while a run for the PR is going, nor on a held PR", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
+  const busy = verifyApi({ workflowRuns: [going] });
+  await passMain(dir, busy);
+  assert.deepEqual(busy.calls.dispatch, []);
+  const held = verifyApi({
+    pulls: [{ number: 42, state: "open", draft: false, user: { id: APP_ID }, labels: [{ name: "do-not-merge" }], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }],
+  });
+  await passMain(dir, held);
+  assert.deepEqual(held.calls.dispatch, []);
+});
+
+test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  await assert.rejects(passMain(dir, verifyApi(), { VERIFY_HEAD_SHA: HEAD, VERIFY_PASS_HEAD_SHA: HEAD }), /exactly one/);
+  await assert.rejects(passMain(dir, verifyApi(), {}), /VERIFY_HEAD_SHA/);
+});
+
+// A pass-only round's reply job resolves stale fail notes and skips pass-only
+// (publish-feedback.mjs). It answers no thread, so it must not hide the
+// release of the round before it.
+const passOnly = (started = "2026-10-17T13:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: pass-only", started);
+
+test("a pass-only round's reply check after a finding-stands skip leaves the head released, for a review completion and a tick", async (t) => {
+  const record = emptyRecord();
+  const { result } = await decideWith(fakeApi({ checkRuns: [answeredRound, findingStands(), passOnly()] }), record);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.equal(record.handled.size, 0);
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
 });
