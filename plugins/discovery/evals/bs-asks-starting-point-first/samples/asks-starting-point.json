@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Before I scan: what is your starting point? What do you already know about refunds and about this repository?",
+      "why": "skill wording"
+    },
+    {
+      "answer": "One question first. How familiar are you with src/payments and with refund flows in general?",
+      "why": "familiar"
+    },
+    {
+      "answer": "Have you worked with the ledger or refund code here before, or is this all new to you?",
+      "why": "worked with / new to"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are your blindspot cards:\n\n### Landmine\n...",
+      "why": "no question, went straight to cards"
+    },
+    {
+      "answer": "Should I write the prompt to a file?",
+      "why": "a question, not about the starting point"
+    },
+    {
+      "answer": "I will not ask what you already know, here are the cards.",
+      "why": "negated, no question"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

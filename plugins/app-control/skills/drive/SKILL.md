@@ -45,22 +45,30 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
    root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
-   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
-   whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
-   starts with `control-`). Drop a match inside a submodule or a dependency folder such as
-   `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
-   source is `project`.
-2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
-   the folder the list reports for it (see the plugin list below), look in its
-   `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. Its source is
+   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). First drop every
+   file they return from inside a submodule, a dependency folder such as `node_modules` or
+   `vendor`, or a repository plugin folder, and a main-checkout file at a path this checkout also
+   holds. A repository plugin folder is a `.claude/skills/*/` folder that the plugin pages load as
+   a plugin from the skills directory (read which folders qualify at the repository plugins pointer
+   below). Search each one as step 2 searches a listed plugin's folder, in place of the dropped
+   files, and apply step 2's inline-command `blocked:` case to its manifest. Of the files left and
+   those found, keep each whose folder name, file name without `.md`, or frontmatter `name` is
+   `control-<app>` (no `<app>`: starts with `control-`). Its source is `project`.
+2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports whose
+   folder step 1 did not already search, take the folder the list reports for it (see the plugin
+   list below) and search the skill and command files it loads from its default folders and its
+   `.claude-plugin/plugin.json` `skills` and `commands` keys, located as the manifest page's
+   component paths and path rules say (see the manifest's component paths below). Read no path that
+   resolves outside the folder. Keep matches by step 1's rule, except that a `commands` map entry's
+   `source` file is kept or dropped by the entry's key alone, under that rule. Its source is
    `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
-   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below);
-   a folder with no manifest takes the name the manifest page gives it (see the manifest file
-   below). Session-only plugins are not read. Two cases record a `blocked:` line and stop the run,
-   each only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
-   when step 1 kept no repository match for that app: a listed plugin whose manifest defines
-   `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
-   see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
+   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below); a
+   folder with no manifest takes the name the manifest page gives it (see the manifest file below).
+   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each
+   only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
+   when step 1 kept no repository match for that app: a listed plugin, or a repository plugin
+   folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
+   file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
@@ -105,13 +113,20 @@ fields and what it shows from inside a session:
 <https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; the manifest file
 and the name a plugin without one takes:
 <https://code.claude.com/docs/en/plugins/manifest-reference#manifest-file>; the manifest's
-commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; plugin skills and
-commands: <https://code.claude.com/docs/en/plugins/components#skills>,
+commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; the manifest's
+component paths and path rules, and how each key combines with its default folder:
+<https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#path-rules>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>;
+plugin skills and commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
+repository plugins and the skills-directory origin:
+<https://code.claude.com/docs/en/plugins/loading#plugins-shared-through-a-repository>,
+<https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
 worktree entry is the main checkout: <https://git-scm.com/docs/git-worktree#_list_output_format>.
-All as of 2026-10-25; recheck when any of them changes.
+All as of 2026-10-26; recheck when any of them changes.
 
 ## Rules
 

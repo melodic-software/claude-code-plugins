@@ -465,7 +465,8 @@ const closedElsewhere = (args) => (blocker) => {
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is
 // asked and counting each admission against its room. A lane paused over its
-// WIP or held cap admits nothing, as intake's admission does.
+// WIP or held cap, or a queued count that could not be read (fail-open),
+// admits nothing, as intake's admission does.
 function admissionGate(status) {
   let room;
   let reason;
@@ -477,13 +478,16 @@ function admissionGate(status) {
         ? `the issue lane is paused (${pause})`
         : reason === "search-incomplete"
           ? "GitHub search answered incomplete results"
-          : "queued work is at the queued cap",
+          : reason === "fail-open"
+            ? "the issue lane's queued count could not be read"
+            : "queued work is at the queued cap",
     take: async () => {
       if (room === undefined) {
         const s = await status();
         pause = s.paused ? s.pause_reason : null;
-        room = pause ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
-        reason = s.admission_reason;
+        const unread = s.admission_basis === "fail-open";
+        room = pause || unread ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
+        reason = unread ? "fail-open" : s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
         }

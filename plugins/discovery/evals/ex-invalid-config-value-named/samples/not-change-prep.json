@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "explore_output: explain (auto from the default; how-does-it-work request)\n\n`docs/conventions/discovery.yaml` sets `explore_output: walkthrough`, which is not auto, change-prep or explain; that layer is dropped.\n\n1. schedule (src/retry/scheduler.py:4) returns None once attempt reaches max_attempts (src/retry/scheduler.py:5).",
+      "why": "explain"
+    },
+    {
+      "answer": "Valid values are auto, change-prep or explain.\nexplore_output: explain (auto)",
+      "why": "lists change-prep as a valid value, not as the shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "explore_output: change-prep (auto; fell through to a lower layer)",
+      "why": "change-prep shape"
+    },
+    {
+      "answer": "**explore_output**: `change-prep`",
+      "why": "bold form"
+    }
+  ]
+}

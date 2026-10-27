@@ -176,14 +176,15 @@ function world({
         const items = queuedIssues.map((number) => ({ number }));
         return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
       }
-      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+      // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
+      if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
           throw new Error(`${method} ${path} failed with status 403`);
         }
         const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
         return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
       }
-      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/[\w-]+ (merged|created):>=\S+$/);
       if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
@@ -2935,7 +2936,7 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
 });
 
 // A degraded search answers a false empty (total_count 0, incomplete_results
-// true): past pause-from that admits nothing, where a failed read fails open.
+// true): that admits nothing, with or without pause-from.
 test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   for (const config of [PAUSING, {}]) {
@@ -2946,6 +2947,19 @@ test("an incomplete search answer defers a newly unblocked issue, with or withou
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #20 admission deferred: GitHub search answered incomplete results"), lines.join("\n"));
   assert.ok(!lines.some((line) => line.includes("at the queued cap")), lines.join("\n"));
+});
+
+// A queued count check-wip-cap could not read (admission_basis fail-open)
+// admits nothing either, as intake's admission defers on it.
+test("a queued count that could not be read defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const config of [PAUSING, {}]) {
+    const { github, calls } = world({ ...oneDependentWorld(), openLanePrs: null });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [deferredLabel(20)], JSON.stringify(config));
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: the issue lane's queued count could not be read"), lines.join("\n"));
 });
 
 test("at the queued cap the deferral names the queued cap", async (t) => {
