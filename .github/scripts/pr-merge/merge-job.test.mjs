@@ -1466,9 +1466,9 @@ test("a rate-limited first read stops the step red before the re-run, naming the
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
 
-test("post-merge-dispatch's rate-limited output also carries the re-run and alert steps' stops", () => {
+test("post-merge-dispatch's rate-limited output also carries the cover, re-run and alert steps' stops", () => {
   const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
-  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
+  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.cover\.outputs\.stop \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {
@@ -1484,7 +1484,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   // and nothing is sent after the dispatch stopped on a rate limit.
   assert.match(
     rerun,
-    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
   );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);
@@ -1715,19 +1715,101 @@ test("a rate-limited read or send stops red with the stop as the job's output, s
   assert.match(jobBlock("post-merge-dispatch"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
-// Every merge's run is sent, as dispatch-full-run starts it: whoever merged,
-// whatever the kill switch and report-only say, and after a dispatch or
-// re-run that failed for any reason but a rate limit.
-test("the alert send runs whatever the switches say, after the re-run, and stops only after a rate limit", () => {
+// Every merge's run is sent, as dispatch-full-run starts it, whoever merged,
+// after a dispatch or re-run that failed for any reason but a rate limit, and
+// only while the kill switch is off (review decision on #10491: the scheduled
+// job acts only with the switch off; report-only merges nothing, so the alert
+// still runs under it).
+test("the alert send runs after the re-run while the switch is off, and stops after a rate limit", () => {
   const list = earlySteps();
   const alert = step("Send a red full run to the demotion alert", list);
   assert.match(
     alert,
-    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
   );
-  assert.doesNotMatch(alert, /steps\.(kill|mode)\./);
   const names = list.map((s) => s.name);
   assert.deepEqual(names.slice(-2), ["Send a red full run to the demotion alert", "Record the alert sent"]);
+});
+
+// The scheduled job's cover read, run with .base at this checkout (the rate
+// guard) against a fake gh whose listing answers `answer`: "limited" with the
+// rate-limited 403, "x" with a 502.
+const runPostMergeCover = (answer) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-pm-cover-"));
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash
+inc=; args=()
+for a in "$@"; do if [ "$a" = -i ]; then inc=1; else args+=("$a"); fi; done
+echo "\${args[*]}" >>"${dir}/calls"
+if [ "${answer}" = limited ]; then [ -z "$inc" ] || printf '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi
+[ -z "$inc" ] || printf 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo '{}'; echo "gh: Server Error (HTTP 502)" >&2; exit 1
+`,
+    );
+    chmodSync(join(bin, "gh"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Read main's full-run cover", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "output"), REPO: "o/r", TIP: ALERT_SHA, CAP_MINUTES: "30" },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    return { status: result.status, out: result.stdout + result.stderr, output: read("output"), calls: read("calls").split("\n").filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+// stop-on-limit (docs/conventions/pr-pipeline/README.md, rate-stop.bash): a
+// cover read refused for a rate limit stops the step red with the stop as the
+// job's rate-limited output, and no later step of the job calls GitHub.
+test("a rate-limited cover read stops post-merge-dispatch red, and nothing after it calls GitHub", () => {
+  const limited = runPostMergeCover("limited");
+  assert.equal(limited.status, 1, limited.out);
+  assert.equal(limited.calls.length, 1);
+  assert.match(limited.out, /::error title=GitHub rate limit::the read of main's full runs was rate limited \(the core pool until 2100-01-01T00:00:00Z\)/);
+  assert.match(limited.output, /^rate-limited=true$/m);
+  assert.match(limited.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
+  // Any other failed read is no stop: no cap applies, as before.
+  const other = runPostMergeCover("x");
+  assert.equal(other.status, 0, other.out);
+  assert.doesNotMatch(other.output, /rate-limited|stop=/);
+  assert.match(other.out, /::warning::the read of main's full runs failed; no cap applies to this run/);
+
+  const list = earlySteps();
+  const live = { "steps.kill.outputs.proceed": "true", "steps.mode.outputs.live": "true", "steps.post-merge.outputs.code": "0", "steps.post-merge.outputs.needs-dispatch": "true", "steps.post-merge.outputs.lane-rerun": "11", "steps.cover.outputs.uncovered": "true" };
+  const after = ["Start the full CI run on main", "Re-run a red lane-dispatched full run", "Send a red full run to the demotion alert"];
+  // Control: with the read answered, each later API step runs.
+  for (const name of after) assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, name);
+  const stopped = { ...live, "steps.cover.outputs.rate-limited": "true", "steps.cover.outputs.stop": "the core pool until 2100-01-01T00:00:00Z" };
+  for (const name of after) assert.equal(stepRuns(step(name, list), (p) => stopped[p] ?? "", "failure"), false, name);
+  // The merge and enable-auto-merge jobs stop on that output.
+  for (const id of ["merge", "enable-auto-merge"]) {
+    const first = stepsOf(jobBlock(id)).find((s) => s.name === "Stop on post-merge-dispatch's rate limit");
+    assert.ok(first, id);
+    assert.match(first.block, /\n {8}if: needs\.post-merge-dispatch\.outputs\.rate-limited != ''\n/);
+  }
+});
+
+// Review decision on #10491: post-merge-dispatch reads the cover, dispatches
+// and sends to the alert only with the kill switch off, and reads the cover
+// and dispatches only while the lane is live (report-only off), as the
+// post-merge check did. dispatch-full-run's push carve-out stays.
+test("the kill switch stops the scheduled job's cover read, dispatch and alert send", () => {
+  const list = earlySteps();
+  const gated = ["Read main's full-run cover", "Start the full CI run on main", "Send a red full run to the demotion alert"];
+  const base = { "steps.cover.outputs.uncovered": "true", "steps.post-merge.outputs.needs-dispatch": "true" };
+  const killed = { ...base, "steps.kill.outputs.proceed": "false" };
+  for (const name of gated) assert.equal(stepRuns(step(name, list), (p) => killed[p] ?? "", "success"), false, `${name} with the switch on`);
+  const reportOnly = { ...base, "steps.kill.outputs.proceed": "true" };
+  assert.equal(stepRuns(step("Read main's full-run cover", list), (p) => reportOnly[p] ?? "", "success"), false, "cover while report-only");
+  assert.equal(stepRuns(step("Start the full CI run on main", list), (p) => reportOnly[p] ?? "", "success"), false, "dispatch while report-only");
+  assert.equal(stepRuns(step("Send a red full run to the demotion alert", list), (p) => reportOnly[p] ?? "", "success"), true, "the alert merges nothing");
+  const live = { ...reportOnly, "steps.mode.outputs.live": "true" };
+  for (const name of gated) assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, `${name} while live`);
 });
 
 // The merge job's check, run with this run's post-merge-dispatch report kept

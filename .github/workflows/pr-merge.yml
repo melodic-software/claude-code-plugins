@@ -39,9 +39,9 @@ name: pr-merge
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing; at most one per 30 minutes, and a merge that cap skips gets
 # its run of main's tip from the post-merge-dispatch job on the next scheduled
-# run. That run raises no workflow_run event (GITHUB_TOKEN started it), so
-# when it ends red the post-merge-dispatch job on the next scheduled run sends
-# its run id and head SHA to
+# run while the lane is live. That run raises no workflow_run event
+# (GITHUB_TOKEN started it), so when it ends red the post-merge-dispatch job
+# on the next scheduled run with the switch off sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
 # re-run fails too. A red run this workflow dispatched gets its one re-run
@@ -132,7 +132,7 @@ jobs:
     outputs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
-      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -252,10 +252,15 @@ jobs:
           if-no-files-found: error
 
       # The same body as dispatch-full-run's step of this name; see there.
-      # It runs whether or not the post-merge check did: a merge the cap
-      # skipped gets its run here, while the kill switch is on too.
+      # It runs whether or not the post-merge check did, while the lane is
+      # live: a merge the cap skipped gets its run here. With the kill switch
+      # or report-only on, this job sends nothing; dispatch-full-run's push
+      # carve-out still starts a run per merge outside the cap. A read stopped
+      # on a rate limit stops the step red, as the alert step's, and its stop
+      # is the job's rate-limited output: nothing after it calls GitHub.
       - name: Read main's full-run cover
         id: cover
+        if: steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -263,9 +268,19 @@ jobs:
           CAP_MINUTES: 30
         run: |
           set -euo pipefail
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
           if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
             --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
             cat "$RUNNER_TEMP/cover-stderr" >&2
+            stop=$(rate_stop_from "$RUNNER_TEMP/cover-stderr" "the read of main's full runs")
+            if [ -n "$stop" ]; then
+              echo "::error title=GitHub rate limit::the read of main's full runs was rate limited ($stop); nothing more is sent"
+              echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+              echo "stop=$stop" >>"$GITHUB_OUTPUT"
+              exit 1
+            fi
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
@@ -292,7 +307,10 @@ jobs:
       - name: Start the full CI run on main
         id: dispatch
         if: >-
-          steps.cover.outputs.capped != 'true'
+          steps.kill.outputs.proceed == 'true'
+          && steps.mode.outputs.live == 'true'
+          && steps.cover.outputs.rate-limited != 'true'
+          && steps.cover.outputs.capped != 'true'
           && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -406,6 +424,7 @@ jobs:
         id: rerun
         if: >-
           !cancelled()
+          && steps.cover.outputs.rate-limited != 'true'
           && steps.dispatch.outputs.rate-limited != 'true'
           && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
           && steps.post-merge.outputs.lane-rerun != ''
@@ -508,17 +527,22 @@ jobs:
       # and a second red run goes on the next run. Red is attempt 1 concluding
       # in babysit_postmerge.py's FAILED_CONCLUSIONS, except a run the
       # concurrency group replaced before it started (cancelled, no job). Any
-      # merge, whoever merged and whatever the kill switch says, as
-      # dispatch-full-run starts the run. A rate limit stops the step red,
-      # as the re-run step's; any other failed read or send sends nothing more
-      # and leaves the run to the next one. LOOKBACK_HOURS: a red run is sent
-      # within 15 minutes of its end; 6 hours outlasts a day of missed
-      # schedules many times over (judgment).
+      # merge, whoever merged, as dispatch-full-run starts the run, but only
+      # while the kill switch is off: with it on this job sends nothing, and a
+      # red run is sent on the first run after it clears, within
+      # LOOKBACK_HOURS. Report-only does not stop it, since the alert merges
+      # nothing. A rate limit stops the step red, as the re-run step's, and
+      # one the cover read stopped on skips it; any other failed read or send
+      # sends nothing more and leaves the run to the next one. LOOKBACK_HOURS:
+      # a red run is sent within 15 minutes of its end; 6 hours outlasts a day
+      # of missed schedules many times over (judgment).
       - name: Send a red full run to the demotion alert
         id: alert
         if: >-
           !cancelled()
+          && steps.kill.outputs.proceed == 'true'
           && steps.post-merge.outputs.code != '75'
+          && steps.cover.outputs.rate-limited != 'true'
           && steps.dispatch.outputs.rate-limited != 'true'
           && steps.rerun.outputs.rate-limited != 'true'
         env:
@@ -2088,11 +2112,15 @@ jobs:
       # started, skipping a cancelled one (replaced before it started, or
       # cancelled later, which reads red): capped=true when one was created
       # within CAP_MINUTES, uncovered=true when none is at TIP. A failed read
-      # sets neither, so the run dispatches as it would with no cap. A merge
-      # the cap skips is covered by the next push after the window or by
-      # post-merge-dispatch on the next scheduled run, whose dispatch starts
-      # main's tip once nothing covers it, whoever merged and whatever the
-      # kill switch says. CAP_MINUTES: the efficiency plan of 2026-10-26
+      # sets neither, so the run dispatches as it would with no cap, except a
+      # read refused for a rate limit, which stops the step red with
+      # rate-limited=true and sends nothing more. This job has no checkout of
+      # the shared guard, so the match is the pattern rate-stop.bash's
+      # rate_stop_from reads; post-merge-dispatch's copy of this step sources
+      # that guard. A merge the cap skips is covered by the next push after
+      # the window or, while the lane is live, by post-merge-dispatch on the
+      # next scheduled run, whose dispatch starts main's tip once nothing
+      # covers it, whoever merged. CAP_MINUTES: the efficiency plan of 2026-10-26
       # (item 5, owner decision): 116 runs a day at a median 84.1 runner-min
       # become at most 48.
       - name: Read main's full-run cover
@@ -2107,6 +2135,11 @@ jobs:
           if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
             --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
             cat "$RUNNER_TEMP/cover-stderr" >&2
+            if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/cover-stderr"; then
+              echo "::error title=GitHub rate limit::the read of main's full runs was rate limited; nothing more is sent"
+              echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+              exit 1
+            fi
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
@@ -2141,7 +2174,7 @@ jobs:
       # record upload; 180 s of the rest.
       - name: Start the full CI run on main
         id: dispatch
-        if: steps.cover.outputs.capped != 'true'
+        if: steps.cover.outputs.rate-limited != 'true' && steps.cover.outputs.capped != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

@@ -77,7 +77,7 @@ const coverBody = (id) => {
   const block = job(id).split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
   return { block, body: runBody(block) };
 };
-function runCover(runs, { jobId = "dispatch-full-run", fails = false, tip = HEAD } = {}) {
+function runCover(runs, { jobId = "dispatch-full-run", fails = false, limited = false, tip = HEAD } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-cover-"));
   mkdirSync(join(dir, "bin"));
   const now = Date.now();
@@ -98,6 +98,7 @@ function runCover(runs, { jobId = "dispatch-full-run", fails = false, tip = HEAD
     `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"${dir}/log"
 ${fails ? `echo 'gh: Server Error (HTTP 502)' >&2; exit 1` : ""}
+${limited ? `echo '${RATE_LIMITED_STDERR}' >&2; exit 1` : ""}
 while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then exec jq -c "$2" "${dir}/listing.json"; fi; shift; done
 exit 1
 `,
@@ -126,15 +127,24 @@ exit 1
     out: result.stdout + result.stderr,
     capped: /^capped=true$/m.test(output),
     uncovered: /^uncovered=true$/m.test(output),
+    limited: /^rate-limited=true$/m.test(output),
     writes: log.split("\n").filter((l) => l.includes("-X")),
   };
 }
 const OLDER = "89abcdef0123456789abcdef0123456789abcdef";
 
-test("both jobs read main's cover with the same step body, a 30-minute cap and the run's own SHA as the tip", () => {
+// The two copies differ only in how a failed read is classified:
+// post-merge-dispatch sources the shared rate guard from its checkout,
+// dispatch-full-run has none and matches the pattern the guard reads.
+test("both jobs read main's cover with the same cap logic, a 30-minute cap and the run's own SHA as the tip", () => {
   const a = coverBody("dispatch-full-run");
   const b = coverBody("post-merge-dispatch");
-  assert.equal(a.body, b.body);
+  const afterRead = (body) => body.slice(body.indexOf('\n  echo "::warning::the read of main\'s full runs failed'));
+  assert.equal(afterRead(a.body), afterRead(b.body));
+  assert.match(a.body, /grep -qiE 'rate limit\|RATE_LIMITED\|abuse detection\|HTTP 429' "\$RUNNER_TEMP\/cover-stderr"/);
+  assert.match(b.body, /\. \.base\/\.github\/scripts\/pr-merge\/rate-stop\.bash\n/);
+  assert.match(b.body, /stop=\$\(rate_stop_from "\$RUNNER_TEMP\/cover-stderr" /);
+  for (const body of [a.body, b.body]) assert.match(body, /echo "rate-limited=true" >>"\$GITHUB_OUTPUT"\n(?: +echo "stop=\$stop" >>"\$GITHUB_OUTPUT"\n)? +exit 1\n/);
   for (const { block } of [a, b]) {
     assert.match(block, /\n {10}CAP_MINUTES: 30\n/);
     assert.match(block, /\n {10}TIP: \$\{\{ github\.sha \}\}\n/);
@@ -159,7 +169,7 @@ test("a full run of main older than 30 minutes caps nothing, and a run at the ti
   const atTip = runCover([{ minutesAgo: 45, conclusion: "success" }]);
   assert.equal(atTip.capped, false);
   assert.equal(atTip.uncovered, false);
-  assert.deepEqual(runCover([]), { status: 0, out: "", capped: false, uncovered: true, writes: [] });
+  assert.deepEqual(runCover([]), { status: 0, out: "", capped: false, uncovered: true, limited: false, writes: [] });
 });
 
 // A cancelled run is no cover: replaced before it started, or cancelled once
@@ -180,7 +190,22 @@ test("a failed read sets neither output, so the run dispatches as with no cap", 
   assert.equal(r.status, 0);
   assert.equal(r.capped, false);
   assert.equal(r.uncovered, false);
+  assert.equal(r.limited, false);
   assert.match(r.out, /::warning::the read of main's full runs failed; no cap applies to this run/);
+});
+
+// stop-on-limit (docs/conventions/pr-pipeline/README.md): a read refused for a
+// rate limit is no ordinary failure. The step stops red with rate-limited=true
+// and the dispatch after it sends nothing.
+test("a rate-limited read stops dispatch-full-run red, and the dispatch is skipped", () => {
+  const r = runCover([{ minutesAgo: 5 }], { limited: true });
+  assert.equal(r.status, 1, r.out);
+  assert.equal(r.limited, true);
+  assert.equal(r.capped, false);
+  assert.match(r.out, /::error title=GitHub rate limit::the read of main's full runs was rate limited; nothing more is sent/);
+  assert.doesNotMatch(r.out, /no cap applies/);
+  const text = stepIf("dispatch-full-run", "Start the full CI run on main");
+  assert.equal(evalStep(text, outs({ limited: "true", uncovered: "true" })), false);
 });
 
 // The dispatch steps' conditions, evaluated over the cover and post-merge
@@ -194,8 +219,10 @@ const stepIf = (id, name) => {
 };
 const evalStep = (text, steps) =>
   new Function("steps", `return (${text.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(steps);
-const outs = ({ capped = "", uncovered = "", needs = "false" } = {}) => ({
-  cover: { outputs: { capped, uncovered } },
+const outs = ({ capped = "", uncovered = "", needs = "false", limited = "", proceed = "true", live = "true" } = {}) => ({
+  kill: { outputs: { proceed } },
+  mode: { outputs: { live } },
+  cover: { outputs: { capped, uncovered, "rate-limited": limited } },
   "post-merge": { outputs: { "needs-dispatch": needs } },
 });
 
@@ -215,19 +242,24 @@ test("post-merge-dispatch starts main's uncovered tip for any merge, outside the
   assert.equal(evalStep(expr, outs({ needs: "true" })), true, "the lane's own request");
   assert.equal(evalStep(expr, outs({ needs: "true", capped: "true" })), false);
   assert.equal(evalStep(expr, outs()), false, "a covered tip");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", limited: "true" })), false, "a rate-limited cover read");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", proceed: "false", live: "" })), false, "the kill switch on");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", live: "" })), false, "report-only on");
 });
 
-// The backstop must not depend on the lane's switches: dispatch-full-run
-// starts a run for every merge while the kill switch or report-only is on,
-// so the step that covers a merge the cap skipped reads the cover the same
-// way, after the steps those switches skip.
-test("post-merge-dispatch reads the cover whatever the kill switch and report-only say", () => {
+// Review decision on #10491: the scheduled job reads the cover only while the
+// lane is live (kill switch off, report-only off), as its post-merge check
+// does; dispatch-full-run's push carve-out still starts a run per merge.
+test("post-merge-dispatch reads the cover only while the lane is live", () => {
   const dispatch = job("post-merge-dispatch");
   const block = dispatch.split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
-  assert.doesNotMatch(block, /\n {8}if:/);
+  assert.match(block, /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.mode\.outputs\.live == 'true'\n/);
   const names = [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.equal(names.indexOf("Read main's full-run cover") + 1, names.indexOf("Start the full CI run on main"));
   assert.ok(names.indexOf("Check earlier lane merges") < names.indexOf("Read main's full-run cover"));
+  const cover = job("dispatch-full-run").split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
+  assert.doesNotMatch(cover, /\n {8}if:/);
+  assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
 test("the dispatch job's token is actions: write and nothing else", () => {

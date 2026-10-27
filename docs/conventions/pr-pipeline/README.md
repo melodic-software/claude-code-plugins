@@ -2575,8 +2575,8 @@ tests are in
 
 The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
 `workflow_run` event. When that run ends red, pr-merge's `post-merge-dispatch` job sends its run id
-to the alert workflow through `workflow_dispatch` on its next scheduled run, up to 15 minutes
-later. A dispatch `pr-require-checks.yml`'s main-dispatch concurrency group replaced before it
+to the alert workflow through `workflow_dispatch` on its next scheduled run with the kill switch
+off, up to 15 minutes later. A dispatch `pr-require-checks.yml`'s main-dispatch concurrency group replaced before it
 started (cancelled, no job) is no signal: it is never sent, and neither the alert nor the
 post-merge check reads it as red. The alert accepts the id only from
 `github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
