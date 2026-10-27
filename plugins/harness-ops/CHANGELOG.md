@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
 ## [4.11.2] - 2026-10-27
 
 ### Security

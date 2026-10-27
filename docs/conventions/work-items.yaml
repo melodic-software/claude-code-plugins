@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../../plugins/work-items/schemas/work-items.schema.json
+# Team layer for the work-items plugin's settings.
+# Resolution: plugins/work-items/reference/ai-disclaimer.md (ai_disclaimer).
+# Autonomous lane posts here come from a bot account, whose author line already marks them.
+ai_disclaimer: false

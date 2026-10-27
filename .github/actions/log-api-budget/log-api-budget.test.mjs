@@ -734,7 +734,7 @@ test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an
 
 test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
   withDir((dir) => {
-    const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the fail verdict"));
+    const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
     const body = /\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(`${step}\n`)[1].replace(/^ {10}/gm, "");
     for (const sub of [".base/.github/actions/log-api-budget", "bin", "rt"]) {
       mkdirSync(join(dir, sub), { recursive: true });
@@ -753,6 +753,6 @@ test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artif
       env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "::notice::run 77 uploaded no fail verdict; nothing to post\n");
+    assert.equal(result.stdout, "::notice::run 77 uploaded no verdict; nothing to post\n");
     assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core\n");
   }));
