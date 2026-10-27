@@ -96,8 +96,8 @@ read again and saved. A listing taken earlier in the run
 can only lack later uploads, so a refusal on it stands; before the gate's own
 candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
 again on a listing of its own. A listing that got a 5xx or a fast network
-error is read again after each of `LISTING_WAITS`, every read inside one gh
-timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
+error is read again after each of `LISTING_WAITS`, every read inside
+`LISTING_TIMEOUT_SECONDS` in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
 whole queue rather than merging blind. `evidence --shared-listing`
@@ -146,7 +146,6 @@ from babysit_classify import is_dependency_author
 from babysit_gh import (
     flatten_paginated_items,
     gh_http_status,
-    gh_timeout_seconds,
     pull_request_commits_once,
 )
 from babysit_util import is_json_array, is_json_object, json_array, json_object
@@ -215,6 +214,12 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
+# The listing's pages share one timeout (babysit_gh._run_pages), so it grows
+# with the artifact count, not gh's per-call default: 7,522 artifacts took 76
+# pages at 0.7 to 1 s a page on 2026-10-27, past that default's 60 s. 300 s
+# reads about 300 pages at 1 s a page, inside every reader's step timeout
+# (judgment).
+LISTING_TIMEOUT_SECONDS = 300.0
 # The oldest listing a judgment uses, saved or in memory (see the bound),
 # unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
@@ -859,17 +864,17 @@ class Reader:
 
     def _read_listing(self) -> Any:
         """The listing payload, read again after a 5xx or a fast network
-        error while time is left: every read and wait fits in the one gh
-        timeout a single read would get, so a retry adds no time to the run's
-        worst case."""
+        error while time is left: every page, read and wait fits in
+        `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
+        case."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
             "--paginate",
             "--slurp",
         ]
-        deadline = _listing_clock() + gh_timeout_seconds()
-        timeout: float | None = None
+        deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+        timeout = LISTING_TIMEOUT_SECONDS
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
