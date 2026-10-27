@@ -333,8 +333,8 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
 // answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
-    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
-    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs"]],
+    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read", "listing-carry.mjs"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs", "listing-carry.mjs"]],
     ["post-merge-dispatch", ["lane-records.mjs read", "last-report.mjs"]],
   ]) {
     for (const script of scripts) {

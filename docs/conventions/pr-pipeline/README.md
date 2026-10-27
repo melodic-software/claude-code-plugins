@@ -1419,12 +1419,16 @@ leaves it reading more. With no carried run cache, or one whose carried sections
 (the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
 that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
-at once goes cold together: the cold reader starts only when the token's core pool has at least 900
-requests (one cold read's cost) times `max_entries_to_build`, plus the read floor (`limits.api`
-`read-floor` of the planned limit, inlined in the job env), left: 4,600 with the queue building 5. A rule or rate limit that does not read, a stop in the
+at once goes cold together: the cold reader starts only when the token's core pool has at least
+1,520 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, an
+incremental try of at most 13 pages, and 3 whole listings of up to 3 attempts of 77 pages, each
+with a top-up of at most 7) times `max_entries_to_build`, plus the read floor (`limits.api`
+`read-floor` of the planned limit, inlined in the job env), left: 7,700 with the queue building 5.
+An entry with a carried run cache but no carried listing pays the listing's part (up to 727)
+without this check. A rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
-about 6 to 11. It reads with `ci-status`'s token, which holds no `issues`
+about 6 to 11, at most about 15. It reads with `ci-status`'s token, which holds no `issues`
 scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
 The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
@@ -1891,6 +1895,19 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+A listing read from the API builds on the newest whole listing begun within three hours (the
+reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
+hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`
+fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
+highest id until an artifact created two hours before that listing was read, keeps that listing's
+entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
+kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
+malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
+lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
+A whole listing is held to the same count: deduplicated by id, added to the whole listings read
+before it and checked by a top-up from the first page, since one can skip an artifact at a page
+boundary while an earlier one expires (#10486); after three whole listings that never hold the
+live count the candidate refuses `verify:unreadable`.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
