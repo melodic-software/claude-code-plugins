@@ -120,7 +120,8 @@ lock_fd9() {
   if [[ $LOCK_WITH == flock ]]; then
     flock -x 9
   else
-    perl -MFcntl=:flock -e 'open(my $fh, ">>&=", 9) && flock($fh, LOCK_EX) or exit 1'
+    # Two statements: a my variable is not in scope until the statement after it.
+    perl -MFcntl=:flock -e 'open(my $fh, ">>&=", 9) or exit 1; flock($fh, LOCK_EX) or exit 1'
   fi
 }
 
