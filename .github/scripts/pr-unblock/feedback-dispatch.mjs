@@ -52,8 +52,11 @@
 // thread from an earlier head names its head in VERIFY_PASS_HEAD_SHA instead.
 // That dispatch is a pass-only round (input verify-pass-head): it runs no
 // model and posts no address-feedback check, its reply job resolves those
-// threads as the lanes App, so neither the review markers, a workable thread
-// nor the head's check runs decide it; every other condition above holds.
+// threads as the lanes App, so neither the review markers, a workable thread,
+// the human gate (a needs-human PR dispatches here whoever applied the label)
+// nor the head's check runs decide it; the hold labels still skip it. It only
+// resolves notes a later pr-verify pass superseded, and the needs-human label
+// it leaves on still blocks the merge.
 //
 // A round whose reply job skipped no-model-turn, or finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
@@ -281,7 +284,7 @@ export async function dispatchFeedback({
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
   // A pass-only round reads its own threads and runs no model, so neither the
-  // review markers nor a workable thread decide it.
+  // review markers, a workable thread nor the human gate below decide it.
   if (!passOnly) {
     const comments = await api.listIssueComments(number);
     const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
