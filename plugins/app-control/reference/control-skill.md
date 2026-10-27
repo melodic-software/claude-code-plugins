@@ -69,8 +69,10 @@ When the app's work runs on a server behind a browser, write a row per tier for 
 browser profile of a server-rendered app mostly shows the client runtime. Drive records each tier's
 row, one tool per tier, and the artifact name carries the tier.
 
-Write a `threads` command with a `<pid>` placeholder and no elevation prefix. Drive fills in the
-launched pid only after its pid check, and always takes the elevated route for it.
+Write a `threads` command, and a `cpu` or `heap` command that targets a running process, with a
+`<pid>` placeholder and no elevation prefix, and with `<file>` where the tool takes an output path;
+with no `<file>`, the command's stdout is the capture. Drive fills in the launched pid only after
+its pid check, on Linux only, and always takes the elevated route for `threads`.
 
 A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas` or `runas`). When
 a capture needs root or administrator rights, elevate only the recorder against the app's pid, never

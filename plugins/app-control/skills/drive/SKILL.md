@@ -32,7 +32,7 @@ keep going.
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, writing the launch record as "Record at launch" in [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang) binds to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
+| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang), and a `cpu` or `heap` recorder that takes a pid, bind to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -157,14 +157,19 @@ All as of 2026-10-26; recheck when any of them changes.
   lack of permission. In an interactive run it takes the same shown-script step and yes as an
   elevated attach ([Attach](#attach)); with no one present it is `blocked: capture needs elevation`.
   Never re-run a failed command with elevation on its own: the shown script is the only route. For
-  a capture on a process this run launched, the script elevates only the recorder against its pid,
-  never a command that launches the app; such a command that is denied is
-  `blocked: capture needs elevation` with the narrowest grant that would allow it.
+  a capture on a process this run launched, the script elevates only the recorder against its pid
+  and the hand-back of its capture, never a command that launches the app; such a command that is denied is
+  `blocked: capture needs elevation` with the narrowest grant that would allow it. A pid-bound
+  capture's script, and an elevated attach's, is built by
+  `python3 -I ${CLAUDE_PLUGIN_ROOT}/scripts/build_capture_script.py`, never written by hand, as
+  [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md) says; show its full
+  output before the yes.
 - **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
-  [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Unattended: read the
-  launch record and pick its entry as that file says; with none, or an ambiguous choice, the
-  `blocked:` line it names; with an entry picked, `blocked: capture needs elevation`, and stop
-  there with no attempt, no pid recheck and no process lookup. Whether attaching needs root is
+  [`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md). Unattended: on a
+  host other than Linux, its Linux-only `blocked:` line; else read the launch record, pick its
+  entry and check its format as that file says, each failure its `blocked:` line (an invalid pid is
+  `blocked: launched process no longer matches`); only then `blocked: capture needs elevation`, and
+  stop there with no attempt, no pid recheck and no process lookup. Whether attaching needs root is
   upstream: read it at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
@@ -198,8 +203,11 @@ Attaching reaches into a process the person owns, so it runs only in an interact
   process and the exact command run, and says so when this run could have launched the app itself
   instead.
 - **Elevation goes through a shown script.** When attaching needs root or administrator rights,
-  write the command to a script file in a new temporary directory, show its full contents, and run
-  it only after a yes. The script writes the capture into the run directory and hands it back to
+  build the script in a new temporary directory with the builder's `--elevate` and
+  `--attach-pid <pid>`, which
+  binds the pid's uid, start time and command line hash for the script to recheck
+  ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)), show the
+  builder's full output, and run the script only after a yes. The script writes the capture into the run directory and hands it back to
   the person's user; read its exit status and output before reporting. Cleanup deletes the script
   and its temporary directory, never the run directory or the capture.
 
