@@ -3,12 +3,12 @@
 // model job reads contents only and runs under the subprocess env scrub, and
 // the trigger's path filter equals the config's mutate globs.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { commentBody, MARKER, main, mergedPulls, parseResult, render, scores, violations } from "./report.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const AFTER = "a".repeat(40);
 const BEFORE = "b".repeat(40);
@@ -123,7 +123,7 @@ test("mergedPulls keeps the merged pull requests into main and falls back to Gra
 });
 
 function run(env, pulls = []) {
-  const dir = mkdtempSync(join(tmpdir(), "mutation-report-"));
+  const dir = tempDir("mutation-report-");
   const summary = join(dir, "summary.md");
   const comment = join(dir, "comment.md");
   const output = join(dir, "output");

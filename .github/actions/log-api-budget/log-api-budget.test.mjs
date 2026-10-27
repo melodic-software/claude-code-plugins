@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
 import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
@@ -31,7 +32,7 @@ const head = ({ status = 200, used, reset = 1792748042, resource = "core" }) =>
   `X-Ratelimit-Used: ${used}\r\n\r\n`;
 
 function withDir(fn) {
-  const dir = mkdtempSync(join(tmpdir(), "api-budget-"));
+  const dir = tempDir("api-budget-");
   try {
     return fn(dir);
   } finally {
@@ -44,7 +45,7 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
   const result = spawnSync("bash", ["-c", `. "${LIB}"\n${script}`], {
     input,
     encoding: "utf8",
-    env: { PATH: path, RUNNER_TEMP: dir, ...RUNNER, ...env },
+    env: { PATH: path, RUNNER_TEMP: dir, TMPDIR: dir, ...RUNNER, ...env },
   });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status, signal: result.signal };
 }
@@ -495,7 +496,7 @@ test("the stop file reads the same in the shell and in Node: the stops each writ
     bash(dir, `api_budget_stop core ${now + 3600} x-ratelimit-reset one || :\napi_budget_stop '*' ${now + 60} retry-after two || :`);
     assert.deepEqual(readBoth(dir, now), { shell: until, node: until });
   });
-  const dir = mkdtempSync(join(tmpdir(), "api-budget-"));
+  const dir = tempDir("api-budget-");
   try {
     const answers = [
       new Response("{}", { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(now + 3600), "x-ratelimit-resource": "core" } }),

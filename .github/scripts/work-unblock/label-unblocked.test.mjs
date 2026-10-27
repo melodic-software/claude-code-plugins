@@ -5,8 +5,7 @@
 // read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -30,6 +29,7 @@ import {
   infraComment,
   skipText,
 } from "./label-unblocked.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -245,7 +245,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -299,7 +299,7 @@ function world({
 }
 
 function envFor(event = {}, extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "work-unblock-"));
+  const dir = tempDir("work-unblock-");
   const eventPath = join(dir, "event.json");
   writeFileSync(
     eventPath,
@@ -1219,7 +1219,7 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
 // The sweep reads the resolved config's `limits` (hours and counts) from the
 // file resolve-config wrote.
 const withLimits = (limits) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-limits-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify({ limits }));
   return { RESOLVED_CONFIG: path };
 };
@@ -1624,7 +1624,7 @@ test("a run that did no work waits until an hour after it ended, past any rate-l
 // The sweep reads the resolved config's `limits` and `wip`; a past pause-from
 // lets the issue lane pause over its cap.
 const withConfig = (config) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-config-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify(config));
   return { RESOLVED_CONFIG: path };
 };
@@ -3091,6 +3091,18 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   assert.deepEqual(writes(at.calls), []);
 });
 
+// A manual intake re-dispatch skips intake-reenter, so a deferred issue can
+// carry the parked status: confirmed beside status: ready; admission lifts it.
+test("the sweep lifts a parked status: confirmed beside status: ready when it admits a deferred issue", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = deferredWorld({ labels: ["admission-deferred", "status: ready", "status: confirmed"] });
+  assert.equal(await sweep({ github: parked.github }, PAUSING), 0);
+  assert.deepEqual(writes(parked.calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
+  const ready = deferredWorld({ labels: ["admission-deferred", "status: ready"] });
+  assert.equal(await sweep({ github: ready.github }, PAUSING), 0);
+  assert.deepEqual(writes(ready.calls), [labeled(25), undeferred(25)]);
+});
+
 // A pull request in this repository that references the deferred issue, as the REST
 // timeline reports it, with the issue lane's Refs line unless `body` says otherwise.
 const namingPull = (state, body = "Refs: #25") => ({
@@ -3213,6 +3225,13 @@ test("a person's mark on an admissible decided issue runs the admission rules an
   assert.equal(fieldReads(calls), 1);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
+});
+
+test("a person's mark admitted with a parked status: confirmed beside status: ready lifts it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
 });
 
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
@@ -3693,7 +3712,7 @@ test("the App's close of a split made by hand counts as done for what it blocks"
 });
 
 test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const dir = tempDir("label-unblocked-budget-");
   const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
   process.env.API_BUDGET_TOKEN = "lanes-app";
   process.env.RUNNER_TEMP = dir;

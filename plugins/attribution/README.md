@@ -85,7 +85,11 @@ call and routes to its finding-suppression convention, not to a marker this plug
 
 ## Configuration
 
-`.claude/attribution.json` in the consuming repo, layered over the shipped defaults:
+The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
+being the bound convention home, else `docs/conventions`; each falls back to its `.claude/` JSON
+file only when the YAML is absent. In YAML, quote a glob that starts with `*` (`- "**/vendor/**"`);
+a file that does not parse is named on stderr and not read. The keys, layered over the shipped
+defaults, in the JSON form `.claude/attribution.json` takes:
 
 ```json
 {

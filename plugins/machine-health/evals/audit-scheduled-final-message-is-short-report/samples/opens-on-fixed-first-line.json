@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "machine-health checkup WS-0142 2026-10-25T03:00:12Z\nelevated: no, mode: weekly\nseverity: CRIT 1, WARN 2, UNKNOWN 1, INFO 0, OK 14 (delta: +1 CRIT)\npage: not built"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the run's short report:\n\nmachine-health checkup WS-0142 2026-10-25T03:00:12Z\nelevated: no, mode: weekly",
+      "why": "a sentence comes before the fixed first line"
+    },
+    {
+      "answer": "```text\nmachine-health checkup WS-0142 2026-10-25T03:00:12Z\nelevated: no, mode: weekly\n```",
+      "why": "fenced, so the first line is the fence"
+    }
+  ]
+}

@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.14.1] - 2026-10-27
+
+### Changed
+
+- `babysit_verify_evidence.py` lists only the newest artifact pages on top of a whole listing begun within three hours: its own, the run's saved one, or the one a trusted pr-merge run carried (`BABYSIT_VERIFY_LISTING_CARRY`). It reads pages newest id first down past that listing's highest id until an artifact created two hours before that listing was read, drops entries expired by the first page's `Date` or missing from the pages it read, and keeps the result only when it holds exactly the first page's live `total_count`. Any other count, a missing, older or malformed base, or a failed read lists every page as before. On 2026-10-27 this read 2 pages in 1.3 to 1.6 s where the full listing read 69 pages in 50 to 58 s, and held every artifact the full listing held plus those the full listing skipped at its page boundaries.
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+### Fixed
+
+- The pr-merge lane's idle owner pull request adoption measures a person's pull request's idleness from trusted activity only (#9136): its opening, the head's arrival as GitHub Actions' check suites record it, and each comment, review, inline review comment, label change, title edit, review request, ready for review, reopen or force push by an account on the trusted-actor list, never the raw `updatedAt`, which any commenter moves. Another account commenting every hour no longer keeps the pull request from being adopted, unless the comment is a repository owner's, member's or collaborator's hold: their changes-requested review, or a person's comment or review saying "do not merge" or opening a line with `Hold:`, still refuses `not-adopted:updated-fresh` while fresh, as does a trusted account's fresh comment, such as a person's request to wait. The lanes App's own pin and reasons comments do not count. An unreadable timeline or check suite listing, a listed event whose actor id cannot be read, or a counted event's unreadable time is not idle.
+
+- `babysit_verify_evidence.py` no longer judges on a whole artifact listing that skipped an artifact at a page boundary. A whole listing can skip one when an earlier artifact expires while it pages: on 2026-10-27 two of three whole listings skipped live artifacts, FAIL verdicts among them, so a pull request could be allowed past a FAIL. Each whole listing is now deduplicated by id, added to the ones read before it, and kept only when a top-up from the first page shows it holds GitHub's live `total_count`; after three whole listings that never hold it the pull request refuses `verify:unreadable`.
+
+- `/source-control:pull-request ready` runs its verify gate against the pull request's worktree and records that worktree's HEAD, whichever checkout the shell sits in. A session in the main checkout running `ready <pr>` for a PR built in another worktree used to run the main checkout's `scripts/check-affected.sh` over the main checkout. The new `scripts/pr-worktree.sh --pr <n>` prints the worktree that has the PR's head branch checked out with the PR's head commit in its history, and exits 2 when none has (a fork's `main` beside this repository's main checkout included), so nothing is recorded and the flip refuses. The flip's `HEAD_SHA` comes from the same worktree.
+
 ## [3.14.0] - 2026-10-27
 
 ### Added

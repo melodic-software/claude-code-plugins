@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, describe, test } from "node:test";
 import { main, usesOf } from "./check-declared-prerequisites.mjs";
+import { tempDir } from "../lib/test-tmp.mjs";
 
 const TOOLS = ["jq", "gh", "node", "python3", "python", "uv", "claude", "go", "rg"];
 const tools = (file, text) => usesOf(file, text, TOOLS).map((u) => `${u.tool}@${u.line}`);
@@ -61,7 +61,7 @@ describe("usesOf ignores a mention", () => {
   }
 });
 
-const work = mkdtempSync(path.join(tmpdir(), "declared-prereq-"));
+const work = tempDir("declared-prereq-");
 after(() => rmSync(work, { recursive: true, force: true }));
 let n = 0;
 

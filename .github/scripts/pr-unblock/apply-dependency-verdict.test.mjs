@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { apply, main, validateRun } from "./apply-dependency-verdict.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const FIX = "f".repeat(40);
@@ -506,7 +506,7 @@ test("a re-run that finds its own round marker posts nothing again", async () =>
 // job's dependency-verdict.json, each held to the SHA-256 its own job recorded.
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 function mainFiles({ context = runOf(), verdict = output(), env = {} } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "apply-dependency-"));
+  const dir = tempDir("apply-dependency-");
   const { output: _, ...fields } = context;
   const contextText = `${JSON.stringify(fields)}\n`;
   writeFileSync(join(dir, "context.json"), contextText);
@@ -575,7 +575,7 @@ test("main acts on a context and a verdict each matching the SHA-256 its job rec
 // head is still the select job's.
 // The scan-refusal job's marker, as the write runner downloads it.
 const marker = (kind) => {
-  const dir = mkdtempSync(join(tmpdir(), "scan-refused-"));
+  const dir = tempDir("scan-refused-");
   writeFileSync(join(dir, "scan-refused-1.txt"), `${kind}\n`);
   return { SCAN_REFUSED_DIR: dir, SCAN_REFUSED_READ: "success" };
 };
@@ -604,7 +604,7 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
     assert.equal(result.comments.length, 1, `${why}: the round counts`);
   }
   // An empty marker directory is no refusal.
-  const empty = mkdtempSync(join(tmpdir(), "scan-refused-"));
+  const empty = tempDir("scan-refused-");
   assert.deepEqual(Object.values(await outcome(mainFiles({ verdict: null, env: { SCAN_REFUSED_DIR: empty, SCAN_REFUSED_READ: "success" } }))).slice(0, 2), ["", "no-model-turn"]);
   // A scan output outside its closed set fails the job.
   await assert.rejects(main(mainFiles({ env: { DEPENDENCY_PATCH_STATE: "true" } }), { api: fakeApi(), log: () => {} }), /scan output/);
