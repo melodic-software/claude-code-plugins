@@ -2593,15 +2593,20 @@ def lane_queued_at_head(
         return False
 
 
-def lane_toggled_at_head(repo: str, number: int, identity: str, head: str) -> bool:
+def lane_toggled_at_head(
+    repo: str, number: int, identity: str, head: str, node_id: str
+) -> bool:
     """Whether the agent identity's newest reasons comment (its first or
     second line `whole_review.RISK_MARKER`) records a whole-review request at
-    `head` (`whole_review.RECORD_RE`) and no person has spoken since that
-    record (`_quiet_since`): the record, the draft toggle and the bots'
-    whole review it starts refresh `updated_at`, while a person asking to
-    wait still refuses. The comments are read first; the rest of the
-    discussion only when they hold such a record. Anything unreadable is not
-    toggled."""
+    `head` (`whole_review.RECORD_RE`), the identity's newest conversion to
+    draft of pull request `node_id` belongs to that record
+    (`whole_review.toggled`), and no person has spoken since that record
+    (`_quiet_since`): the record, the draft toggle and the bots' whole review
+    it starts refresh `updated_at`, while a person asking to wait still
+    refuses. Anyone with write access can edit the record's time; the
+    conversion's server time bounds it. The comments are read first; the
+    conversion and the rest of the discussion only when they hold such a
+    record. Anything unreadable is not toggled."""
     owner, name = _split_repo(repo)
     try:
         comments = _paginated(
@@ -2618,11 +2623,10 @@ def lane_toggled_at_head(repo: str, number: int, identity: str, head: str) -> bo
         newest = max(mine, key=lambda c: str(c.get("created_at")), default=None)
         body = (newest or {}).get("body")
         stamps = [at for sha, at in whole_review.records(body) if sha == head]
-        return bool(
-            SHA_RE.fullmatch(head)
-            and stamps
-            and _quiet_since(owner, name, number, identity, min(stamps))
-        )
+        if not SHA_RE.fullmatch(head) or not stamps:
+            return False
+        stamps = whole_review.toggled(node_id, identity, stamps)
+        return bool(stamps and _quiet_since(owner, name, number, identity, min(stamps)))
     except (PolicyReadError, ValueError):
         return False
 
@@ -4999,6 +5003,7 @@ def assess(
                 number,
                 inputs["identity"],
                 str(json_object(pr.get("head")).get("sha") or ""),
+                str(pr.get("node_id") or ""),
             ),
             **readers,
         )

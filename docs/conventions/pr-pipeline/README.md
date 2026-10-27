@@ -975,8 +975,9 @@ except six:
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
   wait, refuses again, as does an unreadable one. The same holds after the lane's own
   whole-review request at the current head: while the lanes App's newest reasons comment records
-  a request at that head and no person has commented, reviewed or commented inline since the
-  record's time, a recent `updatedAt` does not refuse, since the record, the draft toggle and the
+  a request at that head, the App's newest conversion to draft falls within `CONVERT_WINDOW` of
+  the record's time (so an edited record time excuses nothing), and no person has commented,
+  reviewed or commented inline since the record's time, a recent `updatedAt` does not refuse, since the record, the draft toggle and the
   whole review it starts refresh it (`lane_toggled_at_head`); bots do not count. The head commit
   test and every hold still apply, and a draft still refuses. A person's merge-queue enqueue that the queue removed for failed checks also excuses
   both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
