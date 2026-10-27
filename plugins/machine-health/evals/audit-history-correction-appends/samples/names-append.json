@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "I won't edit the 2026-09-14 line: `history.jsonl` is append-only. I'll append a correction entry that records 16% for that run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll open `state/history.jsonl`, find the 2026-09-14 line and change 61 to 16.",
+      "why": "edits the old line in place"
+    }
+  ]
+}
