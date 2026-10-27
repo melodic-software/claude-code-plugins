@@ -102,12 +102,15 @@ newest id first, down past the base's highest id until an artifact created
 the lowest id those pages hold, less those expired or past `expires_at` by the
 first page's `Date`. Such a listing could hide a FAIL by leaving it out, so it
 is kept only when it holds exactly the first page's `total_count`, GitHub's
-live count of the repository's artifacts. A probe on 2026-10-27 saw that count
-fall by exactly the five artifacts whose `expires_at` had passed, and an
-incremental listing match a full one to the artifact; an artifact that expires
-during the read can only make the counts differ. Any other count, a base that
-is missing, older or of another shape, or any failed read lists every page as
-before. A carry forged to drop a FAIL must therefore also hold a fabricated
+live count of the repository's artifacts. Across 17 first-page reads on
+2026-10-27 that count moved by exactly the uploads since the last read less
+the artifacts whose `expires_at` had passed by the response's `Date`. Three
+incremental listings that day each held exactly that count and every artifact
+a full listing taken just after held, plus 0, 1 and 3 that the full listing
+skipped at its page boundaries though they still existed. An artifact that
+expires during the read can only make the counts differ. Any other count, a
+base that is missing, older or of another shape, or any failed read lists
+every page as before. A carry forged to drop a FAIL must therefore also hold a fabricated
 entry in its place to match the live count, and forging it already needs code
 running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
 job holds the lanes App token.
