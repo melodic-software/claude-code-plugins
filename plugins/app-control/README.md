@@ -22,7 +22,8 @@ Drive looks for a project skill named `control-<app>`, then a plugin skill named
 bundled `run` skill when that skill resolves, else a project-type recipe. Its report says which.
 [`reference/control-skill.md`](reference/control-skill.md) defines the shape of a
 control skill, [`reference/evidence.md`](skills/drive/reference/evidence.md) the run directory and
-report, and [`reference/project-types.md`](skills/drive/reference/project-types.md) the fallbacks.
+report, [`reference/pid-binding.md`](skills/drive/reference/pid-binding.md) how a capture binds to
+the launched process, and [`reference/project-types.md`](skills/drive/reference/project-types.md) the fallbacks.
 
 This plugin has no settings file and no prerequisites: the tools drive runs come from the project's
 control skill.
