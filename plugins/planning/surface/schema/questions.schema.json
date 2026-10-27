@@ -470,6 +470,16 @@
           "type": "array",
           "items": {"type": "string"},
           "description": "Derived by the server on an upstream-changed question: the prerequisites whose counted answer changed or was reopened while it had no decision, since Claude last revised or reconfirmed it; never written"
+        },
+        "supersedesChain": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}, "round": {"type": "integer"}, "stage": {"type": "string"}},
+            "required": ["id", "round"]
+          },
+          "description": "Derived by the server on a question that supersedes another: every earlier question of its supersede chain, the chain's first question first, each with its round and stage; never written"
         }
       }
     }

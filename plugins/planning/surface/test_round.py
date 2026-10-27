@@ -1444,6 +1444,37 @@ class TestSupersedeRepoint(DirCase):
         self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
 
 
+class TestMassSupersede(DirCase):
+    """G6: one write that supersedes three or more questions one for one warns and names revise."""
+
+    def replacements(self, *olds):
+        return [
+            question(f"R{old}", short=f"New {old}", supersedes=old, dependsOn=[])
+            for old in olds
+        ]
+
+    def test_superseding_three_questions_one_for_one_warns_naming_revise(self):
+        rnd = {"questions": self.replacements("Q1", "Q2", "Q3")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("supersedes 3 questions one for one", err)
+        self.assertIn("Q1 by RQ1, Q2 by RQ2, Q3 by RQ3", err)
+        self.assertIn("use revise <id>", err)
+        self.assertEqual(self.q("Q3")["supersededBy"], "RQ3")
+
+    def test_the_apply_add_ops_of_one_write_count_together(self):
+        ops = {"ops": [{"op": "add", "question": q} for q in self.replacements("Q1", "Q2", "Q3")]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("revise <id>", err)
+
+    def test_two_supersedes_do_not_warn(self):
+        rnd = {"questions": self.replacements("Q1", "Q2")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("one for one", out + err)
+
+
 class TestSupersedeShortAndDuplicateId(DirCase):
     """A superseding question needs its own short title; a duplicate id refusal says nothing was written."""
 
@@ -3050,6 +3081,23 @@ class TestArchive(DirCase):
             self.assertTrue(q["archived"]["at"])
             self.assertNotIn("state", q)
             self.assertIn("Off the chosen path.", q["history"][-1]["text"])
+
+    def test_archive_clears_a_hold(self):
+        """G6: an archived question carries no `waiting` hold."""
+        hold = {"ops": [{"op": "wait", "id": "Q2", "waitsOn": "the retry benchmark"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("hold.json", hold))
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(self.q("Q2")["waiting"])
+        rc, out, err = self.rp("archive", "Q2", "--why", "Re-issued.")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q2")
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            self.assertNotIn(key, q)
+        self.assertEqual(q["history"][-2]["text"], "No longer pending research.")
+        self.assertIn("Re-issued.", q["history"][-1]["text"])
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("waits on:", out)
 
     def test_archive_unknown_id_is_refused(self):
         self.assert_refused("archive", "Q2", "Q9", "--why", "x")
