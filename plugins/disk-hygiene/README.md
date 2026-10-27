@@ -453,8 +453,8 @@ selectable.
 
 ## Security posture
 
-What this plugin can reach, what it refuses, and what it costs you to have it installed. The
-measurements below carry the conditions they were taken under.
+This section covers what the plugin can reach, what it refuses, and the cost of having it
+installed. The measurements below carry the conditions they were taken under.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
@@ -527,8 +527,8 @@ measurements below carry the conditions they were taken under.
   does not invoke an interpreter or call-operator through a variable now costs this plugin
   zero processes and zero `execve` calls. Before, on a warm interpreter cache, every
   PowerShell call paid four `execve` calls (`bash -c`, the launcher through its `env`
-  shebang, bash, the interpreter), no fork, and a 106 KB module import, to be told it was
-  irrelevant; measured with `strace -f` on Linux, where the hook process walled at p50 44 ms
+  shebang, bash, the interpreter), no fork, and a 106 KB module import, only to conclude it
+  was irrelevant; measured with `strace -f` on Linux, where the hook process walled at p50 44 ms
   against a `bash -c :` floor of 2 ms (n = 20 per tool), about 22 spawn-equivalents, the cost
   class the issue measured as a 2.4 s median on Windows. A call that names the engine, or
   invokes python/`&` through a variable, pays that chain unchanged and is judged unchanged.
