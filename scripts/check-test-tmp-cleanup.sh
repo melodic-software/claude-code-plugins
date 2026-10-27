@@ -74,7 +74,7 @@ offends_js() {
   awk '
     /^[[:space:]]*(\/\/|\*|\/\*)/ { next }
     /mkdtemp(Sync)?\(/ && /tmpdir\(\)/ { made = 1 }
-    /join\(\s*(fs\.)?mkdtemp(Sync)?\([^)]*tmpdir/ { unbound = 1 }
+    /join\([[:space:]]*(fs\.)?mkdtemp(Sync)?\([^)]*tmpdir/ { unbound = 1 }
     /test-tmp\.mjs/ { removed = 1 }
     /(^|[^A-Za-z0-9_])(after|afterAll|afterEach|onTestFinished)\(/ { removed = 1 }
     /finally[[:space:]]*\{/ { removed = 1 }
