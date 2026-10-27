@@ -203,8 +203,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure miro@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure miro@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -212,14 +212,11 @@ Three supported routes:
    claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<value>
    ```
 
-   Route 1 is the rotation path for this plugin, not this one. Every option here is
-   `sensitive`, and `/plugin configure` masks input. A secret passed on the command
-   line lands in shell history and the process table. Do not rely on this command to
-   rotate a credential; the verified-version record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-   Do **not**
-   `claude plugin uninstall` to reconfigure either: uninstalling drops this
-   plugin's whole stored `pluginConfigs` entry, resetting every option in the table
-   above to its default.
+   Every option here is `sensitive`, so rotate a credential through route 1, not this
+   command: route 1 keeps a secret off the command line, where it would land in shell
+   history and the process table, and the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md) records no
+   check of this command for a sensitive value. Do **not** `claude plugin uninstall`
+   to reconfigure either: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -236,13 +233,13 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
