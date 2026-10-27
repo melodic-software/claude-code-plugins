@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: analyze-profile-reads-thread-dump
 description: A real py-spy dump of a deadlocked script is read as text, with no SQLite step, down to each blocked thread and its frame at file:line
 tags: [analyze-profile, threads]
-expected_outcome: The answer reads dumps/inventory-sync.txt directly and names the lock-order cycle. stock-writer waits on ledger_lock at sync.py:16 in post_ledger_entry while holding stock_lock taken in reserve_stock; ledger-reconciler waits on stock_lock at sync.py:27 in adjust_stock while holding ledger_lock taken in reconcile_ledger. No converter runs and no file is edited.
+expected_outcome: The answer reads dumps/inventory-sync.txt directly and names the lock-order cycle. stock-writer waits on ledger_lock at sync.py:16 in post_ledger_entry while holding stock_lock taken in reserve_stock; ledger-reconciler waits on stock_lock at sync.py:27 in adjust_stock while holding ledger_lock taken in reconcile_ledger. It names a later dump as the capture that would settle it. No converter runs and no file is edited.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -18,19 +18,20 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: no-file-edited
+    type: tool_used
+    tool: Bash
+    input_match: '"command":\s*"(?:(?:(?:[^"\\''<]|<(?!<)|''(?:[^''"\\]|\\.)*''|\\"(?:[^"\\]|\\[^"\\]|\\\\(?:\\.|[^"\\]))*\\"|\\[^"])*?(?:[;&|(`]|\\n)|(?:[^"\\''<]|<(?!<)|''(?:[^''"\\]|\\.)*''|\\"(?:[^"\\]|\\[^"\\]|\\\\(?:\\.|[^"\\]))*\\"|\\[^"])*?<<-?\s*(?:''\w+''|\\"\w+\\"|\w+)(?:[^"\\''<]|<(?!<)|''(?:[^''"\\]|\\.)*''|\\"(?:[^"\\]|\\[^"\\]|\\\\(?:\\.|[^"\\]))*\\"|\\[^"n])*?[;&|(`])?(?:\s|\\t)*(?:(?:sudo|env|nohup|time|xargs|then|do|else)(?:\s+-[-\w]+)*(?:\s+\w+=[^\s"\\]*)*\s+|(?:bash|zsh|dash|ksh|sh)(?:\s+-[-\w]+)*?\s+-\w*c\s+(?:\\"|''))*(?:\\"|'')?(?:[\w.~-]*/)*(?:(?:sed|perl)\s(?:[^;&|"\\]|\\[^nt"])*?(?<=\s)-(?:[a-zA-Z0-9]{0,5}i(?![a-zA-Z])|-in-place)|dd\s(?:[^;&|"\\]|\\[^nt"])*?(?<=\s)of=|rm(?![\w.-])(?!(?:\s+-[-\w]*)*\s+(?:\\"|'')?(?:/tmp/|\$\{?(?:TMPDIR|work)\b))|(?:cp|mv|tee|touch|truncate|patch|git\s+(?:apply|checkout|restore|stash(?!\s+(?:list|show)\b)|am|mv|rm|reset\s+--hard))(?![\w.-]))|(?:[^"\\''<]|<(?!<)|''(?:[^''"\\]|\\.)*''|\\"(?:[^"\\]|\\[^"\\]|\\\\(?:\\.|[^"\\]))*\\"|\\[^"])*?(?:<<-?\s*(?:''\w+''|\\"\w+\\"|\w+)(?:[^"\\''<]|<(?!<)|''(?:[^''"\\]|\\.)*''|\\"(?:[^"\\]|\\[^"\\]|\\\\(?:\\.|[^"\\]))*\\"|\\[^"n])*?)?(?:\s(?:[0-9]|&)?|(?<![\s<>=-]))>>?\|?(?![&>(])(?:\s|\\t)*(?:\\"|'')?(?!/dev/|/tmp/|\$\{?(?:TMPDIR|work)\b)[A-Za-z_./~${-])'
+    min: 0
+    max: 0
+    arm: both
   - name: names-both-wait-sites
     type: regex
     target: last_message
     pattern: 'sync\.py:16[\s\S]*sync\.py:27|sync\.py:27[\s\S]*sync\.py:16'
     arm: both
-  - name: names-a-second-dump
-    type: regex
-    target: last_message
-    pattern: '(second|another|later|repeat)[^.\n]{0,40}dump'
-    flags: 'i'
-    arm: both
   - name: names-the-cycle
     type: llm
     focus: last_message
     arm: both
-    criteria: "PASS only if the answer says the stock-writer thread waits for ledger_lock at sync.py:16 (post_ledger_entry) while holding stock_lock from reserve_stock, and the ledger-reconciler thread waits for stock_lock at sync.py:27 (adjust_stock) while holding ledger_lock from reconcile_ledger, so each holds what the other waits for. FAIL if it misses either thread's held lock or waited lock, or names a different cause. Proposing a fix without applying it is fine."
+    criteria: "PASS only if the answer does both of these. First, it says the stock-writer thread waits for ledger_lock at sync.py:16 (post_ledger_entry) while holding stock_lock from reserve_stock, and the ledger-reconciler thread waits for stock_lock at sync.py:27 (adjust_stock) while holding ledger_lock from reconcile_ledger, so each holds what the other waits for. Second, it names a later dump of the hung process as the capture that would settle the cause, in any wording: a second dump some seconds later, taking two dumps, running the dump again, or a dump after the lock order is changed. A mention of another thread, or of the one dump already in hand, is not a later dump. FAIL if it misses either thread's held lock or waited lock, names a different cause, or names no later dump. Proposing a fix without applying it is fine."

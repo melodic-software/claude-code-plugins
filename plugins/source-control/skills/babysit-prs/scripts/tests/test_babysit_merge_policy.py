@@ -2644,6 +2644,7 @@ class Assess(unittest.TestCase):
         gh = config_fake(self, pipeline)
         gh.rest[f"repos/{REPO}/pulls/1"] = {
             "number": 1,
+            "node_id": "PR_1",
             "base": {"ref": "trunk", "sha": SHA},
             "head": {"ref": "feat", "sha": "e" * 40},
         }
@@ -4527,6 +4528,138 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     )
         self.assertFalse(policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, ""))
 
+    # --- After the lane's own whole-review toggle --------------------------
+
+    RECORDED = datetime(2026, 10, 11, 13, tzinfo=UTC)
+
+    def reasons(self, head: str = HEAD, author: str = IDENTITY) -> dict[str, Any]:
+        """A reasons comment recording a whole-review request at `head`."""
+        record = policy.whole_review.record_line(head, self.RECORDED)
+        return {
+            "user": {"login": author, "type": "Bot" if author == IDENTITY else "User"},
+            "created_at": "2026-10-11T12:59:00Z",
+            "updated_at": "2026-10-11T13:00:00Z",
+            "body": f"{policy.whole_review.RISK_MARKER}\nrisk **MED**\n\n{record}",
+        }
+
+    def toggled(
+        self,
+        comments: Any,
+        reviews: Any = (),
+        converted: Any = ("agent-lanes", RECORDED + timedelta(minutes=1)),
+    ) -> Any:
+        gh = GhFake().install(self)
+        for kind, items in (
+            ("issues/7/comments", comments),
+            ("pulls/7/reviews", list(reviews)),
+            ("pulls/7/comments", []),
+        ):
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = items
+        answer = (
+            {"side_effect": converted}
+            if isinstance(converted, Exception)
+            else {"return_value": converted}
+        )
+        with mock.patch.object(policy.whole_review, "_converter", **answer) as read:
+            refusal = self.refusal(
+                activity=FRESH,
+                toggled_at_head=lambda: policy.lane_toggled_at_head(
+                    REPO, 7, IDENTITY, HEAD, "PR_7"
+                ),
+            )
+        if read.called:
+            read.assert_called_once_with("PR_7")
+        return refusal
+
+    def test_the_lanes_recorded_toggle_at_the_head_keeps_adoption(self) -> None:
+        # The record, the draft toggle and the whole review it starts are
+        # fresh activity; the next sweep still adopts the PR.
+        review = {"user": {"login": "claude[bot]", "type": "Bot"}}
+        review["submitted_at"] = "2026-10-11T14:00:00Z"
+        self.assertIsNone(self.toggled([self.reasons()], [review]))
+
+    def test_only_the_lanes_record_at_this_head_excuses_a_fresh_update(self) -> None:
+        wait = {
+            "user": {"login": OWNER_LOGIN, "type": "User"},
+            "created_at": "2026-10-11T14:00:00Z",
+            "updated_at": "2026-10-11T14:00:00Z",
+            "body": "Please wait on this one",
+        }
+        for label, comments in (
+            ("a record at another head", [self.reasons("d" * 40)]),
+            ("a record a person wrote", [self.reasons(author=OWNER_LOGIN)]),
+            ("a person spoke after the record", [self.reasons(), wait]),
+            ("no reasons comment", []),
+            ("an unreadable discussion", 502),
+        ):
+            with self.subTest(label):
+                self.assertEqual(self.toggled(comments), "updated-fresh")
+
+    def test_a_record_with_no_lane_conversion_after_it_does_not_excuse(self) -> None:
+        # A person with write access can edit the record's time past their
+        # own "wait"; the lane's conversion to draft has a server time an
+        # edit cannot move, so a record it does not follow excuses nothing.
+        late = self.RECORDED + policy.whole_review.CONVERT_WINDOW + timedelta(minutes=1)
+        for label, converted in (
+            ("no conversion read", None),
+            ("a conversion read that raised", RuntimeError("gh timed out")),
+            ("a person's conversion", (OWNER_LOGIN, self.RECORDED)),
+            ("the lane's conversion long after", ("agent-lanes", late)),
+            (
+                "the lane's conversion before the record",
+                ("agent-lanes", self.RECORDED - timedelta(minutes=5)),
+            ),
+        ):
+            with self.subTest(label):
+                self.assertEqual(
+                    self.toggled([self.reasons()], converted=converted),
+                    "updated-fresh",
+                )
+
+    def test_without_a_record_only_the_comments_are_read(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = [
+            self.reasons("d" * 40)
+        ]
+        with mock.patch.object(policy.whole_review, "_converter") as read:
+            self.assertFalse(
+                policy.lane_toggled_at_head(REPO, 7, IDENTITY, HEAD, "PR_7")
+            )
+        read.assert_not_called()
+        self.assertEqual(
+            [c for c in gh.calls if "pulls/7" in " ".join(map(str, c))], []
+        )
+
+    def test_a_recorded_toggle_still_needs_an_idle_head_and_no_hold(self) -> None:
+        pr = owner_pr(updated_at=FRESH)
+        self.assertEqual(
+            self.refusal(pr, committed=FRESH, toggled_at_head=lambda: True),
+            "head-fresh",
+        )
+        for held, refused in (
+            (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
+            (owner_pr(body="Hold: the owner merges"), "hold-body"),
+            (owner_pr(draft=True), "draft"),
+        ):
+            with self.subTest(refused=refused):
+                held["updated_at"] = FRESH
+                self.assertEqual(
+                    self.refusal(held, toggled_at_head=lambda: True), refused
+                )
+
+    def test_the_toggle_is_not_read_for_an_idle_update_or_a_queued_entry(self) -> None:
+        def unread() -> bool:
+            raise AssertionError("toggle read")
+
+        self.assertIsNone(self.refusal(toggled_at_head=unread))
+        self.assertIsNone(
+            self.refusal(
+                owner_pr(updated_at=FRESH),
+                queued_at_head=lambda: True,
+                toggled_at_head=unread,
+            )
+        )
+
     def test_no_idle_hours_adopts_nothing(self) -> None:
         self.assertEqual(self.refusal(idle_hours=None), "idle-hours-invalid")
 
@@ -4677,6 +4810,15 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.adoption, "idle-owner:24h")
         result = self.eligibility(pr, queued_at_head=lambda: False)
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_a_fresh_owner_pr_the_lane_toggled_stays_adopted(self) -> None:
+        self.owner_fake()
+        pr = owner_pr(created_at=FRESH)
+        result = self.eligibility(pr, toggled_at_head=lambda: True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, "idle-owner:24h")
+        result = self.eligibility(pr, toggled_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     # --- Idleness counts trusted activity only (#9136) ----------------------
@@ -5518,6 +5660,11 @@ class LaneAssess(unittest.TestCase):
         ) as queued:
             self.assertTrue(kwargs["queued_at_head"]())
         queued.assert_called_once_with(REPO, 1, "trunk", IDENTITY, "e" * 40)
+        with mock.patch.object(
+            policy, "lane_toggled_at_head", return_value=True
+        ) as toggled:
+            self.assertTrue(kwargs["toggled_at_head"]())
+        toggled.assert_called_once_with(REPO, 1, IDENTITY, "e" * 40, "PR_1")
         self.assertEqual(kwargs["adoption_idle_hours"], 48)
         self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
         # The people (kind human) and the configured Apps: whose body is intent.
