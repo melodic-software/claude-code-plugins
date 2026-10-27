@@ -14,8 +14,9 @@ is installed in any session.
 ## Why the verdict is complementary
 
 Both render a browser page with switchable controls. A playground explores an arbitrary parameter
-space and hands the chosen settings back as a prompt. This skill varies the user's own UI on its
-real stack (or a local mockup) so one direction can be picked and the rest discarded; its output is
+space and hands the chosen settings back as a prompt. This skill varies the user's own UI in a
+local mockup by default (or on its real stack on request) so one direction can be picked and the
+rest discarded; its output is
 a winning-variant key and notes, not a prompt. Explorer-shaped asks route out; "what should this
 page look like" stays here.
 

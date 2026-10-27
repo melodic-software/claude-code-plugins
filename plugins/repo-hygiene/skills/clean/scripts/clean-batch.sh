@@ -43,6 +43,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/batch-common.sh
 source "$SCRIPT_DIR/lib/batch-common.sh"
+# shellcheck source=lib/run-marker.sh
+source "$SCRIPT_DIR/lib/run-marker.sh"
 
 usage() {
   cat <<'EOF'
@@ -142,7 +144,6 @@ fail_usage() {
 # As of: 2026-10-11. Recheck trigger: that section is renamed or its pointer
 # record moves, or the record's own recheck trigger fires.
 plugin_data_dir() {
-  local seg
   if [[ -n "$DATA_DIR_ARG" ]]; then
     # shellcheck disable=SC2016 # the literal, unexpanded token is what is matched
     case "$DATA_DIR_ARG" in
@@ -152,10 +153,7 @@ plugin_data_dir() {
     printf '%s\n' "$DATA_DIR_ARG"
     return 0
   fi
-  seg="${CLAUDE_PLUGIN_DATA:-}"
-  seg="${seg%[/\\]}"
-  seg="${seg##*[/\\]}"
-  if [[ "$seg" == repo-hygiene || "$seg" == repo-hygiene-* ]]; then
+  if run_marker_data_dir_ours "${CLAUDE_PLUGIN_DATA:-}"; then
     printf '%s\n' "$CLAUDE_PLUGIN_DATA"
     return 0
   fi

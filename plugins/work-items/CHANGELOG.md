@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.0] - 2026-10-27
+
+### Added
+
+- `/work-items:decompose` checks each acceptance criterion id against the base commit, flags one that already passes there and asks whether to sharpen it or leave it out as met, and shows and asks what each slice demos before approval.
+
+- Outcome eval cases for each model-invoked skill and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- Tighten the bodies of eight skills (attend-queue, decompose, onboard-adapter, scan-todos, ship, track, triage, work): rationale, history notes and repeated lines are cut; every gate, stop, command and report line stays. Descriptions are unchanged.
+
 ## [3.6.0] - 2026-10-26
 
 ### Added

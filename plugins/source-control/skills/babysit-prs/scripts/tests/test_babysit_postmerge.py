@@ -21,6 +21,7 @@ import dataclasses
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -224,6 +225,8 @@ class FakeGh:
         # The pull request's newest review, as the pin read returns it; a
         # non-list is an unreadable review list.
         self.pin_reviews: Any = []
+        # Pull requests the batched pin read leaves out of its response.
+        self.pin_missing: set[int] = set()
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
         # Artifact listings by name, served in order, one per read, before
@@ -404,17 +407,33 @@ class FakeGh:
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:
         if "PolicyViewer" in joined:
             return completed({"data": {"viewer": {"login": self.viewer}}})
-        if "PostMergePin" in joined:
-            comments = (
-                self.pin_pages.pop(0)
-                if self.pin_pages
-                else {
-                    "pageInfo": {"hasNextPage": False, "endCursor": None},
-                    "nodes": self.pin_comments,
+        if "PostMergePin" in joined or "PostMergeHeadPins" in joined:
+
+            def pull() -> dict[str, Any]:
+                comments = (
+                    self.pin_pages.pop(0)
+                    if self.pin_pages
+                    else {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "nodes": self.pin_comments,
+                    }
+                )
+                return {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
+
+            if "PostMergePin" in joined:
+                return completed({"data": {"repository": {"pullRequest": pull()}}})
+            numbers = map(int, re.findall(r"p(\d+):pullRequest", joined))
+            return completed(
+                {
+                    "data": {
+                        "repository": {
+                            f"p{n}": {"number": n, **pull()}
+                            for n in numbers
+                            if n not in self.pin_missing
+                        }
+                    }
                 }
             )
-            pull = {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
-            return completed({"data": {"repository": {"pullRequest": pull}}})
         if "dequeuePullRequest" in joined:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
@@ -3633,6 +3652,36 @@ class PinnedHead(CheckCase):
                     self.assertEqual(
                         [f.signal for f in verdict.failures], [pm.SIGNAL_READ_BACK]
                     )
+
+    def pin_check(self) -> Any:
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=pm.pin_reader(REPO, IDENTITY),
+        )
+
+    def test_the_check_reads_its_pins_in_one_batch(self) -> None:
+        self.all_green()
+        self.gh.merged = [identity_merge()]
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.assertTrue(self.pin_check().merges[0].verified)
+        reads = [
+            c for c in self.gh.calls if any("PostMerge" in a and "Pin" in a for a in c)
+        ]
+        self.assertEqual(len(reads), 1)
+        self.assertIn("PostMergeHeadPins", " ".join(reads[0]))
+
+    def test_a_merge_missing_from_the_pin_batch_is_unreadable(self) -> None:
+        self.all_green()
+        self.gh.merged = [identity_merge()]
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.gh.pin_missing = {7001}
+        verdict = self.pin_check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("#7001 pin", verdict.reason)
 
     def test_a_pin_behind_100_later_comments_is_found(self) -> None:
         chatter = [{"author": HUMAN, "body": "lgtm", "lastEditedAt": None}] * 100
