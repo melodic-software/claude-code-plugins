@@ -223,6 +223,14 @@ describe("forged value", () => {
       writeFileSync(join(checkout, ".claude", "source-control.md"), `${Object.entries(forged).map(([k, v]) => `${k}: ${v}`).join("\n")}\n`);
       return {};
     },
+    "the checkout's docs/conventions/source-control.yaml": () => {
+      mkdirSync(join(checkout, "docs", "conventions"), { recursive: true });
+      writeFileSync(
+        join(checkout, "docs", "conventions", "source-control.yaml"),
+        `${Object.entries(forged).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n")}\n`,
+      );
+      return {};
+    },
   };
   for (const [channel, plant] of Object.entries(channels)) {
     test(`values offered only by ${channel} read as unset`, cli, () => {
@@ -231,6 +239,7 @@ describe("forged value", () => {
         assertFailClosed(runResolver(plant()), /promotion_evidence_checker not set in managed or user settings/);
       } finally {
         rmSync(join(checkout, ".claude"), { recursive: true, force: true });
+        rmSync(join(checkout, "docs"), { recursive: true, force: true });
       }
     });
   }

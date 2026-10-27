@@ -1525,4 +1525,39 @@ remove_beta() { git -C "$repo" rm -rq plugins/beta; }
 merge_case --check-preserved add_beta_file remove_beta
 if [[ $rc -eq 0 ]]; then ok "removing a plugin passes --check-preserved after main adds a file to it (directory read at the branch tip)"; else fail "plugin removal read as a deleted changelog: rc=$rc out='$out'"; fi
 
+# ===================== version_sort_key fields ======================
+# No mode can reach the function with a bad field, so these cases call it
+# directly. The script has no source guard, so the definition is lifted out of
+# it and run in its own bash, inside a fixture tree that catches anything it
+# writes.
+vsk_def="$(sed -n '/^version_sort_key() {/,/^}/p' "$SCRIPT")"
+# vsk <version>: sets out and rc to the function's output and exit status.
+vsk() {
+  # shellcheck disable=SC2016  # the program is expanded by the child bash
+  out="$(cd "$repo" && bash -c "$vsk_def"$'\n''version_sort_key key "$1" && printf "%s\n" "$key"' vsk "$1" 2>&1)"
+  rc=$?
+}
+if [[ "$vsk_def" == "version_sort_key() {"*"}" ]]; then ok "version_sort_key's definition lifts out of the script"; else fail "version_sort_key's definition did not lift out: '$vsk_def'"; fi
+
+mk_repo repo
+# shellcheck disable=SC2016  # the $(...) is the payload, never expanded here
+vsk '1 * a[$(touch MARKER)]'
+if [[ $rc -eq 2 && "$out" == *"not a number"* && ! -e "$repo/MARKER" ]]; then ok "a field holding \$(...) is refused with exit 2 and runs nothing"; else fail "command-substitution field: rc=$rc marker=$([[ -e "$repo/MARKER" ]] && echo created || echo absent) out='$out'"; fi
+for bad_version in 1x.0.0 1.2x.3 '1.*.3' '1. 2.3'; do
+  vsk "$bad_version"
+  if [[ $rc -eq 2 ]]; then ok "a non-numeric field is refused with exit 2 ('$bad_version')"; else fail "non-numeric field '$bad_version' not refused: rc=$rc out='$out'"; fi
+done
+
+vsk 1.2
+if [[ $rc -eq 0 && "$out" == "00001.00002.00000" ]]; then ok "a missing field still keys as 0 (1.2)"; else fail "two-field version: rc=$rc out='$out'"; fi
+for tail_version in 1.2.3+build 1.2.3-rc1; do
+  vsk "$tail_version"
+  if [[ $rc -eq 0 && "$out" == "00001.00002.00003" ]]; then ok "a SemVer tail is stripped before the key ($tail_version)"; else fail "tail version '$tail_version': rc=$rc out='$out'"; fi
+done
+vsk 0.9.0
+nine_key="$out"
+vsk 0.10.0
+if [[ $rc -eq 0 && "$out" > "$nine_key" ]]; then ok "0.10.0 still keys above 0.9.0"; else fail "0.10.0 keyed '$out', 0.9.0 keyed '$nine_key' (rc=$rc)"; fi
+rm -rf "$repo"
+
 test_harness::report
