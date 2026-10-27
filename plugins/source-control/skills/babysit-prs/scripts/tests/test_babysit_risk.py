@@ -1865,9 +1865,9 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 self.assertTrue(holds(result))
 
     def test_a_review_caller_workflow_change_unbinds_the_review(self):
-        # Any .github/workflows/ change is a lane source
-        # (babysit_review_evidence.LANE_SOURCE_PREFIXES), so no lane binds and
-        # the enforcement path stays held.
+        # A review caller stays a lane source whatever its content
+        # (babysit_review_evidence.REVIEW_CALLERS), so no lane binds and the
+        # enforcement path stays held.
         import babysit_review_evidence
 
         path = B + "babysit_verify_evidence.py"

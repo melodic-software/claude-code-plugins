@@ -3113,6 +3113,7 @@ def _lane_evidence(
         changed_paths=changed_paths,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
         head_file=_head_file(repo, str(head.get("sha"))),
+        base_sha=json_object(pr.get("base")).get("sha"),
     )
     return lanes, comments
 

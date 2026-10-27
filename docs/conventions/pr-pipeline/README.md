@@ -851,7 +851,15 @@ the rules that only tighten in
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
     the gate. When the pull request also changes a lane source, the review can never bind at that
-    head, so it scores `review-path-unbindable:<glob>`, which a person clears.
+    head, so it scores `review-path-unbindable:<glob>`, which a person clears. A lane source is a
+    path the head's checkout feeds or forges its own review from (`LANE_SOURCE_PREFIXES` and
+    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A changed workflow file is
+    not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
+    secret: a top-level `.yml` other than the two review callers, deleted, or with every job's
+    `permissions:` read-only and set explicitly, no `pull_request_target` or `workflow_run`
+    trigger, no `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file
+    stem. So `pr-merge.yml` (`pull_request_target`, write scopes) and `pr-require-checks.yml`
+    (write scopes) stay lane sources and a person still clears an edit to either.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the

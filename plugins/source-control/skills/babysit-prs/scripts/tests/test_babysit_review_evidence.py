@@ -12,9 +12,11 @@ from __future__ import annotations
 import copy
 import json
 import pathlib
+import re
 import sys
 import unittest
 from typing import Any
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -470,6 +472,349 @@ class LaneSourceTests(Base):
         result = self.bind([whole(lane, S) for lane in LANES], changed_paths=None)
         for lane in LANES:
             self.assertUnbound(result[lane], "changed-files-unread")
+
+
+BASE = "ba5e" * 10
+WORKFLOW = ".github/workflows/lint-docs.yml"
+# A workflow whose token cannot write and that reaches no secret.
+READ_ONLY = """\
+name: lint-docs
+on:
+  pull_request:
+    paths: ['docs/**']
+  push:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm test
+  call:
+    uses: melodic-software/ci-workflows/.github/workflows/x.yml@v1
+"""
+
+
+def reader(files: dict[str, str | None]) -> Any:
+    """A head-file reader over `files`; any other path raises, as an unproven
+    read does."""
+
+    def read(path: str, original: str) -> str | None:
+        if original != BASE or path not in files:
+            raise RuntimeError(f"head-file-unproven:{path}")
+        return files[path]
+
+    return read
+
+
+class ReadOnlyWorkflowTests(Base):
+    """A changed workflow binds only when its head copy cannot post as
+    github-actions[bot] with write access (the reviewed-head marker's author)
+    nor reach a credential that could; anything else, or any doubt, stays a
+    lane source."""
+
+    def bound(
+        self, files: dict[str, str | None], *extra: str, base: Any = BASE
+    ) -> dict[str, Any]:
+        return by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=("app.py", *files, *extra),
+                head_file=reader(files),
+                base_sha=base,
+            )
+        )
+
+    def assertBinds(self, result: dict[str, Any]) -> None:
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason, lane)
+            self.assertEqual(result[lane].open_findings, 0, lane)
+
+    def assertHeld(self, result: dict[str, Any]) -> None:
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_read_only_workflow_edit_binds(self) -> None:
+        self.assertBinds(self.bound({WORKFLOW: READ_ONLY}))
+
+    def test_a_clean_review_clears_a_read_only_workflow_edit_end_to_end(self) -> None:
+        # Owner direction 2026-10-27: a workflow-file pull request needs a
+        # person only for a HIGH or CRITICAL security finding. The scorer
+        # takes the bound evidence beside an enforcement-floor path.
+        floored = "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py"
+        base = READ_ONLY.replace("npm test", "npm run lint")
+
+        def scored(lanes: dict[str, Any]) -> Any:
+            files = (
+                risk.ChangedFile(
+                    floored, None, "modified", 1, 1, True, "100644", "100644"
+                ),
+                risk.ChangedFile(
+                    WORKFLOW,
+                    None,
+                    "modified",
+                    1,
+                    1,
+                    True,
+                    "100644",
+                    "100644",
+                    patch="@@ -18 +18 @@\n-      - run: npm run lint\n+      - run: npm test",
+                    contents=(base, READ_ONLY),
+                ),
+            )
+            return risk.score(
+                risk.RiskInput(
+                    files=files,
+                    files_complete=True,
+                    max_changed_lines=None,
+                    high_paths=(),
+                    lanes=tuple(lanes[lane] for lane in LANES),
+                    lines_optional=True,
+                    public=True,
+                )
+            )
+
+        lanes = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(floored, WORKFLOW),
+                head_file=reader({WORKFLOW: READ_ONLY}),
+                base_sha=BASE,
+            )
+        )
+        self.assertBinds(lanes)
+        result = scored(lanes)
+        self.assertFalse(risk.holds(result), [r.code for r in result.reasons])
+        # A CRITICAL finding from that review holds it for a person.
+        critical = by_lane(
+            ev.bind(
+                S,
+                [whole("claude-review", S), whole("claude-security-review", S, 1, 1)],
+                both_markers(),
+                [
+                    thread(
+                        "x\n\nseverity: CRITICAL\n`claude-lane: claude-security-review`"
+                    )
+                ],
+                is_human=is_human,
+                changed_paths=(floored, WORKFLOW),
+                head_file=reader({WORKFLOW: READ_ONLY}),
+                base_sha=BASE,
+            )
+        )
+        result = scored(critical)
+        self.assertEqual(
+            [r.code for r in risk.person_reasons(risk.holding(result))],
+            ["security-finding"],
+        )
+
+    def test_read_all_and_empty_permissions_bind(self) -> None:
+        for perms in ("permissions: read-all", "permissions: {}"):
+            with self.subTest(perms):
+                text = READ_ONLY.replace("permissions:\n  contents: read", perms, 1)
+                self.assertBinds(self.bound({WORKFLOW: text}))
+
+    def test_a_deleted_workflow_binds(self) -> None:
+        # It runs nothing at the head; the reader proved it removed.
+        self.assertBinds(self.bound({WORKFLOW: None}))
+
+    def test_each_unsafe_workflow_stays_a_lane_source(self) -> None:
+        top = "permissions:\n  contents: read\njobs:"
+        job = "    permissions:\n      contents: read\n      pull-requests: read\n"
+        cases = {
+            "a write scope at the top": READ_ONLY.replace(
+                top, "permissions:\n  contents: read\n  pull-requests: write\njobs:"
+            ),
+            "a write scope in one job": READ_ONLY.replace(
+                job, "    permissions:\n      issues: write\n"
+            ),
+            "write-all": READ_ONLY.replace(top, "permissions: write-all\njobs:"),
+            "write-all in a flow mapping": READ_ONLY.replace(
+                top, "permissions: {contents: read, statuses: write}\njobs:"
+            ),
+            "id-token: write": READ_ONLY.replace(
+                job, "    permissions:\n      id-token: write\n"
+            ),
+            "a pull_request_target trigger": READ_ONLY.replace(
+                "  push:\n", "  pull_request_target:\n"
+            ),
+            "a workflow_run trigger": READ_ONLY.replace(
+                "  push:\n", "  workflow_run:\n    workflows: [x]\n"
+            ),
+            "unparseable YAML": READ_ONLY + "  bad: [unclosed\n",
+            "not a mapping": "- just\n- a list\n",
+            "two documents": READ_ONLY + "---\n" + READ_ONLY,
+            "a reusable call with secrets: inherit": READ_ONLY
+            + "    secrets: inherit\n",
+            "a direct secret": READ_ONLY.replace(
+                "secrets.GITHUB_TOKEN", "secrets.SCAN_CARRIER_PRIVATE_KEY"
+            ),
+            "a secret spelled with a YAML escape": READ_ONLY.replace(
+                "- run: npm test", '- run: "echo ${{ \\x73ecrets.APP_KEY }}"'
+            ),
+            "missing permissions everywhere": READ_ONLY.replace(top, "jobs:").replace(
+                job, ""
+            ),
+            "a job with no permissions and none at the top": READ_ONLY.replace(
+                top, "jobs:"
+            ),
+            "a name that is not the stem": READ_ONLY.replace(
+                "name: lint-docs", "name: pr-require-checks"
+            ),
+            "no name": READ_ONLY.replace("name: lint-docs\n", ""),
+            "a repeated key": READ_ONLY.replace(
+                top, "permissions:\n  contents: read\npermissions: write-all\njobs:"
+            ),
+            "a key repeated in another case": READ_ONLY.replace(
+                top,
+                "permissions:\n  contents: read\nPermissions:\n  contents: read\njobs:",
+            ),
+            "an anchor and alias": READ_ONLY.replace(
+                top, "permissions: &p\n  contents: read\nenv: *p\njobs:"
+            ),
+            "a merge key": READ_ONLY.replace(
+                job, "    permissions:\n      <<: {contents: read}\n"
+            ),
+            "an explicit tag": READ_ONLY.replace(
+                "contents: read\njobs:", "contents: !!str read\njobs:"
+            ),
+            "an unknown top-level key": READ_ONLY + "Jobs: {}\n",
+            "an unknown job key": READ_ONLY.replace(
+                "    runs-on:", "    Permissions: {}\n    runs-on:"
+            ),
+            "an expression for a scope": READ_ONLY.replace(
+                "pull-requests: read", "pull-requests: ${{ 'write' }}"
+            ),
+            "no jobs": "name: lint-docs\non: push\npermissions: {}\njobs: {}\n",
+            "no trigger": READ_ONLY.replace("on:", "run-name:", 1),
+        }
+        # Each case holds through the parsed reading alone too, with the
+        # raw-text backstop matching nothing.
+        never = re.compile(r"(?!)")
+        for backstop in (ev.WORKFLOW_DENIED_TEXT_RE, never):
+            with mock.patch.object(ev, "WORKFLOW_DENIED_TEXT_RE", backstop):
+                self.assertBinds(self.bound({WORKFLOW: READ_ONLY}))
+                for name, text in cases.items():
+                    with self.subTest(name, backstop=backstop.pattern):
+                        self.assertHeld(self.bound({WORKFLOW: text}))
+
+    def test_a_review_caller_with_read_only_content_stays_a_lane_source(self) -> None:
+        for lane in LANES:
+            path = FILES[lane]
+            stem = path.rsplit("/", 1)[1][: -len(".yml")]
+            text = READ_ONLY.replace("lint-docs", stem)
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: text}))
+                self.assertHeld(self.bound({path: None}))
+
+    def test_other_workflow_paths_stay_lane_sources(self) -> None:
+        for path in (
+            ".github/workflows/lint-docs.yaml",
+            ".github/workflows/sub/lint-docs.yml",
+            ".github/workflows/Lint-Docs.yml",
+            ".github/workflows",
+        ):
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: READ_ONLY}))
+
+    def test_doubt_about_the_read_stays_a_lane_source(self) -> None:
+        # A rename's old side 404s and the comparison does not show it
+        # removed, so the reader raises; so does any refused read.
+        self.assertHeld(self.bound({}, WORKFLOW))
+        # No YAML parser where the gate runs.
+        with mock.patch.dict(sys.modules, {"yaml": None}):
+            self.assertHeld(self.bound({WORKFLOW: READ_ONLY}))
+        # No base commit to prove a deletion against.
+        for base in (None, "main"):
+            with self.subTest(base):
+                self.assertHeld(self.bound({WORKFLOW: READ_ONLY}, base=base))
+        # No reader at all.
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(WORKFLOW,),
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+
+    def test_a_read_only_workflow_beside_another_lane_source_is_not_read(self) -> None:
+        reads: list[str] = []
+
+        def read(path: str, original: str) -> str | None:
+            reads.append(path)
+            return READ_ONLY
+
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(WORKFLOW, "CLAUDE.md"),
+                head_file=read,
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+        self.assertEqual(reads, [])
+
+    def test_a_forged_marker_workflow_stays_unbound(self) -> None:
+        # A pull request adds a workflow whose token can write pull requests
+        # and that posts a clean reviewed-head marker as github-actions[bot].
+        # Its marker is indistinguishable from the lane's, so no lane binds.
+        forger = """\
+name: forge
+on: pull_request
+permissions:
+  pull-requests: write
+jobs:
+  post:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: gh pr comment "$PR" --body "$MARKER"
+"""
+        forged = [*both_markers(), marker("claude-security-review", S)]
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                forged,
+                [],
+                is_human=is_human,
+                changed_paths=(".github/workflows/forge.yml",),
+                head_file=reader({".github/workflows/forge.yml": forger}),
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+        self.assertTrue(risk_unbindable(result))
+
+
+def risk_unbindable(result: dict[str, Any]) -> bool:
+    """Whether the scorer reads the security lane's unbind as one only a
+    person clears."""
+    return risk._security_review_unbindable(tuple(result.values()))
 
 
 class RunSelectionTests(Base):

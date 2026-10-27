@@ -50,7 +50,10 @@ LANES: dict[str, tuple[str, str]] = {
 
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
-# any workflow it adds can post a github-actions[bot] reviewed-head marker),
+# a workflow it adds or edits whose token can write posts as
+# github-actions[bot], the reviewed-head marker's author, so it could forge a
+# marker or a `critical-findings:` count; `readonly_workflow` clears the
+# workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
@@ -79,6 +82,53 @@ LANE_SOURCE_NAMES = (
     "AGENTS.md",
     "REVIEW.md",
     ".gitattributes",
+)
+
+# A changed workflow file `readonly_workflow` may clear: a top-level `.yml`.
+# A `.yaml` stays a lane source, since its stem could repeat a `.yml`'s name
+# (the name rule below).
+WORKFLOW_PATH_RE = re.compile(r"^\.github/workflows/([a-z0-9][a-z0-9_-]*)\.yml$")
+# The review callers stay lane sources whatever their content: the head's copy
+# runs the review itself.
+REVIEW_CALLERS = frozenset(path for path, _ in LANES.values())
+WORKFLOW_KEYS = frozenset(
+    {"name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"}
+)
+JOB_KEYS = frozenset(
+    {
+        "name",
+        "permissions",
+        "needs",
+        "if",
+        "runs-on",
+        "snapshot",
+        "environment",
+        "concurrency",
+        "outputs",
+        "env",
+        "defaults",
+        "steps",
+        "timeout-minutes",
+        "strategy",
+        "continue-on-error",
+        "container",
+        "services",
+        "uses",
+        "with",
+    }
+)
+# Triggers that run a privileged default-branch copy on another run's behalf.
+DENIED_TRIGGERS = frozenset({"pull_request_target", "workflow_run"})
+# Any secret can carry a credential (a GitHub App private key, a PAT) whose
+# token ignores `permissions:`; GITHUB_TOKEN is the job's own token.
+SECRETS_RE = re.compile(r"\bsecrets\b", re.IGNORECASE)
+GITHUB_TOKEN_SECRET_RE = re.compile(r"\bsecrets\.github_token\b", re.IGNORECASE)
+# Raw-text backstops, so a parser difference between PyYAML and GitHub's
+# cannot hide a write grant or a denied trigger.
+WORKFLOW_DENIED_TEXT_RE = re.compile(
+    r"id-token|pull_request_target|workflow_run"
+    r"|:\s*['\"]?write(?:-all)?['\"]?\s*(?:[,}\]#]|$)",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 RECORD_TITLE = "claude-lane-review-complete"
@@ -202,6 +252,7 @@ def bind(
     changed_paths: Sequence[str] | None,
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
+    base_sha: str | None = None,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -217,7 +268,9 @@ def bind(
     diff against another base, so no lane binds. `changed_paths` holds every
     path the pull request changes (both sides of a rename), or None when the
     list is unread or incomplete: no lane binds then, nor when one is a lane
-    source (`lane_source`).
+    source (`lane_source`) that `readonly_workflow` does not clear through
+    `head_file`, with `base_sha` (the pull request's base commit) proving a
+    deletion.
 
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
@@ -230,7 +283,11 @@ def bind(
             raise Unbound("base-retargeted")
         if not isinstance(changed_paths, list | tuple):
             raise Unbound("changed-files-unread")
-        if any(lane_source(path) for path in changed_paths):
+        sources = [path for path in changed_paths if lane_source(path)]
+        # Paths first, so no file is read when one source can never clear.
+        if not all(_readonly_candidate(path) for path in sources) or not all(
+            readonly_workflow(path, head_file, base_sha) for path in sources
+        ):
             raise Unbound("lane-source-changed")
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
@@ -264,6 +321,180 @@ def lane_source(path: Any) -> bool:
         or LANE_SOURCE_SEGMENT in parts
         or parts[-1] in LANE_SOURCE_NAMES
     )
+
+
+def _readonly_candidate(path: Any) -> bool:
+    """A lane source `readonly_workflow` may clear by its content."""
+    return (
+        isinstance(path, str)
+        and bool(WORKFLOW_PATH_RE.match(path))
+        and path not in REVIEW_CALLERS
+    )
+
+
+def readonly_workflow(
+    path: str,
+    head_file: Callable[[str, str], str | None] | None,
+    base_sha: str | None,
+) -> bool:
+    """Whether a changed workflow file cannot post as github-actions[bot] with
+    write access, nor reach a credential that could: deleted at the head (a
+    deleted file runs nothing), or a head copy that passes
+    `_readonly_workflow_text`. A review caller, any other lane source, and any
+    doubt (no reader, no base, a read that fails) are not cleared."""
+    if not _readonly_candidate(path) or head_file is None:
+        return False
+    if not isinstance(base_sha, str) or not SHA_RE.match(base_sha):
+        return False
+    try:
+        text = head_file(path, base_sha)
+    except Exception:  # noqa: BLE001 - unread is not cleared
+        return False
+    if text is None:
+        return True
+    stem = WORKFLOW_PATH_RE.match(path)[1]  # type: ignore[index]
+    return isinstance(text, str) and _readonly_workflow_text(text, stem)
+
+
+def _readonly_workflow_text(text: str, stem: str) -> bool:
+    """Whether workflow text, read as GitHub would, grants its token no write
+    scope and reaches no secret:
+
+    - one plain YAML document: no anchor, alias, explicit tag, directive,
+      `<<` merge key or repeated key (PyYAML and GitHub's parser could read
+      those differently), and only known top-level and job keys;
+    - `name:` equal to the file stem, so no `workflow_run` listener that
+      names another workflow fires on it (its `workflows` filter matches
+      names, and an omitted name is the file path);
+    - no `pull_request_target` or `workflow_run` trigger;
+    - every job's token set by a `permissions:` of its own or the top level,
+      each scope `read` or `none` (`read-all` or `{}` too): a scope set
+      leaves every other `none`, while a job with neither inherits the
+      repository default, which the pull request cannot show;
+    - no `secrets` reference but `secrets.GITHUB_TOKEN`, the job's own
+      token, which also rules out `secrets: inherit` on a reusable call (a
+      called workflow's permissions can only be kept or reduced);
+    - none of `WORKFLOW_DENIED_TEXT_RE` anywhere in the raw text.
+
+    Without PyYAML nothing clears."""
+    try:
+        import yaml
+    except ImportError:
+        return False
+    if WORKFLOW_DENIED_TEXT_RE.search(text) or _mentions_secrets(text):
+        return False
+    try:
+        for event in yaml.parse(text, Loader=yaml.SafeLoader):
+            if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
+                return False
+            if getattr(event, "tag", None) is not None:
+                return False
+            if isinstance(event, yaml.DocumentStartEvent) and (
+                event.version or event.tags
+            ):
+                return False
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+        top = _yaml_mapping(root, yaml)
+    except Exception:  # noqa: BLE001 - unreadable is not cleared
+        return False
+    if top is None or not set(top) <= WORKFLOW_KEYS:
+        return False
+    name, on, jobs = top.get("name"), top.get("on"), top.get("jobs")
+    if not isinstance(name, yaml.ScalarNode) or name.value != stem:
+        return False
+    triggers = _yaml_names(on, yaml)
+    if not triggers or {t.casefold() for t in triggers} & DENIED_TRIGGERS:
+        return False
+    default = top.get("permissions")
+    if default is not None and not _readonly_permissions(default, yaml):
+        return False
+    job_map = _yaml_mapping(jobs, yaml)
+    if not job_map:
+        return False
+    for job in job_map.values():
+        keys = _yaml_mapping(job, yaml)
+        if keys is None or not set(keys) <= JOB_KEYS:
+            return False
+        own = keys.get("permissions")
+        if own is None and default is None:
+            return False
+        if own is not None and not _readonly_permissions(own, yaml):
+            return False
+    return True
+
+
+def _mentions_secrets(text: str) -> bool:
+    return bool(SECRETS_RE.search(GITHUB_TOKEN_SECRET_RE.sub("", text)))
+
+
+def _yaml_mapping(node: Any, yaml: Any) -> dict[str, Any] | None:
+    """A mapping node's values by key, after checking every node under it:
+    each mapping key a plain string scalar, not `<<`, and unique even
+    ignoring case; each decoded scalar free of `secrets`. None when `node`
+    is not a mapping; raises on a check that fails."""
+    if not isinstance(node, yaml.MappingNode):
+        return None
+    _check_yaml_tree(node, yaml)
+    return {key.value: value for key, value in node.value}
+
+
+def _check_yaml_tree(node: Any, yaml: Any) -> None:
+    if isinstance(node, yaml.ScalarNode):
+        # A double-quoted escape can spell `secrets` the raw text hides.
+        if _mentions_secrets(str(node.value)):
+            raise ValueError("secrets")
+        return
+    if isinstance(node, yaml.SequenceNode):
+        for item in node.value:
+            _check_yaml_tree(item, yaml)
+        return
+    if not isinstance(node, yaml.MappingNode):
+        raise ValueError("node")
+    seen: set[str] = set()
+    for key, value in node.value:
+        # GitHub reads every key as a string: PyYAML's YAML 1.1 bool tag on
+        # a plain `on` does not matter, and the parse refused explicit tags.
+        if not isinstance(key, yaml.ScalarNode):
+            raise ValueError("key")
+        folded = str(key.value).casefold()
+        if key.value == "<<" or folded in seen:
+            raise ValueError("key")
+        seen.add(folded)
+        _check_yaml_tree(key, yaml)
+        _check_yaml_tree(value, yaml)
+
+
+def _yaml_names(node: Any, yaml: Any) -> list[str]:
+    """The event names an `on:` node lists, or [] when its shape is not one
+    GitHub reads (a name, a list of names, or a mapping keyed by name)."""
+    if isinstance(node, yaml.ScalarNode):
+        return [str(node.value)] if node.value else []
+    if isinstance(node, yaml.SequenceNode):
+        items = node.value
+        if all(isinstance(item, yaml.ScalarNode) for item in items):
+            return [str(item.value) for item in items]
+        return []
+    if isinstance(node, yaml.MappingNode):
+        return [str(key.value) for key, _ in node.value]
+    return []
+
+
+def _readonly_permissions(node: Any, yaml: Any) -> bool:
+    """`read-all`, or a mapping whose every scope is `read` or `none` and
+    whose `id-token`, which has no read level, is `none`."""
+    if isinstance(node, yaml.ScalarNode):
+        return node.value == "read-all"
+    if not isinstance(node, yaml.MappingNode):
+        return False
+    for key, value in node.value:
+        if not isinstance(value, yaml.ScalarNode) or value.value not in (
+            "read",
+            "none",
+        ):
+            return False
+        if str(key.value).casefold() == "id-token" and value.value != "none":
+            return False
+    return True
 
 
 def _bind_lane(
