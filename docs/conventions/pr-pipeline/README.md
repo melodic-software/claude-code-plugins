@@ -1306,9 +1306,13 @@ adds a hold path or such a widening fails `ci-status` on its own head. A person 
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
 body hold or veto. `enable-auto-merge` reads the same approval (`pathLifters`) and stops holding
-the pull request on the hold path, so its other checks decide; the gate's risk score
-(`evidence --lane-reviews`) still holds a path on `babysit_risk.HIGH_FLOOR` or in
-`merge.diff-check.denied-paths` as a high path, which no approval lifts.
+the pull request on the hold path, and the gate's risk score (`evidence --lane-reviews`,
+`lane_risk_refusal`) drops its `high-path:` reasons for a path on `babysit_risk.HIGH_FLOOR` or in
+`merge.diff-check.denied-paths` on the same approval (`babysit_merge_policy.path_lifters`, which
+`test_merge_holds_sync.py` holds equal to `pathLifters`), so its other checks decide. The approval
+lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost, trust-gate,
+manifest, file-cap or review-lane hold, and a review list or trusted-actor list that does not read
+lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
