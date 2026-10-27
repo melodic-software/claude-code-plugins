@@ -539,7 +539,7 @@ class ProbeShapes(unittest.TestCase):
         for base, head, patch in (
             (
                 self._steps("5", "10"),
-                self._steps("10"),
+                self._steps("", "10").replace("      - run: step0\n", ""),
                 _patch("-      - run: step0", "-        timeout-minutes: 5"),
             ),
             (
@@ -551,6 +551,62 @@ class ProbeShapes(unittest.TestCase):
             with self.subTest(base=base):
                 wf = _file(WORKFLOW, patch=patch, contents=(base, head))
                 self.assertFalse(self._held(wf))
+
+    def test_a_deleted_steps_timeout_is_no_floor_for_another_steps_raise(self):
+        for base, head, patch in (
+            (
+                self._steps("300", "10"),
+                self._steps("", "200").replace("      - run: step0\n", ""),
+                _patch(
+                    "-      - run: step0",
+                    "-        timeout-minutes: 300",
+                    "-        timeout-minutes: 10",
+                    "+        timeout-minutes: 200",
+                ),
+            ),
+            (
+                self._steps("5", "400"),
+                self._steps("300", "", "1").replace("      - run: step1\n", ""),
+                _patch(
+                    "-        timeout-minutes: 5",
+                    "+        timeout-minutes: 300",
+                    "-      - run: step1",
+                    "-        timeout-minutes: 400",
+                    "+      - run: step2",
+                    "+        timeout-minutes: 1",
+                ),
+            ),
+        ):
+            with self.subTest(base=base):
+                wf = _file(WORKFLOW, patch=patch, contents=(base, head))
+                self.assertTrue(self._held(wf))
+
+    def test_a_decoy_timeout_does_not_offset_an_unread_raise_or_removal(self):
+        for patch in (
+            _patch(
+                "-    timeout-minutes: 30",
+                "+    timeout-minutes: 200",
+                '-        run: echo "timeout-minutes: 300"',
+                '+        run: echo "timeout-minutes: 1"',
+            ),
+            _patch(
+                "-    timeout-minutes: 30",
+                "+    timeout-minutes: 200",
+                "-    name: build\t# timeout-minutes: 300",
+                "+    name: build\t# timeout-minutes: 1",
+            ),
+            _patch(
+                "-    timeout-minutes: 30", '+        run: echo "timeout-minutes: 1"'
+            ),
+        ):
+            with self.subTest(patch=patch):
+                self.assertTrue(self._held(_file(WORKFLOW, patch=patch, contents=None)))
+
+    def test_a_hash_led_script_line_naming_a_model_holds(self):
+        wf = _file(
+            ".github/scripts/x.mjs", patch=_patch('+  #args = ["--model", "opus"];')
+        )
+        self.assertTrue(self._held(wf))
 
     def test_a_step_timeout_removed_while_the_step_stays_holds(self):
         base, head = self._steps("5", "10"), self._steps("", "10")
@@ -589,9 +645,7 @@ class ProbeShapes(unittest.TestCase):
 
     def test_an_untimed_step_added_beside_timed_steps_does_not_hold(self):
         base, head = self._steps("5", "10"), self._steps("5", "10", "")
-        wf = _file(
-            WORKFLOW, patch=_patch("+      - run: step2"), contents=(base, head)
-        )
+        wf = _file(WORKFLOW, patch=_patch("+      - run: step2"), contents=(base, head))
         self.assertFalse(self._held(wf))
 
     def test_a_commented_timeout_does_not_offset_an_unread_raise(self):

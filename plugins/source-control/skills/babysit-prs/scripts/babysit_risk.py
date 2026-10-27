@@ -1089,23 +1089,30 @@ def _timeouts(
     return values, paths, steps
 
 
-def _deleted_timed_steps(was: list[_Step], now: list[_Step]) -> int:
+def _deleted_timed_steps(was: list[_Step], now: list[_Step]) -> tuple[int, list[str]]:
     """How many items with a timeout a `steps` list lost: the ones whose
     lines, timeouts aside, the head no longer holds, less one for each head
     item with new lines, which may be one of them edited."""
     old = Counter(tuple(lines) for lines, _ in was)
     new = Counter(tuple(lines) for lines, _ in now)
     untimed = Counter(tuple(lines) for lines, timed in was if not timed)
-    timed_gone = sum(max(0, n - untimed[s]) for s, n in (old - new).items())
-    return max(0, timed_gone - sum((new - old).values()))
+    gone = old - new
+    timed_gone = sum(max(0, n - untimed[s]) for s, n in gone.items())
+    values = [v for lines, timed in was if gone[tuple(lines)] for v in timed]
+    return max(0, timed_gone - sum((new - old).values())), values
 
 
-def _patch_timeouts(lines: list[str]) -> list[str]:
-    """The timeout values on patch lines, comments left out."""
+def _patch_timeouts(lines: list[str], keyed: bool = False) -> list[str]:
+    """The timeout values on patch lines, comments left out; `keyed` keeps
+    only lines whose own key is a timeout."""
     return [
         s
         for line in lines
         if not line.lstrip().startswith("#")
+        and (
+            not keyed
+            or bool((k := _key_of(line.lstrip(" -"))) and _TIMEOUT_KEY.fullmatch(k[0]))
+        )
         for _, v in _TIMEOUT.findall(line.split(" #", 1)[0])
         if (s := _scalar(v))
     ]
@@ -1154,9 +1161,10 @@ def _raised_timeouts(
     if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
         return []
     new, old = _patch_timeouts(added), _patch_timeouts(removed)
-    found = [f"timeout raised to {v}" for v in _timeout_gains(new, old)]
+    floor = _patch_timeouts(removed, keyed=True)
+    found = [f"timeout raised to {v}" for v in _timeout_gains(new, floor)]
     if not (isinstance(base, str) and isinstance(head, str)):
-        if len(old) > len(new):
+        if len(old) > len(_patch_timeouts(added, keyed=True)):
             found.append("timeout removed")
         return found
     (was, _, steps_was), (now, kept, steps_now) = _timeouts(base), _timeouts(head)
@@ -1175,14 +1183,19 @@ def _raised_timeouts(
         if renamed:
             gone.remove((path[-1], sorted(now[path])))
             continue
+        count, values = (
+            deleted.get(path[:-1], (0, [])) if path[-2:-1] == ("steps",) else (0, [])
+        )
+        # A deleted step's timeout is no floor for another step's raise.
+        floor = Counter(was.get(path, [])) - Counter(values)
         found += [
             f"timeout at {at} raised to {v}"
-            for v in _timeout_gains(now.get(path, []), was.get(path, []))
+            for v in _timeout_gains(now.get(path, []), list(floor.elements()))
         ]
         lost = len(was.get(path, [])) - len(now.get(path, []))
-        if lost > 0 and path[-2:-1] == ("steps",):
-            cut = min(lost, deleted.get(path[:-1], 0))
-            deleted[path[:-1]] = deleted.get(path[:-1], 0) - cut
+        if lost > 0 and count:
+            cut = min(lost, count)
+            deleted[path[:-1]] = (count - cut, values)
             lost -= cut
         if lost > 0 and _kept_parent(path, kept):
             found.append(f"timeout at {at} removed")
@@ -1245,7 +1258,8 @@ def _cost_reasons(
             found = [
                 s.strip()
                 for s in added
-                if not s.lstrip().startswith("#") and any(p.search(s) for p in patterns)
+                if not (steps and s.lstrip().startswith("#"))
+                and any(p.search(s) for p in patterns)
             ]
             if steps:
                 found += [
