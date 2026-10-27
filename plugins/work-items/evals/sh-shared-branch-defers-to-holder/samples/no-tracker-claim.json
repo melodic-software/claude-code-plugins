@@ -1,0 +1,89 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" list-sub-items \"local-markdown:local/markdown#1\" --state all",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" get-item \"local-markdown:local/markdown#2\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n claim .work-items/2.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the word claim outside a verb call"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" claim \"local-markdown:local/markdown#3\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "claims #3"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "TRACKER=/p/tools/work-item-tracker/work-item-tracker.sh; \"$TRACKER\" reclaim \"local-markdown:local/markdown#2\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reclaims #2 through a variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "$T renew-lease 1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "renews a lease"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/tools/work-item-tracker/adapters/local-markdown/claim.sh \"local-markdown:local/markdown#3\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "adapter script direct"
+    }
+  ]
+}

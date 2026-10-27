@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Backlog drain board\"\nstate: \"open\"\nassignees: []\nlabels: [\"needs-triage\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\n<!-- harness-ops:lane-telemetry marker=work-loop -->\nCycle 41: admitted 2 items, drained 1, escalated 0. Next cycle in 30 minutes.\n",
+      "why": "as scaffolded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Backlog drain board\"\nstate: \"open\"\nassignees: []\nlabels: [\"status: confirmed\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\n<!-- harness-ops:lane-telemetry marker=work-loop -->\nCycle 41: admitted 2 items, drained 1, escalated 0. Next cycle in 30 minutes.\n",
+      "why": "relabeled"
+    },
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Backlog drain board\"\nstate: \"open\"\nassignees: []\nlabels: [\"needs-triage\", \"priority: medium\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\n<!-- harness-ops:lane-telemetry marker=work-loop -->\nCycle 41: admitted 2 items, drained 1, escalated 0. Next cycle in 30 minutes.\n",
+      "why": "label added"
+    },
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Backlog drain board\"\nstate: \"open\"\nassignees: []\nlabels: []\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\n<!-- harness-ops:lane-telemetry marker=work-loop -->\nCycle 41: admitted 2 items, drained 1, escalated 0. Next cycle in 30 minutes.\n",
+      "why": "marker removed"
+    },
+    {
+      "answer": "",
+      "why": "deleted"
+    }
+  ]
+}

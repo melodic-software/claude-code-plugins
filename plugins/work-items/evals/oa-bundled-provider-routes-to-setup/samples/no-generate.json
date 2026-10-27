@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls tools 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no generator call"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/onboard-adapter/scripts/generate-adapter.sh\" --spec spec.json --dry-run",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dry run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/onboard-adapter/scripts/generate-adapter.sh --spec /tmp/jira.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "real run"
+    }
+  ]
+}
