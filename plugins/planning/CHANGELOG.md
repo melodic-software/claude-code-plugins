@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.113.1] - 2026-10-27
+
+### Fixed
+
+- Shared sessions: a tab hidden, or set Away by hand, while a plain heartbeat was waiting out its one-second gap now sends its Away beat at once. Before, that beat waited for the gap's timer, which a throttled or frozen background tab may run only a minute later, so the person showed Active until then.
+
 ## [0.113.0] - 2026-10-27
 
 ### Added
