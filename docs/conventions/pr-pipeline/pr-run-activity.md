@@ -1399,12 +1399,12 @@ The run's `escalation-reason` output is the script's reason, else the select ste
 accepts the script's reasons only in this mode.
 
 In `pr-refine.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
-no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
-runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
+no prepare mode: the caller passes `patch-prepare: docs`, so the script takes the markdown-only
+`docs` row, and runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
 fallback call when it ran, else the first) and every patch input from that leg's scan job
 (`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt`, `scan-reply-attempt`), never from
-a run job. That row refuses the universal set, escalating
-`patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
+a run job. That row admits only a path ending in `.md` and refuses the universal set, any path
+under a `skills/` directory and any `SKILL.md`, each escalating `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
 `Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
 `pr-refine.yml` has no escalation job, so a refusal leaves only the neutral `awaiting-human`
@@ -1648,7 +1648,7 @@ outputs are sent), so the report job differs:
   trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
   `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
   run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
-  `default` row's refusals from there.
+  `docs` row's refusals from there.
 
 What it trusts:
 

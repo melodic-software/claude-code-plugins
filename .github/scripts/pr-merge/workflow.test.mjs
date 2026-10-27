@@ -335,6 +335,7 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
   for (const [id, scripts] of [
     ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
     ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs"]],
+    ["post-merge-dispatch", ["lane-records.mjs read", "last-report.mjs"]],
   ]) {
     for (const script of scripts) {
       const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
