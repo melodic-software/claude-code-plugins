@@ -2,7 +2,8 @@
 
 <#
 .SYNOPSIS
-Atomically replace one machine-health state file (approvals.json, mutes.json).
+Atomically replace one machine-health state file (approvals.json, mutes.json,
+the monthly wrapper copy).
 
 .DESCRIPTION
 Who may write these files, and what they guarantee, is stated once in
