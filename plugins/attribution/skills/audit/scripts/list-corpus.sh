@@ -13,7 +13,7 @@
 # unconditionally here. An unconditional exclusion would decline the fixtures
 # under the eval harness's own config isolation, leaving the eval author reading
 # prose instead of results (the ai-slop #3041 resolution). Under a consuming
-# repo's `.claude/attribution.json` every normal run declines the tree and says
+# repo's attribution config every normal run declines the tree and says
 # so; the harness lifts the config layer and the fixtures report real findings.
 #
 # Two roots, resolved separately and deliberately:
@@ -121,42 +121,20 @@ ROOT="$(git -C "$(anchor_dir)" rev-parse --show-toplevel 2>/dev/null || true)"
 
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$ROOT}"
 
-# --- Config cascade (.claude/attribution.json; user-global -> team -> overlay) -----
+# --- Config cascade (user-global -> team -> overlay; YAML, legacy JSON) -----------
 
 cfg_layers_init "$CONFIG_ROOT"
 
-HAVE_JQ=1
-command -v jq >/dev/null 2>&1 || HAVE_JQ=0
-
-EXCLUDED_GLOBS=()
-
-# cfg_array <jq-path>: last layer that defines the key wins (per-key override,
-# the config-cascade contract's sanctioned form for a closed list).
-#
-# Carriage returns are stripped because the Windows build of jq terminates its
-# lines with CRLF: without this every configured glob arrives as `docs/**<CR>`
-# and matches nothing, so `excluded_paths` silently stops applying on a Windows
-# workstation while CI, which sees LF, agrees with the config (the ai-slop
-# #3343 finding, same jq, same exposure).
-# Presence, not emptiness, decides whether a layer overrides. An explicit `[]`
-# is a value: it means "exclude nothing", and treating it as an absent key left
-# the earlier layer's exclusions in force, so an overlay could add exclusions
-# but never clear one. `!= null` separates "key defined as empty" from "key
-# absent", which is what per-key override actually requires.
-cfg_array() {
-  local path="$1" layer out=""
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    jq -e "$path != null" "$layer" >/dev/null 2>&1 || continue
-    out="$(jq -r "($path // []) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
-  done
-  printf '%s' "$out"
-}
-
-if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  read -r -a EXCLUDED_GLOBS <<<"$(cfg_array '.excluded_paths')"
-elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  echo "list-corpus.sh: jq not found; config layers present but unread, using defaults" >&2
+if cfg_have_unread_layer; then
+  echo "list-corpus.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
+
+# The last layer that defines `excluded_paths` replaces the list, the
+# config-cascade contract's sanctioned form for a closed list; an explicit empty
+# list clears an earlier layer's exclusions.
+EXCLUDED_GLOBS=()
+cfg_list EXCLUDED_GLOBS excluded_paths
+EXCLUDED_FROM="$CFG_SOURCE"
 
 VENDOR_GLOB='**/vendor/**'
 VENDOR_REASON='vendored tree (built-in carve-out; upstream owns this text)'
@@ -169,7 +147,7 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   echo "Config root: $CONFIG_ROOT"
   echo "Built-in carve-out: $VENDOR_GLOB"
   echo "Built-in carve-out: $ATTR_PATTERN (gitattributes)"
-  echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-}"
+  echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-} $(cfg_from_label "$EXCLUDED_FROM")"
   exit 0
 fi
 
