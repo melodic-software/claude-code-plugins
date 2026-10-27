@@ -62,10 +62,14 @@
 # over whole-tree CI runs; a suite the file does not list counts the mean of
 # the listed suites of its runner, rounded and at least 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
-# seconds. A leg's load is the larger of its suite-seconds and its serial
-# suite-seconds plus three times its longest suite that runs three at a time,
-# since one suite cannot be split across workers. Suites go longest first to the least-loaded leg, so the legs
-# finish close together, and every selected suite lands on exactly one leg.
+# seconds. A leg's load is its suite-seconds plus two thirds of three times its
+# longest suite that runs three at a time: list scheduling on three workers
+# ends within a third of the total plus two thirds of the longest suite, since
+# one suite cannot be split across workers. Weighing only the larger of the two
+# filled a long suite's other two workers right up to its length, so its leg
+# had no room for a slow run. Suites go longest first to the least-loaded leg,
+# so the legs finish close together, and every selected suite lands on exactly
+# one leg.
 #
 # Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no
 # lane runs.
@@ -333,8 +337,8 @@ done <<<"$packages"
 # lane's legs, plan and needs. A leg runs <workers> suites at a time
 # (scripts/run-plugin-tests.sh), so a suite on <serial-list>, which runs alone,
 # weighs <workers> times its seconds. One suite cannot be split, so a leg is
-# estimated at the larger of its suite-seconds and its serial suite-seconds plus
-# <workers> times its longest parallel suite.
+# estimated at its suite-seconds plus (<workers> - 1) / <workers> of <workers>
+# times its longest parallel suite, the list-scheduling bound.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
   local runner
@@ -357,8 +361,8 @@ pack() {
     }' \
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
-    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
-      function est(l) { return load[l] > solo[l] + top[l] ? load[l] : solo[l] + top[l] }
+    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" '
+      function est(l) { return load[l] + top[l] * (workers - 1) / workers }
       function need(p,   s) {
         s = ""
         # The animation wheels are also where the speech suites get numpy.
