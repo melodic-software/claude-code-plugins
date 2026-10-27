@@ -124,11 +124,11 @@ is "$(key bash_legs)" "[0,1,2,3]" && is "$(suites bash | wc -l | tr -d ' ')" 8 &
   is "$(key bash_plan | jq -r '[.[][]] | unique | length' | tr -d '\r')" 8
 check "400 suite-seconds take 4 legs, and the 8 suites land on them exactly once" $?
 
-# a (100 s) cannot be split across three workers, so its leg weighs 300 and
-# takes nothing else; c (90 s, 270) and d (60 s, 180) likewise. The five
-# shortest share the fourth leg: 150 suite-seconds, 50 s of wall behind e.
-grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 60s/1 150s/5' "$ERR"
-check "a leg weighs at least three times its longest suite, so the short suites fill the legs with room" $?
+# A leg weighs its suite-seconds plus two thirds of three times its longest
+# suite: a (100 s) weighs 300 and c (90 s) 270, so they take nothing else; d
+# (60 s, 180) draws b and h, e (50 s, 150) draws f and g.
+grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 100s/3 110s/3' "$ERR"
+check "a leg weighs its suite-seconds plus its longest suite's share of the other workers" $?
 
 # 230 suite-seconds take 2 legs. Weighed by sum alone, a's leg (100) would draw
 # g once d and f bring the other leg level; weighed by its unsplittable 300, it
@@ -136,6 +136,24 @@ check "a leg weighs at least three times its longest suite, so the short suites 
 plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.sh
 is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
 check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
+
+# 45 suites of 40 s beside a (100 s): 1900 suite-seconds, capped at 6 legs.
+# Weighed by the larger of its suite-seconds and three times a, a's leg would
+# draw short suites until its other two workers ran 100 s each, as long as a
+# itself: 300s/6, no room for a slow run. Weighed by its suite-seconds plus two
+# thirds of three times a, it stops at 220s/4 and the other legs take the rest.
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+many=()
+for i in $(seq -w 1 45); do
+  mk "plugins/n/n$i.test.sh" "true"
+  printf 'plugins/n/n%s.test.sh 40\n' "$i" >>"$repo/scripts/suite-seconds.txt"
+  many+=("plugins/n/n$i.test.sh")
+done
+plan -- plugins/a/a.test.sh "${many[@]}"
+rm -rf "${repo:?}/plugins/n"
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+grep -q 'bash: 46 suite(s), 1900 suite-seconds, 6 leg(s): 220s/4 ' "$ERR"
+check "the longest suite's leg keeps room: its other workers finish well before it" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
 before="$(key bash_legs)"

@@ -29,6 +29,9 @@ workflow change after auto-merge is armed.
   to the same heads: the decided head, read from the review lanes' check-run
   notices (`noticedHead`, `_noticed_head`), or a later one with the same net
   change against the base branch (`sameNetChange`).
+- The high-path lift: `pathLifters` over `fromRest` and
+  `babysit_merge_policy.path_lifters` name the same trusted approvers of the
+  head on the same REST review lists.
 """
 
 from __future__ import annotations
@@ -408,6 +411,70 @@ class TheWideningHoldIsTheGates(unittest.TestCase):
         held = [js is not None for js in answers]
         self.assertIn(True, held)
         self.assertIn(False, held)
+
+
+NODE_LIFTERS = """
+import { fromRest, pathLifters } from %s;
+const [cases, humans, head] = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(cases.map((rows) => pathLifters(rows.map(fromRest), new Set(humans), head))));
+"""
+_HEAD = "a" * 40
+
+
+def _review(
+    state: str,
+    user: int = 1,
+    sha: str = _HEAD,
+    at: str = "2026-10-26T16:41:00Z",
+    kind: str = "User",
+) -> dict[str, Any]:
+    return {
+        "user": {"id": user, "login": f"u{user}", "type": kind},
+        "state": state,
+        "commit_id": sha,
+        "submitted_at": at,
+    }
+
+
+_LATER = "2026-10-26T17:20:00Z"
+# REST review lists, kyle (id 1) and id 3 trusted, at head _HEAD.
+LIFTER_CASES = {
+    "approved at the head": [_review("APPROVED")],
+    "approved at another head": [_review("APPROVED", sha="b" * 40)],
+    "an untrusted approver": [_review("APPROVED", user=2)],
+    "a bot account": [_review("APPROVED", kind="Bot")],
+    "changes requested since": [_review("APPROVED"), _review("CHANGES_REQUESTED", at=_LATER)],
+    "dismissed since": [_review("APPROVED"), _review("DISMISSED", at=_LATER)],
+    "approved after changes requested": [_review("CHANGES_REQUESTED"), _review("APPROVED", at=_LATER)],
+    "a comment after the approval": [_review("APPROVED"), _review("COMMENTED", at=_LATER)],
+    "two people, one blocks": [_review("APPROVED", user=3), _review("APPROVED"), _review("CHANGES_REQUESTED", at=_LATER)],
+    "no reviews": [],
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheHighPathLiftIsTheGates(unittest.TestCase):
+    def test_both_name_the_same_lifters(self) -> None:
+        script = NODE_LIFTERS % json.dumps(MODULE.as_uri())
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                json.dumps([list(LIFTER_CASES.values()), [1, 3], _HEAD]),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, rows), js in zip(LIFTER_CASES.items(), answers, strict=True):
+            with self.subTest(name):
+                self.assertEqual(policy.path_lifters(rows, {1, 3}, _HEAD), js)
+        self.assertIn([], answers)
+        self.assertIn(["u1"], answers)
+        self.assertIn(["u3"], answers)
 
 
 REPO = "o/r"

@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [5.19.6] - 2026-10-27
+
+### Fixed
+
+- enable-auto-merge no longer holds a lanes App pull request on a hold path once a person on the trusted-actor list approved its current head, the same `pathLifters` rule `ci-status` lifts that hold by; its other checks then decide. An approval of an older head, an untrusted reviewer's approval, or a newer request for changes lifts nothing, and a hold-path list or file listing that could not be read, or one too long to check, still holds (`.github/scripts/pr-merge/enable-auto-merge.mjs`). The gate's risk score lifts the same paths' `high-path:` reasons on that approval, so such a pull request now arms end to end (source-control's `path_lifters`).
+
+## [5.19.5] - 2026-10-27
+
+### Fixed
+
+- The fix-docs dispatcher no longer dispatches a head again on every cycle when its runs post no check, as a run whose run job emits an empty head does under `post-decline: false` ([#9247](https://github.com/melodic-software/claude-code-plugins/issues/9247)). The dispatch record keeps the fix-docs runs dispatched on each head; once `limits.limit-stops-per-head` of them are kept, the dispatcher reads each one's status and jobs through the Actions API, and a head with that many whose `fix-docs / broker-allowed` job succeeded gets one warning and is recorded as handled until a new push. Broker-refused, held and deleted runs do not count, and a head whose runs cannot be read is not dispatched (`.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `dispatch-record.mjs`).
+
 ## [5.19.4] - 2026-10-27
 
 ### Changed

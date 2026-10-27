@@ -24,8 +24,10 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job. A
-//   config that does not read arms nothing and labels nothing; the next run
-//   reads it again.
+//   trusted person's approving review of the head lifts it, as ci-status
+//   lifts it (merge-holds.pathLifters); it lifts no listing or check that
+//   could not run. A config that does not read arms nothing and labels
+//   nothing; the next run reads it again.
 // - Its head changes no cost path, unless its body links the owner's cost
 //   decision: merge-holds.costHold and costDecision, which ci-status runs too.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
@@ -139,7 +141,7 @@
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
-//                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
+//                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
@@ -168,7 +170,7 @@ import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trust
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHoldKind, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -204,7 +206,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 // One candidate's discussion: the newest 100 of each, and wholeDiscussion
 // reads the rest of any list that has more.
 const COMMENT_FIELDS = "databaseId author { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
-const REVIEW_FIELDS = "author { __typename login } body submittedAt authorAssociation";
+const REVIEW_FIELDS = "author { __typename login ... on User { databaseId } } state commit { oid } body submittedAt authorAssociation";
 const THREAD_COMMENT_FIELDS = "author { __typename login } body createdAt authorAssociation";
 const THREAD_FIELDS = `id comments(last: 100) { totalCount nodes { ${THREAD_COMMENT_FIELDS} } }`;
 export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -403,19 +405,29 @@ export async function wholeDiscussion(github, variables, detail) {
   return { ...read, reviewThreads: { ...read.reviewThreads, nodes: threads } };
 }
 
+// One DETAIL_QUERY comment or review as a merge-holds item (fromRest's shape).
+const itemOf = (item) => ({
+  login: item?.author?.login,
+  userId: item?.author?.databaseId,
+  state: item?.state,
+  commitId: item?.commit?.oid,
+  isUser: item?.author?.__typename === "User",
+  association: item?.authorAssociation,
+  at: String(item?.submittedAt ?? item?.createdAt ?? ""),
+  body: String(item?.body ?? ""),
+});
+
+// The trusted people (`humans`) whose newest deciding review of `head` in
+// `detail` approves it, as ci-status reads them (merge-holds.pathLifters).
+const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
+
 // Why the discussion `detail` (DETAIL_QUERY's pullRequest) holds it, or null.
 export function discussionHold(detail) {
   const threads = detail?.reviewThreads;
   if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
     return "its comments could not all be read";
   }
-  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map((item) => ({
-    login: item?.author?.login,
-    isUser: item?.author?.__typename === "User",
-    association: item?.authorAssociation,
-    at: String(item?.submittedAt ?? item?.createdAt ?? ""),
-    body: String(item?.body ?? ""),
-  }));
+  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map(itemOf);
   const vetoes = vetoers(items);
   return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
 }
@@ -948,10 +960,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // A hold path a person clears; a listing or check that could not run is
-  // a lane's, which the next run reads again.
+  // A hold path a person clears, lifted by a trusted approval of the head
+  // (`lifters`) as ci-status lifts it; a listing or check that could not run
+  // is a lane's, which the next run reads again.
   const pathHeld = pathHoldKind(detail.files, holdPaths);
-  if (pathHeld !== null) {
+  if (pathHeld !== null && !(pathHeld.kind === "hold-path" && detail.lifters?.length > 0)) {
     return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: pathHeld.kind === "hold-path" ? "person" : "lane" };
   }
   const costHeld = costHold(detail.files, detail.costDecision);
@@ -1196,8 +1209,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
           if (detail !== null) {
             detail = await wholeDiscussion(github, variables, detail);
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env), pull.headRefOid, actions) : null;
-            detail = { ...detail, files, filesCapped: capped, costDecision: decision };
+            const humans = trustedHumans(env);
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
+            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters: headLifters(detail, humans, pull.headRefOid) };
           }
         } catch (error) {
           // A read that fails decides nothing and writes nothing.
