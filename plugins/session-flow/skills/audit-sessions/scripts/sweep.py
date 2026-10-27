@@ -5,8 +5,9 @@
     sweep.py --data-dir D [--since YYYY-MM-DD] [--until YYYY-MM-DD]
              [--scope machine|project] [--state-key K] [--catalog SKILL ...]
              [--canaries FILE] [--min-count N] [--versions N] [--session-floor N]
-             [--format json|md] [--write-report] [--judged FILE]
+             [--format json|md] [--write-report] [--judged FILE] [--session ID ...]
     sweep.py --data-dir D --excerpts|--correction-candidates [--since ...] [--until ...] [--scope ...] [--state-key K]
+             [--session ID ...]
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
@@ -31,6 +32,13 @@ not apply. A record collected while redaction failed closed contributes none and
 or `not-correction`, and a one-line `reason`) into `data.judged`, the `Judged (unranked)` section:
 its findings carry `"confidence": "judged"`, quote their excerpt, and never enter `data.findings`,
 `data.suggestions` or the exit code. It refuses `--write-report`, so no saved report holds an excerpt.
+
+`--session ID ...` limits metrics and findings to the named sessions, kept whatever their class,
+for the skill's `now` action, and narrows the excerpt modes to them too. Each row's p90 and `baseline_stale` still come
+from every interactive session in scope and window, and the drift check still reads every record.
+The machine-wide and per-ticket metrics do not describe one session, so they are marked
+`not_applicable` and raise no finding. It refuses `--write-report`, so the kept reports stay
+machine or project ones.
 """
 
 from __future__ import annotations
@@ -137,6 +145,7 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
 
 
 PER_TICKET = {"edits.churn_per_pr": _churn}
+NOT_APPLICABLE = "not applicable with --session: this metric describes the machine or a linked PR, not one session"
 
 
 def load_rules(path: Path) -> dict:
@@ -190,11 +199,16 @@ def impact(unit: str, excess: float) -> dict | None:
     return None
 
 
-def build_data(records, rules, drift, fed, scope, window, catalog, factor) -> dict:
+def build_data(records, rules, drift, fed, scope, window, catalog, factor, population=None) -> dict:
+    """`population`, given with --session, holds the in-scope sessions each row's p90 is taken over."""
     degraded = set(drift["degraded_metrics"])
     metrics, findings, unchecked = {}, [], []
     for rule in rules:
         metric, unit, threshold = rule["metric"], rule["unit"], rule["threshold"]
+        if population is not None and metric not in PER_SESSION:
+            metrics[metric] = {"value": None, "unit": unit, "n": 0, "p90": None, "threshold": threshold, "baseline_stale": False, "not_applicable": True}
+            unchecked.append({"what": metric, "reason": NOT_APPLICABLE})
+            continue
         if metric in MACHINE_WIDE:
             per, value = [], MACHINE_WIDE[metric](records)
             n = len(records)
@@ -208,7 +222,10 @@ def build_data(records, rules, drift, fed, scope, window, catalog, factor) -> di
             metrics[metric] = {"value": None, "unit": unit, "n": n, "p90": None, "threshold": threshold, "baseline_stale": False, "degraded": True}
             unchecked.append({"what": metric, "reason": "unavailable: a drift canary feeding it is lost"})
             continue
-        store_p90 = p90([v for v, _ in per])
+        if population is None:
+            store_p90 = p90([v for v, _ in per])
+        else:
+            store_p90 = p90([v for r in population if (v := PER_SESSION[metric](r)) is not None])
         stale = baseline_stale(store_p90, threshold, factor)
         metrics[metric] = {"value": value, "unit": unit, "n": n, "p90": store_p90, "threshold": threshold, "baseline_stale": stale}
         if metric not in fed:
@@ -369,6 +386,8 @@ def render_md(data: dict) -> str:
     if window.get("unclassified"):
         n = window["unclassified"]
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
+    if window.get("sessions_not_found"):
+        sessions += "; named but not in the store: " + ", ".join(markdown_code(s) for s in window["sessions_not_found"])
     lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
     lines += [
         "## Metrics",
@@ -377,7 +396,10 @@ def render_md(data: dict) -> str:
         "|---|---|---|---|---|---|---|",
     ]
     for metric, row in data["metrics"].items():
-        value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
+        if row.get("not_applicable"):
+            value = "not applicable"
+        else:
+            value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
         store_p90 = _fmt(row.get("p90")) + (" (stale baseline)" if row.get("baseline_stale") else "")
         lines.append(
             f"| `{metric}` | {value} | {STATISTIC.get(metric, 'median')} | {store_p90} | {_fmt(row.get('threshold'))} | "
@@ -572,6 +594,7 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--excerpts", action="store_true", help="print stored typed-turn excerpts as JSON lines")
     mode.add_argument("--correction-candidates", action="store_true", help="print the excerpts with a turn_id for the judge")
     mode.add_argument("--judged", help="the judge's verdict file, merged as a separate unranked section")
+    parser.add_argument("--session", nargs="+", action="extend", help="only these session ids")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
@@ -580,6 +603,8 @@ def main(argv: list[str] | None = None) -> int:
         return emit("json", "error", "bad arguments", {}, 2)
     if args.judged is not None and args.write_report:
         return emit("json", "error", "--judged findings quote excerpts, so --judged refuses --write-report", {}, 2)
+    if args.session and args.write_report:
+        return emit("json", "error", "--session reports are not kept, so --session refuses --write-report", {}, 2)
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
         return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
     data_dir = Path(args.data_dir)
@@ -603,6 +628,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         scope, key, scoped = "machine", "machine", records
     scoped = [r for r in scoped if in_window(r, args.since, args.until)]
+    population = [r for r in scoped if census.session_class(r) != "automated"]
+    named = set(args.session or ())
+    if named:
+        scoped = [r for r in scoped if r.get("session_id") in named]
     if args.excerpts or args.correction_candidates:
         # Typed turns come from people: an automated session's turns are a script's.
         keys = CANDIDATE_KEYS if args.correction_candidates else EXCERPT_KEYS
@@ -610,18 +639,29 @@ def main(argv: list[str] | None = None) -> int:
     drift = census.drift(
         records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor
     )
+    stored = {r.get("session_id") for r in records}
     records = scoped
     classes = Counter(census.session_class(r) for r in records)
-    records = [r for r in records if census.session_class(r) != "automated"]
+    if named:
+        # A session named on purpose is measured whatever its class.
+        classes["automated"] = 0
+    else:
+        records = [r for r in records if census.session_class(r) != "automated"]
     window = {
         "since": args.since and args.since.isoformat(),
         "until": args.until and args.until.isoformat(),
         "automated_set_aside": classes["automated"],
         "unclassified": classes["unknown"],
     }
+    if named:
+        window["session_ids"] = sorted(named)
+        window["sessions_not_found"] = sorted(named - stored)
     fed = {metric for canary in canaries for metric in canary["feeds"]}
     catalog = {name.lstrip("/") for name in args.catalog} if args.catalog else None
-    data = build_data(records, rules_file["rules"], drift, fed, scope, window, catalog, rules_file["stale_p90_factor"])
+    factor = rules_file["stale_p90_factor"]
+    data = build_data(
+        records, rules_file["rules"], drift, fed, scope, window, catalog, factor, population=population if named else None
+    )
     summary = f"{len(records)} sessions, {len(data['findings'])} findings"
     if verdicts is not None:
         data["judged"] = judged_section(flagged_turns(records)[0], verdicts, scope, catalog)
