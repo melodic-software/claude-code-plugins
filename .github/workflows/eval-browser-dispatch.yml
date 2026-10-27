@@ -489,7 +489,14 @@ jobs:
             mkdir -p "$out"
             echo "== claude plugin eval $dir --eval-dir $eval_dir"
             status=0
-            claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
+            if [ "$DISPATCH" = true ]; then
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
+            else
+              # A pull request run's console output can carry model text from
+              # the PR's cases, and the job log is public: it goes to a file
+              # that nothing uploads.
+              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" >"$out/console.log" 2>&1 || status=$?
+            fi
             echo "exit $status" >"$out/exit-code"
           done <<<"$SUITES"
 
