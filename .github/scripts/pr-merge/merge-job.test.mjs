@@ -58,6 +58,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
       "Record the re-run",
+      "Log the API budget at the end",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
