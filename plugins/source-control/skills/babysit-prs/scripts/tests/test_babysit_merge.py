@@ -1747,6 +1747,12 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         with (
             mock.patch.object(refresh, "view_pr", return_value=pr),
             mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
+            # The next check reads GitHub; past the author check is far enough.
+            mock.patch.object(
+                refresh,
+                "refuse_standards_sync",
+                side_effect=RuntimeError("past the author check"),
+            ),
         ):
             refresh.validate_current_candidate(
                 "owner/repo", PR_NUMBER, HEAD, frozenset({"owner"})
@@ -1773,7 +1779,7 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
     def test_other_author_passes_the_author_check(self) -> None:
         with self.assertRaises(RuntimeError) as caught:
             self._validate("octocat")
-        self.assertNotIn("dependency manager", str(caught.exception))
+        self.assertEqual(str(caught.exception), "past the author check")
 
 
 # A Dependabot pull request's commits as `pulls/{n}/commits` lists them.

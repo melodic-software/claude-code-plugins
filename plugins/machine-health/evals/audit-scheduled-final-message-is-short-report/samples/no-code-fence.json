@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "machine-health checkup WS-0142 2026-10-25T03:00:12Z\nelevated: no, mode: weekly\npage: not built"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\nmachine-health checkup WS-0142 2026-10-25T03:00:12Z\nelevated: no, mode: weekly\n```",
+      "why": "the lines are fenced"
+    }
+  ]
+}

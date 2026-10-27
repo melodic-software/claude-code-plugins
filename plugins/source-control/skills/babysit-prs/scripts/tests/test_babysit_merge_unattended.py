@@ -757,6 +757,9 @@ def entry(
     }
 
 
+_REAL_GET = policy._get
+
+
 class Unattended(unittest.TestCase):
     """`main()` over the real composition, every reader a fake set per test."""
 
@@ -902,7 +905,11 @@ class Unattended(unittest.TestCase):
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
         if endpoint == "repos/owner/repo/commits/main":
             return 200, {"sha": self.main_head}
-        return self._real_get(endpoint)
+        # A test's own patch of `policy._get` answers the rest; the real reader
+        # would reach GitHub, so a read nothing answers raises instead.
+        if self._outer_get is _REAL_GET:
+            raise AssertionError(f"unexpected policy._get call: {endpoint}")
+        return self._outer_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -970,7 +977,7 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
-        self._real_get = policy._get
+        self._outer_get = policy._get
         self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),

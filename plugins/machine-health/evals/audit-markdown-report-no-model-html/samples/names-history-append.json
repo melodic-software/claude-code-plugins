@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Step 7 writes `state/latest.json` and appends one line to `state/history.jsonl`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Step 7 writes `state/latest.json` and the trend file.",
+      "why": "names no history file"
+    }
+  ]
+}
