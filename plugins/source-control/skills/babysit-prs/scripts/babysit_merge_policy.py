@@ -33,7 +33,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -679,13 +679,14 @@ def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
         raise PolicyReadError(f"{path} at {sha} is unreadable: {exc}") from exc
 
 
-def _loop_merge(text: str) -> str | None:
-    """The one `## babysit_loop_merge` value, or None for none, two, or a file
-    the repository-config parser rejects."""
+def _loop_merge(text: str) -> tuple[str | None, bool]:
+    """(the one `## babysit_loop_merge` value or None when the file has no
+    such H2, whether the file can be trusted: False for a file the
+    repository-config parser rejects, two such H2s or an empty one)."""
     try:
         repo_config.parse_repo_config(text)
     except repo_config.RepoConfigError:
-        return None
+        return None, False
     values: list[str] = []
     current: list[str] | None = None
     in_fence = False
@@ -704,7 +705,62 @@ def _loop_merge(text: str) -> str | None:
                 values.append("")
         elif current is not None and raw.strip() and not values[-1]:
             values[-1] = raw.strip().strip("`").strip()
-    return values[0] if len(values) == 1 and values[0] else None
+    if not values:
+        return None, True
+    return (values[0], True) if len(values) == 1 and values[0] else (None, False)
+
+
+def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
+    """(`babysit_loop_merge` from the team YAML or None when it sets none,
+    a note when the file cannot be trusted). A file the shared reader
+    rejects, or an empty, non-scalar or unknown value, is a note."""
+    path = repo_config.YAML_CONFIG_PATH
+    values = _concern_values(text, [(LOOP_MERGE_KEY, False)])
+    if values is None:
+        return None, f"{path}: the shared YAML reader rejects it"
+    found = values[LOOP_MERGE_KEY]
+    if not found:
+        if re.search(rf"^{LOOP_MERGE_KEY}[ \t]*:", text, re.M):
+            return None, f"{path}: {LOOP_MERGE_KEY} is not a scalar value"
+        return None, None
+    if found[0] not in LOOP_MERGE_RUNG:
+        return None, f"{path}: {LOOP_MERGE_KEY} {found[0]!r} is not a known value"
+    return found[0], None
+
+
+def _resolve_loop_merge(
+    file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
+) -> str | None:
+    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
+    set the key, else None (off), so a raise needs both files; the result is
+    the lower of the two, or the legacy value when the YAML sets none. Either
+    file unreadable or untrustworthy yields None (off), never the other
+    file's value alone."""
+    try:
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
+        return None
+    legacy, trusted = _loop_merge(source) if source is not None else (None, True)
+    if not trusted:
+        return None
+    try:
+        team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{repo_config.YAML_CONFIG_PATH} unreadable: {exc}")
+        return None
+    team, note = _team_loop_merge(team_text) if team_text is not None else (None, None)
+    if note:
+        notes.append(note)
+        return None
+    if source is None:
+        # Off with no legacy file: the YAML alone never raises the gate. The
+        # cleanup slice that deletes the legacy file decides deliberately
+        # whether the YAML may then set the rung by itself.
+        return None
+    if legacy is None or team is None:
+        return legacy
+    return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
 
 
 def read_config_at(
@@ -713,7 +769,8 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through
+    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
+    and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
@@ -735,12 +792,7 @@ def read_config_at(
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
-    try:
-        source = file_at(SOURCE_CONTROL_PATH, base_sha)
-    except PolicyReadError as exc:
-        source = None
-        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-    loop_merge = _loop_merge(source) if source is not None else None
+    loop_merge = _resolve_loop_merge(file_at, base_sha, notes)
 
     text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
@@ -2913,6 +2965,25 @@ def _dependabot_pushes(
     )
 
 
+def _dependabot_config(
+    owner: str, name: str, base_sha: str, main_sha: str
+) -> list[tuple[str, str]] | None:
+    """The (ecosystem, directory) pairs `.github/dependabot.yml` names at both
+    the base and the default branch head (`main_sha`), in the base's order:
+    coverage only admits, so a pair one side lacks is not covered and neither
+    side can widen it. None when either side holds no entry. Raises
+    `PolicyReadError` on a read failure."""
+    base = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
+    if base is None or main_sha == base_sha:
+        return base
+    main = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, main_sha) or ""
+    )
+    return None if main is None else [p for p in base if p in main]
+
+
 def _dependabot_content(
     owner: str,
     name: str,
@@ -2920,11 +2991,13 @@ def _dependabot_content(
     pr: Mapping[str, Any],
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
+    main_sha: str,
 ) -> tuple[str | None, str | None, list[str] | None]:
     """(content reason, refusal, changed paths). The content reason,
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
-    lock files and `uses:` repins (`content_refusal`, per
-    `.github/dependabot.yml` at the base); it sends the pull request to tier
+    lock files and `uses:` repins (`content_refusal`, per the pairs
+    `.github/dependabot.yml` names at both the base and the default branch
+    head, `_dependabot_config`); it sends the pull request to tier
     `review`. The paths a version-bump commit touched count as checked once
     it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
     else `dependabot-bump-content:<why>`); any other commit that is not
@@ -2934,9 +3007,7 @@ def _dependabot_content(
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
+    config = _dependabot_config(owner, name, base_sha, main_sha)
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -3050,15 +3121,48 @@ def _fix_commit_refusal(
         return f"fix-unreadable:{str(exc)[:120]}"
 
 
-def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
-    """The base's standards Dependabot policy as parsed JSON, or None when it
+def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
+    """The standards Dependabot policy at `sha` as parsed JSON, or None when it
     is absent or not JSON (`review_only` then reports it unreadable). Raises
     `PolicyReadError` on a read failure."""
-    text = _file_at(owner, name, dependabot.POLICY_PATH, base_sha)
+    text = _file_at(owner, name, dependabot.POLICY_PATH, sha)
     try:
         return json.loads(text) if text is not None else None
     except ValueError:
         return None
+
+
+def _review_only(
+    owner: str,
+    name: str,
+    pr: Mapping[str, Any],
+    updates: Sequence[dependabot.Update],
+    paths: list[str] | None,
+    main_sha: str,
+) -> tuple[str, ...]:
+    """`review_only`'s reasons under the policy at the base and under the one
+    at the default branch head (`main_sha`), base first, each once: an entry
+    either side lists sends the pull request to review, and either side
+    unreadable reports it. Raises `PolicyReadError` on a read failure."""
+    repo = f"{owner}/{name}"
+    head_ref = str(json_object(pr.get("head")).get("ref") or "")
+    base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    return tuple(
+        dict.fromkeys(
+            reason
+            for sha in dict.fromkeys((base_sha, main_sha))
+            for reason in dependabot.review_only(
+                _dependabot_policy(owner, name, sha), repo, head_ref, updates, paths
+            )
+        )
+    )
+
+
+def _dependabot_main_sha(repo: str, branch: str | None) -> str:
+    """The default branch head whose Dependabot inputs bind beside the base's:
+    the one `_default_branch_config` reads, saved once per cache window and
+    never a failed read. Raises `PolicyReadError` when it cannot be read."""
+    return _default_branch_config(repo, branch).base_sha
 
 
 def _registry_json(url: str, accept: str) -> Any:
@@ -3130,6 +3234,8 @@ def dependabot_eligibility(
     pr: Mapping[str, Any],
     agent_identity: str | None,
     hold_majors: bool = True,
+    main_sha: str | None = None,
+    branch: str | None = None,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
@@ -3143,10 +3249,13 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
     hold labels and a body hold are the gate's, as for every pull
-    request."""
+    request. `.github/dependabot.yml` and the Dependabot policy bind at the
+    base and at the default branch head `main_sha` (`_dependabot_main_sha`
+    of `branch` when None), each by the rule that only tightens."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
     try:
+        main_sha = main_sha or _dependabot_main_sha(repo, branch)
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
@@ -3196,21 +3305,13 @@ def dependabot_eligibility(
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         content, refusal, paths = _dependabot_content(
-            owner, name, number, pr, commits, files
+            owner, name, number, pr, commits, files, main_sha
         )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         # A dependency the standards policy lists as review-only goes to review
         # whatever its version change; an unreadable policy sends every one.
-        listed = dependabot.review_only(
-            _dependabot_policy(
-                owner, name, str(json_object(pr.get("base")).get("sha") or "")
-            ),
-            repo,
-            str(json_object(pr.get("head")).get("ref") or ""),
-            tier.updates,
-            paths,
-        )
+        listed = _review_only(owner, name, pr, tier.updates, paths, main_sha)
         added = tuple(r for r in (content, *listed) if r)
         # A release whose registry provenance changed goes to review; only a
         # pull request still tier `auto` spends the registry reads.
@@ -4964,6 +5065,7 @@ def assess(
                 pr=pr,
                 agent_identity=identity,
                 hold_majors=config.dependabot_majors == "hold",
+                branch=default,
             )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")

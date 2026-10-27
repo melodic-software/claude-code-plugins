@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
@@ -272,11 +272,45 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
   const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
   assert.match(
     armIf,
-    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n/,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)\n/,
   );
   assert.match(armIf, /^ {6}!cancelled\(\)\n/);
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
+
+// A bot-sent pull_request_target run would wait in the queue and then stop at
+// who.mjs (a bot is never a listed human), so the job's condition skips it
+// first. The condition's syntax is the subset JavaScript reads the same way,
+// so the test evaluates it against hand-written events.
+const evalIf = (id, event) => {
+  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(job(id))[1].replaceAll("\n", " ");
+  const format = (template, value) => template.replace("{0}", value);
+  return new Function("github", "vars", "cancelled", "format", `return (${text});`)(
+    { ref: "refs/heads/main", repository: "o/r", ...event },
+    { AUTOMATION_LANES_APP_SENDER_ID: "99" },
+    () => false,
+    format,
+  );
+};
+const pullRequestEvent = (senderType) => ({
+  event_name: "pull_request_target",
+  event: { sender: { type: senderType }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } },
+});
+
+for (const id of ["merge", "enable-auto-merge"]) {
+  test(`${id} skips a bot-sent pull_request_target run and runs a user-sent one`, () => {
+    assert.equal(evalIf(id, pullRequestEvent("Bot")), false);
+    assert.equal(evalIf(id, pullRequestEvent("User")), true);
+  });
+
+  test(`${id} does not gate schedule or workflow_dispatch on the sender type`, () => {
+    for (const event_name of ["schedule", "workflow_dispatch"]) {
+      for (const type of ["Bot", "User"]) {
+        assert.equal(evalIf(id, { event_name, event: { sender: { type } } }), true, `${event_name} sent by ${type}`);
+      }
+    }
+  });
+}
 
 // The merge job's skip, run for enable-auto-merge's own group before the lane
 // token or any other read.
@@ -300,7 +334,7 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
     ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
-    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs"]],
   ]) {
     for (const script of scripts) {
       const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
@@ -315,6 +349,9 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+  // A read of a kept refusal alone starts no later than its window past the
+  // budget and ends inside the same bound.
+  assert.ok(CACHE_ONLY_WINDOW_MS + CACHE_ONLY_TIMEOUT_MS <= VERIFY_TIMEOUT_MS);
 });
 
 test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
@@ -1005,4 +1042,40 @@ test("a token grant is found at any indentation", () => {
     const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
     assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
   }
+});
+
+// The verifier answers (babysit_verify_evidence.py --answers-in/--answers-out)
+// cross runs only as the artifact of a scheduled or hand-started run of
+// main's pr-merge.yml, read through rotation.mjs newestTrustedRun and
+// onMain, never actions/cache, which any job in main's cache scope can write.
+test("enable-auto-merge reads the verifier answers only from a trusted run and uploads them under their own name, always", () => {
+  const arm = job("enable-auto-merge");
+  const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
+  const read = step("Read the verifier answers the last run kept");
+  assert.ok(read, "an answers read");
+  assert.match(read, /^ {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(read, /\n {8}continue-on-error: true\n/);
+  assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}VERIFY_ANSWERS_PATH: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n/);
+  const script = readFileSync(new URL("./verify-answers.mjs", import.meta.url), "utf8");
+  assert.match(script, /newestTrustedRun\(\{ repo, runId, actions, name: ANSWERS_ARTIFACT, accept \}\)/);
+  assert.match(script, /const accept = \(run\) => onMain\(/);
+  assert.match(script, /export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";/);
+  const armStep = step("Arm and disarm auto-merge");
+  assert.match(armStep, /\n {10}VERIFY_ANSWERS_IN: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n {10}VERIFY_ANSWERS_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n/);
+  assert.match(armStep, /\n {10}VERIFY_CACHE=\$\(yq '\.merge\."verify-cache" \/\/ "shadow"' "\$config"\)\n/);
+  assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
+  const upload = step("Upload the verifier answers for the next run");
+  assert.ok(upload, "an answers upload");
+  assert.match(upload, /^ {8}if: >-\n {10}always\(\) && steps\.arm\.outcome != 'skipped'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  // Bounded, so the job's timeout stays above the sum of its steps'.
+  assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
+  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
+  // Its own name in the workflow, never downloaded by name, never cached.
+  assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
+  assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
+  assert.doesNotMatch(merge, /uses: actions\/download-artifact[^\n]*\n(?:[^\n]*\n){0,3}[^\n]*verify-answers/);
 });

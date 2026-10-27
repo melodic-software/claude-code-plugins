@@ -457,7 +457,11 @@ Each leaf declares:
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
-  report. A script in both lists fails red.
+  report. A script in both lists fails red. On a skill whose effect is not `read`, whose run job
+  holds the lane token and `id-token: write`, neither list may name a script that runs the
+  checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`,
+  `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays
+  allowed, since from the base copy it skips the branch's tests.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
@@ -469,7 +473,9 @@ Each leaf declares:
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
   `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
-  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
+  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does. Those two run checkout
+  code, so the schema refuses them on a skill whose effect is not `read`: its run job holds the
+  lane token and `id-token: write`.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, the skill may search the web, fetch
   those domains, and run the research skills, wherever the runner gives it its edit tools
@@ -558,7 +564,8 @@ label back.
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) is the registry
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
-`review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
+`review-threads`, `dependency-review`, `merge-base`), `docs` for a push job that passes
+`patch-prepare: docs` to hold a patch to markdown, `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
 fix-docs's, resolve-conflicts's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
@@ -568,7 +575,7 @@ each row to these keys:
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
+| `allow` | What every other changed path must also meet: `any`, `markdown` (a path ending in `.md`, in that case), `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
@@ -576,7 +583,7 @@ each row to these keys:
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default), `invalid` (`ci-context`, as the producer said it wrote a change) or `conflict` (`merge-base`: its `unresolved-conflict` reason, since the conflicts stay as git left them). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` and `docs` set `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -588,7 +595,11 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
 `CODEOWNERS`, `.gitmodules` and the files that enforce the floor) waits for a person, and the
-security lane judges the rest, the trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+security lane judges the rest, the trusted-actor list included. The `docs` row also refuses, in any case and through
+any `..` segment, a path under a `skills/` directory at any depth (`skills`) and a `SKILL.md`
+anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
+`patch-protected-path`; it otherwise matches `default`. No other row names those two refusals,
+and none has to. The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
@@ -732,6 +743,11 @@ cap applies at once. So a tightening on the default branch reaches pull requests
 a loosening waits until a pull request's base includes it, and a pull request still cannot drop its
 base's declaration. A different authority, or an identity set on one side only, stops the lane
 and its queued entries leave; two different identities, or an unreadable head config, refuse.
+The pr-merge gate reads a Dependabot pull request's `.github/dependabot.yml` and Dependabot policy
+at the default branch head too (read once per run-cache window, and again before an enqueue), by
+the rules that only tighten in
+[Dependabot pull requests](#dependabot-pull-requests) and
+[Review-only dependencies](#review-only-dependencies).
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
@@ -750,8 +766,11 @@ and its queued entries leave; two different identities, or an unreadable head co
   claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
-- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
-  `.claude/source-control.md`, the cap variable, and `off` while any demotion issue is open.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the lower of
+  `docs/conventions/source-control.yaml` and `.claude/source-control.md`; a legacy file without the
+  key, or either file the wrapper cannot read or trust, means `off`; a YAML without it leaves the
+  legacy value, and with no legacy file the rung is `off`, so the YAML alone never raises it), the
+  cap variable, and `off` while any demotion issue is open.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
   can read variables but not write them. A 404 after the variables listing proved readable means no
@@ -1226,6 +1245,44 @@ to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside t
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
 nothing.
 
+Each verifier read of a scheduled or hand-started run keeps its answer for the next run when it is
+a refusal of a stable kind (a verdict refusal other than `verify:unreadable`, a link refusal, a risk
+hold or a queue-ejection refusal, nothing in it unreadable), keyed by a hash of the read's inputs:
+the pull request's body, title, base, timeline count, comments (the lane's own refusal, pin and
+queue-ejection comments by id alone), review threads (resolved or not, and their comment counts)
+and head check suites, each linked issue's labels, edits, comments, timeline and closing pull
+requests, the verdict artifacts that can count against it, its PASS runs at the head, the config,
+the rung and main's trusted-actor and admission files. The key does not witness an edit to a
+review's body or to an inline comment, or who resolved a thread. Those are liveness-only: since an
+allow is never kept, such a change can keep a kept refusal standing until the entry expires, which
+delays an arm and never causes one. An entry expires an hour after its read, when the pull request
+turns too old to verify, or when a PASS artifact at the head expires, whichever comes first. The
+file crosses runs only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run
+on main (`verify-answers.mjs`, as the head-ref map is read), and one that cannot be loaded or is of
+another version, repository or reader code is no file; any other error of the cache's own leaves the
+plain full read. `merge.verify-cache` (default `shadow`; any other value fails the schema, so
+resolve-config stops the run) decides what a kept answer does:
+under `shadow` every pull request is still read in full and the run logs one
+`verify-cache shadow: #<n> key=hit|miss stored=<kind> fresh=<kind> agree=yes|no|n/a` line per read,
+where `agree` compares only on `key=hit`, or `verify-cache <mode>: #<n> cache=error` when the cache
+work failed and the read went on without it; under `serve` an unarmed pull request whose kept refusal's
+key still matches is left unarmed on it with no further read (`cached=1` on its cost line), and one
+past the read budget is answered only from a kept refusal, or not read at all when the run has no
+answers file. An armed pull request is always read in full, so the disarm path stays as fresh as
+before, and a kept answer that holds nothing is read again in full and never arms.
+
+`merge.verify-cache` moves to `serve` only on shadow evidence: at least a day of scheduled runs
+whose `verify-cache shadow` lines hold 50 or more `key=hit` lines in all, 5 or more for each
+`stored=<kind>` that appears among them, and none with `agree=no`. A day with too few hits, or a
+kind seen fewer than 5 times, keeps the lane in `shadow` until more runs add to the count, so a
+quiet day cannot pass the check on zero hits. Basis: judgment. A disagreement in 1 hit in 20 shows
+at least once in 50 hits about 92% of the time (1 - 0.95^50), and 5 per kind keeps one rare refusal
+kind from passing on a single agreeing hit. A day with any `cache=error` line does not qualify,
+whatever its hits say: the cache failed on reads it would have served. Both modes take the key
+before the full read, so a kept entry carries the key of the inputs the read saw: an input that
+moves during the read is a miss on the next run, never a hit on a stale refusal, and shadow's
+`agree` figures come from the same order serve runs.
+
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
 never scores, escalates, toggles or enqueues one; native auto-merge and `ci-status` are their whole
@@ -1383,7 +1440,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
     newest push is the head.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
-    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    ecosystem and directory `.github/dependabot.yml` lists at both the base and the default branch
+    head, matched literally (a pair only one side lists covers nothing, so neither side widens the
+    other) (npm `package.json`,
     `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
     and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
     `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
@@ -1391,8 +1450,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
     commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
-    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
-    lands), and one whose file
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this at the base before
+    the fix lands; the gate checks it against the pairs both sides list, and a fix outside them
+    refuses), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,
@@ -1457,7 +1517,9 @@ A non-major release of a hijacked package passes tier `auto` on a green `ci-stat
 that runs inside a job holding a secret or a write token is therefore listed in the standards
 Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
 `components/dependabot-policy/policy.json`), which the sync places at
-`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base, and the
+pr-merge gate reads it at the default branch head too, where an entry either side lists matches
+and either side unreadable makes it unreadable:
 
 - **Match.** An entry matches an update when its `repository` is this repository (any case), its
   `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/notes.md",
+            "content": "unbound"
+          }
+        }
+      ],
+      "why": "unrelated scratch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-item-tracker.json",
+            "content": "{\"provider\":\"local-markdown\"}"
+          }
+        }
+      ],
+      "why": "binding written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "---"
+          }
+        }
+      ],
+      "why": "store seeded"
+    }
+  ]
+}

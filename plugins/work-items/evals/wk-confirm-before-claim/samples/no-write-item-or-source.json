@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/widget/work-items-checklist.md",
+            "content": "- [ ] select"
+          }
+        }
+      ],
+      "why": "checklist write"
+    },
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/setup.md",
+            "content": "pip install widget"
+          }
+        }
+      ],
+      "why": "source written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "assignees: [\"eval\"]"
+          }
+        }
+      ],
+      "why": "item file written"
+    }
+  ]
+}

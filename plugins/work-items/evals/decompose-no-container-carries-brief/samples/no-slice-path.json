@@ -1,79 +1,26 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        }
-      ],
-      "why": "no memory-slice path"
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Monthly refund query\"\nstate: \"open\"\nassignees: []\nlabels: [\"agent-ready\"]\ntype: null\nparent: null\nurl: \"file:///tmp/ws/.work-items/1.md\"\ncreated_at: \"2026-10-26T04:00:00Z\"\n---\n\n## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Done when\n\n- [ ] edge test passes\n",
+      "why": "no memory-slice path; .work-items url does not count"
     },
     {
-      "answer": [],
-      "why": "nothing written"
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Monthly refund query\"\nstate: \"open\"\nassignees: []\nlabels: [\"agent-ready\"]\ntype: null\nparent: null\nurl: \"file:///tmp/ws/.work-items/1.md\"\ncreated_at: \"2026-10-26T04:00:00Z\"\n---\n\n## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGOAL: Finance staff reconcile refunds against the Bank Statement each month.\nConstraints:\n- Nightly Ledger job: schedule and output untouched.\n- Read only from the Reporting Replica.\n\n## Done when\n\n- [ ] edge test passes\n",
+      "why": "no path"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/w/notes.md",
-            "content": "# notes\n\nread .work/refund-export/PLAN.md"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        }
-      ],
-      "why": ".work/ only in a non-item note"
+      "answer": "",
+      "why": "nothing stored"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nSee .work/refund-export/PLAN.md for the goal and constraints.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        }
-      ],
-      "why": "item body links the slice"
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Monthly refund query\"\nstate: \"open\"\nassignees: []\nlabels: [\"agent-ready\"]\ntype: null\nparent: null\nurl: \"file:///tmp/ws/.work-items/1.md\"\ncreated_at: \"2026-10-26T04:00:00Z\"\n---\n\n## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nSee .work/refund-export/PLAN.md for the goal and constraints.\n\n## Done when\n\n- [ ] edge test passes\n",
+      "why": "links the slice"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/tmp/tmp.abc123",
-            "content": "## Parent\n\nSource: .work/refund-export/PLAN.md Phase 1\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
-          }
-        }
-      ],
-      "why": "slice path in the Parent section"
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Monthly refund query\"\nstate: \"open\"\nassignees: []\nlabels: [\"agent-ready\"]\ntype: null\nparent: null\nurl: \"file:///tmp/ws/.work-items/1.md\"\ncreated_at: \"2026-10-26T04:00:00Z\"\n---\n\n## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\nCopied from .work/refund-export/PLAN.md.\n\n## Done when\n\n- [ ] edge test passes\n",
+      "why": "names the slice path beside the copied text"
     }
   ]
 }
