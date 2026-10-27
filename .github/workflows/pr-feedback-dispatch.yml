@@ -22,7 +22,14 @@ name: pr-feedback-dispatch
 # address-feedback works like the reviewer bot's threads. The dispatch job
 # then decides as for a review run, with the newest completed review run at
 # that head as its upstream, so the gate and the broker check the same kind of
-# run either way.
+# run either way. When the run uploaded a pass or pass-notes verdict instead,
+# for a PR still at the head it judged, the job posts nothing and resolves
+# nothing: it reads the PR's review threads, and when a fail-note thread from
+# an earlier head is still open (address-feedback.mjs staleVerifyNotes) it
+# names the head, and the dispatch job sends a pass-only round, whose
+# publish-feedback job resolves those threads as the lanes App (resolving a
+# thread takes more than this job's token holds). A pass with no such thread
+# dispatches nothing.
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
@@ -83,11 +90,12 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read # check out main
-      actions: read # the pr-verify run's fail verdict
-      pull-requests: write # read the PR and post the verdict's notes on it
+      actions: read # the pr-verify run's verdict
+      pull-requests: write # read the PR and its threads, and post a fail's notes on it
     outputs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
+      pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -109,7 +117,7 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      - name: Download the fail verdict
+      - name: Download the verdict
         id: verdict
         if: steps.kill.outputs.proceed == 'true'
         env:
@@ -124,26 +132,27 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          # Every FAIL-shaped name, then the ones the readers take (the
-          # grammar babysit_verify_evidence.NAME_RE holds, at most 194
-          # characters, issues ascending and once each). A FAIL-shaped name
+          # Every verdict-shaped name, then the ones the readers take (the
+          # grammar write-verdict.mjs NAME and babysit_verify_evidence.NAME_RE
+          # hold: at most 194 characters, the digest optional, `-i` on a FAIL
+          # only, its issues ascending and once each). A verdict-shaped name
           # no reader takes fails the run rather than being skipped.
           listed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-fail"))')
-          names=$(jq -Rr 'select(length <= 194 and test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
+            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-(fail|pass)"))')
+          names=$(jq -Rr 'select(length <= 194 and (test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") or test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-pass(-notes)?(-[0-9a-f]{16})?\\z")) and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
           if [ "$names" != "$listed" ]; then
-            echo "::error::run $RUN_ID uploaded a fail verdict whose name no reader takes"
+            echo "::error::run $RUN_ID uploaded a verdict whose name no reader takes"
             exit 1
           fi
           if [ -z "$names" ]; then
-            echo "::notice::run $RUN_ID uploaded no fail verdict; nothing to post"
+            echo "::notice::run $RUN_ID uploaded no verdict; nothing to post"
             exit 0
           fi
           name=$(head -n 1 <<<"$names")
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/verdict"
           echo "name=$name" >>"$GITHUB_OUTPUT"
 
-      - name: Post the notes
+      - name: Post a fail's notes, or find a pass's stale ones
         id: post
         if: steps.verdict.outputs.name != ''
         env:
@@ -166,12 +175,14 @@ jobs:
     # The lanes App opens PRs only from work-resolve-issue lane branches
     # (work-resolve-issue/report-outcome.mjs), so a review run on any other
     # branch is not on a lanes App PR. A pr-verify run dispatches only once its
-    # notes are on the PR, and a pr-unblock-dispatch.yml run sweeps only when
-    # its schedule started it on main. A job skipped here starts no runner.
+    # notes are on the PR, or, for a pass, once its job found a stale fail-note
+    # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
+    # schedule started it on main. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.post-verify-notes.outputs.head-sha != ''
+      || needs.post-verify-notes.outputs.pass-head-sha != ''
       || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml'
       && github.event.workflow_run.event == 'schedule'
       && github.event.workflow_run.head_branch == 'main'
@@ -239,8 +250,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-
 
       - name: Dispatch address-feedback
         id: dispatch
@@ -252,6 +263,7 @@ jobs:
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
+          VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
 
       - name: Save the dispatch record for this head
@@ -260,7 +272,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the

@@ -170,7 +170,10 @@ jobs:
     # only the reusable's status job (the security-review check) writes.
     permissions:
       actions: read          # the reusable's check-key-credit job reads this
-                             # workflow's runs for the key's recent credit stop
+                             # workflow's runs for the key's recent credit stop,
+                             # and its status job reads them for cost decisions
+      checks: read           # the reusable's status job reads its earlier
+                             # runs' cost notices
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment

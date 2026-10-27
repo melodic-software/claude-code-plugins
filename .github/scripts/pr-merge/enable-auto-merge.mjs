@@ -1021,7 +1021,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1046,8 +1046,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const onResponse = (response) => {
       answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
     };
+    const injected = github !== undefined;
     latch ??= rateLimitLatch;
     github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse, latch }), { sleep, random });
+    // The lane runs, jobs and annotations a cost decision's decided head is
+    // read from, on the job token (actions: read, checks: read), as the
+    // verifier reads take it; the lanes App token holds neither.
+    actions =
+      actions ??
+      (!injected && env.BABYSIT_VERIFY_GH_TOKEN
+        ? withRetry(createGitHub({ token: env.BABYSIT_VERIFY_GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }), { sleep, random })
+        : github);
     // A reader child that stops on a rate limit writes its stop to the job's
     // stop file; set from then on. Its stop holds every lanes App pull request
     // as an unread room does, so an armed one is disarmed, unless the disarm's
@@ -1201,7 +1210,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
             detail = await wholeDiscussion(github, variables, detail);
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid) : null;
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters: headLifters(detail, humans, pull.headRefOid) };
           }
         } catch (error) {

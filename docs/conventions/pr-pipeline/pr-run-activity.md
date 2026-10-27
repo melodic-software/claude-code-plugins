@@ -1979,7 +1979,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   limit) whose permission mode checked out, so partial work reaches a branch a resumed run
   continues. A failed leg fails the job after its outcome and patch are carried; a turn cap is
   class `max-turns` in `lane.json`, a usage limit class `rate-limit` with run-claude-cli's
-  `lane-resets`. The skill's `work-outcome.json` and
+  `lane-resets`. A run whose issue file was not written never starts the skill: class
+  `issue-edited` when write-issue refused because the issue's title or body changed after its
+  label (its `refused=edited` output), else `issue-file`. The skill's `work-outcome.json` and
   the runner's `lane.json` (no branch yet, and on a resume the resumed branch) are uploaded as the
   `work-outcome-<n>` artifact by the scan job, sealed to it like the patch. The runner keeps at
   most the first 48 KiB of `work-outcome.json`: a longer file is cut, no longer parses, and
@@ -2007,7 +2009,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
+  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), hands the issue to a person naming
   that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
   (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals

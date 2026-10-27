@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { keepThreads, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { keepThreads, staleVerifyNotes, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
 
 const APP = 337595936;
@@ -70,6 +70,7 @@ test("the verdict must be the fail its artifact name names", () => {
   assert.deepEqual(readVerdict(NAME, verdictText()), {
     pr: 42,
     head: HEAD,
+    verdict: "fail",
     summary: "Spec item 2 is unmet.",
     notes: ["`plugins/x/a.py:12` returns early.", "No test covers it."],
   });
@@ -195,4 +196,74 @@ test("main names the PR and head only once the notes are on the PR", async () =>
   writeFileSync(env.GITHUB_OUTPUT, "");
   await main(env, { api: fakeApi({ pull: { state: "closed" } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
+});
+
+// A review thread as address-feedback.mjs listThreads reads it: `root` is its
+// first comment's author, body and original commit.
+const OLD = "b".repeat(40);
+const noteBody = (head) => noteComments({ head, summary: "s", notes: [], files: FILES })[0].body;
+const thread = (id, { resolved = false, author = ACTIONS_BOT, body = noteBody(OLD), commit = OLD } = {}) => ({
+  id,
+  isResolved: resolved,
+  isOutdated: true,
+  comments: { totalCount: 1, nodes: [{ databaseId: 1 }] },
+  root: { nodes: [{ author: { databaseId: author }, body, originalCommit: commit ? { oid: commit } : null }] },
+});
+const PASS = `pr-verify-42-${HEAD}-pass`;
+const passText = (extra = {}) => JSON.stringify({ verdict: "pass", pr: 42, head_sha: HEAD, summary: "ok", notes: [], ...extra });
+
+test("a pass or pass-notes verdict reads with the checks a fail's does, and takes no issue numbers", () => {
+  assert.deepEqual(readVerdict(PASS, passText()), { pr: 42, head: HEAD, verdict: "pass" });
+  assert.deepEqual(readVerdict(`${PASS}-notes`, passText({ verdict: "pass-notes" })), { pr: 42, head: HEAD, verdict: "pass-notes" });
+  assert.equal(readVerdict(`${PASS}-notes-79b4cc554b80dca6`, passText({ verdict: "pass-notes", head_ref: "feat/x" })).verdict, "pass-notes");
+  for (const [name, text] of [
+    [PASS, passText({ verdict: "pass-notes" })],
+    [`${PASS}-notes`, passText()],
+    [PASS, passText({ verdict: "fail" })],
+    [PASS, passText({ pr: 43 })],
+    [PASS, passText({ head_sha: OLD })],
+    [`${PASS}-79b4cc554b80dca6`, passText({ head_ref: "feat/other" })],
+    [`${PASS}-i7`, passText({ linked_issues: [{ number: 7 }] })],
+    [`pr-verify-42-${HEAD}-passed`, passText()],
+    [NAME, passText()],
+  ]) {
+    assert.throws(() => readVerdict(name, text), name);
+  }
+});
+
+test("a stale fail-note thread is an open verifier note from another head, and nothing else", () => {
+  assert.deepEqual(
+    staleVerifyNotes(
+      [
+        thread("PRRT_old"),
+        thread("PRRT_resolved", { resolved: true }),
+        thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD }),
+        thread("PRRT_other_author", { author: 209825114 }),
+        thread("PRRT_no_marker", { body: "A plain comment." }),
+        thread("PRRT_no_commit", { commit: null }),
+      ],
+      HEAD,
+    ),
+    ["PRRT_old"],
+  );
+});
+
+test("a pass names its head only when the PR is open at it and holds a stale fail-note thread", async () => {
+  const run = async ({ pull = {}, threads = [thread("PRRT_old")], name = PASS, text = passText() } = {}) => {
+    const dir = mkdtempSync(join(tmpdir(), "verify-notes-"));
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: name, VERDICT_FILE: join(dir, "verdict.json") };
+    writeFileSync(env.VERDICT_FILE, text);
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    const api = { ...fakeApi({ pull }), listThreads: async () => threads, resolveThread: async () => assert.fail("post-verify-notes resolves nothing") };
+    await main(env, { api, log: () => {} });
+    assert.deepEqual(api.created, []);
+    return readFileSync(env.GITHUB_OUTPUT, "utf8");
+  };
+  assert.equal(await run(), `pass-head-sha=${HEAD}\n`);
+  assert.equal(await run({ name: `${PASS}-notes`, text: passText({ verdict: "pass-notes" }) }), `pass-head-sha=${HEAD}\n`);
+  assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD })] }), "", "a note on the passing head stays");
+  assert.equal(await run({ threads: [thread("PRRT_other", { author: 209825114 }), thread("PRRT_plain", { body: "x" })] }), "", "not a verifier note");
+  assert.equal(await run({ threads: [] }), "", "no thread");
+  assert.equal(await run({ pull: { head: { sha: OLD } } }), "", "the PR moved past the passing head");
+  assert.equal(await run({ pull: { state: "closed" } }), "", "a closed PR");
 });
