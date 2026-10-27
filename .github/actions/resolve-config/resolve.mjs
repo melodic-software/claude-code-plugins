@@ -14,8 +14,6 @@ import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 const CONFIG_BASENAME = "pr-pipeline.yaml";
 // Runner job names: `<lane> / run` would collide with pr-run-activity's own checks.
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
-const TRUSTED_ACTORS_PATH =
-  ".github/standards/trusted-actors/trusted-actors.json";
 // Model routes that are no activity: pr-verify.yml's judgment, the code and
 // security review lanes, and intake triage.
 const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
@@ -935,18 +933,11 @@ export function resolveGrant(files, { lane, activity, configPath }) {
   };
 }
 
-function resolveMerge(merge = {}, configPath) {
+function resolveMerge(merge = {}) {
   const diffCheck = merge["diff-check"] ?? {};
-  const denied = [
-    ...new Set([
-      ...(diffCheck["denied-paths"] ?? []),
-      configPath,
-      TRUSTED_ACTORS_PATH,
-    ]),
-  ];
   return {
     rung: merge.rung ?? "off",
-    "diff-check": { ...diffCheck, "denied-paths": denied },
+    "diff-check": { ...diffCheck, "denied-paths": [...new Set(diffCheck["denied-paths"] ?? [])] },
     "stack-landing": merge["stack-landing"] ?? "manual",
     "lane-prs": merge["lane-prs"] ?? "native",
   };
@@ -969,7 +960,7 @@ const limitsOf = (limits = {}) => ({
   "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
   "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
-  // As set: rate-guard.mjs fills it from the schema's defaults.
+  // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
 });
 
@@ -1035,6 +1026,6 @@ export function resolve(
     loop: loopOf(doc.loop),
     limits: limitsOf(doc.limits),
     wip: doc.wip ?? {},
-    merge: resolveMerge(doc.merge, configPath),
+    merge: resolveMerge(doc.merge),
   };
 }

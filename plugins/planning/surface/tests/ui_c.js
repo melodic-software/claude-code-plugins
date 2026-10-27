@@ -36,6 +36,10 @@ async page => {
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
+    // #7970: with no stored choice a wide screen opens the side panels pinned; these phases were written for the overlay, so they store Unpin first
+    await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
+    if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
+    await page.click("#flyClose"); await page.waitForTimeout(150);
     // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
     const fresh = await page.context().newPage();
     await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
@@ -216,6 +220,20 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     const xBan = await banners();
     ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
+    // an imported superseded-by-plan row says the plan displaced the answer, and its buttons record accept or the `was` alternative
+    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
+    const planBan = await page.textContent("#planban").catch(() => "");
+    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
+    await page.locator("#choices .choice", {hasText: "(was)"}).click();
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    let se = (await events()).filter(e => e.id === "S1").pop();
+    ok("the (was) button records the was alternative", se && se.kind === "alt" && se.alt === "was", JSON.stringify(se));
+    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200); // the save moved on to the next open question
+    ok("the banner leaves once the question is answered", await sel() === "S1" && await page.$("#planban") === null, await sel());
+    await page.locator("#choices .choice.rec").first().click();
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    se = (await events()).filter(e => e.id === "S1").pop();
+    ok("the Rec button records accept", se && se.kind === "accept", JSON.stringify(se));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
 
     // SPEC 6: stale after an upstream re-answer, upstream-pending further down

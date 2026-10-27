@@ -48,6 +48,16 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
 
+// The first four are required; promotion_evidence_credential_roots is optional, and unset it
+// passes the checker no --credential-roots.
+export const OPTION_KEYS = [
+  "promotion_evidence_binding",
+  "promotion_evidence_root",
+  "promotion_evidence_source",
+  "promotion_evidence_checker",
+  "promotion_evidence_credential_roots",
+];
+
 const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
 const BLOCK_HEADER = "Effective promotion state (evaluation mode):";
 const CELL_LINE = /^- ([A-Za-z0-9][A-Za-z0-9-]*): bound (\S+) -> effective (promoted|unpromoted)(?=$|[\s(])/;
@@ -248,7 +258,7 @@ export function main({ platform = process.platform, ...judge } = {}) {
   // never from the environment.
   const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..", "..");
   try {
-    options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles());
+    options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles(), OPTION_KEYS);
   } catch (error) {
     if (!(error instanceof OptionsError)) throw error;
     emit(null, error.message);

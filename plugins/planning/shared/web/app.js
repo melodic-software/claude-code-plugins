@@ -1897,7 +1897,8 @@
       ["host", "host", "Host view", "", "more"], ["tour", "help", "Show me around", "A one-minute tour", "more help"], ["intro", "doc", "Why you're here", "", "more help"],
       ["report", "alert", "Report a problem", "Tell the host something is broken", "more help"],
       ["myreps", "doc", "Your reports", "What you reported and where it stands", "more help"], ["records", "doc", "What this page records", "", "more"],
-      ["decisions", "doc", "Decisions", "Every decision and what moved it, for you only", "more help"]];
+      ["decisions", "doc", "Decisions", "Every decision and what moved it, for you only", "more help"],
+      ["health", "doc", "Host Health", "Errors, slow actions and taps on this page, for you only", "more help"]];
     const msList = E("div", "vf-mslist"), helpList = E("div", "vf-mslist vf-helplist"), menu = { more: {}, help: {} };
     for (const [k, ico, label, desc, on] of MENU) for (const where of on.split(" ")) {
       const b = btn(where === "help" ? `vf-hitem vf-help-${k}` : `vf-msitem vf-ms-${k}`), t = E("span", "vf-ms-l", label), d = E("span", "vf-ms-d", desc);
@@ -1939,6 +1940,32 @@
       }));
     }
     function openDecisions(anchor) { fillDecisions(dpList, Core.state.decisions, true); dpEmpty.hidden = Core.state.decisions.length > 0; openSurface(decPop, anchor); }
+
+    // Host Health: the owner's view of what the server log adds up to, the sections `share.sh logs --summary` prints.
+    const healthPop = E("div", "vf-pop vf-healthpop"); healthPop.setAttribute("role", "dialog"); healthPop.setAttribute("aria-labelledby", "vf-healthpop-h"); healthPop.hidden = true;
+    const hpH = E("h2", "vf-pop-title", "Host Health"); hpH.id = "vf-healthpop-h";
+    const hpRefresh = btn("vf-btn vf-btn-ghost vf-btn-sm vf-health-refresh", "Refresh");
+    const hpStatus = E("p", "vf-pop-note vf-health-status"); hpStatus.setAttribute("role", "status");
+    const hpBody = E("div", "vf-health");
+    healthPop.append(hpH, E("p", "vf-pop-note", "Only you see this: errors, slow or failed actions, layout problems and taps from this session's log. Usage counts arrive every 10 minutes; your own page views stay out of the timings."),
+      hpRefresh, hpStatus, hpBody);
+    function loadHealth() { // Refresh stays enabled, so it keeps focus; a read in flight takes no second one
+      if (healthPop._reading) return;
+      healthPop._reading = true; hpStatus.textContent = "Reading the log…";
+      Core.health().then(h => {
+        hpBody.replaceChildren(...(h.sections || []).map(x => {
+          const sec = E("section", "vf-health-sec"), ul = E("ul", "vf-health-list");
+          for (const line of x.lines) ul.append(E("li", null, line));
+          if (x.title) sec.append(E("h3", "vf-pop-sub", x.title.replace(/:$/, "")));
+          sec.append(ul);
+          return sec;
+        }));
+        hpStatus.textContent = "";
+        if (ui.pop === healthPop && !phone.matches && healthPop._anchor) placeNear(healthPop, healthPop._anchor); // placed while still empty
+      }, e => { hpStatus.textContent = `Could not read the log: ${Core.errorText(e)}`; }).finally(() => { healthPop._reading = false; });
+    }
+    function openHealth(anchor) { openSurface(healthPop, anchor); loadHealth(); }
+    hpRefresh.onclick = loadHealth;
 
     // Phase 4c: the owner edits one answer's text; every earlier version, with who and when, shows only here.
     const editPop = E("div", "vf-pop vf-editpop"); editPop.setAttribute("role", "dialog"); editPop.setAttribute("aria-labelledby", "vf-editpop-h"); editPop.hidden = true;
@@ -2402,10 +2429,10 @@
     pairPop.append(E("h2", "vf-pop-title", "Sign in on another device"), pairNote, pairQr, pairCode, pairWhen, pairRow, E("h3", "vf-pop-sub", "Signed-in devices"), pairList);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, decPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, decPop, healthPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
       pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
     // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
-    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"], [decPop, "Decisions"],
+    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"], [decPop, "Decisions"], [healthPop, "Host Health", "sheet"],
       [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
@@ -3621,6 +3648,7 @@
       myreps: from => openSurface(myRepPop, from),
       records: () => { closePop(); Core.telemetry.openRecords(); },
       decisions: from => { closePop(); openDecisions(from); },
+      health: from => { closePop(); openHealth(from); },
     };
     for (const [where, m] of Object.entries(menu)) for (const [k, b] of Object.entries(m)) {
       b.onclick = () => { const from = where === "more" ? tabBtns.more : keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top; MENU_RUN[k](from); };
@@ -3631,6 +3659,7 @@
       menuShow("share", mod);
       menuShow("host", mod);
       menuShow("decisions", Core.me.isOwner);
+      menuShow("health", Core.me.isOwner);
       if (ui.pop === decPop) { fillDecisions(dpList, S.decisions, true); dpEmpty.hidden = S.decisions.length > 0; }
       msFollow.hidden = Core.me.isOwner || !S.settings.follow;
       menu.help.settings.hidden = Core.me.isOwner; // the owner's settings are behind the gear; a guest's are their own card

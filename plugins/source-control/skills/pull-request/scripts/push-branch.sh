@@ -61,11 +61,17 @@
 # included, to the branch by refspec, never with `-u`; with `--pr` the head
 # branch needs no local ref. A babysit worker's worktree pushes this way.
 #
+# The branch it would push (named, current, or the --pr head) refuses when it is
+# main, master, or the push remote's default branch as `git ls-remote --symref`
+# reports it; a read that fails or names no default refuses too. A --pr head in
+# a fork of the base repository is exempt: that push goes to the fork. `--check` runs only that check
+# (create.md calls it before opening a PR) and pushes nothing.
+#
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below), and --pr for a fork head needs --dir.
 #
-# Usage: push-branch.sh [--dir <checkout>] [branch-name | --pr <number>]
+# Usage: push-branch.sh [--check] [--dir <checkout>] [branch-name | --pr <number>]
 #   (options in any order; defaults to the current branch; any other argument
 #   refuses)
 set -uo pipefail
@@ -80,8 +86,13 @@ BRANCH=""
 PR=""
 HAS_DIR=""
 HAS_PR=""
+CHECK=""
 while (($#)); do
   case "$1" in
+    --check)
+      CHECK=1
+      shift
+      ;;
     --dir | --pr)
       if [[ $# -lt 2 || ("$1" == --dir && -n "$HAS_DIR") || ("$1" == --pr && -n "$HAS_PR") ]]; then
         echo "push-branch.sh: $1 needs one value and is given once; not pushing" >&2
@@ -123,8 +134,9 @@ if [[ -n "$HAS_PR" ]]; then
     echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
     exit 1
   fi
-  read -r BRANCH HEAD_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner \
-    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name' 2>/dev/null | tr -d '\r')
+  # The PR's URL names its base repository.
+  read -r BRANCH HEAD_REPO PR_BASE_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner,url \
+    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name + " " + (.url | split("/")[3:5] | join("/"))' 2>/dev/null | tr -d '\r')
   if [[ "${BRANCH:-}" == -* ]]; then
     echo "push-branch.sh: PR '$PR' head branch '$BRANCH' starts with '-'; not pushing" >&2
     exit 1
@@ -135,6 +147,49 @@ if [[ -n "$HAS_PR" ]]; then
   fi
 elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
+fi
+
+# refuse_default <remote> <branch>: exit 1 when <branch> is main, master, or
+# <remote>'s default branch. The default is read from the remote itself
+# (`ls-remote --symref`), never the local <remote>/HEAD, which can be unset or
+# stale. A failed read refuses, and so does a read that names no default (an
+# empty remote, a server that does not advertise the symref, a detached HEAD).
+refuse_default() {
+  local out="" default="" what="'$2'"
+  # A fork head pushes to the contributor's fork, never the base repository, so
+  # its default branch may be pushed (lane-push.sh's is_fork rule). An unread
+  # base repository counts as no fork.
+  if [[ -n "$PR" ]]; then
+    if [[ -n "${PR_BASE_REPO:-}" && "${HEAD_REPO,,}" != "${PR_BASE_REPO,,}" ]]; then
+      return 0
+    fi
+    what="PR '$PR' head '$2'"
+  fi
+  if out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
+    default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
+  fi
+  if [[ -z "$default" ]]; then
+    echo "push-branch.sh: the default branch of $1 could not be read (git ls-remote failed or named no HEAD branch); not pushing" >&2
+    exit 1
+  fi
+  if [[ "$2" == "$default" ]]; then
+    echo "push-branch.sh: $what is the default branch of $1; not pushing" >&2
+    exit 1
+  fi
+  if [[ "$2" == main || "$2" == master ]]; then
+    echo "push-branch.sh: $what is refused (main and master are always refused); not pushing" >&2
+    exit 1
+  fi
+}
+
+if [[ -n "$CHECK" ]]; then
+  if [[ -z "$BRANCH" ]]; then
+    echo "push-branch.sh: no branch to check (detached HEAD?); not pushing" >&2
+    exit 1
+  fi
+  CHECK_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+  refuse_default "$CHECK_REMOTE" "$BRANCH"
+  exit 0
 fi
 
 # Inside a lane, hand the push to lane-push.sh (loop-lane convention, "Lane
@@ -201,6 +256,9 @@ if [[ "$ACTING" == *"[bot]" ]]; then
 fi
 
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+# Never push main, master or the push remote's default branch (a cwd that reset
+# to the main checkout would otherwise push main).
+[[ -z "$BRANCH" ]] || refuse_default "$PUSH_REMOTE" "$BRANCH"
 # A same-named local branch is not the PR's head unless every URL the push
 # writes to is the PR's head repository on github.com (a fork PR's head lives
 # on the fork). The URLs are read after insteadOf rewriting, as git pushes them.

@@ -10,13 +10,6 @@
     "improvement:find",
     "improvement:improve"
   ],
-  "competitor_dirs": {
-    "performance:target": "plugins/performance/skills/target",
-    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
-    "session-flow:audit-sessions": "plugins/session-flow/skills/audit-sessions",
-    "improvement:find": "plugins/improvement/skills/find",
-    "improvement:improve": "plugins/improvement/skills/improve"
-  },
   "queries": [
     {
       "id": "pos-train-01",

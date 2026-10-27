@@ -344,6 +344,54 @@ test("the resolved limits set how many reset limit stops hold a head", async () 
   assert.deepEqual(dispatchedNumbers(one.api), []);
 });
 
+// The 2026-10-25 credential outage: every leg ended class=auth on a 401, and a
+// failure with no lane record was retried at once, so #9826's head spent its
+// three runs in 23 minutes and was recorded at the cap before the secrets were
+// re-set. A refused credential now waits out fallback-reset like a usage limit,
+// and the skip names the class and the reset.
+const authRun = (completed) => ({
+  ...failedRun(completed, null),
+  output: { title: "Failed", summary: "lane=pr-unblock activity=resolve-conflicts class=auth turns=1\n\nThe activity step failed." },
+});
+
+test("a head whose run was refused its credential waits out fallback-reset, logged with its class, and is not recorded", async () => {
+  const now = Date.parse("2026-10-25T22:03:00Z");
+  const refused = pr(41);
+  const reset = pr(42);
+  const unrecorded = pr(43);
+  const record = emptyRecord();
+  const { api, lines, run } = harness(
+    {
+      pages: [[refused, reset, unrecorded]],
+      checked: new Map([
+        [refused.headRefOid, [authRun("2026-10-25T21:44:25Z")]],
+        [reset.headRefOid, [authRun("2026-10-25T16:00:00Z")]],
+        [unrecorded.headRefOid, [failedRun("2026-10-25T21:44:25Z", null)]],
+      ]),
+    },
+    { now, record, maxDispatch: 9 },
+  );
+  await run();
+  // The unrecorded failure is retried at once, as before; the refused one waits.
+  assert.deepEqual(dispatchedNumbers(api), ["42", "43"]);
+  assert.ok(
+    lines.includes(
+      `::notice::#41: head ${refused.headRefOid}'s ${CHECK_NAME} stopped on class=auth; no resolve-conflicts before 2026-10-26T02:44:25.000Z`,
+    ),
+    lines.join("\n"),
+  );
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], []);
+});
+
+test("a head with a success beside an unreset stop is skipped as handled, not as waiting", async () => {
+  const now = Date.parse("2026-10-25T22:03:00Z");
+  const done = pr(44);
+  const { api, lines, run } = harness({ pages: [[done]], checked: new Map([[done.headRefOid, [authRun("2026-10-25T21:44:25Z"), SUCCESS_RUN]]]) }, { now });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.ok(!lines.some((line) => line.includes("stopped on class=")), lines.join("\n"));
+});
+
 // A failed resolve-conflicts run is retried on the same head until
 // limits.limit-stops-per-head (3 by default) failures stand on it.
 test("a failed run is retried until three failures stand on the head", async () => {
@@ -618,6 +666,22 @@ test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts
   }
 });
 
+test("a check-run read GitHub still answers 5xx after its retries skips that PR with a warning; any other error fails", async () => {
+  const { api, lines, run } = harness({ pages: [[pr(97), pr(98)]] });
+  const listCheckRuns = api.listCheckRuns;
+  let error = Object.assign(new Error("GET check-runs returned 503"), { status: 503 });
+  api.listCheckRuns = async (query) => {
+    if (query.sha === pr(97).headRefOid) {
+      throw error;
+    }
+    return listCheckRuns(query);
+  };
+  assert.deepEqual(await run(), { dispatched: [{ number: 98, workflowRunId: "9098" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#97:") && line.includes("503")));
+  error = Object.assign(new Error("GET check-runs returned 401"), { status: 401 });
+  assert.equal((await run()).failed, 1);
+});
+
 test("a 15-digit workflow_run_id is accepted", async () => {
   const { run } = harness({
     pages: [[pr(91)]],
@@ -814,6 +878,72 @@ test("main still exits 1 on a run listing that fails for any other reason", asyn
   assert.deepEqual(api.calls.dispatch, []);
 });
 
+// main with fix-docs candidates whose history reads go through the real
+// adapter and budgetedFetch to GitHub's scripted GraphQL answers: `answers`
+// maps a PR number to the responses its reads get, in order; a PR left out is
+// answered with an empty history.
+async function mainWithHistoryAnswers(answers, pulls) {
+  const sent = new Map();
+  const fetch = async (_url, init) => {
+    const { number } = JSON.parse(init.body).variables;
+    sent.set(number, (sent.get(number) ?? 0) + 1);
+    const answer = answers.get(number)?.shift();
+    if (answer) {
+      return answer();
+    }
+    const data = { rateLimit: { cost: 1, remaining: 4999 }, repository: { pullRequest: { commits: { nodes: [] } } } };
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  const budget = budgetedFetch({ fetch, log: () => {}, sleep: async () => {}, random: () => 0, latch });
+  const adapter = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
+  const api = { ...fakeApi({ pages: [[]], docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
+  const lines = [];
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+    return { api, code, lines, sent };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const badGateway = () => new Response("bad gateway", { status: 502 });
+
+test("a fix-docs history read answered 502 twice is sent again and the PR dispatched", async () => {
+  const { api, code, sent } = await mainWithHistoryAnswers(new Map([[191, [badGateway, badGateway]]]), [docsPull(191)]);
+  assert.equal(sent.get(191), 3);
+  assert.deepEqual(dispatchedNumbers(api), ["191"]);
+  assert.equal(code, 0);
+});
+
+test("a fix-docs history read that keeps answering 502 skips that PR with a warning, dispatches the others, and exits 0", async () => {
+  const always = Array.from({ length: 10 }, () => badGateway);
+  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[192, always]]), [docsPull(192), docsPull(193)]);
+  assert.equal(sent.get(192), 4, "the first send and the three bounded retries");
+  assert.deepEqual(dispatchedNumbers(api), ["193"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("#192") && line.includes("502")));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
+  assert.equal(code, 0);
+});
+
+test("a rate-limited fix-docs history read is sent once and fails the run", async () => {
+  const reset = Math.floor(Date.now() / 1000) + 19 * 60;
+  const limited = () =>
+    new Response('{"message":"API rate limit exceeded for installation."}', {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset), "x-ratelimit-resource": "graphql" },
+    });
+  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[194, [limited, limited]]]), [docsPull(194)]);
+  assert.equal(sent.get(194), 1);
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("#194")));
+  assert.equal(code, 1);
+});
+
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
   const reset = Math.floor(Date.now() / 1000) + 19 * 60;
   // Each listing gets its own latch: a limit refuses its latch's later calls.
@@ -886,6 +1016,48 @@ test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async ()
 // dispatch event", API version 2022-11-28: 200 with workflow_run_id only when
 // return_run_details is true, else 204; rest/checks/runs "List check runs
 // for a Git reference" with check_name) and the GraphQL listing.
+// The dispatch follows up to 5 x 10 s of waiting. A pooled socket that sat
+// idle that long may have been dropped by GitHub, and a dispatch is not resent,
+// so it must go out on a connection no earlier request used. Real fetch
+// against a local server that keeps idle sockets open, as a pool would see.
+test("the GitHub adapter sends the dispatch on a connection no earlier request used", async () => {
+  const { createServer } = await import("node:http");
+  const seen = new Map();
+  const used = [];
+  const server = createServer((req, res) => {
+    if (!seen.has(req.socket)) {
+      seen.set(req.socket, seen.size + 1);
+    }
+    used.push(`${req.method} ${req.url.split("?")[0]} socket ${seen.get(req.socket)}`);
+    const answers = {
+      "/graphql": { data: { repository: { pullRequests: { nodes: [pr(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } },
+      "/repos/octo/repo/commits/abc/check-runs": { total_count: 0, check_runs: [] },
+      "/repos/octo/repo/actions/workflows/pr-unblock.yml/dispatches": { workflow_run_id: 77 },
+    };
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(answers[req.url.split("?")[0]] ?? {}));
+  });
+  server.keepAliveTimeout = 60_000;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const apiUrl = `http://127.0.0.1:${server.address().port}`;
+    const api = createGitHubApi({ token: "t0ken", repository: "octo/repo", apiUrl, graphqlUrl: `${apiUrl}/graphql`, fetch: globalThis.fetch });
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 50));
+    await api.listOpenPulls({ base: "main" });
+    await pause();
+    await api.listCheckRuns({ sha: "abc", checkName: CHECK_NAME, appId: 15368 });
+    await pause();
+    assert.deepEqual(await api.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: {} }), { workflowRunId: 77 });
+    const socket = (line) => line.split(" socket ")[1];
+    const dispatch = used.at(-1);
+    assert.match(dispatch, /^POST \/repos\/octo\/repo\/actions\/workflows\/pr-unblock\.yml\/dispatches /);
+    assert.ok(!used.slice(0, -1).some((line) => socket(line) === socket(dispatch)), used.join("; "));
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});
+
 test("the GitHub adapter calls the documented endpoints", async () => {
   const requests = [];
   const responses = [
@@ -966,7 +1138,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
   const head = "c".repeat(40);
   const urls = [];
-  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } });
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
@@ -1015,6 +1187,27 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
+});
+
+test("the required-run read skips a fork's newer run at the same head SHA", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
+  // A fork PR pushed the same commit: its run is newer and still going.
+  const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "test-node", conclusion: "failure" }] }];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "test-node", conclusion: "failure" }] });
+  assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 
 // The record a run leaves: the next run, against the same GitHub state,
@@ -1127,6 +1320,16 @@ test("a head at the resolve-conflicts cap is warned about once, as it is recorde
   await second.run();
   assert.deepEqual(second.lines.filter((line) => line.startsWith("::warning::")), []);
   assert.deepEqual([second.api.calls.checks, second.api.calls.timeline, second.api.calls.runs], [[], [], []]);
+});
+
+test("a head capped by refused-credential stops names the class in its cap warning", async () => {
+  const capped = pr(64);
+  const stops = ["2026-10-25T21:44:25Z", "2026-10-26T02:50:00Z", "2026-10-26T08:00:00Z"].map((at) => authRun(at));
+  const { lines, run } = harness({ pages: [[capped]], checked: new Map([[capped.headRefOid, stops]]) }, { now: Date.parse("2026-10-26T14:00:00Z") });
+  await run();
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), [
+    `::warning::#64: head ${capped.headRefOid}'s ${CHECK_NAME} failed or was skipped while held 3 time(s), the most one head gets; no resolve-conflicts until a new push; the last run stopped on class=auth`,
+  ]);
 });
 
 test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns once, and reads nothing for it on the next run", async () => {

@@ -338,6 +338,45 @@
         "Says the untracked control skill files are not what blocks the pass",
         "Creates no branch, commits nothing and opens no pull request"
       ]
+    },
+    {
+      "id": 28,
+      "name": "lesson-one-feature-goes-to-feature-gotchas",
+      "prompt": "/app-control:map refresh weekly-timesheet-export. Both passes already ran on .claude/skills/control-clockwork, the only control skill. A /verification:confirm report handed in one lesson: on the weekly timesheet page the Export button stays disabled for about two seconds after the week loads, so the drive has to wait for it to enable. The live pass confirmed it. No other feature has that button, and nothing else differs.",
+      "expected_output": "The lesson goes in the ## Gotchas of features/weekly-timesheet-export/README.md only, as doc drift. The outcome is changed and the edit ships on control-skill-upkeep/control-clockwork through one pull request. It is not placed in the hub or handed to /corrections:codify.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Places the lesson in the ## Gotchas of features/weekly-timesheet-export/README.md",
+        "Does not place it in the hub or another feature file",
+        "Ships it on control-skill-upkeep/control-clockwork with the outcome changed"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "lesson-every-feature-goes-to-hub-gotchas",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Both passes already ran. A /verification:confirm report handed in one lesson: on the first page load of a new browser session a cookie banner covers the bottom of the page and swallows clicks, so a drive must dismiss it first. The live pass saw it at the start of all four features. Nothing else differs.",
+      "expected_output": "The lesson goes once in a ## Gotchas section of the hub, .claude/skills/control-clockwork/SKILL.md, not into each feature file. The outcome is changed and the edit ships on control-skill-upkeep/control-clockwork through one pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Places the lesson in the hub's ## Gotchas",
+        "Does not copy it into each feature file",
+        "Ships it on control-skill-upkeep/control-clockwork with the outcome changed"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "lesson-not-about-the-app-left-for-codify",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Both passes already ran; every feature drove as written. A /verification:confirm report handed in one lesson: agents in this repository keep staging the generated dist/ folder, and it should never be committed.",
+      "expected_output": "The lesson is not about a feature or a drive step, so nothing is written into the control skill. The report leaves it for /corrections:codify, and the outcome is clean with no upkeep commit or pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the lesson into no control skill file",
+        "Names /corrections:codify as where the lesson goes",
+        "Reports the outcome clean and opens no pull request"
+      ]
     }
   ]
 }

@@ -235,6 +235,160 @@
         "body": { "items": [] }
       },
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792748040, "pool": "search" }
+    },
+    {
+      "name": "a retry-after that would put the reset past 12 digits stops at the largest 12-digit second",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": { "retry-after": "999999999999" }, "body": {} },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 999999999999, "pool": "*" }
+    },
+    {
+      "name": "limit-cap 1000 under a header limit of 5000: 950 used leaves 50 of the planned 1000, under the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "limit-cap 1000 under a header limit of 5000: 500 used leaves 500 planned, over the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4500", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "a header limit of 500 under limit-cap 1000 plans to 500: 40 left is under the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "500", "x-ratelimit-remaining": "40", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "past the planned 1000 with header remaining left: low, but no stop, which reads the header",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "header remaining 0 under limit-cap 1000 still stops the resource until x-ratelimit-reset",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792749000", "x-ratelimit-resource": "core" },
+        "body": []
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792749000, "pool": "core" }
+    }
+  ],
+  "stop_files": [
+    {
+      "name": "one pool's stop holds that pool only",
+      "text": "core 1792751600\n",
+      "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a * stop holds every pool, and the later of two stops wins",
+      "text": "* 1792748060\ncore 1792749000\ncore 1792751600\ngraphql 1792748030\n",
+      "until": { "core": 1792751600, "graphql": 1792748060, "search": 1792748060, "code_search": 1792748060 }
+    },
+    {
+      "name": "a stop already past holds nothing",
+      "text": "core 1792747000\n* 1792748000\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a last line with no newline is skipped, and blank lines are skipped",
+      "text": "\n\ncore 1792751600\nsearch 1792751600",
+      "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "every line not shaped `<pool> <1-12 digits>` is skipped",
+      "text": "core 99999999999x\n* abc\ncore 1e12\nCORE 1792751600\ncore  1792751600\n core 1792751600\ncore 1792751600 \ncore 1792751600 extra\ncore\t1792751600\ncore 1234567890123\ncore-x 1792751600\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a carriage return ends no line: a CRLF line, and one with a stray CR, are skipped",
+      "text": "core 1792751600\r\ncore 1\rgraphql 1792751600\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a short write's fragment spoils only the line it merges into",
+      "text": "core 17927graphql 1792751600\n* 1792748060\ncode_search 1792751600\n",
+      "until": { "core": 1792748060, "graphql": 1792748060, "search": 1792748060, "code_search": 1792751600 }
+    },
+    {
+      "name": "an empty file holds nothing",
+      "text": "",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a stop until now holds nothing; one a second later holds",
+      "text": "core 1792748000\ngraphql 1792748001\n",
+      "until": { "core": null, "graphql": 1792748001, "search": null, "code_search": null }
+    },
+    {
+      "name": "a past * stop leaves a pool's own stop holding",
+      "text": "* 1792747000\ncore 1792751600\n",
+      "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "search and code_search are separate pools",
+      "text": "search 1792751600\ncode_search 1792749000\n",
+      "until": { "core": null, "graphql": null, "search": 1792751600, "code_search": 1792749000 }
+    },
+    {
+      "name": "digits outside ASCII are not digits: Arabic-Indic, fullwidth, and one among ASCII digits",
+      "text": "core ١٧٩٢٧٥١٦٠٠\ngraphql １７９２７５１６００\nsearch 179275160٠\nsearch 1792749000\n",
+      "until": { "core": null, "graphql": null, "search": 1792749000, "code_search": null }
+    }
+  ],
+  "stop_file_errors": [
+    {
+      "name": "a missing stop file holds nothing",
+      "error": "ENOENT",
+      "layout": "missing",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a stop file without read permission holds every pool until the largest 12-digit second",
+      "error": "EACCES",
+      "layout": "stop-unreadable",
+      "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
+    },
+    {
+      "name": "a directory where the stop file goes holds every pool until the largest 12-digit second",
+      "error": "EISDIR",
+      "layout": "stop-is-directory",
+      "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
+    },
+    {
+      "name": "a file where the stop file's directory goes holds every pool until the largest 12-digit second",
+      "error": "ENOTDIR",
+      "layout": "api-budget-is-file",
+      "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
+    },
+    {
+      "name": "a stop file in a directory without search permission holds every pool until the largest 12-digit second",
+      "error": "EACCES",
+      "layout": "api-budget-unsearchable",
+      "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
     }
   ]
 }

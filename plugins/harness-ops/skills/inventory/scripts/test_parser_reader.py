@@ -543,8 +543,27 @@ class TestWritesQuery(unittest.TestCase):
         src = 'var pY=[1];var s="let pY;pY=[2];pY.push(3)";/*pY=[4]*/`pY=[5]`;'
         self.assertEqual(
             self._writes(src),
-            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+            {
+                "declares": True,
+                "writes": [("init", 4, True)],
+                "mutations": [],
+                "reads": [],
+            },
         )
+
+    def test_a_spread_or_a_value_only_member_read_is_a_read(self) -> None:
+        """Neither changes the array, but the engine looks names up on the
+        prototypes for both, so the caller still checks them."""
+        src = "var pY=[1];f(...pY);[...pY];x=pY.zz;"
+        self.assertEqual(
+            self._kinds(src, "reads"),
+            [
+                ("spread", "pY);[..."),
+                ("spread", "pY];x=pY"),
+                ("member-read", "pY.zz;"),
+            ],
+        )
+        self.assertEqual(self._kinds(src, "mutations"), [])
 
     def test_declares_is_only_a_plain_declarator(self) -> None:
         for src, at, declares in (
@@ -562,7 +581,12 @@ class TestWritesQuery(unittest.TestCase):
         src = "var pY=[1];function g(pY){pY=[2];pY.push(3)}"
         self.assertEqual(
             self._writes(src),
-            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+            {
+                "declares": True,
+                "writes": [("init", 4, True)],
+                "mutations": [],
+                "reads": [],
+            },
         )
 
     def test_offsets_are_positions_in_the_whole_source(self) -> None:
@@ -761,8 +785,26 @@ class TestFlowQuery(unittest.TestCase):
             ("(0,eval)(s);", ["indirect-eval"]),
             ("var e=eval;", ["indirect-eval"]),
             ("Function(s)();", ["function-constructor"]),
-            ("new Function(s);", ["function-constructor"]),
+            ("var F=new Function(s);F();", ["function-constructor"]),
             ("Function.call(0,s)();", ["function-constructor"]),
+            # #5901 slice 6: a build that runs, or folds to code that hits.
+            ('Function("Array.prototype.includes=f")();', ["function-constructor"]),
+            ('new Function("o","o.includes=f")(P);', ["function-constructor"]),
+            ('Function(`eval("")`)();', ["function-constructor"]),
+            ('Function("with(o){}")();', ["function-constructor"]),
+            ('Function("return this").call(0);', ["function-constructor"]),
+            # The built function binds no `anonymous`; that is a global here.
+            ('Function("anonymous.includes=f")();', ["function-constructor"]),
+            # A body's `-->` line is a comment, so the patch below it runs.
+            (
+                'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
+                ["function-constructor"],
+            ),
+            # A write of the global `Function` the folded calls trust.
+            ("Function=g;", ["global-write", "function-constructor"]),
+            ("globalThis.Function=g;", ["write"]),
+            ('Reflect.set(globalThis,"Function",g);', ["argument"]),
+            ('var isFunction=tagTester("Function");', []),
             ("globalThis.eval(s);", ["indirect-eval"]),
             ("window.Function(s)();", ["function-constructor"]),
             ("o.eval=f;", []),
@@ -770,9 +812,22 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
+            ("Function.prototype.constructor(s)();", ["function-constructor"]),
+            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
+            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
+            ("var P=Function.prototype;", ["function-constructor"]),
+            ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
+            ("Function.prototype instanceof H;", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
+            # #5901 slice 6: a `Function` build that runs no unknown code.
+            ('Function("return this")();', []),
+            ('function t(){try{return new Function(""),!0}catch(e){return!1}}', []),
+            ("function c(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}", []),
+            ("new Function(s);", []),
+            ('Function("a","b","return a+b")(1,2);', []),
+            ('Function("return Function(`return 1`)()")();', []),
             ("class C{constructor(k){this[k]=1}}", []),
             (
                 "class D extends B{constructor(k){super();this[k]=1}}",
@@ -816,6 +871,38 @@ class TestFlowQuery(unittest.TestCase):
             ["@@toPrimitive", "has", "join", "some", "toString", "valueOf"],
         )
 
+    def test_a_flow_trusts_what_the_engine_looks_up(self) -> None:
+        """A spread calls @@iterator and `next`; `map` and `concat` read
+        `constructor` and @@species, and `concat` @@isConcatSpreadable; a
+        value-only read looks its key up, except an array's own `length`
+        and elements. A computed key the walk cannot name could be any key."""
+        got = self._flow(
+            "var pY=[1];[...pY];pY.map((e)=>e);pY.concat([]);var z=pY.zz,n=pY.length;"
+        )
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(
+            got["trusted"],
+            [
+                "@@isConcatSpreadable",
+                "@@iterator",
+                "@@species",
+                "concat",
+                "constructor",
+                "map",
+                "next",
+                "zz",
+            ],
+        )
+        self.assert_unsafe("var pY=[1];var z=pY[k];", "pY[k]")
+        # The literal's own elements reach no prototype; past them, or
+        # after a hole, an index read does.
+        for src, trusted in (
+            ('var pY=[1,2];var a=pY[1],b=pY["0"],c=pY[2];', ["2"]),
+            ("var pY=[1,,3];var a=pY[0];", ["0"]),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._flow(src)["trusted"], trusted)
+
     def test_exports_lists_every_exported_name(self) -> None:
         src = "export var a=1,{b}=o;export function c(){}var d;export{d as e};"
         self.assertEqual(
@@ -824,6 +911,17 @@ class TestFlowQuery(unittest.TestCase):
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
         star = 'export*from"/b.js";export var a=1;'
         self.assertIsNone(self.reader.exports(star, 0, len(star)))
+
+    def test_imports_lists_every_name_taken_by_name(self) -> None:
+        src = (
+            'import{a,b as c}/*x*/from"/a.js";import d from"/b.js";'
+            'import*as e from"/c.js";export{f as g}from/*y*/"/d.js";export*from"/e.js";'
+        )
+        self.assertEqual(
+            self.reader.imports(src, 0, len(src)),
+            [("a", "/a.js"), ("b", "/a.js"), ("f", "/d.js")],
+        )
+        self.assertIsNone(self.reader.imports("var =;", 0, 6))
 
 
 class TestModuleTable(unittest.TestCase):

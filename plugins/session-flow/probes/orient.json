@@ -10,13 +10,6 @@
     "session-flow:workflow",
     "session-flow:show-options"
   ],
-  "competitor_dirs": {
-    "session-flow:reanchor": "plugins/session-flow/skills/reanchor",
-    "session-flow:recall": "plugins/session-flow/skills/recall",
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
-    "session-flow:workflow": "plugins/session-flow/skills/workflow",
-    "session-flow:show-options": "plugins/session-flow/skills/show-options"
-  },
   "queries": [
     {
       "id": "pos-train-01",

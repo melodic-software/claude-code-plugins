@@ -1,5 +1,5 @@
 ---
 type: file_exists
-path: .claude/source-control.md
+path: docs/conventions/source-control.yaml
 arm: both
 ---

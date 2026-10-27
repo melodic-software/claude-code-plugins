@@ -7,10 +7,6 @@
     "animation:produce",
     "animation:rotoscope"
   ],
-  "competitor_dirs": {
-    "animation:produce": "plugins/animation/skills/produce",
-    "animation:rotoscope": "plugins/animation/skills/rotoscope"
-  },
   "queries": [
     {
       "id": "pos-train-01",

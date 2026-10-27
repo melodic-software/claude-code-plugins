@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: decide\nlist: FETCH_HOSTS\n",
+      "why": "names the list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: decide\nlist: ALLOWED_HOSTS\n",
+      "why": "an invented name"
+    },
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: decide\nlist: code.claude.com, platform.claude.com, docs.claude.com\n",
+      "why": "lists hosts without naming the list"
+    }
+  ]
+}

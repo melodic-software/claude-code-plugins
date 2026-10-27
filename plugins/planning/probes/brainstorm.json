@@ -11,14 +11,6 @@
     "discovery:explore",
     "implementation:implement"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:design": "plugins/planning/skills/design",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:wayfind": "plugins/planning/skills/wayfind",
-    "discovery:explore": "plugins/discovery/skills/explore",
-    "implementation:implement": "plugins/implementation/skills/implement"
-  },
   "queries": [
     {
       "id": "pos-train-01",

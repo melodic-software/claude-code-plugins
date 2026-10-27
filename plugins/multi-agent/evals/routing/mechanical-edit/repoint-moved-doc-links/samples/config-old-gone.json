@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "[routing rubric](routing/rubric.md). The bundled layer is [defaults.yaml](defaults.yaml).\n",
+      "why": "only the new path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[routing rubric](routing-rubric.md). The bundled layer is [defaults.yaml](defaults.yaml).\n",
+      "why": "old link left"
+    }
+  ]
+}

@@ -3,6 +3,43 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-26
+
+### Added
+
+- `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` runs `buffer.sh read` and prints the findings buffer grouped by the named top-level fields (default `producer`): a first line naming the keys, then each group with its row count, its occurrence count (distinct `source_id`) and its members, most occurrences first. `--since` cuts exactly, fraction included, and row values print with control, format (bidirectional and zero-width included) and separator characters escaped.
+
+### Changed
+
+- `/corrections:codify group` takes `--by`, runs `group-findings.mjs`, shows the field groups, then groups by mistake, and names the keys of both groupings.
+
+## [0.7.2] - 2026-10-26
+
+### Fixed
+
+- `scripts/lib/yaml-subset.mjs` reads an empty sequence item (`-` alone) as `null` when the next line is another item at the same indent, instead of nesting the following items under it.
+- A quoted key may hold a doubled `''` in single quotes or a `\"` escape in double quotes; such a key no longer fails with `expected a mapping entry`.
+
+## [0.7.1] - 2026-10-26
+
+### Fixed
+
+- `scripts/codify-settings.mjs` and `scripts/findings-buffer.mjs` print at most the first five errors per settings layer, then `and N more`, so a committed `corrections.yaml` or `findings-buffer.yaml` full of unknown keys no longer floods stderr.
+- `recurrence.min_occurrences` now has a maximum of 1000; a larger value is dropped with a note on stderr and the threshold falls back as for any invalid value.
+
+## [0.7.0] - 2026-10-25
+
+### Added
+
+- A repository's own findings-buffer adapter can be bound in user scope, through two new `userConfig` options: `findings_buffer_adapter_repository`, the git common directory of the one repository it applies to, and `findings_buffer_adapter_path`, the adapter directory relative to the checkout root. `buffer.sh` reads them from user and managed settings only, never from the environment, a project settings file or the repository's binding files, which still name only adapters the plugin ships. The binding applies in that repository's main checkout and its worktrees and in no other repository, and the adapter must resolve inside the current checkout, outside any nested repository, and pass the existing verb and `capabilities.json` checks.
+- A generated copy of the shared `lib/plugin-options.mjs` settings reader, under `scripts/lib/`.
+
+## [0.6.2] - 2026-10-25
+
+### Changed
+
+- The findings buffer's `lib/redact.py` is now generated from the repository's shared `lib/redact.py` rather than from a file inside the session-flow plugin's skill folder; only its generated-file header changed.
+
 ## [0.6.1] - 2026-10-25
 
 ### Changed

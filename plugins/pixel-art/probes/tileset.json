@@ -10,13 +10,6 @@
     "pixel-art:ui",
     "pixel-art:vfx"
   ],
-  "competitor_dirs": {
-    "pixel-art:sprite": "plugins/pixel-art/skills/sprite",
-    "pixel-art:animate": "plugins/pixel-art/skills/animate",
-    "pixel-art:scene": "plugins/pixel-art/skills/scene",
-    "pixel-art:ui": "plugins/pixel-art/skills/ui",
-    "pixel-art:vfx": "plugins/pixel-art/skills/vfx"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -10,13 +10,6 @@
     "session-flow:handoff",
     "discipline:scrutinize-dont-coast"
   ],
-  "competitor_dirs": {
-    "session-flow:running-retro": "plugins/session-flow/skills/running-retro",
-    "session-flow:audit-sessions": "plugins/session-flow/skills/audit-sessions",
-    "session-flow:audit-friction": "plugins/session-flow/skills/audit-friction",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -1,0 +1,72 @@
+# Arms for the mechanical-edit routing cases in this directory (#6901).
+#
+# The cases are model-agnostic: each arm is one `claude plugin eval` pass over
+# the same cases, changing only the settings below. Every arm runs with
+#
+#   claude plugin eval plugins/multi-agent --tag mechanical-edit --ablation none
+#     --scaffold --model <model> --no-publish --allow-tools Edit Write
+#
+# and CLAUDE_CODE_EFFORT_LEVEL=<effort> in the environment. `--ablation none`
+# because the plugin is not what is measured; `--scaffold` because each case
+# builds its workspace from scaffold.sh; Edit and Write because every case
+# edits files. A run of the whole suite without those flags scores these cases
+# 0, so select them by tag. Every grader is a deterministic regex, so no judge model runs.
+# A case's score is its pass rate across runs; no prices are stated here.
+#
+# Basis, read 2026-10-25:
+# - model IDs: https://platform.claude.com/docs/en/about-claude/models/overview
+#   (Claude API ID row)
+# - effort variable and levels: https://code.claude.com/docs/en/model-config
+#   ("Set the effort level")
+# - run flags, `model` and `append_system_prompt` case fields, and the env
+#   allowlist: https://code.claude.com/docs/en/plugin-evals
+# - advisor pairing and settings: https://code.claude.com/docs/en/advisor
+# - the Haiku executor prompt in haiku-advisor-prompt.txt: the "Haiku executors
+#   on coding workloads" block of
+#   https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool
+# Recheck trigger: a new model in any family below, a change to the effort
+# levels, or a `claude plugin eval` option for effort or the advisor.
+#
+# Open for the run slice, before any paid pass:
+# - effort: plugin-evals passes "most" CLAUDE_CODE_* variables to a run, so
+#   confirm on one --keep-temp run that CLAUDE_CODE_EFFORT_LEVEL reached it.
+# - advisor: runs use an isolated config and plugin-evals lists no advisor
+#   option, so neither `advisorModel` nor `--advisor` is documented to reach a
+#   run. Establish how the advisor arm turns it on, and confirm advisor calls in
+#   its runs. The arm's prompt is a per-case `append_system_prompt`, so that arm
+#   runs edited copies of the cases, the prompt written as one double-quoted
+#   line (/evals:validate rejects a block scalar). The prompt is the docs block
+#   verbatim, so it names write_file and edit_file where these runs have Edit
+#   and Write.
+# - discovery: these cases sit two directories below evals/; confirm the tag run
+#   selects all three before the first arm.
+schema: 1
+arms:
+  - id: haiku-high
+    model: claude-haiku-5-5
+    effort: high
+  - id: haiku-xhigh
+    model: claude-haiku-5-5
+    effort: xhigh
+  - id: haiku-high-opus-advisor
+    model: claude-haiku-5-5
+    # judgment: the issue names no effort for this arm; high is the level the
+    # routing rubric (reference/routing-rubric.md) sets for any Haiku role.
+    effort: high
+    advisor: claude-opus-5-5
+    append_system_prompt_file: haiku-advisor-prompt.txt
+  - id: sonnet-low
+    model: claude-sonnet-5-5
+    effort: low
+  - id: sonnet-medium
+    model: claude-sonnet-5-5
+    effort: medium
+  - id: sonnet-high
+    model: claude-sonnet-5-5
+    effort: high
+  - id: opus-low
+    model: claude-opus-5-5
+    effort: low
+  - id: opus-medium
+    model: claude-opus-5-5
+    effort: medium

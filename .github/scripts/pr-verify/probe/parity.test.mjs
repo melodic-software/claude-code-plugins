@@ -13,7 +13,14 @@ import { test } from "node:test";
 import { CLI_VERSION, cliArgs, JUDGE, LEG_ENV, legEnv, MANAGED_SETTINGS, promptText, RUN_CLAUDE_CLI_PIN } from "./replay.mjs";
 
 const text = readFileSync(new URL("../../../workflows/pr-verify.yml", import.meta.url), "utf8");
-const JOBS = ["check-intent", "check-intent-subscription"];
+const JOBS = ["check-intent", "check-intent-subscription", "check-intent-fallback"];
+// Each job's one credential input. fallback-ready only decides whether a
+// subscription leg may hand off (lane.cjs handoffReason), never the argv.
+const CREDENTIAL_INPUTS = {
+  "check-intent": ["api-key"],
+  "check-intent-subscription": ["subscription-token", "fallback-ready"],
+  "check-intent-fallback": ["fallback-token", "fallback-ready"],
+};
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -50,11 +57,10 @@ test("no workflow-level env reaches the CLI", () => {
 for (const job of JOBS) {
   test(`${job}: the judge step's inputs are the replay's`, () => {
     const judge = step(job, "Judge the pull request");
-    const credential = job === "check-intent" ? "api-key" : "subscription-token";
     // Any input added or removed changes the argv run-claude-cli builds.
     assert.deepEqual(withKeys(judge).sort(), [
       "allowed-tools",
-      credential,
+      ...CREDENTIAL_INPUTS[job],
       "disallowed-tools",
       "effort",
       "json-schema-file",
@@ -102,6 +108,19 @@ for (const job of JOBS) {
     const resolve = step(job, "Resolve the verifier's model");
     assert.deepEqual(withKeys(resolve).sort(), ["model-route", "output-path"]);
     assert.equal(input(resolve, "model-route"), JUDGE.modelRoute);
+  });
+
+  test(`${job}: every local action runs from the base checkout`, () => {
+    // A local path outside .base/ runs the pull request head's copy of the
+    // action, resolve-config included, which the head can rewrite.
+    const local = [...jobText(job).matchAll(/^\s*(?:-\s+)?uses:\s*["']?(\.[^\s"']*)/gm)].map((m) => m[1]);
+    assert.ok(local.length > 0, `${job} runs local actions`);
+    for (const uses of local) {
+      assert.match(uses, /^\.\/\.base\//, `${job}: ${uses}`);
+      assert.doesNotMatch(uses, /(^|\/)\.\.(\/|$)/, `${job}: ${uses}`);
+    }
+    const resolve = /^ {8}uses: (\S+)/m.exec(step(job, "Resolve the verifier's model"))?.[1];
+    assert.equal(resolve, "./.base/.github/actions/resolve-config");
   });
 
   test(`${job}: run-claude-cli and the managed settings are at the replay's pin`, () => {

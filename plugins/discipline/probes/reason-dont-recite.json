@@ -10,13 +10,6 @@
     "discipline:recheck-against-upstream",
     "discipline:scrutinize-dont-coast"
   ],
-  "competitor_dirs": {
-    "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
-    "overengineering:justify": "plugins/overengineering/skills/justify",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream",
-    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast"
-  },
   "queries": [
     {
       "id": "pos-train-01",

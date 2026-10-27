@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.39.1] - 2026-10-25
+
+### Changed
+
+- The parent contract points at `/harness-config:audit` for the operator's sandbox configuration instead of linking a file inside that plugin's skill folder.
+
 ## [0.39.0] - 2026-10-25
 
 ### Added

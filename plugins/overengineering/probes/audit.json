@@ -12,15 +12,6 @@
     "code-tidying:audit-dead-code",
     "improvement:find"
   ],
-  "competitor_dirs": {
-    "overengineering:delta": "plugins/overengineering/skills/delta",
-    "overengineering:justify": "plugins/overengineering/skills/justify",
-    "overengineering:realign": "plugins/overengineering/skills/realign",
-    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
-    "harness-config:audit-instructions": "plugins/harness-config/skills/audit-instructions",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
-    "improvement:find": "plugins/improvement/skills/find"
-  },
   "queries": [
     {
       "id": "pos-train-01",

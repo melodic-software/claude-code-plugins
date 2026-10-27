@@ -17,22 +17,22 @@
       "id": 2,
       "name": "custom-ticket-prefix-alternative",
       "prompt": "/source-control:setup\n\nThis repo uses ticket-prefixed commit messages like WEB-123: fix the thing, not Conventional Commits.",
-      "expected_output": "Accepts a custom subject_pattern (e.g. ^[A-Z]+-\\d+: .+) instead of Conventional Commits, omits the type_list section entirely (no type vocabulary applies to a custom pattern), and writes the custom pattern to .claude/source-control.md.",
+      "expected_output": "Accepts a custom subject_pattern (e.g. ^[A-Z]+-\\d+: .+) instead of Conventional Commits, omits the type_list key entirely (no type vocabulary applies to a custom pattern), and writes the custom pattern to docs/conventions/source-control.yaml.",
       "files": [],
       "expectations": [
         "Accepts the custom ticket-prefix pattern as subject_pattern instead of forcing Conventional Commits",
-        "Omits the type_list section since a custom pattern has no Conventional-Commits type vocabulary",
-        "Writes the accepted custom pattern to .claude/source-control.md"
+        "Omits the type_list key since a custom pattern has no Conventional-Commits type vocabulary",
+        "Writes the accepted custom pattern to docs/conventions/source-control.yaml"
       ]
     },
     {
       "id": 3,
       "name": "idempotent-reads-existing-config",
       "prompt": "/source-control:setup",
-      "expected_output": "When .claude/source-control.md already exists, reads it, summarizes the current subject_pattern/type_list/pr_title_pattern/trailer_policy, and proposes changes against that baseline rather than overwriting it blind.",
-      "files": [".claude/source-control.md"],
+      "expected_output": "When docs/conventions/source-control.yaml already exists, reads it, summarizes the current subject_pattern/type_list/pr_title_pattern/trailer_policy, and proposes changes against that baseline rather than overwriting it blind.",
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "Detects and reads the existing .claude/source-control.md before proposing changes",
+        "Detects and reads the existing docs/conventions/source-control.yaml before proposing changes",
         "Summarizes the current configured values",
         "Does not overwrite the existing config without user confirmation"
       ]
@@ -41,10 +41,10 @@
       "id": 4,
       "name": "verifies-tracked-not-ignored",
       "prompt": "/source-control:setup\n\nUse the recommended Conventional Commits default.",
-      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore, then runs git status --porcelain -- .claude/source-control.md and reads the worktree column to confirm the content is staged (check-ignore reporting nothing does not by itself prove the file is tracked or staged, and git ls-files --error-unmatch alone would not catch an unstaged rewrite of an already-tracked file). If a .gitignore pattern excludes it, surfaces the matching pattern and offers to fix .gitignore; if the worktree column is non-blank (new or modified-not-staged), stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit. Reports success once not-ignored and no-unstaged-changes both hold — it does not require the file to be committed, since a staged-but-uncommitted file legitimately still shows in git status --porcelain output.",
+      "expected_output": "After writing docs/conventions/source-control.yaml, runs git check-ignore -v docs/conventions/source-control.yaml to confirm it is not excluded by .gitignore, then runs git status --porcelain -- docs/conventions/source-control.yaml and reads the worktree column to confirm the content is staged (check-ignore reporting nothing does not by itself prove the file is tracked or staged, and git ls-files --error-unmatch alone would not catch an unstaged rewrite of an already-tracked file). If a .gitignore pattern excludes it, surfaces the matching pattern and offers to fix .gitignore; if the worktree column is non-blank (new or modified-not-staged), stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit. Reports success once not-ignored and no-unstaged-changes both hold — it does not require the file to be committed, since a staged-but-uncommitted file legitimately still shows in git status --porcelain output.",
       "files": [],
       "expectations": [
-        "Runs git check-ignore -v .claude/source-control.md after writing the file",
+        "Runs git check-ignore -v docs/conventions/source-control.yaml after writing the file",
         "Checks staged status via git status --porcelain (worktree column) rather than treating a clean check-ignore result (or index presence alone) as proof the current content is staged",
         "Reports success once the file is confirmed unignored and no unstaged changes remain (e.g. via git diff --quiet), without requiring the file to already be committed",
         "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success",
@@ -60,19 +60,19 @@
       "expectations": [
         "Translates a prose-described convention into an anchored regex before persisting",
         "Confirms the translated regex with the user rather than silently guessing",
-        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
+        "Never writes a plain-language description as subject_pattern in docs/conventions/source-control.yaml"
       ]
     },
     {
       "id": 6,
       "name": "reconfiguration-stages-updated-config",
       "prompt": "/source-control:setup\n\nWe're switching from Conventional Commits to a ticket-prefix convention like WEB-123: fix the thing.",
-      "expected_output": "With an existing, already-committed .claude/source-control.md, rewrites it with the new ticket-prefix subject_pattern, then checks git status --porcelain -- .claude/source-control.md rather than relying on git ls-files --error-unmatch (which would report the path as tracked and appear to pass even though the rewritten content is an unstaged working-tree modification). Because the rewrite produces a modified-but-unstaged file, stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit before reporting success.",
-      "files": [".claude/source-control.md"],
+      "expected_output": "With an existing, already-committed docs/conventions/source-control.yaml, rewrites it with the new ticket-prefix subject_pattern, then checks git status --porcelain -- docs/conventions/source-control.yaml rather than relying on git ls-files --error-unmatch (which would report the path as tracked and appear to pass even though the rewritten content is an unstaged working-tree modification). Because the rewrite produces a modified-but-unstaged file, stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit before reporting success.",
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "Rewrites the existing tracked .claude/source-control.md with the newly accepted convention",
+        "Rewrites the existing tracked docs/conventions/source-control.yaml with the newly accepted convention",
         "Does not rely on index-presence alone (e.g. git ls-files --error-unmatch) to declare the update staged",
-        "Detects the unstaged modification via git status --porcelain -- .claude/source-control.md (worktree column non-blank)",
+        "Detects the unstaged modification via git status --porcelain -- docs/conventions/source-control.yaml (worktree column non-blank)",
         "Stages the modified file with git add and prompts the user to commit before reporting success, without requiring the commit itself to have happened"
       ]
     },
@@ -81,7 +81,7 @@
       "name": "check-renders-effective-merge-with-winning-layer",
       "prompt": "/source-control:setup check",
       "expected_output": "Reports one effective-configuration table across all three layers — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal overlay's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the local overlay's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
-      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
         "Reports the effective merged configuration, not one layer's values presented as the whole convention",
         "Names which layer supplied each resolved key (the overlay wins trailer_policy; the team file supplies subject_pattern)",
@@ -93,8 +93,8 @@
       "id": 8,
       "name": "routes-personal-request-to-local-overlay-not-team-file",
       "prompt": "/source-control:setup apply\n\nI personally want ticket-prefixed subjects like WEB-123: fix the thing on this repo, but don't change what the team uses.",
-      "expected_output": "Writes .claude/source-control.local.md, not the tracked team .claude/source-control.md, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
-      "files": [".claude/source-control.md"],
+      "expected_output": "Writes .claude/source-control.local.md, not the tracked team docs/conventions/source-control.yaml, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
         "Writes the personal overlay path, leaving the tracked team file unmodified",
         "States which layer it selected before writing",
@@ -122,7 +122,7 @@
       "name": "non-interactive-overlay-omits-keys-equal-to-lower-layers",
       "prompt": "/source-control:setup apply layer=local subject_pattern=Conventional Commits",
       "expected_output": "Resolves the layers below the overlay before writing. The team file already declares the same Conventional Commits subject_pattern and a pr_title_pattern of Same as subject_pattern, so neither key is a genuine deviation and neither is written — pinning them in the overlay would make a later team convention change silently ineffective on this machine. Reports that the requested value already holds and that no overlay was needed, rather than materializing an overlay that restates the team layer.",
-      "files": [".claude/source-control.md"],
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
         "Reads the team layer before writing, even though the invocation is non-interactive and names an explicit value",
         "Omits subject_pattern and pr_title_pattern from the overlay because they already equal the effective lower-layer merge",
@@ -135,7 +135,7 @@
       "name": "non-interactive-update-preserves-unrequested-overlay-keys",
       "prompt": "/source-control:setup apply layer=local subject_pattern=^[A-Z]+-\\d+: .+",
       "expected_output": "The personal overlay already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
-      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
         "Reads the existing overlay before rewriting it rather than composing the file from the invocation alone",
         "Preserves the overlay's existing trailer_policy: none, which the invocation did not mention",
@@ -148,9 +148,9 @@
       "name": "derived-type-list-drops-when-pattern-becomes-custom",
       "prompt": "/source-control:setup apply layer=team subject_pattern=^[A-Z]+-\\d+: .+",
       "expected_output": "The existing team file declares Conventional Commits plus the bundled 11-type type_list. Replacing subject_pattern with a custom ticket-prefix regex drops type_list entirely rather than carrying it through as an unrequested key — type_list is derived from subject_pattern, and a custom pattern has no type vocabulary, so preserving it would leave /commit pre-checking against types the pattern does not use. trailer_policy and any other independent key are still carried through unchanged.",
-      "files": [".claude/source-control.md"],
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "Drops the type_list section because the new subject_pattern is not Conventional-Commits-shaped",
+        "Drops the type_list key because the new subject_pattern is not Conventional-Commits-shaped",
         "Does not treat type_list as an independent unrequested key to preserve",
         "Still carries through independent keys such as trailer_policy that the invocation did not name",
         "Leaves no config in which type_list coexists with a custom subject_pattern"
@@ -185,7 +185,7 @@
     {
       "id": 15,
       "name": "reset-to-default-writes-explicit-list-over-lower-layer",
-      "prompt": "/source-control:setup apply layer=local\n\nThe tracked team .claude/source-control.md already declares pr_body_required_sections as Summary, Test plan, Related. I personally don't want to bother with that list on this machine — go back to the plugin's own default.",
+      "prompt": "/source-control:setup apply layer=local\n\nThe tracked team docs/conventions/source-control.yaml already declares pr_body_required_sections as Summary, Test plan, Related. I personally don't want to bother with that list on this machine — go back to the plugin's own default.",
       "expected_output": "Because pr_body_required_sections falls through per key, an omitted section in the local overlay would keep inheriting the team layer's Summary/Test plan/Related list, not reset to the portable default. The skill recognizes the intent as an explicit override and writes pr_body_required_sections in the local overlay as the keyword briefing rather than leaving the section out, stating in one line that it is written explicitly to override the team layer's list, not merely to restate the portable default. It then reports the resulting effective merge (the local overlay's briefing winning over the team layer).",
       "files": [],
       "expectations": [
@@ -198,7 +198,7 @@
     {
       "id": 16,
       "name": "check-reports-none-as-resolved-value",
-      "prompt": "/source-control:setup check\n\nThe team-tracked .claude/source-control.md declares pr_body_required_sections as the literal keyword none. No other layer sets the key.",
+      "prompt": "/source-control:setup check\n\nThe team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. No other layer sets the key.",
       "expected_output": "The effective-configuration table's pr_body_required_sections row renders `none (no required sections)` with `won by` reading the team layer — a resolved value, reported the same way trailer_policy: none and pr_body_attribution: none are, and clearly distinct from the unset state (which resolves to the portable default, briefing, with won by 'plugin default'). The row is INFO-class, not FAIL: no required sections is a legitimate, configured convention.",
       "files": [],
       "expectations": [
@@ -236,7 +236,7 @@
     {
       "id": 19,
       "name": "check-reports-missing-overlay-ignore-without-overlay-file",
-      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
       "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/overlay.local.md, not the flat overlay path.",
       "files": [],
       "expectations": [
@@ -250,7 +250,7 @@
     {
       "id": 20,
       "name": "check-does-not-accept-leftover-nonrecursive-ignore-as-the-recursive-rule",
-      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
       "expected_output": "Reports FAIL on the local-overlay ignore rule. The leftover .claude/*.local.* line matches the flat overlay path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/overlay.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
       "files": [],
       "expectations": [

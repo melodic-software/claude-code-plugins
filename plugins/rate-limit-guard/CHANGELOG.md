@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.11] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [2.0.10] - 2026-10-26
+
+### Changed
+
+- The band row now starts with the plugin's name, `rate-limit-guard: 5h 3% | 7d 73%`, so the row says whose it is beside other plugins' rows.
+
 ## [2.0.9] - 2026-10-25
 
 ### Changed

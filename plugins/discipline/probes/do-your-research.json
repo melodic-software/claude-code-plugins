@@ -10,13 +10,6 @@
     "discipline:point-dont-copy",
     "attribution:audit"
   ],
-  "competitor_dirs": {
-    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream",
-    "discovery:research": "plugins/discovery/skills/research",
-    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast",
-    "discipline:point-dont-copy": "plugins/discipline/skills/point-dont-copy",
-    "attribution:audit": "plugins/attribution/skills/audit"
-  },
   "queries": [
     {
       "id": "pos-train-01",

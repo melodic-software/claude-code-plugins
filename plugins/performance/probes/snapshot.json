@@ -10,13 +10,6 @@
     "verification:measure",
     "debugging:analyze-profile"
   ],
-  "competitor_dirs": {
-    "performance:goal": "plugins/performance/skills/goal",
-    "performance:verify": "plugins/performance/skills/verify",
-    "performance:climb": "plugins/performance/skills/climb",
-    "verification:measure": "plugins/verification/skills/measure",
-    "debugging:analyze-profile": "plugins/debugging/skills/analyze-profile"
-  },
   "queries": [
     {
       "id": "pos-train-01",

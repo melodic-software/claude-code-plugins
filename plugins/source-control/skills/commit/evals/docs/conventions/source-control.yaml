@@ -1,0 +1,17 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml team layer declaring
+# Conventional Commits with the bundled type list and trailer_policy: none.
+subject_pattern: Conventional Commits
+type_list:
+  - build
+  - chore
+  - ci
+  - docs
+  - feat
+  - fix
+  - perf
+  - refactor
+  - revert
+  - style
+  - test
+pr_title_pattern: Same as `subject_pattern`.
+trailer_policy: none

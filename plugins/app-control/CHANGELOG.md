@@ -3,6 +3,50 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-27
+
+### Added
+
+- The control-skill contract gains an "Environments" section. Environment entries (`url`, dependency `services`, `extends`, a `writes` policy per write of `never`, `attended` or `unattended`, and `production: true`) come only from `config/defaults.json` committed at HEAD. The local, environment-variable and flag layers may select an environment by name, never add or redefine one; the driver CLI refuses such a layer with exit 4. An entry that extends a production entry stays production.
+- The contract gains an "Integrated apps" section: a system whose pages a journey crosses, such as a separate identity server, gets its own control skill, and its steps are included by reference as `<app>:<path>`. The `checkouts.<app>` setting holds the path of another repository's local checkout; when it is unset or wrong, the run stops before launching and names the setting and the repository to clone. Committed config pins each such app by commit SHA in `pins.<app>`; the run stops before launching, and again before each included `cli:` call, that app's launch and its Ready, unless the checkout holds that commit, its HEAD and its control skill folder match it byte for byte (no index flags, filter attributes, replace refs, fsmonitor or inherited `GIT_*` variables, no symlink out of the folder; CRLF is the only normalization) and the folder holds no untracked or ignored file other than its `config/local.json`; that app's config and floors are read at the pin. `/app-control:drive` runs this check with the bundled, tested `scripts/verify_pin.py`. An unset pin tells the person to commit `pins.<app>`, for example through `/app-control:map`, which writes a pin only for a commit on the default branch of the hub line's repository URL. An included `cli:` step runs the owning app's `cli/` with that app's config, a minimal environment holding that app's credential variables (never the hub's own or a loader or interpreter variable), `--environment` set to the mapped environment (checked against its `--json`), and `--kind` set to the include's kind. An included step runs under the owning app's committed floors, enforced by its CLI; the including control skill can tighten it only through the include's `kind` or by leaving it out. A driver CLI writes nothing inside its control-skill folder, so the untracked-file check does not stop a second run, turns bytecode off itself, and loads code only from that folder plus dependencies pinned with integrity hashes by a lockfile there, installed outside the folder into a new directory for each run.
+- `<environment url>` and `<<service> service url>` placeholders in Launch and Ready are filled as one argument, validated as an http(s) URL with no shell metacharacters, and run without a shell; a `.cmd` or `.bat` program is refused.
+- `report.json`'s `launch` is a list with one entry per launched app, and cleanup stops each. A capture binds to the entry whose `app` is the app of the control skill owning the Capture row it uses; more than one such entry is `blocked:`, naming the apps.
+- `## Capture` can hold one row per tier (such as browser and server). `/app-control:drive capture` records each tier's row with its own tool, and the tier is part of the artifact name.
+- `/app-control:drive ready` checks each dependency service of the selected environment: that it answers, and, where the app shows its target, that the app sends to it. `report.json`'s `ready` gains `environment` and `services`.
+- `/app-control:map create` asks for each related system's repository and for which environment is production. It writes environment entries and an Integrated apps hub line, and writes nothing into another checkout except the objects and `FETCH_HEAD` that the Pin rule's fetch writes.
+
+### Changed
+
+- **Breaking: a new Write grants floor covers every write, in every environment.** Every write command takes `--step <id>`, the step's unprefixed id (or the command name without a steps file). The CLI binds the key to the step's `cli:` command at HEAD (or the command of that name), refuses a command whose non-reserved arguments differ, and applies the strictest committed grant among every key bound to that command; a missing or unknown id, an unlisted one, `never`, or `attended` without `--attended` exits 4. A write to an environment not marked production that ran before without a grant is now refused until committed `writes` lists its key. External systems take a `systems` entry per environment, committed only.
+- **Breaking: step ids are unique across all of a control skill's own steps files**, not only within one run, and no step id equals a `cli/` command name. A repeated id stops the run before anything starts.
+- **Breaking: every driver CLI command accepts `--kind write` and `--kind send`**, which only tighten: the command is then held to that kind's floors as well as its own. A CLI that rejects the flag fails every step an include marks with a `kind`.
+- The Production floor now states that `--yes` needs `--attended`, so no config turns on an unattended production write.
+
+## [0.11.0] - 2026-10-26
+
+### Added
+
+- The control-skill contract gains a "Steps files" section: a feature may keep its Drive steps in a machine-readable file whose format stays the project's choice. Step ids are unique after includes expand and use letters, digits, `-` and `_` only; a repeated or malformed id stops the run before anything starts. Includes stay inside the control skill's own directory. An include can carry `prefix` (one file included twice with unique ids), `with` (parameter values for that include only; an undeclared name stops the run), `kind` (added to every included step, never removed) and `finally` (steps that run after a failure, where a write's reset goes). An optional step whose target is absent is recorded as skipped, with no retry or wait.
+- `/app-control:drive` reads a feature's steps file as data: it expands includes and checks ids before launching, reports each step by id, records an absent optional step as `skipped: optional`, and runs the finally steps after the others, failed or not. Each such step in `report.json` carries its `id`, an `outcome` and, for a finally step, `finally: true`.
+
+### Fixed
+
+- `/app-control:drive` and `/app-control:map` name each reference file they send the model to by its full plugin path, so a run reads it directly and does not search the plugin directory for it.
+
+## [0.10.0] - 2026-10-25
+
+### Added
+
+- `/app-control:map` create and refresh place a lesson learned while driving by its scope: a lesson about one feature goes in that feature's `## Gotchas`, one that holds for every feature goes in a new optional `## Gotchas` section of the control skill's hub, and any other lesson is written nowhere in the control skill and reported for `/corrections:codify`. In refresh a placed lesson is doc drift and ships in the upkeep pull request.
+- `/app-control:map refresh <feature>` narrows the source wave and live pass to one feature of the control skill that holds it; a clean narrowed pass records no state.
+
+## [0.9.0] - 2026-10-25
+
+### Added
+
+- `/app-control:drive` now finds a control skill a plugin ships, named `<plugin>:control-<app>`, when the repository has no `control-<app>` of its own. It looks in the `skills/` and `commands/` folders of each enabled plugin `claude plugin list --json` reports, named by the `name` in each plugin's own manifest (a plugin without one takes the name the manifest page gives it). Session-only (`--plugin-dir`, `--plugin-url`) plugins are not read: a control skill the session shows from one, for the requested app (any app when none is named) and with no repository control skill for that app, is reported blocked and the run stops there, as does a control command a listed plugin defines only inline in its manifest, under the same app and repository conditions. Repository control skills are found in `.claude/skills/` folders at any depth, the skills and `commands/` files of a plugin kept in a skills folder, and `.claude/commands/`, in this checkout and, in a worktree, the main checkout; git-ignored and uncommitted ones count, and matches in a submodule or a dependency folder such as `node_modules` do not. A repository control skill for an app beats a plugin's for the same app. With no `<app>` named and no repository control skill, a lone plugin control skill is not used blindly: an interactive run asks first and an unattended run stops, naming it. Drive reads every control skill from disk as data and never invokes one through the Skill tool. The report names the skill used and its source (project or plugin) with its path.
+- Drive reports a control skill whose frontmatter grants tools, registers hooks or forks a subagent, or whose body holds a dynamic-context command, as a finding, and runs none of it.
+
 ## [0.8.0] - 2026-10-25
 
 ### Added

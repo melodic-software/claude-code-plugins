@@ -896,6 +896,42 @@ before any cycle work with a message naming the relaunch tokens, and only `shard
 seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
 offer to persist the answer; the headless path never waits on one.
 
+**Lane-editable config and the four sandbox conditions.** Every local lane reads some config at run
+time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
+the tracker binding `.work-item-tracker.json` from the checkout, including the role labels that
+admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
+`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given. The
+babysit loop reads its `babysit_loop_*` keys from the `source-control` config seam's user-global,
+team and local layers, and reads the team layer from the working tree when the checkout is the
+target repository. A deny rule makes such a file read-only to a lane only when at least these four
+conditions hold for that lane's session:
+
+1. the sandbox is enabled
+2. `allowUnsandboxedCommands` is `false`
+3. no command that can write the file is listed in `excludedCommands`
+4. every file-writing MCP tool the session loads is denied
+
+The deny rule itself is an `Edit` deny on the file, which the sandbox merges into its own write
+boundary; a sandbox `denyWrite` entry names the same path explicitly. The other escape surfaces,
+such as `failIfUnavailable` and `filesystem.disabled`, are in the
+[harness-config audit's escape-surface table](../../../plugins/harness-config/skills/audit/reference/required-permissions.md),
+which owns the full sandbox-boundary check. No tracked settings file or launch surface in this
+repository sets these for a local lane. The `lanes` launcher starts each lane with
+`--permission-mode auto` plus any per-lane `--settings` the operator adds. So treat each of these
+files as lane-editable until that lane's launch meets every condition. Some bounds hold anyway, and
+none of them depends on the sandbox:
+
+- the unattended merge gate reads its rung at the pull request's base SHA
+- the trusted internal bot list binds only from the target repository's default branch
+- the binding's local overlay accepts only lease, auth and `docs` keys, which keeps the overlay from
+  reshaping team state but does not stop a lane editing the team binding itself
+- rule admission reads its security binding from outside the repository
+
+Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)
+and [How permissions interact with sandboxing](https://code.claude.com/docs/en/permissions#how-permissions-interact-with-sandboxing)
+live. As of: 2026-10-26. Recheck trigger: either page changes which tools or processes the sandbox or
+a deny rule covers, or a lane launch surface starts setting sandbox settings.
+
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
 the adaptive cap: the cycle makes no further provider call, and the next try waits until the
@@ -1245,7 +1281,7 @@ a checklist of its own:
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
-| Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
+| Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234. Not met for local lanes: each reads config it can edit, and §4 "Lane-editable config and the four sandbox conditions" names what makes a deny rule hold |
 | Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |
 
 Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and

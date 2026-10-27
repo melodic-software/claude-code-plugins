@@ -29,8 +29,8 @@ per sub-category:
 | `destructive-bash-deny` | `permissions.deny` (Bash patterns) | error |
 | `ask-rules` | `permissions.ask` (Bash patterns) | warning; info when the team-tracked `.claude/source-control.md` declares an unattended-push lane (narrowing 1) |
 
-The baseline covers the cross-repo security floor (sensitive `.env*` / `secrets/**` /
-`settings.local.json`; destructive `git push --force` / `git push -f` / `git reset --hard` /
+The baseline covers the cross-repo security minimum (sensitive `.env*` / `secrets/**` / private-key
+files; destructive `git push --force` / `git push -f` / `git reset --hard` /
 `git clean` families; ask on `git push`). Projects that document additional required patterns in their
 own rules (extra secret-file paths, destructive API-endpoint families, hook-bypass blockers,
 additional ask-gates) get those checked at the same severities.
@@ -40,7 +40,9 @@ The severities above are the *unnarrowed* rating. Apply
 exemption or a documented project hook convention retires the finding, and a family already blocked by
 a **live** `PreToolUse` hook on the tool surface that pattern defends drops to `info` with the residual
 named. "Live" is fenced there and is not the same as installed and enabled. Where no hook inventory was
-taken, the finding is stated conditionally, not asserted.
+taken, the finding is stated conditionally, not asserted. A missing `Read(./…)` row is present when
+`permissions.deny` carries the standards floor's bare spelling of it; see "Relation to the standards
+permission floor" in the same file.
 
 ### B.4 Syntax checks
 
@@ -118,7 +120,7 @@ taken, the finding is stated conditionally, not asserted.
 | --- | --- | --- |
 | Env vars in settings.json are documented CC vars | warning | Read `code.claude.com/docs/en/env-vars` and search it for each env var name. WebSearch alone is insufficient. **Read it verbatim, not through a summarizer.** The page is long and a summarizing fetch truncates it, then reports the rows past the cutoff as absent: `bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> env-vars` and grep `<dir>/env-vars.md`, per the [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route). A truncated read supports NO finding. Say so and move on. **Absence from this page is not "unrecognized" either:** it is not the whole env-var surface, and `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`, and `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` are all real and all absent from it (our probe, a full verbatim read; no artifact stored. Pointer: [env-vars: variables](https://code.claude.com/docs/en/env-vars#variables). As of: 2026-08-10. Recheck trigger: `env-vars` gains a row for any of them). A name missing here is at most "not documented on `env-vars`". Check `monitoring-usage`, `mcp`, and `settings` before writing anything stronger |
 | No secrets in settings.json (tokens, keys, passwords) | error | Scan for patterns: `ghp_`, `eyJ`, `sk-`, `AKIA`, common token prefixes. The engine's `SECRET_RE` is a literal list of vendor token shapes, not derived from the docs: neither `settings-reference` nor `env-vars` states any credential format (our probe: a full verbatim read of both found no `ghp_`, `github_pat_`, `eyJ`, `sk-`, `AKIA`, or `xox` shape), and the token shapes belong to GitHub, AWS, Slack and others. Never narrow the literal to match a doc. Pointer: [settings-reference](https://code.claude.com/docs/en/settings-reference), the whole page, since the probe is a negative over every section, and [env-vars: variables](https://code.claude.com/docs/en/env-vars#variables); no artifact stored. As of: 2026-09-29, Claude Code 2.1.284. Recheck trigger: either page documents a credential format; then derive the pattern from it and keep the literal as the fallback |
-| Secrets are in settings.local.json only | error | settings.local.json is gitignored |
+| Secrets are in settings.local.json only | error | settings.local.json is gitignored. That keeps a secret out of git, not out of the session: the baseline does not deny reading the file, so a finding that moves a secret there also names a project `Read` deny on it or a credential store. See [required-permissions.md](required-permissions.md) "Relation to the standards permission floor" |
 | `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` is not set (engine: `F/function-hooks-flag-dead`) | warning | The engine flags the variable in the `env` of user, project or local settings, at any value: this audit treats it as a dead mods switch whose presence misleads the operator who set it. The finding quotes, verbatim with the page URL and fetch date, the mods overview's line naming the variable; with the page unread, or no such line on it, the row is `not-inspectable`, saying the upstream statement could not be confirmed. Report-only, no `--fix`: removing it and choosing a replacement lever are the operator's call. Whether Claude Code still reads the variable, and which levers turn mods off now, are read live, never from this row. Pointer: [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off) and [mods admin: stop user-installed mods from loading](https://code.claude.com/docs/en/plugins/mods/admin#stop-user-installed-mods-from-loading). As of: 2026-10-17. Recheck trigger: either section drops its note on the variable or the variable gains a new meaning |
 
 ## G. Skill-listing budget

@@ -650,6 +650,17 @@ def _native_problems(native: Any, label: str, *, markers: bool) -> list[str]:
                 f"{label}: `native.markers` must be a list drawn from "
                 f"{', '.join(NATIVE_MARKERS)}"
             )
+        # Markers whose basis is the docs, not the extraction: the changelog's
+        # native-drift pass does not compare them, so each must be recorded.
+        docs_sourced = native.get("docs_markers", [])
+        if not isinstance(docs_sourced, list) or any(
+            m not in (recorded if isinstance(recorded, list) else [])
+            for m in docs_sourced
+        ):
+            problems.append(
+                f"{label}: `native.docs_markers` must be a list drawn from "
+                "`native.markers`"
+            )
     return problems
 
 

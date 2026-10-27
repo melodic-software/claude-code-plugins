@@ -57,11 +57,15 @@ Write one JSON model. The builder turns it into the record and the page, so the 
   | `stack` | Layers | `steps`, top layer first |
   | `hub` | Branches off one center | `center`, `branches` |
   | `timeline` | Dated events | `points`: `[{"when":"","label":""}]` |
-  | `compare` | Options side by side | `columns`: `[{"heading":"","items":[""]}]`, 2 to 4 columns |
+  | `compare` | Options weighed on the same points | `columns`: `[{"heading":"","items":[""]}]`, 2 to 4 columns |
   | `before-after` | A change | `before`, `after` |
 
   A missing `kind` is `flow`. The builder refuses an unknown `kind`, or a `compare` outside 2 to 4
   columns, and names the diagram.
+- **Pick the kind by how the parts relate, not by how much each part says.** Parts that all hang
+  off one thing (a tool's plugins, a company's subsidiaries) are a `hub` even when each part has
+  details of its own: name each part as a branch and put its details in that diagram's `text`
+  lines, one short line per branch.
 - **Labels are capped at 40 characters**: steps, the hub's `center` and `branches`, a point's
   `label`, a column's `items`, and `before` and `after`. The builder cuts a longer label at a word
   and warns on stderr; when it warns, move the detail into that diagram's `text` lines.

@@ -1,0 +1,5 @@
+steps:
+  - id: open-history
+    action: click link "Export history"
+  - id: save-note
+    action: fill "Note" with "eval run"; click button "Save note"

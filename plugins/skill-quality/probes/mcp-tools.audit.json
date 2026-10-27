@@ -4,9 +4,6 @@
   "skill_dir": "plugins/mcp-tools/skills/audit",
   "ranking_note": "Seed skill: shares 'audit MCP' vocabulary with mcp-tools:audit-posture, so false triggers are the interesting failure. Starvation ranking is live-session input; this pair is the in-plugin competitor the issue's probe design needs.",
   "competitors": ["mcp-tools:audit-posture"],
-  "competitor_dirs": {
-    "mcp-tools:audit-posture": "plugins/mcp-tools/skills/audit-posture"
-  },
   "queries": [
     {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "audit MCP tools"},
     {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "before I ship this MCP server, are the descriptions on its tools clear enough for a model to pick them"},

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/reset.yaml"
+          }
+        }
+      ],
+      "why": "read the included reset file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/steps.yaml"
+          }
+        }
+      ],
+      "why": "never opened the finally steps"
+    }
+  ]
+}

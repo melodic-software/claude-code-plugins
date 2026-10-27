@@ -12,7 +12,8 @@
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
 //      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
-//      VALID thread's path and that the branch changed no path outside the
+//      VALID thread's path, or a line its evidence cites in a file of the PR
+//      or the thread's scope (touchesThread), and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
 //      .github/workflows/. With no such commit in that range and no patch
 //      written this round (a retry after a round whose fix landed but whose
@@ -235,16 +236,29 @@ export function lineChanged(patch, line) {
   return false;
 }
 
-// Whether a fix commit's changed files touch a thread's path: the path itself,
-// a file the pull request already changes whose line the reply's evidence
-// cites inside a hunk of the fix (`cited`), so a finding on one file fixed in another of the PR's files
-// lands, or for a skill's SKILL.md any file under that skill's directory.
-function touchesThread(changed, threadPath, cited) {
-  if (changed.some((file) => cited.has(file))) {
+// The files whose line the reply's `evidence` cites inside a hunk of the fix
+// (`patches`, by filename), among the pull request's files (`prPaths`) and
+// those inThreadScope allows for that one thread.
+function citedFiles(evidence, patches, thread, prPaths = new Set()) {
+  return new Set(
+    evidence
+      .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
+      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread])) && lineChanged(patches.get(path), line))
+      .map(([path]) => path),
+  );
+}
+
+// Whether a fix commit's changed files touch a thread ({ path, named_paths }):
+// the path itself, a file citedFiles gives (`cited`), so a finding fixed in
+// another file of the PR or the thread's scope lands only at a line its
+// evidence cites, or for a skill's SKILL.md any file under that skill's
+// directory.
+function touchesThread(changed, thread, cited) {
+  if (changed.some((file) => file === thread.path || cited.has(file))) {
     return true;
   }
-  const skillDir = SKILL_FILE.exec(threadPath)?.[1];
-  return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
+  const skillDir = SKILL_FILE.exec(thread.path)?.[1];
+  return skillDir !== undefined && changed.some((file) => file.startsWith(skillDir));
 }
 
 // A commit the lanes App authored through the API (the web-flow committer,
@@ -263,20 +277,16 @@ const isLaneFix = (commit, appId) =>
 // lists them) that is a lane fix commit, committed (the date GitHub sets for
 // a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
 // lane reply already named as another thread's fix), whose files touch
-// `threadPath` (the path, or for a SKILL.md any file in its skill's
-// directory), and in which one `evidence` path:line falls inside a hunk of
-// that path, a path no later PR commit changed, so the head's line numbers
-// are still that commit's; null for none. `filesOf` reads a commit's files,
-// each {filename, patch}.
-export async function earlierFixOf({ commits, appId, after, threadPath, evidence, claimed, filesOf }) {
+// `thread` (touchesThread), and in which one `evidence` path:line falls
+// inside a hunk of that path; both read only the commit's paths no later PR
+// commit changed, so what credits the fix still holds it at the head and the
+// head's line numbers are still that commit's; null for none. `filesOf`
+// reads a commit's files, each {filename, patch}.
+export async function earlierFixOf({ commits, appId, after, thread, evidence, claimed, filesOf }) {
   const cites = evidence.map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))]);
   for (let i = commits.length - 1; i >= 0; i -= 1) {
     const commit = commits[i];
     if (!isLaneFix(commit, appId) || claimed.has(commit.sha) || !(Date.parse(commit.commit?.committer?.date ?? "") > after)) {
-      continue;
-    }
-    const files = await filesOf(commit.sha);
-    if (!touchesThread(files.map((file) => file.filename), threadPath, new Set())) {
       continue;
     }
     const later = new Set();
@@ -285,8 +295,12 @@ export async function earlierFixOf({ commits, appId, after, threadPath, evidence
         later.add(file.filename);
       }
     }
-    const patches = new Map(files.map((file) => [file.filename, file.patch]));
-    if (cites.some(([path, line]) => patches.has(path) && !later.has(path) && lineChanged(patches.get(path), line))) {
+    const current = (await filesOf(commit.sha)).filter((file) => !later.has(file.filename));
+    const patches = new Map(current.map((file) => [file.filename, file.patch]));
+    if (!touchesThread([...patches.keys()], thread, citedFiles(evidence, patches, thread))) {
+      continue;
+    }
+    if (cites.some(([path, line]) => patches.has(path) && lineChanged(patches.get(path), line))) {
       return commit.sha;
     }
   }
@@ -307,9 +321,11 @@ const claimedFixes = (reviewComments, appId) =>
 // threads' paths and the PR's own files (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (isLaneFix), and it must change every VALID thread's path, a
-// file the PR already changes at a line the reply's evidence cites, or for a
-// thread on a skill's SKILL.md any file in that skill's directory (touchesThread).
+// exactly one fix commit (isLaneFix), and it must change, for every VALID
+// thread, its path, a file the PR already
+// changes or inThreadScope allows for that thread alone at a line the reply's
+// evidence cites, or for a thread on a skill's SKILL.md any file in that
+// skill's directory (touchesThread).
 // With no fix commit in the range and no patch written this round
 // (`patchWritten`, whose push then did not land), each VALID thread takes its
 // earlier fix on the PR instead (earlierFixOf, after the time `judgedAt` gives:
@@ -327,8 +343,8 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const comparison = await api.compare(run.head_sha, headSha);
   const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
   const fixSha = fixes.length === 1 ? fixes[0].sha : "";
-  const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
-  const paths = new Set(threadPath.values());
+  const threadOf = new Map(run.threads.map((thread) => [thread.id, thread]));
+  const paths = new Set(run.threads.map((thread) => thread.path));
   const prPaths = new Set(run.pr_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
@@ -352,15 +368,8 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const commitFiles = (await api.getCommit(fixSha)).files ?? [];
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
-    // The pr_paths files whose cited line the fix commit changed.
-    const cited = (reply) =>
-      new Set(
-        reply.evidence
-          .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
-          .filter(([path, line]) => prPaths.has(path) && lineChanged(patches.get(path), line))
-          .map(([path]) => path),
-      );
-    if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), cited(reply)))) {
+    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
+    if (!valid.every((reply) => touches(threadOf.get(reply.thread), reply))) {
       return null;
     }
     for (const reply of valid) {
@@ -385,7 +394,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
         commits,
         appId,
         after: judgedAt(reply.thread),
-        threadPath: threadPath.get(reply.thread),
+        thread: threadOf.get(reply.thread),
         evidence: reply.evidence,
         claimed,
         filesOf,

@@ -10,13 +10,6 @@
     "pixel-art:tileset",
     "pixel-art:ui"
   ],
-  "competitor_dirs": {
-    "pixel-art:sprite": "plugins/pixel-art/skills/sprite",
-    "pixel-art:animate": "plugins/pixel-art/skills/animate",
-    "pixel-art:scene": "plugins/pixel-art/skills/scene",
-    "pixel-art:tileset": "plugins/pixel-art/skills/tileset",
-    "pixel-art:ui": "plugins/pixel-art/skills/ui"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: rt-haiku-note-site
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-file'
+    type: 'regex'
+    pattern: 'resolve-roles\.sh'
+    target: 'last_message'
+  - name: 'names-function'
+    type: 'regex'
+    pattern: '\brole_json\b'
+    target: 'last_message'

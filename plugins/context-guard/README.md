@@ -139,8 +139,8 @@ the band and toast state, and where `zones.json` lives and whether it is present
 Claude reads that reply, as it reads any command's output, so the continuation route and this
 README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
 the session, and a bare `band` toggles it. The band row is off by default; `context_guard_band`
-turns it on. It shows `ctx <n>% (<zone>)` above the prompt, with `-` in place of the figure before
-the first response. Claude can
+turns it on. It shows `context-guard: <zone> <n>%` above the prompt, the zone first so a cut row still
+shows it, and `context-guard: -` before the first response. Claude can
 call `mcp__context-guard__status` for the exact figures from the last API response, the zone,
 whether a compaction degraded the evidence, and the bands. Where the session
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module

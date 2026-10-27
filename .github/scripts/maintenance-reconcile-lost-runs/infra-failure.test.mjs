@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
+import { contractOnly, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -205,6 +205,40 @@ test("the tested run steps past failed contract-only runs, and stops at any othe
   const green = { id: 4, status: "completed", conclusion: "success" };
   assert.deepEqual(await testedRun([green, failedRun(2)], readJobs), { run: green, jobs: null });
   assert.equal(await testedRun(Array.from({ length: 6 }, () => failedRun(3)), readJobs), undefined);
+});
+
+// #9828's head c1184e03: check run 120950643531 (test-bash (3), job conclusion
+// cancelled) carries GitHub's time-limit note beside the cancel note; a
+// fail-fast matrix sibling carries the cancel note alone.
+const TIME_LIMITED = JSON.parse(readFileSync(new URL("./fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
+const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
+
+test("a cancelled job's time limit is read from GitHub's annotation, not from a cancel note or a warning", () => {
+  assert.equal(timeLimitNoted(TIME_LIMITED), true);
+  assert.equal(timeLimitNoted(CANCEL_ONLY), false);
+  assert.equal(timeLimitNoted([{ ...TIME_LIMITED[0], annotation_level: "warning" }]), false);
+  assert.equal(timeLimitNoted([{ ...TIME_LIMITED[0], message: `a test printed: ${TIME_LIMITED[0].message}` }]), false);
+  assert.equal(timeLimitNoted(undefined), false);
+});
+
+// #9828: attempt 1 of run 40118648493 ended cancelled; the reconciler re-runs
+// a lost first attempt once, so fix-ci waits for it as for an infra failure.
+test("the reconciler keeps a lost first attempt until RERUN_DUE_MINUTES; attempt 2 is fix-ci's", () => {
+  const now = Date.parse("2026-10-24T18:20:00Z");
+  const run = (attempt, conclusion = "cancelled", updated = "2026-10-24T18:10:00Z") => ({
+    id: 40118648493,
+    status: "completed",
+    conclusion,
+    run_attempt: attempt,
+    created_at: "2026-10-24T17:59:51Z",
+    updated_at: updated,
+  });
+  for (const conclusion of ["cancelled", "timed_out", "startup_failure"]) {
+    assert.match(reconcilerOwns({ run: run(1, conclusion), jobs: null }, now), new RegExp(`attempt 1 ended ${conclusion}, re-run job re-runs it once`));
+  }
+  assert.equal(reconcilerOwns({ run: run(2), jobs: null }, now), "");
+  assert.equal(reconcilerOwns({ run: run(1, "cancelled", "2026-10-24T16:00:00Z"), jobs: null }, now), "");
+  assert.equal(reconcilerOwns({ run: run(1, "success"), jobs: null }, now), "");
 });
 
 // A run stuck queued or waiting holds fix-ci off only inside the lookback.

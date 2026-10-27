@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "printf '{\"target\":%s,\"notes\":[%s]}\\n' \"$(json_str \"$TARGET\")\"\n",
+      "why": "JSON key unchanged"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "printf '{\"target\":%s,\"ROLE_NOTES\":[%s]}\\n' \"$(json_str \"$TARGET\")\"\n",
+      "why": "JSON key renamed in upper case"
+    },
+    {
+      "answer": "printf '{\"target\":%s,\"role_notes\":[%s]}\\n' \"$(json_str \"$TARGET\")\"\n",
+      "why": "JSON key renamed in lower case"
+    }
+  ]
+}

@@ -8,11 +8,6 @@
     "architecture:map-components",
     "architecture:map-landscape"
   ],
-  "competitor_dirs": {
-    "architecture:map-dependencies": "plugins/architecture/skills/map-dependencies",
-    "architecture:map-components": "plugins/architecture/skills/map-components",
-    "architecture:map-landscape": "plugins/architecture/skills/map-landscape"
-  },
   "queries": [
     {
       "id": "pos-train-01",

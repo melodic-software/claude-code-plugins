@@ -15,6 +15,7 @@
 #
 #   1. plugins/<concern>/schemas/<concern>.schema.json  a plugin concern
 #   2. <home>/<concern>/<concern>.schema.json           a cross-plugin convention
+#   3. plugins/*/schemas/<concern>.schema.json          a plugin's further concern
 #
 # A YAML file with neither is a finding: config nobody can validate is config
 # nobody can trust. Only files directly under <home>/ are read; YAML
@@ -168,12 +169,24 @@ for path in ${files+"${files[@]}"}; do
   stem="${stem%.yaml}"
   plugin_schema="plugins/$stem/schemas/$stem.schema.json"
   convention_schema="${path%/*}/$stem/$stem.schema.json"
+  # A plugin's second concern (review-digest.yaml, owned by the review plugin):
+  # the schema ships in the plugin that reads it. Names compare literally, so a
+  # stem holding a glob character matches nothing.
+  owned_schema=""
+  for candidate in plugins/*/schemas/*.schema.json; do
+    if [[ "${candidate##*/}" == "$stem.schema.json" && -f "$candidate" ]]; then
+      owned_schema="$candidate"
+      break
+    fi
+  done
   if [[ -f "$plugin_schema" ]]; then
     schema="$plugin_schema"
   elif [[ -f "$convention_schema" ]]; then
     schema="$convention_schema"
+  elif [[ -n "$owned_schema" ]]; then
+    schema="$owned_schema"
   else
-    printf '%s: no schema at %s or %s\n' "$path" "$plugin_schema" "$convention_schema" >&2
+    printf '%s: no schema at %s, %s or plugins/*/schemas/%s.schema.json\n' "$path" "$plugin_schema" "$convention_schema" "$stem" >&2
     findings=$((findings + 1))
     continue
   fi

@@ -40,7 +40,12 @@ extraction waits for the third (Rule of Three).
   stays the unaltered fetch. URLs arrive `\&`-escaped. Some real headings arrive as HTML tags
   (`<h2 id="where-skills-live">`, any of `<h1>`-`<h6>` with an `id`) instead of `#` lines, so the
   Phase 2 inventory counts both forms; a `#`-only scan drops an H2 and merges its section into
-  the previous unit. Digest text reproduces these artifacts
+  the previous unit. A slug derived from a `.md` heading can name an anchor the live page does
+  not have, so take every Basis anchor from the rendered page's `id`s, and cite an id that keeps
+  a typographic apostrophe (U+2019) percent-encoded (`%E2%80%99`). Probe for a page: list its
+  rendered ids with `grep -o 'id="[^"]*"'` and compare them with the anchors the `.md` fetch
+  implies (as of 2026-10-25; recheck trigger: a `.md` fetch carries every rendered heading id).
+  Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
@@ -249,7 +254,12 @@ asserts:
     row-class table at the end of this section assigns the common blog rows.
   - **Pointer convention:** a bare "See X" is `navigation-pointer`. A directive pointer, one
     that tells the operator to do something or that asserts a fact about the target, is
-    guidance and takes a vocabulary tag, not the exempt disposition.
+    guidance and takes a vocabulary tag, not the exempt disposition. A pointer that states what
+    its target covers asserts a fact about the target. Worked examples: a Next steps bullet such
+    as "Test a mod: catch problems before they reach a session", and a "For X, see Y" line,
+    take a vocabulary tag; a See also link carrying only a topic label stays
+    `navigation-pointer`. An already-verified slice tagged the other way retags only inside a
+    graduation-time verification cycle.
 - **`cc-applicable`/`mixed` boundary:** a claim row is `mixed` only when that row's OWN quoted
   text names one of the four API surfaces: an API **request** parameter, an endpoint, an SDK
   call, or a model ID. That holds even when its guidance transfers to the harness. `cc-applicable` is
@@ -257,7 +267,15 @@ asserts:
   adjacent joins it.
   - **"parameter" means an Anthropic API request parameter.** A harness/tool argument the
     settings page happens to call a "parameter" (e.g. `dangerouslyDisableSandbox`) never
-    triggers `mixed`.
+    triggers `mixed`. A field in the request body of an Anthropic-served endpoint is a request
+    parameter even where the page places that endpoint outside the Claude Platform API. Worked
+    example: the routines page's `/fire` request field `text`, so a row naming `text` is `mixed`.
+  - **A named Agent SDK option or callback is an SDK call.** An option or callback reaches the
+    SDK only through a call, so a row naming one is `mixed`. Worked examples: the `settingSources`
+    and `managedSettings` options (managed-settings page), and the `canUseTool` callback
+    (headless and mods admin pages). A type name such as `SDKSystemMessage`, a link into an Agent
+    SDK page, and "Agent SDK" or "SDK session" with no named option are bare names and stay
+    `cc-applicable`.
   - **A hostname is a name, not an endpoint.** An endpoint is a callable address. Worked pair:
     `prUrlTemplate` names `github.com` and stays `cc-applicable`; `skipWebFetchPreflight` names
     `api.anthropic.com` and is also `cc-applicable`. Any retag of an already-verified slice

@@ -261,9 +261,9 @@ non-interactive, so never read an environment variable to decide this.
 ### EARS tags, when the convention selects them
 
 Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
-degrade, emit criteria exactly as today: `- <testable criterion>`, untagged, byte-comparable in
-shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
-bracketed pattern prefix on that same plain-bullet form:
+degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
+in shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
+bracketed pattern prefix after its id on that same plain-bullet form:
 
 | Tag | Pattern |
 |---|---|
@@ -274,8 +274,8 @@ bracketed pattern prefix on that same plain-bullet form:
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
-- [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
+- AC1: [event-driven] WHEN the upload completes, the manifest is rewritten
+- AC2: [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
 The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
@@ -288,7 +288,7 @@ owed a sixth pattern.
 Where the tags travel: they land in the Brief's `### Acceptance criteria`, and a consumer that
 publishes the Brief verbatim as a tracker container body carries them with it. They do not reach
 per-slice criteria, which are freshly authored by whatever decomposes the work, because a vertical
-slice owns everything it grades.
+slice owns everything it grades; a slice keeps only the criterion's id.
 
 ### Resolution ladder for `acceptance_criteria_format`
 
@@ -391,7 +391,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 ```
 
-Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**: `auto` routing to synthesize-directly with no open decision. `lock` always writes its problem row, so its register gates. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against; it also exits 1 with `brief=unconfirmed` while the Brief is stamped `Restatement: UNCONFIRMED`, and a Brief edit after a Confirm needs a new `restate` and a fresh Confirm.
+Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**: `auto` routing to synthesize-directly with no open decision. `lock` always writes its problem row, so its register gates. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against; it also exits 1 with `brief=unconfirmed` while the Brief is stamped `Restatement: UNCONFIRMED`. The gate reads only that stamp, so it cannot see a Brief edited after a Confirm: after such an edit, post a new `restate`, get a fresh Confirm and export again.
 
 **One thing is not a question for this purpose: the acceptance-criteria coverage prompt.** It carries no decision, writes no register row, and asking it does not by itself make a register exist or bring this gate into scope, so a synthesize-directly run whose only question was the coverage prompt still skips the gate. Read it narrowly. It exempts that one prompt, never a real question asked in the same round or the same session: any other question still writes its row at ask-time and still brings the gate into scope. See "Acceptance-criteria capture".
 
@@ -435,7 +435,7 @@ land (for example a repo-sweep step commit). Skip the Step 4 `--brief` cross-che
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
-**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <memory_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, and that the Brief carries all nine template headings (TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria, Captured assumptions, Out-of-scope, Deferred questions); the Step 3 run could not check either because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired or a template heading: fix the Brief, do not retire the row. Exit 1 with `brief=unconfirmed` means the Brief is stamped `Restatement: UNCONFIRMED`: the user confirms the latest `restate`, then the Brief is exported again. A Brief edit after a Confirm needs a new `restate` and a fresh Confirm. A general session writes no Brief and skips this.
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <memory_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, and that the Brief carries all nine template headings (TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria, Captured assumptions, Out-of-scope, Deferred questions); the Step 3 run could not check either because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired or a template heading: fix the Brief, do not retire the row. Exit 1 with `brief=unconfirmed` means the Brief is stamped `Restatement: UNCONFIRMED`: the user confirms the latest `restate`, then the Brief is exported again. The gate reads only the stamp and cannot see a Brief edited after a Confirm; after such an edit, post a new `restate`, get a fresh Confirm and export again. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite: that note is the Brief's only history (Step 1).
 

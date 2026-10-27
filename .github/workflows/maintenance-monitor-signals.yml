@@ -45,6 +45,10 @@ jobs:
       contents: read # check out main
       issues: write # file and update the lane's own issues
       pull-requests: read # list merged pull requests
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,3 +87,11 @@ jobs:
           AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           export AGENT_IDENTITY
           node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

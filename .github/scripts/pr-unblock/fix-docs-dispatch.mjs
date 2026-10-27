@@ -19,6 +19,7 @@
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold } from "./gate-source.mjs";
+import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -236,6 +237,10 @@ export async function dispatchDocsFixes({
         continue;
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read fix-docs history or holds: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read fix-docs history or holds: ${error.message}`);
       continue;

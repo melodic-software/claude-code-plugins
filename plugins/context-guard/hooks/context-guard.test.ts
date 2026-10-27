@@ -840,10 +840,12 @@ const TOAST = (from: string, to: string) => `${from} → ${to} · continue, /com
 type Surface = 'terminal' | 'desktop' | 'vscode'
 // The operator offer: one prefix, the verdict line, then the options line.
 const offer = (line: string) => `FYI, ${line} ${OPTIONS.replace('context-guard: ', '')}`
-// The notice row: the one Text carrying the plugin's prefix, which every notice starts or follows FYI with.
+// The band row, matched whole, since it starts with the plugin's prefix as a crossing notice does.
+const BAND_ROW = /^context-guard: (-|([a-z]+(, compacted)? )?[\d.]+%)$/
+// The notice row: the one Text other than the band row carrying the plugin's prefix, which every notice starts or follows FYI with.
 const notice = async ($: any, surface: Surface = 'terminal') => {
   const ui = await $.ui.mount({ ...BAND, surface })
-  const found = await ui.findAll({ type: 'Text', text: /context-guard:/ })
+  const found = (await ui.findAll({ type: 'Text', text: /context-guard:/ })).filter((t: { text: string }) => !BAND_ROW.test(t.text))
   await ui.unmount()
   expect(found.length).toBeLessThanOrEqual(1)
   return found[0]?.text as string | undefined
@@ -1234,7 +1236,7 @@ test('menu: a crossing into the compacted dumb zone names it so in the toast', a
 
 const bandRow = async ($: any, surface: 'terminal' | 'desktop' = 'terminal') => {
   const ui = await $.ui.mount({ ...BAND, surface })
-  const found = await ui.find({ type: 'Text', text: /^ctx / })
+  const found = await ui.find({ type: 'Text', text: BAND_ROW })
   const beneath = await ui.find({ type: 'Text', text: 'drawn beneath' })
   await ui.unmount()
   return { row: found?.text, beneath: beneath !== undefined }
@@ -1242,15 +1244,15 @@ const bandRow = async ($: any, surface: 'terminal' | 'desktop' = 'terminal') => 
 
 const BAND_ON = { options: { context_guard_band: true } }
 
-test('band: a dash before a reading, the figure and zone after, kept above what is drawn beneath', BAND_ON, async ($, on) => {
+test('band: the plugin name, a dash before a reading, the zone then the figure after, kept above what is drawn beneath', BAND_ON, async ($, on) => {
   const { w } = world(on, { percent: undefined })
-  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'ctx -', beneath: true })
+  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: -', beneath: true })
   w.percent = 23
   await bash($)
-  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'ctx 23% (smart)', beneath: true })
+  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'context-guard: smart 23%', beneath: true })
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   await bash($)
-  expect((await bandRow($)).row).toBe('ctx 23% (dumb, compacted)')
+  expect((await bandRow($)).row).toBe('context-guard: dumb, compacted 23%')
 })
 
 test('band: off by default, so a terminal mount returns only what is drawn beneath', async ($, on) => {
@@ -1269,7 +1271,7 @@ test('command: band on, band off and a bare band toggle the row for the session'
   await bash($)
   expect((await bandRow($)).row).toBeUndefined()
   expect((await cmd($, 'band on')).text).toBe('band row on for this session')
-  expect((await bandRow($)).row).toBe('ctx 30% (smart)')
+  expect((await bandRow($)).row).toBe('context-guard: smart 30%')
   expect((await cmd($, 'band on')).text).toBe('band row on for this session')
   expect((await cmd($, 'band off')).text).toBe('band row off for this session')
   expect((await bandRow($)).row).toBeUndefined()
@@ -1347,7 +1349,7 @@ test('status tool: a refused registration is logged once, and lines, band and wr
   expect(debug.filter(l => l.includes('status tool'))[0]).toMatch(/^context-guard: the status tool could not register: /)
   expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
   expect(w.runs.length).toBeGreaterThan(0)
-  expect((await bandRow($)).row).toBe('ctx 80% (dumb)')
+  expect((await bandRow($)).row).toBe('context-guard: dumb 80%')
 })
 
 test('session.start registers the status tool and one command named after the plugin', async ($, on) => {

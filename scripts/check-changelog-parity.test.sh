@@ -1464,4 +1464,100 @@ legacy_reuse() { ship_change "$repo" beta; }
 fragment_case legacy_reuse
 if [[ $rc -eq 1 && "$out" == *"PUBLISHED VERSION REUSE: beta"* ]]; then ok "a plugin not in fragment mode keeps the per-PR bump rules"; else fail "legacy plugin lost PUBLISHED VERSION REUSE: rc=$rc out='$out'"; fi
 
+# ------------- synthetic PR merge after main released the plugin -------------
+# On a pull_request run HEAD is the merge of the branch into the base tip, so
+# the working tree carries every release main made after the fork. The gate
+# judges the branch's own tip (HEAD^2), never that tree.
+# merge_case <mode> <main-change> <branch-change>: alpha is in fragment mode,
+# beta is not. The manifest is multi-line so a branch field edit and main's
+# version bump merge without a conflict.
+# wide_manifest <plugin> <version> <description>: that multi-line manifest.
+wide_manifest() {
+  printf '{\n  "name": "%s",\n  "version": "%s",\n  "author": "a",\n  "license": "MIT",\n  "description": "%s"\n}\n' "$1" "$2" "$3" >"$repo/plugins/$1/.claude-plugin/plugin.json"
+}
+merge_case() {
+  mk_repo repo
+  git_init_test_repo "$repo"
+  local p fork main
+  for p in alpha beta; do
+    mk_plugin "$repo" "$p" 1.0.0 yes
+    wide_manifest "$p" 1.0.0 d
+    printf '# Changelog\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/$p/CHANGELOG.md"
+    printf 'readme\n' >"$repo/plugins/$p/README.md"
+  done
+  printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+  mkdir -p "$repo/.changes/alpha"
+  printf -- '---\nbump: minor\n---\n\n### Added\n\n- A feature.\n' >"$repo/.changes/alpha/feat-x-0123abcd.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  fork="$(git -C "$repo" rev-parse HEAD)"
+  "$2"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm main
+  main="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" checkout -q -b pr "$fork"
+  "$3"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm pr
+  git -C "$repo" checkout -q -b synthetic "$main"
+  if ! git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1; then
+    out="synthetic merge conflicted"
+    rc=99
+  else
+    out="$(cd "$repo" && bash scripts/check-changelog-parity.sh "$1" "$main" 2>&1)"
+    rc=$?
+  fi
+  rm -rf "$repo"
+}
+# main runs the release pull request for alpha: 1.1.0, its entry, fragment consumed.
+release_alpha() {
+  wide_manifest alpha 1.1.0 d
+  printf '# Changelog\n\n## [1.1.0]\n\n### Added\n\n- A feature.\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/alpha/CHANGELOG.md"
+  rm "$repo/.changes/alpha/feat-x-0123abcd.md"
+}
+describe_alpha() { wide_manifest alpha 1.0.0 changed; }
+merge_case --check-bump release_alpha describe_alpha
+if [[ $rc -eq 0 ]]; then ok "a non-version manifest edit passes after main releases the fragment-mode plugin (version read at the branch tip)"; else fail "main's release read as the branch's version move: rc=$rc out='$out'"; fi
+
+retouch_alpha_notes() { printf '# Changelog\n\n## [1.0.0]\n\n%s.\n' "$long_body" >"$repo/plugins/alpha/CHANGELOG.md"; }
+merge_case --check-bump release_alpha retouch_alpha_notes
+if [[ $rc -eq 0 ]]; then ok "a CHANGELOG body edit passes after main releases the fragment-mode plugin (headings read at the branch tip)"; else fail "main's release heading read as added by the branch: rc=$rc out='$out'"; fi
+
+add_beta_file() { printf 'new\n' >"$repo/plugins/beta/NEW.md"; }
+remove_beta() { git -C "$repo" rm -rq plugins/beta; }
+merge_case --check-preserved add_beta_file remove_beta
+if [[ $rc -eq 0 ]]; then ok "removing a plugin passes --check-preserved after main adds a file to it (directory read at the branch tip)"; else fail "plugin removal read as a deleted changelog: rc=$rc out='$out'"; fi
+
+# ===================== version_sort_key fields ======================
+# No mode can reach the function with a bad field, so these cases call it
+# directly. The script has no source guard, so the definition is lifted out of
+# it and run in its own bash, inside a fixture tree that catches anything it
+# writes.
+vsk_def="$(sed -n '/^version_sort_key() {/,/^}/p' "$SCRIPT")"
+# vsk <version>: sets out and rc to the function's output and exit status.
+vsk() {
+  # shellcheck disable=SC2016  # the program is expanded by the child bash
+  out="$(cd "$repo" && bash -c "$vsk_def"$'\n''version_sort_key key "$1" && printf "%s\n" "$key"' vsk "$1" 2>&1)"
+  rc=$?
+}
+if [[ "$vsk_def" == "version_sort_key() {"*"}" ]]; then ok "version_sort_key's definition lifts out of the script"; else fail "version_sort_key's definition did not lift out: '$vsk_def'"; fi
+
+mk_repo repo
+# shellcheck disable=SC2016  # the $(...) is the payload, never expanded here
+vsk '1 * a[$(touch MARKER)]'
+if [[ $rc -eq 2 && "$out" == *"not a number"* && ! -e "$repo/MARKER" ]]; then ok "a field holding \$(...) is refused with exit 2 and runs nothing"; else fail "command-substitution field: rc=$rc marker=$([[ -e "$repo/MARKER" ]] && echo created || echo absent) out='$out'"; fi
+for bad_version in 1x.0.0 1.2x.3 '1.*.3' '1. 2.3'; do
+  vsk "$bad_version"
+  if [[ $rc -eq 2 ]]; then ok "a non-numeric field is refused with exit 2 ('$bad_version')"; else fail "non-numeric field '$bad_version' not refused: rc=$rc out='$out'"; fi
+done
+
+vsk 1.2
+if [[ $rc -eq 0 && "$out" == "00001.00002.00000" ]]; then ok "a missing field still keys as 0 (1.2)"; else fail "two-field version: rc=$rc out='$out'"; fi
+for tail_version in 1.2.3+build 1.2.3-rc1; do
+  vsk "$tail_version"
+  if [[ $rc -eq 0 && "$out" == "00001.00002.00003" ]]; then ok "a SemVer tail is stripped before the key ($tail_version)"; else fail "tail version '$tail_version': rc=$rc out='$out'"; fi
+done
+vsk 0.9.0
+nine_key="$out"
+vsk 0.10.0
+if [[ $rc -eq 0 && "$out" > "$nine_key" ]]; then ok "0.10.0 still keys above 0.9.0"; else fail "0.10.0 keyed '$out', 0.9.0 keyed '$nine_key' (rc=$rc)"; fi
+rm -rf "$repo"
+
 test_harness::report

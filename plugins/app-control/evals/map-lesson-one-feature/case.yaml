@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: map-lesson-one-feature
+description: Refresh places a lesson that holds for one feature in that feature's Gotchas and ships it in the upkeep pull request
+tags: [map, refresh, lessons, invented]
+expected_outcome: "The reply puts the wait-for-Export lesson in the `## Gotchas` section of .claude/skills/control-clockwork/features/weekly-timesheet-export/README.md, not in the hub or another feature, treats it as doc drift so the outcome is changed, ships it on control-skill-upkeep/control-clockwork in one pull request, does not hand it to /corrections:codify, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh weekly-timesheet-export. Do not read the repository, drive the app or write any file. Treat the source wave and the live pass as already run on .claude/skills/control-clockwork, the only control skill. A /verification:confirm report handed in one lesson: on the weekly timesheet page the Export button stays disabled for about two seconds after the week loads, and a click before it enables does nothing, so the drive has to wait for the button to enable. The live pass confirmed it: the export worked once the step waited. No other feature has that button. Ready passed and nothing else differs. Name the file and section the lesson goes to, the outcome, and how it ships, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-feature-file
+    type: regex
+    pattern: 'features/weekly-timesheet-export/README\.md[\s\S]{0,120}Gotchas|Gotchas[\s\S]{0,120}features/weekly-timesheet-export/README\.md'
+    arm: both
+  - name: feature-gotchas-in-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) puts the lesson in the `## Gotchas` section of features/weekly-timesheet-export/README.md, (2) does not also put it in the hub (SKILL.md) or any other feature file, (3) says it ships as a commit on control-skill-upkeep/control-clockwork through one pull request, with the outcome changed, and (4) does not route it to /corrections:codify or any instruction file. FAIL if it places the lesson in the hub's Gotchas, writes it into a file outside .claude/skills/control-clockwork/, calls the outcome clean, or hands it off instead of placing it."

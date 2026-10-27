@@ -8,7 +8,7 @@
 // The cap is the merged count per hour times wip.target-lead-time-hours,
 // rounded up and at least wip.min-cap (limits.wip-cap when the merged count
 // cannot be read). Only open PRs that are not held count against it. A held PR (label
-// needs-human or do-not-merge, or a body line exactly HOLD_LINE) counts
+// needs-human or do-not-merge in any case, or a body line exactly HOLD_LINE) counts
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
@@ -66,8 +66,10 @@ const MAX_PAGES = 10;
 // The most blocker-list reads one check makes for queued issues.
 export const BLOCKER_READS = 30;
 
+// A hold label matches in any case, as pr-merge's holdReason matches it; the
+// body line matches exactly.
 export const isHeld = (pr) =>
-  (pr?.labels ?? []).some((label) => HOLD_LABELS.has(label?.name)) ||
+  (pr?.labels ?? []).some((label) => typeof label?.name === "string" && HOLD_LABELS.has(label.name.toLowerCase())) ||
   String(pr?.body ?? "")
     .split(/\r?\n/)
     .includes(HOLD_LINE);

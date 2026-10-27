@@ -34,7 +34,7 @@ fresh-session probe (isolated `claude -p --plugin-dir` runs with positive contro
 fact 5 was re-read on 2026-10-07 against 2.1.292.
 Rows 9-12 were measured on **Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture
 `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` under a scratch directory, positive control of an
-empty plugin list before any write). Existing state is not evidence of its own correctness:
+empty plugin list before any write). Existing state is not evidence of its own correctness, so
 **recheck these facts** (triggers at the end of this doc) before extending the matrix or relying on
 a row in new work.
 
@@ -158,7 +158,8 @@ Conformance is tracked as it exists on `main`, per the
 |---|---|---|
 | disk-hygiene kill switch (`disk_hygiene_enabled`), both guard surfaces | F (shared reader `lib/killswitch_config.py`) | conforms (0.9.0, #1242; closed #1019) |
 | autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the harness-ops lane launcher) | conforms (0.12.0, #1784) |
-| source-control babysit-loop promotion-evidence helper (`promotion_evidence_*`), a skill-run script | F (Node reader `skills/babysit-loop/scripts/operator-options.mjs`, anchored on the script's own install path) | conforms (#7008) |
+| source-control babysit-loop promotion-evidence helper (`promotion_evidence_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `skills/babysit-loop/scripts/operator-options.mjs`, anchored on the script's own install path) | conforms (#7008) |
+| corrections findings-buffer user-scope adapter binding (`findings_buffer_adapter_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `scripts/lib/plugin-options.mjs`, anchored on `findings-buffer.mjs`'s own install path) | conforms (#9059) |
 | harness-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the
@@ -174,7 +175,7 @@ table (and re-derive the decision rule) when any of these fires:
 - [#46477](https://github.com/anthropics/claude-code/issues/46477) reopens or `default`
   substitution ships: fact 3; the meta-rule's exclusion of argv falls away.
 - The documented `pluginConfigs` read scopes change: fact 5; F's tamper claim.
-- The managed-settings paths or precedence change: F's exemplar reader.
+- The managed-settings paths or precedence change: F's exemplar readers.
 - CC docs begin specifying skill-hook value delivery: fact 6 moves from evidence-strong to
   doc-stated (or is contradicted).
 - The plugins-reference user-configuration section changes what it documents about body

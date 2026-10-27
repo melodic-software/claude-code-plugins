@@ -421,7 +421,7 @@ bash "<plugin-root>/scripts/check-open-questions.sh" \
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 
-Exit 0 = clean; exit 1 = a row is `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire an `open` row; a `superseded-by-plan` row leaves only on the user's reply to it, see "Superseded by plan"), or `--procedure` found a defect (a round missing from the register, a retired row with no resolution, or on the Step 4 run a missing Brief template heading; stderr names each one, so fix the ledger or Brief and re-run), or `--brief` names a Brief stamped `Restatement: UNCONFIRMED` (`brief=unconfirmed`: the user confirms the latest `restate`, then the Brief is exported again; a Brief edit after a Confirm needs a new `restate` and a fresh Confirm); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+Exit 0 = clean; exit 1 = a row is `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire an `open` row; a `superseded-by-plan` row leaves only on the user's reply to it, see "Superseded by plan"), or `--procedure` found a defect (a round missing from the register, a retired row with no resolution, or on the Step 4 run a missing Brief template heading; stderr names each one, so fix the ledger or Brief and re-run), or `--brief` names a Brief stamped `Restatement: UNCONFIRMED` (`brief=unconfirmed`: the user confirms the latest `restate`, then the Brief is exported again; the gate reads only the stamp, so it cannot see a Brief edited after a Confirm, and after such an edit you post a new `restate`, get a fresh Confirm and export again); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
 **The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 
@@ -461,7 +461,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - **Ecosystem / stack constraints:** e.g. "no new languages", "no new mapping library"
 - **Timeline constraints:** e.g. "must ship before mobile release freeze"
 
-**Acceptance criteria:** bullet list. How to verify done. Each criterion must map to a test or verifiable observation:
+**Acceptance criteria:** bullet list, each opening with its id (`AC1:`, `AC2:`, ...). How to verify done. Each criterion must map to a test or verifiable observation:
 
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
@@ -482,11 +482,11 @@ Two behaviors attach here, both defined in the SKILL.md section "Acceptance-crit
 
 ```text
 ### Acceptance criteria
-- [ubiquitous] The manifest is valid JSON at rest
-- [event-driven] WHEN the upload completes, the manifest is rewritten
-- [state-driven] WHILE a rebuild is in flight, reads are served from the previous manifest
-- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
-- [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
+- AC1: [ubiquitous] The manifest is valid JSON at rest
+- AC2: [event-driven] WHEN the upload completes, the manifest is rewritten
+- AC3: [state-driven] WHILE a rebuild is in flight, reads are served from the previous manifest
+- AC4: [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
+- AC5: [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
 ```
 
 Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, `optional-feature`. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
@@ -526,7 +526,7 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 - Quality requirement: <prompt>: <requirement>[; target: <measurable target>]
 
 ### Acceptance criteria
-- <testable criterion>
+- AC1: <testable criterion>
 
 ### Captured assumptions
 - Quality bar: prototype | internal | production
@@ -547,6 +547,6 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
 
-**The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
+**The criteria bullet stays a plain bullet.** `- AC<n>: <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- AC<n>: [<pattern>] <criterion>`. `AC<n>` is the criterion's id, numbered from `AC1` in order and never reused: `/planning:plan` maps each id to the phases that satisfy it and `/work-items:decompose` to the slices that carry it. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
 
 **The arbiter tag decides who resolves the question.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.

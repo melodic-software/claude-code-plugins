@@ -229,10 +229,37 @@ fi
 
 mkdir -p "$TMP/badrival/probes"
 jq '.competitor_dirs = {}' "$TMP/probes/target.json" >"$TMP/badrival/probes/target.json"
-if run score "$TMP/badrival/probes" >/dev/null 2>&1; then
-  fail "score with an unloadable competitor should exit non-zero"
+out="$(run score "$TMP/badrival/probes" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q "competitor 'fixture:rival' has no competitor_dirs entry and 'plugins/fixture/skills/rival' does not resolve" <<<"$out"; then
+  pass "score refuses a competitor whose derived directory does not exist"
 else
-  pass "score refuses an unloadable competitor"
+  fail "score with an unloadable competitor should exit non-zero and name the derived path (rc=$rc): $out"
+fi
+
+# With no competitor_dirs entry, the rival resolves from its plugin:skill id.
+make_skill "$TMP/plugins/fixture/skills/rival" \
+  "Anthropic skill-authoring playbook. Use when: 'create a skill', 'how to write SKILL.md', 'skill best practices', 'authoring playbook', 'progressive disclosure'."
+mkdir -p "$TMP/derived/probes"
+jq 'del(.competitor_dirs)' "$TMP/probes/target.json" >"$TMP/derived/probes/target.json"
+derived_json="$(run score "$TMP/derived/probes" 2>"$TMP/derived.err")"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  [[ "$(jq -S 'del(.generated_at)' <<<"$derived_json")" == "$(jq -S 'del(.generated_at)' "$TMP/score.json")" ]]; then
+  pass "score derives a competitor's directory from its plugin:skill id"
+else
+  fail "score should resolve fixture:rival from plugins/fixture/skills/rival (rc=$rc): $(cat "$TMP/derived.err") $derived_json"
+fi
+rm -rf "$TMP/plugins"
+
+mkdir -p "$TMP/bareid/probes"
+jq 'del(.competitor_dirs) | .competitors = ["rival"]' "$TMP/probes/target.json" >"$TMP/bareid/probes/target.json"
+out="$(run score "$TMP/bareid/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "competitor 'rival' is not a plugin:skill id and has no competitor_dirs entry" <<<"$out"; then
+  pass "score refuses a competitor with no plugin:skill id and no competitor_dirs entry"
+else
+  fail "a bare competitor id with no entry should exit 1 (rc=$rc): $out"
 fi
 
 mkdir -p "$TMP/gone/probes"

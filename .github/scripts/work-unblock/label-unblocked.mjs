@@ -102,8 +102,13 @@
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
 // step, is a breaker trip, not a fault in the issue or the lanes; only the
 // refused job's log names the reason (the jobs listing reads the same for a
-// workflow-modified refusal). It is re-fired limits.reset-clamp-min hours after
-// the run ended with a breaker record of its own, and after
+// workflow-modified refusal). So is a run whose broker-check `Check the kill
+// switch` step saw a kill switch on and skipped the broker ask: that run ends
+// green, and the jobs listing alone shows it. A trip at broker-check ran no
+// model, and the sweep runs only with the kill switch off, so the first sweep
+// after the switch clears re-fires it; a trip at a mint ran the model and is
+// re-fired limits.reset-clamp-min hours after the run ended. Each gets a
+// breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, on the stranded backoff. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
@@ -136,7 +141,10 @@
 // When a sub-issue of a size split (intake's refine.mjs, owner Q93) closes,
 // by a listed human or, on the sweep, a merge, and every sub-issue of its
 // open parent is closed that way, the App comments on the parent and closes
-// it as completed. Only a parent whose split record the App posted counts.
+// it as completed. Only a split parent counts (admit.mjs isSplitParent): one
+// whose split record the App posted, or one split by hand whose every
+// sub-issue the App or a listed human linked, not `recurring`, with no open
+// task-list item in its body.
 //
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
@@ -149,13 +157,17 @@
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
 //                          (`issues` only)
-//   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
-//                          must be a listed human (`issues` only)
-//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
+//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to read
+//                          this run's record (`issues`), list
 //                          work-resolve-issue runs, read a refused job's log,
-//                          and find the last sweep and its jobs;
-//                          unset skips the re-fire and uses the full window
-//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
+//                          and find the last sweep and its jobs; on
+//                          `schedule`, unset skips the re-fire and uses the
+//                          full window
+//   GITHUB_RUN_ID          this run, read for who started this attempt (a
+//                          re-runner may differ; it must be a listed human,
+//                          `issues` only) and skipped when reading the last
+//                          sweep
+//   GITHUB_RUN_ATTEMPT     this run's attempt, checked against its record
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -168,13 +180,14 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
+import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -201,6 +214,8 @@ const BLOCKER_STEP = "Wait for open blockers";
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
 // broker-check's step, which asks the broker before any resolve-issue run job.
 const BROKER_STEP = "Ask the broker whether the lane may run";
+// broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
+const KILL_STEP = "Check the kill switch";
 // request-lane-token's last line when the broker refuses it, in check mode
 // (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
 // it when the step fails. Only the reason word is read.
@@ -251,16 +266,30 @@ const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** re
 const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
-// Whether the account that closed the issue (ACTOR_ID, by id) and the one
-// that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
-// another account) are each a listed human. The broker mints only then.
-export function checkCloser(env) {
+// Whether the account that closed the issue (ACTOR_ID) and the one that
+// started this run attempt (a re-runner may be another account) are each a
+// listed human, by id. The re-runner's id is read from this run's own record
+// with `actions` (default: the job token), since a login can pass to another
+// account; a failed or malformed read answers false. The broker mints only
+// when this holds.
+export async function checkCloser(env, actions) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
   }
-  const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-  const rerunner = logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase());
-  return humans.has(Number(env.ACTOR_ID)) && rerunner !== undefined && humans.has(rerunner);
+  const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  if (!humans.has(Number(env.ACTOR_ID))) {
+    return false;
+  }
+  try {
+    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+    }
+    actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    return humans.has(await readRerunner(actions, env.GITHUB_REPOSITORY, String(env.GITHUB_RUN_ID ?? ""), String(env.GITHUB_RUN_ATTEMPT ?? "")));
+  } catch (error) {
+    console.log(`::warning title=label-unblocked::this run's record names no re-runner it could read (${escapeCommand(error?.message ?? error)}); treated as unlisted`);
+    return false;
+  }
 }
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -686,9 +715,10 @@ const strandedCause = {
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token.`;
 
 // The record of a re-fire after a kill-switch refusal, posted before the
-// label moves, once per re-fire.
-export const breakerComment = (key) =>
-  `<!-- work-unblock refired ${key} breaker -->\nThe token broker refused the work-resolve-issue run that \`${LABEL}\` started because the lanes kill switch was on, so it did no work. work-unblock removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
+// label moves, once per re-fire. It names the refused run and when it ended,
+// since the re-fire can come hours after the refusal.
+export const breakerComment = (key, { repo, run, ended }) =>
+  `<!-- work-unblock refired ${key} breaker -->\nThis records a re-fire of an earlier refusal, not a new refusal. The lanes kill switch stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before it did any work; that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
 
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
@@ -737,19 +767,26 @@ async function laneRuns(actions, repo, number, addedAt) {
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
 // wins), had the broker refuse it for the kill switch at broker-check or a
-// mint (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
+// mint, or had broker-check skip its broker ask for the kill switch
+// (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
 // resolve-issue did not), or was skipped by the admit job's blocker gate
 // (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
 // refusal for another reason, or one whose log gives none, is none of these.
 // A run another gate stopped before its mint (an open closing PR, a reused
-// branch) is none of these, so it is never re-fired here.
+// branch) is none of these, so it is never re-fired here. Returned as
+// `stalled`, with `run` the run that made it a breaker trip and `stage`
+// where: `check` at broker-check, before any model turn, or `token` at a mint.
 async function didNoWork(jobsOf, refusalOf, runs) {
   // A higher rank wins across runs; between equal ranks the first stays.
   const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
-  const atLeast = (kind) => {
+  let tripped = null;
+  let stage = null;
+  const atLeast = (kind, run, at) => {
     if (rank[kind] > (rank[stalled] ?? 0)) {
       stalled = kind;
+      tripped = run;
+      stage = at;
     }
   };
   for (const run of runs) {
@@ -762,7 +799,9 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
-    const failedAt = (job, name) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === "failure");
+    const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
+    const failedAt = (job, name) => endedAt(job, name, "failure");
+    const killed = named("resolve-issue").some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const capped =
@@ -773,9 +812,9 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
     // One log per run: broker-check's when it refused, else the first failed mint's.
-    const refused = checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
-    if ((await refused) === BREAKER) {
-      atLeast("breaker");
+    const refused = killed ? null : checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    if (killed || (await refused) === BREAKER) {
+      atLeast("breaker", run, killed || checked ? "check" : "token");
     } else if (minting) {
       atLeast("mint-failed");
     } else if (capped) {
@@ -784,7 +823,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       atLeast("blocked");
     }
   }
-  return stalled;
+  return stalled && { stalled, run: tripped, stage };
 }
 
 // The reason the broker refused `job`, from its log: the failed step's last
@@ -1134,7 +1173,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
   }
-  const stalled = await didNoWork(jobsOf, refusalReader(jobLog, repo), runs);
+  const { stalled, run: refused, stage } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
@@ -1145,7 +1184,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
     );
     const trips = stalled === "breaker" ? markers.filter((marker) => marker.breaker && marker.at > from).length : 0;
     const over = trips - limits["limit-stops-per-issue"];
-    const due = over >= 0 ? backoffDue(ended, over) : ended + limits["reset-clamp-min"] * HOUR_MS;
+    // A broker-check trip ran no model, and this sweep runs only with the
+    // kill switch off, so it re-fires now; a mint trip ran the model and
+    // waits like any failed mint.
+    const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
+    const due = over >= 0 ? backoffDue(ended, over) : ended + clamp * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
@@ -1165,7 +1208,8 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE);
     }
-    return { reason: null, resets: due, refire: key, recorded, stall: stalled };
+    const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
+    return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
   }
   if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
@@ -1357,7 +1401,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, stall, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, stall, trip, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
@@ -1389,7 +1433,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `${base}/comments`, { body: stall === "breaker" ? breakerComment(refire) : refireComment(refire, cause) });
+        await github("POST", `${base}/comments`, { body: stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause) });
       }
       if (infra) {
         await (infra.id === undefined
@@ -1431,7 +1475,7 @@ const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 // (admit.mjs splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
-  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, trusted });
+  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, humans, trusted });
 }
 
 // For each issue in `closed` (on the sweep, only one a listed human or a
@@ -1451,9 +1495,9 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// Closes, as completed and with one comment first, the open parent a size
-// split filed issue `number` under, once every sub-issue is closed by a
-// listed human or a merge (owner Q93). Its body is never edited.
+// Closes, as completed and with one comment first, the open split parent
+// (admit.mjs isSplitParent) of issue `number`, once every sub-issue is
+// closed by a listed human or a merge (owner Q93). Its body is never edited.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
   if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
@@ -1464,10 +1508,10 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   }
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
-  if (!comments.some((comment) => comment.user?.login === bot && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  const children = await paginate(github, `${base}/sub_issues`);
+  if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
     return;
   }
-  const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
     if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes, bot }))) {
       console.log(`label-unblocked: split parent #${parent.number} stays open: sub-issue #${child?.number} is not closed by a listed human or a merge`);
@@ -1505,6 +1549,12 @@ const baseAdmission = (env) => {
     })());
 };
 
+// The rate guard's latch with its readings recorded under token, so a second
+// client's readings never mix with the App token's.
+export function budgetLatch(token, latch = rateLimitLatch) {
+  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+}
+
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -1526,7 +1576,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
         return 0;
       }
-      if (!checkCloser(env)) {
+      if (!(await checkCloser(env, actions))) {
         console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
         return 0;
       }
@@ -1535,8 +1585,9 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      const latch = budgetLatch("github-token");
+      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
+      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
     }
     const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
@@ -1569,7 +1620,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
 // output, so the workflow can stop before it requests a token.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   if (process.argv[2] === "--check-closer") {
-    const proceed = checkCloser(process.env);
+    const proceed = await checkCloser(process.env);
     writeOutputs({ proceed: String(proceed) });
     console.log(`label-unblocked: closer and re-runner ${proceed ? "are" : "are not both"} listed humans`);
   } else {

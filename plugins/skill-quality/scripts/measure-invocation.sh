@@ -28,7 +28,10 @@
 # Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
 #   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
 #   query: id, split (train|validation), expect_trigger (bool), request
-# skill_dir resolves against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
+# A competitor's directory is plugins/<plugin>/skills/<skill> from its
+# plugin:skill id; an optional competitor_dirs entry overrides it for a rival
+# outside the plugins/ tree. skill_dir and competitor directories resolve
+# against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
 # git toplevel of this script, else $PWD). The shipped seed probes name this
 # marketplace's own skills; `score` exits 2 when none of them resolve.
 # Roughly 20 labeled queries per skill, both polarities, both splits.
@@ -334,15 +337,21 @@ cmd_score() {
     local comp
     while IFS= read -r comp; do
       [[ -z "$comp" ]] && continue
-      local comp_dir
+      local comp_dir derived=""
       comp_dir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
+      if [[ -z "$comp_dir" && "$comp" == *:* ]]; then
+        comp_dir="plugins/${comp%%:*}/skills/${comp#*:}"
+        derived=1
+      fi
       if [[ -z "$comp_dir" ]]; then
-        err "$skill: competitor '$comp' has no competitor_dirs entry; a partial rival set would inflate the rates"
+        err "$skill: competitor '$comp' is not a plugin:skill id and has no competitor_dirs entry; a partial rival set would inflate the rates"
         continue
       fi
       local cmd
       if cmd="$(resolve_skill_md "$root" "$comp_dir")"; then
         comp_listing["$comp"]="$(load_listing "$cmd")"
+      elif [[ -n "$derived" ]]; then
+        err "$skill: competitor '$comp' has no competitor_dirs entry and '$comp_dir' does not resolve; a partial rival set would inflate the rates"
       else
         err "$skill: competitor_dirs '$comp' -> '$comp_dir' does not resolve"
       fi

@@ -10,13 +10,6 @@
     "session-flow:workflow",
     "session-flow:keep-going"
   ],
-  "competitor_dirs": {
-    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
-    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
-    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop",
-    "session-flow:workflow": "plugins/session-flow/skills/workflow",
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going"
-  },
   "queries": [
     {
       "id": "pos-train-01",

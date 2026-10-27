@@ -296,7 +296,8 @@ class FakeGh:
                 (run_id, attempt),
                 [failed_job(run_id * 10 + attempt, "test-bash", "Run the bash tests")],
             )
-            return completed([{"total_count": len(jobs), "jobs": jobs}])
+            page = {"total_count": len(jobs), "jobs": jobs}
+            return completed([page] if "--slurp" in args else page)
         if "/check-runs/" in endpoint:
             value = self.annotations.get(
                 int(endpoint.split("/check-runs/")[1].split("/")[0]), []
@@ -4011,7 +4012,15 @@ class RoleLabelRead(unittest.TestCase):
     def test_a_failed_read_raises_when_strict(self) -> None:
         for stderr in (
             "gh: Server Error (HTTP 502)",
-            "gh: API rate limit exceeded (HTTP 403)",
+            # As run 39906176584 logged it (pr-merge.yml, dispatch-full-run,
+            # 2026-10-23T05:30:57Z).
+            "gh: API rate limit exceeded for installation. If you reach out to"
+            " GitHub Support for help, please include the request ID"
+            " 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23"
+            " 05:30:57 UTC. For more on scraping GitHub and how it may affect"
+            " your rights, please review our Terms of Service"
+            " (https://docs.github.com/en/site-policy/github-terms/"
+            "github-terms-of-service) (HTTP 403)",
             "timeout",
         ):
             with self.subTest(stderr=stderr):

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: rt-resolver-callers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-route'
+    type: 'regex'
+    pattern: 'skills/route/scripts/route\.sh'
+    target: 'last_message'
+  - name: 'names-setup'
+    type: 'regex'
+    pattern: 'skills/setup/scripts/setup\.sh'
+    target: 'last_message'
+  - name: 'names-list-pointers'
+    type: 'regex'
+    pattern: 'skills/audit-defaults/scripts/list-pointers\.sh'
+    target: 'last_message'
+  - name: 'no-unrelated-scripts'
+    type: 'regex'
+    pattern: '\b(?:docs-cache|fetch-docs|docs-raw|list-targets|workflow-availability|check)\.sh\b|\.test\.sh\b'
+    match: 'not_contains'
+    target: 'last_message'

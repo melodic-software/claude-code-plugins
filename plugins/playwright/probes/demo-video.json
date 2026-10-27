@@ -7,10 +7,6 @@
     "playwright:check",
     "playwright:playwright"
   ],
-  "competitor_dirs": {
-    "playwright:check": "plugins/playwright/skills/check",
-    "playwright:playwright": "plugins/playwright/skills/playwright"
-  },
   "queries": [
     {
       "id": "pos-train-01",

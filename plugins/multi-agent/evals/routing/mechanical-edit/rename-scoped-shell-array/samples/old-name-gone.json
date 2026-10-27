@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "ROLE_NOTES=()\n  ROLE_NOTES+=(\"a\")\n  ROLE_NOTES+=(\"b\")\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "only the new name"
+    },
+    {
+      "answer": "notes_json=()\nprintf '{\"target\":%s,\"notes\":[%s]}\\n'\n",
+      "why": "lowercase notes is a different name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "NOTES=()\n  NOTES+=(\"a\")\nfor n in \"${NOTES[@]+\"${NOTES[@]}\"}\"; do\n",
+      "why": "nothing renamed"
+    },
+    {
+      "answer": "ROLE_NOTES=()\n  ROLE_NOTES+=(\"a\")\n  NOTES+=(\"b\")\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "one site missed"
+    }
+  ]
+}

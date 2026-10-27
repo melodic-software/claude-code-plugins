@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json\nfallback: opus\n",
+      "why": "names role_json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: variant\nfallback: opus\n",
+      "why": "names the JSON printer"
+    },
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: is_frontier\nfallback: opus\n",
+      "why": "names the frontier test"
+    }
+  ]
+}

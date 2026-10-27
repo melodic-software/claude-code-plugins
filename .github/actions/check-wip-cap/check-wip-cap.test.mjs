@@ -2,8 +2,8 @@
 // lanes App's merged pull requests per hour over the rolling window times the
 // target lead time (pr-pipeline.yaml `wip`), rounded up and at least 1, with
 // limits.wip-cap when the merged count cannot be read. Only open lane PRs that
-// are not held count against it; a held one (needs-human, do-not-merge, or a
-// body line exactly "Hold: a human merges this") counts against the held
+// are not held count against it; a held one (needs-human or do-not-merge in
+// any case, or a body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
 // pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
@@ -83,6 +83,18 @@ test("each hold signal holds a PR: needs-human, do-not-merge, or the exact hold 
   assert.equal(isHeld(pr({ labels: ["do-not-merge"] })), true);
   assert.equal(isHeld(pr({ body: "Refs: #8211\nHold: a human merges this\n\n## Summary" })), true);
   assert.equal(isHeld(pr({ body: "Refs: #8211\r\nHold: a human merges this\r\n" })), true);
+});
+
+// pr-merge's holdReason matches hold labels ignoring case, so the WIP count
+// does too; the body line stays exact.
+test("a hold label holds a PR in any case", () => {
+  assert.equal(isHeld(pr({ labels: ["Needs-Human"] })), true);
+  assert.equal(isHeld(pr({ labels: ["Do-Not-Merge"] })), true);
+  assert.equal(isHeld(pr({ labels: ["DO-NOT-MERGE"] })), true);
+});
+
+test("a label with a missing or non-string name is no hold and does not throw", () => {
+  assert.equal(isHeld({ labels: [null, {}, { name: null }, { name: 7 }, { name: ["needs-human"] }] }), false);
 });
 
 test("near misses do not hold a PR", () => {

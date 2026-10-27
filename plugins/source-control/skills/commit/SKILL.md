@@ -32,14 +32,22 @@ are ordinary body Bash calls, not pre-compute, so the one-invocation composition
 
 Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
-Then resolve the two repo-scoped config layers as separate calls. Each uses git's repo-root-relative
+The team value of the convention keys (`subject_pattern`, `type_list`, `trailer_policy`) comes from
+`docs/conventions/source-control.yaml`. Read it first, when it is git-tracked
+(`git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`), through
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$ROOT" <key>`, which prints `yaml`,
+`legacy-md` or `none` for a key; `value` and `list` print the YAML's value. A key the YAML carries is
+authoritative for the team layer. Only a key it lacks is read from the legacy markdown layers below,
+the compatibility read kept for one release. Report which layer supplied each value.
+
+Then resolve the repo-scoped legacy markdown layers (the compatibility read) as separate calls. Each uses git's repo-root-relative
 magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
 any subdirectory and never need the repository root substituted into them. **Quote the pathspec**,
 the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreting it.
 
-1. Team layer, trackedness.
+1. Legacy team layer, trackedness.
    `git ls-files --error-unmatch -- ":/.claude/source-control.md"`
-2. Team layer, existence.
+2. Legacy team layer, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.md"`
 3. Personal overlay, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
@@ -123,8 +131,9 @@ these failure modes:
 
 The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
 
-1. **The layered `source-control.md` convention config**. User-global, tracked team, and gitignored
-   personal overlay, merged per key by
+1. **The layered source-control convention config**. User-global, tracked team
+   (`docs/conventions/source-control.yaml`, then the legacy `source-control.md` for a key the YAML
+   lacks), and gitignored personal overlay, merged per key by
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
    Resolve all three layers before using any value; a value from one layer alone is not the effective
    config. When any layer declares one, the effective `subject_pattern` (and `type_list`, when

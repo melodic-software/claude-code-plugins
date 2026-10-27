@@ -6,9 +6,6 @@
   "competitors": [
     "implementation:implement-dispatch"
   ],
-  "competitor_dirs": {
-    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -76,7 +76,8 @@ permissions, and passes no App key.
 | `dependency-verdict` | `false` | Write file only: for the verdict script of a [`prepare: dependency-review`](#prepare-dependency-review) round, download the select job's `context.json` and the scanned verdict |
 | `dependency-context-attempt`, `dependency-run-sha256`, `dependency-head-sha` | `''` | Write file only: with `dependency-verdict`, the select job's `context-attempt`, `run-sha256` and `head-sha` outputs |
 | `dependency-run-attempt`, `dependency-verdict-sha256`, `dependency-patch-state` | `''` | Write file only: with `dependency-verdict`, the same read call's `dependency-attempt`, `dependency-sha256` and `scan-patch-state` outputs |
-| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token`; `fallback` for its third call, on `fallback-claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `fallback-ready` | `''` | Read file only: the second call's `true` or `false`, from its handoff job, which run-claude-cli's `fallback-ready` takes; `true` lets the subscription leg hand off to the third call |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
@@ -108,14 +109,16 @@ patch outputs under the names a caller that takes nothing from a run job reads.
 
 A scan refusal is no output: a failed scan fails the caller's job for the whole read file, and a
 failed job's outputs are not documented to reach a `workflow_call` caller. When the scan job fails
-or is cancelled in PR mode, the `scan-refusal` job, which needs the scan job alone, uploads
+or is cancelled, the `scan-refusal` job, which needs the scan job alone, uploads
 `scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
 cap and `output` otherwise. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
 read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
-person. In issue mode no marker is written: the [issue-fields job](#the-issue-fields-job), which
-ends green, sets `scan-issue-run-started`, so the caller's report job still runs on a failed or
-skipped scan, finds no outcome and stops the run.
+person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends green, sets
+`scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
+downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
+fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file. A
+failed download there names no refusal.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
@@ -447,9 +450,12 @@ running `npm ci --ignore-scripts` there once when it has a `package-lock.json` a
 `node_modules`; all
 without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
-wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open. When the stage grants its wrapper,
-the write runner sets up Python from the base `.python-version` and installs the base's
-hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
+refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
+effect is not `read`: the write runner's run job holds the lane token and `id-token: write`, and
+only a read skill with `applied-by.patch`, in the read runner's run job that holds neither, may
+list them. For the same reason the schema refuses, in such a skill's `checks` and `self-checks`,
+the scripts that run the checkout's test files ([README.md](README.md#activities)). `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the
@@ -677,6 +683,17 @@ since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. Thes
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
 
+A third call runs each activity once more, on the central fallback subscription's token. Each
+handoff job also reads whether the org secret `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` is set and passes
+that as the second call's `fallback-ready`. With it `true`, the second call's subscription leg
+hands off on a limit stop, a credit stop, or a 401 or 402, and skips its scan, lane record and
+check as a first-call handoff does. A `<subscription>-handoff` job then reads this run's jobs with
+`handoff-evidence.sh handed-off`, and `<first>-fallback` runs on
+`fallback-claude-code-oauth-token` alone with `fallback: fallback`, as the last leg. With the
+secret empty, `fallback-ready` is `false`, so neither job runs and the second call is the last.
+Every job after the calls takes its inputs from the third call when it ran, else the second, else
+the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
+
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
    still works it applies ci-workflows' Claude managed settings, then isolates the runner.
@@ -705,7 +722,13 @@ job, which head code can forge, knows whether it was a credit stop or an empty k
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
    options, `status --verbose` (it runs textconv), and any path that resolves outside the checkout
-   (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. The no-prepare patch skill gets
+   (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. It is
+   also denied `Edit` on each path `apply-issue-patch` refuses: `deny-rules.mjs` builds the rules
+   from `protected-paths.mjs`'s path rules for the `issue` row's `refuse` list, matching no path that
+   row would push (a plugin's `settings.json` stays writable), and the preamble names the
+   patterns and says that when the change needs one, the run stops with `exit` `stopped` and a
+   `reason` starting `patch-protected-path`. The rules cover the file tools and shell redirects,
+   not a wrapper's subprocess, so `apply-issue-patch` still refuses every path. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
    name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
    approves a shell redirect into the scratch directory, and for `ai-slop:audit` each of
@@ -1684,10 +1707,14 @@ whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-
 form, any case) and down through every reusable workflow those runs call. It fails when a file of
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
-a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
-`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
-`secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
+a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` (case-insensitive,
+`-` read as `_`) in the shared set `fallback_claude_code_oauth_token`, `claude_code_oauth_token`,
+`claude_api_key`, `github_token` or, in a workflow whose run reaches the read file, in that
+workflow's own entry of the caller map: `pr-refine.yml` and `pr-unblock.yml` may also name
+`pr_unblock_claude_code_oauth_token` and `pr_unblock_claude_api_key`, `work-resolve-issue.yml`
+`issue_lane_claude_code_oauth_token` and `issue_lane_claude_api_key`; `toJSON(secrets)`,
+`secrets[...]` and bare `secrets` fail. A workflow whose run reaches the read file and has no entry
+in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
@@ -1981,7 +2008,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
   patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
-  that reason, and opens no PR, from a resumed branch either. A `done` run that committed nothing on a resume opens its PR from the
+  that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
+  (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App

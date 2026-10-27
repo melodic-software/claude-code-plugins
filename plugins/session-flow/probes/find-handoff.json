@@ -10,13 +10,6 @@
     "session-flow:recall",
     "session-flow:orient"
   ],
-  "competitor_dirs": {
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
-    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
-    "session-flow:recall": "plugins/session-flow/skills/recall",
-    "session-flow:orient": "plugins/session-flow/skills/orient"
-  },
   "queries": [
     {
       "id": "pos-train-01",

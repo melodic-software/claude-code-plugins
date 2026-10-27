@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: security-review-kill-switch-narrowed
+context:
+  scaffold_script: scaffold.sh

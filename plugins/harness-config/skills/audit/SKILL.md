@@ -78,7 +78,7 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | File | How to read | Notes |
 | --- | --- | --- |
 | `.claude/settings.json` | the engine, or `jq` | Project-level, checked in |
-| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Commonly deny-listed for the Read tool because it holds tokens. **Never echo secret values** |
+| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Treated as secret-bearing; a project may deny-list it for the Read tool, though the baseline does not require that. **Never echo secret values** |
 | `.mcp.json` | the engine, or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | the engine, or the Read tool | User-level defaults (optional; checked when it exists) |
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect**. The dated record for that boundary is `audit-permission-state/reference/criteria.md` §Scopes |
@@ -94,7 +94,7 @@ and never dump its contents. Supplemental jq recipes: [context/procedures.md](co
 "Reading settings.local.json safely".
 
 The counts are not guaranteed. Where the project's configuration blocks the read, whether a sandbox
-`denyRead` merged from the baseline `Read` deny or filesystem permissions, the engine reports the
+`denyRead` merged from a project's `Read` deny on the file or filesystem permissions, the engine reports the
 scope as `unreadable` and its rows as `not-inspectable` instead of failing. Record the file as not
 inspectable, carry that into the report, and do not reach for another reader to get the counts anyway.
 
@@ -202,7 +202,7 @@ category; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A, Schema & Structure**: engine-decided
-- **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
+- **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); report a missing `Read(./…)` row as present when `permissions.deny` carries the standards floor's bare spelling of it (same file, "Relation to the standards permission floor"); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
 - **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row). Event names are the engine's; for a `hook-event-page-not-read` row it left `not-inspectable`, read the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only

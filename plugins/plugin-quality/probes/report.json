@@ -12,15 +12,6 @@
     "session-flow:handoff",
     "source-control:pull-request"
   ],
-  "competitor_dirs": {
-    "plugin-quality:audit": "plugins/plugin-quality/skills/audit",
-    "plugin-quality:setup": "plugins/plugin-quality/skills/setup",
-    "implementation:report": "plugins/implementation/skills/report",
-    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch",
-    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "source-control:pull-request": "plugins/source-control/skills/pull-request"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -6,9 +6,6 @@
   "competitors": [
     "adhd:clarify"
   ],
-  "competitor_dirs": {
-    "adhd:clarify": "plugins/adhd/skills/clarify"
-  },
   "queries": [
     {
       "id": "pos-train-01",

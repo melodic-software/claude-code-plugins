@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-10-27
+
+### Changed
+
+- The judge calibration sweep (`metrics.sh --sweep`) now runs Haiku at `low`, `medium` and `high` beside the Sonnet and Opus arms, and `calibration.md` records the Claude Haiku 5.5 result: `low` and `high` are significantly less accurate, and `medium` changed its verdict on 26 of 78 rows across three runs against 7 of 78 for the shipped `sonnet` `medium` default. Haiku stays out of the judge: `judge-lib.sh` no longer walks to it or accepts it as the fallback, and tests pin that. This round's sweep files sit in `sweep-haiku-5-5/`, apart from the older-prompt arms (#6286).
+
+## [1.0.2] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [1.0.1] - 2026-10-25
+
+### Fixed
+
+- **`/testing:check-visual-parity` route 1 says how to run the suite and what a run with no verdict means.** It runs the repository's visual suite through the repository's own entry point (its documented test command or runner script) and names that command in the report. A state the run did not compare (a build, install or browser-launch error, or no baseline image) has no verdict: the environment failure is reported with its last lines, and the state takes the gap report and never moves to another route. A new eval case covers a suite run that fails before comparing ([#10105](https://github.com/melodic-software/claude-code-plugins/issues/10105)).
+
 ## [1.0.0] - 2026-10-25
 
 ### Changed

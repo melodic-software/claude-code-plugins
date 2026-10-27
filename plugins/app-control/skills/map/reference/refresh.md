@@ -53,6 +53,18 @@ The path argument, when given, is one of:
   rule it breaks. A legacy map is converted only when the person passes its path; refresh reads no
   testing setting and looks in no default place to find one.
 
+A feature id in place of a path is one or two `/`-separated segments, each one the [slug
+rule](naming.md#slug-rule) leaves unchanged; anything else is **blocked**, naming the rule. It is
+composed into a path by you and never reaches a shell. It names the repository's
+`.claude/skills/control-*/` skill (never a plugin's) whose `features/<id>/README.md`, else the
+legacy `features/<id>.md`, exists (with several, an attended pass asks which; an unattended one is
+**blocked**, naming them). With none, the outcome is **blocked**, naming the id; when only a
+plugin's control skill holds it, say refresh edits only the repository's. An argument naming an
+existing directory that holds a `SKILL.md` is a path; any other is a feature id. When that control
+skill is due a conversion (below), the outcome is **blocked**: refresh its path first. Steps 4 and 5
+then cover that feature only, and a clean outcome skips the `record` command, since the other
+features went unchecked.
+
 Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
 and checks as a given one (a refused directory is skipped and named in the report); with several,
 an attended pass asks which and an unattended one refreshes each in turn, one branch per skill (see
@@ -70,8 +82,9 @@ as `--map`. `skip unchanged since the last clean pass` means a clean pass was re
 this host; `skip no commit within 24h and no state on this host` means no record here and an older
 newest commit (`--since <N>h|<N>d` widens it). A line starting `run` means there is work.
 
-A pending conversion runs whatever the line says. Otherwise, on `skip` an unattended pass stops and
-reports the line; an attended pass reports it and stops unless the person asked for a pass anyway.
+A pending conversion, a feature id or a handed-in lesson runs whatever the line says. Otherwise, on
+`skip` an unattended pass stops and reports the line; an attended pass reports it and stops unless
+the person asked for a pass anyway.
 Exit 2 is **blocked**, with the script's stderr line as the blocker.
 
 ## 3. Refuse an attended-only skill when unattended
@@ -119,7 +132,8 @@ or run anything; that limit is an instruction in its prompt, and no agent defini
 Give each its feature file, the index line's `sources` globs (none yet in a conversion), the
 changed-file list and these questions: which parts, entry points, handles, routes or commands the file lists are gone, renamed
 or moved in the source; which entry points the source now has that the file does not list; which
-gotchas no longer apply; and one drive recipe for the live pass. Every answer cites `file:line`.
+gotchas no longer apply; and one drive recipe for the live pass. The first subagent also gets the
+hub and is asked which of its `## Gotchas` no longer apply. Every answer cites `file:line`.
 Features whose sources did not change still get a subagent: a rename can sit in a shared file.
 
 The answers are candidates; nothing is edited yet. When the last wave has returned, run `git status
@@ -128,10 +142,10 @@ report names each changed path, and nothing is reverted, written or opened.
 
 ## 5. Live pass
 
-Drive every feature once, whatever the source wave found, through `/app-control:drive` invoked with
-the Skill tool, in a new temporary `--out` directory outside the checkout, passing `--unattended`
-on every call when the pass is unattended and the candidates as hints on where a handle may have
-moved. Three invariants hold for the whole pass:
+Drive every feature once (or the one feature a feature id names), whatever the source wave found,
+through `/app-control:drive` invoked with the Skill tool, in a new temporary `--out` directory
+outside the checkout, passing `--unattended` on every call when the pass is unattended and the
+candidates as hints on where a handle may have moved. Three invariants hold for the whole pass:
 
 1. **Ready first.** Run `/app-control:drive ready <slug> --out <dir>` before the first drive, and
    again after any failed drive, before that failure counts against the app.
@@ -155,7 +169,7 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite, a lesson to place (SKILL.md Lessons) | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Product regression | A behavior the files list is gone, or fails against a healthy app | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
 | Not mapped | A user-facing feature the control skill does not list | The report |
@@ -247,6 +261,7 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - the driving tool and the hub line naming it;
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
+- each lesson and the Gotchas it went to, or that it is left for `/corrections:codify`;
 - the features found but not mapped;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting

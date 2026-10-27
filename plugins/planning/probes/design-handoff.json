@@ -10,13 +10,6 @@
     "review:quality-gate",
     "architecture:record-decision"
   ],
-  "competitor_dirs": {
-    "planning:design": "plugins/planning/skills/design",
-    "planning:plan": "plugins/planning/skills/plan",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "review:quality-gate": "plugins/review/skills/quality-gate",
-    "architecture:record-decision": "plugins/architecture/skills/record-decision"
-  },
   "queries": [
     {
       "id": "pos-train-01",

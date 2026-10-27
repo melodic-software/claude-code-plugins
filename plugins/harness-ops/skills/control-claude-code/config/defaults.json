@@ -1,0 +1,17 @@
+{
+  "environment": "local",
+  "pluginDir": "plugins/context-budget",
+  "timeouts": {
+    "launchSeconds": 30,
+    "readyMs": 120000,
+    "stepMs": 15000,
+    "logMs": 600000
+  },
+  "credentials": {},
+  "safety": {
+    "recipients": {},
+    "signInAttempts": {},
+    "production": {},
+    "unattendedWrites": false
+  }
+}

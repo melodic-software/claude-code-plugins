@@ -6,9 +6,6 @@
   "competitors": [
     "bugs:scan"
   ],
-  "competitor_dirs": {
-    "bugs:scan": "plugins/bugs/skills/scan"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -10,13 +10,6 @@
     "discipline:reuse-or-replace",
     "coupling:reduce"
   ],
-  "competitor_dirs": {
-    "docs-hygiene:extract-ssot": "plugins/docs-hygiene/skills/extract-ssot",
-    "attribution:audit": "plugins/attribution/skills/audit",
-    "docs-hygiene:write-for-agents": "plugins/docs-hygiene/skills/write-for-agents",
-    "discipline:reuse-or-replace": "plugins/discipline/skills/reuse-or-replace",
-    "coupling:reduce": "plugins/coupling/skills/reduce"
-  },
   "queries": [
     {
       "id": "pos-train-01",

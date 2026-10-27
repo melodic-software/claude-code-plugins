@@ -401,12 +401,15 @@ class SecurityAndCostHolds(unittest.TestCase):
         )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
-    def test_the_multi_agent_role_defaults_hold(self):
+    def test_the_multi_agent_role_defaults_are_no_charge(self):
+        # Owner ruling 2026-10-24: only a real charge holds; the review lanes
+        # judge a model or effort default.
         defaults = _file(
             "plugins/multi-agent/reference/defaults.yaml",
             patch=_patch("+  model: fable", "-  model: opus"),
         )
-        self.assertIn(COST_CODE, _codes(_cost([defaults])))
+        self.assertNotIn(COST_CODE, _codes(_cost([defaults])))
+        self.assertIn(COST_CODE, _codes(_cost([_file("infra/main.tf")])))
 
     def test_an_unlisted_base_tree_fails_closed(self):
         result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)

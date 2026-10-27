@@ -10,7 +10,8 @@
 
 One directory per run: `--out <dir>` when given, else a new temporary directory whose path the
 report prints. It holds `report.md`, `report.json` and the artifacts. Each artifact name carries the
-feature and entry point it came from, for example `checkout-cart-02-screenshot.png`.
+feature and entry point it came from, and the tier for a capture with a row per tier, for example
+`checkout-cart-02-screenshot.png`, or `checkout-cart-02-server-cpu.cpuprofile` for a tier row.
 
 Raw captures (traces, profiles, heap snapshots, thread dumps, recordings) are written straight into this
 directory and kept as evidence. Drive's `cleanup` never deletes the run directory or anything in it:
@@ -39,9 +40,9 @@ For a job. One object with these fields:
 | `control_skill` | The control skill used, by full name and source, such as `control-shop (project: .claude/skills/control-shop/SKILL.md)`, or `harness-ops:control-claude-code (plugin: <folder>/skills/control-claude-code/SKILL.md)`, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
 | `mode` | `interactive` or `unattended` |
-| `launch` | The process this run launched: `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included), or `null` when the run launched nothing |
-| `ready` | `surfaces` (URL, port or command), `build`, `data`, `telemetry` |
-| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a capture step also has `process` (pid, name, start time and command line, plus the parent pid, uid and command line sha256 when a wrapper resolved to it) and `command` (the exact command run) |
+| `launch` | A list with one entry per process this run launched, one per app: `app`, `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included); an empty list when the run launched nothing. A record written as one object, as earlier runs wrote it, reads as a list of one |
+| `ready` | `environment` (the selected name, or `null`), `surfaces` (URL, port or command), `services` (each dependency service's name, url, whether it answered, and whether the app's exposed target matches it, or `not exposed`), `build`, `data`, `telemetry` |
+| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a step from a steps file also has `id` and `outcome` (`done`, `failed`, `skipped: optional` or `blocked: <reason>`) and `finally: true` for a finally step, and a step a failure ended is not listed; a capture step also has `process` (pid, name, start time and command line, plus the parent pid, uid and command line sha256 when a wrapper resolved to it) and `command` (the exact command run) |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
 | `blocked` | Each step that needed a person or a grant, with its reason and the narrowest grant |
 | `cleanup` | What was stopped, and each evidence path with whether it exists and is not empty |

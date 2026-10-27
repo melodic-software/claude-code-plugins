@@ -10,13 +10,6 @@
     "session-flow:recall",
     "discipline:recheck-against-upstream"
   ],
-  "competitor_dirs": {
-    "session-flow:orient": "plugins/session-flow/skills/orient",
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
-    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
-    "session-flow:recall": "plugins/session-flow/skills/recall",
-    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream"
-  },
   "queries": [
     {
       "id": "pos-train-01",

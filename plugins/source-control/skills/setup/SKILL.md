@@ -14,7 +14,8 @@ Inspect and configure the source-control plugin per the uniform setup contract
 `check` reports the effective configuration, `apply` writes it. Two configuration surfaces:
 
 1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
-   team file, and a gitignored personal overlay and merged per key by
+   team file (`docs/conventions/source-control.yaml`, with `.claude/source-control.md` read for a key
+   it lacks during one release), and a gitignored personal overlay and merged per key by
    [../../reference/config-resolution.md](../../reference/config-resolution.md). Resolved first by
    `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
    the bundled Conventional Commits default. Conventional Commits is genuinely optional, some orgs
@@ -53,7 +54,8 @@ tell why `/source-control:commit` behaves as it does.
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
 overlay are **not applicable**
 ([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
-do not read `${REPO_ROOT}/.claude/source-control.md` or the overlay as the team layer,
+do not read `${REPO_ROOT}/docs/conventions/source-control.yaml`, its legacy markdown compatibility
+read, or the overlay as the team layer,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
 or `project root is not inside a git repository`), and resolve user-global only.
 `parse-branch-issue.sh` prints the same note on stderr. Git
@@ -98,9 +100,17 @@ Per-layer verdicts:
 
 - **User-global** (`~/.claude/source-control.md`): present → report which keys it contributes;
   absent → INFO. It is outside the repo, so no git check applies to it.
-- **Team** (`REPO_ROOT/.claude/source-control.md`): present → PASS. **FAIL** when excluded by
-  `.gitignore`. Teammates would never receive the shared convention; report the matching rule.
-  Absent → INFO, remediable by `apply`.
+- **Team** (`REPO_ROOT/docs/conventions/source-control.yaml`): present → PASS. **FAIL** when
+  excluded by `.gitignore`. Teammates would never receive the shared convention; report the matching
+  rule. Absent → INFO, remediable by `apply`. Per key, `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$REPO_ROOT" <key>`
+  prints `yaml`, `legacy-md` or `none`: report a `legacy-md` key as WARN (read through the
+  compatibility read for one release; `apply` migrates it into the YAML), and name the supplying
+  file in `won by`. The probe does not check trackedness, so first run
+  `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"` and
+  `git ls-files --error-unmatch -- ":/.claude/source-control.md"`: a team file git does not track
+  supplies no key, so never name it in `won by`, and report it as untracked instead.
+- **Legacy team file** (`REPO_ROOT/.claude/source-control.md`, the compatibility read): present →
+  report which keys it still contributes (the `babysit_*` keys stay there); apply the same ignore check.
 - **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
   `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
   not the overlay file exists. The rule's job is to be in place **before** the
@@ -140,7 +150,7 @@ diagnostics:
   unexpectedly blocked or allowed, so surface it here, naming the resolver's diagnostic and the
   remediation (restore the file, fix the pointer, or `apply` to rewrite it).
 - **Shadowed markdown → WARN.** A neutral file resolves (via pointer or the well-known default) **and**
-  `.claude/source-control.md` still carries a markdown-H2 `subject_pattern`/`pr_title_pattern` for the
+  the legacy markdown file still carries a markdown-H2 `subject_pattern`/`pr_title_pattern` for the
   same key: the neutral value wins (rungs 1–2 over rung 3) and the stale markdown is inert but
   misleading. Recommend `apply` to retire the duplicate (migration removes it), per
   [reference/apply-convention.md](reference/apply-convention.md) "Migration retires duplicates".
@@ -285,14 +295,15 @@ In brief:
   request's wording and state the pick before writing, the wrong layer either misses teammates or
   commits a personal preference to shared history. When `REPO_ROOT` is `$HOME` or an ancestor of
   it, or is not inside a git working tree, refuse `layer=team` and `layer=local` (at home they
-  would write the operator's personal `~/.claude/source-control.md` under a team label; outside a
+  would write the operator's personal files under a team label; outside a
   repository there is no team to share with) and offer `layer=user`.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
   non-machine-checkable value, and for an overlay omit requested keys the layers below already
   resolve identically.
-- **`branch_issue_pattern=`**: alone, it writes or replaces only the `## branch_issue_pattern`
-  section of the chosen layer, value in backticks, leaving every other section untouched; with
+- **`branch_issue_pattern=`**: alone, it writes or replaces only the `branch_issue_pattern` key of
+  the chosen layer (a quoted scalar in the team YAML; the `## branch_issue_pattern` section, value in
+  backticks, in a markdown layer), leaving every other key untouched; with
   `subject_pattern=`, both are written in one pass. Reject a value that is not a valid ERE, holds a
   backreference, or has no capture group, then confirm `parse-branch-issue.sh <sample-branch>`
   prints the expected number.
@@ -391,12 +402,12 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **`none` and absence are different states** for `trailer_policy`, `pr_body_attribution`, and
   `pr_body_required_sections`: absence falls through (ultimately to the bundled default), `none` is
   a resolved opt-out that wins its layer's per-key override.
-- **Gate inference on the resolved value, never file presence.** A `source-control.md` layer that
+- **Gate inference on the resolved value, never file presence.** A config layer that
   contributes only other keys leaves `subject_pattern` unresolved. Skipping inference because
   "some config file exists" recommends the bundled default over the repo's real convention.
 - **Nested-directory invocations silently read the wrong files.** Anchor every repo-relative read
   at `REPO_ROOT` (`${CLAUDE_PROJECT_DIR}`, else `git rev-parse --show-toplevel`), a cwd-relative
-  `.claude/source-control.md` read from a subdirectory misses the repo-root config and degrades
+  read of the team YAML from a subdirectory misses the repo-root config and degrades
   without an error. Re-resolve in each self-contained Bash call.
 - **Linked worktrees hide the hooks directory.** Resolve it with `git rev-parse --git-path hooks`,
   in a linked worktree `.git` is a file, and `core.hooksPath` can move the directory anywhere.

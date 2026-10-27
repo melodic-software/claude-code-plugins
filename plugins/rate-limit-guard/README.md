@@ -135,7 +135,7 @@ set any key user settings can, including the plugin's `pluginConfigs` entry:
 threshold and approach mark, whether the band row and the toast are on, the snapshot path and a
 link to this README.
 
-The band row above the prompt is off by default. When on, it shows `5h <x>% | 7d <y>%`, with `-`
+The band row above the prompt is off by default. When on, it shows `rate-limit-guard: 5h <x>% | 7d <y>%`, with `-`
 for a window that has no reading yet. Context use is context-guard's row, not this one.
 `rate_limit_guard_band` set to `true` turns it on for every session; `/rate-limit-guard band on`,
 `band off`, or a bare `band` (toggle) changes it for the current session. Claude can call

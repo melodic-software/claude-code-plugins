@@ -7,10 +7,6 @@
     "toolchain:check",
     "toolchain:check-prerequisites"
   ],
-  "competitor_dirs": {
-    "toolchain:check": "plugins/toolchain/skills/check",
-    "toolchain:check-prerequisites": "plugins/toolchain/skills/check-prerequisites"
-  },
   "queries": [
     {
       "id": "pos-train-01",

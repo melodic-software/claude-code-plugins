@@ -50,7 +50,10 @@ From a session, `/skill-quality:check measure-invocation` is the same script.
 One JSON file per skill under `probes/` (not `probes/baselines/`):
 
 - `skill`, `plugin`, `skill_dir` (repo-relative directory holding `SKILL.md`)
-- `competitors[]` and `competitor_dirs` (how the floor finds rival listings)
+- `competitors[]`: rival `plugin:skill` ids. The floor reads each rival's listing from
+  `plugins/<plugin>/skills/<skill>`, derived from the id, and fails the skill when that directory
+  holds no `SKILL.md`. An optional `competitor_dirs` map of id to directory overrides the derived path, for a
+  rival outside this repository's `plugins/` tree.
 - `queries[]`: `id`, `split` (`train` or `validation`), `expect_trigger`, `request`
 
 Target: roughly 20 labeled queries, both polarities, both splits. `validate`

@@ -8,6 +8,13 @@
       "goal": "The Bash PreToolUse guard row spends at most this many external processes judging a git commit with no convention cache, in this repository with the tracked well-known docs/conventions/source-control/commit-convention.yml that the standards sync ships to every consumer (plugins/guardrails/hooks/hooks.json, block-convention-violation.sh, resolve-convention-pattern.sh; #9526 tracks lowering it). Correlation: unproven: not measured"
     },
     {
+      "name": "guardrails-pretooluse-write-edit-spawns",
+      "command": "bash scripts/hook-census.sh guardrails PreToolUse secret-pattern-detection.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"@DIR@/notes.txt\",\"content\":\"hello world\\n\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 14,
+      "goal": "A clean Write inside a git repository costs the Write|Edit|NotebookEdit PreToolUse row (the first PreToolUse handler naming secret-pattern-detection.sh) at most this many processes; an Edit measures the same. The row fires on every file edit. Ideal k x S is 1 x S: exec form gives k = 1 (docs/conventions/hook-budget/README.md, The budget). The programs this check starts today are 5 execs (node, bash, grep, two git), the floor recorded in plugins/guardrails/reference/edit-write-guards/PLAN.md; the rest are bash forks. Lowering the count is #4390's spawn-reduction work, and agents lower this ceiling as it falls. Measured 14 on WSL2 Ubuntu with bash 5.3.9, dash as sh, git 2.53.0, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: Linux spawn counts against Windows wall time, not measured"
+    },
+    {
       "name": "harness-ops-stop-hook-failure-audit-growth",
       "command": "bash scripts/hook-census.sh harness-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",

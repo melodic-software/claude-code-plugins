@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: decide\nlist: FETCH_HOSTS\n",
+      "why": "plain lines"
+    },
+    {
+      "answer": "- **File:** `plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs`\n- **Function:** `decide(payload)`\n- **List:** `FETCH_HOSTS`\n",
+      "why": "bold labels and a signature"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: main\nlist: FETCH_HOSTS\n",
+      "why": "names main, which only writes the decision out"
+    },
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: main, which decides whether to deny\nlist: FETCH_HOSTS\n",
+      "why": "decides is not the function name"
+    }
+  ]
+}

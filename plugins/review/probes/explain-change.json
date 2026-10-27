@@ -11,14 +11,6 @@
     "review:code-review",
     "review:security-review"
   ],
-  "competitor_dirs": {
-    "review:audit-enforceability": "plugins/review/skills/audit-enforceability",
-    "review:fanout": "plugins/review/skills/fanout",
-    "review:quality-gate": "plugins/review/skills/quality-gate",
-    "review:ratchet": "plugins/review/skills/ratchet",
-    "review:code-review": "plugins/review/skills/code-review",
-    "review:security-review": "plugins/review/skills/security-review"
-  },
   "queries": [
     {
       "id": "pos-train-01",

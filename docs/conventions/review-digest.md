@@ -1,8 +1,9 @@
 # Review Digest Convention
 
 When `/review:explain-change` builds or offers a change digest for a pull request. This file is
-the owner doc for the `review-digest` cascade concern and this repository's team layer for it: the
-config block below is what the skill reads here.
+the owner doc for the `review-digest` cascade concern. The team layer is
+[`review-digest.yaml`](review-digest.yaml), validated by
+`plugins/review/schemas/review-digest.schema.json`; this file holds the policy prose.
 
 ## The policy
 
@@ -45,14 +46,20 @@ plan or a `/review:quality-gate downstream` pass, as LOW, MEDIUM, HIGH, or CRITI
 
 ## The keys and their layers
 
-The surface is JSON. Layers resolve per the
+Layers resolve per the
 [config-cascade convention](config-cascade/README.md), per-key override, a later layer replacing
 an earlier one key by key:
 
 1. user-global `~/.claude/review-digest.json`
-2. team: the `json config` block in `docs/conventions/review-digest.md`, else
-   `.claude/review-digest.json`
+2. team: `docs/conventions/review-digest.yaml`. For one release, when that file is absent from the
+   base commit, the `json config` block in `docs/conventions/review-digest.md` is read, else
+   `.claude/review-digest.json`. A present YAML file wins whole: an invalid value in it falls to the
+   layer below, never to the old location.
 3. overlay `.claude/review-digest.local.json`
+
+The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
+`overlay <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`), since a plain
+`*` opens an alias.
 
 The team layer, and the rendered-views team file, are read from the pull request's base commit
 (`baseRefOid`), never the working tree, so a checked-out pull request cannot configure its own
@@ -74,8 +81,9 @@ is told the opt-in: `medium: artifact` in `~/.claude/rendered-views.md`, which p
 the visibility. The session names claude.ai as the destination before it publishes. A reader who
 keeps digests on their machine sets `medium: file` in `~/.claude/rendered-views.md`.
 
-The block below holds the shipped defaults, so this repository runs on them. A test holds it equal
-to the skill's own defaults.
+The block below is this repository's old team location, kept until the cleanup slice under #5906
+removes it; the YAML file above wins while both exist. Both hold the shipped defaults, and a test holds
+them equal to each other and to the skill's own defaults.
 
 ```json config
 {

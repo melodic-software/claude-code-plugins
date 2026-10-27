@@ -79,7 +79,9 @@ class LaneRecordCase(unittest.TestCase):
         self.path = pathlib.Path(tmp.name) / "lane-records.json"
 
         def run_command(command: list[str], **kwargs: Any) -> Any:
-            return self.gh(command[1:], timeout_seconds=kwargs.get("timeout_seconds"))
+            # The fake answers without headers, so the `-i` the guard adds is dropped.
+            args = [a for i, a in enumerate(command[1:]) if (i, a) != (1, "-i")]
+            return self.gh(args, timeout_seconds=kwargs.get("timeout_seconds"))
 
         for patcher in (
             mock.patch.object(gh, "run_command", side_effect=run_command),
