@@ -3,6 +3,36 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-10-27
+
+### Added
+
+- The `app-control:source-reader` agent, whose tool list holds Read, Grep and Glob only, for the `/app-control:map refresh` source wave.
+
+### Fixed
+
+- `/app-control:map refresh` sends its source wave through `app-control:source-reader`, so a subagent reading app source can no longer edit, write or run anything; before, the read-only limit was only an instruction in its prompt. When the agent does not resolve, the pass is blocked rather than sent through another agent. Each prompt now opens with the untrusted-content framing and quotes every repository value inside the item-content-trust fence. The working-tree tripwire is named a backstop, and the report states what it cannot see: writes under `.git/`, to ignored paths and outside the checkout.
+
+## [0.13.0] - 2026-10-27
+
+### Added
+
+- `/app-control:drive`'s `report.json` gains `secrets_mark`: one entry per raw capture, and per report file once it holds a command line, with its path, the "may hold secrets; do not commit" mark and whether the run directory sits unignored in a git working tree.
+
+### Changed
+
+- `/app-control:drive`'s Pid binding rules move to the `drive/reference/pid-binding.md` spoke with only their links adjusted; the hub's launch row, `threads` capture row, `threads` rule and cleanup rule link it.
+
+### Removed
+
+- The control-skill contract's manual pointers for dotnet-stack, GDB `thread apply all` and `GOTRACEBACK`, since no `threads` row names those tools. The dotnet-trace and dotnet-gcdump pointers stay.
+
+## [0.12.2] - 2026-10-27
+
+### Fixed
+
+- `/app-control:map refresh` takes a listed pull request as the upkeep pull request only when it is from the repository itself. A fork's pull request on a same-named branch makes the outcome blocked and is named in the report, and the pass pushes nothing.
+
 ## [0.12.1] - 2026-10-27
 
 ### Added

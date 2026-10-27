@@ -1,5 +1,12 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.7] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [2.0.6] - 2026-10-25
 
 ### Changed

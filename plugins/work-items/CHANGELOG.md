@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.9.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [3.9.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [3.8.1] - 2026-10-27
+
+### Changed
+
+- `rule-admit.sh` reads its charge words from `scripts/charge-words.json`, the one definition
+  intake admission reads too, and exits 8 when that file is unreadable.
+
 ## [3.8.0] - 2026-10-27
 
 ### Added

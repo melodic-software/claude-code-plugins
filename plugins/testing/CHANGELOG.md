@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- A `/testing:write` invocation probe set (`probes/write.json`), weighted toward feature requests
+  that ask for tests in passing: the k36-cart-total natural-phrasing case fired the skill in 0 of
+  16 runs.
+
+### Fixed
+
+- The k36 `refactor-after-green` grader now reads a Bash command with a double quote before the
+  redirect or `sed -i`, such as `sed -i "s/a/b/" cart.py` or `printf "x" > cart.py`, with
+  samples for both and for two quoted near-misses.
+- The k36 `no-zero-assertion` grader now says why it approximates the `/testing:audit` scan: no
+  `claude plugin eval` grader type runs a script, and the scaffold runs before Claude starts.
+
 ## [1.1.0] - 2026-10-27
 
 ### Added

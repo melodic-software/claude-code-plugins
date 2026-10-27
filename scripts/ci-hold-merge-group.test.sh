@@ -109,14 +109,19 @@ EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
-# The lanes App's bot account, as ci-status's job-level LANES_APP_ID names it,
-# and another automation's.
-LANES="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")" DEPENDABOT=49699333
-if [[ "$LANES" =~ ^[1-9][0-9]*$ ]]; then
-  ok "ci-status names the lanes App id once ($LANES)"
+# ci-status's job-level LANES_APP_ID comes from the AUTOMATION_LANES_APP_SENDER_ID
+# repository variable, set once, which no step overrides.
+pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
+if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
+  ok "ci-status names the lanes App id once, from the repository variable"
 else
-  fail "ci-status has no single job-level LANES_APP_ID: '$LANES'"
+  fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
+# The lanes App's bot account the variable names, merge.agent-identity's
+# trusted-actor id, and another automation's.
+identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
+LANES="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")" DEPENDABOT=49699333
+[[ "$LANES" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES'"
 
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
@@ -285,6 +290,13 @@ trust "the lanes App's one clean Refs issue passes" 0 3 "carries no label naming
 # A bot with no numeric id cannot be told apart from the lanes App: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' null)"
 trust "a bot author with no numeric id fails closed" 1 1 "::error::the bot author id of #6419 could not be read"
+# An empty LANES_APP_ID (the variable unset) cannot tell the lanes App's pull
+# request from another automation's, whose unlinked pull request passes: it
+# fails closed rather than reading the lanes App's as another automation's.
+app_id=$LANES LANES=''
+STUB_LINK="$(link Bot '[]' '' "$app_id")"
+trust "an empty lanes App id fails a bot's unlinked pull request closed" 1 1 "::error::the bot author id of #6419 could not be read"
+LANES=$app_id
 STUB_LINK='' STUB_ISSUE_LABELS=''
 
 # A jq error is neither a match nor a miss: it fails closed.

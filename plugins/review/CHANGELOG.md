@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
 ## [1.5.1] - 2026-10-26
 
 ### Fixed
