@@ -966,15 +966,11 @@ test("a ci-fix stop stays while a check fails, runs, or none has passed at the h
   assert.deepEqual(unmoved.writes(), []);
 });
 
-test("a stop on the lane's own conflict patch comes off once GitHub reports the PR mergeable", async () => {
+test("a stop on the lane's own conflict patch stays, even once the PR is mergeable after a trusted move", async () => {
   for (const reason of ["unexpected-path-staged", "conflict-patch-invalid", "conflict-patch-not-applied", "conflict-patch-protected-path"]) {
-    const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)];
-    const conflicted = world({ timeline, mergeable: false });
-    await run(conflicted);
-    assert.deepEqual(conflicted.writes(), [], reason);
-    const clean = world({ timeline, mergeable: true });
-    await run(clean);
-    assert.equal(clean.writes().at(-1)?.method, "DELETE", reason);
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mergeable: true, reader: readerFor() });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], reason);
   }
 });
 

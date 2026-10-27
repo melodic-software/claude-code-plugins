@@ -300,6 +300,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/limits.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
+  [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
 // person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge

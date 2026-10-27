@@ -560,7 +560,7 @@ head:
 | Reason | Cleared when |
 |---|---|
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
-| `unresolved-conflict`, `protected-path-conflict`, `unexpected-path-staged`, `conflict-patch-invalid`, `conflict-patch-not-applied`, `conflict-patch-protected-path` | GitHub reports the PR mergeable |
+| `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-protected-path`, `ci-fix-not-applied`, `ci-fix-escalated` | a trusted move took the head off the resume key, and at the new head no check other than `ci-status` (which the label itself fails) fails, runs or was cancelled, and one passed |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
@@ -854,7 +854,8 @@ the rules that only tighten in
   - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    and the `retry-fetch.mjs` copy in each of those two directories)
+    and the `retry-fetch.mjs` copy in each of those two directories, and `fix-ci-context.mjs` with
+    the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence

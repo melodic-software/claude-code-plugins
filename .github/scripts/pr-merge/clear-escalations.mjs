@@ -32,9 +32,7 @@
 //                              or a trusted move (below) and the head
 //                              contains main as it was at the escalation
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
-//     protected-path-conflict, is left to resolve
-//     unexpected-path-staged,
-//     conflict-patch-*
+//     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/
 //     ci-fix-*                 a trusted move, and at the new head no check
 //                              but ci-status (the label fails it) fails, runs
@@ -219,12 +217,6 @@ const CHECKS = Object.freeze({
   },
   "unresolved-conflict": async ({ pull }) => mergeable(pull),
   "protected-path-conflict": async ({ pull }) => mergeable(pull),
-  // The lane's own conflict resolution was refused; with no conflict left
-  // there is nothing to resolve.
-  "unexpected-path-staged": async ({ pull }) => mergeable(pull),
-  "conflict-patch-invalid": async ({ pull }) => mergeable(pull),
-  "conflict-patch-not-applied": async ({ pull }) => mergeable(pull),
-  "conflict-patch-protected-path": async ({ pull }) => mergeable(pull),
   ...Object.fromEntries(CI_FIX.map((reason) => [reason, ciPasses])),
   "feedback-protected-path": async ({ github, repo, pull }) => {
     const files = await paginate(github, `/repos/${repo}/pulls/${pull.number}/files`);

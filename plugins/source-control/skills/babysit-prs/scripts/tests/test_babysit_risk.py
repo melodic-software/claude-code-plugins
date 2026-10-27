@@ -331,6 +331,8 @@ class HighReasonTests(unittest.TestCase):
                 (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+                (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
+                (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
             ),
         )  # fmt: skip
         self.assertEqual(
@@ -370,6 +372,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
             (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
+            (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
+            (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs"),
         ]  # fmt: skip
         unreviewed = (
             _lane("claude-review"),
@@ -1800,7 +1804,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 23)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
