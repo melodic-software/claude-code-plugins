@@ -144,7 +144,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     // hold at the head before it; the security lane has no run.
     const runs = /^\/repos\/melodic-software\/claude-code-plugins\/actions\/workflows\/([a-z-]+)\.yml\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     if (method === "GET" && runs) {
-      return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, created_at: "2026-10-22T10:50:00Z" }] : [] };
+      return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
     }
     if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
