@@ -3515,7 +3515,10 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
     the reader at 6c4b552396, which fetched every verdict with `gh run
     download`, run on these same fixtures. The by-id fetch must give the same
     report in each of the six cases and spend half the download requests.
-    Break `_record` on purpose and these fail."""
+    Two fields were changed since by design, not by the fetch: `needsHuman`
+    is false for the repeated-FAIL cap (owner rule 2026-10-27), and the
+    report no longer carries `headFail`. Break `_record` on purpose and these
+    fail."""
 
     @staticmethod
     def report(
