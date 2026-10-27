@@ -1717,15 +1717,14 @@ test("a rate-limited read or send stops red with the stop as the job's output, s
 
 // Every merge's run is sent, as dispatch-full-run starts it, whoever merged,
 // after a dispatch or re-run that failed for any reason but a rate limit, and
-// only while the kill switch is off (review decision on #10491: the scheduled
-// job acts only with the switch off; report-only merges nothing, so the alert
-// still runs under it).
-test("the alert send runs after the re-run while the switch is off, and stops after a rate limit", () => {
+// only while the lane is live (review decision on #10491: the kill switch and
+// report-only stop everything the scheduled job spends API on).
+test("the alert send runs after the re-run while the lane is live, and stops after a rate limit", () => {
   const list = earlySteps();
   const alert = step("Send a red full run to the demotion alert", list);
   assert.match(
     alert,
-    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
   );
   const names = list.map((s) => s.name);
   assert.deepEqual(names.slice(-2), ["Send a red full run to the demotion alert", "Record the alert sent"]);
@@ -1794,22 +1793,63 @@ test("a rate-limited cover read stops post-merge-dispatch red, and nothing after
   }
 });
 
-// Review decision on #10491: post-merge-dispatch reads the cover, dispatches
-// and sends to the alert only with the kill switch off, and reads the cover
-// and dispatches only while the lane is live (report-only off), as the
-// post-merge check did. dispatch-full-run's push carve-out stays.
-test("the kill switch stops the scheduled job's cover read, dispatch and alert send", () => {
+// Review decision on #10491: the kill switch and report-only stop everything
+// post-merge-dispatch does that spends API or starts a run: the cover read,
+// the pr-require-checks.yml dispatch on main and the alert dispatch.
+// dispatch-full-run's push carve-out stays.
+const spending = [
+  "Read main's full-run cover",
+  "Start the full CI run on main",
+  "Record the dispatched run",
+  "Re-run a red lane-dispatched full run",
+  "Record the re-run",
+  "Send a red full run to the demotion alert",
+  "Record the alert sent",
+];
+test("the kill switch and report-only stop the scheduled job's cover read, dispatch and alert send", () => {
   const list = earlySteps();
-  const gated = ["Read main's full-run cover", "Start the full CI run on main", "Send a red full run to the demotion alert"];
   const base = { "steps.cover.outputs.uncovered": "true", "steps.post-merge.outputs.needs-dispatch": "true" };
-  const killed = { ...base, "steps.kill.outputs.proceed": "false" };
-  for (const name of gated) assert.equal(stepRuns(step(name, list), (p) => killed[p] ?? "", "success"), false, `${name} with the switch on`);
   const reportOnly = { ...base, "steps.kill.outputs.proceed": "true" };
-  assert.equal(stepRuns(step("Read main's full-run cover", list), (p) => reportOnly[p] ?? "", "success"), false, "cover while report-only");
-  assert.equal(stepRuns(step("Start the full CI run on main", list), (p) => reportOnly[p] ?? "", "success"), false, "dispatch while report-only");
-  assert.equal(stepRuns(step("Send a red full run to the demotion alert", list), (p) => reportOnly[p] ?? "", "success"), true, "the alert merges nothing");
+  for (const name of spending) assert.equal(stepRuns(step(name, list), (p) => reportOnly[p] ?? "", "success"), false, `${name} while report-only`);
   const live = { ...reportOnly, "steps.mode.outputs.live": "true" };
-  for (const name of gated) assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, `${name} while live`);
+  for (const name of ["Read main's full-run cover", "Start the full CI run on main", "Send a red full run to the demotion alert"]) {
+    assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, `${name} while live`);
+  }
+});
+
+// The kill switch's own action, run with CLAUDE_LANES_DISABLED or
+// CLAUDE_LANES_REPO_DISABLED set, then every later step of the scheduled job
+// evaluated over its output: no step that starts a pr-require-checks.yml run
+// or sends to the alert runs, nor the steps those switches skip.
+test("with either kill switch set, the scheduled job starts no full run and sends no alert", () => {
+  const list = earlySteps();
+  const killAt = list.findIndex((s) => s.name === "Check the kill switch");
+  assert.match(list[killAt].block, /\n {10}value: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}\n {10}repo-value: \$\{\{ vars\.CLAUDE_LANES_REPO_DISABLED \}\}\n/);
+  const killSwitch = (org, repo) => {
+    const dir = mkdtempSync(join(tmpdir(), "pr-merge-kill-"));
+    try {
+      const out = join(dir, "output");
+      writeFileSync(out, "");
+      execFileSync("node", [join(root, ".github/actions/check-kill-switch/check-kill-switch.mjs")], {
+        env: { ...process.env, KILL_SWITCH_VALUE: org, REPO_KILL_SWITCH_VALUE: repo, GITHUB_OUTPUT: out },
+      });
+      return /^proceed<<(\S+)\n(.*)\n\1$/m.exec(readFileSync(out, "utf8"))[2];
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  assert.equal(killSwitch("false", "false"), "true", "control: both off proceeds");
+  for (const [org, repo] of [["true", "false"], ["false", "true"]]) {
+    const proceed = killSwitch(org, repo);
+    assert.equal(proceed, "false", `CLAUDE_LANES_DISABLED=${org} CLAUDE_LANES_REPO_DISABLED=${repo}`);
+    const context = (p) => (p === "steps.kill.outputs.proceed" ? proceed : "");
+    for (const { name, block } of list.slice(killAt + 1)) {
+      if (["Check earlier lane merges", "Read the lane records the last run kept", "Read report-only", ...spending].includes(name)) {
+        assert.equal(stepRuns(block, context, "success"), false, `${name} with ${org}/${repo}`);
+      }
+    }
+  }
+  assert.doesNotMatch(jobBlock("dispatch-full-run"), /steps\.(kill|mode)\./, "the push carve-out stays");
 });
 
 // The merge job's check, run with this run's post-merge-dispatch report kept

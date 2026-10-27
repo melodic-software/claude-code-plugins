@@ -41,7 +41,7 @@ name: pr-merge
 # its run of main's tip from the post-merge-dispatch job on the next scheduled
 # run while the lane is live. That run raises no workflow_run event
 # (GITHUB_TOKEN started it), so when it ends red the post-merge-dispatch job
-# on the next scheduled run with the switch off sends its run id and head SHA to
+# on the next scheduled run while the lane is live sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
 # re-run fails too. A red run this workflow dispatched gets its one re-run
@@ -254,7 +254,8 @@ jobs:
       # The same body as dispatch-full-run's step of this name; see there.
       # It runs whether or not the post-merge check did, while the lane is
       # live: a merge the cap skipped gets its run here. With the kill switch
-      # or report-only on, this job sends nothing; dispatch-full-run's push
+      # or report-only on, this job reads and sends nothing that spends API or
+      # starts a run; dispatch-full-run's push
       # carve-out still starts a run per merge outside the cap. A read stopped
       # on a rate limit stops the step red, as the alert step's, and its stop
       # is the job's rate-limited output: nothing after it calls GitHub.
@@ -528,10 +529,9 @@ jobs:
       # in babysit_postmerge.py's FAILED_CONCLUSIONS, except a run the
       # concurrency group replaced before it started (cancelled, no job). Any
       # merge, whoever merged, as dispatch-full-run starts the run, but only
-      # while the kill switch is off: with it on this job sends nothing, and a
-      # red run is sent on the first run after it clears, within
-      # LOOKBACK_HOURS. Report-only does not stop it, since the alert merges
-      # nothing. A rate limit stops the step red, as the re-run step's, and
+      # while the lane is live: with the kill switch or report-only on this
+      # job reads and sends nothing, and a red run is sent on the first run
+      # after both clear, within LOOKBACK_HOURS. A rate limit stops the step red, as the re-run step's, and
       # one the cover read stopped on skips it; any other failed read or send
       # sends nothing more and leaves the run to the next one. LOOKBACK_HOURS:
       # a red run is sent within 15 minutes of its end; 6 hours outlasts a day
@@ -541,6 +541,7 @@ jobs:
         if: >-
           !cancelled()
           && steps.kill.outputs.proceed == 'true'
+          && steps.mode.outputs.live == 'true'
           && steps.post-merge.outputs.code != '75'
           && steps.cover.outputs.rate-limited != 'true'
           && steps.dispatch.outputs.rate-limited != 'true'
