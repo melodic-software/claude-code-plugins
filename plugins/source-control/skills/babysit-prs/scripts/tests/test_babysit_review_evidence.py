@@ -74,6 +74,13 @@ AUTH_FAILURE = dict(
     message="claude-review: failure-class=auth:"
     " the Claude credential was rejected; the owner replaces the secret",
 )
+# publish-review's failure line (ci-workflows publish.cjs `fail`) for a failed
+# runner isolation or CLI install (ci-workflows#893).
+INSTALL_FAILURE = dict(
+    OTHER_FAILURE,
+    message="claude-review: failure-class=install-failed: the runner isolation"
+    " or the Claude Code CLI install or its integrity check failed",
+)
 
 # publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
 # recorded it when the review's own post hit GitHub's API rate limit.
@@ -617,9 +624,41 @@ class AttemptRuleTests(Base):
                 self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
-        self.assertFalse(
-            ev.rate_limited("claude-review", {"annotations": [AUTH_FAILURE]})
+        self.assertEqual(
+            ev.rerun_classes("claude-review", {"annotations": [AUTH_FAILURE]}),
+            {"auth"},
         )
+
+    def test_second_attempt_after_an_install_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_an_install_failure_lookalike_does_not_bind(self) -> None:
+        for message in (
+            "claude-review: failure-class=install-failed-x: something else",
+            "claude-review: failure-class=other: an unclassified failure"
+            " (detail quoting failure-class=install-failed: failed)",
+            "claude-security-review: failure-class=install-failed: another lane",
+            # The older reusables' status line names no lane.
+            "failure-class=install-failed: the subprocess isolation failed",
+        ):
+            with self.subTest(message=message):
+                first = attempt(
+                    "claude-review",
+                    S,
+                    1,
+                    [dict(INSTALL_FAILURE, message=message)],
+                    "failure",
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_an_install_failure_is_not_allowed(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        second = attempt("claude-review", S, 2, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, second, self.ok(3))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
@@ -725,13 +764,22 @@ class AttemptRuleTests(Base):
         self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_every_rerun_the_gate_starts_binds(self) -> None:
-        # The merge gate re-runs a review only on what `rate_limited` accepts
+        # The merge gate re-runs a review only on `GATE_RERUN_CLASSES`
         # (babysit_merge.rerun_rate_limited_review); each such re-run must
         # bind, or the gate spends the one allowed attempt for nothing.
-        for note in (RATE_LIMIT, PUBLISH_RATE_LIMIT):
-            with self.subTest(message=note["message"][:40]):
+        self.assertLessEqual(ev.GATE_RERUN_CLASSES, set(ev.RERUN_CLASSES))
+        notes = {
+            "rate-limit": RATE_LIMIT,
+            "publish-rate-limit": PUBLISH_RATE_LIMIT,
+            ev.INSTALL_FAILED: INSTALL_FAILURE,
+        }
+        self.assertEqual(set(notes), ev.GATE_RERUN_CLASSES)
+        for name, note in notes.items():
+            with self.subTest(name):
                 first = attempt("claude-review", S, 1, [note], "failure")
-                self.assertTrue(ev.rate_limited("claude-review", first["jobs"][0]))
+                self.assertEqual(
+                    ev.rerun_classes("claude-review", first["jobs"][0]), {name}
+                )
                 result = self.bind([self.lane_run(first, self.ok(2))])
                 self.assertTrue(result["claude-review"].bound)
 
