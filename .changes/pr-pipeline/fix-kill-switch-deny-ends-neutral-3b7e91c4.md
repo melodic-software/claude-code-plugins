@@ -28,3 +28,14 @@ bump: patch
   refusal and ci-status already name. Removing the label re-runs ci-status at the head. A cost,
   risk or verifier reason, a refusal at another head, an approval of another head, a dismissed
   approval, an untrusted reviewer or a report-only run lifts nothing.
+
+- A trusted person's approval of a hold-path head now also carries to a later head when the diff
+  between the two touches no hold path and no file a hold path loads (the owner's decision Q10 of
+  2026-10-28, #10759), in `merge-holds.mjs` `approvalCarry` and its twin
+  `babysit_merge_policy.approval_carry`. The diff is read with the hold-path rules plus the
+  enforcement floor and `CARRY_REFUSES` (workflows, actions, `.github/scripts`, `.github/standards`,
+  the pipeline config's directory, `scripts/` and `lib/`). Any edit to such a file, a test-only
+  or comment-only edit included, needs a new approval, and so do a compare not read whole and a
+  head that is not ahead of the approved one. `test_merge_holds_sync.py` derives every file the
+  hold paths load and fails on one outside the floor and `CARRY_REFUSES`. The control is still a
+  person's approval.

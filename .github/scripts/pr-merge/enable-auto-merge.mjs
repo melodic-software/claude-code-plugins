@@ -1380,7 +1380,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
             // it, so a base merge after a person's approval does not send the
             // pull request back to them.
             if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
-              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans)).lifters;
+              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans, holdPaths)).lifters;
             }
             let stops = null;
             try {

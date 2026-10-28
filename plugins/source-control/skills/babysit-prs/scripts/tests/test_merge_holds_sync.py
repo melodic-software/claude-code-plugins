@@ -1328,3 +1328,163 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# The owner's decision Q10 of 2026-10-28 ("go w/ recommendations"): an
+# approval of H0 carries to H1 when the diff H0...H1 touches no hold path and
+# no file a hold path loads. Each case: (changed files, configured hold paths,
+# compare overrides).
+NODE_Q10 = """
+import { CARRY_REFUSES, ungatedSince } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const cases = JSON.parse(text);
+console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths]) => ungatedSince(merges, holdPaths))]));
+"""
+_H1 = "b" * 40
+
+
+def _pushed(files: list[str], **extra: Any) -> dict[str, Any]:
+    return {
+        "status": "ahead",
+        "behind_by": 0,
+        "files": [{"filename": f, "status": "modified", "patch": "+x"} for f in files],
+        "commits": [{"sha": _H1}],
+        "total_commits": 1,
+    } | extra
+
+
+_SCRIPTS_DIR = "plugins/source-control/skills/babysit-prs/scripts"
+Q10_CASES = {
+    "a docs-only push": ([_pushed(["docs/a.md", "plugins/work-items/README.md"]), []], True),
+    "a gated file": ([_pushed([".github/scripts/pr-merge/merge-holds.mjs"]), []], False),
+    "a test-only edit beside a gated file": ([_pushed([".github/scripts/pr-merge/merge-holds.test.mjs"]), []], False),
+    "a comment-only edit to a gated file": ([_pushed([f"{_SCRIPTS_DIR}/babysit_merge_policy.py"]), []], False),
+    "a helper a gated file imports": ([_pushed([f"{_SCRIPTS_DIR}/babysit_util.py"]), []], False),
+    "a helper babysit_postmerge.py imports": ([_pushed([f"{_SCRIPTS_DIR}/babysit_gh.py"]), []], False),
+    "a script ci-status runs": ([_pushed(["scripts/check-stale-base-overlap.sh"]), []], False),
+    "an action a hold-path workflow uses": ([_pushed([".github/actions/report-check-run/report-check-run.mjs"]), []], False),
+    "a trusted-actor list edit": ([_pushed([".github/standards/trusted-actors/trusted-actors.json"]), []], False),
+    "a configured hold path": ([_pushed(["docs/conventions/held.md"]), ["docs/conventions/**"]], False),
+    "a rename off a gated file": ([_pushed(["docs/moved.md"]) | {"files": [{"filename": "docs/moved.md", "status": "renamed", "previous_filename": ".github/actions/request-lane-token/action.yml"}]}, []], False),
+    "300 files": ([_pushed([f"docs/{i}.md" for i in range(300)]), []], False),
+    "a cut commit list": ([_pushed(["docs/a.md"], total_commits=251), []], False),
+    "a diverged head": ([_pushed(["docs/a.md"], status="diverged", behind_by=1), []], False),
+    "an unread compare": ([None, []], False),
+    "unread hold paths": ([_pushed(["docs/a.md"]), None], False),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheUngatedCarryIsTheGates(unittest.TestCase):
+    def test_both_carry_over_the_same_pushes(self) -> None:
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_Q10 % json.dumps(MODULE.as_uri())],
+            input=json.dumps([args for args, _ in Q10_CASES.values()]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        refuses, answers = json.loads(proc.stdout)
+        self.assertEqual(tuple(refuses), policy.CARRY_REFUSES)
+        for (name, ((merges, hold_paths), expected)), js in zip(
+            Q10_CASES.items(), answers, strict=True
+        ):
+            with self.subTest(name):
+                self.assertEqual(js, expected)
+                self.assertEqual(policy.ungated_since(merges, hold_paths), expected)
+                self.assertEqual(
+                    policy.approval_carry(
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths
+                    ),
+                    expected,
+                )
+        # A stale dismissal must be by a commit the push made.
+        docs = _pushed(["docs/a.md"])
+        self.assertTrue(policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, []))
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, "c" * 40, None, []))
+        # No hold paths read: only the base-merge path decides.
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None))
+
+
+# Every local file a hold-path file loads: the floor entries' JS closure and
+# the Python it runs, and each hold-path workflow's local actions (every
+# file of the action) and the scripts its steps name, with their closures.
+USES = re.compile(r"uses:\s*\./(?:\.base/)?(\.github/actions/[A-Za-z0-9_.-]+)")
+RUNS = re.compile(
+    r"(?:\.base/)?((?:\.github/scripts|\.github/actions|scripts|lib)/[A-Za-z0-9_./-]+\.(?:mjs|js|sh|bash|py))"
+)
+
+
+def loaded_closure() -> list[str]:
+    workflows = sorted(
+        g for g in risk.FLOOR if g.startswith(".github/workflows/") and (ROOT / g).is_file()
+    )
+    files: set[str] = set(workflows)
+    entries: set[str] = set(FLOOR_ENTRIES) | set(ROUTE_ENTRIES)
+    for workflow in workflows:
+        text = (ROOT / workflow).read_text(encoding="utf-8")
+        for action in USES.findall(text):
+            # The action's own files; its tests and fixtures run in CI, not
+            # when a workflow uses it.
+            for f in (ROOT / action).iterdir():
+                if f.is_file() and ".test." not in f.name:
+                    name = f.relative_to(ROOT).as_posix()
+                    files.add(name)
+                    if f.suffix == ".mjs":
+                        entries.add(name)
+        for script in RUNS.findall(text):
+            if (ROOT / script).is_file():
+                files.add(script)
+                if script.endswith(".mjs"):
+                    entries.add(script)
+    # import_closure's walk, where a module that reads a whole directory
+    # (`new URL("../../workflows/", import.meta.url)`) stands for a file in it.
+    js: set[str] = set()
+    todo = [ROOT / e for e in entries if e.endswith(".mjs")]
+    while todo:
+        file = todo.pop().resolve()
+        # A spec that names no file beside the module (a repository-root
+        # path in a string) loads nothing from here.
+        if not file.exists():
+            continue
+        name = file.relative_to(ROOT).as_posix()
+        if name in js:
+            continue
+        if file.is_dir():
+            js.add(f"{name}/any.yml" if name != "." else "any.yml")
+            continue
+        js.add(name)
+        todo.extend(file.parent / spec for spec in IMPORT.findall(file.read_text(encoding="utf-8")))
+    # The Python those modules and the workflows run, as python_closure
+    # walks it, from the scripts that exist (a module's string can name an
+    # example path).
+    run = [ROOT / p for n in sorted(files | js) if n.endswith((".mjs", ".yml")) and (ROOT / n).is_file() for p in PY_RUN.findall((ROOT / n).read_text(encoding="utf-8")) if (ROOT / p).is_file()]
+    py: set[str] = set()
+    todo = [SCRIPTS / "babysit_risk.py", *run]
+    while todo:
+        file = todo.pop()
+        name = file.relative_to(ROOT).as_posix()
+        if name in py:
+            continue
+        py.add(name)
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module] if isinstance(node, ast.ImportFrom) and not node.level and node.module else []
+            todo.extend(file.parent / f"{n}.py" for n in names if (file.parent / f"{n}.py").is_file())
+    return sorted(files | js | py)
+
+
+class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
+    def test_every_file_a_hold_path_loads_stops_the_carry(self) -> None:
+        files = loaded_closure()
+        # The peer review's own example: babysit_postmerge.py's imports.
+        for name in ("babysit_merge_policy.py", "babysit_gh.py", "babysit_util.py"):
+            self.assertIn(f"{_SCRIPTS_DIR}/{name}", files)
+        self.assertIn(".github/workflows/pr-require-checks.yml", files)
+        for path in files:
+            with self.subTest(path):
+                self.assertTrue(
+                    any(risk.glob_match(g, path) for g in (*risk.FLOOR, *policy.CARRY_REFUSES)),
+                    f"{path} is loaded by a hold path but neither held nor in CARRY_REFUSES",
+                )
+                self.assertFalse(policy.ungated_since(_pushed([path]), []), path)
