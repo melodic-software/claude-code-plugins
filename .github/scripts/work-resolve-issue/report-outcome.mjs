@@ -1116,6 +1116,17 @@ export function readBranch(dir, issueNumber, key = "branch") {
   }
 }
 
+// The first of the issue's open closing PRs (closingPulls) in this repository
+// that the lanes App or a listed human opened: anyone can write `Closes #N`, so
+// an outsider's PR would let anyone stop the lane.
+export const trustedCloser = (closing, { repo, bot, humans }) =>
+  closing.find(
+    ({ author, repository }) =>
+      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
+      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
+        (author?.__typename === "User" && humans.has(author.databaseId))),
+  );
+
 // Whether an earlier run already did the issue's work, from facts read before
 // the resolve-issue mint:
 //   stop   a lanes-App PR from a lane branch is open, or an open PR in this
@@ -1152,17 +1163,6 @@ export function readBranch(dir, issueNumber, key = "branch") {
 // GraphQL nodes; `markers` the lanes App's parsed outcome markers, each with
 // `at`. A marker naming no run, posted before markers named one, covers every
 // branch whose tip is not newer than it.
-// The first of the issue's open closing PRs (closingPulls) in this repository
-// that the lanes App or a listed human opened: anyone can write `Closes #N`, so
-// an outsider's PR would let anyone stop the lane.
-export const trustedCloser = (closing, { repo, bot, humans }) =>
-  closing.find(
-    ({ author, repository }) =>
-      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
-      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
-        (author?.__typename === "User" && humans.has(author.databaseId))),
-  );
-
 export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers, keepBehind = false }) {
   const shape = laneBranch(issueNumber);
   const lane = branches
