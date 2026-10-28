@@ -926,11 +926,13 @@ the rules that only tighten in
     defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
     `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
     `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
-    `babysit_review_evidence.py`, which compute the security review's clear condition.
-  - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
-    `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
-    request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
-    other module the floored scripts
+    `babysit_review_evidence.py`, which compute the security review's clear condition. And every
+    workflow a review cannot be trusted to judge (owner direction 2026-10-28): the review callers
+    and `pr-review-main.yml`, which run the review itself, and each workflow whose token can write,
+    that names a secret other than `GITHUB_TOKEN`, or that mints a lane token, `pr-merge.yml`,
+    `pr-require-checks.yml` and `pr-unblock.yml` among them. `test_babysit_risk.py` reads every
+    workflow and requires each that holds one of those on this list.
+  - `enforcement`, a clean security review clears it: every module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
     reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
@@ -946,23 +948,41 @@ the rules that only tighten in
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
-    the gate. When the pull request also changes a lane source, the review can never bind at that
-    head, so it scores `review-path-unbindable:<glob>`, which a person clears. A lane source is a
+    the gate. A lane source is a
     path the head's checkout feeds or forges its own review from (`LANE_SOURCE_PREFIXES` and
-    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A changed workflow file is
+    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A pull request that
+    changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
     (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
-    workflow stays a lane source, and so do `pr-merge.yml` and `pr-require-checks.yml` whatever
-    their content, so a person clears any change to either. The `merge` and
+    workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
     `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
     that read; without it no workflow change clears. A comment by a lane author
     (`github-actions[bot]` or the Claude App) binds only while its last editor is its own author:
     anyone with write access can edit a comment, so one edited by another identity unbinds the
     review as `comment-edited`. The edit is read before the body, so an edit that removes the
     lane footer or the marker line still unbinds.
+
+  **Main-run review.** The pull_request review lanes run the head's copy of their callers and post
+  as `github-actions[bot]`, which any write-token workflow a head adds can also post as, so for a
+  pull request that changes a lane source no comment, marker or pull_request run counts.
+  `.github/workflows/pr-review-main.yml` reviews it instead: it runs on `pr-require-checks`'
+  completion through `workflow_run`, so its definition is main's, gates the trigger as pr-verify
+  does, and for a pull request whose changed files include a lane source runs both lanes on the
+  head's diff as data, each lane's criteria and the standards copied from main, with a read-only
+  token and a model that may only Read its data directory. It posts nothing. Each lane uploads
+  `verdict.json` as `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model.
+  The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
+  file, event `workflow_run`, on the default branch of this repository with a head the branch
+  holds, completed with success, and the verdict names that lane, pull request and tree; the lane
+  binds when a counted verdict names the pinned head, with the most findings, and the most
+  CRITICAL ones, that any counted review of that tree reported, so a re-run or an empty commit
+  never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
+  open. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
+  floor `enforcement` path beside it waits for that review. Each lane runs one leg on the reviews
+  role's API key; a run that leaves no verdict leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
@@ -1026,9 +1046,16 @@ the rules that only tighten in
   `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
   gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
   case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
-  each counted against the lines it removes so a moved line or a repin is not new. These widen
-  what a credential or an agent can reach, not only spend, so a person clears them and no cost
-  decision does.
+  each counted against the lines it removes so a moved line or a repin is not new. The secrets
+  reference is also read from the head text against the base text, so a workflow with no patch is
+  not skipped. A workflow whose token gains a write scope scores HIGH as
+  `permission-widening-review`: base and head are parsed (PyYAML; without it, the text alone) and
+  each job's write scopes compared, a job left with no `permissions:` of its own or at the top level
+  counting as a gain because it runs on the repository default, an added file compared against
+  none, and unread text, a repeated key or an alias holding. One that gains a `pull_request_target`
+  or `workflow_run` trigger scores HIGH as `privileged-trigger-review`. These widen what a
+  credential, an agent or a write token can reach, not only spend, so a person clears them and no
+  cost decision does.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
