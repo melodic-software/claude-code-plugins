@@ -393,6 +393,11 @@ test("signal 9: funding, limited and turn-cap stops fire one key each", () => {
   assert.deepEqual(found.find((f) => f.key === "lane-stop:turn-cap").facts.length, 2);
 });
 
+test("signal 9: a failed stop, which adds no label, fires its own key", () => {
+  const found = detect({ ...base, laneStops: [stop(1, "failed", 42)] });
+  assert.deepEqual(found.map((f) => f.key), ["lane-stop:failed"]);
+});
+
 test("signal 9: done, pushback and stopped outcomes stay quiet", () => {
   assert.deepEqual(detect({ ...base, laneStops: [stop(1, "done"), stop(2, "pushback"), stop(3, "stopped")] }), []);
 });
