@@ -379,6 +379,30 @@ run feedback-not-converging
 check "not-converging, threads unreadable: still escalates" 0 "$RC"
 has "not-converging, threads unreadable: says so" 'could not be read' "$STUB/bodies"
 
+# feedback-incomplete: the comment names each kept thread with no
+# disposition, from the newest lanes App round marker on this head, in the
+# shape publish-feedback.mjs undisposedLines writes (#8218's round 1, with a
+# stand-in node id).
+round_comment() { comment "$ROUND"$'\n'"pr-unblock / address-feedback finished round 1 of max 3 on $1."$'\n\nKept review threads with no disposition:\n'"$2" "${3:-melodic-automation-lanes[bot]}" "${4:-Bot}"; }
+incomplete_json=$(jq -s add <<<"$(round_comment "$HEAD_B" '- `PRRT_old` (root comment 1)')
+$(round_comment "$HEAD_A" '- `PRRT_8218` (root comment 4306751638)'$'\n- `PRRT_x` (root comment 5)\n- and 2 more\n- `PRRT_y` <!-- x --> (root comment 6)')
+$(round_comment "$HEAD_A" '- `PRRT_human` (root comment 7)' someone User)")
+setup '[]' "$incomplete_json"
+GITHUB_SERVER_URL=https://github.com run feedback-incomplete
+check "incomplete: exit 0" 0 "$RC"
+has "incomplete: names the thread with no disposition" '- `PRRT_8218`: https://github.com/o/r/pull/42#discussion_r4306751638' "$STUB/bodies"
+has "incomplete: names every such thread" '- `PRRT_x`: https://github.com/o/r/pull/42#discussion_r5' "$STUB/bodies"
+has "incomplete: says how many more" '- and 2 more' "$STUB/bodies"
+check "incomplete: a line of another shape is not copied" 0 "$(grep -c 'PRRT_y' "$STUB/bodies" || true)"
+check "incomplete: a marker on another head is not read" 0 "$(grep -c 'PRRT_old' "$STUB/bodies" || true)"
+check "incomplete: a marker another author wrote is not read" 0 "$(grep -c 'PRRT_human' "$STUB/bodies" || true)"
+has "incomplete: still resumes by removing the label" 'remove the `needs-human` label' "$STUB/bodies"
+
+setup '[]' "$(round_comment "$HEAD_B" '- `PRRT_old` (root comment 1)')"
+run feedback-incomplete
+check "incomplete, no marker on this head: still escalates" 0 "$RC"
+has "incomplete, no marker on this head: points at the log" 'none named in the lane' "$STUB/bodies"
+
 # Input validation.
 setup '[]' '[]'
 run repeat-cap not-a-sha
