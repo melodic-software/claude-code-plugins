@@ -282,7 +282,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 26, "enforcement": 42},
+            {"trust": 6, "gate": 25, "enforcement": 42},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1887,8 +1887,14 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
     `author_reviewed`, still hold for a person."""
 
     GATE = ".github/scripts/pr-merge/who.mjs"
-    GATE_TREE = ".github/actions/resolve-config/resolve.mjs"
     TRUST = ".github/actions/request-lane-token/action.yml"
+    # What the token broker loads to scope a lane token: never the lift's.
+    TOKEN_SCOPE = (
+        ".github/actions/resolve-config/resolve.mjs",
+        ".github/actions/resolve-config/effect-grants.json",
+        ".github/actions/resolve-config/lane-rules.json",
+        ".github/actions/resolve-config/activity-rules.json",
+    )
 
     def _score(self, path, security, reviewed=_UNSET, **changes):
         lanes = (_lane("claude-review"), *security)
@@ -1900,11 +1906,27 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         )
 
     def test_a_clean_bound_security_review_clears_a_reviewed_gate_path(self):
-        for path in (self.GATE, self.GATE_TREE):
-            with self.subTest(path):
-                result = self._score(path, (_lane("claude-security-review"),))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-                self.assertFalse(holds(result))
+        result = self._score(self.GATE, (_lane("claude-security-review"),))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        self.assertFalse(holds(result))
+
+    def test_a_token_scope_path_holds_for_a_person_after_a_clean_review(self):
+        # Owner decision on PR #10708's security thread: an agent commits as
+        # the trusted owner, so a PR that widens a lane token's scope must
+        # still wait for a person, whatever author_reviewed says.
+        paths = (self.GATE, *self.TOKEN_SCOPE)
+        result = score(
+            _input(
+                files=tuple(_file(p) for p in paths),
+                lanes=(_lane("claude-review"), _lane("claude-security-review")),
+                author_reviewed=frozenset(paths),
+            )
+        )
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/resolve-config/**",)
+        )
+        self.assertEqual(result.reasons[0].detail, ", ".join(self.TOKEN_SCOPE))
+        self.assertTrue(holds(result))
 
     def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
         security = "claude-security-review"

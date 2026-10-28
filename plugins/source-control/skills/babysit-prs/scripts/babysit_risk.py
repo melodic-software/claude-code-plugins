@@ -215,12 +215,12 @@ class RiskResult:
 # What a lane pull request must not change unattended (owner decisions
 # Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B), each glob with its class:
 # - `trust`: what mints and scopes lane tokens and judges triggers
-#   (request-lane-token, check-trusted-trigger, check-kill-switch, whose
+#   (request-lane-token, resolve-config, which the token broker runs from
+#   main in its signer process with effect-grants.json, lane-rules.json and
+#   activity-rules.json, check-trusted-trigger, check-kill-switch, whose
 #   writeOutputs both of those write their verdicts through), code owners
 #   and submodules.
-# - `gate`: the merge gate's own code and the config the token broker loads:
-#   resolve-config (which the broker runs from main in its signer process,
-#   effect-grants.json included), the rate guard, every pr-merge script,
+# - `gate`: the merge gate's own code: the rate guard, every pr-merge script,
 #   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
 #   compute the review's clear condition), the pipeline config, and
 #   scripts/sync-hold-floor.py, which writes this table's copies.
@@ -236,7 +236,9 @@ class RiskResult:
 # open finding (REVIEW_FLOOR, `review-path:`), so no person is needed. So
 # does a `gate` path on a trusted person's own pull request that only their
 # own commits touched, on a head pr-verify passed (AUTHOR_REVIEW_FLOOR,
-# `RiskInput.author_reviewed`); a lanes App pull request's never does.
+# `RiskInput.author_reviewed`); a lanes App pull request's never does, nor
+# does a `trust` path: agents commit as the trusted owner, so what scopes a
+# lane token always waits for a person.
 # The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
 # HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
 # hold_patterns, and test_merge_holds_sync.py runs its --check.
@@ -244,7 +246,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/check-trusted-trigger/**", "trust"),
     ("**/CODEOWNERS", "trust"),
     ("**/.gitmodules", "trust"),
-    (".github/actions/resolve-config/**", "gate"),
+    (".github/actions/resolve-config/**", "trust"),
     (".github/actions/check-kill-switch/**", "trust"),
     (".github/actions/request-lane-token/**", "trust"),
     (".github/actions/log-api-budget/rate-guard.mjs", "gate"),

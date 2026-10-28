@@ -5917,6 +5917,22 @@ class AuthorReviewedPaths(unittest.TestCase):
     def test_no_verifier_pass_gets_none(self) -> None:
         self.assertEqual(self.reviewed(verified=False), frozenset())
 
+    def test_token_scope_paths_are_never_lifted(self) -> None:
+        # Owner decision on PR #10708's security thread: what the token
+        # broker loads to scope a lane token waits for a person even on a
+        # trusted person's own pull request with a pr-verify pass.
+        token_scope = {
+            ".github/actions/resolve-config/resolve.mjs",
+            ".github/actions/resolve-config/effect-grants.json",
+            ".github/actions/resolve-config/lane-rules.json",
+            ".github/actions/resolve-config/activity-rules.json",
+        }
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            reviewed = policy.author_reviewed_paths(
+                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True
+            )
+        self.assertEqual(reviewed, frozenset({self.GATE}))
+
     def test_a_gate_path_another_commit_touched_or_unread_commits_get_none(
         self,
     ) -> None:
