@@ -767,6 +767,18 @@
         "The Remaining items are plain bullets, not `- [ ]` checkboxes, and carry no `Closes #813` text",
         "The Summary names the byte order mark as the part of #812 this PR delivers"
       ]
+    },
+    {
+      "id": 58,
+      "name": "create-refs-remaining-fallback-line",
+      "prompt": "Open a PR for branch feat/csv-export-bom. It is only the first step on issue #820, the byte order mark; link it with Refs: #820, it must not close the issue.",
+      "expected_output": "Issue #820 is open. Its body is one paragraph with no checklist and no slice list, and it has no sub-issues. Create reads the issue through the skill's issue read, finds nothing to list, and writes a `## Remaining` section of one line naming what this PR delivers (the byte order mark) and the condition that closes #820. No closing keyword sits before #820 anywhere in the body.",
+      "files": [],
+      "expectations": [
+        "The PR body opens with a `Refs: #820` line",
+        "The body has a section headed Remaining holding one line that names the byte order mark as what this PR delivers and states the condition that closes #820",
+        "No closing keyword (close, closes, fix, fixes, resolve, resolves) sits directly before #820 anywhere in the body"
+      ]
     }
   ]
 }

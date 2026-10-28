@@ -363,7 +363,8 @@ item. With no plan and no item body, add no line.
 blocks, never added to `${REQUIRED_SECTIONS[@]}`, listing as plain bullets what stays open on that
 issue: its unchecked `- [ ]` acceptance items, its open sub-issues, or the slices its body lists,
 leaving out any this PR delivers. When the issue has none, write one line naming what this PR
-delivers and the condition that closes the issue. The `Summary` (or the first scaffold section)
+delivers and the condition that closes the issue, with no closing keyword before an issue
+number (`#N closes when the export ships`, never `Closes #N when`). The `Summary` (or the first scaffold section)
 names the part this PR delivers. This is the remaining work the pr-verify lane requires of a
 `Refs:` pull request; the rule is stated in
 [`docs/conventions/pr-pipeline/README.md` § Verifier verdict](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
