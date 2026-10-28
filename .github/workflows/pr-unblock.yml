@@ -1038,6 +1038,9 @@ jobs:
       patch-head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
       patch-threads-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       patch-threads-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      # The same leg's scanned replies, whose VALID threads the commit names.
+      patch-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+      patch-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       # true drops the human-gated label from the holds: the select job kept
       # only threads a trusted person with write access asked to fix, or a
       # lane escalation put the label on (gate-source.mjs).
