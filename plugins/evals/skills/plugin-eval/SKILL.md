@@ -370,16 +370,29 @@ kept. First finish everything the traces are needed for: the spot-read, the trac
 INVALID cause needs for its fix, and whether a without-arm trace loads a large skill (the Cost
 anchor). A relative `tracePath` resolves against the JSON file's directory. Its sandbox is the
 nearest directory named `claude-eval-*`, the path itself or an ancestor
-([sandboxes.md, Record](reference/sandboxes.md#record)). Collect the distinct sandboxes that still
-exist and remove exactly those by literal path, each quoted:
+([sandboxes.md, Record](reference/sandboxes.md#record)). The JSON file is untrusted input: a
+checked-in sample or a downloaded artifact can name any path. Collect the distinct sandboxes that
+still exist and keep one for removal only when all of these hold:
+
+- the `tracePath` has no `..` segment and is the sandbox's `out/trace.jsonl`;
+- the sandbox is not a symlink, and its `realpath` is a direct child of the `realpath` of `<tmp>`
+  (`$TMPDIR`, else `/tmp`, as in [sandboxes.md](reference/sandboxes.md)); a sandbox under any other
+  directory, a run made with a different `TMPDIR` included, is not removed;
+- the sandbox holds `out/` and `sealed/` directories;
+- the path holds no `'` and no control character, so it goes inside single quotes literally.
+
+List every other candidate for the user with the condition it failed, and remove nothing for it.
+Remove exactly the kept ones by literal path, each single-quoted; the loop checks the symlink and
+layout conditions again and skips a path that fails them:
 
 ```bash
-for d in '<sandbox>' '<sandbox>'; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
+for d in '<sandbox>' '<sandbox>'; do if [ -L "$d" ] || [ ! -d "$d/out" ] || [ ! -d "$d/sealed" ]; then echo "skipped: $d"; continue; fi; chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
 ```
 
-Then check each path: one that still exists was refused, since the loop's exit status is only the
-last `rm`'s. Remove nothing else: never a glob over `<tmp>/claude-eval-*`, which also holds other
-runs' sandboxes, and nothing for a `tracePath` with no `claude-eval-*` directory on it. A run
+Then check each path: one the loop did not print as skipped and that still exists was refused,
+since the loop's exit status is only the last `rm`'s. Remove nothing else: never a glob over
+`<tmp>/claude-eval-*`, which also holds other runs' sandboxes, and nothing for a `tracePath` with
+no `claude-eval-*` directory on it. A run
 without `--keep-temp` has none left to remove; say so. When the removal is refused (a declined
 prompt, a denied command, a path left behind), print that command with the remaining paths for
 the user to run, and note that a directory `chmod` cannot enter still needs `sudo rm -rf`.
