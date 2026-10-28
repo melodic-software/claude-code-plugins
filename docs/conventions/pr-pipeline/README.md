@@ -904,7 +904,9 @@ the rules that only tighten in
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **Narrow path floor.** A fixed set of globs in the wrapper's code, each with a class
-  (`babysit_risk.FLOOR_CLASSES`, equal to `merge-holds.mjs` `HOLD_PATH_CLASSES`; owner decisions
+  (`babysit_risk.FLOOR_CLASSES`, the one table; `scripts/sync-hold-floor.py` writes its copies into
+  `merge-holds.mjs` `HOLD_PATH_CLASSES`, the review callers' `hold-paths` and ci-status's
+  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
   and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
@@ -916,7 +918,7 @@ the rules that only tighten in
     process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
     defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
     `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
-    `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
+    `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition.
   - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
     `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
@@ -2126,8 +2128,9 @@ what it gates, and only a CRITICAL finding there holds. The callers name
 (`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
-`test_merge_holds_sync.py` checks that both callers' `hold-paths` and that check's
-`hold_patterns` each match every floor entry.
+`scripts/sync-hold-floor.py` writes both callers' `hold-paths` and that check's `hold_patterns`
+from `babysit_risk.FLOOR`, and `test_merge_holds_sync.py` checks that each matches every floor
+entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -2152,7 +2155,8 @@ them on every `pull_request` run, contract-only runs included:
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
-  trust-gate path (the hold-paths above less the security review's own files), since no lane
+  trust-gate path (the hold-paths above less the security review's own files, matched
+  case-insensitively), since no lane
   reviews it; a person merges it. A draft is exempt.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
