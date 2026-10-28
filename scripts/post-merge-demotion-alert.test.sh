@@ -139,6 +139,19 @@ case "$endpoint" in
     ;;
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
+  */git/ref/heads/main)
+    # main's tip, unambiguous where a tag shares the name.
+    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref ]] || exit 1
+    fixture="$STUB_DIR/main-ref.json"
+    echo '{"object": {"sha": "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}' >"$fixture"
+    ;;
+  */compare/*...abcdefabcdefabcdefabcdefabcdefabcdefabcd)
+    # Whether the newer green run's head is on main: STUB_ON_MAIN is the
+    # compare status (default ahead), or fail.
+    [[ "${STUB_ON_MAIN:-ahead}" != fail ]] || exit 1
+    fixture="$STUB_DIR/on-main.json"
+    jq -n --arg s "${STUB_ON_MAIN:-ahead}" '{status: $s}' >"$fixture"
+    ;;
   */compare/"$STUB_RUN_SHA"...*)
     # The newer green run's ancestry: STUB_ANCESTRY is the compare status
     # (default ahead), or fail.
@@ -267,7 +280,7 @@ PY
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_ANCESTRY="${ANCESTRY:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -1347,6 +1360,29 @@ for status in diverged behind fail; do
     fail "newer green run, ancestry $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
   fi
 done
+
+# A newer green run that descends from the red SHA but is not on main (a tag
+# named main on a side commit) files: main's tip must be ahead of or identical
+# to its head.
+MAIN_TIP=abcdefabcdefabcdefabcdefabcdefabcdefabcd
+for status in diverged behind fail fail-ref; do
+  GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=$status VIA=workflow_dispatch \
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] &&
+    grep -qx 'GET repos/o/r/git/ref/heads/main' <<<"$LOG" && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+    ok "a newer green run off main's history (main tip compare $status) files"
+  else
+    fail "newer green run off main, $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fi
+done
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical VIA=workflow_dispatch \
+  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
+  grep -qx "GET repos/o/r/compare/$NEWER...$MAIN_TIP" <<<"$LOG"; then
+  ok "a newer green run at main's tip suppresses the alert"
+else
+  fail "newer green run at main's tip: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+fi
 
 timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
 if [[ "$timeout_expr" =~ workflow_dispatch\'\ \&\&\ ([0-9]+)\ \|\|\ 30 ]] && ((BASH_REMATCH[1] >= confirm_wait + 10)); then
