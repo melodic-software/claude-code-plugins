@@ -28,6 +28,7 @@ import {
   decide,
   liftedByPerson,
   READER_EVENTS,
+  personReason,
   refusalBody,
   refusalWrites,
   main,
@@ -39,6 +40,7 @@ import {
   CACHE_ONLY_TIMEOUT_MS,
   CACHE_ONLY_WINDOW_MS,
   ghCalls,
+  ghCallsLine,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   VERIFY_BUDGET_MS,
@@ -126,6 +128,12 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   const notes = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
+    // A pull request's own REST answers (`rest`, by path), such as the
+    // reads of a lift carried over base merges (merge-holds.liftersOf).
+    const own = method === "GET" ? pulls.find((candidate) => candidate.rest && path in candidate.rest) : undefined;
+    if (own) {
+      return own.rest[path];
+    }
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listing && filesError) {
       throw filesError;
@@ -150,7 +158,11 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
       return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
     }
-    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
+    // main resolves to its tip commit, which the lane-change vet compares.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/git/ref/heads/main") {
+      return { ref: "refs/heads/main", object: { type: "commit", sha: "3".repeat(40) } };
+    }
+    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/${"3".repeat(40)}...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
@@ -287,7 +299,9 @@ const laneNote = (reason, since = NOW) =>
     "```",
       `<!-- pr-merge-unarmed-since head=${HEAD} at=${since} -->`,
   ].join("\n");
-const personNote = (reason) =>
+// `partial`: written without the verifier's answer, so its last line marks it
+// for the one read that widens it.
+const personNote = (reason, partial = false) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
     "<!-- babysit-merge-risk -->",
@@ -296,6 +310,7 @@ const personNote = (reason) =>
     "```text",
     reason,
     "```",
+    ...(partial ? [`<!-- pr-merge-partial head=${HEAD} -->`] : []),
   ].join("\n");
 const ISSUES = "/repos/melodic-software/claude-code-plugins/issues";
 const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
@@ -538,6 +553,147 @@ test("a changed refusal edits the one comment instead of posting another", async
   const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } });
   const { notes } = await run([moved]);
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+// #10224: the owner lifted a hold path, and the next run re-labeled it for a
+// risk-score cost hold that had stood all along behind the first. Every
+// reason a person clears goes in one refusal, so one lift answers them all.
+const RISK = "cost-review-required: infra/main.tf changes a cost path";
+const RISK_REASON = `pr-merge's gate holds it on its risk score (${RISK})`;
+const RISK_HELD = { refusal: null, head: HEAD, ineligible: null, reviews: RISK, reviewsPerson: true, queue: UNEJECTED };
+const BOTH = `${HOLD_PATH_REASON}\n${RISK_REASON}`;
+
+test("a held hold path and a person's risk hold are one refusal naming both", async () => {
+  const { code, writes, notes, verified } = await run([pull(1, { files: [{ filename: "docs/held.md" }], verdict: RISK_HELD })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, [1]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(BOTH) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // A hold path and a cost path with a lane's verifier refusal: the two
+  // person reasons, and not the lane's.
+  const files = [{ filename: "infra/main.tf" }, { filename: "docs/held.md" }];
+  const mixed = await run([pull(2, { files, verdict: MISSING })]);
+  assert.deepEqual(mixed.notes, [
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(`${HOLD_PATH_REASON}\n${COST_REASON}`) } },
+    { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an approval that lifts only the hold path re-holds once for what remains, and nothing once that clears", async () => {
+  const approved = (overrides) => pull(1, { files: [{ filename: "docs/held.md" }], ...overrides });
+  const reviews = [reviewed("APPROVED")];
+  const rest = await run([approved({ verdict: RISK_HELD, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
+  assert.deepEqual(rest.writes, []);
+  assert.deepEqual(rest.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(RISK_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // The person removes the label again with the set unchanged: it stays off.
+  const stays = await run(
+    [approved({ verdict: RISK_HELD, discussion: { reviews, comments: [lanesSaid(personNote(RISK_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })],
+    trustedKyle(),
+  );
+  assert.deepEqual(stays.notes, []);
+  // Nothing remains: it arms, and no label goes on.
+  const clear = await run([approved({ verdict: PASSED, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
+  assert.deepEqual(clear.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(clear.notes, []);
+});
+
+test("the same reason set in another order is no change", async () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const held = (files) => decide(pull(1), options, { ...detail(), files, verify: MISSING }).reason;
+  assert.equal(held(["infra/main.tf", ".github/CODEOWNERS"]), "it changes .github/CODEOWNERS, a hold path\nit changes infra/main.tf, a cost path");
+  assert.equal(held([".github/CODEOWNERS", "infra/main.tf"]), held(["infra/main.tf", ".github/CODEOWNERS"]));
+  assert.equal(personReason([RISK_REASON, HOLD_PATH_REASON]), personReason([HOLD_PATH_REASON, RISK_REASON, RISK_REASON]));
+  const standing = [lanesSaid(personNote(BOTH))];
+  const writes = refusalWrites(pull(1), standing, { clears: "person", reason: personReason([RISK_REASON, HOLD_PATH_REASON]) }, { bot: LANES.login, label: "needs-human" });
+  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
+});
+
+test("a person's hold whose verifier read did not come is noted with what it has, and never narrows a standing comment", async () => {
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  let calls = 0;
+  const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + CACHE_ONLY_WINDOW_MS + 1);
+  const files = [{ filename: "docs/held.md" }];
+  const fresh = await run([pull(1, { files, verdict: RISK_HELD })], {}, { now: late });
+  assert.deepEqual(fresh.verified, []);
+  assert.deepEqual(fresh.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON, true) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // A standing comment that already names the hold path, with more, stands;
+  // a person's removal of its label still holds.
+  calls = 0;
+  const kept = await run([pull(1, { files, verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })], {}, { now: late });
+  assert.deepEqual(kept.notes, []);
+  // A verifier read that failed is the same.
+  const failed = await run([pull(1, { files, verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(failed.verified, [1]);
+  assert.deepEqual(failed.notes, []);
+  // A verdict the lanes clear, which the gate never scores past: the risk
+  // score is not in it, so the standing comment stands too.
+  const unscored = await run([pull(1, { files, verdict: MISSING, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(unscored.notes, []);
+  // A kept verifier answer puts the label back on a path hold's standing
+  // comment that no person lifted, as a path hold always has.
+  const kept2 = await run([pull(1, { files, verdict: { ...RISK_HELD, cached: true }, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
+  assert.deepEqual(kept2.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
+  // An armed one is disarmed at once, with no verifier read.
+  const armed = await run([pull(2, { files, verdict: RISK_HELD, autoMergeRequest: {} })]);
+  assert.deepEqual(armed.verified, []);
+  assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(armed.notes, [
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(HOLD_PATH_REASON, true) } },
+    { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("a labeled pull request whose standing refusal lacks the verifier's answer gets one read that widens it, then none", async () => {
+  const files = [{ filename: "docs/held.md" }];
+  const held = (overrides) => pull(2, { files, labels: labels("needs-human"), ...overrides });
+  // The next reader run, label on: one verifier read, and the comment names both.
+  const widened = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(widened.verified, [2]);
+  assert.deepEqual(widened.writes, []);
+  assert.deepEqual(widened.notes, [{ method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(BOTH) } }]);
+  // A verdict the lanes clear adds no reason, but the read came: the comment
+  // loses its mark in place, so no later run reads again.
+  const unscored = await run([held({ verdict: MISSING, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(unscored.verified, [2]);
+  assert.deepEqual(unscored.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  // A read that failed keeps the mark for the next run.
+  const failed = await run([held({ verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(failed.verified, [2]);
+  assert.deepEqual(failed.notes, []);
+  // Widened: no read, no write.
+  const after = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
+  assert.deepEqual(after.verified, []);
+  assert.deepEqual(after.notes, []);
+  // A verdict that would arm it, with the hold path lifted, never arms a labeled one.
+  // Its answer came and names no person's reason: the mark comes off in
+  // place, so the next run reads no verdict.
+  const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  assert.deepEqual(lifted.verified, [2]);
+  assert.deepEqual(lifted.writes, []);
+  assert.deepEqual(lifted.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  const laneVerdict = await run([held({ verdict: MISSING, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  assert.deepEqual(laneVerdict.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  const next = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
+  assert.deepEqual(next.verified, []);
+  assert.deepEqual(next.notes, []);
+  // With no partial comment, only the discussion is read: no file listing.
+  const listed = (calls) => calls.filter(({ path }) => /\/pulls\/2\/files\?/.test(path)).length;
+  assert.equal(listed(next.calls), 0);
+  // A held lane spends no read on it, partial or not.
+  const laneOff = { ...ROOM, refusal: "the gate holds the lane off" };
+  const heldLane = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], {}, {}, laneOff);
+  assert.deepEqual(heldLane.verified, []);
+  assert.deepEqual(heldLane.notes, []);
+  assert.ok(!heldLane.calls.some(({ body }) => body?.query === DETAIL_QUERY));
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
@@ -1221,6 +1377,48 @@ test("a hold path stays held without a trusted approval of the head", async () =
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
 });
 
+// The churn measured on #10224: Kyle approved OLD, then a lane merged the
+// base. The approval carries to the merge, so it arms and is not labeled
+// again; a merge that also edits the hold path is sent back to a person, and
+// a label removal alone lifts nothing (the owner's decision on #10596).
+test("an approval before a base merge lifts the hold path at the merge, and an evil merge or a label removal does not", async () => {
+  const OLD = "a".repeat(40);
+  const MAIN = "5".repeat(40);
+  const P = "/repos/melodic-software/claude-code-plugins";
+  const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
+  const approval = { id: 41, user: { login: "kyle-sexton", id: 5, type: "User" }, state: "APPROVED", commit_id: OLD, submitted_at: "2026-10-27T23:26:14Z" };
+  // main resolves to TIP, its tip commit, which every compare names.
+  const TIP = "3".repeat(40);
+  const rest = (number, headFiles, reviews = [approval]) => ({
+    [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
+    [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
+    [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
+    [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
+    [`${P}/compare/${MAIN}...${TIP}`]: { status: "ahead" },
+    [`${P}/compare/${TIP}...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 },
+  });
+  const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
+  assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
+  assert.deepEqual(lifted.notes, []);
+  const evil = await run([pull(61, { files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
+  assert.deepEqual(evil.writes, []);
+  assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
+  // The label history the earlier reader bound a removal by.
+  const removal = {
+    ...rest(62, [held], []),
+    [`${P}/issues/62/events?per_page=100&page=1`]: [
+      { event: "labeled", label: { name: "needs-human" }, actor: { id: 2, login: "lanes[bot]" }, performed_via_github_app: { slug: "lanes" }, created_at: "2026-10-27T23:05:00Z" },
+      { event: "unlabeled", label: { name: "needs-human" }, actor: { id: 5, login: "kyle-sexton" }, performed_via_github_app: null, created_at: "2026-10-27T23:26:14Z" },
+    ],
+    [`${P}/activity?ref=refs%2Fheads%2Ffix%2Fheld-62&direction=desc&per_page=100`]: [
+      { after: HEAD, timestamp: "2026-10-27T23:32:00Z" },
+      { after: OLD, timestamp: "2026-10-27T23:00:00Z" },
+    ],
+  };
+  const removed = await run([pull(62, { headRefName: "fix/held-62", files: HELD, rest: removal })], trustedKyle());
+  assert.deepEqual(removed.writes, []);
+});
+
 test("an approval lifts no unread hold-path check and no capped file listing", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const armed = pull(1, { autoMergeRequest: {} });
@@ -1450,10 +1648,11 @@ test("the lane's own hold line is commented on once and labeled human-gated", as
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // The next run: labeled, it writes nothing and reads no discussion.
+  // The next run: labeled, it reads the discussion for a partial refusal to
+  // widen, finds none, and writes nothing and reads no verdict.
   const labeled = await run([laneHeld(1, { labels: labels("needs-human"), discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
   assert.deepEqual(labeled.notes, []);
-  assert.ok(!labeled.calls.some(({ body }) => body?.query === DETAIL_QUERY));
+  assert.deepEqual(labeled.verified, []);
   // A person removed the label after the comment: it stays off.
   const lifted = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(lifted.notes, []);
@@ -2150,6 +2349,8 @@ test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and 
   assert.deepEqual(ghCalls(`warning: something\n${line}\n`), { total: 4, githubToken: 3, paginated: 1 });
   assert.equal(ghCalls("no calls line\n"), null);
   assert.equal(ghCalls("babysit-gh-calls {not json\n"), null);
+  assert.equal(ghCallsLine("babysit-gh-calls {not json\n"), null);
+  assert.equal(ghCallsLine("no calls line\n"), null);
   assert.equal(costLine({ number: 7, calls: { total: 4, githubToken: 3, paginated: 1 }, ms: 1500 }), "#7 calls=4 github-token=3 paginated=1 ms=1500");
   assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
 });
@@ -2173,7 +2374,11 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
   } finally {
     console.log = log;
   }
-  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250"]);
+  // The reader's per-endpoint calls line reaches the log after each cost
+  // line, in the shape the merge job's tee logs, as one line of JSON.
+  const logged = `babysit-gh-calls ${JSON.stringify(JSON.parse(line.slice("babysit-gh-calls ".length)))}`;
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", logged, "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250", logged]);
+  assert.deepEqual(JSON.parse(logged.slice("babysit-gh-calls ".length)).calls, JSON.parse(line.slice("babysit-gh-calls ".length)).calls);
   assert.deepEqual(
     verify.costs.map(({ number, ms }) => [number, ms]),
     [

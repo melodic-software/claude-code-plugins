@@ -68,6 +68,11 @@ jobs:
       head-sha: ${{ steps.head.outputs.sha }}
       held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget). The head read's `gh api` runs
+    # before the checkout, outside the wrapper, and leaves none.
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Read the PR's head SHA
         id: head
@@ -101,6 +106,14 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: fix-docs
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that

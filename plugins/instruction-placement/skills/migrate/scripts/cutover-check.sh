@@ -416,7 +416,8 @@ condition_1() {
     # The bullet leaving THIS list is not the dependency ending if the page
     # still ties AGENTS.md to a flag somewhere else: a moved bullet and a
     # deleted one look identical from inside one section.
-    if grep -iE 'AGENTS\.md' "$ev" 2>/dev/null | grep -qiE 'flag'; then
+    # Case-sensitive and bounded, so a sub-agents.md link is not a match.
+    if grep -E '(^|[^[:alnum:]_.-])AGENTS\.md' "$ev" 2>/dev/null | grep -qiE 'flag'; then
       unreach "the AGENTS.md bullet left the list, but the page still ties AGENTS.md to a flag elsewhere; a moved bullet reads the same as a removed one"
       return 2
     fi

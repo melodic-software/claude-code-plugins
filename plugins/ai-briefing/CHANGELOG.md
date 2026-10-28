@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6] - 2026-10-28
+
+### Changed
+
+- **bump unist-util-visit from 5.1.0 to 5.2.0 in /plugins/ai-briefing/skills/generate/output/build in the npm-minor-patch group** (#10642).
+  - `unist-util-visit` 5.1.0→5.2.0
+
 ## [0.9.5] - 2026-10-27
 
 ### Changed

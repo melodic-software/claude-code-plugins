@@ -46,6 +46,6 @@ test("every css_* userConfig default equals the shipped default it mirrors", () 
 
 test("the shipped defaults validate against team.schema.json with no error", () => {
   const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
-  assert.deepEqual(layers[0], { name: "defaults", path: null, state: "loaded", errors: [] });
+  assert.deepEqual(layers[0], { name: "defaults", path: null, state: "loaded", errors: [], error_keys: [] });
   assert.deepEqual(values, CONTRACT);
 });
