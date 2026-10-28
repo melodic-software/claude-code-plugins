@@ -90,6 +90,12 @@ it for itself. So the cutover canaries in `scripts/cutover-check.sh` and `script
 run `--tools ""` and name no file. Use the form that matches what you are measuring, and never the
 trigger Read against a root file.
 
+With no tools at all, instructions load at session start, and a quotation from a session that
+*could* not read anything is evidence of a load. Measured before adoption on 2.1.278: a scratch
+directory holding one `AGENTS.md` and nothing else returned the token line with no tools, and a
+directory with no `AGENTS.md` answered `NONE`. The nested write probe in `cutover-check.sh` keeps
+that rule: Write alone, and the file it asked for must exist.
+
 ## Asking Codex
 
 Codex is a first-class target of this migration, so it gets the same canary. Presence-gate it on

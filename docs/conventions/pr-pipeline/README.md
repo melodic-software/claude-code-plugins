@@ -218,7 +218,9 @@ sends a pass-only round (input `verify-pass-head`), needing no workable thread, 
 check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
-`pass-only`, which the dispatcher's release reads pass over. Resolving a thread
+`pass-only`, which the dispatcher's release reads pass over. A pass-only round also goes to a PR
+a human on the trusted-actor list opened, since fail notes are posted there too; every other
+address-feedback round goes only to lanes App PRs. Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
@@ -923,7 +925,7 @@ the rules that only tighten in
   any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
   removed, renamed or copied list hold. An owner cost decision does not clear it. `ci-status`
   holds the same widening on a lanes App pull request pushed after auto-merge is armed
-  (`merge-holds.mjs` `actorsHold`), lifted by a trusted person's approval of the head.
+  (`merge-holds.mjs` `actorsHold`), lifted as a hold path is (see below).
 - **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
@@ -1288,7 +1290,7 @@ collaborator) whose newest comment, review or inline comment with text says "do 
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
 `HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
-run, unless a person on the trusted-actor list approved that head as `ci-status` reads it, and whose
+run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1432,22 +1434,46 @@ main has, so a pull request cannot rewrite it), and holds a trusted-actor list c
 adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold`), on each pull
 request event and in the merge queue, where a red group removes the pull request. A push that
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
-(as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
-dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
-body hold or veto. `enable-auto-merge` reads the same approval (`pathLifters`) and stops holding
-the pull request on the hold path, and the gate's risk score (`evidence --lane-reviews`,
-`lane_risk_refusal`) drops its `high-path:` reasons for a path on `babysit_risk.HIGH_FLOOR` or in
-`merge.diff-check.denied-paths` on the same approval (`babysit_merge_policy.path_lifters`, which
-`test_merge_holds_sync.py` holds equal to `pathLifters`), so its other checks decide. The approval
-lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost, trust-gate,
-manifest, file-cap or review-lane hold, and a review list or trusted-actor list that does not read
-lifts nothing.
+(as main has it) lifts either by approving that head (their newest review of it that approves,
+requests changes or was dismissed must approve). Then re-run `ci-status`, since a review does not.
+Only an approving review lifts it: removing the human-gated label does not, and a dismissed
+approval never counts. The approval carries to a later head whose every change since is a merge
+of the base (`merge-holds.mjs` `liftersOf` and `baseMergeCarry`), so a base merge after a
+person's approval does not send the pull request back to them:
+
+- Each trusted person's newest review that approves, requests changes or was dismissed counts
+  (`liftsOf`); it lifts only when it approves, and then its commit.
+- The carry (`baseMergeCarry`): the base branch is read once by its full ref (`baseTip`,
+  `refs/heads/<base>`), and every compare names its tip commit, so no tag of the same name stands
+  in for it. Every commit the current head adds is a merge whose parents other than the first the
+  base holds (`baseMergesOnly` over `mergedParents`; `baseParents` reads each parent's compare
+  against the tip, `ahead` or `identical`), and the approved head is among its commits, so a
+  non-merge commit, a merge of another branch or of a crafted merge commit, or a force push that
+  rewrites the approved head carries nothing. The net change against the tip is the same at both
+  heads over every file (`sameNetChange`), so a merge that writes any change of its own, to a hold
+  path or any other file, carries nothing; an honest merge after the base changed one of the
+  pull request's files fails closed too and needs a new approval. A commit list the compare cuts
+  at 250 carries nothing, and so does a head in a fork.
+- An approval of the current head lifts the verifier and issue-link holds too; an approval of an
+  earlier head does not, since the merge result is new to pr-verify.
+
+The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
+reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
+score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
+on `babysit_risk.HIGH_FLOOR` or in `merge.diff-check.denied-paths` on the same approvals
+(`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
+holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
+approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
+trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
+does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
 (`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
-the pull request opened, linked from the body. That body edit re-runs `ci-status`. The module is read at the pull request's base commit, so a lanes App pull
+the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
+carries to a later head by the same `baseMergeCarry` as the hold-path lift, on the whole net
+change rather than the hold paths alone. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
 A pull request cannot weaken its own check, since the step runs the module as its base has it; a
 change to `merge-holds.mjs` merges on the review lanes, and the lanes App's token, which carries no
@@ -1558,8 +1584,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
   branch and hands the pull request to a person. The verdict job posts no merge marker unless
-  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
-  (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
+  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule,
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
@@ -1572,8 +1599,13 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by
-    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
-    newest push is the head.
+    `github-actions[bot]` (or, after a review, the lanes App) pushing a commit of the pull
+    request, and the newest push is the head. Each commit a push brought (its `after` and the
+    ancestors its `before` lacks) is its pusher's own: a commit with Dependabot's author arrives
+    in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, and a
+    lanes App commit in a lanes App push, else the reason is `pushed-by:<login>`. A commit no
+    push in reach brought is `push-history-incomplete`. The pr-unblock verdict job runs the same
+    check before it posts a merge marker.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
     ecosystem and directory `.github/dependabot.yml` lists at both the base and the default branch
     head, matched literally (a pair only one side lists covers nothing, so neither side widens the
@@ -1743,7 +1775,8 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
 of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
-writer moves to once the readers have run on main. After that, a `fail` name may end with `-i`
+writer moves to once the readers have run on main. resolve-pr looks up only the names the writer
+writes, so that change adds the digest lookups to it. After the digest, if any, a `fail` name may end with `-i`
 and the issue numbers the JSON's `linked_issues` records, ascending, each once, joined by dots
 (`-i7` or `-i7.12`, at most 10, each 1 to 10 digits with no leading zero), so a `fail` carries its
 issues in a name the run authenticates and one verdict has one name. Every reader refuses a `pass`

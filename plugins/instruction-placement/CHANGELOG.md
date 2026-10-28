@@ -3,6 +3,29 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1] - 2026-10-28
+
+### Fixed
+
+- `cutover-check.sh` condition 1 no longer reads a `sub-agents.md` link on a line that mentions a flag as the env-vars page tying `AGENTS.md` to a flag. The "moved bullet" check now matches `AGENTS.md` case-sensitively and as a whole name, so a delisted page grades `[MET]` instead of `[UNREACH]`.
+
+## [0.28.0] - 2026-10-28
+
+### Added
+
+- **`audit`, `realign` and `migrate` run `scripts/quote-check.sh` first** ([#9698](https://github.com/melodic-software/claude-code-plugins/issues/9698)). Each skill grants the script by its exact path with no `*`, so the grant covers the bare command only. Each run lists every `drift` result at the top of its output, with the record's section and both wordings, and names the wording a dependent proposal rests on. Each proposal quotes the deciding sentence of every docs record it relies on, and one that relies on an `unverified` or drifted record is labeled "unverified as of <date>". `audit` writes those records into a new `Mechanics` field of each finding, described in `context/findings-artifact.md`. `realign` presents them at its per-item gate and applies no finding whose record drifted until a re-audit. The audit's read-only rule now names the docs cache the check refreshes.
+
+### Changed
+
+- **`migrate` no longer grants `WebFetch`.** Its docs reads go through `scripts/fetch-docs.sh`, which takes a permission prompt per call, so the standing grant contradicted the skill's own rule that fetchers stay out of `allowed-tools`.
+- **The README revisit trigger for the `Write`-triggered rule names its records**: MS-5 for the path-scoped rule, MS-2 for a nested `CLAUDE.md`, and the write-trigger gap in `context/verified-mechanics.md`.
+
+## [0.27.0] - 2026-10-28
+
+### Added
+
+- **`scripts/quote-check.sh` checks each mechanics quote against its docs section** ([#9697](https://github.com/melodic-software/claude-code-plugins/issues/9697)). It reads only `context/mechanics-sources.tsv` and takes no arguments. Each page is fetched once through `scripts/fetch-docs.sh --cache`, and the section the URL's anchor names is taken with `scripts/docs-cache.sh slice`. It prints one line per record: `verified <id>`; `drift <id> <url>`, followed by the stored quote and the section's closest sentence; or `unverified <id> as of <as_of>` when the page could not be read fresh. It exits 0 whatever the results are. `QUOTE_CHECK_FIXTURE_DIR` points it at local page snapshots, so `scripts/quote-check.test.sh` covers the verified, drift and unverified cases without touching the network.
+
 ## [0.26.8] - 2026-10-28
 
 ### Changed
