@@ -2,9 +2,10 @@
 // The only event field it takes is the upstream run id; every other fact is
 // read back from the API. It proceeds only when all of these hold, and
 // otherwise writes proceed=false with a reason:
-// - the run is a completed, successful pull_request run of
-//   pr-require-checks.yml, by exact path, in this repository on a head of
-//   this repository;
+// - the run is a completed pull_request run of pr-require-checks.yml, by
+//   exact path, in this repository on a head of this repository, that
+//   succeeded or failed only on holds an approving review of the head lifts
+//   (heldOnly), so a person approves a head pr-verify has judged;
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
 // - the PR is not a draft and not a dependency manager's (a Bot account with
@@ -186,6 +187,61 @@ const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[
 const laneAuthored = (user, laneIdentity) =>
   loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
 const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
+
+// pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
+// App pull request, and the step after it that aggregates the lanes.
+export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
+export const AGGREGATE_STEP = "Aggregate lane results";
+// What merge-holds.mjs `holds` writes after each hold an approving review of
+// the head lifts (a hold path, a trusted-actor list widening), and the line
+// the runner adds for the step's failing exit.
+export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
+const STEP_EXIT = "Process completed with exit code 1.";
+
+// The `##[error]` lines of a job log, without the runner's timestamp.
+export const errorLines = (log) =>
+  String(log)
+    .split(/\r?\n/)
+    .flatMap((line) => /^﻿?(?:\S+ )?##\[error\](.*)$/.exec(line)?.slice(1) ?? []);
+
+// Whether failed run `runId` failed only because a person has not yet approved
+// pull request `number`'s head: of its latest jobs only ci-status failed, its
+// only failed step is HOLD_STEP, the lanes aggregate succeeded, and every
+// error that job logged is one of `number`'s holds an approval lifts or that
+// step's exit. ci-status still fails, so such a head never merges unapproved;
+// the verdict a judgment writes lifts no hold path. A read that fails, a job
+// or step list cut short, or any other error is false.
+export async function heldOnly(github, readLog, repository, runId, number) {
+  try {
+    const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+    const jobs = listed?.jobs;
+    if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
+      return false;
+    }
+    const ci = jobs.filter((job) => job?.name === "ci-status");
+    if (ci.length !== 1 || ci[0].conclusion !== "failure" || !Number.isSafeInteger(ci[0].id)) {
+      return false;
+    }
+    if (jobs.some((job) => job !== ci[0] && !["success", "skipped", "neutral"].includes(job?.conclusion))) {
+      return false;
+    }
+    const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
+    const failed = steps.filter((step) => step?.conclusion !== "success" && step?.conclusion !== "skipped");
+    if (
+      failed.length !== 1 ||
+      failed[0].name !== HOLD_STEP ||
+      failed[0].conclusion !== "failure" ||
+      !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
+    ) {
+      return false;
+    }
+    const errors = errorLines(await readLog(ci[0].id));
+    const holds = errors.filter((line) => line !== STEP_EXIT);
+    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => line.startsWith(`#${number}: `) && line.includes(PERSON_LIFT));
+  } catch {
+    return false;
+  }
+}
 
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
@@ -441,7 +497,7 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
   };
 }
 
-export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -452,7 +508,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     run.path !== UPSTREAM_PATH ||
     run.event !== "pull_request" ||
     run.status !== "completed" ||
-    run.conclusion !== "success" ||
+    (run.conclusion !== "success" && run.conclusion !== "failure") ||
     run.repository?.full_name !== repository ||
     run.head_repository?.full_name !== repository ||
     !SHA.test(run.head_sha ?? "")
@@ -489,6 +545,9 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   }
   if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
     return skip("author-not-lane-or-owner");
+  }
+  if (run.conclusion === "failure" && !(typeof readLog === "function" && (await heldOnly(github, readLog, repository, upstreamRunId, pull.number)))) {
+    return skip("not-a-passing-run");
   }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
   let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs });
@@ -581,10 +640,28 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   }
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
+  // A job's log: GitHub answers with a redirect to storage, which is read
+  // without the token.
+  const send = fetchImpl ?? fetch;
+  const readLog = async (jobId) => {
+    let response = await send(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
+      redirect: "manual",
+    });
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 && location) {
+      response = await send(location);
+    }
+    if (!response.ok) {
+      throw new Error(`the log of job ${jobId} answered ${response.status}`);
+    }
+    return response.text();
+  };
   const result = await resolvePull({
     github: github ?? api(false),
     // The Refs read needs GraphQL errors back to tell a typo from a failure.
     readRefs: github ?? api(true),
+    readLog,
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     humans: trusted.humans,

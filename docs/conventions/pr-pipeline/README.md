@@ -1564,8 +1564,9 @@ head-branch digest, taken by exact name and uploaded by a completed, successful
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
-successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read.
+`pull_request` run of `pr-require-checks` that succeeded or failed only on holds an approving
+review of the head lifts, so a `ci-status` red for anything else there would never get a verdict,
+and a pull request event makes no verdict read.
 
 The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
 from a checkout of main for the queued pull request at its live head, on a listing of its own, and
@@ -1834,7 +1835,11 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+same-repository, non-draft pull request into main, and after each one whose only failure is
+`ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
+widening; resolve-pr's `heldOnly` reads the run's jobs and the `ci-status` log). The person then
+approves a head pr-verify has judged; `ci-status` stays red until that approval, which no
+verdict replaces. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue
