@@ -202,6 +202,7 @@ const EXACT = {
   questions: [],
   sources: ["plugins/session-flow/README.md:3: says eighteen"],
   split: [],
+  external: { state: "none", repo: "", class: "", what: "" },
 };
 const INEXACT = {
   exact: false,
@@ -212,6 +213,7 @@ const INEXACT = {
   questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line." }],
   sources: [],
   split: [],
+  external: { state: "none", repo: "", class: "", what: "" },
 };
 
 describe("validateOutput", () => {
@@ -594,6 +596,7 @@ describe("split", () => {
     questions: [],
     sources: ["plugins/planning/surface/exporters.py:944: builds the line"],
     split: [2],
+    external: { state: "none", repo: "", class: "", what: "" },
   };
   const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
 
@@ -1150,5 +1153,52 @@ describe("size split", () => {
       assert.equal((await run(fake, { parts: [[1, 2], [3]], order: [] })).outcome, "skipped");
       assert.deepEqual(writes(fake.calls), []);
     }
+  });
+});
+
+// Owner decision 2026-10-28: an exact refinement records one External state
+// line, naming only a class pr-pipeline.yaml's attended.classes lists.
+describe("external state", () => {
+  const CLASSES = { dns: "a DNS record or registrar change", credential: "an API key, token or secret" };
+  const ext = (external) => ({ ...EXACT, external: { state: "none", repo: "", class: "", what: "", ...external } });
+
+  test("renders each state as one plain line after the criteria, never a task-list line", () => {
+    const cases = [
+      [{ state: "none" }, "External state: none"],
+      [{ state: "iac", repo: "melodic-software/github-iac" }, "External state: iac (melodic-software/github-iac)"],
+      [{ state: "manual", class: "dns", what: "a CNAME for docs at the registrar" }, "External state: manual (dns: a CNAME for docs at the registrar)"],
+    ];
+    for (const [external, expected] of cases) {
+      const lines = render(validateOutput(ext(external), new Set(), null, CLASSES)).split("\n");
+      assert.ok(lines.includes(expected), lines.join("\n"));
+      assert.ok(lines.indexOf(expected) > lines.findIndex((row) => row.startsWith("- [ ] ")), "after the criteria");
+    }
+  });
+
+  test("refuses a manual class the config does not list, a manual step with no what, and an iac state with no owner/name repo", () => {
+    for (const external of [
+      { state: "manual", class: "cloud-resource", what: "a storage account" },
+      { state: "manual", class: "dns", what: " " },
+      { state: "iac", repo: "github-iac" },
+      { state: "keyword" },
+    ]) {
+      assert.throws(() => validateOutput(ext(external), new Set(), null, CLASSES), JSON.stringify(external));
+    }
+    assert.throws(() => validateOutput(ext({ state: "manual", class: "dns", what: "x" }), new Set(), null, {}), "no classes configured");
+    const { external, ...missing } = EXACT;
+    assert.throws(() => validateOutput(missing, new Set()), "external is required");
+  });
+
+  test("a refinement that is not exact records no external state", () => {
+    const output = validateOutput({ ...INEXACT, external: { state: "manual", repo: "", class: "dns", what: "x" } }, new Set([3]), null, CLASSES);
+    assert.equal(output.external.state, "none");
+    assert.ok(!render(output).includes("External state:"));
+  });
+
+  test("--select hands the model the configured classes", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()] });
+    const result = await selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts: [], attended: CLASSES }) });
+    assert.equal(result.refine, true);
+    assert.deepEqual(result.context.attended, CLASSES);
   });
 });

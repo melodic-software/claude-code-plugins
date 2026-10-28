@@ -204,7 +204,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, ATTENDED, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -661,7 +661,7 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     // comes off, and admission-deferred last: a failed write leaves the issue
     // either still marked, for the next sweep, or held, which no sweep admits.
     await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
-    await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    await github("POST", `${base}/labels`, { labels: decision.attended ? [NEEDS_DECISION, ATTENDED] : [NEEDS_DECISION] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
     console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);

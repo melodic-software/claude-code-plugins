@@ -31,6 +31,12 @@
 //   the split-child trust rule (splitChildBody). Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it;
+// - attended (owner decision 2026-10-28): no manual external step. The
+//   counted refinement's External state line (externalState) reading
+//   `manual (...)` refuses, parks at status: confirmed and adds `attended`,
+//   until a listed human removes `attended` after that refinement; a newest
+//   `attended` removal by anyone else, the lanes App included, refuses as the
+//   label does (attendedHold). `iac (<repo>)` and `none` refuse nothing;
 // - 8: no `refuse-labels` label, every blocker a merged pull request in this
 //   repository or an issue closed, for any reason, by a listed human or (in
 //   this repository only) a merge or commit, read there when it is another
@@ -113,6 +119,12 @@ export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 export const CONFIRMED = "status: confirmed";
+// The owner-present label (owner decision 2026-10-28): only a listed human
+// removes it.
+export const ATTENDED = "attended";
+// Opens the refinement line that records the work's external state
+// (refine.mjs externalLine).
+export const EXTERNAL_STATE = "External state: ";
 // Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -493,6 +505,33 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   return names(labels).includes(UNTRUSTED) || removedByOther;
 }
 
+// Whether `attended` still holds though the label is off: its newest label
+// event is a removal by anyone but a listed human (`humans`, ids), the lanes
+// App included. Only a listed human lifts it. Pure.
+export function attendedHold(events, humans) {
+  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === ATTENDED).at(-1);
+  return newest?.event === "unlabeled" && !humans.has(newest.actor?.id);
+}
+
+// The External state the counted refinement on `spec` records: {state,
+// detail} from its first line opening with EXTERNAL_STATE, in the fixed form
+// refine.mjs externalLine writes, with the refinement's createdAt; null when
+// no counted refinement carries one. No other text is read for it. Pure.
+export function externalState(spec, humans, appId) {
+  const refinement = countedRefinement(spec, humans, appId);
+  const text = String(refinement?.body ?? "")
+    .split("\n")
+    .find((row) => row.startsWith(EXTERNAL_STATE));
+  const match = /^(none)$|^(iac|manual) \((.+)\)$/.exec(text?.slice(EXTERNAL_STATE.length) ?? "");
+  return match ? { state: match[1] ?? match[2], detail: match[3] ?? "", at: refinement.createdAt } : null;
+}
+
+// Whether a listed human removed `attended` after `at`. Pure.
+const liftedSince = (events, humans, at) =>
+  (events ?? []).some(
+    (event) => event?.event === "unlabeled" && event.label?.name === ATTENDED && humans.has(event.actor?.id) && Date.parse(event.created_at) > Date.parse(at),
+  );
+
 // Whether events[a] happened before events[b]: by created_at when both have
 // one and they differ, else by their order as listed.
 const before = (events, a, b) => {
@@ -631,6 +670,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push("its body was edited after the triage verdict, which judged the body as it stood before");
     }
   }
+  // A manual external step needs the owner present: refused with no person's
+  // decision, so it parks at status: confirmed, and admit() adds `attended`.
+  let attended = false;
+  if (!labels.includes(ATTENDED) && attendedHold(events, humans)) {
+    refuse.push(`the newest removal of ${ATTENDED} was not a listed human's, so its hold stands`);
+  }
+  const external = externalState(spec, humans, appId);
+  if (external?.state === "manual" && !labels.includes(ATTENDED) && !liftedSince(events, humans, external.at)) {
+    refuse.push(`its refinement records External state: manual (${external.detail}), a step that needs the owner present (${ATTENDED})`);
+    attended = true;
+  }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
@@ -662,7 +712,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }) };
+    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }) };
   }
   if (parked.length > 0) {
     return { verdict: "wait", reasons: parked, pulls: [] };
@@ -1237,7 +1287,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
     const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: [status] });
+    await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
