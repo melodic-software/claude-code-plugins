@@ -1195,6 +1195,17 @@ describe("external state", () => {
     assert.ok(!render(output).includes("External state:"));
   });
 
+  test("an external state that is then discarded is not checked: a not-exact refinement, or an exact one a duplicate turns not exact, still posts its questions", () => {
+    const bogus = { state: "manual", repo: "", class: "bogus", what: "" };
+    const inexact = validateOutput({ ...INEXACT, external: bogus }, new Set([3]), null, CLASSES);
+    assert.equal(inexact.external.state, "none");
+    assert.equal(inexact.questions.length, 1);
+    const duplicate = validateOutput({ ...EXACT, related: [{ number: 3, relation: "duplicate", note: "same" }], external: bogus }, new Set([3]), null, CLASSES);
+    assert.equal(duplicate.exact, false);
+    assert.equal(duplicate.external.state, "none");
+    assert.match(duplicate.questions[0].question, /Should this issue close/);
+  });
+
   test("--select hands the model the configured classes", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()] });
     const result = await selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts: [], attended: CLASSES }) });

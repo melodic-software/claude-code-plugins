@@ -465,7 +465,6 @@ export function validateOutput(output, known, split = null, classes = {}) {
     (item) => item && [item.question, item.recommended, item.basis].every((text) => isText(text) && text.trim() !== "") && Object.keys(item).length === 3,
   );
   let moved = list(output.split, "split", Number.isInteger);
-  let external = externalOf(output.external, classes);
   let exact = output.exact;
   // A duplicate or fixing change makes it not exact, whatever else it holds:
   // ask whether to close the issue.
@@ -478,7 +477,6 @@ export function validateOutput(output, known, split = null, classes = {}) {
     exact = false;
     criteria = [];
     moved = [];
-    external = EXTERNAL_NONE;
     const close = {
       question: `Should this issue close? The refinement found ${closing.map((item) => `#${item.number} (${item.relation})`).join(", ")}.`,
       recommended: "Close it if that change covers this issue; otherwise record what is still left to do.",
@@ -497,7 +495,10 @@ export function validateOutput(output, known, split = null, classes = {}) {
   } else if (moved.length > 0) {
     throw new Error("only an exact refinement of a held issue moves done-when items");
   }
-  return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external: exact ? external : EXTERNAL_NONE };
+  // Checked only once `exact` is final: a not-exact refinement records none,
+  // so a stray value there must not stop its questions posting.
+  const external = exact ? externalOf(output.external, classes) : EXTERNAL_NONE;
+  return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external };
 }
 
 // The External state line an exact refinement ends its criteria with: plain
