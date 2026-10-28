@@ -714,6 +714,9 @@ const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!)
   }
 }`;
 
+const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $pr) { id mergeQueueEntry { id } } }
+}`;
 const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
@@ -903,8 +906,25 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async resolveThread(id) {
       return (await graphql(RESOLVE_MUTATION, { id })).resolveReviewThread.thread.isResolved;
     },
+    // The pull request's node id, and whether it sits in the merge queue.
+    async readQueueEntry(pr) {
+      const pull = (await graphql(QUEUE_ENTRY_QUERY, { owner, name, pr })).repository.pullRequest;
+      return { id: pull.id, queued: pull.mergeQueueEntry !== null };
+    },
+    async dequeuePull(id) {
+      await graphql("mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }", { id });
+    },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
+    },
+    async updateIssueComment(id, body) {
+      await request(`${repo}/issues/comments/${id}`, "PATCH", { body }, true);
+    },
+    async addLabels(pr, labels) {
+      await request(`${repo}/issues/${pr}/labels`, "POST", { labels }, true);
+    },
+    async removeLabel(pr, label) {
+      await request(`${repo}/issues/${pr}/labels/${encodeURIComponent(label)}`, "DELETE");
     },
     // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {

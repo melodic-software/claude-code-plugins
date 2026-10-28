@@ -142,9 +142,18 @@ on:
       expected-upstream-head:
         description: >-
           For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
-          dispatch, that job's head-sha output: the gate and the broker accept
-          the review of that head when only commits GitHub signed for the lanes App during the run
-          follow it. Empty otherwise.
+          dispatch, that job's head-sha output: the gate accepts the review of
+          that head while the PR is at it or at pushed-commit. The broker gets
+          it too. Empty otherwise.
+        required: false
+        type: string
+        default: ""
+      pushed-commit:
+        description: >-
+          With expected-upstream-head, the pushed-commit output of the
+          caller's apply-feedback-patch job: the one commit the gate accepts
+          after that head. Empty when it pushed nothing, and on every other
+          job.
         required: false
         type: string
         default: ""
@@ -454,6 +463,11 @@ on:
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
+      pushed-commit:
+        description: >-
+          The commit apply-patch.mjs pushed onto the PR branch, empty when it
+          pushed none. Set only by the base's script step.
+        value: ${{ jobs.run.outputs.pushed-commit }}
 
 permissions: {}
 
@@ -491,6 +505,8 @@ jobs:
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
+      # apply-patch.mjs's commit=<sha> on a push; no other script writes it.
+      pushed-commit: ${{ steps.act-script.outputs.commit }}
       head-ref: ${{ steps.gate.outputs.head-ref }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
@@ -686,8 +702,9 @@ jobs:
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml
           # A job after the model job: the review was of the head that job
-          # gated, and only the lanes App's signed commits may follow it.
+          # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          pushed-commit: ${{ inputs.pushed-commit }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
