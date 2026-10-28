@@ -106,7 +106,7 @@
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+          "description": "Limit and funding stops since a person last added agent-ready after which work-unblock stops restarting the issue: it comments with outcome=failed, removes agent-ready and adds no label."
         },
         "wip-cap": {
           "type": "integer",
@@ -277,7 +277,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 720,
-          "description": "Hours both a person's pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
+          "description": "Hours both a person's pull request (in pr-merge its trusted-actor activity and its head's arrival, in fix-ci its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
         },
         "spec-from-body-apps": {
           "type": "array",

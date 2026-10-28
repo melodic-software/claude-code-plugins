@@ -474,6 +474,93 @@ def test_two_report_runs_keep_two_pairs_and_write_no_history(data_dir):
     assert not (reports / "history.jsonl").exists()
 
 
+def test_session_limits_metrics_and_findings_to_the_named_session(data_dir):
+    write_store(
+        data_dir,
+        record("now", **{"tokens.main": 10, "tools.interrupts": 2, "main_5m": 100}),
+        record("other", **{"tokens.main": 10**6, "tools.interrupts": 9, "human.turns": 40, "sub_1h": 900}),
+        edited("pr", [("o/r", 12)], {"a.py": 30}),
+    )
+    result = sweep(data_dir, "--session", "now")
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = envelope(result)["data"]
+    window = data["window"]
+    assert (window["sessions"], window["session_ids"], window["sessions_not_found"]) == (1, ["now"], [])
+    assert (data["metrics"]["tokens.main"]["value"], data["metrics"]["tokens.main"]["n"]) == (10, 1)
+    found = findings_by_metric({"data": data})
+    assert set(found) == {"tools.interrupts"} and found["tools.interrupts"]["evidence"] == [{"session_id": "now"}]
+    # The p90 stays the store's, over all three in-scope sessions (0, 2, 9), so it still marks a stale baseline.
+    assert (data["metrics"]["tools.interrupts"]["p90"], data["metrics"]["tools.interrupts"]["baseline_stale"]) == (9, True)
+    unchecked = {(u["what"], u["reason"]) for u in data["unchecked"]}
+    for metric in ("cache.write_5m_share", "edits.churn_per_pr"):
+        rule = RULE[metric]
+        assert data["metrics"][metric] == {
+            "value": None,
+            "unit": rule["unit"],
+            "n": 0,
+            "p90": None,
+            "threshold": rule["threshold"],
+            "baseline_stale": False,
+            "not_applicable": True,
+        }
+        assert any(what == metric and reason.startswith("not applicable") for what, reason in unchecked)
+    md = sweep(data_dir, "--session", "now", "--format", "md")
+    assert md.returncode == 0, md.stderr
+    table = md.stdout.split("## Metrics", 1)[1].split("## Findings", 1)[0]
+    rows = {row.split("|")[1].strip(" `"): row for row in table.splitlines() if row.startswith("| `")}
+    assert "| not applicable |" in rows["edits.churn_per_pr"] and "| not applicable |" in rows["cache.write_5m_share"]
+    assert "other" not in md.stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+
+
+def test_session_takes_several_ids_and_names_one_not_in_the_store(data_dir):
+    write_store(data_dir, record("a", **{"tools.interrupts": 2}), record("b", **{"tools.interrupts": 3}), record("c"))
+    data = envelope(sweep(data_dir, "--session", "a", "ghost", "--session", "b"))["data"]
+    assert (data["window"]["sessions"], data["window"]["sessions_not_found"]) == (2, ["ghost"])
+    assert findings_by_metric({"data": data})["tools.interrupts"]["evidence"] == [{"session_id": "b"}, {"session_id": "a"}]
+    md = sweep(data_dir, "--session", "ghost", "--format", "md").stdout
+    assert "Sessions: 0" in md and "named but not in the store: `ghost`" in md
+
+
+def test_session_measures_a_named_automated_session(data_dir):
+    write_store(data_dir, record("headless", entrypoints=["sdk-cli"], **{"tools.interrupts": 3}), record("cli", entrypoints=["cli"]))
+    data = envelope(sweep(data_dir, "--session", "headless"))["data"]
+    assert (data["window"]["sessions"], data["window"]["automated_set_aside"]) == (1, 0)
+    assert findings_by_metric({"data": data})["tools.interrupts"]["evidence"] == [{"session_id": "headless"}]
+
+
+def test_session_drift_check_still_reads_every_record(data_dir, tmp_path):
+    canaries = tmp_path / "canaries.json"
+    canaries.write_text(
+        json.dumps(
+            {
+                "schema": census.CANARY_SCHEMA,
+                "canaries": [{"key": "key_path:user:message.content", "record_type": "user", "feeds": ["tools.interrupts"]}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    # The named session alone carries the key, so only the unnamed newer record loses the canary.
+    old = record("old", **{"census": {"2.0.1|*": {"record_type:user": 5, "key_path:user:message.content": 5}}, "tools.interrupts": 3})
+    new = record("new", **{"census": {"2.0.2|*": {"record_type:user": 5}}, "cc_versions": ["2.0.2"]})
+    new["unknown"] = {"record_types": {"relocated": 1}}
+    write_store(data_dir, old, new)
+    args = ("--canaries", str(canaries), "--min-count", "1", "--versions", "1", "--session-floor", "1")
+    result = sweep(data_dir, *args, "--session", "old")
+    assert result.returncode == 1
+    data = envelope(result)["data"]
+    assert data["window"]["sessions"] == 1
+    assert data["drift"]["degraded_metrics"] == ["tools.interrupts"]
+    assert data["drift"]["counts"]["unknown-record-type"] == 1
+    assert data["metrics"]["tools.interrupts"]["degraded"] is True
+    assert "tools.interrupts" not in findings_by_metric({"data": data})
+
+
+def test_session_refuses_write_report(data_dir):
+    write_store(data_dir, record("s1"))
+    assert sweep(data_dir, "--session", "s1", "--write-report").returncode == 2
+    assert not (data_dir / "audit-sessions" / "reports").exists()
+
+
 @pytest.mark.parametrize("key", [None, "../../evil/x", "github.com/o/r/../x", "/abs/x", "noworktree"])
 def test_scope_project_needs_a_safe_state_key(data_dir, key):
     write_store(data_dir, record("s1"))

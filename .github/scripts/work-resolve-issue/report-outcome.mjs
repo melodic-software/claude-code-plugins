@@ -507,14 +507,15 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) 
 
 // A run the lane's funding stopped: one marker comment, agent-ready kept, no
 // label. It counts toward the limit-stop bound, not the turn-cap one; work-unblock
-// restarts it after the regain date, and with no date a person does.
+// restarts it after the regain date, or with no date after limits.fallback-reset
+// hours, as it does a limit stop with no reset.
 function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) {
   const resets = regain === null ? "" : new Date(regain).toISOString().replace(/\.\d+Z$/, "Z");
   const lines = [
     `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${runId || 0}${resumedTag(onResumed)} -->`,
     resets
       ? `The work-resolve-issue lane stopped on its funding (\`funding\`: a spend limit or no credit), not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`
-      : "The work-resolve-issue lane stopped on its funding (`funding`: no credit or a disabled key), not on this issue. It keeps `agent-ready`; once the lane is funded again, a person removes and adds `agent-ready` to restart it.",
+      : "The work-resolve-issue lane stopped on its funding (`funding`: no credit or a disabled key), not on this issue. It keeps `agent-ready`, and work-unblock starts it again after limits.fallback-reset hours; after limits.limit-stops-per-issue limit and funding stops it removes `agent-ready` and marks the issue failed.",
   ];
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it while it is not behind the default branch, and otherwise starts fresh.`);
@@ -965,7 +966,8 @@ function humanLabelFrom(path) {
 }
 
 // The outcomes after which the next run continues the marked run's branch.
-export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding"]);
+// work-unblock's `failed` names the limit or funding stop's run it ends.
+export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "failed"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);

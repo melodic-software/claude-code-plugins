@@ -9,6 +9,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Review ranking](#review-ranking)
 - [Windows hint claims](#windows-hint-claims)
 - [Investigated catalog](#investigated-catalog)
 - [Opt-in elevation](#opt-in-elevation)
@@ -853,7 +854,8 @@ prose.
 The `scan-complete` summary reports hint coverage in three terms: `entries`, `hinted_entries`, and
 `unhinted_entries` (`entries` minus `hinted_entries`). The third is what makes the first two
 readable: without a denominator for what no hint judged, a run that annotated 7 of 40,247 entries is
-indistinguishable from a thorough one.
+indistinguishable from a thorough one. [Review ranking](#review-ranking) adds the signals that reach
+past hints.
 
 A scan of a known-large root, the user home directory or a non-OS volume root (a Windows Dev
 Drive), is gated before it walks.
@@ -878,6 +880,38 @@ already decided to hand off. For that reason the `.pulumi-write-test-*` hint was
 rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
+
+## Review ranking
+
+Hints alone reach few entries (the #3347 audit measured 1 of 76), so the scan also ranks entries by
+three review signals, computed in `ranking_signals.py` from fields every entry already carries. No
+signal opens, stats or reads a path, so ranking adds no collection pass:
+
+| Signal | Reads | Reaches an entry when |
+|---|---|---|
+| `discovery-hint` | `hints` | a hint matched its name |
+| `sibling-mtime-cluster` | `path`, `kind`, `mtime_ns` | two or more files or directories sharing its parent have modification times chained no more than 2 s apart: likely one operation's output |
+| `size-collision` | `path`, `kind`, `stat_size`, `device`, `inode` | another non-empty file of exactly its size sits in its directory or a sibling directory (the target's own files collide only among themselves), hard links to one object excepted: a duplicate or a repeated regenerating process |
+
+Each entry gets `review_rank`: `status` `ranked` with a `position` and the `signals` that placed it,
+each naming its `signal` and `group`, or `status` `unranked` with a null `position` and no signals.
+Entries reached by more distinct signals come first; within one signal count, entries sharing their
+first group sit together. An unranked entry is one no signal reached, never one ranked in the
+middle, so absent evidence reads as absent. The snapshot's `review_ranking` holds the counts,
+`entries_by_signal`, what each signal reads, and every group with its member count and readable
+`detail`; `scan-complete` carries `ranked_entries`, `unranked_entries` and `entries_by_signal`. A
+`--sizes-only` scan keeps no entries and has no ranking.
+
+A signal is evidence, never proof, the same standing as a hint. The rank orders what the operator
+reviews and nothing else: no eligibility, tick or blocker decision reads `review_rank` or
+`review_ranking`, so the rank never changes a tier, a tick, a blocker or eligibility
+(`test_ranking_signals.py` holds this by previewing one plan against the snapshot, the snapshot with
+the rank stripped, and the snapshot with every entry forged to position 1). Like every snapshot
+field, the rank is covered by the approval token's snapshot digest, so editing it after preview
+voids the token. Of the audit's other worked examples, a PID in a staging name checked
+against live processes and a log line naming the writer need a process probe or a content read the
+scan does not collect, so neither is a signal. Gaps in a numbered set could be read from names but
+are not a signal yet.
 
 ## Windows hint claims
 

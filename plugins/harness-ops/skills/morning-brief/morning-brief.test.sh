@@ -492,7 +492,7 @@ OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
   --pr-json "$TMP/empty.json" \
   --decisions-json "$TMP/empty.json" \
   --telemetry-json "$TMP/empty.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "no matching queue labels degrades gracefully" "$OUT_NO_QL" "no queue labels found in this repo"
 assert_contains "degradation names the defaults" "$OUT_NO_QL" "pass --queue-labels to customize"
 QUEUE_ONLY="$(printf '%s\n' "$OUT_NO_QL" | awk '/^== Queues/,/^== /{if (!/^== / || /^== Queues/) print}')"
@@ -518,7 +518,7 @@ OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
   --pr-json "$TMP/empty.json" \
   --decisions-json "$TMP/empty.json" \
   --telemetry-json "$TMP/empty.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
 assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
 
@@ -528,7 +528,7 @@ OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
   --telemetry-json "$TMP/empty.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
@@ -538,7 +538,7 @@ OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
   --pr-json "$TMP/empty.json" \
   --decisions-json "$TMP/empty.json" \
   --telemetry-json "$TMP/empty.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "empty label inventory degrades queue section" "$OUT_EMPTY_LABELS" "no queue labels found in this repo"
 
 OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
@@ -547,7 +547,7 @@ OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
   --telemetry-json "$TMP/empty.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "empty label inventory degrades decision section" "$OUT_EMPTY_LABELS_DEC" "decision label not found in this repo"
 
 # --- Graceful: empty queues / no parked decisions ----------------------------
@@ -1230,7 +1230,7 @@ OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
   --behind-json "$TMP/same-behind.json" \
   --decisions-json "$TMP/same-decisions.json" \
   --telemetry-json "$TMP/same-telemetry.json" \
-  --merged-json "$TMP/merged-clean.json" 2>&1)"
+  --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 for heading in "== Queues" "== Merge-ready" "== Parked"; do
   if [[ "$(section "$OUT_REST" "$heading")" == "$(section "$OUT_SAME" "$heading")" ]]; then
     pass "rest and gh paths render '$heading' byte-identically"

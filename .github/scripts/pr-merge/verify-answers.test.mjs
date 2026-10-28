@@ -5,17 +5,17 @@
 // pr-merge-verify-answers, never through actions/cache; a file already at the
 // path is never read; any failure writes nothing and warns.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { ANSWERS_ARTIFACT, main } from "./verify-answers.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-const dir = mkdtempSync(join(tmpdir(), "verify-answers-"));
+const dir = tempDir("verify-answers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const answersOf = (entries, extra = {}) => JSON.stringify({ version: 1, repo: REPO, code: "c".repeat(64), entries, ...extra });
 const sha = (id) => String(id).padStart(40, "a");

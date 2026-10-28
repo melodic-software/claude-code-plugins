@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Each test gets its own latch on its own clock, so one test's limit neither
 // stops the next nor fails this process.
@@ -318,7 +319,7 @@ test("each response's rate-limit headers are appended as a reading under API_BUD
   const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
-  const dir = mkdtempSync(join(tmpdir(), "request-budget-"));
+  const dir = tempDir("request-budget-");
   const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
   process.env.API_BUDGET_TOKEN = "github-token";
   process.env.RUNNER_TEMP = dir;

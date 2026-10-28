@@ -6,15 +6,14 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import { tempDir } from "../lib/test-tmp.mjs";
 
 const script = join(import.meta.dirname, "setup-env.sh");
 const which = (tool) =>
@@ -57,7 +56,7 @@ function run(args = [], env = {}) {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "setup-env-"));
+  dir = tempDir("setup-env-");
   root = join(dir, "repo");
   stubs = join(dir, "stubs");
   log = join(dir, "calls.log");

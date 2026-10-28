@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
 // passes its own, and the policy lists nothing unless a test passes its own.
@@ -175,7 +175,7 @@ test("select skips a minor bump of an unlisted dependency and reviews every bump
 });
 
 test("readPolicy is the parsed file, or null with a warning when missing or not JSON", () => {
-  const dir = mkdtempSync(join(tmpdir(), "dependabot-policy-"));
+  const dir = tempDir("dependabot-policy-");
   const warnings = [];
   const log = (line) => warnings.push(line);
   assert.equal(readPolicy(join(dir, "absent.json"), log), null);
@@ -188,7 +188,7 @@ test("readPolicy is the parsed file, or null with a warning when missing or not 
 });
 
 test("readConfig is null for a missing file and for one with no entry, each with its own warning", () => {
-  const dir = mkdtempSync(join(tmpdir(), "dependabot-config-"));
+  const dir = tempDir("dependabot-config-");
   const warnings = [];
   const log = (line) => warnings.push(line);
   assert.equal(readConfig(join(dir, "absent.yml"), log), null);
@@ -377,7 +377,7 @@ test("select caps each patch and the total it hands the model", async () => {
 });
 
 test("main writes the outputs, the context file and the run fields, with the security flag", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   const env = {
@@ -418,7 +418,7 @@ test("main writes the outputs, the context file and the run fields, with the sec
 });
 
 test("main writes no context or run file when the select skips", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   const env = {
@@ -442,7 +442,7 @@ test("main writes no context or run file when the select skips", async () => {
 
 // main over a readable base config and policy, with the registry stubbed.
 async function mainWith({ title, policy = POLICY, provenance = async () => [] }) {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   writeFileSync(join(dir, "dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n");

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/report.json", "content": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: capture needs elevation\"}]}"}}],
+      "why": "the report"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/report.md", "content": "# Report\n\nblocked: capture needs elevation, recorder named by scripts/capture.sh"}}],
+      "why": "a .sh path inside the content, not the written path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/capture-threads.sh", "content": "sudo py-spy dump --pid 5120\n"}}],
+      "why": "script written to a .sh path"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "evidence/capture-threads", "content": "#!/bin/sh\nsudo py-spy dump --pid 5120\n"}}],
+      "why": "script with a shebang at a path with no extension"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/drive/run.sh", "content": "py-spy dump --pid 5120"}}],
+      "why": "script at an absolute .sh path"
+    }
+  ]
+}

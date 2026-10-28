@@ -168,5 +168,9 @@ A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match onl
 hinted. The scan does not probe processes, so a `common-lock-file` hint stays at confidence `low`
 and whether the lock is stale is proven during investigation (step 2 of the skill).
 
+Every entry also carries `review_rank`, and `scan-complete` carries `ranked_entries`,
+`unranked_entries` and `entries_by_signal`, unchanged by `--quiet`. What each signal reads and why
+an unranked entry has no position: [review ranking](safety-model.md#review-ranking).
+
 The snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
 `scan-complete` stdout carries only `empty_directory_count`.

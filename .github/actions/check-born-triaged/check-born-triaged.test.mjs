@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { BORN_TRIAGED_MARKER, checkBornTriaged, humanIds, run } from "./check-born-triaged.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-born-triaged.mjs", import.meta.url));
 
@@ -151,7 +151,7 @@ test("checkBornTriaged does not match an author with no id against a list entry 
 });
 
 function runCli(env) {
-  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-"));
+  const dir = tempDir("born-triaged-");
   try {
     const outputPath = path.join(dir, "output");
     writeFileSync(outputPath, "");
@@ -185,7 +185,7 @@ test("CLI triages an unreadable trusted-actor list and exits 0", () => {
 });
 
 test("CLI emits the listed human ids even when the issue is unreadable", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-list-"));
+  const dir = tempDir("born-triaged-list-");
   try {
     const listPath = path.join(dir, "trusted-actors.json");
     writeFileSync(listPath, JSON.stringify(LIST));
@@ -204,7 +204,7 @@ test("CLI emits the listed human ids even when the issue is unreadable", () => {
 // A rate-guard stop the job already holds: no request, rate-limited=true for
 // the callers to stop their API jobs on, and the step still exits 0.
 test("CLI reports rate-limited=true and sends nothing while the job's rate guard holds a stop", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-stop-"));
+  const dir = tempDir("born-triaged-stop-");
   try {
     const listPath = path.join(dir, "trusted-actors.json");
     writeFileSync(listPath, JSON.stringify(LIST));
