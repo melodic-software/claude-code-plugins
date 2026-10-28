@@ -36,6 +36,7 @@ done
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
+[[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
 while (($#)); do
   [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
   shift
@@ -47,7 +48,7 @@ printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
 # The real Node package runner, over one registered fixture package.
 mkdir -p "$repo/scripts/lib"
-cp "$SELF_DIR/lib/read-list.sh" "$repo/scripts/lib/"
+cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
@@ -212,6 +213,8 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+run CHECK_DATA_ROOT="$repo" -- --base base --tests
+check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
 check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
   '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'

@@ -402,6 +402,8 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
   ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+  ".github/scripts/pr-unblock/fix-ci-context.mjs",
+  ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
   ".github/scripts/work-resolve-issue/stop-routes.json",
   ".github/scripts/work-resolve-issue/stop-routes.mjs",
 ];
