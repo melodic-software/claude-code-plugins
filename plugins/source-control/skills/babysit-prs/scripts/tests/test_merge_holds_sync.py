@@ -230,8 +230,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 53)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 23)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 57)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 27)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )

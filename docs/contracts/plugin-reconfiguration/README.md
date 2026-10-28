@@ -11,13 +11,29 @@ This doc owns the **reconfiguration routes and their caveats** for options store
 native plugin-configuration surface (`pluginConfigs`). Which options a plugin has, and what they
 mean, belong to that plugin's own README Options reference. The rule that no setup skill ever
 writes `pluginConfigs`, user settings, or the plugin cache is plugin-philosophy's (Setup is
-explicit and repeatable); this doc restates it only as the reason both routes below are
+explicit and repeatable); this doc restates it only as the reason every route below is
 consumer-run.
 
-## The two routes
+## The routes
 
 - **Interactive, any time:** `/plugin configure <plugin>@<marketplace>`.
-- **Headless:** rerun the install with the new value:
+- **Headless, preferred (Claude Code 2.1.285 or later):** save a JSON object of single-line
+  strings with `claude plugin configure`, run from the project the plugin is installed in:
+
+  ```shell
+  claude plugin configure <plugin>@<marketplace> --values-stdin < values.json
+  ```
+
+  `values.json` holds `{"KEY": "VALUE"}`; every value is a string, booleans included (`"true"`,
+  `"false"`), and keys left out keep their saved values. Without `--values-stdin` the command
+  lists each option as `set` or `not set` and prints no values; `--json` adds the option schema
+  and the saved non-sensitive values. It takes only the full `name@marketplace` id, and it does
+  not set a bundled MCP server's `<server>.<key>` settings
+  ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+  as of 2026-10-28). Measured limits, in the record below: it has no scope flag, it finds only
+  installs visible from the working directory, and it adds no install record and enables nothing.
+- **Headless fallback (before 2.1.285, or a bundled MCP server's settings):** rerun the install
+  with the new value:
 
   ```shell
   claude plugin install <plugin>@<marketplace> -s <scope> --config KEY=VALUE
@@ -25,15 +41,39 @@ consumer-run.
 
   (`--config` repeatable per key.) Against an already-installed plugin it prints
   `already installed` **and still writes the value**. The short-circuit is about the install, not
-  the config write.
-
-Claude Code now also documents a non-interactive `claude plugin configure` subcommand:
-[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-(as of 2026-10-11). No probe here has measured it against the caveats below, so setups keep
-printing the two routes above. Recheck: a probe of that subcommand lands in the verified-version
-record.
+  the config write. A bundled MCP server's setting takes the key form `<server>.<key>`, which
+  needs Claude Code 2.1.285 or later; the record below did not measure that form.
 
 ## Verified-version record
+
+### `claude plugin configure --values-stdin`
+
+Measured on **Claude Code 2.1.312** (sandbox probe, 2026-10-28,
+[probe record](https://github.com/melodic-software/claude-code-plugins/issues/6761#issuecomment-6460407570)):
+
+- **Non-sensitive values land in user settings.** They went to the user
+  `settings.json` `pluginConfigs.<id>.options` for `project`, `local` and `user` installs.
+- **The working directory picks the install.** For a `project` or `local` install, running it
+  from another directory (the home directory included) printed `No installed plugin has the id`,
+  exited 1 and wrote nothing. A `user` install resolved from a project directory.
+- **No install side effects.** `installed_plugins.json` and every `enabledPlugins` entry stayed
+  byte-identical across each write, at all three scopes.
+- **Sensitive options are accepted.** On a Linux host with no OS keychain the value went to
+  `~/.claude/.credentials.json` under `pluginSecrets.<id>.<key>`, never to `settings.json` or
+  `~/.claude.json`. `--json` lists the key under `configured` without echoing the value.
+- **Validation fails closed.** An unknown key, a value outside `options`, a non-boolean string for
+  a `boolean`, a multi-line value, a non-string JSON value and non-JSON input each exited 1 with a
+  message. An object with one valid and one invalid key wrote nothing.
+- **Booleans are strings.** `"true"`, `"false"` (also 1/0, yes/no, on/off) were stored as JSON
+  `true`/`false`.
+- **Uninstall drops the values.** `claude plugin uninstall` removed the plugin's `pluginConfigs`
+  entry and its `pluginSecrets` entry.
+
+Not covered by that probe: a host with an OS keychain (macOS, or Linux with a secret service),
+which may store a sensitive value there instead; whether `""` (accepted and stored as `""`)
+clears an option or sets it empty; and `number`, `directory`, `file` or `multiple` options.
+
+### `claude plugin install --config` rerun
 
 Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
 
@@ -55,37 +95,41 @@ Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
   sandbox probe.
 
 Not covered by that probe: a `sensitive` option, a same-scope `string` rerun at `local` scope,
-same-scope `boolean` or `directory` reruns at `user` or `project` scope, and uninstall dropping
-the plugin's stored `pluginConfigs` entry. The uninstall caveat below is the documented install
-behavior, not a 2.1.283 measurement. Re-verify before relying on a claim outside the covered
-conditions, and update this section (only here) when a newer release is verified.
+and same-scope `boolean` or `directory` reruns at `user` or `project` scope. Re-verify before
+relying on a claim outside the covered conditions, and update this section (only here) when a
+newer release is verified.
 
 ## Caveats every setup skill's short form carries
 
-1. **Never uninstall to reconfigure.** Uninstalling drops the plugin's entire stored
-   `pluginConfigs` entry, resetting every option in its README Options reference to its manifest
-   default. Customized values are simply gone, with nothing left to read the old values from.
-2. **Scope.** Pass the scope `claude plugin list` reports for the plugin. `-s` places the install
-   record and `enabledPlugins`; the option value always lands in user settings. A rerun at another
-   scope adds an install record at that scope and enables the plugin there (measured in both
-   directions, user over project/local and project over user). When the working directory is the
-   home directory, project scope and user scope are the same settings file, so the list can label
-   that one file as both `user` and `project`: pass `user`.
+1. **Never uninstall to reconfigure.** Uninstalling drops the plugin's stored `pluginConfigs`
+   entry and its stored sensitive values, resetting every option in its README Options reference
+   to its manifest default. Customized values are simply gone, with nothing left to read the old
+   values from.
+2. **Scope.** A non-sensitive value always lands in user settings, whichever route writes it.
+   Run `claude plugin configure` from the project the plugin is installed in; it has no scope flag.
+   For the `--config` rerun, pass the scope `claude plugin list` reports for the plugin: `-s`
+   places the install record and `enabledPlugins`, and a rerun at another scope adds an install
+   record at that scope and enables the plugin there (measured in both directions, user over
+   project/local and project over user). When the working directory is the home directory,
+   project scope and user scope are the same settings file, so the list can label that one file
+   as both `user` and `project`: pass `user`.
 3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
    each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
    a same-session `check` still reports the OLD value. That is not a failed write. Verify the
    effective value by rerunning the plugin's setup `check` in a **fresh session**, and never claim
    an unobserved change.
-4. **Read the output, not the exit code.** A rejected value (wrong type, unknown key, empty value,
-   or a value outside a declared `options` list) prints a warning and is not written, yet the
-   command still exits 0.
+4. **Check each route's own failure signal.** `claude plugin configure --values-stdin` rejects a
+   bad value with exit 1 and saves nothing, but it accepts an empty string and stores `""`. The
+   `--config` rerun prints a warning for a rejected value (wrong type, unknown key, empty value,
+   or a value outside a declared `options` list) and does not write it, yet still exits 0, so
+   read its output, not the exit code.
 
 ## The short form setups print
 
-A setup skill states, in its own words but without restating the verified-version record: the two
-routes, the four caveats above, and a citation of this doc as the owner of the verification
-record. Canonical citation (installed plugins cannot read this repository's working tree, so cite
-the published URL):
+A setup skill states, in its own words but without restating the verified-version record: the
+routes, preferred headless route first, the four caveats above, and a citation of this doc as the
+owner of the verification record. Canonical citation (installed plugins cannot read this
+repository's working tree, so cite the published URL):
 
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>
 

@@ -124,9 +124,9 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   non-interactive `claude plugin configure`
   ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
   as of 2026-10-11; recheck when that section drops the subcommand), and the
-  [plugin-reconfiguration convention § The two routes](contracts/plugin-reconfiguration/README.md#the-two-routes)
-  owns which route setups print (as of 2026-10-11; recheck when that section changes the routes
-  setups print or adopts `claude plugin configure`).
+  [plugin-reconfiguration convention § The routes](contracts/plugin-reconfiguration/README.md#the-routes)
+  owns which route setups print; it prefers `claude plugin configure --values-stdin` headless
+  (as of 2026-10-28; recheck when that section changes the routes setups print).
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
 

@@ -27,7 +27,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   bump            bump the file rev (and one question's rev with --id)
   validate        check questions.json and responses.json against the shipped schemas
   export-ledger   write the interview ledger (decision tree and open-question register);
-                  --ledger F merges into F's register, --diff F prints what that would change
+                  --ledger F merges into F's register, --diff F prints what that would change;
+                  --recap writes the confirmation recap instead (with --ledger F it needs no data
+                  dir and saves its rows beside F; --changed lists only the rows changed since)
   export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows;
                   --into PLAN replaces PLAN's `## Brief` section in place instead of writing --out
   export-report   write one self-contained HTML report
@@ -739,6 +741,17 @@ LOCAL_FILE_REF = re.compile(
 )
 FIELD_LINK = re.compile(r"https?://|\]\(")
 FIELD_INLINE_CONTENT = re.compile(r"^\s*(?:>|[-*+]\s|\d+[.)]\s)", re.MULTILINE)
+# What lets a reader check the claims in facts: a link, a `file:line` (a file name with an
+# extension, then a line number), or the `judgment` label for a claim with no source, which
+# opens a line or follows a sentence break, `(` or ` - `, never a word ("a judgment call").
+FACTS_REFERENCE = re.compile(
+    r"https?://|\]\("
+    r"|(?<![\w.-])(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.[A-Za-z]\w*:[0-9]+\b"
+    r"|(?:^|[.!?;:(\[]|\s-)\s*\**judgment\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+# The `Checked against:` line facts opens with cites constraint ids, not the source of a claim.
+CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.MULTILINE)
 
 
 def basis_label(basis):
@@ -761,12 +774,24 @@ def warn_bare_file_ref(qid, field, text):
         )
 
 
+def warn_unreferenced_facts(qid, facts):
+    """Warn when a facts field holding more than its `Checked against:` line carries no link,
+    file:line or judgment label, so no claim in it can be checked."""
+    rest = CHECKED_AGAINST.sub("", facts or "")
+    if rest.strip() and not FACTS_REFERENCE.search(rest):
+        warn(
+            f"{qid} facts carries no link, file:line or judgment label; cite the source of "
+            "each factual claim, or label a claim with none Judgment"
+        )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, facts with no reference, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
         warn_branch_source_links(q["id"], q.get("facts"))
+        warn_unreferenced_facts(q["id"], q.get("facts"))
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -1355,6 +1380,7 @@ def op_revise(d, doc, a):
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     warn_branch_source_links(a.id, a.facts)
+    warn_unreferenced_facts(a.id, a.facts)
     changed = []
     for field, val in (
         ("title", a.title),
@@ -2566,7 +2592,30 @@ def report_notes(notes, kinds):
         sys.exit(1)
 
 
+def last_recap_path(ledger):
+    """The file beside the ledger that holds the last recap's rows, one per ledger, overwritten by
+    each recap: `<ledger stem>.last-recap.json`."""
+    return Path(ledger).with_suffix(".last-recap.json")
+
+
+def read_last_recap(path):
+    """The rows the last recap saved at path, or None when there is none yet (the first
+    confirmation) or the file cannot be read, so the recap lists every row."""
+    if not path.exists():
+        return None
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))["rows"]
+        if isinstance(rows, dict) and all(isinstance(v, str) for v in rows.values()):
+            return rows
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    warn(f"cannot read the last recap {path}; listing every row")
+    return None
+
+
 def cmd_export_ledger(d, a):
+    if a.diff and (a.recap or a.changed):
+        sys.exit("export-ledger --diff writes nothing, so it takes no --recap or --changed")
     if a.diff:
         text = read_input(a.diff, "ledger")
         report_notes(
@@ -2576,9 +2625,16 @@ def cmd_export_ledger(d, a):
         return
     if not a.out:
         sys.exit("export-ledger needs --out (or --diff LEDGER)")
+    if a.changed and not (a.recap and a.ledger):
+        sys.exit("export-ledger --changed needs --recap and --ledger")
     text = read_input(a.ledger, "ledger") if a.ledger else None
     if a.recap:
-        recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text)
+        if d is None:
+            # Read alone, a ledger with no register (or two) would give an empty recap.
+            exporters.check_ledger(text, a.ledger)
+        state = last_recap_path(a.ledger) if a.ledger else None
+        since = read_last_recap(state) if a.changed else None
+        recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text, since)
         write_text(a.out, recap)
         print(f"wrote {a.out}")
         if not fits:
@@ -2586,7 +2642,10 @@ def cmd_export_ledger(d, a):
                 f"refused: the compact recap is {len(recap)} characters; the restate cap is "
                 f"{TEXT_CAP}"
             )
-        if text is not None:
+        if state:
+            rows = exporters.recap_state(exporters.recap_rows(d, text))
+            write_text(state, json.dumps({"rows": rows}, indent=2, ensure_ascii=False) + "\n")
+        if d is not None and text is not None:
             report_notes(exporters.merged_register(d, text)[2], ("conflict",))
         return
     write_text(a.out, exporters.export_ledger(d, text))
@@ -3280,7 +3339,14 @@ def main(argv=None):
         action="store_true",
         help="write the confirmation gate's compact recap instead of the ledger: one line per "
         "live question, withdrawn rows collapsed into one line, long answers cut to fit the "
-        "restate cap",
+        "restate cap. With --ledger it reads the ledger alone when --dir is absent or does not "
+        "exist, and saves its rows beside the ledger (<ledger stem>.last-recap.json)",
+    )
+    s.add_argument(
+        "--changed",
+        action="store_true",
+        help="with --recap and --ledger: list only the rows changed since the last recap saved "
+        "beside the ledger, plus one count per status for the rest; every row when none is saved",
     )
     s.set_defaults(fn=cmd_export_ledger)
 
@@ -3393,6 +3459,16 @@ def main(argv=None):
     if a.cmd == "revise" and a.commit == ["none"]:
         a.commit = []
     if a.fn in (cmd_supersede, cmd_resolve):
+        a.fn(None, a)
+        return
+    if (
+        a.fn is cmd_export_ledger
+        and a.recap
+        and a.ledger
+        and not a.diff
+        and not (a.dir and Path(a.dir).is_dir())
+    ):
+        # The terminal lane has no page data: its recap reads the ledger alone.
         a.fn(None, a)
         return
     if not a.dir:

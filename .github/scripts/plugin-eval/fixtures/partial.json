@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.310",
+  "costUsd": 0.42,
+  "partial": true,
+  "suite": {
+    "root": "plugins/testing",
+    "ablation": "with-without",
+    "threshold": 0.8,
+    "concurrency": 1,
+    "plugins": [
+      "plugins/testing"
+    ]
+  },
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "meanDelta": 0.5
+  },
+  "cases": [
+    {
+      "name": "writes-a-test",
+      "dir": "writes-a-test",
+      "runsPerCase": 2,
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "error": null,
+            "skippedPaidGraders": false,
+            "costUsd": 0.1,
+            "graders": [
+              {
+                "name": "fires",
+                "passed": true,
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-file",
+                "passed": true,
+                "scored": true
+              }
+            ],
+            "tracePath": "traces/with-fired.jsonl"
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "error": null,
+            "skippedPaidGraders": false,
+            "costUsd": 0.1,
+            "graders": [
+              {
+                "name": "fires",
+                "passed": true,
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-file",
+                "passed": true,
+                "scored": true
+              }
+            ],
+            "tracePath": "traces/with-unfired.jsonl"
+          }
+        ],
+        "without": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "error": null,
+            "skippedPaidGraders": false,
+            "costUsd": 0.1,
+            "graders": [
+              {
+                "name": "fires",
+                "passed": true,
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-file",
+                "passed": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.5,
+            "passed": false,
+            "error": null,
+            "skippedPaidGraders": false,
+            "costUsd": 0.1,
+            "graders": [
+              {
+                "name": "fires",
+                "passed": true,
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-file",
+                "passed": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.5,
+        "passRateWithout": 0,
+        "delta": 0.5
+      }
+    }
+  ],
+  "partialReason": "cost_ceiling"
+}

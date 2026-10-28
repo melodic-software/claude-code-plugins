@@ -328,6 +328,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-issue": { contents: "read" },
+    "refine-issue-subscription": { contents: "read" },
     "apply-refinement": { contents: "read", "id-token": "write" },
     "redispatch-refined": { actions: "write" },
     "triage-split-children": { actions: "write" },
@@ -420,26 +421,78 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
+// The refine-issue legs as the parity check compares them: every step, in
+// order, with every field, except the four places the legs may differ: the
+// credential check's env and run (which secret it tests, and whether an empty
+// one warns or fails), the launcher's credential input, the key leg's handoff
+// report (the subscription leg never hands off), and the last step's `if`.
+function refineLegShape(job) {
+  return job.steps
+    .filter((step) => step.id !== "handoff")
+    .map((step) => {
+      const shape = structuredClone(step);
+      if (step.id === "credential") {
+        delete shape.env;
+        delete shape.run;
+      }
+      if (step.id === "run") {
+        delete shape.with["api-key"];
+        delete shape.with["subscription-token"];
+      }
+      if (step.name === "Fail without a refinement") delete shape.if;
+      return shape;
+    });
+}
+
+test("intake-triage.yml: the refine legs' parity check fails on any other difference, step order included", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const key = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
+  assert.deepEqual(refineLegShape(key), refineLegShape(sub));
+  const differs = (mutate) => {
+    const copy = structuredClone(sub);
+    mutate(copy);
+    assert.notDeepEqual(refineLegShape(key), refineLegShape(copy));
+  };
+  const step = (job, name) => job.steps.find((s) => s.name === name);
+  differs((job) => delete step(job, "Refine the issue")["continue-on-error"]);
+  differs((job) => (step(job, "Refine the issue")["timeout-minutes"] = 30));
+  differs((job) => (step(job, "Refine the issue").env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "0"));
+  differs((job) => {
+    const settings = job.steps.findIndex((s) => s.name === "Apply the Claude managed settings");
+    const isolate = job.steps.findIndex((s) => s.name === "Isolate the runner");
+    [job.steps[settings], job.steps[isolate]] = [job.steps[isolate], job.steps[settings]];
+  });
+  differs((job) => (step(job, "Collect the refinement").run += "\ntrue"));
+  differs((job) => (step(job, "Upload the refinement").with["retention-days"] = 2));
+  differs((job) => (step(job, "Check the credential").if = "always()"));
+  differs((job) => (step(job, "Check the context").run = "true"));
+  differs((job) => job.steps.pop());
+});
+
 test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
   const { jobs } = workflow("intake-triage.yml");
   const select = jobs["refine-select"];
   const model = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
   const apply = jobs["apply-refinement"];
   const again = jobs["redispatch-refined"];
   assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
+  assert.deepEqual(sub.permissions, { contents: "read" }, "the subscription leg holds no write grant");
   assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
   assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
   assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
   assert.deepEqual(model.needs, ["refine-select"]);
-  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue"]);
+  assert.deepEqual(sub.needs, ["refine-select", "refine-issue"]);
+  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription"]);
   assert.deepEqual(again.needs, ["apply-refinement"]);
 
   const groups = Object.values(jobs)
     .map((job) => job.concurrency?.group)
     .filter(Boolean);
   assert.equal(new Set(groups).size, groups.length, "each job has its own concurrency group");
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
@@ -447,30 +500,69 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "success" }), true);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "skipped" }), false);
+  // The subscription leg runs only after the key leg handed off or found no key.
+  const leg = (refine, handoff, present) => ({
+    "needs.refine-select.outputs.refine": refine,
+    "needs.refine-issue.outputs.handoff": handoff,
+    "needs.refine-issue.outputs.credential-present": present,
+  });
+  assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
+  assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
+  assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
+  assert.equal(evaluate(sub.if, leg("true", "", "")), false);
+  assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
+  // apply-refinement reads whichever leg uploaded the refinement.
+  const refined = (key, subscription) => ({
+    "needs.refine-issue.outputs.refined": key,
+    "needs.refine-issue-subscription.outputs.refined": subscription,
+  });
+  assert.equal(evaluate(apply.if, refined("true", "")), true);
+  assert.equal(evaluate(apply.if, refined("false", "true")), true);
+  assert.equal(evaluate(apply.if, refined("false", "")), false);
+  assert.equal(evaluate(apply.if, refined("", "false")), false);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
   // Every checkout is the default branch without credentials.
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
     assert.equal(checkout.with.ref, "refs/heads/main");
     assert.equal(checkout.with["persist-credentials"], false);
   }
 
-  // The model step: no project settings, an explicit permission mode, and
-  // no tool that writes or runs code.
-  const run = model.steps.find((s) => s.uses?.startsWith("anthropics/claude-code-action@"));
-  const args = run.with.claude_args;
-  assert.match(args, /--setting-sources user/);
-  assert.match(args, /--permission-mode dontAsk/);
-  assert.doesNotMatch(JSON.stringify(model), /bypassPermissions|dangerously/);
+  // The model step, in each leg: run-claude-cli (--restricted, so no user,
+  // project or local settings), an explicit dontAsk, Read, Grep, Glob and
+  // WebFetch on the hosts the prompt names, and no tool that writes or runs
+  // code. The legs differ only in the credential.
   const prompt = model.steps.find((s) => s.id === "prompt").run;
-  assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
-  assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
-  assert.match(prompt, /WebFetch\(domain:\$domain\)/);
-  assert.deepEqual(stepSecrets(model), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
+  const domains = prompt.match(/domains="([^"]+)"/)[1].split(" ");
+  const launcher = (job) => job.steps.find((s) => s.id === "run");
+  for (const job of [model, sub]) {
+    const run = launcher(job);
+    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
+    assert.equal(run.with.role, "intake");
+    assert.equal(run.with["permission-mode"], "dontAsk");
+    assert.deepEqual(run.with.tools.trim().split("\n"), ["Read", "Grep", "Glob", "WebFetch"]);
+    assert.deepEqual(run.with["allowed-tools"].trim().split("\n"), ["Read(./refine-data/**)", ...domains.map((d) => `WebFetch(domain:${d})`)]);
+    assert.deepEqual(run.with["disallowed-tools"].trim().split("\n"), ["Bash", "Edit", "Write", "NotebookEdit", "WebSearch", "Agent", "Skill", "mcp__*"]);
+    assert.equal(run.with["prompt-file"], "${{ runner.temp }}/refine-prompt.md");
+    assert.equal(run.with["json-schema-file"], "${{ runner.temp }}/refine-schema.json");
+    assert.doesNotMatch(JSON.stringify(job), /bypassPermissions|dangerously|--bare|setting-sources/);
+    assert.ok(!job.steps.some((s) => s.uses?.startsWith("anthropics/claude-code-action@")));
+    assert.equal(job.steps.find((s) => s.id === "prompt").run, prompt, "both legs build the same prompt");
+    const collect = job.steps.find((s) => s.id === "collect");
+    assert.equal(collect.env.MODE, "dontAsk");
+    assert.match(collect.run, /check-permission-mode\.sh/);
+  }
+  assert.deepEqual(refineLegShape(model), refineLegShape(sub), "the legs differ only where refineLegShape allows");
+  const { "api-key": keyLegKey, "subscription-token": keyLegToken } = launcher(model).with;
+  const { "api-key": subLegKey, "subscription-token": subLegToken } = launcher(sub).with;
+  assert.equal(keyLegKey, "${{ secrets.INTAKE_CLAUDE_API_KEY }}");
+  assert.equal(subLegToken, "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(keyLegToken, undefined);
+  assert.equal(subLegKey, undefined);
+  assert.deepEqual(stepSecrets(launcher(model)), ["INTAKE_CLAUDE_API_KEY"]);
+  assert.deepEqual(stepSecrets(launcher(sub)), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -3861,7 +3953,7 @@ test("work-resolve-issue.yml: every resolve-issue output a job reads is the read
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   // The subscription call's are the same outputs, read in the same picks.
   assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
@@ -6559,7 +6651,10 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
       const steps = job.steps ?? [];
       const first = steps.findIndex(installs);
       if (first < 0) continue;
-      const checkout = steps.slice(0, first).findLast((step) => /^actions\/checkout@/.test(step.uses ?? ""));
+      // A pull request head checkout is never the source: its npmrc would let the PR set npm's config.
+      const checkout = steps
+        .slice(0, first)
+        .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\./.test(step.with?.ref ?? ""));
       assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
       assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
       const dir = checkout.with?.path ? `${checkout.with.path}/` : "";

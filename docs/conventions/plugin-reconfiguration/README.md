@@ -9,11 +9,23 @@ Moved to [this section](../../contracts/plugin-reconfiguration/README.md#boundar
 
 ## The two routes
 
-Moved to [this section](../../contracts/plugin-reconfiguration/README.md#the-two-routes).
+Moved to [this section](../../contracts/plugin-reconfiguration/README.md#the-routes).
+
+## The routes
+
+Moved to [this section](../../contracts/plugin-reconfiguration/README.md#the-routes).
 
 ## Verified-version record
 
 Moved to [this section](../../contracts/plugin-reconfiguration/README.md#verified-version-record).
+
+### `claude plugin configure --values-stdin`
+
+Moved to [this section](../../contracts/plugin-reconfiguration/README.md#claude-plugin-configure---values-stdin).
+
+### `claude plugin install --config` rerun
+
+Moved to [this section](../../contracts/plugin-reconfiguration/README.md#claude-plugin-install---config-rerun).
 
 ## Caveats every setup skill's short form carries
 
