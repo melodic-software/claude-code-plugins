@@ -223,10 +223,10 @@ it outgrows one session → reference port → design → plan → decompose): t
 
 ## Next
 
-- A brand-new effort with no interview behind it: /planning:interview.
 - The map is charted: /planning:wayfind work.
-- The map closed: /planning:interview for a Brief destination, /planning:prd for a PRD, /planning:design ahead of the plan for a PLAN.
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+- The map closed on a Brief destination, or the effort has no interview behind it yet: /planning:interview.
+- The map closed on a PRD destination: /planning:prd.
+- The map closed on a PLAN destination: /planning:design, ahead of the plan.
 
 ## Reference
 
