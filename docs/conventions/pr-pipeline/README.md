@@ -154,14 +154,19 @@ merge with the head and the pinned base as parents
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-merge-base)).
 
 GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
-no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s
-`report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
-own `GITHUB_TOKEN`) posts a `failure` commit status with context `pr-unblock/conflict` on that
-head, saying CI does not run until the conflicts are resolved. A push that resolves them is a new
-head, which the status does not reach. A conflict that clears with the head unchanged (main moved
-again) leaves the failing status on it until a push or a person replaces it. The other
-`resolve-conflicts` escalations post no status; they hand the PR to a person through the comment
-and label alone.
+no CI. When `resolve-conflicts` stops on a reason routed to a failing status (below),
+`pr-unblock.yml`'s `report-stop-status` job (a script job with no model, the lane's only
+`statuses: write`, on its own `GITHUB_TOKEN`) posts a `failure` commit status with context
+`pr-unblock/conflict` on that head; for `unresolved-conflict` it says CI does not run until the
+conflicts are resolved. A push that resolves them is a new head, which the status does not reach.
+A conflict that clears with the head unchanged (main moved again) leaves the failing status on it
+until a push or a person replaces it. An `address-feedback` or `fix-ci` failing status stays too
+when a person resolves the threads or gets the checks green on that head: a `pr-unblock` dispatch
+of that activity then finds the cause gone and clears it. On a lanes App pull request the
+dispatchers start that run themselves, once per stop: `pr-feedback-dispatch.yml`'s sweep for an
+`address-feedback` stop with no unresolved thread left (`sweepStale`), and `pr-unblock-dispatch.yml`
+for a `fix-ci` stop whose head's checks all pass (`staleStop`). On any other pull request a person
+dispatches it.
 
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
@@ -323,10 +328,13 @@ head's CI decides, and a red new head gets its own run. The one exception: a run
 `model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). The retry posts its own
-`pr-unblock / fix-ci` check, which the dispatcher counts toward `limits.limit-stops-per-head` like
+`pr-unblock / fix-ci` check, which the dispatcher counts toward fix-ci's per-head cap (`maxRunsPerHead`) like
 any other run, so that cap bounds rung-ups on a head too. `report-escalation`
-hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
-`ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
+ends the run unless that retry's patch applied cleanly: the retry's own reason, else
+`ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
+status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
+through a path the lane token may not push, or by weakening a required check), which go to a
+person. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
 `weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
@@ -564,6 +572,37 @@ An activity is idempotent: a rerun on the same commit gives the same verdict or 
 mutating activity with nothing to change makes no commit, and each commit it makes names the
 activity in a trailer. A verdict is bound to the commit it judged and is not reused for any other commit.
 
+A `pr-unblock` run that stops ends on the route
+[`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json), the one
+routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is for a reason only
+a person settles: a path the lane token may not push or a supply-chain refusal (SAFETY), an intent,
+design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
+security-review or CRITICAL one), or any `review-dependency` stop: its failing status would be per head,
+and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
+holds it for a person. Every other reason is a defect the lane's bounded retries (the
+`fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
+no label, a failing commit status on the head the activity gated (`pr-unblock/conflict` for
+`resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
+lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
+naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
+A select job's stop (a cap, or a conflict no model can resolve) is final for its head. A stop
+after a model turn (the push, reply or verdict job's) is retried on the same head by the
+activity's dispatcher, under the cap it already keeps: `limit-stops-per-head` for
+`resolve-conflicts`, `fix-ci-restarts` and the per-head cap for `fix-ci`,
+`SWEEP_HEAD_CAP` for `address-feedback`. A `fix-ci` or `address-feedback` retry runs one model
+rung up (`escalate-to`), read in the run from the head's own stop record, never from a dispatch
+input; the others retry as a fresh session. A retry that acts and does not stop posts success over the
+failing status (`report-escalation.sh clear`); one that ends on a skip, such as a reply job with no
+model turn, leaves it. A select job that finds the stop gone on its head also posts success
+(`stop-resolved`): `address-feedback` once no hold and no unresolved review thread is left,
+`fix-ci` once a whole listing of the head's checks, every one completed, has none failing (round
+cap included). So a thread resolved by hand, or CI fixed by hand or re-run green, frees the same
+head at the next dispatch of that activity (the one the lane-stopped comment gives); on a lanes App
+pull request the dispatchers above start it once per stop, on any other a person does, and a `ci-status` that already failed stays failed until something
+re-runs it (the next review lane's `rerun-ci-status`, or a person). Once the retries are spent, the monitoring lane's
+`stalled lane stop` signal names the PR. A new head carries no status, so the lane's next run
+there starts clean.
+
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
 while that label is on the PR; a human removes the label, then dispatches the lane, to resume it
@@ -586,6 +625,7 @@ head:
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`, `ci-fix-escalated` | a trusted move took the head off the resume key, and at the new head no check other than `ci-status` (which the label itself fails) fails, runs or was cancelled, the latest run of each ended `success`, `neutral` or `skipped`, and one passed |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
+| a reason `escalation-routes.json` routes `fail`, on a label set before it did | a `ci-fix-*` reason once a lane check of a `pr-require-checks.yml` run on the current head reads failed (`ci-status` itself fails on the label, so it is not read, and an advisory lane such as `pr-test-windows` does not count; green, missing or unreadable keeps the label). Any other fail-routed reason stays for a person: a lane posts a `pr-unblock/*` status on a head only when it stops there or clears its own failure, so a new head carries nothing that shows the cause gone or fails that head in the label's place |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 | `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
 
@@ -739,8 +779,11 @@ round whose model never ran, so the scan uploaded no replies), `finding-stands` 
 address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
 did not move, so no review run starts the round that fixes it), `clean-merge` (a resolve-conflicts
 round whose base merge left no conflict, so no model ran and the push job commits the merge),
-`pass-only` (a pass-only address-feedback round's reply job, which ran no model and only resolved
-fail-note threads a pr-verify pass superseded; the dispatcher's release reads skip it), or, for an issue run under
+`lane-stopped` (a pr-unblock stop `escalation-routes.json` routes to a failing status: on a select
+job's activity check it ends the head; on a push, reply or verdict job's check the dispatcher
+retries the head under its per-head cap), `pass-only` (a pass-only address-feedback round's reply
+job, which ran no model and only resolved fail-note threads a pr-verify pass superseded; the
+dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
@@ -878,11 +921,18 @@ the rules that only tighten in
   - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
     `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
     request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
-    other module the floored scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-    `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    the `retry-fetch.mjs` copy in each of those two directories, the stop routes
+    other module the floored scripts
+    import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+    `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
+    reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
+    `retry-fetch.mjs` copy in each of those two directories, and the stop routes
     `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
-    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads)
+    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads), the scripts that act on a pr-unblock
+    stop's route (`report-escalation.sh`, which labels a held reason, `adjudicate-feedback.mjs` and
+    `publish-feedback.mjs`, which decide and resolve threads, and
+    `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
+    they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs`,
+    `protected-paths.mjs` and `retry-fetch.mjs` in `apply-patch/`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
@@ -2113,6 +2163,11 @@ them on every `pull_request` run, contract-only runs included:
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
   trust-gate path (the hold-paths above less the security review's own files), since no lane
   reviews it; a person merges it. A draft is exempt.
+- **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
+  on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
+  `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
+  status is not read. The merge-group run checks the queued pull request's head too. A status post
+  re-runs nothing, so a stop posted after ci-status passed holds at the merge queue's run.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
@@ -2296,6 +2351,7 @@ findings listed by key. Its scripts and tests are in
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
+| 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `not-applicable` skip since that ends it (address-feedback on a non-draft pull request; fix-ci only once a whole listing of the head's checks is settled with none failing): its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
@@ -2447,13 +2503,14 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
-on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
-intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
+on the requested threads only. With no such request, a security lane finding, a pr-verify note a
+trusted person directed, a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
-finding goes to one fresh fixer round, a new session like every round. That is the last automatic
-round: once it has run, no sweep, schedule or dispatch starts another, and the next select hands
-the PR to a person as `feedback-not-converging`, a comment that names the open threads (a review
-that does not converge is an intent question). Removing the label alone does not resume it, since
+finding, an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
+round: once it has run, no sweep, schedule or dispatch starts another, and the next select fails
+the head as `feedback-verifier-open` when only pr-verify notes are open, else as
+`feedback-not-converging`, a comment that names the open threads. A round cap is a lane bound, not
+an intent question, and pr-verify's FAIL already holds the merge until it passes a later head. Removing the label alone does not resume it, since
 the rounds already run still count: a person resolves the open threads, or a write-access fix
 request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
 <M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
