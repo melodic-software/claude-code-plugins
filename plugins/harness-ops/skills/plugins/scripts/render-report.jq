@@ -424,7 +424,11 @@ def block($d):
 | [
     (if $d.mode == "audit" then "Audit (read-only): every call sync would make is a prediction, prefixed would run:" else empty end),
     ($d.marketplaces[] | block($d)),
-    (if ($d.marketplaces | length) == 0 then "Marketplace: none resolved for this run" else empty end),
+    # A marketplace whose block could not be assembled did resolve; its error
+    # under Action needed names it.
+    (if ($d.marketplaces | length) == 0
+        and ([$d.errors[] | select(test("its report block could not be assembled"))] | length) == 0
+     then "Marketplace: none resolved for this run" else empty end),
     "",
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
