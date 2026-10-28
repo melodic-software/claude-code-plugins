@@ -52,6 +52,11 @@ The JSON line it prints names the work root's `visibility`:
   corpus checkout (for example `${KNOWLEDGE_CORPUS_DIR}`) or to run from a private repository.
 - `private`, `internal` or `local` (no remote, so nothing is published): proceed.
 
+`status` skips the check because it only reads existing `course.json` files and runs no extraction
+script. The extraction launcher `run.mjs` makes the same check on every `--course-dir` and
+`--output-dir` it is given, and exits 1 without running the script unless each one reads
+`private`, `internal` or `local`.
+
 Two paths per course, both under `<work-root>`:
 
 - `<work-root>/.work/<slug>/course-digest-checklist.md` is the phase checklist, a working file. `<work-root>/.work/` self-ignores (a `.gitignore` containing `*`) and is never committed; nested `<epic>/<slug>/` sub-slices are sanctioned there.
@@ -65,7 +70,7 @@ Slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-res
 2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars, and a stored option value is not a secret store.
 3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
 4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
-5. **A browser tool for Phase 1 (course discovery)**, picked by the browser-tool rubric `/testing:run-e2e` owns: the Playwright CLI through `/playwright:playwright` by default, and Claude in Chrome only when the person asks to use their own signed-in browser on an attended run. A missing tool is a prerequisite gap to report, not a reason to switch tools. Frame extraction needs no browser tool: the scripts read HLS URLs themselves.
+5. **A browser tool for Phase 1 (course discovery)**, picked by the browser-tool rubric `/testing:run-e2e` owns. A missing tool is a prerequisite gap to report, not a reason to switch tools. Frame extraction needs no browser tool: the scripts read HLS URLs themselves.
 
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies + Chromium; the media binaries (ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
 
@@ -114,12 +119,14 @@ Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome 
 extraction in the background; it resumes by rerunning the same command:
 
 ```bash
-# Run in the background so the extraction does not hold a foreground call
-nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <course-dir> > <course-dir>/extraction.log 2>&1 &
+# Run in the background so the extraction does not hold a foreground call. The log goes to
+# <work-root>/.work/<slug>/, which never commits, so the shell creates no file in the course
+# directory before run.mjs has checked its visibility.
+nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <course-dir> > <work-root>/.work/<slug>/extraction.log 2>&1 &
 echo $!  # save PID
 
 # Monitor progress periodically
-tail -20 <course-dir>/extraction.log
+tail -20 <work-root>/.work/<slug>/extraction.log
 
 # Check run report after completion
 cat <course-dir>/run-report.json
@@ -142,6 +149,7 @@ Extraction pipeline uses a **provider adapter pattern**. Platform-specific code 
 extraction/
   adapters/
     adapter-contract.js       # JSDoc interface + validation + factory
+    registry.js               # Static platform-id to adapter map; an unknown id resolves to no adapter and fails closed
     dometrain.js              # Thin adapter: composes mux (player) + clerk (auth)
     teachable.js              # Thin adapter: composes hotmart (player) + teachable-sso (auth)
   lib/
@@ -155,7 +163,7 @@ extraction/
     browser.js                # Shared Playwright launch, cookie injection, auth age check
     validators.js             # extraction validators
     config.js                 # platformConfig validation, adapter resolution
-  # shared kernel + transcript: @melodic/video-digestion (vendored plugin-wide under ../../vendor/)
+  # shared kernel + transcript: @melodic/video-digestion (vendored plugin-wide under ../../../vendor/)
   extract-course.js           # Orchestrator only — delegates to adapter + lib
   discover-resources.js       # Discovery tool — uses adapter.detectResources()
   download-resources.js       # Download lesson resources (ZIPs, PDFs) from resources.json
@@ -177,7 +185,7 @@ Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib
 | `pluralsight.com` | Pluralsight | no adapter | Report that no adapter exists and stop; adding one starts at [reference/adapters/discovery-checklist.md](reference/adapters/discovery-checklist.md) |
 | `udemy.com` | Udemy | no adapter | Report that no adapter exists and stop; adding one starts at [reference/adapters/discovery-checklist.md](reference/adapters/discovery-checklist.md) |
 
-**To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches, e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Add the platform to `course.json` `platform` field; the factory auto-discovers it via dynamic import. The discovery checklist also serves as regression guide when existing adapters break.
+**To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches, e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Register it in `adapters/registry.js` (a static import plus an entry keyed by the platform id), then set that id in the `course.json` `platform` field; a name the registry does not hold fails closed. The discovery checklist also serves as regression guide when existing adapters break.
 
 ## The pipeline
 
