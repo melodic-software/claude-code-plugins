@@ -2776,9 +2776,13 @@ review threads `address-feedback` works exactly as the reviewer bot's (owner dec
 2026-10-26): it fixes or explains each finding, `publish-feedback` resolves what it fixed, and
 the trusted-person and human-gated rules above apply unchanged. A disputed listed bot's finding
 is adjudicated as a code-review lane finding is, and Codex's own shields.io severity badge decides
-nothing. The security judgment is the security-review lane's: when that lane held the head the bot
-reviewed as CRITICAL (its `claude-lane-hold` comment with `critical-security`), the dispute
-escalates `feedback-question-security` to a person instead. Past the round cap such a finding
+nothing. The security judgment is the security-review lane's. A dispute is adjudicated only once
+that lane has posted its reviewed-head marker for the head the bot reviewed and holds nothing. A
+`critical-security` hold (its `claude-lane-hold` comment) on that head, or one posted after the
+bot's review, on a later head, sends the dispute to a person as `feedback-question-security`.
+Before the lane has reviewed the head, the dispute waits: the round escalates nothing and skips
+`finding-stands`, so the next review completion or the scheduled sweep runs it again. Past the
+round cap such a finding
 goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
 count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account

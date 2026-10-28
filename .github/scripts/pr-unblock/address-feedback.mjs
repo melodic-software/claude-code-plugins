@@ -150,19 +150,38 @@ export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
   return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
 
-// The heads the security-review lane rated CRITICAL and held for a person:
-// its own hold comment (laneHold checks the author and footer) naming
-// lane=claude-security-review and the critical-security criterion.
+// The security-review lane's own signals on the PR: the heads it reviewed
+// (its reviewed-head marker, posted by github-actions[bot]) and the holds it
+// posted for a person on a CRITICAL rating (its hold comment naming
+// lane=claude-security-review and the critical-security criterion; laneHold
+// checks the author and footer), each with when it was posted.
 const SECURITY_HOLD = /^<!-- claude-lane-hold lane=claude-security-review sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->$/;
-export function securityHeldHeads(issueComments) {
-  const held = new Set();
-  for (const item of commentItems(issueComments)) {
-    const match = SECURITY_HOLD.exec(laneHold(item) ?? "");
-    if (match?.[2].split(",").includes("critical-security")) {
-      held.add(match[1]);
+export function securitySignals(issueComments) {
+  const reviewed = new Set();
+  const holds = [];
+  for (const comment of issueComments) {
+    const marker = comment.user?.id === MARKER_AUTHOR_ID ? REVIEWED_HEAD.exec(firstLine(comment.body)) : null;
+    if (marker?.[1] === "claude-security-review") {
+      reviewed.add(marker[2]);
+    }
+    const hold = SECURITY_HOLD.exec(laneHold({ event: "commented", ...comment }) ?? "");
+    if (hold?.[2].split(",").includes("critical-security")) {
+      holds.push({ sha: hold[1], at: Date.parse(comment.created_at ?? "") });
     }
   }
-  return held;
+  return { reviewed, holds };
+}
+
+// A listed bot's finding as the security-review lane left the PR: held (a
+// critical-security hold on the head the bot reviewed, or one posted at or
+// after its review, so on a later head), clear (the lane reviewed that head
+// and holds nothing), or pending (the lane has not reviewed it yet).
+export function securityState({ reviewed, holds }, review) {
+  const since = Date.parse(review.submitted_at ?? "");
+  if (holds.some((hold) => hold.sha === review.commit_id || hold.at >= since)) {
+    return "held";
+  }
+  return reviewed.has(review.commit_id) ? "clear" : "pending";
 }
 
 export function reviewedHeads(issueComments) {
@@ -453,7 +472,7 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
 // review bot's comment is tagged `listed`, from its account id alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, securityHeads = new Set(), reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -496,11 +515,10 @@ export function keepThreads({ threads, reviewComments, reviews, heads, securityH
       comments: rows.map((row, i) => {
         const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
         const listed = authors[i].author === "reviewer" && reviewerIds.includes(row.user?.id);
-        // A listed bot's finding on a head the security-review lane held as
-        // CRITICAL (securityHeldHeads): the lane's rating, not the bot's
-        // badge, decides it goes to a person.
-        const securityHeld = listed && i === 0 && securityHeads.has(review.commit_id);
-        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), ...(listed ? { listed } : {}), ...(securityHeld ? { securityHeld } : {}), body: row.body ?? "" };
+        // A listed bot's root carries the security-review lane's state for
+        // it (securityState): the lane's rating, not the bot's badge, decides.
+        const state = listed && i === 0 ? { security: securityState(security, review) } : {};
+        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), ...(listed ? { listed } : {}), ...state, body: row.body ?? "" };
       }),
     });
   }
@@ -546,7 +564,7 @@ export async function select({
     reviewComments,
     reviews,
     heads: reviewedHeads(issueComments),
-    securityHeads: securityHeldHeads(issueComments),
+    security: securitySignals(issueComments),
     reviewerId,
     reviewerIds,
     appId,
@@ -669,7 +687,7 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), securityHeads: securityHeldHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 

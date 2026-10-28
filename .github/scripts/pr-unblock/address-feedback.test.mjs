@@ -1281,7 +1281,7 @@ function botThread({ root = CODEX, login = CODEX_LOGIN, reviewer = root, replies
 test("a Codex-started thread on a marker-confirmed head is worked like the reviewer bot's, its own replies included", async () => {
   const result = await codexRun(fakeApi(botThread()));
   assert.equal(result.decision, "proceed");
-  assert.deepEqual(result.file.threads[0].comments, [{ id: 100, author: "reviewer", listed: true, body: "finding 100" }]);
+  assert.deepEqual(result.file.threads[0].comments, [{ id: 100, author: "reviewer", listed: true, security: "pending", body: "finding 100" }]);
   const replied = await codexRun(fakeApi(botThread({ replies: [[101, CODEX, "finding 101"]] })));
   assert.equal(replied.decision, "proceed");
   assert.deepEqual(replied.file.threads[0].comments.map((row) => [row.id, row.author]), [[100, "reviewer"], [101, "reviewer"]]);
@@ -1291,31 +1291,48 @@ test("a Codex-started thread on a marker-confirmed head is worked like the revie
 });
 
 // The security-review lane's hold comment for a person, as its status job
-// posts it on a CRITICAL rating.
-const securityHold = (sha, criteria = "critical-security", user = { id: ACTIONS_BOT, login: "github-actions[bot]", type: "Bot" }) => ({
+// posts it on a CRITICAL rating, and its reviewed-head marker.
+const securityHold = (sha, { criteria = "critical-security", user = { id: ACTIONS_BOT, login: "github-actions[bot]", type: "Bot" }, at = "2026-10-17T09:00:00Z" } = {}) => ({
   id: 2,
   user,
+  created_at: at,
   body: `<!-- claude-lane-hold lane=claude-security-review sha=${sha} criteria=${criteria} -->\n**claude-security-review** holds this pull request for a person.\n\nclaude-lane: claude-security-review`,
 });
+const securityMarked = (sha = HEAD) => ({ id: 3, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", sha) });
 const lanesMarked = (...extra) => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, ...extra];
+// Codex's review on HEAD, submitted at 10:00.
+const codexAt = (issueComments) => {
+  const base = botThread();
+  return fakeApi({ ...base, reviews: base.reviews.map((review) => ({ ...review, submitted_at: "2026-10-17T10:00:00Z" })), issueComments });
+};
+const stateOf = async (issueComments) => (await codexRun(codexAt(issueComments))).file.threads[0].comments[0].security;
 
-test("a Codex finding on a head the security-review lane held as CRITICAL is tagged securityHeld; no other hold tags it", async () => {
-  const held = await codexRun(fakeApi({ ...botThread(), issueComments: lanesMarked(securityHold(HEAD)) }));
-  assert.deepEqual(held.file.threads[0].comments, [{ id: 100, author: "reviewer", listed: true, securityHeld: true, body: "finding 100" }]);
-  const { kept } = await currentThreads({ api: fakeApi({ ...botThread(), issueComments: lanesMarked(securityHold(HEAD)) }), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
-  assert.equal(kept[0].comments[0].securityHeld, true);
+test("a Codex root carries the security-review lane's state: clear once the lane reviewed its head, pending before", async () => {
+  assert.equal(await stateOf(lanesMarked(securityMarked())), "clear");
+  assert.equal(await stateOf(lanesMarked()), "pending");
+  // A marker for another head, or the code lane's marker, does not clear it.
+  assert.equal(await stateOf(lanesMarked(securityMarked(OLD_HEAD))), "pending");
+  // The reply job's re-read carries the same state.
+  const { kept } = await currentThreads({ api: codexAt(lanesMarked(securityMarked())), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.equal(kept[0].comments[0].security, "clear");
+  // The reviewer bot's own finding carries none.
+  const own = await select({ api: fakeApi({ issueComments: lanesMarked(securityHold(HEAD)) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]) });
+  assert.equal(own.file.threads[0].comments[0].security, undefined);
+});
+
+test("a critical-security hold on the reviewed head, or on a later head, marks a Codex root held; no other hold does", async () => {
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(HEAD))), "held");
+  // A hold the lane posted after Codex's review, on a later head, counts.
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold("c".repeat(40), { at: "2026-10-17T11:00:00Z" }))), "held");
+  // An earlier head's hold, posted before the review, does not.
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(OLD_HEAD))), "clear");
   for (const other of [
-    securityHold(OLD_HEAD),
-    securityHold(HEAD, "trust-gate"),
-    securityHold(HEAD, "critical-security", { id: 4343, login: "someone", type: "User" }),
+    securityHold(HEAD, { criteria: "trust-gate" }),
+    securityHold(HEAD, { user: { id: 4343, login: "someone", type: "User" } }),
     { ...securityHold(HEAD), body: securityHold(HEAD).body.replaceAll("claude-security-review", "claude-review") },
   ]) {
-    const result = await codexRun(fakeApi({ ...botThread(), issueComments: lanesMarked(other) }));
-    assert.equal(result.file.threads[0].comments[0].securityHeld, undefined, other.body);
+    assert.equal(await stateOf(lanesMarked(securityMarked(), other)), "clear", other.body);
   }
-  // The reviewer bot's own finding is never tagged.
-  const own = await select({ api: fakeApi({ issueComments: lanesMarked(securityHold(HEAD)) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]) });
-  assert.equal(own.file.threads[0].comments[0].securityHeld, undefined);
 });
 
 test("a thread an unlisted bot started is not worked, while the listed one's is", async () => {

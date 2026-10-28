@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicable, adjudicationReply, collect, DISPUTED, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicable, adjudicationReply, collect, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -463,15 +463,14 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
 
 // A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
 // opened: keepThreads tags it listed from the account id, never from its text,
-// and securityHeld when the security-review lane held its reviewed head as
-// CRITICAL. The badge line is Codex's, as on #10092 (P1) and #10293 (P2); its
-// level is the bot's own pick.
+// with the security-review lane's state for it (held, clear or pending). The
+// badge line is Codex's, as on #10092 (P1) and #10293 (P2); its level is the
+// bot's own pick.
 const badged = (level, color, title = "The lock is read first") =>
   `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  ${title}**\n\n\`lib/lock.mjs:40\` reads it.`;
-const listedThread = (id, body = badged("P2", "yellow"), securityHeld = false) =>
-  thread(id, [{ id: 1, author: "reviewer", listed: true, ...(securityHeld ? { securityHeld } : {}), body }]);
+const listedThread = (id, body = badged("P2", "yellow"), security = "clear") => thread(id, [{ id: 1, author: "reviewer", listed: true, security, body }]);
 const slotted = (t) => disputes(fileOf(t), incorrect(t.id)).slots.map((slot) => slot.thread);
-const settle = (t, verdict = { verdict: "lane", question: "none" }) =>
+const settle = (t, { verdict = { verdict: "lane", question: "none" }, pushed = false } = {}) =>
   settleDisputes({
     api: new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) }),
     pr: 42,
@@ -481,14 +480,14 @@ const settle = (t, verdict = { verdict: "lane", question: "none" }) =>
     shown: new Map([[t.id, { comment_ids: [1] }]]),
     now: new Map([[t.id, t]]),
     verdicts: new Map([[t.id, verdict]]),
-    pushed: false,
+    pushed,
     headMoved: async () => false,
     resolveAfterReply: async () => assert.fail("not resolved"),
     escalationReason: "",
     log: () => {},
   });
 
-test("a listed review bot's dispute is adjudicated at any badge, as the code lane's is, when the security lane holds nothing", () => {
+test("a listed review bot's dispute is adjudicated at any badge once the security lane reviewed its head and holds nothing", () => {
   for (const body of [
     badged("P3", "green"),
     badged("P2", "yellow"),
@@ -506,22 +505,35 @@ test("a listed review bot's dispute is adjudicated at any badge, as the code lan
   assert.deepEqual(slotted(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`)), []);
 });
 
-test("a listed review bot's dispute on a head the security lane held as CRITICAL is never adjudicated", () => {
-  for (const body of [badged("P3", "green"), badged("P2", "yellow", "The helper trusts the caller's ref")]) {
-    assert.equal(adjudicable(listedThread("PRRT_h", body, true).comments), false, body);
-    assert.deepEqual(slotted(listedThread("PRRT_h", body, true)), [], body);
+test("a listed review bot's dispute the security lane held, or has not reviewed yet, is never adjudicated", () => {
+  for (const security of ["held", "pending", undefined]) {
+    const t = thread("PRRT_h", [{ id: 1, author: "reviewer", listed: true, ...(security ? { security } : {}), body: badged("P3", "green") }]);
+    assert.equal(adjudicable(t.comments), false, String(security));
+    assert.deepEqual(slotted(t), [], String(security));
   }
-  // securityHeld means nothing on the code lane's own finding.
-  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", securityHeld: true, body: "The token is logged." }]), true);
+  // The state means nothing on the code lane's own finding.
+  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", security: "held", body: "The token is logged." }]), true);
 });
 
-test("settleDisputes sends a security-held listed dispute to a person as a security question, and lets the adjudicator settle any other", async () => {
-  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), true)), { escalationReason: "feedback-question-security", skipReason: "" });
+test("settleDisputes sends a held listed dispute to a person as a security question, whatever verdict arrived", async () => {
+  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), "held")), { escalationReason: "feedback-question-security", skipReason: "" });
   assert.equal(escalationRoute("feedback-question-security"), "hold");
-  // A held head's verdict is ignored, whatever it says.
-  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), true), { verdict: "reviewer", question: "none" }), { escalationReason: "feedback-question-security", skipReason: "" });
-  // With no hold, the adjudicator's own security question still reaches a person.
-  assert.deepEqual(await settle(listedThread("PRRT_q", badged("P2", "yellow", "The helper trusts the caller's ref")), { verdict: "human", question: "security" }), {
+  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), "held"), { verdict: { verdict: "reviewer", question: "none" } }), { escalationReason: "feedback-question-security", skipReason: "" });
+});
+
+test("settleDisputes defers a listed dispute the security lane has not reviewed yet: no escalation, no verdict, the head released for the next round", async () => {
+  const pending = listedThread("PRRT_p", badged("P2", "yellow", "The helper trusts the caller's ref"), "pending");
+  // The verdict is ignored; nothing is posted or resolved (the API fails on any call).
+  assert.deepEqual(await settle(pending), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
+  assert.deepEqual(await settle(pending, { verdict: { verdict: "human", question: "security" } }), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
+  // A round that pushed moved the head; its review run starts the next round.
+  assert.deepEqual(await settle(pending, { pushed: true }), { escalationReason: "", skipReason: "" });
+  // A pending listed finding that carries `severity: CRITICAL` still goes to a person.
+  assert.deepEqual(await settle(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`, "pending")), { escalationReason: "feedback-disputed", skipReason: "" });
+});
+
+test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own security question still reaches a person", async () => {
+  assert.deepEqual(await settle(listedThread("PRRT_q", badged("P2", "yellow", "The helper trusts the caller's ref")), { verdict: { verdict: "human", question: "security" } }), {
     escalationReason: "feedback-question-security",
     skipReason: "",
   });

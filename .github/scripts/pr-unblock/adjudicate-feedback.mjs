@@ -85,19 +85,21 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 // that carries no `severity: CRITICAL` line and that keepThreads tagged with
 // the code-review lane (a github-actions[bot] footer; claude[bot] writes its
 // own body, so it names no lane) or as a listed review bot's (from its account
-// id), unless the security-review lane held that bot's reviewed head as
-// CRITICAL (securityHeld). The bot's own severity badge decides nothing. A
-// CRITICAL finding, a security-review finding, a listed bot's finding on a
-// security-held head, one of no tagged lane, and a pr-verify verifier note
-// (resolving it leaves the verifier's FAIL holding the merge, and pr-verify
-// judges each head once) always go to a person.
-export const listedSecurityHeld = (comments) => comments?.[0]?.listed === true && comments[0].securityHeld === true;
+// id) whose `security` state is clear: the security-review lane reviewed the
+// head the bot reviewed and holds nothing there or since. The bot's own
+// severity badge decides nothing. A listed bot's finding the lane held goes to
+// a person (feedback-question-security); one the lane has not reviewed yet
+// waits for the next round (settleDisputes). A CRITICAL finding, a
+// security-review finding, one of no tagged lane, and a pr-verify verifier
+// note (resolving it leaves the verifier's FAIL holding the merge, and
+// pr-verify judges each head once) always go to a person.
+const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].security ?? "pending" : null);
 export const adjudicable = (comments) => {
   const root = comments?.[0];
   if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? ""))) {
     return false;
   }
-  return root.listed === true ? root.securityHeld !== true : root.lane === "claude-review";
+  return root.listed === true ? listedState(comments) === "clear" : root.lane === "claude-review";
 };
 
 // The locations a review comment cites: path:line tokens in its prose and
@@ -305,8 +307,9 @@ const ORDER = [
 // Whether a thread is a pr-verify verifier note (threadAuthors tags it).
 const verifierNote = (comments) => comments?.[0]?.author === "verifier";
 
-// The reply job's skip reason for a round that left a finding standing with
-// the PR head where the select job read it: no review run follows to start
+// The reply job's skip reason for a round that left a finding standing, or a
+// listed bot's dispute waiting on the security-review lane, with the PR head
+// where the select job read it: no review run may follow to start
 // the round that fixes it, so feedback-dispatch.mjs's sweep dispatches that
 // head again.
 export const FINDING_STANDS_SKIP = "finding-stands";
@@ -318,8 +321,10 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   feedback-disputed, and no adjudication;
 // - a DISPUTED pr-verify verifier note: feedback-verifier-open (pr-verify's
 //   own FAIL holds the merge, and it judges the next head afresh);
-// - a DISPUTED listed review bot's finding on a head the security-review
-//   lane held as CRITICAL: feedback-question-security;
+// - a DISPUTED listed review bot's finding the security-review lane held as
+//   CRITICAL: feedback-question-security; one whose head the lane has not
+//   reviewed yet is deferred: no verdict, no escalation, and the round skips
+//   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL or
 //   security-review finding, or one of unknown lane) goes to a person:
 //   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
@@ -339,6 +344,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 // feedback-partial. Returns {escalationReason, skipReason}.
 export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
   let stands = false;
+  // A listed bot's dispute the security-review lane has not rated yet: like a
+  // finding that stood, it is left for the next round at this head.
+  let deferred = false;
   let reason = escalationReason;
   const raise = (next) => {
     if (ORDER.indexOf(next) < ORDER.indexOf(reason)) {
@@ -368,9 +376,14 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       raise("feedback-verifier-open");
       continue;
     }
-    if (listedSecurityHeld(comments)) {
+    if (listedState(comments) === "held") {
       log(`${thread}: the security-review lane held this head as CRITICAL; a listed review bot's finding on it goes to a person`);
       raise("feedback-question-security");
+      continue;
+    }
+    if (listedState(comments) === "pending" && !CRITICAL.test(String(comments[0].body ?? ""))) {
+      log(`${thread}: the security-review lane has not reviewed this head yet; the dispute waits for the next round`);
+      deferred = true;
       continue;
     }
     if (!adjudicable(comments)) {
@@ -432,7 +445,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       break;
     }
   }
-  return { escalationReason: reason, skipReason: stands && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };
+  return { escalationReason: reason, skipReason: (stands || deferred) && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };
 }
 
 export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {

@@ -1128,9 +1128,10 @@ github-actions[bot] review comment whose footer names the code-review lane
 a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
-decides nothing: when the security-review lane held the bot's reviewed head as CRITICAL (its
-`claude-lane-hold` comment with `critical-security`), a dispute on the bot's finding escalates
-`feedback-question-security` instead. A CRITICAL finding, a security-review finding and one
+decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
+bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
+bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
+and the round skips `finding-stands`. A CRITICAL finding, a security-review finding and one
 whose lane its root comment does not name go to a person: an `INCORRECT` reply on one escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
 and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
