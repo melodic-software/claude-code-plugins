@@ -121,10 +121,12 @@ the artifacts whose `expires_at` had passed by the response's `Date`. Three
 incremental listings that day each held exactly that count and every artifact
 a full listing taken just after held, plus 0, 1 and 3 that the full listing
 skipped at its page boundaries though they still existed. An artifact that
-expires during the read can only make the counts differ. Any other count or
-failed read is read again on the same base, up to `INCREMENTAL_READS` reads;
-after those, or with a base that is missing, older or of another shape, it
-lists every page, checked the same way. A carry forged to drop a FAIL must therefore
+expires during the read can only make the counts differ. Pages that read
+whole but hold any other count are read again on the same base, up to
+`INCREMENTAL_READS` reads; after those, on any failed read (a timeout, a 429
+or a rate-limit 403 included, which are never read again), or with a base
+that is missing, older or of another shape, it lists every page, checked the
+same way. A carry forged to drop a FAIL must therefore
 also hold a fabricated entry in its place to match the live count, and forging it already needs code
 running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
 job holds the lanes App token.
@@ -298,6 +300,14 @@ LISTING_PAGE_SIZE = 100
 # that. A second read costs about 4 pages against 71 (judgment on that
 # data).
 INCREMENTAL_READS = 2
+
+
+class _CountMissed:
+    """`Reader._incremental`'s answer when its pages read whole but do not
+    hold the live count, the one case read again on the same base."""
+
+
+COUNT_MISSED = _CountMissed()
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -905,13 +915,15 @@ class Reader:
             return self._artifacts
         fetched_at = _wall_clock()
         base = self._incremental_base()
-        listing = None
+        listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
+        # Only pages that read whole but missed the live count are read again;
+        # a failed read lists every page at once, as `_read_listing` decides.
         for _ in range(INCREMENTAL_READS if base is not None else 0):
             listing = self._incremental(base)
-            if listing is not None:
+            if listing is not COUNT_MISSED:
                 break
         self.listing_mode = "incremental"
-        if listing is None:
+        if not isinstance(listing, list):
             self.listing_mode = "full"
             try:
                 listing = self._complete_listing()
@@ -1005,7 +1017,7 @@ class Reader:
                 else:
                     raise _Unreadable("repository artifacts: an entry with no id")
             listing = self._incremental((read_at, list(union.values())), deadline)
-            if listing is not None:
+            if isinstance(listing, list):
                 return listing
         raise _Unreadable(
             f"repository artifacts: {LISTING_READS} whole listings never held "
@@ -1016,9 +1028,10 @@ class Reader:
         self,
         base: tuple[datetime, list[dict[str, Any]]] | None = None,
         deadline: float | None = None,
-    ) -> list[dict[str, Any]] | None:
+    ) -> list[dict[str, Any]] | _CountMissed | None:
         """Every repository artifact, as the base (`_incremental_base`) and
-        the newest pages read now show them, or None for a full listing.
+        the newest pages read now show them; `COUNT_MISSED` when the pages
+        read but the result does not hold the live count, else None.
 
         The listing comes newest id first. Pages are read from the first
         until one holds an artifact at or below the base's highest id that
@@ -1031,8 +1044,9 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
-        GitHub's live count. Any other count, no base, an entry or page of
-        another shape, a missing `Date`, or any failed read gives None.
+        GitHub's live count: any other count gives `COUNT_MISSED`. No base,
+        an entry or page of another shape, a missing `Date`, or any failed
+        read gives None.
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
         if base is not None and not all(_listed_entry(a) for a in base[1]):
@@ -1105,7 +1119,7 @@ class Reader:
             and (a["expires_at"] is None or _when(a["expires_at"]) > server_now)
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
-        return listing if len(listing) == total else None
+        return listing if len(listing) == total else COUNT_MISSED
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""

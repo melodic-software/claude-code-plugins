@@ -8,4 +8,4 @@ bump: patch
 
 ### Fixed
 
-- `babysit_verify_evidence.py` reads the incremental listing a second time on the same base before it pages the whole listing (`INCREMENTAL_READS`). The first pr-merge tick on a carried base (run 40600822658, 2026-10-27) read 4 pages that missed the live count by a moving page boundary or similar and then paged all 71 in the skip filter; the same base read again five minutes later held the live count in 4 pages.
+- `babysit_verify_evidence.py` reads the incremental listing a second time on the same base before it pages the whole listing (`INCREMENTAL_READS`), only when its pages read whole but missed the live count; a failed read (a timeout, a 429 or a rate-limit 403 included) pages the whole listing at once, as before. The first pr-merge tick on a carried base (run 40600822658, 2026-10-27) read 4 pages that missed the live count (cause unverified) and then paged all 71 in the skip filter; the same base read again five minutes later held the live count in 4 pages.

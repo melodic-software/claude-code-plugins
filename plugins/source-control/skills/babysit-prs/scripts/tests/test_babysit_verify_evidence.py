@@ -3086,6 +3086,47 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
             (fake.pages(), fake.full_listings()), (ve.INCREMENTAL_READS + 1, 1)
         )
 
+    def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
+        # A 429, a rate-limit 403 or a timeout on the first incremental page
+        # is never read again (`_read_listing`'s rule): the whole listing
+        # follows at once, as before the count-miss retry.
+        failures: dict[str, Any] = {
+            "429": subprocess.CompletedProcess(
+                [], 1, "", "gh: API rate limit exceeded (HTTP 429)"
+            ),
+            "rate-limit 403": subprocess.CompletedProcess(
+                [], 1, "", "gh: API rate limit exceeded for installation (HTTP 403)"
+            ),
+            "timeout": timed_out(),
+        }
+        for label, failure in failures.items():
+            with self.subTest(label):
+                self.saved.unlink(missing_ok=True)
+                self.write_carry(self.base)
+                fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+                first = [True]
+
+                def page(args: list[str], **kwargs: Any) -> Any:
+                    if first[0] and args[1].endswith("&page=1"):
+                        first[0] = False
+                        fake.calls.append(args)
+                        if isinstance(failure, BaseException):
+                            raise failure
+                        return failure, {}
+                    return fake(args, **kwargs), {"date": DATE}
+
+                with (
+                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                    mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+                ):
+                    reader = ve.Reader(REPO, "main", now=NOW)
+                    evidence = reader.evidence(PR, HEAD, pull())
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertEqual(reader.listing_mode, "full")
+                # The failed page, then the whole listing and its top-up, two
+                # pages down to 900; no second read on the carried base.
+                self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
+
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
         # The first read's live count is one more than its pages hold, as
         # when a page boundary moves during the read; the next read holds it
