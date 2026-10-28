@@ -60,17 +60,6 @@ const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0
 // The security-review lane's severity line (security-review SKILL.md,
 // "Reporting"), anywhere in the comment.
 const CRITICAL = /^[ \t]*severity:[ \t]*critical[ \t]*$/im;
-// The severity badge a listed review bot's finding opens with, as Codex
-// (chatgpt-codex-connector[bot]) writes it on #10092: the whole first line
-// starts with it, and the level in the alt text and the shields.io URL agree.
-const LISTED_BADGE = /^\*\*<sub><sub>!\[P([0-3]) Badge\]\(https:\/\/img\.shields\.io\/badge\/P\1-[a-z]+\?style=flat\)<\/sub><\/sub>/;
-// Words naming the adjudicator's `security` question (adjudicate-feedback.prompt.md:
-// "a risk to the repository, its secrets or its users") in a listed bot's
-// finding, whose badge is a priority the bot picks itself and marks no
-// security class. A false match only sends the finding to a person.
-const SECURITY_CLASS =
-  /\b(?:security|secrets?|credential\w*|tokens?|api[ _-]?keys?|passwords?|private[ _-]keys?|inject\w*|xss|csrf|ssrf|rce|privilege\w*|permissions?|authentic\w*|authori[sz]\w*|exfiltrat\w*|leak\w*|vulnerab\w*|exploit\w*|traversal|sanitiz\w*|escap\w*|untrusted|malicious)\b/i;
-
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
 
@@ -86,30 +75,17 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 
 // Whether an adjudicator may judge a dispute on the thread: only a review
 // comment keepThreads tagged with the code-review lane (a github-actions[bot]
-// footer; claude[bot] writes its own body, so it names no lane) or as a
-// listed review bot's (from its account id) whose first line opens with a
-// P2 or P3 severity badge (LISTED_BADGE; a P0, a P1 or an unreadable badge
-// goes to a person) and whose text names no security class (listedSecurity),
-// that carries no `severity: CRITICAL` line. A CRITICAL finding, a security-review
-// finding, one of no tagged lane, and a pr-verify verifier note (resolving it
-// leaves the verifier's FAIL holding the merge, and pr-verify judges each
-// head once) always go to a person.
-export const listedSecurity = (comments) => {
-  const root = comments?.[0];
-  return root?.author === "reviewer" && root.listed === true && SECURITY_CLASS.test(String(root.body ?? ""));
-};
+// footer; claude[bot] writes its own body, so it names no lane) that carries
+// no `severity: CRITICAL` line. A listed review bot's finding never is: its
+// severity is a badge the bot picks itself and marks no security class, so
+// no text it writes can show a dispute is safe for a model to dismiss. A
+// CRITICAL finding, a security-review finding, a listed bot's finding, one of
+// no tagged lane, and a pr-verify verifier note (resolving it leaves the
+// verifier's FAIL holding the merge, and pr-verify judges each head once)
+// always go to a person.
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? "")) || listedSecurity(comments)) {
-    return false;
-  }
-  if (root.listed === true) {
-    // P0 and P1 are the listed bot's CRITICAL; a badge that does not read
-    // fails closed.
-    const level = LISTED_BADGE.exec(firstLine(root.body))?.[1];
-    return level === "2" || level === "3";
-  }
-  return root.lane === "claude-review";
+  return root?.author === "reviewer" && root.listed !== true && root.lane === "claude-review" && !CRITICAL.test(String(root.body ?? ""));
 };
 
 // The locations a review comment cites: path:line tokens in its prose and
@@ -322,10 +298,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 // - an INCORRECT thread a trusted person directed (directed) is theirs:
 //   feedback-disputed, and no adjudication;
 // - an INCORRECT thread that is not adjudicable (a CRITICAL or
-//   security-review finding, a verifier note, or one of unknown lane) goes to
-//   a person: feedback-disputed, and any verdict for it is ignored; a listed
-//   review bot's finding that names a security class goes to a person as
-//   feedback-question-security;
+//   security-review finding, a listed review bot's finding, a verifier note,
+//   or one of unknown lane) goes to a person: feedback-disputed, and any
+//   verdict for it is ignored;
 // - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
@@ -358,11 +333,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
     if (directed(now.get(thread)?.comments)) {
       log(`${thread}: a trusted person directed this thread; it goes back to them, not to an adjudicator`);
       raise("feedback-disputed");
-      continue;
-    }
-    if (listedSecurity(now.get(thread)?.comments)) {
-      log(`${thread}: a listed review bot's finding names a security class; it goes to a person, not to an adjudicator`);
-      raise("feedback-question-security");
       continue;
     }
     if (!adjudicable(now.get(thread)?.comments)) {

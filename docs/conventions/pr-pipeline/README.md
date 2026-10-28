@@ -2658,17 +2658,12 @@ without one the tracker file and the trusted-actor list are not read, nothing is
 
 `review-threads.reviewer-ids` lists review bots, besides `claude[bot]` and the review lanes, whose
 review threads `address-feedback` works exactly as the reviewer bot's (owner decision
-2026-10-26): it fixes or explains each finding, an `INCORRECT` reply on a non-CRITICAL one goes
-to the adjudicator as a code-review lane finding does, `publish-feedback` resolves what it fixed,
-and the trusted-person and human-gated rules above apply unchanged. Codex states severity as a
-shields.io badge opening the finding's first line (`![P1 Badge](https://img.shields.io/badge/P1-…)`),
-not a `severity:` line: a P0 or P1 counts as CRITICAL and is never adjudicated (owner decision
-2026-10-27), and a finding whose first line does not open with a P0-P3 badge whose alt text and
-URL agree also goes to a person. Only P2 and P3 are adjudicated, and only when the finding's text
-names no security class (a secret, token, credential, injection, permission or the like): the
-badge is Codex's own pick and marks none, so such a finding goes to a person as a security
-question (`feedback-question-security`) whatever its badge. Past the round cap such a
-finding goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
+2026-10-26): it fixes or explains each finding, `publish-feedback` resolves what it fixed, and
+the trusted-person and human-gated rules above apply unchanged. An `INCORRECT` reply on a listed
+bot's finding is never adjudicated and goes to a person (`feedback-disputed`): Codex states
+severity as a shields.io badge it picks itself and marks no security class, so no text it writes
+can show a dispute is safe for a model to dismiss. Past the round cap such a finding goes to a
+person, as a `claude[bot]` finding does. The bot's later comments in its thread
 count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the

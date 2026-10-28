@@ -401,45 +401,32 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
 
 // A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
 // opened: keepThreads tags it listed from the account id, never from its text.
-const CODEX_REVIEW = "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  The lock is read first**\n\n`lib/lock.mjs:40` reads it.";
-const listedThread = (id, body = CODEX_REVIEW) => thread(id, [{ id: 1, author: "reviewer", listed: true, body }]);
-
-test("disputes adjudicates a listed review bot's finding like the code lane's, but not a CRITICAL one or the reviewer bot's own", () => {
-  const { slots } = disputes(fileOf(listedThread("PRRT_x")), incorrect("PRRT_x"), "o/r");
-  assert.deepEqual(slots.map((slot) => [slot.thread, slot.finding.comment]), [["PRRT_x", CODEX_REVIEW]]);
-  assert.deepEqual(slots[0].cited, [{ path: "lib/lock.mjs", line: 40 }]);
-  const critical = listedThread("PRRT_c", `${CODEX_REVIEW}\n\nseverity: critical`);
-  // claude[bot]'s own finding carries no lane and is not listed.
-  const own = thread("PRRT_o", [{ id: 1, author: "reviewer", body: CODEX_REVIEW }]);
-  assert.deepEqual(disputes(fileOf(critical, own), [incorrect("PRRT_c"), incorrect("PRRT_o")].join("\n")).slots, []);
-});
-
 // The badge line Codex opens each finding with, as on #10092 (P1) and #10293
-// (P2); a P0 carries the same shape.
-const badged = (level, color) => `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  The lock is read first**\n\n\`lib/lock.mjs:40\` reads it.`;
+// (P2); its level is the bot's own pick.
+const badged = (level, color, title = "The lock is read first") =>
+  `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  ${title}**\n\n\`lib/lock.mjs:40\` reads it.`;
+const listedThread = (id, body = badged("P2", "yellow")) => thread(id, [{ id: 1, author: "reviewer", listed: true, body }]);
 
-test("a listed review bot's P0 and P1 findings are never adjudicated, as a CRITICAL lane finding is not; P2 and P3 are", () => {
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_2", badged("P2", "yellow"))), incorrect("PRRT_2")).slots.map((slot) => slot.thread), ["PRRT_2"]);
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_3", badged("P3", "green"))), incorrect("PRRT_3")).slots.map((slot) => slot.thread), ["PRRT_3"]);
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_1", badged("P1", "orange"))), incorrect("PRRT_1")).slots, []);
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_0", badged("P0", "red"))), incorrect("PRRT_0")).slots, []);
-});
-
-test("a listed review bot's finding whose severity badge cannot be read goes to a person", () => {
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_2", badged("P2", "yellow"))), incorrect("PRRT_2")).slots.map((slot) => slot.thread), ["PRRT_2"]);
+test("a listed review bot's finding is never adjudicated, whatever its badge or words; the code lane's still is", () => {
   for (const body of [
+    badged("P3", "green"),
+    badged("P2", "yellow"),
+    // Security wording no keyword list would catch, at a low badge.
+    badged("P2", "yellow", "Path traversal in file read"),
+    badged("P3", "green", "The helper trusts the caller's ref"),
+    badged("P1", "orange"),
+    badged("P0", "red"),
     "No badge at all.\n\n`lib/lock.mjs:40` reads it.",
-    // A badge-shaped string later in the prose is not the badge.
-    `Plain title\n\n${badged("P2", "yellow")}`,
-    badged("P9", "blue"),
-    // The level in the alt text and the URL must agree.
-    badged("P2", "yellow").replace("badge/P2-", "badge/P0-"),
   ]) {
-    assert.deepEqual(disputes(fileOf(listedThread("PRRT_u", body)), incorrect("PRRT_u")).slots, [], body);
+    assert.equal(adjudicable(listedThread("PRRT_l", body).comments), false, body);
+    assert.deepEqual(disputes(fileOf(listedThread("PRRT_l", body)), incorrect("PRRT_l")).slots, [], body);
   }
+  // A listed tag on a code-lane-footed comment does not open the lane's path.
+  assert.equal(adjudicable([{ id: 1, author: "reviewer", listed: true, lane: "claude-review", body: badged("P3", "green") }]), false);
+  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", body: "The token is logged." }]), true);
 });
 
-for (const level of ["P0", "P1"]) {
+for (const level of ["P0", "P1", "P2", "P3"]) {
   test(`settleDisputes sends an INCORRECT reply on a listed bot's ${level} finding to a person, whatever verdict arrived`, async () => {
     const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
     const result = await settleDisputes({
@@ -460,38 +447,3 @@ for (const level of ["P0", "P1"]) {
     assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
   });
 }
-
-// A P2 Codex finding about a security class: its badge is Codex's own pick.
-const tokenExposure = "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Step writes GITHUB_TOKEN to the job log**\n\n`.github/workflows/ci.yml:40` echoes the token.";
-
-test("a listed review bot's P2 finding that names a security class is never adjudicated; one that names none still is", () => {
-  assert.equal(adjudicable(listedThread("PRRT_s", tokenExposure).comments), false);
-  assert.deepEqual(disputes(fileOf(listedThread("PRRT_s", tokenExposure)), incorrect("PRRT_s")).slots, []);
-  for (const title of ["Lets a contributor escalate privileges", "User input is injected into the shell command", "Path traversal in file read"]) {
-    const body = tokenExposure.replace("Step writes GITHUB_TOKEN to the job log", title).replace("echoes the token", "reads it");
-    assert.equal(adjudicable(listedThread("PRRT_i", body).comments), false, title);
-  }
-  assert.equal(adjudicable(listedThread("PRRT_2", badged("P2", "yellow")).comments), true);
-  // The code lane's own finding keeps its path whatever its words.
-  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", body: "The token is logged." }]), true);
-});
-
-test("settleDisputes sends an INCORRECT reply on a listed bot's security-class P2 finding to a person as a security question, whatever verdict arrived", async () => {
-  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
-  const result = await settleDisputes({
-    api,
-    pr: 42,
-    adjudicatedSha: HEAD,
-    posted: [{ thread: "PRRT_s", disposition: "INCORRECT" }],
-    replies: [],
-    shown: new Map([["PRRT_s", { comment_ids: [1] }]]),
-    now: new Map([["PRRT_s", listedThread("PRRT_s", tokenExposure)]]),
-    verdicts: new Map([["PRRT_s", { verdict: "lane", question: "none" }]]),
-    pushed: false,
-    headMoved: async () => false,
-    resolveAfterReply: async () => assert.fail("not resolved"),
-    escalationReason: "",
-    log: () => {},
-  });
-  assert.deepEqual(result, { escalationReason: "feedback-question-security", skipReason: "" });
-});

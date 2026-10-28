@@ -1108,15 +1108,12 @@ trusted person directed (a fix request, or a reply after an escalation) stays th
 `INCORRECT` reply on it escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
-bot's comment (`review-threads.reviewer-ids`; the select job tags it `listed: true` from the
-comment's account id, never its text) whose first line opens with a P2 or P3 severity badge, that
-carries no `severity: CRITICAL` line is adjudicated; a listed bot's P0 or P1, or a finding whose
-badge does not read, goes to a person, and a listed bot's finding whose text names a security
-class escalates `feedback-question-security` instead of taking a slot. A CRITICAL finding, a
-security-review finding, one whose lane its root comment does not name, and a pr-verify verifier
-note always go to a person: an `INCORRECT` reply on one escalates `feedback-disputed`, takes no
-slot, and any verdict for it is ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
+a footer in a claude[bot] comment, whose body the model writes, names none) that carries no
+`severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, a listed
+review bot's finding (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's
+account id; its severity badge is the bot's own pick), one whose lane its root comment does not
+name, and a pr-verify verifier note always go to a person: an `INCORRECT` reply on one escalates
+`feedback-disputed`, takes no slot, and any verdict for it is ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
 FAIL still holds the merge, and pr-verify judges each head once. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
 pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read
