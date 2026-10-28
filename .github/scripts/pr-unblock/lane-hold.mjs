@@ -12,6 +12,7 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, humanGatedLabelFrom, need, positive } from "./address-feedback.mjs";
 import { prHold } from "./gate-source.mjs";
 
@@ -32,6 +33,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      // Each answer's rate-limit reading, for the job-end api-budget notice.
+      fetch: rateLimitLatch.guard(globalThis.fetch),
     });
   const pull = await client.getPull(pr);
   const { held, laneEscalated, why } = await prHold({
