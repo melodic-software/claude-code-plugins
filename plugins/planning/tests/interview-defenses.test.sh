@@ -511,11 +511,12 @@ done
 # AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
 # The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
 # Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve rule byte-identical. The template's example bullets fold to one each and the resolver paragraph is rewrapped, to stay under the 500-line cap
+# The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "32ca83a2a8dfeef1db43ba8f85cbdc7582118c9a8a225fa47f78edb56aa79ed3"
+  "2425287a632a77f9b7ed5244681958cd44c043c5b450a1a106c2ef6878919421"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -632,11 +633,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The opt-in AskUserQuestion paragraph bounds a card round by one call's question limit, cited to the live Agent SDK page, in place of a hard-coded count; the `lock` row is unchanged.
 # The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
 # The `lock` row now confirms the one-line problem with one question before synthesis; its STOP-on-gap clause is unchanged.
+# The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "cf71745426cb4e6b3def423ba3ff8c75eda4ee2a797bef9c39d36278f7792273"
+  "2d05ea862c0eff118cbfc001d03d57bb9530c04a253202471fadc4c6ce6ce20c"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
