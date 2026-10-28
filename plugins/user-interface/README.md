@@ -10,6 +10,7 @@ project's existing look, reuses the design tools already installed, and fills on
 | `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
 | `/user-interface:write-animation` | Decide whether an element should animate at all, then write one interface animation in the project's stack from its motion tokens and the stack's current docs, with reduced motion included; CSS goes through write-css |
 | `/user-interface:audit` | Review interface code read-only, one concern lane at a time: the diff (default), the whole tree, or every lane before a launch; the motion lane also finds where animation would help or must not go, and why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
+| `/user-interface:glossary` | Name the design or front-end term for an effect, detail or behavior someone describes, tell near-synonyms apart, and ask for a reference image when no term fits |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
 ## How it routes

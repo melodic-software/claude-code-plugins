@@ -7,9 +7,9 @@ the values in the resolved `animation:` config fill only what the project leaves
 The rules name what the eye and hand experience, not an API. For how the project's stack expresses
 a rule, look up the stack's own current documentation. An example anywhere in this folder is
 labeled an illustration of one stack, to adapt to whatever the project uses, never a template to
-copy. CSS authoring itself belongs to `/user-interface:write-css`. Words for effects are in
-`glossary.md`, per-component specs in `behaviors.md`, touch and drag in `gestures.md`, frame cost
-in `performance.md`, all in this folder.
+copy. CSS authoring itself belongs to `/user-interface:write-css` and the names for effects to
+`/user-interface:glossary`. Per-component specs are in `behaviors.md`, touch and drag in
+`gestures.md`, frame cost in `performance.md`, all in this folder.
 
 Already covered in `../types/web.md` ("Motion and interaction") and not restated here: continuing
 from the current value when the target changes, expanding to content height, appearance changes
