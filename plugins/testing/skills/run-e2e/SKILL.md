@@ -138,10 +138,15 @@ failed scenario returns a failure packet path with the evidence paths.
 
 ### Drive route
 
-The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>` through the Skill tool
-once per touched feature, adding `--unattended` on an `unattended` run. Drive's own body governs the
-launch, Ready, the steps, captures and its cleanup, and its tools come from the control skill:
-`e2e_driver`, `reuse_running_instance` and `browser_driver` do not apply on this route.
+The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>/<feature>` through the
+Skill tool once per touched feature, adding `--unattended` on an `unattended` run. Each feature gets
+its own directory because drive writes one `report.md` and `report.json` per run directory; the
+subagent returns every feature's report paths. Drive's own body governs the launch, Ready, the
+steps, captures, browser sessions and its cleanup, and its tools come from the control skill. None
+of the five run-config keys applies on this route: `e2e_driver`, `reuse_running_instance` and
+`browser_driver` give way to the control skill, drive has no headed or headless setting for
+`browser_mode`, and a moving record (`recording`) is the control skill's `video` capture, taken
+only when the person asks for one.
 
 Drive records and never judges, so this skill judges. For each entry point, compare the steps and
 artifacts in drive's report with the expected outcome written in Step 2, holding them to

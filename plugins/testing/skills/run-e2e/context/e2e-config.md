@@ -17,7 +17,8 @@ two surfaces:
 All five keys govern only this skill's own driving ([own-driving.md](own-driving.md)). When a run
 goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, which
 `/app-control:map create` writes, supplies the driver, the reuse of a running instance and the
-browser tool, and these keys are not read.
+browser tool, and none of these keys is read: drive has no headed or headless setting, and a
+recording there is the control skill's `video` capture (SKILL.md, Drive route).
 
 This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
 merge is owned by the layering contract; see the
