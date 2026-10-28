@@ -93,6 +93,14 @@ jobs:
           [ -n "$base" ] || echo "::notice::A $GITHUB_EVENT_NAME run with no usable base runs every Windows step."
           scripts/plan-test-lanes.sh ${base:+--base "$base"} >>"$GITHUB_OUTPUT"
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # Every suite runs on Linux too. A suite is here because a Linux runner cannot
   # exercise part of what it tests:
   #
@@ -206,6 +214,14 @@ jobs:
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/run-guards.test.sh')
         run: bash plugins/guardrails/hooks/run-guards.test.sh
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   test-windows-rename-2:
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-rename-2') }}
@@ -253,6 +269,14 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   test-windows-secrets:
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-secrets') }}
@@ -290,6 +314,14 @@ jobs:
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   test-windows-guards:
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-guards') }}
@@ -310,6 +342,14 @@ jobs:
       - name: Test hardcoded-path-check on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   test-windows-hooks:
     needs: [select-tests-windows]
@@ -373,6 +413,14 @@ jobs:
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh')
         run: bash plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   test-windows-lib:
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-lib') }}
@@ -430,6 +478,14 @@ jobs:
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   test-windows-worktree:
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-worktree') }}
@@ -476,6 +532,14 @@ jobs:
       - name: Test the shared session tunnel on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
         run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The planning shared-session suites on macOS, the third platform
   # plugins/planning/shared/README.md names. detached.py's POSIX branches, file
@@ -539,3 +603,11 @@ jobs:
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_tunnel.py')
         timeout-minutes: 3
         run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
