@@ -3859,6 +3859,10 @@ def _lifted_by_person(
         default = repository_default_branch(repo)
         if not default:
             return False, "default branch unread"
+        # At its tip SHA, so no tag of the same name stands in for it; one
+        # that does not resolve raises, which is no lift.
+        owner, _, name = repo.partition("/")
+        tip = merge_policy.base_tip(owner, name, default)
         # The newest removal decides; a tie keeps the later timeline item.
         at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
         actor = json_object(event.get("actor"))
@@ -3866,7 +3870,7 @@ def _lifted_by_person(
             at > escalated
             and event.get("performed_via_github_app") is None
             and actor.get("type") == "User"
-            and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
+            and actor.get("id") in merge_policy.trusted_actors(repo, tip)[1]
             and merge_policy.is_human(
                 {"__typename": "User", "login": actor.get("login")},
                 repo=repo,

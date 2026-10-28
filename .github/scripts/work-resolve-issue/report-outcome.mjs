@@ -662,7 +662,9 @@ export function readSummary(dir, { issueNumber, branch }) {
 
 // The run-checks job's `checks` output: {tip, results: [{check, exit}]}, or
 // null unless it names this branch, a tip, and at most MAX_ITEMS whole-number
-// results, so no result is cut off. A check passes only on exit 0.
+// results, so no result is cut off. A check passes only on exit 0. On a reused
+// branch it adds `scan`, the leak scan's word for that tip (scan-reuse.mjs);
+// any word but clean holds the PR, and so does none.
 export function readChecks(text, { branch }) {
   let parsed;
   try {
@@ -680,8 +682,13 @@ export function readChecks(text, { branch }) {
     Array.isArray(results) &&
     results.length <= MAX_ITEMS &&
     results.every((result) => typeof result?.check === "string" && Number.isInteger(result.exit));
-  return valid ? { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) } : null;
+  if (!valid) {
+    return null;
+  }
+  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) };
+  return Object.hasOwn(parsed, "scan") ? { ...record, scan: SCAN_WORDS.has(parsed.scan) ? parsed.scan : "failed" } : record;
 }
+const SCAN_WORDS = new Set(["clean", "found", "failed"]);
 
 const checkFailures = (checks) =>
   checks === null
@@ -691,6 +698,35 @@ const checkFailures = (checks) =>
 // The gate a resumed branch passes before its PR opens and its statuses are
 // posted: at least one check ran and none failed.
 export const checksPassed = (checks) => Boolean(checks?.results.length) && !checkFailures(checks).length;
+
+// Whether the lane's PR holds for a person. decide() and reusePlan() both ask
+// here, so a reused branch holds on exactly the main path's conditions plus
+// its own leak scan: a trusted `merge: human`, an issue labeled
+// untrusted-provenance, an unreadable denied-path list or changed-file list,
+// a listing cut at the cap while some path is denied (it may hide one), a
+// changed path the merge lane refuses, runner checks missing or not all
+// passed, and on a reused branch a leak scan that is missing or not clean.
+export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
+  return (
+    humanMerge ||
+    issueLabels.includes(UNTRUSTED_PROVENANCE) ||
+    holdPaths === null ||
+    changedFiles === null ||
+    (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
+    changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
+    !checks ||
+    checkFailures(checks).length > 0 ||
+    (reused && checks.scan !== "clean")
+  );
+}
+
+// The reused branch's leak scan as the PR body's Verification section shows it.
+const scanLine = (checks) =>
+  checks?.scan === "clean"
+    ? "The runner's leak scan read everything the branch changes since its merge base with the default branch and found nothing credential-shaped."
+    : checks?.scan === "found"
+      ? "The runner's leak scan found a credential shape or a password or secret assignment in what the branch changes, so a person merges this."
+      : "The runner's leak scan of the branch did not finish or could not be read, so a person merges this.";
 
 // The runner's check results as the PR body's Verification section shows them.
 const checkLines = (checks) =>
@@ -729,11 +765,12 @@ function fileList(files, holdPaths) {
 }
 
 // A lane branch an earlier run left with commits and no report, whose outcome
-// this run cannot read: a PR a human merges, listing the files it changes.
-// With the summary pass's summary it carries that text; without it, titled
-// from the issue, no model text.
+// this run cannot read: a PR listing the files it changes, held on mustHold's
+// conditions. With the summary pass's summary it carries that text; without
+// it, titled from the issue, no model text.
 export function reusePlan({
   issueNumber,
+  issueLabels = [],
   issueTitle = "",
   branch,
   runUrl = "",
@@ -741,8 +778,10 @@ export function reusePlan({
   summary = null,
   changedFiles = null,
   holdPaths = null,
-  checks,
+  humanMerge = false,
+  checks = null,
 }) {
+  const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused: true });
   const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
   const [about, fix, earlierChecks, leftOut] = summary
     ? [
@@ -760,8 +799,7 @@ export function reusePlan({
   const body = [
     `Closes #${issueNumber}`,
     "",
-    HOLD_LINE,
-    "",
+    ...(hold ? [HOLD_LINE, ""] : []),
     "## Summary",
     "",
     ...about,
@@ -774,12 +812,12 @@ export function reusePlan({
     "",
     "## Verification",
     "",
-    checks === undefined ? earlierChecks : `${earlierChecks}\n\n${checkLines(checks)}`,
+    `${earlierChecks}\n\n${checkLines(checks)}\n\n${scanLine(checks)}`,
     "",
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
     "",
-    `Left out: ${leftOut}; a person reviews the diff before merging.`,
+    hold ? `Left out: ${leftOut}; a person reviews the diff before merging.` : `Left out: ${leftOut}.`,
     "",
     "## Related",
     "",
@@ -974,14 +1012,7 @@ export function decide({
   }
   // A PR that names work it leaves for later links without closing.
   const refs = outcome.remaining.length > 0;
-  // A listing cut at the cap may hide a denied path, so it holds only while
-  // some path is denied.
-  const hold =
-    humanMerge ||
-    issueLabels.includes(UNTRUSTED_PROVENANCE) ||
-    holdPaths === null ||
-    (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
-    changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks });
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
   const gaps = outcome.notDone.map(({ what }) => what);
@@ -1638,13 +1669,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
     const holdPaths = readHoldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
-    // skipped run hit no limit, and a limited marker would loop restarts. Its
-    // file list is only text, so a failed compare never blocks the PR.
+    // skipped run hit no limit, and a limited marker would loop restarts. A
+    // failed compare leaves its file list unread, which holds the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
     const issueLabels = (issue.labels ?? []).map((label) => label.name);
     // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
     const humanMerge =
-      !unreported &&
       issueLabels.includes(HUMAN_MERGE_LABEL) &&
       (await paginate(github, `${repo}/issues/${issueNumber}/events`)
         .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
@@ -1674,6 +1704,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     let plan = unreported
       ? reusePlan({
           issueNumber,
+          issueLabels,
           issueTitle,
           branch,
           runUrl,
@@ -1681,6 +1712,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           summary,
           changedFiles: await compare().catch(() => null),
           holdPaths,
+          humanMerge,
           checks,
         })
       : decide({
