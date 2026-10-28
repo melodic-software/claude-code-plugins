@@ -11,6 +11,9 @@
 #   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
 #   scripts/affected-tests.sh --run              ... and run them, sequentially
 #   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
+#   scripts/affected-tests.sh --run --budget S   ... timed against an S-second budget, a
+#                                                suite over its share failing (run-plugin-tests.sh
+#                                                BUDGET)
 #   scripts/affected-tests.sh --run --write-not-run FILE
 #                                                ... and write each selected suite it did not run
 #                                                to FILE, one per line (exit 3 names them); a
@@ -262,6 +265,8 @@ replay_range=""
 against_ref=""
 not_run_file=""
 jobs=1
+budget=""
+budget_given=0
 # Whether --shard was SUPPLIED, tracked apart from its value: `--shard=` with an
 # empty right-hand side is what an unset environment variable produces, and it
 # must not read as "no shard requested" and run everything on every leg.
@@ -314,6 +319,13 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --jobs=*) jobs="${1#--jobs=}" ;;
+  --budget)
+    need_value "$1" $# "${2:-}" "seconds, a positive integer"
+    budget="$2"
+    budget_given=1
+    shift
+    ;;
+  --budget=*) budget="${1#--budget=}" budget_given=1 ;;
   --base)
     need_value "$1" $# "${2:-}" "a ref"
     base_ref="$2"
@@ -367,6 +379,10 @@ done
 
 if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs wants a positive integer; got: $jobs" >&2
+  exit 2
+fi
+if [[ "$budget_given" -eq 1 && ! "$budget" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: --budget wants a positive number of seconds; got: $budget" >&2
   exit 2
 fi
 if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
@@ -1665,7 +1681,8 @@ fi
 # per-suite print lock and scripts/run-plugin-tests-serial.txt, the suites that
 # must never overlap anything. Three is the proven ceiling on a 4-vCPU runner:
 # at four, suites failed by producing empty output from an external command
-# (#3694).
+# (#3694). --budget S hands the selection there too, at any job count, since
+# that runner times each suite against its share.
 #
 # Only *.test.sh is executable HERE. The other three ecosystems are run by their
 # own lanes, with invocations this script cannot derive from a suite path
@@ -1693,11 +1710,11 @@ if venv_bin=$(pytest_python::venv_bin); then
 fi
 
 failed=0
-if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
-  echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)." >&2
+if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 || -n "$budget" ]]; then
+  echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)${budget:+ within a ${budget}s budget}." >&2
   list="$WORK_DIR/selection.txt"
   printf '%s\n' "${runnable[@]}" >"$list"
-  bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
+  bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" ${budget:+--budget "$budget"} --suites-from "$list" || failed=1
 elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
   n=0
