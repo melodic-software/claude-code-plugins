@@ -1,20 +1,42 @@
 # Own driving
 
 Loaded when SKILL.md Step 1 picks own driving: app-control does not drive this run, so this skill
-launches, operates and captures itself. The three commands that carry the run's settings stay in
+launches, operates and captures itself. Prerequisites, Resolve run config and the browser-driver
+check in Drive run first, in that order, before the drive subagent is dispatched; a stop in any of
+them dispatches no subagent and opens no browser session. The drive subagent then runs the rest. The three commands that carry the run's settings stay in
 SKILL.md, under "Own driving", because only that file expands the values they need; the steps below
 name them.
 
 ## Contents
 
-- Native step: run (bundled skill)
 - Prerequisites
 - Resolve run config
+- Native step: run (bundled skill)
 - Drive
 - Workspace environment
 - Session names
 - Control skill on this path
 - Teardown
+
+## Prerequisites
+
+Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails. STOP and report what's missing and how to fix it; do not attempt workarounds, because a substitute path produces unverified pass/fail results, defeating live verification.
+
+On a hard-fail, STOP **and** write a structured verification-environment gap report to the run's evidence output before stopping. The report lists what is missing, each key, CLI, MCP, or environment the run needs, and what the operator must provide to make the run possible. The STOP still holds; the gap report is its actionable half, so the operator receives a precise list of what to supply rather than a bare failure.
+
+## Resolve run config
+
+Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`), `reuse_running_instance` (`auto | true | false`) and `browser_driver`. [e2e-config.md](e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
+
+- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
+- `e2e_driver` and `reuse_running_instance`: run SKILL.md's resolve command (Own driving) as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
+  being the file that set it, `userConfig`, or `default`, and names on stderr any value it
+  rejected. Use the printed values; a rejected value has already resolved to the default.
+- `browser_driver` (the command name of the browser tool a `playwright` drive uses, default
+  `playwright-cli`): run SKILL.md's browser-driver resolve command as a separate Bash call and use its
+  `browser_driver` line, `<key> <tab> <value> <tab> <source>`;
+  the other lines it prints repeat the call above. [e2e-config.md](e2e-config.md) owns the key.
+- An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [e2e-config.md](e2e-config.md).
 
 ## Native step: run (bundled skill)
 
@@ -89,33 +111,13 @@ Outside-scope changes: none | <paths>
 **`unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
 records `State: skipped (unattended)` without asking.
 
-## Prerequisites
-
-Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails. STOP and report what's missing and how to fix it; do not attempt workarounds, because a substitute path produces unverified pass/fail results, defeating live verification.
-
-On a hard-fail, STOP **and** write a structured verification-environment gap report to the run's evidence output before stopping. The report lists what is missing, each key, CLI, MCP, or environment the run needs, and what the operator must provide to make the run possible. The STOP still holds; the gap report is its actionable half, so the operator receives a precise list of what to supply rather than a bare failure.
-
-## Resolve run config
-
-Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`), `reuse_running_instance` (`auto | true | false`) and `browser_driver`. [e2e-config.md](e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
-
-- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
-- `e2e_driver` and `reuse_running_instance`: run SKILL.md's resolve command (Own driving) as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
-  being the file that set it, `userConfig`, or `default`, and names on stderr any value it
-  rejected. Use the printed values; a rejected value has already resolved to the default.
-- `browser_driver` (the command name of the browser tool a `playwright` drive uses, default
-  `playwright-cli`): run SKILL.md's browser-driver resolve command as a separate Bash call and use its
-  `browser_driver` line, `<key> <tab> <value> <tab> <source>`;
-  the other lines it prints repeat the call above. [e2e-config.md](e2e-config.md) owns the key.
-- An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [e2e-config.md](e2e-config.md).
-
 ## Drive
 
 The launch, on whichever path the one-launch-path rule in SKILL.md's Boundary section selects,
 happens inside the drive subagent, and the evidence output it returns carries the Native step
 result block.
 
-Before the first drive, once the driver for the run is known: when it is `playwright`, whether
+Before dispatching the drive subagent, once the driver for the run is known: when it is `playwright`, whether
 `e2e_driver` pins it or `auto` picks it, run SKILL.md's browser-driver check
 as one Bash call. It exits non-zero when the resolved `browser_driver` command is not on PATH, and
 its message names the setting, the value, where the value came from, and the two ways forward

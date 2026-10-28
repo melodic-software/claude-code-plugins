@@ -151,9 +151,11 @@ render checks in [context/e2e.md § Inspect the render](context/e2e.md#inspect-t
 
 ### Own driving
 
-Read [context/own-driving.md](context/own-driving.md) and follow it: the bundled `run` launch step,
-prerequisites, run config, the Workspace environment, session names, a control skill's Ready and
-driving tool on this route, and teardown. The workflow steps live in
+Read [context/own-driving.md](context/own-driving.md) and follow it. Before dispatching the drive
+subagent, check prerequisites, resolve the run config, and, for a `playwright` drive, run the
+browser-driver check; a stop there dispatches no subagent. The subagent then takes the bundled `run`
+launch step, the Workspace environment, session names, a control skill's Ready and driving tool on
+this route, and teardown. The workflow steps live in
 [context/e2e.md](context/e2e.md). These three commands carry values only this file expands; the
 context file says when each one runs:
 
