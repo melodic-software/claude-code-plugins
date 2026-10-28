@@ -644,6 +644,9 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # longer names `lock`; both bring `lock` under the gate and keep STOP-on-gap. The carve-out
 # says `lock` always writes its problem row, so its register always gates.
 # gate reads only the Restatement stamp (#9912); no defense weakened
+# The recap paragraph names the command that writes the recap and requires pasting its output
+# verbatim, with `--changed` after the first confirmation (#6136); the recap stays sourced
+# from the register on disk, and the gate, the procedure check and its halt are unchanged.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
