@@ -287,7 +287,9 @@ def bind(
     incremental chain leads back to are included. Read each run's attempt
     numbers from a fresh `GET actions/runs/{id}` taken after the listing, not
     from the listing's `run_attempt`, so a re-run that starts in between is
-    seen. `is_human` takes one actor and must return False for the agent
+    seen; except that a run the listing shows completed may be taken from a
+    saved read of that same completed attempt, whose listing record then
+    stands in for the fresh read. `is_human` takes one actor and must return False for the agent
     identity, the pull request's author and its head pushers. `base_changed`
     is True when the pull request was ever retargeted: the reviews read a
     diff against another base, so no lane binds. `changed_paths` holds every

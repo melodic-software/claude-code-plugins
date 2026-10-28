@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.4] - 2026-10-28
+
+### Changed
+
+- The admission policy's cost hit skips fenced code blocks and inline code spans, and a hosted runner or macOS minutes refuse only on a repository that is not public.
+
 ## [0.32.3] - 2026-10-27
 
 ### Changed
