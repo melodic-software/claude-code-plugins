@@ -89,13 +89,14 @@ const verifyRun = (id, overrides = {}) => ({
   head_sha: MAIN,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
+  created_at: JUDGED_AT,
   run_started_at: JUDGED_AT,
   ...overrides,
 });
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -122,6 +123,13 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       if (!Array.isArray(renames)) return renames;
       const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
       return { data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    }
+    // The pull request's body edits and issue connect and disconnect events
+    // (RELINK_QUERY); with none given the read fails, which keeps a FAIL.
+    if (apiPath === "/graphql" && body.query.includes("userContentEdits")) {
+      assert.deepEqual(body.variables, { o: "example-org", r: "example-repo", n: 41 });
+      if (relink === undefined) throw new Error("POST /graphql failed with status 502");
+      return relink;
     }
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
@@ -577,9 +585,10 @@ async function specReads(setup) {
   return [reason, reads];
 }
 
-test("a FAIL named without issues skips before the linked issues are read, and a pass after one read", async () => {
-  // A pass is weighed against the spec's last change, which that read gives.
-  for (const [verdict, reads] of [["fail", 0], ["pass", 1]]) {
+test("a FAIL named without issues, and a pass, each skip after one linked-issues read", async () => {
+  // A pass is weighed against the spec's last change, which that read gives;
+  // a FAIL named without issues against whether the PR now links issues.
+  for (const [verdict, reads] of [["fail", 1], ["pass", 1]]) {
     const name = `pr-verify-41-${HEAD}-${verdict}`;
     assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", reads], name);
   }
@@ -588,6 +597,100 @@ test("a FAIL named without issues skips before the linked issues are read, and a
 test("a head whose only verdict is a FAIL named with issues skips after one linked-issues read", async () => {
   const artifacts = [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)];
   assert.deepEqual(await specReads({ artifacts, runs: { 77: verifyRun(77) } }), ["already-judged", 1]);
+});
+
+// A relink: the PR's FAIL at the head was named without issues (it linked
+// none), and the PR now closes ISSUE. The FAIL's run was created at
+// FAILED_AT; the edit shapes follow a live userContentEdits read of an edited
+// pull request (newest first, the original text last, stamped when the pull
+// request opened, by its author), with identifying details changed.
+const FAILED_AT = "2026-10-20T06:00:00Z";
+const PERSON = { __typename: "User", login: "maintainer", databaseId: 100 };
+const LANES_APP = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+// The original text's entry, stamped before the FAIL, by the App that opened the PR.
+const ORIGINAL = { editedAt: "2026-10-19T00:00:00Z", editor: LANES_APP };
+const relinkAnswer = ({ edits = [], events = [], editsTotal = edits.length + 1, eventsFiltered = events.length } = {}) => ({
+  data: {
+    repository: {
+      pullRequest: {
+        userContentEdits: { totalCount: editsTotal, nodes: [...edits, ORIGINAL] },
+        timelineItems: { filteredCount: eventsFiltered, nodes: events },
+      },
+    },
+  },
+});
+const relinked = (relink, overrides = {}) => ({
+  artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)],
+  runs: { 77: verifyRun(77, { created_at: FAILED_AT }) },
+  relink,
+  ...overrides,
+});
+
+test("a FAIL named without issues is judged again after only trusted people linked an issue", async () => {
+  const relink = relinkAnswer({
+    edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }],
+    events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }],
+  });
+  const resolved = await resolve(relinked(relink));
+  assert.equal(resolved.proceed, true);
+  assert.equal(resolved.reason, "relinked");
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+});
+
+test("a lanes App or unnamed actor's edit or link since the FAIL keeps it", async () => {
+  for (const [label, edit, event] of [
+    ["the App's body edit", LANES_APP, PERSON],
+    ["the App's connect event", PERSON, LANES_APP],
+    ["a ghost's edit", null, PERSON],
+    ["another person's link", PERSON, { __typename: "User", login: "outsider", databaseId: 999 }],
+  ]) {
+    const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: edit }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: event }] });
+    assert.equal(await reason(relinked(relink)), "already-judged", label);
+  }
+});
+
+test("a relink that cannot be read whole keeps the FAIL", async () => {
+  const cut = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }], editsTotal: 101 });
+  const filtered = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }], eventsFiltered: 2 });
+  const timeless = relinkAnswer({ events: [{ createdAt: null, actor: PERSON }] });
+  for (const [label, setup] of [
+    ["a failed read", relinked(undefined)],
+    ["a GraphQL answer with no pull request", relinked({ data: { repository: { pullRequest: null } } })],
+    ["edits cut short", relinked(cut)],
+    ["events cut short", relinked(filtered)],
+    ["an event with no time", relinked(timeless)],
+    // Only the original text, before the FAIL: no visible cause for the link.
+    ["nothing since the FAIL", relinked(relinkAnswer())],
+    ["a FAIL run with no creation time", relinked(relinkAnswer(), { runs: { 77: verifyRun(77, { created_at: null }) } })],
+  ]) {
+    assert.equal(await reason(setup), "already-judged", label);
+  }
+});
+
+test("a FAIL named without issues stands while the PR links no issue a FAIL name carries", async () => {
+  // None, or more than a name carries: the set the FAIL recorded may be this one.
+  const eleven = Array.from({ length: 11 }, (_, i) => ({ ...ISSUE, number: i + 1 }));
+  for (const issues of [[], eleven]) {
+    const queries = [];
+    const github = fake(relinked(relinkAnswer(), { issues }));
+    const recording = async (method, apiPath, body) => {
+      if (apiPath === "/graphql" && body.query.includes("userContentEdits")) queries.push(apiPath);
+      return github(method, apiPath, body);
+    };
+    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    assert.equal(got, "already-judged", String(issues.length));
+    assert.deepEqual(queries, [], "no relink read");
+  }
+});
+
+test("after a trusted relink, another PR's FAIL or one named with the new issues still stops the judgment", async () => {
+  const relink = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  for (const name of [`pr-verify-99-${HEAD}-fail`, `pr-verify-41-${HEAD}-fail-i7`]) {
+    const setup = relinked(relink, { pulls: [pull(), pull({ number: 99, state: "closed" })] });
+    setup.artifacts.push(artifact(name, 78));
+    setup.runs[78] = verifyRun(78);
+    assert.equal(await reason(setup), "already-judged", name);
+  }
 });
 
 test("an unjudged head reads its linked issues once", async () => {
@@ -1050,8 +1153,10 @@ test("each path through the resolver makes a pinned number of API calls", async 
   const cases = [
     // run, commit pulls, three names without issues, the spec, the FAIL name with issues.
     ["an unjudged head", {}, "ok", 7],
-    // run, commit pulls, the FAIL name, its run and compare.
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 5],
+    // run, commit pulls, the FAIL name, its run and compare, the spec, the relink read.
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
+    // As above, but the PR links no issue now, so the relink is never read.
+    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 6],
     // run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare.
     ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 9],
     // run, commit pulls, three names, the pass's run and compare, the spec.

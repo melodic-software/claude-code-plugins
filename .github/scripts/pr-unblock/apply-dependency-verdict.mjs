@@ -126,16 +126,15 @@ const exactKeys = (value, keys) =>
 // Plain prose: posted inside a fence, so no control character, fence, HTML
 // comment or user @-mention can change what the comment shows or who it pings.
 // An @ after a slash (a URL) or opening a scoped package (@scope/name) passes;
-// that also lets a team-style @org/team through, left to the fence.
+// that also lets a team-style @org/team through, left to the fence. The scan
+// job's verdict schema (collect-base-activity/action.yml) carries this same
+// pattern under `not`, which steers generation; this check enforces it. No
+// lookahead: the Claude API's structured outputs do not support one.
+export const UNPLAIN_PATTERN = String.raw`[\u0000-\u001f\u007f]|${"```"}|~~~|<!--|-->|(^|[^A-Za-z0-9${"`"}/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)`;
+const UNPLAIN = new RegExp(UNPLAIN_PATTERN);
+
 function plain(text, max) {
-  return (
-    typeof text === "string" &&
-    text.length >= 1 &&
-    text.length <= max &&
-    !/[\u0000-\u001f\u007f]/.test(text) &&
-    !/```|~~~|<!--|-->/.test(text) &&
-    !/(^|[^A-Za-z0-9`/])@[A-Za-z0-9](?![A-Za-z0-9._-]*\/)/.test(text)
-  );
+  return typeof text === "string" && text.length >= 1 && text.length <= max && !UNPLAIN.test(text);
 }
 
 export const CONTEXT_KEYS = Object.freeze(["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config"]);

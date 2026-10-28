@@ -138,6 +138,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "run_attempt": 1,
         "created_at": RUN_STARTED,
         "run_started_at": RUN_STARTED,
+        "updated_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
     }
@@ -162,8 +163,8 @@ def record(number: int = PR, sha: str = HEAD, **overrides: Any) -> dict[str, Any
 
 
 def judged(run_id: int, at: Any, **overrides: Any) -> dict[str, Any]:
-    """A run created, and its one attempt started, at `at`."""
-    return run(run_id, created_at=at, run_started_at=at, **overrides)
+    """A run created, and its one attempt started and completed, at `at`."""
+    return run(run_id, created_at=at, run_started_at=at, updated_at=at, **overrides)
 
 
 def named(sha: str, verdict: str, number: int = PR) -> str:
@@ -258,6 +259,9 @@ class FakeGitHub:
         # Ids each whole listing leaves out in turn, as one that pages while
         # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
+        # The pull request's RELINK_QUERY answer (its `pullRequest`), or
+        # "error" for a failed read; None answers as the closing read does.
+        self.relink: Any = None
 
     def listed(self) -> list[dict[str, Any]]:
         """The artifacts a whole listing returns now, newest id first as
@@ -291,6 +295,12 @@ class FakeGitHub:
         if args[:2] == ["api", "graphql"]:
             if "graphql" in self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            if any("userContentEdits" in a for a in args) and self.relink is not None:
+                if self.relink == "error":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "gh: boom (HTTP 502)"
+                    )
+                return ok({"data": {"repository": {"pullRequest": self.relink}}})
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
                 if n not in self.refs:
@@ -1003,6 +1013,196 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_the_fail_must_still_precede_the_pass(self) -> None:
         fake = self.same_change("refs", "closes")
         fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+# Times between the FAIL's creation (OLDER_START) and the pass's start
+# (RUN_STARTED), while the pass ran, its completion, and after it.
+RELINK_AT = "2026-10-14T12:00:00Z"
+PASS_RUNNING = "2026-10-15T00:05:00Z"
+PASS_DONE = "2026-10-15T00:10:00Z"
+AFTER_PASS = "2026-10-15T12:00:00Z"
+
+
+def relink_answer(
+    edits: list[tuple[str, Any]] = (),
+    events: list[tuple[str, Any]] = (),
+    *,
+    edits_total: int | None = None,
+    events_filtered: int | None = None,
+) -> dict[str, Any]:
+    """The pull request's RELINK_QUERY answer: body edits (newest first, then
+    the original text, stamped before the FAIL, by the lanes App that opened
+    the pull request) and issue connect or disconnect events, as a live read
+    of an edited pull request answered, with identifying details changed."""
+    nodes = [{"editedAt": at, "editor": who} for at, who in edits]
+    nodes.append({"editedAt": "2026-10-10T00:00:00Z", "editor": LANES_ACTOR})
+    timeline = [{"createdAt": at, "actor": who} for at, who in events]
+    return {
+        "userContentEdits": {
+            "totalCount": len(nodes) if edits_total is None else edits_total,
+            "nodes": nodes,
+        },
+        "timelineItems": {
+            "filteredCount": len(timeline)
+            if events_filtered is None
+            else events_filtered,
+            "nodes": timeline,
+        },
+    }
+
+
+class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
+    """A FAIL at a head stops refusing once the pull request's linked issues
+    changed there and it passed again, when every body edit and issue connect
+    or disconnect from the FAIL's creation to the pass's start was a trusted
+    person's; any other actor, a read that fails or the same linked issues
+    keep it. It still counts toward the FAIL cap, and a merge-only head
+    carries it forward unless it was superseded at its own head."""
+
+    @staticmethod
+    def relinked(sha: str = HEAD) -> FakeGitHub:
+        """A FAIL at `sha` (run 2, created OLDER_START) that recorded no
+        linked issue, the pull request's title and body being its spec, and a
+        pass there (run 1, RUN_STARTED) that records issue 7, which the pull
+        request closes now; a person connected it and edited the body."""
+        fake = FakeGitHub(
+            [artifact(named(sha, "pass"), 1), artifact(named(sha, "fail"), 2)],
+            {1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
+            {
+                named(sha, "pass"): record(sha=sha),
+                named(sha, "fail"): record(sha=sha, verdict="fail", linked_issues=[]),
+            },
+        )
+        fake.relink = relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, HUMAN)])
+        return fake
+
+    def test_a_relink_by_people_only_lets_the_pass_decide(self) -> None:
+        self.assertIsNone(read(self.relinked()).refusal)
+        # The pass still decides: an untrusted spec refuses as it would alone.
+        fake = self.relinked()
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        fake.records[named(HEAD, "pass")] = record(linked_issues=[bot])
+        self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
+
+    def test_the_lanes_app_or_an_unnamed_actor_in_the_window_keeps_the_fail(
+        self,
+    ) -> None:
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            (
+                "App edit",
+                relink_answer([(RELINK_AT, LANES_ACTOR)], [(RELINK_AT, HUMAN)]),
+            ),
+            (
+                "App connect",
+                relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, LANES_ACTOR)]),
+            ),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            ("outsider connect", relink_answer([], [(RELINK_AT, outsider)])),
+            ("at the FAIL's creation", relink_answer([(OLDER_START, LANES_ACTOR)])),
+            ("at the pass's start", relink_answer([], [(RUN_STARTED, LANES_ACTOR)])),
+            # The pass's run reads the linked issues after it starts.
+            ("while the pass ran", relink_answer([], [(PASS_RUNNING, LANES_ACTOR)])),
+            ("at the pass's completion", relink_answer([], [(PASS_DONE, LANES_ACTOR)])),
+        ):
+            with self.subTest(label):
+                fake = self.relinked()
+                fake.relink = answer
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_the_apps_acts_outside_the_window_do_not_count(self) -> None:
+        # Its original text before the FAIL, and an edit after the pass began.
+        fake = self.relinked()
+        fake.relink = relink_answer([(AFTER_PASS, LANES_ACTOR), (RELINK_AT, HUMAN)])
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_relink_that_cannot_be_read_keeps_the_fail(self) -> None:
+        for label, answer in (
+            ("failed read", "error"),
+            ("no pull request", {}),
+            ("edits cut short", relink_answer([(RELINK_AT, HUMAN)], edits_total=101)),
+            (
+                "events cut short",
+                relink_answer([], [(RELINK_AT, HUMAN)], events_filtered=2),
+            ),
+            ("timeless event", relink_answer([], [(None, HUMAN)])),
+            # Only the original text, before the FAIL: the link changed some
+            # way the read cannot see (an issue deleted or moved).
+            ("nothing in the window", relink_answer()),
+            ("a pass run with no completion time", relink_answer([(RELINK_AT, HUMAN)])),
+        ):
+            with self.subTest(label):
+                fake = self.relinked()
+                fake.relink = answer
+                if label == "a pass run with no completion time":
+                    fake.runs[1] = run(1, updated_at=None)
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_fail_or_pass_record_that_cannot_be_read_keeps_the_fail(self) -> None:
+        for name in (named(HEAD, "fail"), named(HEAD, "pass")):
+            with self.subTest(name):
+                fake = self.relinked()
+                fake.records[name]["linked_issues"] = None
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_the_same_linked_issues_keep_the_fail(self) -> None:
+        fake = self.relinked()
+        fake.records[named(HEAD, "fail")]["linked_issues"] = [TRUSTED_ISSUE]
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_created_before_the_fail_keeps_it(self) -> None:
+        fake = self.relinked()
+        fake.runs[2] = judged(2, AFTER_PASS)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_another_prs_fail_at_the_head_keeps_it(self) -> None:
+        fake = self.relinked()
+        name = named(HEAD, "fail", 99)
+        fake.artifacts.append(artifact(name, 3))
+        fake.runs[3] = judged(3, OLDER_START)
+        fake.records[name] = record(99, verdict="fail", linked_issues=[])
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_superseded_fail_still_counts_toward_the_cap(self) -> None:
+        fake = self.relinked()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+            refusal = reader.evidence(PR, HEAD, pull()).refusal
+        self.assertEqual(refusal, "verify:repeated-fail")
+
+    def merge_only(self, *, superseded: bool) -> FakeGitHub:
+        """The relinked FAIL and pass at EARLIER, and a head that only merged
+        main since (the same change), with a pass of its own (run 3) that
+        records issue 7; the FAIL superseded at EARLIER or not."""
+        fake = self.relinked(EARLIER)
+        fake.diffs[EARLIER] = fake.diffs[HEAD]
+        fake.artifacts.append(artifact(named(HEAD, "pass"), 3))
+        fake.runs[3] = judged(3, AFTER_PASS)
+        fake.records[named(HEAD, "pass")] = record()
+        if not superseded:
+            fake.relink = relink_answer([], [(RELINK_AT, LANES_ACTOR)])
+        return fake
+
+    def test_a_merge_only_head_follows_the_failed_heads_verdict(self) -> None:
+        evidence = read(self.merge_only(superseded=True))
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+        self.assertEqual(
+            read(self.merge_only(superseded=False)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_merge_only_head_with_no_pass_at_the_failed_head_carries_it(
+        self,
+    ) -> None:
+        fake = self.merge_only(superseded=True)
+        fake.artifacts = [
+            a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
+        ]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
@@ -2592,11 +2792,15 @@ def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
 
 
 class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
-    """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
-    read, which a job in the default branch's cache scope may have written.
-    Whatever that entry holds, carry-run-cache.mjs and the reader together
-    may only add refusals: a carried read that would turn a FAIL away is read
-    again from GitHub."""
+    """pr-merge starts its run cache from the pr-merge-run-cache and
+    pr-merge-verify-run-cache artifacts of the newest scheduled or
+    hand-started run of main's pr-merge.yml whose head is on main
+    (carry-run-cache.mjs `read`), never from actions/cache. Whatever a carried
+    entry holds, carry-run-cache.mjs and this reader together may only add
+    refusals: a carried read that would turn a FAIL away is read again from
+    GitHub. Review-lane runs, read outside this reader
+    (babysit_gh.collect_lane_runs), are the exception: their tests are in
+    test_babysit_gh_lane_run_carry.py."""
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()

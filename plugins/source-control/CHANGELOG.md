@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.18.0] - 2026-10-28
+
+### Added
+
+- `worktree-claim.sh stale --batch --repo-dir DIR` reads NUL-delimited paths on stdin and prints one `exit<TAB>path<TAB>note` row per path, carrying the exit code and note single-path `stale` gives for it. The worktree list is parsed once and the transcript directory scanned once per run, and a clean absolute path to an existing directory starts no subshell, so the process count stays the same as worktrees and paths grow. `/source-control:worktree cleanup` identifies its candidates with one batch per repository in Step 2 instead of one `stale` call per locked worktree; each locked candidate's removal still waits on a fresh single-path `stale` just before its release (#10562).
+
+### Changed
+
+- The babysit merge floor holds `.github/actions/report-check-run/posting-run.mjs` as `gate`: the pr-merge re-fire script now loads it to find which run posted a check run.
+
+### Fixed
+
+- `worktree-discover.sh` lists every worktree a listed repository registers below a resolved root, not only the root's direct children. A worktree nested inside another worktree's `.work/`, or under a plain directory in the root, now gets a `worktree` row with its repository, so the cross-repository `status` and `cleanup` inventory it (#10562).
+
+## [3.17.3] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.FLOOR_CLASSES` is the one hold-floor table: `scripts/sync-hold-floor.py` writes its copies (merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS`, the review callers' `hold-paths`, ci-status's `hold_patterns`), and `test_merge_holds_sync.py` runs `sync-hold-floor.py --check` in place of comparing the copies. The floor holds that generator as `gate`, so a change to it waits for a person.
+
+## [3.17.2] - 2026-10-28
+
+### Changed
+
+- `/source-control:babysit-prs` merge gates (pr-merge.yml): a completed review-lane run's attempts, jobs and annotations come from the run cache, carried between scheduled pr-merge runs, while the live run listing still shows that same completed attempt, instead of being read from GitHub on every tick. This cuts about 42 of the 77 GITHUB_TOKEN calls an enable-auto-merge run makes.
+
+## [3.17.1] - 2026-10-28
+
+### Fixed
+
+- `/source-control:babysit-prs`: the verdict gate's kept-answer key now probes the admission rules at the repository's default branch, the branch the verdict read takes `task-list` from, rather than at the pull request's base. For a stacked pull request, a change to the default branch's admission rules now moves the key, so a kept answer computed under the old `task-list` is no longer reused. The trusted-actor probe still reads at the pull request's base.
+
 ## [3.17.0] - 2026-10-28
 
 ### Changed

@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
 import { laneRecordOutput } from "./lane-record.mjs";
+import { externalIdOf } from "./posting-run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
@@ -106,8 +107,6 @@ export async function main({
     models: env.LANE_MODELS ?? "",
     profile: env.LANE_PROFILE ?? "",
     activity: env.ACTIVITY,
-    runId: env.GITHUB_RUN_ID ?? "",
-    runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",
   });
   if (record) {
     body.output = {
@@ -115,9 +114,15 @@ export async function main({
       summary: `${record.line}\n\n${body.output.summary}`,
       text: record.text,
     };
-    if (record.externalId) {
-      body.external_id = record.externalId;
-    }
+  }
+  const externalId = externalIdOf({
+    lane: env.LANE,
+    activity: env.ACTIVITY,
+    runId: env.GITHUB_RUN_ID,
+    runAttempt: env.GITHUB_RUN_ATTEMPT,
+  });
+  if (externalId) {
+    body.external_id = externalId;
   }
   if (RUN_ID.test(env.GITHUB_RUN_ID ?? "")) {
     body.details_url = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;

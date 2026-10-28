@@ -137,6 +137,12 @@ plugins/context-guard/hooks/zone.ts
 # this line — they carry their own *.test.sh and are selected normally.
 .work/*
 
+# A project control skill's config/.gitignore, which the app-control contract
+# requires to hold `local.json`. Git alone consumes it; no CI lane validates it.
+# Its check is `/app-control:map create`'s `git check-ignore -v` report, an
+# on-demand step, not a CI one.
+.claude/skills/control-*/config/.gitignore
+
 # Repository top-level prose and licensing, already covered by *.md above; the
 # bare LICENSE files (the root one and a plugin's own notice) have no extension,
 # so they need their own lines.

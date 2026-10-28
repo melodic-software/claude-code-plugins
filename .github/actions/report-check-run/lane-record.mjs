@@ -22,7 +22,6 @@ const CLASSES = new Set([
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const RESETS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z$/;
 const COUNT = /^(0|[1-9][0-9]{0,5})$/;
-const RUN_NUMBER = /^[1-9][0-9]*$/;
 // modelUsage keys are model IDs, which may carry a bracketed suffix such as [1m].
 const MODELS = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}(?:,[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}){0,7}$/;
 
@@ -51,11 +50,11 @@ const tokensOf = (fields) =>
     .filter(([, value]) => value !== null)
     .map(([key, value]) => `${key}=${value}`);
 
-// The record as the check run's output fields and external_id, or null when
+// The record as the check run's output fields, or null when
 // there is none. The summary line is `lane=<lane> activity=<activity>` then
 // class, resets, turns, max-turns, models and profile in that order, each
 // omitted when absent; models is a comma list.
-export function laneRecordOutput({ lane, activity, runId = "", runAttempt = "", ...inputs }) {
+export function laneRecordOutput({ lane, activity, ...inputs }) {
   const record = laneRecord(inputs);
   if (!record || !NAME.test(lane ?? "") || !NAME.test(activity ?? "")) {
     return null;
@@ -72,7 +71,5 @@ export function laneRecordOutput({ lane, activity, runId = "", runAttempt = "", 
   return {
     line: tokensOf(fields).join(" "),
     text: `\`\`\`json\n${JSON.stringify(json)}\n\`\`\``,
-    externalId:
-      RUN_NUMBER.test(runId) && RUN_NUMBER.test(runAttempt) ? `${lane}:${activity}:${runId}:${runAttempt}` : null,
   };
 }

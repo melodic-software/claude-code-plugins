@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: run-e2e-route-install-suggestion
+description: With app-control not installed, run-e2e suggests installing it and lets the person decline, installing nothing itself
+tags: [run-e2e, app-control, route, install, invented]
+expected_outcome: The reply suggests installing the app-control plugin so /app-control:drive can launch, operate and capture the app. It says that declining keeps run-e2e's own driving, and asks the person which they want. It installs nothing and drives nothing before the answer.
+execution:
+  prompt: "/testing:run-e2e the checkout page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is not installed: no app-control skill resolves in this session. The repository has no control skill. Its README documents `npm run dev` on port 3000. I am here. Tell me what you do first, and stop at the first point where you need my answer."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: names-app-control
+    type: regex
+    pattern: 'app-control'
+    arm: both
+  - name: suggests-install-and-asks
+    type: llm
+    criteria: "PASS only if the reply (1) suggests installing the app-control plugin, (2) says that declining keeps run-e2e's own driving (the person can say to just use what it has), and (3) asks the person which they want and stops for the answer. FAIL if it installs or enables a plugin itself, offers /app-control:map create or /app-control:drive as available now, or starts the app or drives the checkout page before the answer."

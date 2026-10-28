@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "title": "Surface all-accept run",
+    "eyebrow": "Interview",
+    "stages": {"interview": "Interview"}
+  },
+  "rev": 1,
+  "groups": [
+    {"id": "base", "title": "Basics", "summary": "Three questions the user accepts as recommended."}
+  ],
+  "questions": [
+    {"id": "A1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Run", "title": "Should the step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}]},
+    {"id": "A2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Cache", "title": "Should the step cache its output?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}]},
+    {"id": "A3", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Retry", "title": "Should the step retry once?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}]}
+  ]
+}

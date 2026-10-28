@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.2] - 2026-10-28
+
+### Fixed
+
+- Every lane check run `report-check-run` posts now carries `external_id` `<lane>:<activity>:<run id>:<run attempt>`, not only one with a lane record. GitHub returns these check runs with `details_url` set to the check run's own page, so pr-merge's re-fire of a run the broker refused as `workflow-modified` never found the PR, and fix-ci-dispatch never paired a fix-ci check with its run's lane-stopped stop. Both now read the posting run from `external_id`.
+
+- pr-unblock's `publish-feedback` re-reads each thread against the reviewed heads `address-feedback-select` kept it on, which `run.json` now records as `reviewed_heads`, not against the reviewed-head markers as they are at publish. A review lane edits its one marker in place, so once it reviewed the round's fix push the marker named only the fix head, the re-read dropped the thread as changed, its reply never posted, and the next round escalated `feedback-untaken-threads`. The comment-id, resolved, comment-count and moved-head checks are unchanged; a `run.json` without `reviewed_heads` reads the markers as before.
+
+## [6.5.1] - 2026-10-28
+
+### Changed
+
+- The review callers' `hold-paths`, ci-status's exempt-author `hold_patterns` and merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS` are generated from `babysit_risk.FLOOR_CLASSES` and `COST_PATHS` by `scripts/sync-hold-floor.py` (`--check` fails on a stale copy); the floor holds the generator as `gate`.
+
+### Fixed
+
+- ci-status's exempt-author check matches the trust-gate paths case-insensitively, as the floor does elsewhere, so a Dependabot, release App or standards-sync pull request that changes `.github/codeowners` or `vendor/.GitModules` fails for a person instead of passing.
+
+## [6.5.0] - 2026-10-28
+
+### Added
+
+- `review-threads.reviewer-ids` lists review bots, besides `claude[bot]` and the review lanes, whose review threads pr-unblock's `address-feedback` works exactly as the reviewer bot's (owner decision 2026-10-26): the select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml` all keep such a thread, a disputed one is adjudicated as a code-review lane finding is once the security-review lane has reviewed the bot's reviewed head and holds nothing; a critical-security hold on that head or a later one sends it to a person, and before the lane's review it waits for the next round (the bot's own severity badge decides nothing), and the trusted-person and human-gated rules apply unchanged. The list is matched on the account id GitHub records for each comment and its review, never a login; the bot's later comments count as the reviewer bot's, and anyone else's leaves the thread alone. This repository lists `chatgpt-codex-connector[bot]` (199175422). The resolved config carries the list as `review-threads`.
+
+### Changed
+
+- The issue lane skips an umbrella, an `agent-ready` issue with an open sub-issue, before any model run. It keeps `agent-ready`, logs a notice naming the open sub-issues, and work-unblock's sweep re-fires it once none is open. Neither path adds `needs-human`. An issue read with no sub-issue summary lists the sub-issues rather than assuming none is open.
+
 ## [6.4.1] - 2026-10-28
 
 ### Fixed

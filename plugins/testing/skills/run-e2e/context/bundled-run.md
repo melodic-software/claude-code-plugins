@@ -1,6 +1,6 @@
 # The bundled `run` skill: verification record
 
-Detail behind the `## Native step` and `## Boundary` sections in [SKILL.md](../SKILL.md). Each row is a four-part
+Detail behind the `## Native step: run` section of [own-driving.md](own-driving.md) and the `## Boundary` section of [SKILL.md](../SKILL.md). Each row is a four-part
 record: the claim, the basis it rests on, the date it was checked, and the event that makes it
 worth checking again. The `/verify` handoff keeps its own dated record in the body's Handoff
 section.
@@ -24,7 +24,7 @@ counterpart at all.
 
 The integration is wrap: where the app's start is not governed by the consuming project's
 orchestrator configuration, this skill composes `run` for the launch (the Native step in
-[SKILL.md](../SKILL.md)) and layers the evidence contract on top. Where an orchestrator governs the
+[own-driving.md](own-driving.md)) and layers the evidence contract on top. Where an orchestrator governs the
 start, or the target has no app to launch, the step is skipped and the orchestrator path runs
 unchanged. One launch path runs per verification, never both, and an app that is already
 running is not launched again.
