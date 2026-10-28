@@ -445,6 +445,8 @@ async page => {
     ok("a missing file shows its path and the error", fx.cap === "missing.svg" && /not found/.test(fx.text) && !fx.srcdoc, JSON.stringify(fx).slice(0, 160));
     await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(5200);
     await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText)); await until(() => vxFetches >= 2, 5000);
+    // Settle before counting: "once" is an absence check, so a duplicate re-fetch must have time to land.
+    await page.waitForTimeout(600);
     ok("a failed file visual is fetched again, once, on a render after 5 s", vxFetches === 2, "fetches " + vxFetches);
     await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
     await page.click("[data-full]"); await page.waitForTimeout(200);
