@@ -1585,6 +1585,14 @@ if has_fail_line 'missing: on2; not default-on: off'; then
 else
   fail "core dependencies differing from the default-on set should fail: $out"
 fi
+# Issue #9930's Done-when check, run on the real catalog: jq's `//` treats
+# false like a missing value, so the default-off entry still prints `absent`.
+done_when="$(jq -r '.plugins[] | select(.name == "core") | [.source, (.defaultEnabled // "absent")] | join(" ")' "$SCRIPT_DIR/../.claude-plugin/marketplace.json")"
+if [[ "$done_when" == "./plugins/core absent" ]]; then
+  ok "the catalog's core entry meets the issue's Done-when jq check"
+else
+  fail "the Done-when jq check should print './plugins/core absent': $done_when"
+fi
 
 # type<TAB>title<TAB>description: each conforming option draws nothing.
 while IFS=$'\t' read -r type title description; do
