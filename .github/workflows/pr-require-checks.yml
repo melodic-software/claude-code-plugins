@@ -148,10 +148,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# and check-catalog, split from one job whose wall was 99 to 125 s over the
-# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
-# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
-# checkout included) in the 125 s run, 3 each;
+# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
+# composite schema steps it then ran plus 3 s for their pip-installed
+# replacement (those steps alone reached 121 s on a stalled uv download), 2,
+# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
+# and checkout included) in the 125 s run of the job it was split from, 3;
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
@@ -1555,11 +1556,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     # pull-requests: read lets "Resolve the queued pull request" read the
-    # queued pull request in a merge group; checks: read lets the aggregator
-    # quote a composite gate's annotations.
+    # queued pull request in a merge group.
     permissions:
       contents: read
-      checks: read
       pull-requests: read
     steps:
       - name: Check out
@@ -1572,7 +1571,8 @@ jobs:
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
       # if the module is missing rather than clearing files they never parsed,
-      # so this install is load-bearing, not convenience.
+      # so this install is load-bearing, not convenience. It also installs the
+      # check-jsonschema the manifest schema steps run.
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -1929,22 +1929,22 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
 
+      # check-jsonschema comes from the hash-locked requirements install above,
+      # not the ci-workflows action: its setup-uv download from
+      # releases.astral.sh stalled 116 s in merge group run 40676402542 and the
+      # job hit its cap, and its uvx then fetched a second CPython.
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-marketplace.json
-          files: .claude-plugin/marketplace.json
+        shell: bash scripts/run-hygiene-gate.sh marketplace-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-marketplace.json .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
-          files: plugins/*/.claude-plugin/plugin.json
+        shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
       # JSON Schema validates the ALREADY-PARSED document, so it structurally
       # cannot see a duplicate object key -- by the time a schema runs, the
@@ -2032,13 +2032,6 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
