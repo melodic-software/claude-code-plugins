@@ -26,6 +26,7 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
+from urllib.parse import unquote
 
 # An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
 # fixtures' identity writes into the caller's repository
@@ -7376,6 +7377,51 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
             )
         self.assertNotEqual(result.details["postMergeShared"], "kept:unverified-stale")
         self.assertEqual(len(checks), 1)
+
+    def test_a_rerun_in_an_older_verified_merges_window_reads_it_again(
+        self,
+    ) -> None:
+        # `_judge` judges a verified merge's runs created from its `mergedAt`,
+        # and a re-run keeps its `created_at`: the listing reaches back to the
+        # earliest merge in the answer, not the earliest unverified one.
+        now = policy.datetime.now(policy.UTC)
+        stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+        report = {
+            "autoMerges": [
+                {
+                    "number": 8039,
+                    "verified": True,
+                    "mergedAt": stamp(now - timedelta(minutes=25)),
+                },
+                {
+                    "number": 8040,
+                    "verified": False,
+                    "mergedAt": stamp(now - timedelta(minutes=10)),
+                },
+            ],
+            "excusesExpireAt": None,
+            "outstandingSince": None,
+        }
+        answer = mock.Mock(
+            gate=mock.Mock(report=report), computed_at=now - timedelta(minutes=5)
+        )
+        rerun = {
+            "path": f".github/workflows/{babysit_postmerge.FULL_RUN_WORKFLOW}",
+            "status": "completed",
+            "created_at": stamp(now - timedelta(minutes=24)),
+            "updated_at": stamp(now - timedelta(seconds=30)),
+        }
+
+        def read(args: list[str], label: str) -> dict[str, Any]:
+            # The API's `created=>=` filter.
+            floor = unquote(args[1].split("created=")[1].split("&")[0])
+            runs = [r for r in [rerun] if r["created_at"] >= floor[2:]]
+            return {"total_count": len(runs), "workflow_runs": runs}
+
+        with mock.patch.object(babysit_postmerge, "_read", side_effect=read):
+            self.assertFalse(
+                babysit_postmerge.pending_runs_unchanged(REPO, answer, "trunk", now=now)
+            )
 
     def test_an_answer_past_the_shared_age_is_stale_with_no_run_read(self) -> None:
         minutes = policy.SHARED_MAX_AGE.total_seconds() / 60 + 1
