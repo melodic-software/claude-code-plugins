@@ -198,7 +198,8 @@ writer of a control skill; this skill never edits one.
   run never stops or fails for this.
 
 Refresh drives the feature again through `/app-control:drive`, so it never runs inside the Step 3
-subagent.
+subagent. A caller that splits one drive across several runs of this skill tells each to skip this
+step and runs it once itself over the merged report, so two runs never refresh the same feature.
 
 ## Native step: run (bundled skill)
 
