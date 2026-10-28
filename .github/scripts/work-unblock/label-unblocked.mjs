@@ -1309,7 +1309,8 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
     return { reason: `held by ${HUMAN_LABEL}` };
   }
   // A fail route whose comment went out but whose agent-ready removal did not
-  // land: no agent-ready was added since its marker, so finish it.
+  // land. An agent-ready added after the newest marker (a person's re-add)
+  // returned through refireRefusal above, so none was added since: finish it.
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
