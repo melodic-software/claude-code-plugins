@@ -2130,11 +2130,10 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
-  `scan` word in the checks record) is `found`. A runner check that failed holds it too. Runner
-  checks or a leak scan that did not report (missing, another tip, `failed`, no word) add no
-  hold line: the merge needs `ci-status`, which needs `lint-repo` and its gitleaks scan
-  (`pr-require-checks.yml`), both fail-closed on any non-success. The summary never decides the
-  hold or reaches a status:
+  `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
+  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
+  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
+  them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in

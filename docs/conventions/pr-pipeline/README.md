@@ -1611,12 +1611,13 @@ the pull request opened, while it waits to be armed or sits in the queue, stops 
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
 not read.
 
-report-outcome writes no `Hold:` line for a check the issue lane's runner did not report (its
-checks missing or for another tip, or a reuse leak scan that did not finish): that line would also
-fail `ci-status`, so pr-verify would never run. The merge needs `ci-status`, which needs
-`lint-repo` and its gitleaks scan (`pr-require-checks.yml`), both fail-closed on any non-success,
-so a lane scan that did not report holds nothing. A failed runner check, a leak scan that found
-something and every trust reason still write the line.
+report-outcome writes no `Hold:` line only because the issue lane's runner checks did not report
+(missing or for another tip): that line would also fail `ci-status`, so pr-verify would never run,
+and `ci-status` reruns those checks on the head. A reuse leak scan is not covered that way, so on a
+reused branch any scan word but `clean` still holds: `lint-repo`'s gitleaks scan honors a
+`gitleaks:allow` comment or `.gitleaksignore` the branch can add, its password rule misses short
+or symbol-bearing values the lane scan flags, and it reads only the commits' patches. A failed
+runner check and every trust reason still write the line.
 
 A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
 issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
