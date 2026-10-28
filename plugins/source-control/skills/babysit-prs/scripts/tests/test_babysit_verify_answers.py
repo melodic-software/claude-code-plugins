@@ -325,6 +325,17 @@ class KeyTest(unittest.TestCase):
             with self.subTest(row):
                 self.assertTrue(self.moved(change))
 
+    def test_the_trust_files_are_probed_by_full_branch_ref(self) -> None:
+        # A bare name resolves as git does, where a tag of the same name
+        # wins; `refs/heads/` names the branch alone.
+        world = World()
+        key(world, branch="trunk")
+        probe_args = next(
+            c for c in world.calls if f"query={ve.PROBE_QUERY}" in c
+        )
+        self.assertIn(f"ta=refs/heads/trunk:{ve.TRUSTED_ACTORS_PATH}", probe_args)
+        self.assertIn(f"ar=refs/heads/trunk:{ve.ADMISSION_RULES_PATH}", probe_args)
+
     def test_the_config_rung_and_base_move_the_key(self) -> None:
         same = World()
         self.assertNotEqual(

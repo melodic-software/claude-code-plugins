@@ -200,6 +200,7 @@ test("every detector's signal is a rolling family or logged only, and an unknown
     audits: [{ workflow: "w", run: { id: 1, url: "u", conclusion: "failure", createdAt: "t" } }],
     status: { components: [{ name: "Actions", status: "major_outage" }], incidents: [] },
     laneStops: [{ id: 1, outcome: "funding", issue: 3, createdAt: "t", url: "u" }],
+    stalledStops: [{ pr: 5, head: "a", activity: "fix-ci", reason: "ci-fix-invalid", stoppedAt: "t", url: "u" }],
   });
   assert.deepEqual(new Set(all.map((f) => f.signal)), new Set([...SIGNALS, ...LOG_ONLY]));
   const plan = planIssues({ findings: [{ ...findingFor([1]), signal: "10 renamed" }], existing: [] });

@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.16.5] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.REVIEW_FLOOR` (the `enforcement` class of `FLOOR_CLASSES`, which holds a change until a clean security review binds to its head, not for a person) also covers `.github/scripts/pr-unblock/escalation-routes.mjs`, which `clear-escalations.mjs` and `gate-source.mjs` import, and `escalation-routes.json`, the routing table it reads, so the floor still holds every module its scripts load, and the scripts that act on a pr-unblock stop's route (`report-escalation.sh`, `adjudicate-feedback.mjs`, `publish-feedback.mjs`, `apply-patch.mjs`) with every module they import.
+
+### Fixed
+
+- The babysit merge gate reads the trusted-actor list and the admission rules at the tip commit of their branch, resolved by its full ref through `base_tip`, never by the branch name, so a tag named like the branch cannot supply them. The escalation lift reads the trusted list the same way, and the verdict answer key names both files by `refs/heads/<branch>`. A branch whose tip does not resolve to a commit SHA fails closed: the verdict read is unreadable and the label stays on.
+
+## [3.16.4] - 2026-10-28
+
+### Fixed
+
+- `/source-control:pull-request ready`: `verify-gate.sh` keeps its result under the repository's common git directory (`git rev-parse --git-common-dir`), shared by every worktree, instead of the per-checkout `git rev-parse --git-path`. A gate recorded with the shell in the main checkout for a pull request whose branch sits in a linked worktree, then checked from that worktree (or the reverse), no longer refuses the flip for a missing verify record. The record stays keyed by head commit.
+
+## [3.16.3] - 2026-10-28
+
+### Fixed
+
+- A trusted person's approving review of a head that changes a hold path now survives a later merge of the base when the merge changes nothing of its own. Each trusted person's newest review that approves, requests changes or was dismissed counts, and lifts only when it approves; a dismissed approval never counts, and removing the human-gated label lifts no hold path. The approval carries to the current head only when every commit since is a merge whose other parents the base branch holds and the net change against the base's tip commit is the same at both heads over every file (`base_merge_carry`, `base_parents`, `base_tip`, `carried_lifters`, and `merge-holds.mjs` `baseMergeCarry`, `baseParents`, `baseTip` and `liftersOf`). The base branch is read once by its full ref, so no tag of the same name stands in for it. A non-merge commit, a merge of another branch or of a commit the base does not hold, a force push that rewrites the approved head, a merge that changes any file differently, an untrusted approver, a head in a fork, and any unreadable input carry nothing. An honest merge after the base changed one of the pull request's files also carries nothing and needs a new approval. A carried approval lifts only the hold path; it never lifts the verifier hold.
+- The owner's cost decision carries to a later head only when every commit since is a merge whose other parents the base branch holds (`base_merges_only`), as well as the same net change against the base's tip commit. A rebase, or a commit of its own that leaves the net change the same, no longer carries it.
+
+## [3.16.2] - 2026-10-28
+
+### Fixed
+
+- pr-merge's Dependabot push check (`push_refusal` in `babysit_dependabot.py`) ties every commit on the pull request to the actor who pushed it, not only each push's tip ([#9006](https://github.com/melodic-software/claude-code-plugins/issues/9006)). Each commit a push brought (its `after` and the ancestors its `before` lacks, walked through the commits' parents) must be its pusher's own: a commit with Dependabot's author in a `dependabot[bot]` push, a github-actions[bot] commit in a github-actions[bot] push, and a lanes App commit in a lanes App push, else `pushed-by:<login>`. So a lanes App push can no longer carry a Dependabot-authored commit under an App tip. A commit that no push in reach brought refuses `push-history-incomplete`.
+
 ## [3.16.1] - 2026-10-28
 
 ### Changed

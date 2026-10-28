@@ -67,6 +67,24 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
+# A base commit a merge of the base names as its second parent.
+MAIN = "5" * 40
+# The base branch's tip commit, which its full ref resolves to.
+TIP = "3" * 40
+
+
+def _history(sha: str, answer: Any) -> Any:
+    """`answer` (a compare of base...sha) with the commits a history of base
+    merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+    HEAD of the base for HEAD, the head alone for any other."""
+    if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
+        return answer
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
+    if sha == HEAD:
+        commits.append({"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]})
+    return answer | {"commits": commits, "total_commits": len(commits)}
+
+
 def _push(after: str, timestamp: str) -> dict[str, Any]:
     """A push of `after` to the head branch, as the repository activity API
     lists it."""
@@ -133,9 +151,14 @@ class Lanes:
             return (
                 (404, None) if self.unreadable == "activity" else (200, self.activity)
             )
+        if "/git/ref/heads/" in endpoint:
+            return (404, None) if self.unreadable == "ref" else (200, {"object": {"sha": TIP}})
+        if endpoint.endswith(f"...{TIP}"):
+            parent = endpoint.split("/compare/", 1)[1].split("...")[0]
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
         sha = endpoint.rsplit("...", 1)[1]
         if sha in self.compares and self.unreadable != f"compare {sha}":
-            return 200, self.compares[sha]
+            return 200, _history(sha, self.compares[sha])
         return 404, None
 
     def paginated(
@@ -210,7 +233,7 @@ class CostDecision(unittest.TestCase):
         self.reads = lanes.reads
 
         def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-            if "/compare/" in endpoint or "/activity?" in endpoint:
+            if "/compare/" in endpoint or "/activity?" in endpoint or "/git/ref/" in endpoint:
                 return lanes.get(endpoint, env)
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
@@ -243,9 +266,10 @@ class CostDecision(unittest.TestCase):
             self.reads,
             [
                 "repos/owner/repo/issues/comments/7",
+                f"repos/owner/repo/git/ref/heads/{BASE}",
                 "repos/owner/repo/actions/workflows/pr-review-hosted.yml/runs"
                 "?event=pull_request&branch=fix%2Fcost&per_page=100",
-                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
                 "repos/owner/repo/actions/runs/1/jobs?filter=all&per_page=100",
                 "repos/owner/repo/check-runs/1/annotations?per_page=100",
                 "repos/owner/repo/actions/workflows/pr-review-security-hosted.yml/runs"
@@ -254,6 +278,8 @@ class CostDecision(unittest.TestCase):
                 "&direction=desc&per_page=100",
             ],
         )
+        # The lane-change vet names the base's tip commit, never the branch.
+        self.assertFalse(any("/compare/main" in r or r.endswith("...main") for r in self.reads))
 
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
@@ -384,20 +410,39 @@ class CostDecision(unittest.TestCase):
         script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
         self.assertEqual(
-            self.reads[-2:],
+            self.reads[-3:],
             [
-                f"repos/owner/repo/compare/{BASE}...{OLD}",
-                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                f"repos/owner/repo/compare/{TIP}...{OLD}",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
+                f"repos/owner/repo/compare/{MAIN}...{TIP}",
             ],
         )
 
-    def test_a_rebase_with_the_same_net_change_carries_in_any_file_order(
+    def test_a_base_merge_with_the_same_net_change_carries_in_any_file_order(
         self,
     ) -> None:
         doc = {"filename": "docs/a.md", "status": "added", "patch": "+a"}
         self.assertEqual(self.later({OLD: _net(TF, doc), HEAD: _net(doc, TF)}), LINK)
-        # A rebase that drops one of its files is a change of its own.
+        # A merge that drops one of its files is a change of its own.
         self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
+
+    def test_a_rebase_or_a_commit_of_its_own_with_the_same_net_change_re_holds(
+        self,
+    ) -> None:
+        rewritten = "6" * 40
+        for name, commits in {
+            "a rebase": [
+                {"sha": rewritten, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": rewritten}]},
+            ],
+            "a commit of its own": [
+                {"sha": OLD, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": OLD}]},
+            ],
+        }.items():
+            with self.subTest(name):
+                head = _net(TF) | {"commits": commits, "total_commits": 2}
+                self.assertIsNone(self.later({OLD: _net(TF), HEAD: head}))
 
     def test_a_conflict_resolution_that_changes_the_net_change_re_holds(
         self,
@@ -415,7 +460,10 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         def many(n: int) -> dict[str, Any]:
             return _net(
-                *({"filename": f"f{i}", "status": "added", "patch": "+x"} for i in range(n))
+                *(
+                    {"filename": f"f{i}", "status": "added", "patch": "+x"}
+                    for i in range(n)
+                )
             )
 
         self.assertEqual(self.later({OLD: many(299), HEAD: many(299)}), LINK)
@@ -442,40 +490,64 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         added = {"filename": "b.tf", "status": "added", "patch": "+b"}
         changed = {OLD: _net(TF), HEAD: _net(TF, added)}
-        older_head = [_run(HEAD, "2026-10-22T10:40:00Z"), _run(OLD, "2026-10-22T11:30:00Z")]
+        older_head = [
+            _run(HEAD, "2026-10-22T10:40:00Z"),
+            _run(OLD, "2026-10-22T11:30:00Z"),
+        ]
         self.assertIsNone(self.decide(runs=older_head, compares=changed))
         late = "2026-10-22T11:30:00Z"
         for name, extra in {
             "a later notice at the head": _run(HEAD, late),
-            "from the security lane": _run(HEAD, late, lane="pr-review-security-hosted.yml"),
-            "with cost among its criteria": _run(HEAD, late, criteria="cost,trust-gate"),
+            "from the security lane": _run(
+                HEAD, late, lane="pr-review-security-hosted.yml"
+            ),
+            "with cost among its criteria": _run(
+                HEAD, late, criteria="cost,trust-gate"
+            ),
         }.items():
             with self.subTest(name):
-                self.assertEqual(self.decide(runs=[_run(OLD), extra], compares=changed), LINK)
+                self.assertEqual(
+                    self.decide(runs=[_run(OLD), extra], compares=changed), LINK
+                )
         for name, extra in {
             "a job done after it": _run(HEAD, "2026-10-22T12:30:00Z"),
             "a run started after it": _run(HEAD, late, created="2026-10-22T12:10:00Z"),
-            "a job other than the status job": _run(HEAD, late, job="pr-review / review-key"),
+            "a job other than the status job": _run(
+                HEAD, late, job="pr-review / review-key"
+            ),
             "the other lane's status job name": _run(
                 HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]
             ),
             "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
             "a notice without cost": _run(HEAD, late, criteria="trust-gate"),
-            "a run whose head is in another repository": _run(HEAD, late, repo="fork/repo"),
+            "a run whose head is in another repository": _run(
+                HEAD, late, repo="fork/repo"
+            ),
             "a run with no head repository": _run(HEAD, late, repo=None),
             "two heads at the newest time": _run(
                 HEAD, lane="pr-review-security-hosted.yml"
             ),
         }.items():
             with self.subTest(name):
-                self.assertIsNone(self.decide(runs=[_run(OLD), extra], compares=changed))
+                self.assertIsNone(
+                    self.decide(runs=[_run(OLD), extra], compares=changed)
+                )
         # A run that started after the decision is not read at all.
-        self.decide(runs=[_run(HEAD), _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z")])
-        self.assertNotIn("repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads)
+        self.decide(
+            runs=[
+                _run(HEAD),
+                _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z"),
+            ]
+        )
+        self.assertNotIn(
+            "repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads
+        )
 
     def test_a_lane_run_on_a_head_it_cannot_vet_decides_nothing(self) -> None:
         for name, answer in {
-            "the code lane's workflow": _net(TF, {"filename": ".github/workflows/pr-review-hosted.yml"}),
+            "the code lane's workflow": _net(
+                TF, {"filename": ".github/workflows/pr-review-hosted.yml"}
+            ),
             "the security lane's workflow": _net(
                 {"filename": ".github/workflows/pr-review-security-hosted.yml"}
             ),
@@ -622,7 +694,7 @@ class CostDecision(unittest.TestCase):
         self.assertEqual(self.decide(), LINK)
         self.assertEqual(
             [r for r in self.reads if "/compare/" in r],
-            [f"repos/owner/repo/compare/{BASE}...{HEAD}"],
+            [f"repos/owner/repo/compare/{TIP}...{HEAD}"],
         )
         # With no usable base no run can be vetted, so nothing carries.
         self.assertIsNone(self.decide(pull=PULL | {"base": {"ref": "-unusable"}}))
@@ -641,7 +713,11 @@ class CostDecision(unittest.TestCase):
                 self.assertFalse(any("/compare/" in r for r in self.reads))
         pull = PULL | {"base": {"ref": "release/2.x"}}
         self.assertEqual(self.later(same, pull=pull), LINK)
-        self.assertIn(f"repos/owner/repo/compare/release/2.x...{OLD}", self.reads)
+        self.assertIn("repos/owner/repo/git/ref/heads/release/2.x", self.reads)
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{OLD}", self.reads)
+        # The carry names the base by its tip commit.
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{HEAD}", self.reads)
+        self.assertIsNone(self.later(same, unreadable="ref"))
 
     def test_the_decision_is_the_newest_on_the_pull_request_else_the_issue(
         self,
@@ -660,13 +736,16 @@ class CostDecision(unittest.TestCase):
                 created_at="2026-10-22T11:30:00Z",
             ),
         }
-        changed = {OLD: _net(TF), HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"})}
+        changed = {
+            OLD: _net(TF),
+            HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"}),
+        }
 
         def pick(body: str, runs: list[dict[str, Any]]) -> str | None:
             lanes = Lanes(runs, changed)
 
             def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-                if "/compare/" in endpoint or "/activity?" in endpoint:
+                if any(k in endpoint for k in ("/compare/", "/activity?", "/git/ref/")):
                     return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 

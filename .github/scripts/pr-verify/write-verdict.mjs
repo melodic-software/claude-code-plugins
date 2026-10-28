@@ -4,7 +4,9 @@
 // followed by `-i` and the issues it records (`artifactName`). Every reader
 // also accepts that name followed by `-<headRefDigest of the head branch>`,
 // which lets the pr-merge lane tie a FAIL to a branch without downloading it;
-// this writer moves to it once the readers have run on main. The output
+// this writer moves to it once the readers have run on main, in the change
+// that adds the digest lookups to resolve-pr, which looks up only the names
+// this writer writes. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none matching the shared
 // credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
