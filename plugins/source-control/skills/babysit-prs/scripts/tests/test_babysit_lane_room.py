@@ -1183,6 +1183,9 @@ class CheckCodeUnchanged(unittest.TestCase):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="check-code-"))
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.git("init", "-q")
+        # Repo-local, as in test_prune_babysit_worktrees.py: a global
+        # commit.gpgsign would sign every fixture commit with the machine's key.
+        self.git("config", "commit.gpgsign", "false")
         self.commits: dict[str, str] = {}
         for name, path in (
             ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),

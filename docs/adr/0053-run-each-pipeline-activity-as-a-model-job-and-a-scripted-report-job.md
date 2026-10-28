@@ -89,8 +89,9 @@ lane in two jobs. Its contract is
 - The callers must sit in a per-PR concurrency group that queues and never cancels a pending run
   (`queue: max`); a dropped pending run leaves its activity with no check.
 - A fork PR gets no check: its `GITHUB_TOKEN` cannot write checks, so the report job skips it.
-- The report job's `GITHUB_TOKEN` cannot write issues or pull requests, so an unverified lane
-  commit fails the check with no label or comment. Escalating it needs a separate App-token step.
+- An unverified lane commit fails the check, and the report job's `GITHUB_TOKEN`, which holds
+  `issues: write`, adds `needs-human` and a comment whose `<!-- check-signed-commits hold -->`
+  first line holds the lanes.
 - Accepted residual: the report job's token could still post any check name. Only the reporter's
   `ci-status` refusal and its test stand between a defect in that code and a spoofed required
   check.

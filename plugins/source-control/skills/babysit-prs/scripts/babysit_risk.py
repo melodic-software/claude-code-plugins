@@ -278,6 +278,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
+    (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
 )  # fmt: skip

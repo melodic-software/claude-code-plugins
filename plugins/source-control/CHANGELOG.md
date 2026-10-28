@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.16.1] - 2026-10-28
+
+### Changed
+
+- The pr-merge gate keeps the run's shared post-merge answer for a candidate past the two-minute unverified age, up to its 30-minute age, when nothing it was read from has moved: main's head, its config commit, the demotion records, and the verifying runs of every lane merge it judged, verified or not (`babysit_postmerge.pending_runs_unchanged`, the proof the lane room and `settle` already keep it on). The candidate reports `postMergeShared: kept:unverified-stale` and skips its own floor and post-merge check. A verifying run that reached a conclusion since, red or green, a failed or partial run listing, a moved head or config commit, a changed demotion record or a merge past the dispatch deadline still reads the answer again (`unused:unverified-stale`); an expired quarantine excuse still refuses it first as `excuse-expired`. Over 24 scheduled pr-merge runs on 2026-10-27/28, 21 candidates in 10 runs read it again at a median 88 GitHub calls each.
+
+### Fixed
+
+- The pr-merge lane refuses a lane pull request whose linked issue carries a hold label, both at eligibility (`lane_eligibility`) and right before the enqueue (`recheck_lane_issue`), with `closing-issue-held:<label>` ([#7783](https://github.com/melodic-software/claude-code-plugins/issues/7783)). The hold set is `activities.resolve-issue.applies-when.labels-absent` in `docs/conventions/pr-pipeline.yaml`, read through the merge config reader (`PipelineConfig.issue_holds`, the union of the base's and the default branch head's), so the labels that keep an issue for a person are listed once. With no such list the tracker's human-gated role label holds instead. No resolved hold label (`closing-issue-holds-unresolved`) or an issue label set that cannot be read whole refuses. An edit to the issue after admission stays with the verifier's `verify:spec-changed`.
+
+## [3.16.0] - 2026-10-28
+
+### Added
+
+- `push-branch.sh` can merge the pull request's base into the branch just before it pushes, when the branch is behind the base and both changed overlapping paths since the merge-base. A push that waited in a rate gate while the base moved is then not refused by a pre-push stale-base check. The base is fetched from the remote that is the PR's base repository; with none, the step is skipped. The overlap rule is the base ref's `scripts/check-stale-base-overlap.sh --check <remote>/<base>` when the base has one, else the paths both sides changed; nothing in the pushed head is run. The merge is `git merge --no-edit`, never a rebase. It is signed when `commit.gpgsign` is true or HEAD is signed. A conflict aborts the merge, pushes nothing and exits 4. The step is off by default. Turn it on with `sync_stale_base: true` in `docs/conventions/source-control.yaml` on the base repository's default branch, or `--sync-stale-base` for one push; `--no-sync-stale-base` turns it off for one push. A lane push never runs it. The `create` and `ready` references describe the new step and exit code.
+
+### Changed
+
+- The merge gate's path floor (`babysit_risk.FLOOR_CLASSES`) holds `.github/scripts/pr-unblock/fix-ci-context.mjs` and `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` as `enforcement` paths, since `clear-escalations.mjs` now loads them: a change to either waits for a clean security review bound to the head.
+
+## [3.15.0] - 2026-10-28
+
+### Added
+
+- `docs/conventions/source-control.yaml` accepts `dialect`, the regex dialect of `subject_pattern` and `pr_title_pattern` (default `posix-ere`), so every key of the folder-form `commit-convention.yml` fits in the one team file. The guardrails convention gate reads it and turns its enforcement off for any other value.
+
+### Changed
+
+- The pr-merge gate judges its own candidate's verifier verdict `provisional` (`babysit_verify_evidence.py` `Reader.evidence(..., provisional=True)`) on the run's saved artifact listing at any age instead of listing again once that listing is two minutes old. An allow there still lists again before the gate allows the candidate, as before; a refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL cap, an old pull request) stands on it; any other refusal is judged again on a listing under two minutes old, so it never dequeues an entry on an older one. Queued entries are judged as before. A candidate whose verdict allows and that the gate then refuses for anything else, such as its risk score, no longer lists at all. In a fixture shaped like 2026-10-27's repository the merge job's listings fell from 4 to 3 (17 candidates in about 6 minutes) and from 4 to 2 (6 candidates two minutes apart) with an empty merge queue, and stay the same with a queued entry, whose keep needs a recent listing.
+
+### Fixed
+
+- `babysit_verify_evidence.py` reads the incremental listing a second time on the same base before it pages the whole listing (`INCREMENTAL_READS`), only when its pages read whole but missed the live count; a failed read (a timeout, a 429 or a rate-limit 403 included) pages the whole listing at once, as before. The first pr-merge tick on a carried base (run 40600822658, 2026-10-27) read 4 pages that missed the live count (cause unverified) and then paged all 71 in the skip filter; the same base read again five minutes later held the live count in 4 pages.
+
 ## [3.14.4] - 2026-10-28
 
 ### Changed

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
-import { main } from "./check-signed-commits.mjs";
+import { main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -81,6 +81,7 @@ async function check({ api = load(), since = B, routes = routesFrom(api, since),
 const HEAD_WAIT_CAP_MS = 60_000;
 
 const COMMENT_FOR_D = [
+  "<!-- check-signed-commits hold -->",
   "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
     "pull request until a human reviews them.",
   "",
@@ -99,6 +100,17 @@ test("an unverified commit after the recorded head is reported and escalated", a
     { key: `POST /repos/${REPOSITORY}/issues/42/labels`, body: { labels: ["needs-human"] } },
     { key: `POST /repos/${REPOSITORY}/issues/42/comments`, body: { body: COMMENT_FOR_D } },
   ]);
+});
+
+// gate-source.mjs reads this first line as a hold for the lane fixers and
+// clear-escalations.
+test("the escalation comment opens with the hold marker, unverified or could not verify", async () => {
+  assert.equal(SIGNED_COMMITS_HOLD, "<!-- check-signed-commits hold -->");
+  const unverified = await check();
+  const couldNot = await check({ routes: routesFrom(unverifiable()) });
+  for (const { github } of [unverified, couldNot]) {
+    assert.equal(github.writes.at(-1).body.body.split("\n")[0], SIGNED_COMMITS_HOLD);
+  }
 });
 
 test("every new commit verified reports all-verified and writes nothing", async () => {

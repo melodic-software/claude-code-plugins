@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [6.3.1] - 2026-10-28
+
+### Changed
+
+- The pr-merge lane's eligibility section documents the linked-issue hold ([#7783](https://github.com/melodic-software/claude-code-plugins/issues/7783)): at eligibility and again before the enqueue, a linked issue carrying a label from `activities.resolve-issue.applies-when.labels-absent` refuses with `closing-issue-held:<label>`, the tracker's human-gated role label holds when that list is absent, and an unreadable label set refuses. An edit to the issue after admission is the verifier's `verify:spec-changed`.
+
+- pr-merge's gate keeps the run's shared post-merge answer for each candidate past the two-minute unverified age, up to 30 minutes, on the same evidence the lane room keeps it on (main's head, its config commit, the demotion records and the verifying runs of every lane merge it judged unchanged), and reads it again only when one of those moved or cannot be read (`postMergeShared: kept:unverified-stale`).
+
+### Fixed
+
+- `check-signed-commits`' escalation comment opens with `<!-- check-signed-commits hold -->` (`SIGNED_COMMITS_HOLD` in `gate-source.mjs`). A `github-actions[bot]` comment carrying it, written or edited since the human-gated label was last removed, now holds the PR: `gateSource` reads it as `signed-commits-hold`, so fix-ci, fix-docs and resolve-conflicts no longer work past the label when a lane escalation put it on first, address-feedback works only threads a trusted person asked it to fix, and `clear-escalations.mjs` keeps the label. The marker from any other account is not read, and an unmarked bot comment still holds nothing (#9578).
+
+## [6.3.0] - 2026-10-28
+
+### Added
+
+- `clear-escalations.mjs` lifts more pr-unblock stops once their cause is gone: `workflow-staged` also clears once a trusted move took the head off the resume key and the head contains main as it was at the escalation; the `ci-fix-*` stops other than `ci-fix-protected-path` clear once a trusted move took the head off the resume key and, at the new head, no check but `ci-status` fails, runs or was cancelled and each check's latest run ended `success`, `neutral` or `skipped`. A trusted move is read with the job token from the branch's activity, never from comment text: every push since the label is by a `human` of the base `trusted-actors.json`, matched by id, never the lanes App. Security, intent, decision, protected-path and own-patch stops still wait for a person.
+
+## [6.2.1] - 2026-10-28
+
+### Changed
+
+- `scripts/run-test-file.sh` runs a test with git reading a fixed test config (a test identity, commit and tag signing off, no system config) in place of the host's, so a host that signs every commit cannot fail a fixture commit.
+
 ## [6.2.0] - 2026-10-28
 
 ### Added
