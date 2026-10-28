@@ -2664,7 +2664,10 @@ and the trusted-person and human-gated rules above apply unchanged. Codex states
 shields.io badge opening the finding's first line (`![P1 Badge](https://img.shields.io/badge/P1-…)`),
 not a `severity:` line: a P0 or P1 counts as CRITICAL and is never adjudicated (owner decision
 2026-10-27), and a finding whose first line does not open with a P0-P3 badge whose alt text and
-URL agree also goes to a person. Only P2 and P3 are adjudicated. Past the round cap such a
+URL agree also goes to a person. Only P2 and P3 are adjudicated, and only when the finding's text
+names no security class (a secret, token, credential, injection, permission or the like): the
+badge is Codex's own pick and marks none, so such a finding goes to a person as a security
+question (`feedback-question-security`) whatever its badge. Past the round cap such a
 finding goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
 count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account

@@ -1111,10 +1111,11 @@ a footer in a claude[bot] comment, whose body the model writes, names none), or 
 bot's comment (`review-threads.reviewer-ids`; the select job tags it `listed: true` from the
 comment's account id, never its text) whose first line opens with a P2 or P3 severity badge, that
 carries no `severity: CRITICAL` line is adjudicated; a listed bot's P0 or P1, or a finding whose
-badge does not read, goes to a person. A CRITICAL finding, a security-review finding, one whose
-lane its root comment does not name, and a pr-verify verifier note always go to a person: an
-`INCORRECT` reply on one escalates `feedback-disputed`, takes no slot, and any verdict for it is
-ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
+badge does not read, goes to a person, and a listed bot's finding whose text names a security
+class escalates `feedback-question-security` instead of taking a slot. A CRITICAL finding, a
+security-review finding, one whose lane its root comment does not name, and a pr-verify verifier
+note always go to a person: an `INCORRECT` reply on one escalates `feedback-disputed`, takes no
+slot, and any verdict for it is ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
 FAIL still holds the merge, and pr-verify judges each head once. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
 pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicationReply, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicable, adjudicationReply, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -460,3 +460,34 @@ for (const level of ["P0", "P1"]) {
     assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
   });
 }
+
+// A P2 Codex finding about a security class: its badge is Codex's own pick.
+const tokenExposure = "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Step writes GITHUB_TOKEN to the job log**\n\n`.github/workflows/ci.yml:40` echoes the token.";
+
+test("a listed review bot's P2 finding that names a security class is never adjudicated; one that names none still is", () => {
+  assert.equal(adjudicable(listedThread("PRRT_s", tokenExposure).comments), false);
+  assert.deepEqual(disputes(fileOf(listedThread("PRRT_s", tokenExposure)), incorrect("PRRT_s")).slots, []);
+  assert.equal(adjudicable(listedThread("PRRT_2", badged("P2", "yellow")).comments), true);
+  // The code lane's own finding keeps its path whatever its words.
+  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", body: "The token is logged." }]), true);
+});
+
+test("settleDisputes sends an INCORRECT reply on a listed bot's security-class P2 finding to a person as a security question, whatever verdict arrived", async () => {
+  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
+  const result = await settleDisputes({
+    api,
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_s", disposition: "INCORRECT" }],
+    replies: [],
+    shown: new Map([["PRRT_s", { comment_ids: [1] }]]),
+    now: new Map([["PRRT_s", listedThread("PRRT_s", tokenExposure)]]),
+    verdicts: new Map([["PRRT_s", { verdict: "lane", question: "none" }]]),
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => assert.fail("not resolved"),
+    escalationReason: "",
+    log: () => {},
+  });
+  assert.deepEqual(result, { escalationReason: "feedback-question-security", skipReason: "" });
+});
