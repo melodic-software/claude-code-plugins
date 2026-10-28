@@ -24,8 +24,8 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job. A
-//   trusted person's approving review of the head, or their lift of an
-//   earlier head carried over base merges, lifts it, as ci-status lifts it
+//   trusted person's approving review of the head, or of an earlier head
+//   carried over base merges, lifts it, as ci-status lifts it
 //   (merge-holds.pathLifters and liftersOf); it lifts no listing or check
 //   that could not run. A config that does not read arms nothing and labels
 //   nothing; the next run reads it again.
@@ -195,7 +195,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefOid headRefName baseRefOid body
+        id number isDraft isCrossRepository headRefOid baseRefOid body
         author { __typename login }
         userContentEdits(first: 100) { totalCount nodes { editor { __typename } } }
         labels(first: 100) { totalCount nodes { name } }
@@ -960,7 +960,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // A hold path a person clears, lifted by a trusted person's lift of the
+  // A hold path a person clears, lifted by a trusted person's approval of the
   // head or of an earlier head carried over base merges (`lifters`) as
   // ci-status lifts it; a listing or check that could not run
   // is a lane's, which the next run reads again.
@@ -1213,13 +1213,13 @@ export async function main({ env = process.env, github, actions, verify, room, s
             const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             let lifters = headLifters(detail, humans, pull.headRefOid);
-            // A label removal, or a lift of an earlier head carried over base
-            // merges (merge-holds.liftersOf), lifts the hold path as ci-status
-            // lifts it, so a base merge after a person's lift does not send
-            // the pull request back to them.
+            // An approval of an earlier head carried over base merges
+            // (merge-holds.liftersOf) lifts the hold path as ci-status lifts
+            // it, so a base merge after a person's approval does not send the
+            // pull request back to them.
             if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
-              const pr = { number: pull.number, head: pull.headRefOid, base: "main", branch: pull.headRefName };
-              lifters = (await liftersOf(github, repo[0], pr, humans, humanGated, [...holdPaths, ...HOLD_PATH_FLOOR])).lifters;
+              const pr = { number: pull.number, head: pull.headRefOid, base: "main" };
+              lifters = (await liftersOf(github, repo[0], pr, humans, [...holdPaths, ...HOLD_PATH_FLOOR])).lifters;
             }
             detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters };
           }

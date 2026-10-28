@@ -1264,7 +1264,7 @@ collaborator) whose newest comment, review or inline comment with text says "do 
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
 `HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
-run, unless a person on the trusted-actor list lifted that head, or an earlier head it carries to, as `ci-status` reads it, and whose
+run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1408,37 +1408,35 @@ adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold
 request event and in the merge queue, where a red group removes the pull request. A push that
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head (their newest review of it that approves,
-requests changes or was dismissed must approve) or by removing the human-gated label while it is
-the head. Then re-run `ci-status`, since a review does not. The lift carries to a later head
-whose every change since is a merge of the base that changes no hold path beyond it
-(`merge-holds.mjs` `liftersOf` and `baseMergeCarry`), so a base merge after a person's lift does
-not send the pull request back to them:
+requests changes or was dismissed must approve). Then re-run `ci-status`, since a review does not.
+Only an approving review lifts it: removing the human-gated label does not, and a dismissed
+approval never counts. The approval carries to a later head whose every change since is a merge
+of the base (`merge-holds.mjs` `liftersOf` and `baseMergeCarry`), so a base merge after a
+person's approval does not send the pull request back to them:
 
-- Each trusted person's newest deciding act counts (`liftsOf`): an approving review lifts its
-  commit, and so does an approval GitHub dismissed as stale when a push moved the head (a
-  `review_dismissed` event with no message whose dismissal commit the branch was pushed to); a
-  request for changes, a dismissal by a person, or that person adding the label back takes the
-  lift back. A label removal counts only made directly by that person, not through an App, and binds
-  to the head the branch held then, read from its push history (the repository activity API, one
-  page): the newest push before the removal (`headAt`). A push within 60 seconds before the
-  removal, a full page or an unreadable history binds no head.
-- The carry (`baseMergeCarry`, from the compares of the base branch with the lifted head and with
-  the current head): every commit the current head adds is a merge, and the lifted head is among
-  its commits (`baseMergesOnly`), so a non-merge commit, a merge of another branch, or a force
-  push that rewrites the lifted head carries nothing; and each hold-path file the current head
-  changes against the base is changed identically at the lifted head (`netChangeWithin`), so a
-  merge that edits or adds a hold path carries nothing. A hold-path file the base has since taken
-  in drops out. A commit list the compare cuts at 250 carries nothing.
-- An approval of the current head lifts the verifier and issue-link holds too; a lift of an
+- Each trusted person's newest review that approves, requests changes or was dismissed counts
+  (`liftsOf`); it lifts only when it approves, and then its commit.
+- The carry (`baseMergeCarry`, from the compares of the base branch with the approved head and
+  with the current head): every commit the current head adds is a merge whose parents other than
+  the first the base branch holds (`baseMergesOnly` over `mergedParents`; `baseFacts` reads each
+  parent's compare against the base, `ahead` or `identical`), and the approved head is among its
+  commits, so a non-merge commit, a merge of another branch or of a crafted merge commit, or a
+  force push that rewrites the approved head carries nothing. Each hold-path file the current head
+  changes against the base is changed identically at the approved head, and the current head
+  changes no file the approved head did not unless the base changed it between the two merge bases
+  (`netChangeWithin`, `newFiles`), so a merge that edits a hold path or any other file carries
+  nothing. A hold-path file the base has since taken in drops out. A commit list the compare cuts
+  at 250 carries nothing, and so does a head in a fork.
+- An approval of the current head lifts the verifier and issue-link holds too; an approval of an
   earlier head does not, since the merge result is new to pr-verify.
 
-The lift lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
-reads the same lift and stops holding the pull request on the hold path, and the gate's risk
+The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
+reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
 score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
-on `babysit_risk.HIGH_FLOOR` or in `merge.diff-check.denied-paths` on the same lift
+on `babysit_risk.HIGH_FLOOR` or in `merge.diff-check.denied-paths` on the same approvals
 (`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
-holds equal to `pathLifters`, `liftsOf`, `headAt` and `baseMergeCarry`), so its other checks
-decide. The lift lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
+holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
+approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
 trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
 does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths

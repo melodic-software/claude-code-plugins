@@ -1227,33 +1227,42 @@ test("a hold path stays held without a trusted approval of the head", async () =
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
 });
 
-// The churn measured on #10224: Kyle removed the human-gated label while
-// OLD was the head, then a lane merged the base. The lift carries to the
-// merge, so it arms and is not labeled again; a merge that also edits the
-// hold path is sent back to a person.
-test("a label removal before a base merge lifts the hold path at the merge, and an evil merge does not", async () => {
+// The churn measured on #10224: Kyle approved OLD, then a lane merged the
+// base. The approval carries to the merge, so it arms and is not labeled
+// again; a merge that also edits the hold path is sent back to a person, and
+// a label removal alone lifts nothing (the owner's decision on #10596).
+test("an approval before a base merge lifts the hold path at the merge, and an evil merge or a label removal does not", async () => {
   const OLD = "a".repeat(40);
   const MAIN = "5".repeat(40);
   const P = "/repos/melodic-software/claude-code-plugins";
   const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
-  const rest = (number, headFiles) => ({
-    [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: [],
-    [`${P}/issues/${number}/events?per_page=100&page=1`]: [
+  const approval = { id: 41, user: { login: "kyle-sexton", id: 5, type: "User" }, state: "APPROVED", commit_id: OLD, submitted_at: "2026-10-27T23:26:14Z" };
+  const rest = (number, headFiles, reviews = [approval]) => ({
+    [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
+    [`${P}/compare/main...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
+    [`${P}/compare/${MAIN}...main`]: { status: "identical" },
+    [`${P}/compare/main...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 },
+  });
+  const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
+  assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
+  assert.deepEqual(lifted.notes, []);
+  const evil = await run([pull(61, { files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
+  assert.deepEqual(evil.writes, []);
+  assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
+  // The label history the earlier reader bound a removal by.
+  const removal = {
+    ...rest(62, [held], []),
+    [`${P}/issues/62/events?per_page=100&page=1`]: [
+      { event: "labeled", label: { name: "needs-human" }, actor: { id: 2, login: "lanes[bot]" }, performed_via_github_app: { slug: "lanes" }, created_at: "2026-10-27T23:05:00Z" },
       { event: "unlabeled", label: { name: "needs-human" }, actor: { id: 5, login: "kyle-sexton" }, performed_via_github_app: null, created_at: "2026-10-27T23:26:14Z" },
     ],
-    [`${P}/activity?ref=refs%2Fheads%2Ffix%2Fheld-${number}&direction=desc&per_page=100`]: [
+    [`${P}/activity?ref=refs%2Fheads%2Ffix%2Fheld-62&direction=desc&per_page=100`]: [
       { after: HEAD, timestamp: "2026-10-27T23:32:00Z" },
       { after: OLD, timestamp: "2026-10-27T23:00:00Z" },
     ],
-    [`${P}/compare/main...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 },
-    [`${P}/compare/main...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD, MAIN] }], total_commits: 2 },
-  });
-  const lifted = await run([pull(60, { headRefName: "fix/held-60", files: HELD, rest: rest(60, [held]) })], trustedKyle());
-  assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
-  assert.deepEqual(lifted.notes, []);
-  const evil = await run([pull(61, { headRefName: "fix/held-61", files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
-  assert.deepEqual(evil.writes, []);
-  assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
+  };
+  const removed = await run([pull(62, { headRefName: "fix/held-62", files: HELD, rest: removal })], trustedKyle());
+  assert.deepEqual(removed.writes, []);
 });
 
 test("an approval lifts no unread hold-path check and no capped file listing", () => {

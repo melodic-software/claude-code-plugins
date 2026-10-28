@@ -7,6 +7,7 @@ every change since is a base merge (owner decisions Q17 c and Q18 d on
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 import unittest
 from datetime import datetime, timedelta
@@ -77,9 +78,9 @@ def _history(sha: str, answer: Any) -> Any:
     HEAD of the base for HEAD, the head alone for any other."""
     if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
         return answer
-    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [MAIN]}]
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
     if sha == HEAD:
-        commits.append({"sha": HEAD, "parents": [OLD, MAIN]})
+        commits.append({"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]})
     return answer | {"commits": commits, "total_commits": len(commits)}
 
 
@@ -149,6 +150,11 @@ class Lanes:
             return (
                 (404, None) if self.unreadable == "activity" else (200, self.activity)
             )
+        if "/compare/" in endpoint and not re.fullmatch(
+            r"[0-9a-f]{40}", endpoint.rsplit("...", 1)[1]
+        ):
+            parent = endpoint.split("/compare/", 1)[1].split("...")[0]
+            return 200, {"status": "identical" if parent == MAIN else "diverged"}
         sha = endpoint.rsplit("...", 1)[1]
         if sha in self.compares and self.unreadable != f"compare {sha}":
             return 200, _history(sha, self.compares[sha])
@@ -400,10 +406,11 @@ class CostDecision(unittest.TestCase):
         script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
         self.assertEqual(
-            self.reads[-2:],
+            self.reads[-3:],
             [
                 f"repos/owner/repo/compare/{BASE}...{OLD}",
                 f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                f"repos/owner/repo/compare/{MAIN}...{BASE}",
             ],
         )
 
@@ -421,12 +428,12 @@ class CostDecision(unittest.TestCase):
         rewritten = "6" * 40
         for name, commits in {
             "a rebase": [
-                {"sha": rewritten, "parents": [MAIN]},
-                {"sha": HEAD, "parents": [rewritten]},
+                {"sha": rewritten, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": rewritten}]},
             ],
             "a commit of its own": [
-                {"sha": OLD, "parents": [MAIN]},
-                {"sha": HEAD, "parents": [OLD]},
+                {"sha": OLD, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": OLD}]},
             ],
         }.items():
             with self.subTest(name):

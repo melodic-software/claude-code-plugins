@@ -116,6 +116,8 @@ case "$*" in
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
   from "$STUB_RUNS" "$(key workflows "$@")"
   ;;
+*/compare/"$MAIN_SHA...${STUB_BASE_REF:-main}") failing compare; printf '{"status":"identical"}\n' ;;
+*/compare/*"...${STUB_BASE_REF:-main}") failing compare; printf '{"status":"diverged"}\n' ;;
 */compare/"$BASE_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
@@ -163,10 +165,11 @@ MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
 # and HEAD, HEAD a merge of the base into OLD unless [head-commits] lists
 # its history.
 MAIN_SHA=5555555555555555555555555555555555555555
+export MAIN_SHA
 nets() {
   STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --arg m "$MAIN_SHA" --argjson a "$1" --argjson b "$2" --argjson c "${3:-null}" '
-    ($c // [{sha: $o, parents: [$m]}, {sha: $h, parents: [$o, $m]}]) as $c
-    | {($o): {files: $a, commits: [{sha: $o, parents: [$m]}], total_commits: 1}, ($h): {files: $b, commits: $c, total_commits: ($c | length)}}')"
+    ($c // [{sha: $o, parents: [{sha: $m}]}, {sha: $h, parents: [{sha: $o}, {sha: $m}]}]) as $c
+    | {($o): {files: $a, commits: [{sha: $o, parents: [{sha: $m}]}], total_commits: 1}, ($h): {files: $b, commits: $c, total_commits: ($c | length)}}')"
   export STUB_COMPARE
 }
 # push <sha> <timestamp>: a push to the head branch, as the repository
@@ -430,10 +433,15 @@ nets "[$TF,$MORE]" "[$MORE,$TF]"
 expect "a base merge with the same net change, in another file order, carries the decision" yes yes yes
 nets "[$TF,$MORE]" "[$TF]"
 expect "a base merge that drops one of its files clears nothing" no no no "covering this head"
-nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[\"$MAIN_SHA\"]},{\"sha\":\"$HEAD\",\"parents\":[\"$OLD\"]}]"
+nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"$OLD\"}]}]"
 expect "a commit of its own with the same net change clears nothing" no no no "covering this head"
-nets "[$TF]" "[$TF]" "[{\"sha\":\"6666666666666666666666666666666666666666\",\"parents\":[\"$MAIN_SHA\"]},{\"sha\":\"$HEAD\",\"parents\":[\"6666666666666666666666666666666666666666\",\"$MAIN_SHA\"]}]"
+nets "[$TF]" "[$TF]" "[{\"sha\":\"6666666666666666666666666666666666666666\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"6666666666666666666666666666666666666666\"},{\"sha\":\"$MAIN_SHA\"}]}]"
 expect "a rebase that rewrites the decided head clears nothing" no no no "covering this head"
+# A crafted merge commit (itself a merge of base commits) as the second parent.
+X=7777777777777777777777777777777777777777
+nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$X\",\"parents\":[{\"sha\":\"$MAIN_SHA\"},{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"$OLD\"},{\"sha\":\"$X\"}]}]"
+expect "a merge of a commit the base does not hold clears nothing" no no no "covering this head"
+if grep -q "compare/$X...main$" "$TMP_ROOT/log"; then ok "a merged parent is read against the base branch"; else fail "no compare of the merged parent: '$(grep compare "$TMP_ROOT/log")'"; fi
 nets "[$TF]" "[$(jq -c '.patch = "@@ -1 +1 @@\n-a\n+c"' <<<"$TF")]"
 expect "a conflict resolution that changes the net change clears nothing" no no no "covering this head"
 nets "[$TF]" "[$(jq -c '.status = "renamed" | .previous_filename = "infra/old.tf"' <<<"$TF")]"

@@ -731,8 +731,8 @@ CARRIES = {
             HEAD: {
                 "files": [TF],
                 "commits": [
-                    {"sha": OLD, "parents": [MAIN]},
-                    {"sha": HEAD, "parents": [OLD]},
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}]},
                 ],
                 "total_commits": 2,
             },
@@ -745,9 +745,9 @@ CARRIES = {
             HEAD: {
                 "files": [TF],
                 "commits": [
-                    {"sha": OLD, "parents": [MAIN]},
-                    {"sha": NEW, "parents": [MAIN]},
-                    {"sha": HEAD, "parents": [OLD, NEW]},
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": NEW, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": NEW}]},
                 ],
                 "total_commits": 3,
             },
@@ -764,8 +764,8 @@ CARRIES = {
             HEAD: {
                 "files": [TF],
                 "commits": [
-                    {"sha": NEW, "parents": [MAIN]},
-                    {"sha": HEAD, "parents": [NEW, MAIN]},
+                    {"sha": NEW, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": NEW}, {"sha": MAIN}]},
                 ],
                 "total_commits": 2,
             },
@@ -778,8 +778,8 @@ CARRIES = {
             HEAD: {
                 "files": [TF],
                 "commits": [
-                    {"sha": OLD, "parents": [MAIN]},
-                    {"sha": HEAD, "parents": [OLD, MAIN]},
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
                 ],
                 "total_commits": 251,
             },
@@ -805,9 +805,9 @@ def _history(sha: str, answer: Any) -> Any:
     HEAD of the base for HEAD, the head alone for any other."""
     if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
         return answer
-    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [MAIN]}]
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
     if sha == HEAD:
-        commits.append({"sha": HEAD, "parents": [OLD, MAIN]})
+        commits.append({"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]})
     return answer | {"commits": commits, "total_commits": len(commits)}
 
 
@@ -839,6 +839,7 @@ import { costDecision } from %s;
 const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
+  if (method === "GET" && path.endsWith("...main")) return { status: path.includes(`/compare/${"5".repeat(40)}...`) ? "identical" : "diverged" };
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
     if (!(sha in answers)) throw new Error("no such commit");
@@ -904,6 +905,11 @@ def py_decision(
         return {"node": {"lastEditedAt": comment["edited"]}}
 
     def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        if "/compare/" in endpoint and not re.fullmatch(
+            r"[0-9a-f]{40}", endpoint.rsplit("...", 1)[1]
+        ):
+            parent = endpoint.split("/compare/", 1)[1].split("...")[0]
+            return 200, {"status": "identical" if parent == MAIN else "diverged"}
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
@@ -991,12 +997,11 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
 
 
 NODE_CARRY = """
-import { baseMergeCarry, fromRest, headAt, liftsOf } from %s;
-const [lifts, heads, carries, from] = JSON.parse(process.argv[1]);
+import { baseMergeCarry, fromRest, liftsOf } from %s;
+const [lifts, carries, from] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify([
-  lifts.map(([reviews, events, label]) => liftsOf(reviews.map(fromRest), events, new Set([1, 3]), label, new Set([from])).map(({ login, sha, at }) => [login, sha, at])),
-  heads.map(([activity, at]) => headAt(activity, at)),
-  carries.map(([then, now, keep]) => baseMergeCarry(then, now, from, keep)),
+  lifts.map((reviews) => liftsOf(reviews.map(fromRest), new Set([1, 3])).map(({ login, sha }) => [login, sha])),
+  carries.map(([then, now, keep, inBase, changed]) => baseMergeCarry(then, now, from, keep, { inBase: new Set(inBase), baseChanged: new Set(changed) })),
 ]));
 """
 _OLD = "c" * 40
@@ -1007,39 +1012,12 @@ _DOC = {"filename": "docs/a.md", "status": "modified", "patch": "+x"}
 _LIFTED = "2026-10-27T23:26:14Z"
 
 
-def _event(
-    at: str = _LIFTED,
-    user: int = 1,
-    event: str = "unlabeled",
-    label: str = "needs-human",
-    app: Any = None,
-) -> dict[str, Any]:
-    return {
-        "event": event,
-        "label": {"name": label},
-        "actor": {"id": user, "login": f"u{user}"},
-        "performed_via_github_app": app,
-        "created_at": at,
-    }
-
-
-def _dismissal(commit: str, message: str | None = None) -> dict[str, Any]:
-    """GitHub's dismissal of review 41 when `commit` was pushed, or a
-    person's, which carries a message."""
-    return {
-        "event": "review_dismissed",
-        "dismissed_review": {
-            "review_id": 41,
-            "state": "approved",
-            "dismissal_message": message,
-            "dismissal_commit_id": commit,
-        },
-    }
-
-
 def _moved(*commits: tuple[str, list[str]]) -> dict[str, Any]:
     return {
-        "commits": [{"sha": sha, "parents": parents} for sha, parents in commits],
+        "commits": [
+            {"sha": sha, "parents": [{"sha": p} for p in parents]}
+            for sha, parents in commits
+        ],
         "total_commits": len(commits),
     }
 
@@ -1048,56 +1026,49 @@ _THEN = {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]))}
 _MERGED = _moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD, _BASE_SHA]))
 _OTHER = "e" * 40
 _REWRITTEN = "f" * 40
-# (reviews, events, label): whose lift stands.
+# REST reviews: whose approval stands, as (login, sha).
 LIFT_CASES = {
-    "an unlabel": ([], [_event()], "needs-human"),
-    "an approval of an earlier head": ([_review("APPROVED", sha=_OLD)], [], "needs-human"),
-    "an unlabel through an App": ([], [_event(app={"slug": "x"})], "needs-human"),
-    "an unlabel by an untrusted account": ([], [_event(user=2)], "needs-human"),
-    "another label": ([], [_event(label="triage")], "needs-human"),
-    "no label resolved": ([], [_event()], None),
-    "the label added back": ([], [_event(), _event("2026-10-27T23:30:00Z", event="labeled")], "needs-human"),
-    "an approval then changes requested on another head": (
-        [_review("APPROVED", sha=_OLD), _review("CHANGES_REQUESTED", sha="d" * 40, at="2026-10-27T23:40:00Z")],
-        [],
-        "needs-human",
-    ),
-    "a dismissed approval": ([_review("DISMISSED", sha=_OLD)], [], "needs-human"),
-    "an approval dismissed as stale on a push": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal(_OLD)], "needs-human"),
-    "an approval dismissed with a message": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal(_OLD, "no")], "needs-human"),
-    "an approval dismissed by a commit never pushed": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal("9" * 40)], "needs-human"),
-    "an approval after an unlabel": ([_review("APPROVED", sha=_OLD, at="2026-10-27T23:40:00Z")], [_event()], "needs-human"),
-}  # fmt: skip
-# (activity, at): the head at a lift.
-HEAD_CASES = {
-    "the push before": ([_push(_HEAD, "2026-10-27T23:32:00Z"), _push(_OLD, "2026-10-27T23:00:00Z")], _LIFTED),
-    "a push within a minute before": ([_push(_OLD, "2026-10-27T23:25:50Z")], _LIFTED),
-    "a push in the same second": ([_push(_OLD, _LIFTED)], _LIFTED),
-    "no push before": ([_push(_HEAD, "2026-10-27T23:32:00Z")], _LIFTED),
-    "a full page": ([_push(_OLD, "2026-10-27T23:00:00Z")] * 100, _LIFTED),
-    "a time that does not parse": ([_push(_OLD, "soon")], _LIFTED),
-    "not a list": ({"message": "Not Found"}, _LIFTED),
-    "a deleted branch is no push": ([{"after": "0" * 40, "timestamp": "2026-10-27T23:10:00Z"}, _push(_OLD, "2026-10-27T23:00:00Z")], _LIFTED),
+    "an approval of an earlier head": [_review("APPROVED", sha=_OLD, at=_LIFTED)],
+    "an approval by an untrusted account": [_review("APPROVED", 2, _OLD, _LIFTED)],
+    "an approval by a bot": [_review("APPROVED", 1, _OLD, _LIFTED, "Bot")],
+    "an approval then changes requested on another head": [
+        _review("APPROVED", sha=_OLD, at=_LIFTED),
+        _review("CHANGES_REQUESTED", sha="d" * 40, at="2026-10-27T23:40:00Z"),
+    ],
+    "a dismissed approval": [_review("DISMISSED", sha=_OLD, at=_LIFTED)],
+    "an approval dismissed after a newer approval": [
+        _review("APPROVED", sha=_OLD, at=_LIFTED),
+        _review("DISMISSED", sha=_HEAD, at="2026-10-27T23:40:00Z"),
+    ],
+    "a comment after an approval": [_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")],
+    "two people": [_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)],
 }  # fmt: skip
 _KEEP = [".github/actions/resolve-config/**"]
-# (then, now, keep): whether the lift at _OLD carries to _HEAD.
+_IN_BASE = [_BASE_SHA]
+# (then, now, keep, in_base, changed): whether the lift at _OLD carries to
+# _HEAD, given the merged parents the base holds and the files it changed.
 CARRY_CASES = {
-    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _KEEP),
+    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _KEEP, _IN_BASE, []),
     "a base merge after which the base holds a hold path's change": (
         {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}], **_moved((_OLD, [_BASE_SHA]))},
         {"files": [_PATCH], **_MERGED},
         _KEEP,
+        _IN_BASE,
+        [],
     ),
-    "a conflict resolution outside the hold paths": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _KEEP),
-    "the same conflict resolution against the whole net change": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, None),
-    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _KEEP),
-    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _KEEP),
-    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _KEEP),
-    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _KEEP),
-    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _KEEP),
-    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _KEEP),
-    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _KEEP),
-    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _KEEP),
+    "a conflict resolution outside the hold paths": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a file outside H's net change the base changed": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _KEEP, _IN_BASE, [_DOC["filename"]]),
+    "a merge of a parent the base does not hold": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _KEEP, _IN_BASE, []),
+    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, _KEEP, [], []),
+    "the same conflict resolution against the whole net change": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, None, _IN_BASE, []),
+    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _KEEP, _IN_BASE, []),
+    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _KEEP, _IN_BASE, []),
+    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _KEEP, _IN_BASE, []),
+    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _KEEP, _IN_BASE, []),
+    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _KEEP, _IN_BASE, []),
 }  # fmt: skip
 
 
@@ -1111,62 +1082,48 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                 "-e",
                 NODE_CARRY % json.dumps(MODULE.as_uri()),
                 json.dumps(
-                    [
-                        list(LIFT_CASES.values()),
-                        list(HEAD_CASES.values()),
-                        list(CARRY_CASES.values()),
-                        _OLD,
-                    ]
+                    [list(LIFT_CASES.values()), list(CARRY_CASES.values()), _OLD]
                 ),
             ],
             capture_output=True,
             text=True,
             check=True,
         )
-        lifts, heads, carries = json.loads(proc.stdout)
-        for (name, (reviews, events, label)), js in zip(
-            LIFT_CASES.items(), lifts, strict=True
-        ):
+        lifts, carries = json.loads(proc.stdout)
+        for (name, reviews), js in zip(LIFT_CASES.items(), lifts, strict=True):
             with self.subTest(name):
                 self.assertEqual(
-                    [
-                        list(x)
-                        for x in policy.lifts_of(reviews, events, {1, 3}, label, {_OLD})
-                    ],
-                    js,
+                    [list(x) for x in policy.lifts_of(reviews, {1, 3})], js
                 )
-        for (name, (activity, at)), js in zip(HEAD_CASES.items(), heads, strict=True):
-            with self.subTest(name):
-                self.assertEqual(policy.head_at(activity, at), js)
-        for (name, (then, now, keep)), js in zip(
+        for (name, (then, now, keep, in_base, changed)), js in zip(
             CARRY_CASES.items(), carries, strict=True
         ):
             with self.subTest(name):
-                self.assertEqual(policy.base_merge_carry(then, now, _OLD, keep), js)
-        # The rule's answers: a lift stands only when a trusted person made it
-        # directly and has not withdrawn it since; it binds to the push a
-        # minute or more before it; it carries over base merges alone, within
-        # the hold paths' net change.
+                self.assertEqual(
+                    policy.base_merge_carry(
+                        then, now, _OLD, keep, set(in_base), set(changed)
+                    ),
+                    js,
+                )
+        # The rule's answers: a trusted person's newest review approves a
+        # commit (a dismissed approval never counts); it carries over merges of
+        # base commits alone, within the hold paths' net change and no wider
+        # than the base's.
         self.assertEqual(
-            {name for name, js in zip(LIFT_CASES, lifts, strict=True) if js},
-            {
-                "an unlabel",
-                "an approval of an earlier head",
-                "an approval after an unlabel",
-                "an approval dismissed as stale on a push",
+            dict(zip(LIFT_CASES, lifts, strict=True)),
+            dict.fromkeys(LIFT_CASES, [])
+            | {
+                "an approval of an earlier head": [["u1", _OLD]],
+                "a comment after an approval": [["u1", _OLD]],
+                "two people": [["u1", _OLD], ["u3", _HEAD]],
             },
-        )
-        self.assertEqual(
-            dict(zip(HEAD_CASES, heads, strict=True)),
-            dict.fromkeys(HEAD_CASES)
-            | {"the push before": _OLD, "a deleted branch is no push": _OLD},
         )
         self.assertEqual(
             {name for name, js in zip(CARRY_CASES, carries, strict=True) if js},
             {
                 "a base merge",
                 "a base merge after which the base holds a hold path's change",
-                "a conflict resolution outside the hold paths",
+                "a file outside H's net change the base changed",
             },
         )
 

@@ -198,16 +198,16 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         self.assertNotIn("high-path", str(cost))
 
 
-# A lift of an earlier head carried over base merges (#10224): Kyle (id 5)
-# removed the human-gated label while OLD was the head, then a lane merged
-# the base into it, so the head is a merge whose resolve-config change is the
-# one OLD made.
+# An approval of an earlier head carried over base merges (#10224): Kyle
+# (id 5) approved OLD, then a lane merged the base into it, so the head is a
+# merge whose resolve-config change is the one OLD made.
 OLD = "c" * 40
 MAIN = "5" * 40
 CARRIED_PR = PR | {
-    "head": {"sha": HEAD, "ref": "feat/x"},
+    "head": {"sha": HEAD, "ref": "feat/x", "repo": {"full_name": REPO}},
     "base": {"sha": BASE, "ref": "main", "repo": {"private": False}},
 }
+OTHER = "7" * 40
 HELD_PATCH = {
     "filename": FLOORED.path,
     "status": "modified",
@@ -215,96 +215,122 @@ HELD_PATCH = {
 }
 
 
+def approval(state: str = "APPROVED", sha: str = OLD, user: int = 5) -> dict[str, object]:
+    return {
+        "user": {"id": user, "login": f"user{user}", "type": "User"},
+        "state": state,
+        "commit_id": sha,
+        "submitted_at": "2026-10-27T23:26:14Z",
+    }
+
+
 def carried(
     head_files: list[dict[str, object]],
     *,
-    activity: object = None,
-    tracker: object = '{"config": {"role_labels": {"human-gated": "needs-human"}}}',
+    reviews: list[dict[str, object]] | None = None,
+    head_commits: list[dict[str, object]] | None = None,
+    base_change: list[dict[str, object]] = (),
+    pr: dict[str, object] = CARRIED_PR,
 ) -> list[str]:
-    activity = (
-        [
-            {"after": HEAD, "timestamp": "2026-10-27T23:32:00Z"},
-            {"after": OLD, "timestamp": "2026-10-27T23:00:00Z"},
-        ]
-        if activity is None
-        else activity
-    )
     compares = {
         OLD: {
             "files": [HELD_PATCH],
-            "commits": [{"sha": OLD, "parents": [MAIN]}],
+            "commits": [{"sha": OLD, "parents": [{"sha": MAIN}]}],
             "total_commits": 1,
+            "merge_base_commit": {"sha": BASE},
         },
         HEAD: {
             "files": head_files,
-            "commits": [
-                {"sha": OLD, "parents": [MAIN]},
-                {"sha": HEAD, "parents": [OLD, MAIN]},
+            "commits": head_commits
+            or [
+                {"sha": OLD, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
             ],
-            "total_commits": 2,
+            "total_commits": len(head_commits or [0, 0]),
+            "merge_base_commit": {"sha": MAIN},
         },
     }
-    events = [
-        {
-            "event": "unlabeled",
-            "label": {"name": "needs-human"},
-            "actor": {"id": 5, "login": "user5"},
-            "performed_via_github_app": None,
-            "created_at": "2026-10-27T23:26:14Z",
-        }
-    ]
 
     def get(endpoint: str, env: object = None) -> tuple[int | None, object]:
-        if "/activity?" in endpoint:
-            assert endpoint == (
-                f"repos/{REPO}/activity?ref=refs%2Fheads%2Ffeat%2Fx"
-                "&direction=desc&per_page=100"
-            ), endpoint
-            return (200, activity) if activity != "unreadable" else (502, None)
+        if endpoint.endswith("...main"):
+            parent = endpoint.rsplit("/", 1)[1].split("...")[0]
+            return 200, {"status": "identical" if parent == MAIN else "diverged"}
+        if endpoint == f"repos/{REPO}/compare/{BASE}...{MAIN}":
+            return 200, {"files": list(base_change)}
         sha = endpoint.rsplit("...", 1)[1]
         assert endpoint == f"repos/{REPO}/compare/main...{sha}", endpoint
         return 200, compares[sha]
 
-    def file_at(owner: str, name: str, path: str, sha: str) -> object:
-        assert (path, sha) == (".work-item-tracker.json", BASE)
-        if isinstance(tracker, Exception):
-            raise tracker
-        return tracker
-
-    with (
-        mock.patch.object(policy, "_get", side_effect=get),
-        mock.patch.object(policy, "_paginated", return_value=events),
-        mock.patch.object(policy, "_file_at", side_effect=file_at),
-    ):
+    with mock.patch.object(policy, "_get", side_effect=get):
         return policy.carried_lifters(
-            REPO, CARRIED_PR, [], TRUSTED, (".github/actions/resolve-config/**",)
+            REPO,
+            pr,
+            [approval()] if reviews is None else reviews,
+            TRUSTED,
+            (".github/actions/resolve-config/**",),
         )
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
-    def test_a_label_removal_before_a_base_merge_lifts_the_head(self) -> None:
+    def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
         self.assertEqual(carried([HELD_PATCH]), ["user5"])
+        # A file the base itself changed between the merge bases.
+        lib = {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+b"}
+        self.assertEqual(
+            carried([HELD_PATCH, lib], base_change=[{"filename": lib["filename"]}]),
+            ["user5"],
+        )
 
     def test_no_untrusted_shape_or_unread_input_carries(self) -> None:
         cases = {
             "an evil merge": {"head_files": [HELD_PATCH | {"patch": "+evil"}]},
-            "a push within a minute of the removal": {
+            # The security review of #10596.
+            "a merge whose second parent the base does not hold": {
                 "head_files": [HELD_PATCH],
-                "activity": [{"after": OLD, "timestamp": "2026-10-27T23:25:50Z"}],
+                "head_commits": [
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": OTHER, "parents": [{"sha": MAIN}, {"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": OTHER}]},
+                ],
             },
-            "an unreadable push history": {
+            "a merge that edits a file outside H's net change": {
+                "head_files": [
+                    HELD_PATCH,
+                    {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+x"},
+                ],
+            },
+            "a head in a fork": {
                 "head_files": [HELD_PATCH],
-                "activity": "unreadable",
+                "pr": CARRIED_PR
+                | {"head": CARRIED_PR["head"] | {"repo": {"full_name": "a/fork"}}},
             },
-            "an unreadable tracker config": {
+            "a head whose repository does not read": {
                 "head_files": [HELD_PATCH],
-                "tracker": policy.PolicyReadError("contents: HTTP 502"),
+                "pr": CARRIED_PR | {"head": CARRIED_PR["head"] | {"repo": None}},
             },
-            "no tracker config": {"head_files": [HELD_PATCH], "tracker": None},
+            # The owner's decision on #10596: a dismissed approval never counts.
+            "a dismissed approval": {
+                "head_files": [HELD_PATCH],
+                "reviews": [approval("DISMISSED")],
+            },
+            "no approval": {"head_files": [HELD_PATCH], "reviews": []},
+            "an untrusted approval": {
+                "head_files": [HELD_PATCH],
+                "reviews": [approval(user=77)],
+            },
         }
         for name, case in cases.items():
             with self.subTest(name):
                 self.assertEqual(carried(**case), [])
+
+    def test_a_label_removal_lifts_nothing(self) -> None:
+        """The owner's decision on #10596: no issue event, push history or
+        tracker config is read, so a label removal cannot lift a hold path."""
+        with (
+            mock.patch.object(policy, "_paginated", side_effect=AssertionError),
+            mock.patch.object(policy, "_file_at", side_effect=AssertionError),
+        ):
+            self.assertEqual(carried([HELD_PATCH], reviews=[]), [])
 
     def test_the_risk_hold_reads_the_carried_lift_on_its_high_paths(self) -> None:
         with mock.patch.object(

@@ -455,7 +455,7 @@ STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
-expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; a person on the trusted-actor list lifts it by approving this head or by removing the human-gated label while it is the head"
+expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
 STUB_FILES='[["docs/guide.md"],["docs/moved.md","docs/held/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a denied path fails on its old path" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
