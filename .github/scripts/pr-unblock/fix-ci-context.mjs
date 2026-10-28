@@ -4,10 +4,10 @@
 //
 // It skips a pull request the human-gated label holds (awaiting-human) unless
 // another lane's escalation put the label on (gate-source.mjs prHold),
-// escalates `ci-fix-round-cap` once the lanes App has pushed
-// `loop.fix-ci-rounds` fix-ci commits to the pull request, skips a closed pull
-// request or a head with no failing check (one cancelled past its time limit
-// counts), and otherwise writes the context
+// skips a closed pull request or a head with no failing check (one cancelled
+// past its time limit counts), escalates `ci-fix-round-cap` once the lanes App
+// has pushed `loop.fix-ci-rounds` fix-ci commits to the pull request, and
+// otherwise writes the context
 // file the `source-control:pull-request ci --ci` skill reads: each failing
 // check's name, the workflow file that defines its job, its annotations and
 // the end of its log, and the review findings address-feedback would work
@@ -23,14 +23,16 @@ import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
-import { prHold, reviewReader } from "./gate-source.mjs";
+import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
+
+// clear-escalations reads the head the same way, so the reader lives on the
+// merge path floor in gate-source.mjs.
+export { failingChecks };
+import { retryRung, stopSkip } from "./escalation-routes.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
-const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
-// The aggregate of the others: fixing them fixes it.
-const AGGREGATE = "ci-status";
 const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/;
 const MAX_CHECKS = 10;
 const MAX_ANNOTATIONS = 20;
@@ -63,27 +65,6 @@ export function logExcerpt(text) {
     excerpt = excerpt.slice(-MAX_EXCERPT);
   }
   return excerpt;
-}
-
-// A contract-only run skips every lane, and ci-status then carries the last
-// full run's recorded verdict forward, so a skip says nothing about a check.
-const SILENT = new Set(["skipped", "neutral"]);
-const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
-
-// The latest run of each check name that is not a skip, when it failed or was
-// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
-// dispatcher reads a cancelled head through it too, so the two agree.
-export function failingChecks(checkRuns) {
-  const latest = new Map();
-  for (const run of checkRuns) {
-    const kept = latest.get(run.name);
-    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
-      latest.set(run.name, run);
-    }
-  }
-  return [...latest.values()]
-    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
-    .sort((a, b) => a.id - b.id);
 }
 
 const annotationOf = (row) => ({
@@ -158,12 +139,22 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };
   }
+  // A whole listing of settled checks with none failing: every fix-ci stop
+  // is gone on this head, round cap included, and `resolved` lets
+  // report-stop-status clear its status. A cut-short or unsettled listing
+  // decides nothing.
+  const runs = await api.listCommitCheckRuns(headSha);
+  const failing = failingChecks(runs);
+  if (failing.length === 0) {
+    const settled = runs.complete === true && runs.every((run) => run.status === "completed");
+    return { decision: "skip", skipReason: "not-applicable", ...(settled ? { resolved: true } : {}), headSha, laneEscalated };
+  }
   const rounds = countFixRounds(await api.listPullCommits(pr), appId);
   if (rounds >= maxRounds) {
     return { decision: "escalate", escalationReason: "ci-fix-round-cap", rounds, headSha, laneEscalated };
   }
   const checks = [];
-  for (const run of failingChecks(await api.listCommitCheckRuns(headSha))) {
+  for (const run of failing) {
     if (checks.length === MAX_CHECKS) {
       break;
     }
@@ -191,7 +182,9 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
-  return { decision: "proceed", rounds, headSha, laneEscalated, file: { pr, head_sha: headSha, checks, review_findings } };
+  // A retry after the push job stopped on this head runs one rung up.
+  const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
+  return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, file: { pr, head_sha: headSha, checks, review_findings } };
 }
 
 // The base config's resolved loop caps, through the base checkout's
@@ -233,10 +226,13 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   output("head-sha", result.headSha);
   output("escalation-reason", result.escalationReason ?? "");
   output("context-sha256", sha256);
-  // fix-ci-not-run's check, and whether apply-patch may push past the
-  // human-gated label a lane escalation put on.
-  output("skip-reason", result.decision === "skip" ? result.skipReason : "");
+  // fix-ci-not-run's check (a stop's own skip, so the head's fix-ci runs
+  // record it), and whether apply-patch may push past the human-gated label
+  // a lane escalation put on.
+  output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
   output("lane-escalated", String(result.laneEscalated === true));
+  output("model-rung", result.modelRung ?? "");
+  output("stop-resolved", String(result.resolved === true));
   log(
     `${result.decision}: ${result.file?.checks.length ?? 0} failing check(s), ${result.file?.review_findings.length ?? 0} review finding(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`,
   );

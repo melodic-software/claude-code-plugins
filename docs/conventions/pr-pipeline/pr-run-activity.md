@@ -845,9 +845,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    a job output, and escalates `unresolved-conflict` when one says the scan refused or the
    download failed (`conflict-scan-refusal.mjs`, through `scanRefusal`); no marker escalates
    nothing.
-6. `report-conflict-status` posts a failing `pr-unblock/conflict` status on the select job's head
-   when the select, push or `conflict-scan-refusal` job escalates `unresolved-conflict`; `report-escalation`
-   takes any of their reasons.
+6. `report-stop-status` posts a failing `pr-unblock/conflict` status on the select job's head
+   when the select, push or `conflict-scan-refusal` job stops on a reason routed `fail`;
+   `report-escalation` takes any of their reasons.
 
 The three merges of one round must agree on the conflict tree; one that does not fails red and
 nothing is resolved or pushed. The kill switch (step 3) stops new runs only; a run already past it
@@ -916,7 +916,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
-   thread skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
+   thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
+   (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
+   only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
+   unresolved thread, so such a head reaches this step once: its lane-stopped check then ends the
+   head, which a reply job's skip does not release. A failed reply job with no escalation reason
+   (its lane token, a script error) stops as `feedback-publish-failed`, which `pr-unblock.yml`
+   derives from the job's result. A PR diff touching
    `.github/workflows/**` escalates `feedback-protected-path`. Rounds count as the larger of the
    round markers the lanes App posted and the PR commits carrying a `github-actions`
    `pr-unblock / address-feedback` check run that ended `success` or `failure` (a round whose
@@ -925,10 +931,12 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    or the completion of a model check run that ended `success`, `failure`, `cancelled` or
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
    grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
-   finding ending in the `claude-lane: claude-review` footer (a security lane finding, a verifier
-   note, or a `claude[bot]` or listed review bot's finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
+   finding ending in the `claude-lane: claude-review` footer nor a pr-verify note (a security lane
+   finding, or a `claude[bot]` or listed review bot's finding, whose footer would be model text), or a pr-verify note a
+   trusted person directed, escalates `feedback-round-cap`, which skips `awaiting-human`; otherwise one more round runs on every kept
    thread (the fresh fixer), and once it has run the select job escalates
-   `feedback-not-converging`. The escalations skip `awaiting-human`; no escalation or skip runs a
+   `feedback-verifier-open` when every kept thread is a pr-verify note, else
+   `feedback-not-converging`; both route to a failing status and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
@@ -1057,11 +1065,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      second line names the workflow run and `review-replies-attempt`, and a re-run of the reply
      job alone finds a lanes App marker with that line and posts none, so one round counts once,
      while a re-run of the model job counts another. A round with no replies attempt names none,
-     and its marker is always posted. It escalates
-     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply;
-   - after the replies, settles each posted `INCORRECT` reply by the adjudicator's verdict
+     and its marker is always posted;
+   - after the replies, settles each posted `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply by
+     the adjudicator's verdict
      ([below](#the-adjudicator)): `lane` posts the fixed finding-answered reply and resolves the
-     thread; `reviewer` posts the fixed finding-stands reply and leaves the thread open for the
+     thread only on an `INCORRECT` reply, where the lane disputed the finding with evidence; on an
+     `UNCERTAIN` or `VALID-defer` reply the thread stays open, with no reply, and escalates
+     `feedback-unadjudicated`, so a model verdict never closes a finding the lane did not dispute; `reviewer` posts the fixed finding-stands reply and leaves the thread open for the
      next round; when the PR head did not move this round, no review run follows to start that
      round, so the reply job skips `finding-stands` (when nothing escalates), and the dispatcher's
      half-hourly sweep dispatches the head again, within the select job's round cap and three
@@ -1069,8 +1079,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`; no
      verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
      adjudication is not adjudicated again: any reply but `VALID` on it escalates
-     `feedback-disputed`. A thread or head that changed after the lane's reply, or a failed write,
-     escalates `feedback-partial`. One round records one reason, the most urgent in that order.
+     `feedback-stood-open`. A thread no adjudicator may judge goes elsewhere: a pr-verify note
+     left open escalates `feedback-verifier-open`, a thread a trusted person directed, or an
+     `INCORRECT` reply on a security-review, CRITICAL or unknown-lane finding, escalates
+     `feedback-disputed`, and an `UNCERTAIN` or `VALID-defer` reply on one escalates
+     `feedback-uncertain`. A thread or head that changed after the lane's reply, or a failed
+     write, escalates `feedback-partial`. One round records one reason: one held for a person
+     (`feedback-question-*`, `feedback-disputed`, `feedback-uncertain`) before any routed to a
+     failing status.
 
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
@@ -1092,12 +1108,13 @@ model turn.
 #### The adjudicator
 
 pr-unblock.yml's `adjudicate-feedback` job runs after the model job, before the push and reply jobs, when
-the leg the reply job reads uploaded replies holding an `INCORRECT` reply or a line that is not
-JSON (the read runner's scan job sets `feedback-disputed` from the bytes it uploaded); otherwise it
-is skipped, and an `INCORRECT` reply with no verdict still escalates `feedback-unadjudicated`. It
+the leg the reply job reads uploaded replies holding a reply that leaves its thread open
+(`INCORRECT`, `UNCERTAIN` or `VALID-defer`) or a line that is not JSON (the read runner's scan job
+sets `feedback-disputed` from the bytes it uploaded); otherwise it is skipped, and such a reply
+with no verdict still escalates `feedback-unadjudicated`. It
 runs only base code with a read-only token and no OIDC token. `adjudicate-feedback.mjs prepare`
 checks the select job's thread file and the scan job's replies against the SHA-256 each writer
-recorded, then stages each `INCORRECT` reply on a thread no adjudication stood before and no
+recorded, then stages each such reply on a thread no adjudication stood before and no
 trusted person directed, up to three: the finding's path and line, the whole review comment, the
 locations the comment cites (`path:line` tokens and line-numbered permalinks into this repository,
 at most ten), the locations the lane cited, at most ten (never its note), and those files at the
@@ -1105,16 +1122,21 @@ select job's head, read through the contents API with each response's rate-limit
 the job's end (`.github/actions/log-api-budget`), each up to 200 KiB and staged with a `.txt`
 suffix so a cited `CLAUDE.md` or `.claude/**` file is never loaded as instructions. A thread a
 trusted person directed (a fix request, or a reply after an escalation) stays theirs: an
-`INCORRECT` reply on it escalates `feedback-disputed` with no adjudication. Only a
+reply that leaves it open escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none) that carries no
-`severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, a listed
-review bot's finding (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's
-account id; its severity badge is the bot's own pick), one whose lane its root comment does not
-name, and a pr-verify verifier note always go to a person: an `INCORRECT` reply on one escalates
-`feedback-disputed`, takes no slot, and any verdict for it is ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
-FAIL still holds the merge, and pr-verify judges each head once. Each thread gets one fresh
+a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
+bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
+id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
+decides nothing: when the security-review lane held the bot's reviewed head as CRITICAL (its
+`claude-lane-hold` comment with `critical-security`), a dispute on the bot's finding escalates
+`feedback-question-security` instead. A CRITICAL finding, a security-review finding and one
+whose lane its root comment does not name go to a person: an `INCORRECT` reply on one escalates
+`feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
+and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
+resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
+head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
+person. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
 pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read
 denied on the base checkout and the runner's temp directory (which holds the lane's replies and
@@ -1309,8 +1331,9 @@ its fallback call on the role's OAuth token after the key call hands off
    `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks
    and Actions, and checks out no PR head. After the kill switch it hands the pull request to a
    person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds` commits with
-   the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads the head's latest check run
-   per name and keeps those that ended `failure`, `timed_out` or `startup_failure`, except
+   the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads every check run on the head
+   (`filter=all`, as the fix-ci dispatcher does), takes per name the latest that is not a skip, so a
+   contract-only run's later skip does not hide a lane's failure, and keeps those that ended `failure`, `timed_out` or `startup_failure`, except
    `ci-status` and any GitHub Actions check run that is no workflow job (a lane's own check),
    at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
    at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
@@ -1477,7 +1500,7 @@ Then, in order:
      issue outcome a PR-mode run carried.
 3. Checks out the gated `head-sha`, in issue mode the start commit, with
    `persist-credentials: false` when a patch arrived.
-4. `leak-scan` runs the default branch's `findSecret` (`lib/publish-gate.mjs`, read through the API
+4. `leak-scan` runs the default branch's `scanLeak` (`lib/publish-gate.mjs`, read through the API
    at the default branch's tip, which the step resolves itself with the scan job's read token
    (`getBranch`), never from a run job output, an older PR base or a checkout; a failed call or a
    malformed SHA fails the scan closed with no fetch) over the reply, the run fields, the replies,
@@ -1546,9 +1569,13 @@ Recorded, not fixed:
   alone. With that key empty or out of credit the pass fails softly and the PR keeps the fixed
   text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
-  commits on the branch it resumes, and a reused branch's commits reach a PR with no scan at
-  reuse. Those commits were scanned when their run made them, against the pattern list of that
-  day, unless the branch predates issue-mode scanning (GAPS X5).
+  commits on the branch it resumes. Those commits were scanned when their run made them, against
+  the pattern list of that day, unless the branch predates issue-mode scanning (GAPS X5). A reused branch's
+  commits are scanned again at reuse: `run-checks` runs the same `scanLeak` on the diff from the
+  branch's merge base with the default branch tip and on every file that diff makes, and
+  `report-outcome` holds the PR on any result but clean. A plain `password or secret assignment`,
+  which this job only warns on, holds a reuse PR too. Only that diff is scanned, not each commit
+  on the way to it.
 - A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
   run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
 - The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
@@ -2097,8 +2124,11 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
   Either way its Fix section lists the files `GET /compare` names, those on a
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
-  unavailable and still opens the PR.
-  The summary never reaches a status or the hold line, which every reuse PR carries:
+  unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
+  `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
+  three of its own: the compare failed, the runner's checks for that tip are missing or any did
+  not pass, or the leak scan `run-checks` ran on the branch (its `scan` word in the checks
+  record) is missing or not `clean`. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in

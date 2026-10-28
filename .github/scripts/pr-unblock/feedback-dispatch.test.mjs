@@ -46,9 +46,12 @@ const failedRun = (line, completed = "2026-10-17T10:00:00Z") => ({
   completed_at: completed,
   output: { title: "Failed", summary: line === null ? "The activity step failed." : `${line}\n\nThe activity step failed.` },
 });
-const thread = (authors, isResolved = false) => ({
+// The first comment's review, as THREADS_QUERY reads it: its author's
+// review of `reviewed`.
+const onReview = (author, reviewed = HEAD) => ({ pullRequestReview: { author, commit: { oid: reviewed } } });
+const thread = (authors, isResolved = false, reviewed = HEAD) => ({
   isResolved,
-  comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
+  comments: { nodes: authors.map((author, i) => ({ author, ...(i === 0 ? onReview(author, reviewed) : {}) })), pageInfo: { hasNextPage: false } },
 });
 // The #7794 shape: the reviewer bot's finding, the lanes App's UNCERTAIN reply
 // (publish-feedback.mjs renderReply), then `reply`, each a minute apart.
@@ -58,7 +61,7 @@ const decidedThread = (reply = { author: KYLE }) => ({
   isResolved: false,
   comments: {
     nodes: [
-      { author: CLAUDE, body: "finding" },
+      { author: CLAUDE, body: "finding", ...onReview(CLAUDE) },
       { author: LANE, body: "**pr-unblock / address-feedback: UNCERTAIN, left open for a person**\n\nnote" },
       { body: "Owner decision: drop the reference.", ...reply },
     ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
@@ -240,7 +243,7 @@ test("the security review workflow is an upstream too", async () => {
 // footer (ci-workflows publish-review publish.cjs commentBody at v0.63.0).
 const laneThread = (body) => ({
   isResolved: false,
-  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body }], pageInfo: { hasNextPage: false } },
+  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body, ...onReview(ACTIONS_BOT_NODE) }], pageInfo: { hasNextPage: false } },
 });
 
 test("a github-actions[bot] thread ending in the lane footer dispatches like the reviewer bot's", async () => {
@@ -253,13 +256,23 @@ test("the code lane's github-actions[bot] thread dispatches like the reviewer bo
   assert.equal((await decide(api)).result.number, 42);
 });
 
-test("a github-actions[bot] thread without a review lane's footer last dispatches nothing", async () => {
-  for (const body of ["Unquoted input.", "claude-lane: claude-security-review\nUnquoted input."]) {
-    const api = fakeApi({ threads: [laneThread(body)] });
-    assert.equal((await decide(api)).result, null, body);
-    assert.deepEqual(api.calls.dispatch, []);
-  }
-});
+// An unresolved thread the select job will not keep still dispatches once on
+// an ungated head: select escalates feedback-untaken-threads, so the stall
+// ends in a stop instead of silence (#10092).
+for (const [label, threads] of [
+  ["a github-actions[bot] thread without a review lane's footer last", [laneThread("Unquoted input.")]],
+  ["a github-actions[bot] thread with the footer first", [laneThread("claude-lane: claude-security-review\nUnquoted input.")]],
+  ["the only open thread has a human reply", [thread([CLAUDE, KYLE])]],
+  ["the only open thread is a human's", [thread([KYLE])]],
+  ["the reply after the lane's escalation is a stranger's", [decidedThread({ author: STRANGER })]],
+  ["the trusted reply was last edited by a stranger", [decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:30:00Z", editor: STRANGER })]],
+]) {
+  test(`${label} dispatches once, for select to escalate feedback-untaken-threads`, async () => {
+    const api = fakeApi({ threads });
+    assert.equal((await decide(api)).result.number, 42);
+    assert.equal(api.calls.dispatch.length, 1);
+  });
+}
 
 for (const [label, options] of [
   ["the upstream is another workflow", { run: { path: ".github/workflows/ci.yml" } }],
@@ -287,12 +300,6 @@ for (const [label, options] of [
     comments: [marker("claude-review", HEAD, { id: 9999001 }), marker("claude-security-review")],
   }],
   ["every thread is resolved", { threads: [thread([CLAUDE], true)] }],
-  ["the only open thread has a human reply", { threads: [thread([CLAUDE, KYLE])] }],
-  ["the only open thread is a human's", { threads: [thread([KYLE])] }],
-  ["the reply after the lane's escalation is a stranger's", { threads: [decidedThread({ author: STRANGER })] }],
-  ["the trusted reply was last edited by a stranger", {
-    threads: [decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:30:00Z", editor: STRANGER })],
-  }],
   ["the head already has an address-feedback check run", {
     checkRuns: [{ status: "completed", conclusion: "success", output: { title: "Done" } }],
   }],
@@ -517,7 +524,7 @@ const VERIFY_RUN = upstreamRun({ id: 99, path: ".github/workflows/pr-verify.yml"
 // run at the head.
 const VERIFY_CREATED = "2026-10-17T12:00:00Z";
 function verifyApi(options = {}) {
-  const note = { isResolved: false, comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nnotes" }], pageInfo: { hasNextPage: false } } };
+  const note = { isResolved: false, comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nnotes", ...onReview(ACTIONS_BOT_NODE) }], pageInfo: { hasNextPage: false } } };
   const api = fakeApi({ threads: [note], ...options });
   api.getWorkflowRun = async (id) => (id === VERIFY_RUN.id ? { ...VERIFY_RUN, created_at: VERIFY_CREATED } : null);
   api.listCompletedRuns = async () => [upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" })];
@@ -913,7 +920,7 @@ test("without needs-human a trusted reply dispatches with no permission read", a
 const askedThread = (reply) => ({
   isResolved: false,
   comments: {
-    nodes: [{ author: CLAUDE, body: "finding" }, reply].map((node, i) => ({
+    nodes: [{ author: CLAUDE, body: "finding", ...onReview(CLAUDE, OLD_HEAD) }, reply].map((node, i) => ({
       createdAt: `2026-10-17T20:0${i}:00Z`,
       lastEditedAt: null,
       editor: null,
@@ -938,10 +945,10 @@ for (const [label, options] of [
   }],
   ["a trusted reply that asks no fix", { threads: [askedThread({ author: KYLE_LOGIN, body: "Owner decision: drop it." })] }],
 ]) {
-  test(`a thread the lane never answered dispatches nothing for ${label}`, async () => {
+  test(`a thread the lane never answered dispatches once for select to escalate, for ${label}`, async () => {
     const api = fakeApi(options);
-    assert.equal((await decide(api)).result, null);
-    assert.deepEqual(api.calls.dispatch, []);
+    assert.equal((await decide(api)).result.number, 42);
+    assert.equal(api.calls.dispatch.length, 1);
   });
 }
 
@@ -989,6 +996,58 @@ test("the API client reads review threads across pages through GraphQL", async (
     bodies.map((body) => body.variables.after),
     [null, "c1"],
   );
+});
+
+// #10092: a PR whose only unresolved threads the select job will not keep (a
+// Codex-root thread, a review of an older head) stalled with no stop. On an
+// ungated head the dispatcher fires once; select escalates
+// feedback-untaken-threads, and the not-run job's lane-stopped checks (on
+// address-feedback and publish-feedback) handle the head, so the next tick
+// does not fire again.
+const CODEX = { databaseId: 199175422, login: "chatgpt-codex-connector" };
+const selectStopped = [
+  roundRun("address-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:00Z"),
+  roundRun("publish-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:01Z"),
+];
+for (const [label, author, reviewed] of [
+  ["a Codex-only PR", CODEX, HEAD],
+  ["a stale-head-only PR", CLAUDE, OLD_HEAD],
+]) {
+  test(`${label} dispatches once, then not again on the same head`, async () => {
+    const open = { isResolved: false, comments: { nodes: [{ author, body: "finding", ...onReview(author, reviewed) }], pageInfo: { hasNextPage: false } } };
+    const first = fakeApi({ threads: [open] });
+    assert.equal((await decide(first)).result.number, 42);
+    assert.equal(first.calls.dispatch.length, 1);
+    const second = fakeApi({ threads: [open], checkRuns: selectStopped });
+    assert.equal((await decide(second)).result, null);
+    assert.deepEqual(second.calls.dispatch, []);
+  });
+}
+
+test("a PR with no unresolved thread does not dispatch", async () => {
+  const api = fakeApi({ threads: [thread([CODEX], true), thread([CLAUDE], true)] });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.at(-1), /has no unresolved review thread/);
+});
+
+test("on a gated head only a workable thread dispatches; an untaken one does not", async () => {
+  const gated = { pulls: pull({ labels: [{ name: "needs-human" }] }) };
+  const api = fakeApi({ ...gated, threads: [thread([CODEX])] });
+  assert.equal((await decide(api)).result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("the API client reads each thread's review and its commit", async () => {
+  const bodies = [];
+  const fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } }));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  await api.listReviewThreads(42);
+  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} \}/);
 });
 
 // The record one run leaves for the next at the same head. `counting` wraps
@@ -1152,8 +1211,10 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   // Both review lanes marked each PR's head reviewed.
   const headOf = (number) => openPulls.find((p) => p.number === number).head.sha;
   api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
+  api.listReviewThreads = async (number) => [thread([CLAUDE], false, headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
+  api.listStatuses = async () => [];
   // No lost pr-feedback-dispatch.yml run in the lookback window.
   api.listRecentRuns = async () => [];
   api.listRunJobs = async () => assert.fail("no lost run, so no jobs read");
@@ -1294,7 +1355,6 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
 
 // A listed review bot's thread (pr-pipeline.yaml review-threads.reviewer-ids),
 // keyed on the GraphQL author databaseId; Codex's id from #10092.
-const CODEX = { databaseId: 199175422, login: "chatgpt-codex-connector" };
 const decideListed = (api, reviewerIds) =>
   dispatchFeedback({
     api,
@@ -1308,43 +1368,71 @@ const decideListed = (api, reviewerIds) =>
     log: () => {},
   });
 
-test("a listed review bot's thread dispatches like the reviewer bot's; an unlisted bot's or a borrowed login's does not", async () => {
-  assert.equal((await decideListed(fakeApi({ threads: [thread([CODEX])] }), [CODEX.databaseId])).number, 42);
-  assert.equal((await decideListed(fakeApi({ threads: [thread([CODEX, CODEX])] }), [CODEX.databaseId])).number, 42);
-  assert.equal(await decideListed(fakeApi({ threads: [thread([CODEX])] }), []), null);
-  assert.equal(await decideListed(fakeApi({ threads: [thread([{ databaseId: 206951365, login: "cursor" }])] }), [CODEX.databaseId]), null);
-  assert.equal(await decideListed(fakeApi({ threads: [thread([{ databaseId: 4343, login: CODEX.login }])] }), [CODEX.databaseId]), null);
-  // A stranger's reply leaves it alone, as on the reviewer bot's.
-  assert.equal(await decideListed(fakeApi({ threads: [thread([CODEX, STRANGER])] }), [CODEX.databaseId]), null);
+// On a needs-human PR, a thread whose root a review bot wrote in its own
+// review on HEAD, then a write-access trusted person's fix request.
+const listedAsked = (root, reviewer = root) => ({
+  isResolved: false,
+  comments: {
+    nodes: [
+      { author: root, body: "finding", pullRequestReview: { author: reviewer, commit: { oid: HEAD } } },
+      { author: KYLE_LOGIN, body: REQUEST },
+    ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
+    pageInfo: { hasNextPage: false },
+  },
+});
+const gatedListed = async (root, reviewerIds, reviewer = root) => (await decideListed(fakeApi({ pulls: humanGated(), threads: [listedAsked(root, reviewer)] }), reviewerIds))?.number ?? null;
+
+test("on a needs-human PR a listed review bot's thread is workable like the reviewer bot's; an unlisted bot's or a borrowed login's is not", async () => {
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId]), 42);
+  assert.equal(await gatedListed(CODEX, []), null);
+  assert.equal(await gatedListed({ databaseId: 206951365, login: "cursor" }, [CODEX.databaseId]), null);
+  assert.equal(await gatedListed({ databaseId: 4343, login: CODEX.login }, [CODEX.databaseId]), null);
+  // Codex's comment in another account's review is not vouched for.
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId], CLAUDE), null);
 });
 
-test("main takes the listed review bots from REVIEWER_IDS", async () => {
+test("main reads the listed review bots from REVIEWER_IDS", async () => {
   const dir = tempDir("pr-feedback-dispatch-");
   try {
-    const env = (ids) => {
-      const output = join(dir, `output-${ids}`);
-      writeFileSync(output, "");
-      return {
-        GITHUB_TOKEN: "t",
-        GITHUB_REPOSITORY: REPOSITORY,
-        GITHUB_RUN_ID: RUN_ID,
-        GITHUB_OUTPUT: output,
-        GITHUB_EVENT_PATH: eventFile(dir),
-        APP_SENDER_ID: String(APP_ID),
-        TRUSTED_ACTORS: noActors(dir),
-        REVIEWER_IDS: ids,
-      };
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const env = {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      REVIEWER_IDS: "chatgpt-codex-connector[bot]",
     };
-    const go = async (ids) => {
-      const settings = env(ids);
-      await main(settings, { api: fakeApi({ threads: [thread([CODEX])] }), resolveSlot: async () => resolvedLane(), log: () => {} });
-      return readFileSync(settings.GITHUB_OUTPUT, "utf8");
-    };
-    assert.match(await go(`${CODEX.databaseId}\n`), /^run-id=/);
-    assert.equal(await go(""), "");
+    await assert.rejects(main(env, { api: fakeApi({ threads: [thread([CODEX])] }), resolveSlot: async () => resolvedLane(), log: () => {} }), /REVIEWER_IDS/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A round whose reply job stopped on a reason routed to a failing status
+// (feedback-not-landed, -invalid, -partial, -incomplete, -unadjudicated and
+// the rest): its lane-stopped skip releases the head like no-model-turn, so
+// the tick retries it on the same head, a fresh model session, under
+// SWEEP_HEAD_CAP with the other releasing skips.
+const laneStopped = (started) => roundRun("publish-feedback", "neutral", "Skipped: lane-stopped", started);
+
+test("a scheduled tick retries a head whose reply job stopped, until SWEEP_HEAD_CAP stops stand", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z")] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  const capped = sweepApi({
+    checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z"), laneStopped("2026-10-17T11:05:00Z"), laneStopped("2026-10-17T12:05:00Z")] },
+  });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+  // A select job's own stop (the round cap) posts on the address-feedback
+  // check, after the reply check: it holds the head.
+  const terminal = sweepApi({ checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z"), roundRun("address-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T11:00:00Z")] } });
+  await sweepMain(t, terminal);
+  assert.deepEqual(terminal.calls.dispatch, []);
 });
 
 // The recovery: a pr-feedback-dispatch.yml run an outage lost in the
@@ -1545,6 +1633,30 @@ test("a pass-only round waits like any round: not while a run for the PR is goin
   assert.deepEqual(held.calls.dispatch, []);
 });
 
+// pr-verify judges and verify-notes posts fail notes on an adopted PR a trusted
+// person opened, so a later pass there clears them too; any other round stays
+// on lanes App PRs.
+test("a pass-only round reaches a PR a trusted person opened; other rounds and other authors do not", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "kyle.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
+  const opened = (id) => [{ number: 42, state: "open", draft: false, user: { id }, labels: [], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }];
+  const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
+  const owner = verifyApi({ pulls: opened(KYLE.databaseId), threads: [], comments: [], checkRuns: [after] });
+  await passMain(dir, owner, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+  assert.deepEqual(owner.calls.dispatch.map((request) => request.inputs), [
+    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
+  ]);
+  const stranger = verifyApi({ pulls: opened(KYLE.databaseId + 1), threads: [], comments: [], checkRuns: [after] });
+  const { lines } = await passMain(dir, stranger, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+  assert.deepEqual(stranger.calls.dispatch, []);
+  assert.match(lines.at(-1), /not opened by the lanes App/);
+  const fail = verifyApi({ pulls: opened(KYLE.databaseId) });
+  await passMain(dir, fail, { VERIFY_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+  assert.deepEqual(fail.calls.dispatch, []);
+});
+
 test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
   const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -1565,6 +1677,50 @@ test("a pass-only round's reply check after a finding-stands skip leaves the hea
   const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
   await sweepMain(t, api);
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+});
+
+// A head whose address-feedback stop still fails after a person resolved
+// every thread: nothing else dispatches the lane there, so the sweep does,
+// once per stop, and the run's select job clears the status.
+const STOP = { context: "pr-unblock/address-feedback", state: "failure", created_at: "2026-10-17T12:00:00Z", creator: { login: "github-actions[bot]" } };
+function staleApi({ statuses = [STOP], threads = [{ isResolved: true, comments: { nodes: [] } }], workflowRuns = [], openPulls = pull() } = {}) {
+  const api = sweepApi({ checksAt: {}, openPulls });
+  api.listStatuses = async () => statuses;
+  api.listReviewThreads = async () => threads;
+  api.listWorkflowRuns = async () => workflowRuns;
+  return api;
+}
+
+test("a scheduled tick dispatches a head whose address-feedback stop fails with every thread resolved", async (t) => {
+  const api = staleApi();
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+  const error = staleApi({ statuses: [{ ...STOP, state: "error" }] });
+  await sweepMain(t, error);
+  assert.equal(error.calls.dispatch.length, 1);
+});
+
+test("the stale-stop sweep leaves a passing or newer status, an open thread, a run since the stop, another account's status and a held PR", async (t) => {
+  for (const [label, options] of [
+    ["the newest status passes", { statuses: [{ ...STOP, state: "success" }, STOP] }],
+    ["no status", { statuses: [] }],
+    ["another account's status", { statuses: [{ ...STOP, creator: { login: "someone" } }] }],
+    ["an unresolved thread", { threads: [{ isResolved: false, comments: { nodes: [] } }] }],
+    ["a run since the stop", { workflowRuns: [{ id: 7, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:05:00Z" }] }],
+    ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
+  ]) {
+    const api = staleApi(options);
+    const { output } = await sweepMain(t, api);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+  // A run from before the stop does not hold it.
+  const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
+  await sweepMain(t, older);
+  assert.equal(older.calls.dispatch.length, 1);
 });
 
 // #10134 and #10224: lanes App PRs held by one github-actions[bot] lane thread

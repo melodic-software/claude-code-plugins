@@ -347,6 +347,20 @@ assert_contains "a bullet that moved elsewhere is not a bullet that left" "$OUT"
   "still ties AGENTS.md to a flag elsewhere"
 assert_not_contains "and is never MET" "$OUT" "ties AGENTS.md to no flag anywhere"
 
+# A link to sub-agents.md on a line that says "flag" is not a mention of
+# AGENTS.md: the delisted page stays MET.
+ENVVARS_SUBAGENTS="$TMP/env-vars-subagents.md"
+{
+  cat "$ENVVARS_DELISTED"
+  cat <<'EOF'
+| `CLAUDE_CODE_FORK_SUBAGENT` | Lets Claude start [forks](https://code.claude.com/docs/en/sub-agents.md#fork), the same as the `--fork` flag |
+EOF
+} >"$ENVVARS_SUBAGENTS"
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_SUBAGENTS" --skip-canary)
+assert_contains "a sub-agents.md link beside a flag is not AGENTS.md" "$OUT" \
+  "ties AGENTS.md to no flag anywhere"
+
 # Without --env-vars-file the page comes through the plugin's docs fetcher,
 # fixture-fed here. Each variant gets its own docs cache, so no cached copy or
 # quarantine from one reaches the next.

@@ -190,6 +190,10 @@ mk plugins/planning/shared/tests/ui.test.sh
 plan -- plugins/planning/shared/tests/ui.test.sh
 is "$(key bash_needs)" '{"0":"browser"}'
 check "the shared-page UI suite gets Chromium on whatever leg it lands" $?
+mk plugins/planning/shared/tests/align.test.sh
+plan -- plugins/planning/shared/tests/align.test.sh
+is "$(key bash_needs)" '{"0":"browser"}'
+check "the shared-page alignment suite gets Chromium on whatever leg it lands" $?
 rm -rf "$repo/plugins/planning"
 
 mk plugins/guardrails/git-hooks/lefthook-remote.test.sh

@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [6.3.5] - 2026-10-28
+
+### Fixed
+
+- A pr-verify pass now clears the fail-note threads from earlier heads on a PR a human on the trusted-actor list opened, not only on a lanes App PR. `verify-notes.mjs` posts fail notes on such an adopted PR, but `feedback-dispatch.mjs` skipped the pass-only round there (`#<n> was not opened by the lanes App`), so the threads stayed open and required thread resolution blocked a passing PR. The pass-only round alone takes that author; every other address-feedback round still goes only to lanes App PRs.
+
+## [6.3.4] - 2026-10-28
+
+### Changed
+
+- A trusted person's approving review of a head that changes a hold path or widens the trusted-actor list carries over a later merge of the base when the merge changes nothing of its own, so the merge no longer sends the pull request back to them. Only an approving review lifts these holds: removing the human-gated label does not, and a dismissed approval never counts. The approval carries only when every commit since is a merge of commits the base branch holds and the whole net change against the base's tip commit is the same at both heads; the base is read once by its full ref. The owner's cost decision carries by the same rule. A carried approval does not lift the verifier, issue-link or pr-verify FAIL holds.
+
 ## [6.3.3] - 2026-10-28
 
 ### Changed

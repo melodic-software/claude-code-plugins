@@ -68,6 +68,7 @@ import { pathToFileURL } from "node:url";
 
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
+import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
@@ -158,6 +159,20 @@ export function rungUpEscalation(text) {
   return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
 }
 
+// An escalation only a person settles, and the reason it stops with: a fix
+// that needs a path the lane token may not push, or one that would weaken a
+// required check (escalation-routes.json holds both).
+const HELD_ESCALATIONS = [
+  ["protected-path", "ci-fix-protected-path"],
+  ["weaken-required", "ci-fix-weaken-required"],
+];
+
+// The held reason a report's escalations name, or "".
+export function heldEscalation(text) {
+  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
+  return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
+}
+
 const reportText = (reportDir) => {
   const file = reportDir ? join(reportDir, "reply.txt") : "";
   return Boolean(file) && existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : "";
@@ -169,6 +184,7 @@ const REPORTS = {
   "ci-escalations": {
     escalated: (reportDir) => escalatedChecks(reportText(reportDir)).length > 0,
     rungUp: (reportDir) => rungUpEscalation(reportText(reportDir)),
+    held: (reportDir) => heldEscalation(reportText(reportDir)),
   },
 };
 
@@ -389,7 +405,12 @@ export function patchProblem(file, expected) {
 // the caller runs the producer once more at rung 1, instead of escalating.
 export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, mergeState = "" }) {
   checkRow(row);
-  const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });
+  // A stop routed to a failing status skips lane-stopped (escalation-routes.mjs).
+  const decide = (proceed, skipReason, escalationReason) => ({
+    proceed,
+    skipReason: skipReason === "awaiting-human" && escalationReason ? stopSkip(escalationReason) : skipReason,
+    escalationReason,
+  });
   // A merge row: a clean merge commits with no patch; a conflicted one needs
   // the model's patch, and an empty one leaves the conflicts as git left them.
   if (isMerge(row)) {
@@ -418,7 +439,8 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (escalated && rung === 0 && report.rungUp(reportDir)) {
       return decide(false, "rung-up", "");
     }
-    return decide(false, "awaiting-human", reasonFor(row, escalated ? "escalated" : "empty"));
+    const held = escalated ? report.held(reportDir) : "";
+    return decide(false, "awaiting-human", held || reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
   try {
@@ -1110,7 +1132,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
   if (result.outcome !== "pushed") {
-    writeFileSync(env.SKIP_REASON_FILE, result.outcome === "superseded" ? "superseded-sha\n" : "awaiting-human\n");
+    const skip = result.outcome === "superseded" ? "superseded-sha" : result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human";
+    writeFileSync(env.SKIP_REASON_FILE, `${skip}\n`);
   }
   log(`apply-patch (${row.name}): ${result.outcome}${result.escalationReason ? ` (${result.escalationReason})` : ""}`);
   return 0;

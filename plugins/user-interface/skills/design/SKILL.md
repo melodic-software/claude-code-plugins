@@ -32,8 +32,8 @@ It prints JSON:
   applied in full (unreadable file, unresolved convention home, a row that fails the row schema);
   tell the user once that built-in routes were used for that part, and suggest
   `/user-interface:setup check`.
-- `config`: the resolved settings; this skill reads only the routing from it.
-
+- `config`: the resolved settings. This skill does not read the routing from it: `routes` already
+  carries it.
 - `project`: the project's design signals (`tokens`, `packages`, `components_json`, `storybook`,
   `docs`, `mcp_servers`).
 - `installed`: the routing ids present here, or `null` with a `reason` when the `claude` CLI could

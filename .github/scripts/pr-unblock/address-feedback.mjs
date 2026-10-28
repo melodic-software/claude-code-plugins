@@ -13,8 +13,8 @@
 //           skip (no such thread), escalate (the PR changes
 //           .github/workflows/**; or the configured number of rounds already
 //           ran, no write-access fix request came after the newest one, and
-//           a person gated the PR or a kept thread is a security or intent
-//           finding, needsPerson, or
+//           a person gated the PR or a kept thread is one only a person
+//           decides, needsPerson, or
 //           the fresh fixer's round past the cap already ran) or proceed,
 //           writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
@@ -36,9 +36,10 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { commentItems, gateSource, laneHold, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
+import { retryRung, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -98,16 +99,22 @@ const lastLine = (body) =>
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
+// A thread whose first comment is a pr-verify verifier note (threadAuthors).
+const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
+
 // Past the round cap, the threads only a person may still decide: a security
-// lane finding, a verifier note (pr-verify judges the PR against its linked
-// issue, so a FAIL is an intent mismatch), and a finding whose lane no footer
-// pr-review-cli appended names: only on a github-actions[bot] root
-// (`rootAuthorId`) is the footer the reusable's, never model text. Only the
-// code lane's finding goes to a fresh fixer.
+// lane finding, a verifier note a trusted person directed, and a finding
+// whose lane no footer pr-review-cli appended names: only on a
+// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
+// never model text. The code lane's finding and an undirected verifier note
+// go to a fresh fixer: a round cap is a lane bound, and pr-verify's FAIL
+// already holds the merge and judges the next head afresh.
 export const needsPerson = (thread, rootAuthorId) =>
-  rootAuthorId !== MARKER_AUTHOR_ID ||
-  thread.comments[0]?.author !== "reviewer" ||
-  laneOf(thread.comments[0].body) !== "claude-review";
+  isVerifierNote(thread)
+    ? thread.comments.some((comment) => comment.direction === true)
+    : rootAuthorId !== MARKER_AUTHOR_ID ||
+      thread.comments[0]?.author !== "reviewer" ||
+      laneOf(thread.comments[0].body) !== "claude-review";
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -122,6 +129,8 @@ export function countRounds(issueComments, appId) {
 // or broker refusal after the push moved the head); a forged one only stops
 // the lane sooner.
 export const MODEL_CHECK = "pr-unblock / address-feedback";
+// The reply job's check: a lane stop there runs the head's retry a rung up.
+export const REPLY_CHECK = "pr-unblock / publish-feedback";
 const isModelRun = (run, conclusions) =>
   run.name === MODEL_CHECK && run.app?.slug === "github-actions" && conclusions.includes(run.conclusion);
 export function countCheckRounds(checkRunsByCommit) {
@@ -141,6 +150,21 @@ export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
   return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
 
+// The heads the security-review lane rated CRITICAL and held for a person:
+// its own hold comment (laneHold checks the author and footer) naming
+// lane=claude-security-review and the critical-security criterion.
+const SECURITY_HOLD = /^<!-- claude-lane-hold lane=claude-security-review sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->$/;
+export function securityHeldHeads(issueComments) {
+  const held = new Set();
+  for (const item of commentItems(issueComments)) {
+    const match = SECURITY_HOLD.exec(laneHold(item) ?? "");
+    if (match?.[2].split(",").includes("critical-security")) {
+      held.add(match[1]);
+    }
+  }
+  return held;
+}
+
 export function reviewedHeads(issueComments) {
   const heads = new Set();
   for (const comment of issueComments) {
@@ -156,9 +180,10 @@ export function reviewedHeads(issueComments) {
 }
 
 // The first line of the reply publish-feedback.mjs posts on a thread it
-// leaves open for a person: every disposition but VALID.
+// leaves open: every disposition but VALID; older threads still carry the
+// `for a person` forms.
 const ESCALATION_REPLY =
-  /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
+  /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open(?: for a person)?|VALID \(defer\), left open(?: for a person)?)\*\*$/;
 // The first line of the reply publish-feedback.mjs posts when an adjudicator
 // finds a disputed finding stands (adjudicate-feedback.mjs): the next round
 // works that thread again and accepts no second INCORRECT on it.
@@ -406,6 +431,21 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
   return authors;
 }
 
+// Whether a thread threadAuthors accepted (`authors`) sits on a review its
+// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's, or
+// github-actions[bot]'s for a verifier note or a lane comment. A trusted
+// person's direction (a fix request, or a reply to the lane's escalation)
+// asks for the thread, so its review may be on an earlier head. `review` is
+// { user: { id }, commit_id }. keepThreads and the dispatcher
+// (feedback-dispatch.mjs hasWorkableThread) both judge a thread with this.
+export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
+  const directed = authors.some((a) => a.direction === true);
+  // threadAuthors accepted the root's author (the reviewer bot, a listed
+  // review bot, or github-actions[bot] for a verifier note or a lane comment),
+  // so its own review vouches for it.
+  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id));
+}
+
 // A thread is kept when it is unresolved, its first comment belongs to a
 // review its own author (the reviewer bot, a listed review bot, or
 // github-actions[bot] for a lane comment or a verifier note) submitted on a
@@ -413,7 +453,7 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
 // review bot's comment is tagged `listed`, from its account id alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+export function keepThreads({ threads, reviewComments, reviews, heads, securityHeads = new Set(), reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -439,13 +479,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     if (authors === null) {
       continue;
     }
-    // A trusted person's direction (a fix request, or a reply to the lane's
-    // escalation) asks for the thread, so its review may be on an earlier head.
-    const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    // threadAuthors accepted the root's author, so its own review vouches for
-    // it: a verifier note's or a lane comment's is github-actions[bot]'s.
-    if (review?.user?.id !== rows[0].user?.id || (!directed && !heads.has(review.commit_id))) {
+    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
       continue;
     }
     kept.push({
@@ -461,7 +496,11 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       comments: rows.map((row, i) => {
         const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
         const listed = authors[i].author === "reviewer" && reviewerIds.includes(row.user?.id);
-        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), ...(listed ? { listed } : {}), body: row.body ?? "" };
+        // A listed bot's finding on a head the security-review lane held as
+        // CRITICAL (securityHeldHeads): the lane's rating, not the bot's
+        // badge, decides it goes to a person.
+        const securityHeld = listed && i === 0 && securityHeads.has(review.commit_id);
+        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), ...(listed ? { listed } : {}), ...(securityHeld ? { securityHeld } : {}), body: row.body ?? "" };
       }),
     });
   }
@@ -507,6 +546,7 @@ export async function select({
     reviewComments,
     reviews,
     heads: reviewedHeads(issueComments),
+    securityHeads: securityHeldHeads(issueComments),
     reviewerId,
     reviewerIds,
     appId,
@@ -514,8 +554,18 @@ export async function select({
     requesters: gated ? fixers : null,
     fixers,
   });
+  // An unresolved thread the lane does not take (a reviewer it does not
+  // trust, a review on an older head, a reply it already gave) would block
+  // the merge with no stop on record, so it ends in a failing status.
+  // With no hold and no unresolved thread left, every thread stop is gone
+  // on this head: `resolved` lets report-stop-status clear its status.
   if (kept.length === 0) {
-    return { decision: "skip", skipReason: gated ? "awaiting-human" : "not-applicable", threads: kept };
+    if (gated) {
+      return { decision: "skip", skipReason: "awaiting-human", threads: kept };
+    }
+    return threads.some((thread) => thread.isResolved === false)
+      ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
+      : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }
   // The files listing stops at FILES_CAP, so a longer diff could hide a
   // .github/workflows/ path and is treated as touching one.
@@ -549,18 +599,20 @@ export async function select({
       }),
     );
     if (worked.length === 0) {
-      // Otherwise a security or intent thread still goes to a person; every
-      // other finding goes to a fresh fixer: one more round, a new session
-      // like every round, reading only the thread file and the PR head. Once
-      // that round has run, no automatic round ever runs again: the review
-      // is not converging, which is an intent question for a person. A PR a
-      // person gated also goes to a person: only a fresh fix request lifts
-      // their hold.
+      // Otherwise a thread only a person decides (needsPerson) still goes to
+      // one; every other finding goes to a fresh fixer: one more round, a
+      // new session like every round, reading only the thread file and the
+      // PR head. Once that round has run, no automatic round ever runs
+      // again, and the head fails: feedback-verifier-open when only verifier
+      // notes are left, feedback-not-converging otherwise. A PR a person
+      // gated also goes to a person: only a fresh fix request lifts their
+      // hold.
       if (gated || kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }
       if (rounds >= bound) {
-        return { decision: "escalate", escalationReason: "feedback-not-converging", rounds, maxRounds: bound, threads: kept };
+        const escalationReason = kept.every(isVerifierNote) ? "feedback-verifier-open" : "feedback-not-converging";
+        return { decision: "escalate", escalationReason, rounds, maxRounds: bound, threads: kept };
       }
       worked = kept;
     }
@@ -573,6 +625,8 @@ export async function select({
   }
   return {
     decision: "proceed",
+    // A retry after the reply job stopped on this head runs one rung up.
+    modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
     rounds,
     maxRounds: bound,
     // True drops the human-gated label from the write runner's holds: every
@@ -615,7 +669,7 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), securityHeads: securityHeldHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 
@@ -731,17 +785,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];
     },
-    // Every check run on a commit, up to 300 (fix-ci-context.mjs).
+    // Every check run on a commit, re-runs and a contract-only run's skips
+    // included (failingChecks prefers a real result over a skip), up to 300
+    // (fix-ci-context.mjs).
     async listCommitCheckRuns(sha) {
       const runs = [];
+      let total = Infinity;
       for (let page = 1; page <= 3; page += 1) {
-        const { data } = await request(`${repo}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        const { data } = await request(`${repo}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
+        total = data.total_count ?? Infinity;
         if ((data.check_runs ?? []).length < 100) {
           break;
         }
       }
-      return runs;
+      // complete: the listing holds every check run, not the first 300.
+      return Object.assign(runs, { complete: runs.length >= total });
     },
     listAnnotations: async (id) => (await request(`${repo}/check-runs/${id}/annotations?per_page=50`)).data,
     getJob: async (id) => (await request(`${repo}/actions/jobs/${id}`)).data,
@@ -986,10 +1045,12 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     // when this is true: every kept thread carries a write-access fix request,
     // or a lane escalation put the label on.
     output("fix-requested", String(result.fixRequested === true));
-    output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
+    output("model-rung", result.modelRung ?? "");
+    output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
     output("escalation-reason", result.escalationReason ?? "");
     // The neutral checks' summary line when the PR stopped at the round cap.
     output("not-run-detail", result.decision === "escalate" && result.maxRounds ? roundLine(result.rounds, result.maxRounds) : "");
+    output("stop-resolved", String(result.resolved === true));
     log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
     return 0;
   }
