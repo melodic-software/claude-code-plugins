@@ -516,6 +516,15 @@ assert_output_has "the annotation title escapes : and ," \
   "::error title=plugins/od%3Ad%2Cx/name.test.sh::plugins/od:d,x/name.test.sh failed (exit 4)"
 assert_error_count "the escaped suite gets exactly one error annotation" 1
 
+# A % in a suite path is escaped first (%25) in the title and the message, so
+# the escapes added after it are never read back as a second escape.
+r="$(make_root annotate-percent)"
+write_suite "$r" "plugins/p%q/x.test.sh" 'exit 5'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a failing suite with % in its path fails the run" --root "$r"
+assert_output_has "the annotation escapes % in the title and the message" \
+  "::error title=plugins/p%25q/x.test.sh::plugins/p%25q/x.test.sh failed (exit 5)"
+assert_error_count "the percent suite gets exactly one error annotation" 1
+
 stale_advisory="$scratch/advisory-stale.txt"
 printf 'plugins/gone/gone.test.sh\n' >"$stale_advisory"
 PLUGIN_TEST_ADVISORY_LIST="$stale_advisory" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
