@@ -1376,10 +1376,17 @@ export async function main({ env = process.env, github, actions, verify, room, s
         ({ action, reason, clears, partial } = fold);
       }
       // A widening read writes only a person's refusal, whole once the
-      // answer came; with no answer the marked comment waits for the next run.
+      // answer came; an answer naming no person's reason (the hold lifted)
+      // takes the mark off the standing reasons, so no later run reads again.
+      // With no answer the marked comment waits for the next run.
       if (widen && stopped === null) {
+        const standing = personReasons(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid, humanGated);
         ({ action, reason, clears, comment, withdraw, partial } =
-          answered && clears === "person" ? { action: "none", reason, clears, comment, withdraw: undefined, partial } : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
+          answered && clears === "person"
+            ? { action: "none", reason, clears, comment, withdraw: undefined, partial }
+            : answered && standing !== null
+              ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
+              : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
       }
       // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {

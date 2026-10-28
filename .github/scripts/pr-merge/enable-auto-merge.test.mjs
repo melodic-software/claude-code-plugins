@@ -664,9 +664,17 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   assert.deepEqual(after.verified, []);
   assert.deepEqual(after.notes, []);
   // A verdict that would arm it, with the hold path lifted, never arms a labeled one.
+  // Its answer came and names no person's reason: the mark comes off in
+  // place, so the next run reads no verdict.
   const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  assert.deepEqual(lifted.verified, [2]);
   assert.deepEqual(lifted.writes, []);
-  assert.deepEqual(lifted.notes, []);
+  assert.deepEqual(lifted.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  const laneVerdict = await run([held({ verdict: MISSING, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  assert.deepEqual(laneVerdict.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  const next = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
+  assert.deepEqual(next.verified, []);
+  assert.deepEqual(next.notes, []);
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {

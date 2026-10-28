@@ -216,6 +216,12 @@ expect "a newer pr-merge refusal beats an older security hold, naming its fenced
   "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
 export STUB_COMMENTS="[$REFUSAL,$NEW]"
 expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
+# A lane's refusal (no attend-queue marker) set no label, so a newer one
+# never names the hold that did.
+LANE_REFUSAL="$(hold "$APP" $'<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. The lanes clear this reason on their own; the next scheduled run judges it again.\n\n```text\nits verifier verdict is missing\n```\n<!-- pr-merge-unarmed-since head=bbbb at=2026-10-23T10:00:00Z -->')"
+export STUB_COMMENTS="[$NEW,$LANE_REFUSAL]"
+expect "a newer pr-merge lane refusal does not name the label's hold" 1 1 "needs-human" 0 "(Changes a trust gate:" "verdict is missing"
+export STUB_COMMENTS="[$NEW,$REFUSAL]"
 OTHER_REFUSAL="$(hold "$LANE" "$REFUSAL_BODY")"
 export STUB_COMMENTS="[$NEW,$OTHER_REFUSAL]"
 expect "a refusal-shaped comment by another bot is not read" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"

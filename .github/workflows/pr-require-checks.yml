@@ -4369,7 +4369,8 @@ jobs:
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                   | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
               or (.user.login == "'"$identity"'"
-                and ([.body | splits("\r?\n")][0:2] | map(gsub("^\\s+|\\s+$"; "")) | index("<!-- babysit-merge-risk -->")) != null)))
+                and ([.body | splits("\r?\n")][0:2] | map(gsub("^\\s+|\\s+$"; "")) | index("<!-- babysit-merge-risk -->") != null
+                  and index("<!-- work-items:escalation lane=pr-merge kind=escalated -->") != null))))
               | .body | @json' | tail -n 1 |
             jq -r '[splits("\r?\n") | gsub("^\\s+|\\s+$"; "")] as $lines | ($lines | index("\u0060\u0060\u0060text")) as $open
               | if $open != null and ($lines[0:2] | index("<!-- babysit-merge-risk -->")) != null
