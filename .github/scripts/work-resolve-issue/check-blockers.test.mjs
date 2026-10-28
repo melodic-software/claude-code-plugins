@@ -132,7 +132,7 @@ test("a merged pull request blocker costs no trust read, so a read that would fa
       throw new Error("GET failed: 502");
     }
     if (path === "/repos/o/r/issues/42") {
-      return { number: 42, state: "open", labels: [] };
+      return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     }
     if (path.includes("/events")) {
       return [];
@@ -207,7 +207,7 @@ test("an issue number that is not one, no trusted list, or no App id skips the r
 test("a split parent the lanes App closed after a listed human closed every part no longer blocks; an open part keeps it blocking", async () => {
   const record = { id: 61, user: APP, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [50, 51] })}` };
   const world = (partState) => (path) => {
-    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [] };
+    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     if (path.startsWith("/repos/o/r/issues/42/events")) return [];
     if (path.includes("/42/dependencies/blocked_by")) return [issue(7, "closed", { closer: APP })];
     if (path === "/repos/o/r/issues/7") return issue(7, "closed", { closer: APP });
@@ -249,12 +249,19 @@ describe("an umbrella issue", () => {
     assert.deepEqual((await run([], { subject: { summary: summary(2, 1), subs: notPlanned } })).outputs, RUN);
   });
 
-  test("costs no call past the issue read when the summary shows none open, or no summary", async () => {
-    for (const subject of [{}, { summary: summary(0, 0) }, { summary: summary(4, 4) }]) {
+  test("costs no call past the issue read when the summary shows none open", async () => {
+    for (const subject of [{ summary: summary(0, 0) }, { summary: summary(4, 4) }]) {
       const { calls, outputs } = await run([], { subject });
       assert.deepEqual(outputs, RUN, JSON.stringify(subject));
       assert.ok(!calls.some((call) => call.includes("/sub_issues")), JSON.stringify(subject));
     }
+  });
+
+  test("an issue read with no summary lists the sub-issues, and an open one skips the run", async () => {
+    const { calls, outputs } = await run([], { subject: { subs: [issue(9691, "open")] } });
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(calls.some((call) => call.includes("/sub_issues")));
+    assert.deepEqual((await run([], { subject: { subs: [] } })).outputs, RUN);
   });
 
   test("a sub-issue list it cannot read skips the run with a warning, not for good", async () => {

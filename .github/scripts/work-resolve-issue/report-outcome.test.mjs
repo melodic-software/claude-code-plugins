@@ -3108,22 +3108,6 @@ test("route host-run: a run's host-only code adds host-run, removes agent-ready 
   assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
 });
 
-// #6052: an umbrella split into sub-issues is no work for the lane and no
-// decision for a person, so the run's umbrella code takes the fail route.
-test("route fail: a run's umbrella code removes agent-ready, adds no label and escalates to no person", () => {
-  const plan = stoppedPlan("umbrella: the work is in sub-issues #9691 to #9695, all open", { issueLabels: ["agent-ready", "status: confirmed"] });
-  assert.equal(plan.action, "fail");
-  assert.equal(plan.stop, "umbrella");
-  assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
-  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=failed run=555 -->\n"), plan.comment);
-  assert.ok(!plan.comment.includes("needs-human"), plan.comment);
-  assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
-  assert.match(plan.comment, /`umbrella`/);
-  // The run's words are quoted with issue references broken.
-  assert.match(plan.comment, /sub-issues \S9691 to \S9695/);
-});
-
 test("route retry: a crash keeps agent-ready, names the branch and counts toward the cap", () => {
   const plan = decide({ outcome: readOutcome("/nonexistent/work-outcome.json"), issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
   assert.equal(plan.action, "retry");

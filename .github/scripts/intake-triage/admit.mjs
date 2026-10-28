@@ -175,10 +175,13 @@ export const blockersOf = (github, base) => paginate(github, `${base}/dependenci
 // (https://docs.github.com/en/rest/issues/issues#get-an-issue) costs no call;
 // only an issue with `total > completed` lists its sub-issues
 // (https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues), since
-// the docs do not say whether `completed` counts a close as not planned.
+// the docs do not say whether `completed` counts a close as not planned. A
+// read with no usable summary lists them too, so a missing field never lets
+// an umbrella run.
 export async function openSubIssues(github, base, issue) {
-  const { total = 0, completed = 0 } = issue?.sub_issues_summary ?? {};
-  return total > completed ? (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed") : [];
+  const { total, completed } = issue?.sub_issues_summary ?? {};
+  const none = Number.isSafeInteger(total) && Number.isSafeInteger(completed) && total <= completed;
+  return none ? [] : (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed");
 }
 
 const here = (url, repository) =>

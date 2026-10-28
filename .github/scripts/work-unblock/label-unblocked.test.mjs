@@ -1889,6 +1889,13 @@ test("a run the gate skipped on an umbrella waits, with no write, while a sub-is
   assert.deepEqual(writes(calls), []);
 });
 
+test("a listing item with no sub_issues_summary lists the sub-issues, and an open one keeps the run waiting", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", subIssues: { 30: [issue(9691)] } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.ok(calls.some((call) => call.includes("/sub_issues")));
+});
+
 test("a run the gate skipped on an umbrella is re-fired once every sub-issue is closed, reading no sub-issue list when the summary shows none open", async () => {
   const closed = { 30: [issue(9691, { state: "closed" }), issue(9692, { state: "closed", reason: "not_planned" })] };
   for (const summary of [{ total: 2, completed: 2, percent_completed: 100 }, { total: 2, completed: 1, percent_completed: 50 }]) {
