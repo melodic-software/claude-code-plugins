@@ -39,16 +39,25 @@
 #   worktree  <path> <repo>         each direct child of a root holding a .git
 #                                   entry, with its owning repository, or `-` when
 #                                   git cannot resolve one (worktree-root-scan.sh
-#                                   classifies those)
+#                                   classifies those); then each existing worktree
+#                                   a listed repository registers deeper below a
+#                                   root (nested inside another worktree, say),
+#                                   with that repository
 # A repository that owns a worktree under a root is listed even when discovery
 # did not reach it, and its own root is resolved and scanned in turn. A path
 # holding a tab or newline cannot be a TSV field: it is skipped with a warning
 # on stderr.
 #
+# Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
+# closed with exit 5 and a message naming the floor and the installed version,
+# rather than printing an inventory that misses every linked worktree.
+#
 # Exit codes:
 #   0  inventory printed
 #   2  usage, or an unreadable root file or fleet config
 #   3  no worktree root resolved (rows for repositories are still printed)
+#   5  a repository's worktrees cannot be listed (git older than the -z floor);
+#      nothing is printed
 
 set -uo pipefail
 
@@ -69,6 +78,8 @@ source "$SCRIPT_DIR/worktree-root-resolve.sh"
 source "$SCRIPT_DIR/scope-resolve.sh"
 # shellcheck source=fleet-discovery.sh
 source "$SCRIPT_DIR/fleet-discovery.sh"
+# shellcheck source=lib/worktree-facts.sh
+source "$SCRIPT_DIR/lib/worktree-facts.sh"
 
 usage() {
   printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH] [--project-dir DIR] [--remove-input-files]\n' "$PROG" >&2
@@ -252,6 +263,7 @@ if [[ -n "$machine_key" ]]; then add_root "$machine_key" git-config; else rest_o
 # --- Resolve each repository's root and scan each root, until neither grows --
 # A root scan can find an owner discovery missed, whose own root may differ.
 wt_rows=""
+wt_seen=$'\n'
 resolved=0
 scanned=0
 while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
@@ -276,18 +288,64 @@ while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
       if [[ "$owner" != - ]] && ! tsv_safe "$owner"; then owner="-"; fi
       [[ "$owner" == - ]] || add_repo "$owner"
       wt_rows+="worktree"$'\t'"$d"$'\t'"$owner"$'\n'
+      wt_seen+="$d"$'\n'
     done
   done
+done
+
+# --- Registered worktrees the scan cannot see -------------------------------
+# The scan reads only a root's direct children, so a worktree nested deeper
+# (inside another worktree's .work/, or under a per-repository directory) is
+# found through its repository's own registration instead.
+roots_phys=()
+for i in ${roots[@]+"${!roots[@]}"}; do
+  roots_phys[i]="$(cd -P -- "${roots[$i]}" 2>/dev/null && pwd)" || roots_phys[i]=""
+done
+# under_root <path>: true when a root holds <path>, which is put into UNDER
+# in that root's spelling, so it matches the scan's rows.
+under_root() {
+  local i phys
+  for i in ${roots[@]+"${!roots[@]}"}; do
+    phys="${roots_phys[$i]}"
+    if [[ "$1" == "${roots[$i]}"/* ]]; then
+      UNDER="$1"
+      return 0
+    elif [[ -n "$phys" && "$1" == "$phys"/* ]]; then
+      UNDER="${roots[$i]}/${1#"$phys"/}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+repo_rows=""
+for r in ${repos[@]+"${repos[@]}"}; do
+  # Fail closed: a git that rejects -z would otherwise read as no worktrees.
+  porcelain="$(mktemp)" || fail "cannot create a temporary file"
+  if ! git -C "$r" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
+    rm -f -- "$porcelain"
+    printf '%s: cannot list worktrees of %s; %s\n' "$PROG" "$r" "$(worktree_list_z_floor_note)" >&2
+    exit 5
+  fi
+  worktree_facts_parse_z "$porcelain"
+  rm -f -- "$porcelain"
+  linked=$((${#WT_FACT_PATH[@]} - 1))
+  # The first record is the main checkout or the bare hub.
+  for i in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do
+    ((i > 0)) || continue
+    under_root "${WT_FACT_PATH[$i]}" || continue
+    [[ -d "$UNDER" && "$wt_seen" != *$'\n'"$UNDER"$'\n'* ]] || continue
+    tsv_safe "$UNDER" || continue
+    wt_rows+="worktree"$'\t'"$UNDER"$'\t'"$r"$'\n'
+    wt_seen+="$UNDER"$'\n'
+  done
+  repo_rows+="repo"$'\t'"$r"$'\t'"$((linked > 0 ? linked : 0))"$'\n'
 done
 
 for i in ${roots[@]+"${!roots[@]}"}; do
   printf 'root\t%s\t%s\n' "${roots[$i]}" "${rungs[$i]}"
 done
-for r in ${repos[@]+"${repos[@]}"}; do
-  linked="$(git -C "$r" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" || true
-  linked=$((${linked:-0} > 0 ? linked - 1 : 0))
-  printf 'repo\t%s\t%s\n' "$r" "$linked"
-done
+printf '%s' "$repo_rows"
 printf '%s' "$wt_rows"
 
 if [[ ${#roots[@]} -eq 0 ]]; then

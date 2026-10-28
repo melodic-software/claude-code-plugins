@@ -6,7 +6,7 @@
 // rather than whole-file containment, which dilutes a real match to noise on a
 // real-sized file.
 
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,7 @@ import {
   containment,
   jaccard,
   matchedSpans,
+  localTokens,
   compare,
   DEFAULTS,
 } from "./fingerprint.mjs";
@@ -453,6 +454,126 @@ const SOURCE_TEXT = [
     "matchedSpans_merges_runs: one contiguous run becomes one span",
     spans.length === 1 && spans[0].words > 20,
     JSON.stringify(spans),
+  );
+}
+
+// --- case: json_value_copy ---------------------------------------------------
+// The text path reads every JSON string as a paired `"` span and strips it, so a
+// copy inside a value never reached shingling. Values are measured instead, and
+// the span reports the line the value sits on in the JSON file.
+const lineOf = (text, needle) =>
+  text.split("\n").findIndex((line) => line.includes(needle)) + 1;
+{
+  const local = JSON.stringify(
+    {
+      skill_name: "flowlite-config",
+      evals: [
+        { id: 1, prompt: "Where does Flowlite read its configuration?", expected_output: UPSTREAM_SENTENCE },
+      ],
+    },
+    null,
+    2,
+  );
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_value_copy: a verbatim copy in a string value fires",
+    r.separation.fired === true && r.longest_span_words >= DEFAULTS.min_span_words,
+    `fired=${r.separation.fired} longest=${r.longest_span_words}`,
+  );
+  check(
+    "json_value_copy: the matched span reports the JSON file's own line",
+    r.matched_spans.length === 1 &&
+      r.matched_spans[0].local_lines[0] === lineOf(local, "expected_output") &&
+      r.matched_spans[0].local_lines[1] === lineOf(local, "expected_output"),
+    `spans=${JSON.stringify(r.matched_spans)} expected line ${lineOf(local, "expected_output")}`,
+  );
+
+  const rb = compare(`﻿${local}`, SOURCE_TEXT);
+  check(
+    "json_value_copy: a byte-order mark does not send the file down the text path",
+    rb.separation.fired === true &&
+      JSON.stringify(rb.matched_spans) === JSON.stringify(r.matched_spans),
+    `spans=${JSON.stringify(rb.matched_spans)}`,
+  );
+}
+
+// --- case: json_unrelated_and_keys -------------------------------------------
+{
+  const unrelated = JSON.stringify({
+    prompt: "Our deploy runbook tags the release and watches the canary for ten minutes.",
+    expected_output: "The service owner is paged after two consecutive rollbacks.",
+  });
+  const ru = compare(unrelated, SOURCE_TEXT);
+  check(
+    "json_unrelated_and_keys: unrelated values do not fire",
+    ru.matched_spans.length === 0 && ru.separation.fired === false,
+    `containment=${ru.containment} spans=${ru.matched_spans.length}`,
+  );
+
+  const keyed = JSON.stringify({ [UPSTREAM_SENTENCE]: "ok" });
+  const rk = compare(keyed, SOURCE_TEXT);
+  check(
+    "json_unrelated_and_keys: a key holding source text is not measured",
+    rk.local_shingles === 0 && rk.separation.fired === false,
+    `local_shingles=${rk.local_shingles} fired=${rk.separation.fired}`,
+  );
+}
+
+// --- case: json_values_strip_on_their_own ------------------------------------
+{
+  const local = JSON.stringify(
+    ["```text\nan example whose fence never closes", UPSTREAM_SENTENCE],
+    null,
+    2,
+  );
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_values_strip_on_their_own: an unclosed fence does not blank the next value",
+    r.separation.fired === true &&
+      r.matched_spans.length === 1 &&
+      r.matched_spans[0].local_lines[0] === lineOf(local, "Flowlite reads"),
+    `spans=${JSON.stringify(r.matched_spans)}`,
+  );
+
+  const quoted = JSON.stringify({
+    expected_output: `The vendor puts it plainly: "${UPSTREAM_SENTENCE}" (https://example.com/docs/flowlite).`,
+  });
+  const rq = compare(quoted, SOURCE_TEXT);
+  check(
+    "json_values_strip_on_their_own: a quoted excerpt inside a value still strips",
+    rq.matched_spans.length === 0 && rq.separation.fired === false,
+    `spans=${rq.matched_spans.length} containment=${rq.containment}`,
+  );
+}
+
+// --- case: text_path_unchanged -----------------------------------------------
+// `compare` changed only in how it tokenizes the local text, so a local text
+// whose tokens equal the old `tokenize(stripQuoted(...))` compares as before.
+{
+  const sameAsTextPath = (text) =>
+    JSON.stringify(localTokens(text)) === JSON.stringify(tokenize(stripQuoted(text)));
+
+  check(
+    "text_path_unchanged: a bare JSON scalar takes the text path",
+    sameAsTextPath(JSON.stringify(UPSTREAM_SENTENCE)) && sameAsTextPath("42"),
+  );
+  check(
+    "text_path_unchanged: malformed JSON takes the text path",
+    sameAsTextPath(`{"expected_output": "${UPSTREAM_SENTENCE}",`),
+  );
+
+  const goldenDir = join(SELF_DIR, "..", "evals", "fixtures", "golden");
+  const cases = readdirSync(goldenDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const changed = cases.filter((name) => {
+    const caseText = readFileSync(join(goldenDir, name, "case.md"), "utf8");
+    return !sameAsTextPath(caseText);
+  });
+  check(
+    "text_path_unchanged: every golden case.md tokenizes as before",
+    cases.length > 0 && changed.length === 0,
+    `cases=${cases.length} changed=${changed.join(", ")}`,
   );
 }
 

@@ -344,8 +344,10 @@ cap, `lane-models`, the comma list of model IDs the result's `modelUsage` names,
 skill. The report job passes them to `report-check-run`, which checks each against a fixed shape
 and writes them into the posted check run: as the first line of `output.summary`,
 `lane=<lane> activity=<activity>` then `class`, `resets`, `turns`, `max-turns`, `models` and
-`profile` in that order, each omitted when absent; as one JSON block in `output.text`; and as
-`external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
+`profile` in that order, each omitted when absent; and as one JSON block in `output.text`. Every
+check it posts, with a record or without, carries `external_id`
+`<lane>:<activity>:<run id>:<run attempt>`, the one field that names the posting run: GitHub
+returns the check's `details_url` as the check run's own page. A failed run whose record says `class=rate-limit`
 is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
 failed run with no record line is not one. In issue mode the
 same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
