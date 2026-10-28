@@ -463,7 +463,8 @@ same path as before. Measured on melo-lap-001 (Windows 11, Git Bash 5.3.15, Node
 the dotfiles fan-out harness (sha256 `e1bbebb9…`), 15 interleaved rounds of `--runs 7`, guardrails
 at `f39428d89` against its parent: the `Bash` row's paired median moved +1 ms (0.0 S, S = 21 ms),
 the `$(…)` sample −3 ms, inside the ±6 ms (0.3 S) the untouched `Write` and `Edit` rows moved. The
-harness samples are not recursive deletes, so this is the common call's cost.
+harness samples are not recursive deletes, so this is the common call's cost. With k unchanged
+and no measurable added work, the row stays inside its k × S budget.
 
 **block-cross-domain (#9743).** The guard runs last on the Bash/PowerShell row and
 starts no process on the common call (k = 0): with no map, which is every host that
@@ -480,7 +481,8 @@ host and harness as the entry above, 15 interleaved rounds of `--runs 7` at guar
 moved +0 ms (0.0 S, S = 21 ms) with no map and +5 ms (0.2 S) with a placeholder map
 (the `$(…)` sample −6 ms and +5 ms), inside the ±6 ms (0.3 S) the untouched `Write`
 and `Edit` rows moved. The map arm wrote the compiled cache and the disabled arm did
-not, in every round.
+not, in every round. At k = 0 with no measurable added work, the row stays inside its
+k × S budget.
 
 **0.41.1, repeat Edit/Write verifiers (#4390).** A second markdown edit at the same
 HEAD does not re-walk deleted-path history, and a second skill reference at the
