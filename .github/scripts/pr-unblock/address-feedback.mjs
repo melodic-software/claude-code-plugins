@@ -795,7 +795,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // The REST issue timeline, as gate-source.mjs prHold reads it.
     listTimeline: (pr) => paginate(`issues/${pr}/timeline`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
-    listReviewComments: (pr) => paginate(`pulls/${pr}/comments`),
+    // Written or edited since `since` (GitHub's since query value) when given.
+    listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
     // The repository activity for one ref, newest first (contents read).
     listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),

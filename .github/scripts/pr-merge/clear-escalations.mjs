@@ -153,8 +153,10 @@ import {
   PAIRED_MS,
   personSince,
   RESUME_KEY,
+  reviewEntries,
   ROUTES,
   same,
+  sinceParam,
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
@@ -656,16 +658,9 @@ const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} 
 // update time), so an edit after the label counts too. A failed read throws,
 // which keeps the label.
 async function threadSpeaker(github, repo, number, since) {
-  const at = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
-  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${at}`);
+  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
-  return personSince(
-    [
-      ...comments.map((comment) => ({ user: comment.user, at: Math.max(Date.parse(comment.created_at), Date.parse(comment.updated_at)) })),
-      ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
-    ],
-    since,
-  );
+  return personSince(reviewEntries({ comments, reviews }), since);
 }
 
 // The ids whose push is a trusted move: every `human` of trusted-actors.json,
