@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3] - 2026-10-28
+
+### Fixed
+
+- `/verification:confirm`: the per-worker session-names rule now points at `/testing:run-e2e`'s own-driving Session names section, where that rule moved, and says that on a run through `/app-control:drive` the drive skill and the app's control skill own the browser sessions.
+
 ## [0.12.2] - 2026-10-27
 
 ### Changed
