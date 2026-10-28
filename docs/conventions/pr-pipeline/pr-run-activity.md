@@ -384,8 +384,7 @@ read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sourc
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
-activity's models profile (`--max-turns`, `--model` unless the model is `default`, `--effort` when
-set), with its `settings-json` as the action's `settings`
+activity's models profile (`--model`, `--max-turns`, `--effort` when set), with its `settings-json` as the action's `settings`
 ([README.md, Models](README.md#models)). The
 plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
 directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
@@ -703,7 +702,7 @@ Every job after the calls takes its inputs from the third call when it ran, else
 the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
-   route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
+   route resolves an alias and the skill is advisory. While sudo
    still works it applies ci-workflows' Claude managed settings, then isolates the runner.
 2. `collect-base-activity` (launcher `run-claude-cli`) stages the skill's plugin, the CI context,
    a scratch directory and the prompt file; after the head checkout the run job copies them to

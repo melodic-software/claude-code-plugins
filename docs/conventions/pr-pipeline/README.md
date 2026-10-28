@@ -2424,13 +2424,14 @@ at the start and end of each run, not the broker's own quota record, which this 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
 Each profile under `models.profiles` names:
 
-- `model`: an alias (`default`, `opus` or `sonnet`), never a full model ID, passed
-  as `--model`. `default` passes no `--model`, so the account's default model runs.
+- `model`: an alias (`opus` or `sonnet`), never a full model ID, passed as `--model`.
+  `resolve-config` resolves any value outside `haiku`, `sonnet` and `opus` to `opus`, so a
+  config that skipped the schema check still never runs `default` or the frontier tier.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
   passes none, so the model's default effort applies.
 - `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
-  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
-  definition's still win.
+  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing, and any
+  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
@@ -2438,8 +2439,8 @@ Each profile under `models.profiles` names:
   (`no-rung-up`). Only the selected slot climbs, and only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
-and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
-`default` nor a model ID. `resolve-config` reads its model and effort from the role map,
+and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name no model
+ID. `resolve-config` reads its model and effort from the role map,
 `plugins/multi-agent/reference/defaults.yaml` in the base checkout. The model is `opus` when the
 role map gives `inherit`, no alias, or an alias other than `haiku`, `sonnet` or `opus`, and when
 the role map is absent or unreadable, so a route never resolves to an empty model, `default`, a
@@ -2454,11 +2455,10 @@ activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `r
 pr-unblock's read-only judge of a review finding address-feedback disputed
 ([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
-profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
+profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
 `claude_args` and `settings`, and into `model`, `effort` and `max-turns`, which a run on
-`run-claude-cli` ([Funding](#funding)) passes as those inputs; `model` is empty for `default`,
-which that action cannot pass, so such a run fails. The values come only from this file on the
+`run-claude-cli` ([Funding](#funding)) passes as those inputs. The values come only from this file on the
 base, never from text the run reads.
 
 This repository's profiles, and the route each run takes, are set in
