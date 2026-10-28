@@ -23,7 +23,8 @@ condition 1 and the actor and author parts of condition 2).
 | `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
 | `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
 | `expected-upstream-head` | empty | For a job after pr-unblock's model job, the head that job gated; set on any path but a `workflow_run` dispatcher, it stops the run |
-| `lanes-app-id` | empty | The lanes App bot's user id: an upstream it started vouches, and only its commits may follow `expected-upstream-head` |
+| `pushed-commit` | empty | With `expected-upstream-head`, the commit apply-feedback-patch pushed onto it, the one other head the PR may be at; set without it, or not a lowercase SHA, it stops the run |
+| `lanes-app-id` | empty | The lanes App bot's user id: an upstream it started vouches |
 | `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
@@ -82,11 +83,10 @@ condition 1 and the actor and author parts of condition 2).
     listed in `run-dispatcher-upstreams`, `event` `pull_request`, `repository` and
     `head_repository` both this repository, an `actor` and `triggering_actor` that are the lanes
     App (`lanes-app-id`) or a listed human, and `head_sha` equal to the PR's current head. With
-    `expected-upstream-head`, `head_sha` must equal it instead, and every commit of
-    `GET /compare/<it>...<PR head>` (status `ahead`, untruncated) must have the lanes App as
-    `author`, `web-flow` as `committer`, a `valid` verified signature, and a committer date no
-    earlier than this run's creation: a commit GitHub signed for an App token during this run. A
-    human, foreign, unsigned or older commit stops the run. It does not prove which lane made it.
+    `expected-upstream-head`, `head_sha` must equal it instead, and the PR head must be it or
+    `pushed-commit`, the commit this run's apply-feedback-patch job pushed. Any other head stops
+    the run, a verified lanes App commit included: a signature proves an App token made a commit,
+    not that this run's push job did.
 
   Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
   `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler
