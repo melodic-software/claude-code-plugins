@@ -415,6 +415,23 @@ ACTOR_CASES = {
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheHoldLabelsAreTheGates(unittest.TestCase):
+    def test_both_hold_the_same_labels(self) -> None:
+        module = ROOT / ".github/scripts/pr-merge/enable-auto-merge.mjs"
+        script = (
+            f"const {{ HOLD_LABELS }} = await import({json.dumps(module.as_uri())});"
+            "console.log(JSON.stringify(HOLD_LABELS));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(proc.stdout), list(policy.MERGE_HOLD_LABELS))
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheWideningHoldIsTheGates(unittest.TestCase):
     def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
         cases = list(ACTOR_CASES.values())
