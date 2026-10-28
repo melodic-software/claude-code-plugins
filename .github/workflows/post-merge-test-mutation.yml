@@ -286,7 +286,7 @@ jobs:
       # not named here. The run executes main's own code. Never '*'.
       - name: Run the mutation audit
         id: audit
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses, the mutated tests included, and gives Bash its
@@ -353,6 +353,10 @@ jobs:
     permissions:
       contents: read # check out main for the report script
       pull-requests: write # find the pull request that merged the pushed head and comment the report on it
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -401,3 +405,11 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node .base/.github/scripts/post-merge-test-mutation/comment.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

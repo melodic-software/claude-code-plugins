@@ -3,6 +3,48 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2] - 2026-10-28
+
+### Changed
+
+- **Subagent Write and Edit rule loads are now measured ([#6758](https://github.com/melodic-software/claude-code-plugins/issues/6758)).** On Claude Code 2.1.312 a Write or an Edit inside a general-purpose subagent loads a matching path-scoped rule and a nested `CLAUDE.md`, after the tool runs, and the `InstructionsLoaded` record carries the subagent's `agent_id`, `agent_type` and `effort`. `context/verified-mechanics.md` records the probe and replaces the "unmeasured" subagent cells and the inferred write-trigger timing with the measurement; the routing rubric, README and audit eval drop "not yet measured". The record's newest measurement is now 2.1.312, so the audit header reads `not stale` on that CLI.
+
+## [0.28.1] - 2026-10-28
+
+### Fixed
+
+- `cutover-check.sh` condition 1 no longer reads a `sub-agents.md` link on a line that mentions a flag as the env-vars page tying `AGENTS.md` to a flag. The "moved bullet" check now matches `AGENTS.md` case-sensitively and as a whole name, so a delisted page grades `[MET]` instead of `[UNREACH]`.
+
+## [0.28.0] - 2026-10-28
+
+### Added
+
+- **`audit`, `realign` and `migrate` run `scripts/quote-check.sh` first** ([#9698](https://github.com/melodic-software/claude-code-plugins/issues/9698)). Each skill grants the script by its exact path with no `*`, so the grant covers the bare command only. Each run lists every `drift` result at the top of its output, with the record's section and both wordings, and names the wording a dependent proposal rests on. Each proposal quotes the deciding sentence of every docs record it relies on, and one that relies on an `unverified` or drifted record is labeled "unverified as of <date>". `audit` writes those records into a new `Mechanics` field of each finding, described in `context/findings-artifact.md`. `realign` presents them at its per-item gate and applies no finding whose record drifted until a re-audit. The audit's read-only rule now names the docs cache the check refreshes.
+
+### Changed
+
+- **`migrate` no longer grants `WebFetch`.** Its docs reads go through `scripts/fetch-docs.sh`, which takes a permission prompt per call, so the standing grant contradicted the skill's own rule that fetchers stay out of `allowed-tools`.
+- **The README revisit trigger for the `Write`-triggered rule names its records**: MS-5 for the path-scoped rule, MS-2 for a nested `CLAUDE.md`, and the write-trigger gap in `context/verified-mechanics.md`.
+
+## [0.27.0] - 2026-10-28
+
+### Added
+
+- **`scripts/quote-check.sh` checks each mechanics quote against its docs section** ([#9697](https://github.com/melodic-software/claude-code-plugins/issues/9697)). It reads only `context/mechanics-sources.tsv` and takes no arguments. Each page is fetched once through `scripts/fetch-docs.sh --cache`, and the section the URL's anchor names is taken with `scripts/docs-cache.sh slice`. It prints one line per record: `verified <id>`; `drift <id> <url>`, followed by the stored quote and the section's closest sentence; or `unverified <id> as of <as_of>` when the page could not be read fresh. It exits 0 whatever the results are. `QUOTE_CHECK_FIXTURE_DIR` points it at local page snapshots, so `scripts/quote-check.test.sh` covers the verified, drift and unverified cases without touching the network.
+
+## [0.26.8] - 2026-10-28
+
+### Changed
+
+- **The loading-mechanics record cites the docs by pointer record** ([#9696](https://github.com/melodic-software/claude-code-plugins/issues/9696)). Each docs-backed cell of the surface table in `context/verified-mechanics.md` now names a record id (`MS-<n>`) instead of a bare *(doc)* marker. The new `context/mechanics-sources.tsv` holds one row per record: the section URL with its anchor, the sentence quoted from that section, and the date it was read. A new "Pointer records" table says what each record decides and when to recheck it. Every measured result now carries the CLI version it ran on, including four that had none. `context/routing-rubric.md` names record ids where it prices a move instead of restating the docs.
+- **Cells the docs re-read changed.** The memory page now says a nested `CLAUDE.md` loads on a Read, Write or Edit in its subtree. The skill listing is rebuilt and re-injected after compaction on 2.1.304 and later. A subagent that skips the CLAUDE.md hierarchy (Explore, Plan, `omitClaudeMd`) still loads a nested `CLAUDE.md` or a matching path-scoped rule when it works with files there. A bare nested `AGENTS.md` beside a `CLAUDE.md` never loads only under the default **Project instructions** setting. That a bare nested `AGENTS.md` reloads when its subtree is touched again is now marked inferred, since no docs sentence states it.
+
+## [0.26.7] - 2026-10-28
+
+### Fixed
+
+- A git-hook entry installed before its manifest listed an asset now reads `stale` rather than `modified` in `verify` and `plan`, so `copy` refreshes it and adds the asset without `--force`. Deleting an asset the install's stamp covers still reads `modified`.
+
 ## [0.26.6] - 2026-10-27
 
 ### Changed

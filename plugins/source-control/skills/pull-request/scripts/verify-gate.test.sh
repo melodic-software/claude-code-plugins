@@ -56,4 +56,18 @@ assert_exit "a short sha is a usage error" 1 "$?"
 bash "$SCRIPT" bogus >/dev/null 2>&1
 assert_exit "an unknown subcommand is a usage error" 1 "$?"
 
+# Without READY_VERIFY_DIR, a record made from the main checkout covers a check run from a linked
+# worktree of the same repository, and the reverse.
+unset READY_VERIFY_DIR
+REPO="$TEST_TMPDIR/main" WT="$TEST_TMPDIR/host-run-1"
+git init -q "$REPO" && git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$REPO" worktree add -q -b feat "$WT"
+HEAD_W=$(git -C "$WT" rev-parse HEAD)
+(cd "$REPO" && bash "$SCRIPT" record --head "$HEAD_W" --result pass)
+(cd "$WT" && bash "$SCRIPT" check --head "$HEAD_W")
+assert_exit "a pass recorded from the main checkout covers a check from a linked worktree" 0 "$?"
+(cd "$WT" && bash "$SCRIPT" record --head "$HEAD_W" --result fail)
+(cd "$REPO" && bash "$SCRIPT" check --head "$HEAD_W" >/dev/null 2>&1)
+assert_exit "a failure recorded from a linked worktree reaches a check from the main checkout" 3 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

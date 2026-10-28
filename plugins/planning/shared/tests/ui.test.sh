@@ -28,6 +28,10 @@ max=${UI_JOBS:-$default_jobs}
 SERIAL=" ui_snappy.js ui_telemetry.js "
 out=$(mktemp -d)
 trap 'rm -rf "${out:?}"' EXIT
+# The suites' temp root, removed with $out: WebKit leaves its profile and Playwright its artifacts
+# folder in TMPDIR, and a suite that dies before its finish() leaves its shared-* folder.
+mkdir "$out/t"
+export TMPDIR="$out/t"
 run() {
   local t0=$SECONDS
   node "$here/$1" >"$out/$1.log" 2>&1

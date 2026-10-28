@@ -1,5 +1,61 @@
 # Changelog for the PR pipeline convention
 
+## [6.3.4] - 2026-10-28
+
+### Changed
+
+- A trusted person's approving review of a head that changes a hold path or widens the trusted-actor list carries over a later merge of the base when the merge changes nothing of its own, so the merge no longer sends the pull request back to them. Only an approving review lifts these holds: removing the human-gated label does not, and a dismissed approval never counts. The approval carries only when every commit since is a merge of commits the base branch holds and the whole net change against the base's tip commit is the same at both heads; the base is read once by its full ref. The owner's cost decision carries by the same rule. A carried approval does not lift the verifier, issue-link or pr-verify FAIL holds.
+
+## [6.3.3] - 2026-10-28
+
+### Changed
+
+- pr-verify's resolver looks up only the verdict names `write-verdict.mjs` writes, so it no longer looks up the head-ref digest names no writer produces: an unjudged head whose pull request links an issue takes 7 API calls instead of 11 (one with no linked issue, 3 fewer), and each other pull request at the head one lookup instead of two. The change that moves the writer to digest names adds those lookups back.
+- The lost-run reconciler's spec pre-filter looks up a candidate's pass by the same written names, 2 lookups instead of 4.
+
+## [6.3.2] - 2026-10-28
+
+### Fixed
+
+- The pr-unblock verdict job's merge path checks who pushed each commit before it posts a merge marker ([#9006](https://github.com/melodic-software/claude-code-plugins/issues/9006)). `pushRefusal` in `dependency-classify.mjs` (the twin of pr-merge's `push_refusal`, with one-for-one `PUSH_VECTORS` in both test suites) reads the head branch's repository activity back to Dependabot's newest branch creation or force push. Each commit a push brought must be its pusher's own: Dependabot's in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, a lanes App commit in a lanes App push. Anything else escalates `dependency-fix-refused`, so a Dependabot-authored commit under a lanes App tip no longer gets a merge marker. The README's **Pushes** check states the rule for both lanes.
+
+## [6.3.1] - 2026-10-28
+
+### Changed
+
+- The pr-merge lane's eligibility section documents the linked-issue hold ([#7783](https://github.com/melodic-software/claude-code-plugins/issues/7783)): at eligibility and again before the enqueue, a linked issue carrying a label from `activities.resolve-issue.applies-when.labels-absent` refuses with `closing-issue-held:<label>`, the tracker's human-gated role label holds when that list is absent, and an unreadable label set refuses. An edit to the issue after admission is the verifier's `verify:spec-changed`.
+
+- pr-merge's gate keeps the run's shared post-merge answer for each candidate past the two-minute unverified age, up to 30 minutes, on the same evidence the lane room keeps it on (main's head, its config commit, the demotion records and the verifying runs of every lane merge it judged unchanged), and reads it again only when one of those moved or cannot be read (`postMergeShared: kept:unverified-stale`).
+
+### Fixed
+
+- `check-signed-commits`' escalation comment opens with `<!-- check-signed-commits hold -->` (`SIGNED_COMMITS_HOLD` in `gate-source.mjs`). A `github-actions[bot]` comment carrying it, written or edited since the human-gated label was last removed, now holds the PR: `gateSource` reads it as `signed-commits-hold`, so fix-ci, fix-docs and resolve-conflicts no longer work past the label when a lane escalation put it on first, address-feedback works only threads a trusted person asked it to fix, and `clear-escalations.mjs` keeps the label. The marker from any other account is not read, and an unmarked bot comment still holds nothing (#9578).
+
+## [6.3.0] - 2026-10-28
+
+### Added
+
+- `clear-escalations.mjs` lifts more pr-unblock stops once their cause is gone: `workflow-staged` also clears once a trusted move took the head off the resume key and the head contains main as it was at the escalation; the `ci-fix-*` stops other than `ci-fix-protected-path` clear once a trusted move took the head off the resume key and, at the new head, no check but `ci-status` fails, runs or was cancelled and each check's latest run ended `success`, `neutral` or `skipped`. A trusted move is read with the job token from the branch's activity, never from comment text: every push since the label is by a `human` of the base `trusted-actors.json`, matched by id, never the lanes App. Security, intent, decision, protected-path and own-patch stops still wait for a person.
+
+## [6.2.1] - 2026-10-28
+
+### Changed
+
+- `scripts/run-test-file.sh` runs a test with git reading a fixed test config (a test identity, commit and tag signing off, no system config) in place of the host's, so a host that signs every commit cannot fail a fixture commit.
+
+## [6.2.0] - 2026-10-28
+
+### Added
+
+- A skill leaf's optional `tidy`: `entry` (the diff-scoped tidy skill), `passes` (the other quality skills it may call), `turn-share` (the percent of the run's turn cap tidy may spend) and `cutoffs` (`max-files`, `max-lines`, `max-areas`, `shared-paths`), the one value that decides whether a change is small and single-area enough to tidy in the run. The schema takes it only on a `read` skill whose `applied-by` sets `patch` with no `prepare`. `resolve-config` carries it on the selected activity. On the launcher, `collect-base-activity` stages the entry's and each pass's plugin read-only under `.lane/plugins`, allows `Skill(<plugin>:<skill>)` for each and no other skill, allows `code-tidying:tidy-diff`'s `change-shape.sh` and the `ai-slop:audit` script rules `fix-docs` already had, and names the cutoffs, the skills and the tidy turn budget in the preamble. `tidy` anywhere but an issue lane's patch skill with no prepare mode on the launcher fails the stage red.
+- `resolve-issue` tidies its own change before its last check run and before its review, with `code-tidying:tidy-diff` as the entry and `docs-hygiene:write-for-agents`, `docs-hygiene:write-for-humans` and `ai-slop:audit` as the passes, 25% of its turns, and cutoffs of 10 files, 300 changed lines, one area and no change under `.github/`, `.claude/`, `.claude-plugin/`, `scripts/`, `lib/`, `docs/conventions/`, `docs/standards/`, `AGENTS.md` or `CLAUDE.md`. The PR then reaches review tidied with no extra push, review run or token mint; pr-refine's skip for lane PRs stays.
+
+## [6.1.2] - 2026-10-28
+
+### Fixed
+
+- `resolve-conflicts`, `fix-ci` and `fix-docs` no longer work past another lane's escalation after a person replies inside an existing review thread. GitHub's timeline shows no event for such a reply, so the gate (`gate-source.mjs` `prHold`) now also reads the PR's review comments and reviews, and holds the PR when either read fails.
+
 ## [6.1.1] - 2026-10-28
 
 ### Fixed
