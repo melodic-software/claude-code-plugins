@@ -89,8 +89,10 @@
 # checked out in no worktree, tracked files have uncommitted edits, or a merge
 # is in progress. A conflict aborts the merge and exits 4 without pushing.
 # On: sync_stale_base: true in docs/conventions/source-control.yaml at the
-# base repository's default branch, as this clone last fetched it, or
-# --sync-stale-base; --no-sync-stale-base
+# base repository's default branch, as this clone last fetched it (no network
+# read; without --pr the base repository is asked of the forge only when some
+# fetched remote turns the setting on), or --sync-stale-base;
+# --no-sync-stale-base
 # turns it off. Off by default. A lane (below) never syncs. --check never syncs.
 #
 # Exit: 0 pushed (or --check passed); 1 refused or the push failed; 4 the
@@ -350,29 +352,58 @@ FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
 
 sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" >&2; }
 
+# local_default <remote>: <remote>'s default branch as this clone last fetched
+# it (the refs/remotes/<remote>/HEAD symref, else the first of main, master or
+# trunk it holds), or nothing. No network call.
+local_default() {
+  local d b
+  d=$(git symbolic-ref --short "refs/remotes/$1/HEAD" 2>/dev/null) && {
+    echo "${d#"$1"/}"
+    return 0
+  }
+  for b in main master trunk; do
+    git rev-parse -q --verify "refs/remotes/$1/$b" >/dev/null && {
+      echo "$b"
+      return 0
+    }
+  done
+}
+
+# setting_at <remote>: sync_stale_base in docs/conventions/source-control.yaml
+# on <remote>'s default branch as this clone last fetched it, or nothing.
+setting_at() {
+  local d out tmp on=""
+  d=$(local_default "$1")
+  [[ -n "$d" ]] || return 0
+  out=$(git show "refs/remotes/$1/$d:docs/conventions/source-control.yaml" 2>/dev/null) || return 0
+  tmp=$(mktemp -d) || return 0
+  mkdir -p "$tmp/docs/conventions" && printf '%s\n' "$out" >"$tmp/docs/conventions/source-control.yaml"
+  on=$(bash "$CONVENTION_KEY" value "$tmp" sync_stale_base) ||
+    echo "push-branch.sh: $1/$d:docs/conventions/source-control.yaml does not parse; sync_stale_base read as false" >&2
+  rm -rf "$tmp"
+  echo "$on"
+}
+
 # sync_stale_base <checkout>: the sync-stale-base step of the header. Returns
 # 0 to push; exits 4 on a conflict. Nothing the pushed head holds decides
 # whether it runs or is run by it: the setting is read from the base
-# repository's default branch and the overlap script from the base ref.
+# repository's default branch and the overlap script from the base ref. With
+# the setting unset everywhere this clone has fetched, it makes no network call.
 sync_stale_base() {
   local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
-  local tmp out ref rc mb tip paths_base paths_head overlap default sign=()
+  local tmp out ref rc mb tip paths_base paths_head overlap r sign=()
   [[ "$on" != false ]] || return 0
-  if [[ -n "$base_repo" ]]; then
-    remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
-  fi
-  if [[ -z "$on" ]]; then
-    [[ -n "$remote" ]] || return 0
-    default=$(git symbolic-ref --short "refs/remotes/$remote/HEAD" 2>/dev/null)
-    default="${default#"$remote"/}"
-    [[ -n "$default" ]] || default=$(remote_default "$remote")
-    out=$(git show "refs/remotes/$remote/$default:docs/conventions/source-control.yaml" 2>/dev/null) || return 0
-    tmp=$(mktemp -d) || return 0
-    mkdir -p "$tmp/docs/conventions" && printf '%s\n' "$out" >"$tmp/docs/conventions/source-control.yaml"
-    on=$(bash "$CONVENTION_KEY" value "$tmp" sync_stale_base) ||
-      echo "push-branch.sh: $remote/$default:docs/conventions/source-control.yaml does not parse; sync_stale_base read as false" >&2
-    rm -rf "$tmp"
-    [[ "$on" == true ]] || return 0
+  [[ -z "$base_repo" ]] || remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
+  if [[ -z "$on" && -z "$PR" ]]; then
+    # The base repository is not known yet: it takes a forge read, made only
+    # when some remote's fetched default branch turns the setting on.
+    for r in $(cd "${wd:-.}" && git remote); do
+      [[ "$(cd "${wd:-.}" && setting_at "$r")" != true ]] || on=pending
+    done
+    [[ -n "$on" ]] || return 0
+  elif [[ -z "$on" ]]; then
+    [[ -n "$remote" && "$(cd "${wd:-.}" && setting_at "$remote")" == true ]] || return 0
+    on=true
   fi
   [[ -n "$wd" ]] || {
     sync_skip "'$BRANCH' is checked out in no worktree"
@@ -383,7 +414,12 @@ sync_stale_base() {
       read -r base base_repo <<<"${out//$'\r'/}"
       remote=$(cd "$wd" && remote_of_repo "$base_repo")
     elif [[ "$out" == *"no pull requests found"* ]]; then
-      base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
+      base=$(cd "$wd" && local_default "$FETCH_REMOTE")
+      [[ -n "$base" ]] || base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
+    fi
+    # With no remote for the base repository, the skip below says so.
+    if [[ "$on" == pending && -n "$remote" ]]; then
+      [[ "$(cd "$wd" && setting_at "$remote")" == true ]] || return 0
     fi
   fi
   [[ -n "$remote" ]] || {

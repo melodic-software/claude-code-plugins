@@ -76,6 +76,7 @@ case "$1 $2" in
   "repo view") echo "example-org/app" ;;
   "pr view")
     if [[ " $* " == *" baseRefName,url "* ]]; then
+      echo base-read >>"$PB_GH_LOG"
       [[ -n ${PB_PR_BASE:-} ]] || {
         echo "no pull requests found for branch \"$3\"" >&2
         exit 1
@@ -94,6 +95,7 @@ cat >"$SHIM/git" <<EOF
 #!/usr/bin/env bash
 for a in "\$@"; do
   [[ \$a != fetch ]] || printf '%s\n' "\$*" >>"$LOG/fetch.log"
+  [[ \$a != ls-remote ]] || printf '%s\n' "\$*" >>"$LOG/ls-remote.log"
   if [[ \$a == push && -n \${PB_RECORD_PUSH:-} ]]; then
     printf '%s\n' "\$@" >"$LOG/push.argv"
     pwd -P >"$LOG/push.cwd"
@@ -108,6 +110,7 @@ done
 exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$SHIM/gh" "$SHIM/git"
+export PB_GH_LOG="$LOG/gh.log"
 export PATH="$SHIM:$PATH"
 
 # push-branch.sh runs from a copy of the plugin's layout, so the lane identity
@@ -794,6 +797,66 @@ PATH="$fork_stub:$PATH" PB_GITHUB_ROOT="$WORKDIR" sync_run "$wc" --pr 50
 check "sync, fork head: exit 0" "$RC" "0"
 check "sync, fork head: fetched the base from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
 check "sync, fork head: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-fork/upstream.git" rev-parse trunk)"
+
+# Without --pr, the setting is read from the PR's base repository, which the
+# forge names, not the fetch remote. Here origin is the fork and upstream the
+# base. A fork that turns the setting on, where upstream does not, syncs
+# nothing; upstream turning it on, where the fork does not, syncs from upstream.
+# fork_base_clone <checkout> <yes|no> <name>: adds the base repository
+# `upstream` (the setting on for yes) beside the fork `origin`, then moves
+# upstream's trunk on c.txt so the branch is stale on an overlapping path.
+fork_base_clone() {
+  local wc="$1" up_on="$2" up
+  git init -q --bare "$WORKDIR/$3/upstream.git"
+  up="$WORKDIR/$3/upseed"
+  git clone -q "$WORKDIR/$3/upstream.git" "$up" 2>/dev/null
+  git -C "$up" config user.email up@example.com
+  git -C "$up" config user.name Up
+  git -C "$up" checkout -q -b trunk
+  git -C "$wc" show HEAD:c.txt >"$up/c.txt"
+  if [[ $up_on == yes ]]; then
+    mkdir -p "$up/docs/conventions"
+    echo 'sync_stale_base: true' >"$up/docs/conventions/source-control.yaml"
+  fi
+  git -C "$up" add -A
+  git -C "$up" commit -q -m upstream
+  git -C "$up" push -q origin trunk 2>/dev/null
+  git -C "$WORKDIR/$3/upstream.git" symbolic-ref HEAD refs/heads/trunk
+  git -C "$wc" remote add upstream "https://github.com/$3/upstream.git"
+  git -C "$wc" remote set-url origin "https://github.com/$3/origin.git"
+  PB_GITHUB_ROOT="$WORKDIR" git -C "$wc" fetch -q upstream
+  git -C "$wc" merge -q --allow-unrelated-histories -X ours --no-edit upstream/trunk >/dev/null 2>&1
+  set_line "$wc" c.txt 1 branch-one
+  set_line "$up" c.txt 10 upstream-ten
+  git -C "$up" push -q origin trunk 2>/dev/null
+}
+wc=$(sync_clone sync-fork-on yes)
+fork_base_clone "$wc" no sync-fork-on
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=trunk PB_PR_BASE_REPO=sync-fork-on/upstream sync_run "$wc"
+check "sync, fork turns it on, base does not: exit 0" "$RC" "0"
+check "sync, fork turns it on, base does not: nothing fetched" "$(fetched)" "none"
+check "sync, fork turns it on, base does not: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+wc=$(sync_clone sync-base-on no)
+fork_base_clone "$wc" yes sync-base-on
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=trunk PB_PR_BASE_REPO=sync-base-on/upstream sync_run "$wc"
+check "sync, base turns it on, fork does not: exit 0" "$RC" "0"
+check "sync, base turns it on, fork does not: fetched from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
+check "sync, base turns it on, fork does not: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-base-on/upstream.git" rev-parse trunk)"
+
+# With the setting unset everywhere the clone has fetched, the step makes no
+# network call: no forge read of the base, no fetch, and no ls-remote beyond
+# the default-branch check every push makes, even with a remote that has no
+# refs/remotes/<remote>/HEAD.
+wc=$(sync_clone sync-quiet no)
+git -C "$wc" remote add upstream "$WORKDIR/sync-quiet/origin.git"
+git -C "$wc" fetch -q upstream
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-quiet c.txt 10 base-ten
+PB_PR_BASE=trunk sync_run "$wc"
+check "sync, off everywhere: exit 0" "$RC" "0"
+check "sync, off everywhere: no forge read of the base" "$(grep -c . "$LOG/gh.log" 2>/dev/null || echo 0)" "0"
+check "sync, off everywhere: nothing fetched" "$(fetched)" "none"
+check "sync, off everywhere: one ls-remote (the default-branch check)" "$(wc -l <"$LOG/ls-remote.log" | tr -d ' ')" "1"
 
 # Nothing the pushed head holds decides the step or runs in it. A head that
 # turns sync_stale_base on, where the base's config does not, fetches nothing.
