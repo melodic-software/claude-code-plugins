@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -462,7 +463,7 @@ for (const [label, overrides] of [
 }
 
 test("trustedHumansFrom reads only the people on the list", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -847,7 +848,7 @@ test("injection-shaped finding text is carried as data and changes no decision",
 });
 
 test("main select writes outputs and the thread file; escalation writes no thread file", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -1254,7 +1255,7 @@ test("reviewerIdsFrom reads one id per line, an unset value as none, and throws 
 // pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at
 // the PR's head; the select job then lists only the stale fail-note threads.
 test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const OLD = "b".repeat(40);
   const note = (id, commit = OLD, resolved = false) => ({
@@ -1296,4 +1297,17 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+test("scanRefusal reads a patch and an output marker together as output, in either order", () => {
+  for (const [base, rungUp] of [["patch", "output"], ["output", "patch"]]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(scanRefusal({ dir, read: "success" }), "output", `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });

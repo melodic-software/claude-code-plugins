@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "machine-health checkup WS-0142 2026-10-25T03:00:12Z\nreport: D:\\HealthReports\\reports\\health-2026-10-25T030012123Z.md\npage: not built\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "machine-health checkup WS-0142 2026-10-25T03:00:12Z\npage: not built\n\nThe decision page was not built because Node.js is missing.",
+      "why": "a sentence follows the last short-report line"
+    }
+  ]
+}

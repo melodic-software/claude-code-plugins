@@ -8,8 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -55,6 +54,7 @@ import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mj
 import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const LANES = { __typename: "Bot", login: "melodic-automation-lanes" };
@@ -145,6 +145,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     const runs = /^\/repos\/melodic-software\/claude-code-plugins\/actions\/workflows\/([a-z-]+)\.yml\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     if (method === "GET" && runs) {
       return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
+    }
+    // The head branch's push history: the head, pushed before its run.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
+      return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
     }
     if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
@@ -254,7 +258,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
-  const output = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-")), "output");
+  const output = join(tempDir("enable-auto-merge-"), "output");
   writeFileSync(output, "");
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -355,19 +359,21 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/gate-check.mjs",
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-    ".github/workflows/pr-require-checks.yml",
-    ".github/workflows/pr-merge.yml",
     "docs/conventions/pr-pipeline.yaml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
     pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
     pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
+    pull(96, { files: [{ filename: ".github/workflows/pr-require-checks.yml" }] }),
+    pull(97, { files: [{ filename: ".github/workflows/pr-merge.yml" }] }),
   ]);
   assert.equal(code, 0);
   assert.deepEqual(writes, [
     { mutation: "arm", id: "PR_98", head: HEAD },
     { mutation: "arm", id: "PR_99", head: HEAD },
+    { mutation: "arm", id: "PR_96", head: HEAD },
+    { mutation: "arm", id: "PR_97", head: HEAD },
   ]);
   assert.deepEqual(
     notes,
@@ -1190,7 +1196,7 @@ const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026
   authorAssociation: "OWNER",
 });
 function trustedKyle() {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
   return { TRUSTED_ACTORS: join(dir, "actors.json") };
 }
@@ -1254,7 +1260,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
   assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");
 
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
   const cost = [{ filename: "infra/main.tf" }];
   const decided = `Closes #1040\n\nCost decision: ${COST_LINK}`;
@@ -1276,7 +1282,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
 // ci-status runs merge-holds.mjs on the live files with the base config's
 // denied paths, by the same pathHold that decides arming above.
 test("merge-holds.mjs holds a changed or renamed-from hold path from the command line", () => {
-  const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
+  const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
   const cli = (files, denied, reviews = []) => {
     writeFileSync(join(dir, "body"), "Closes #1");
@@ -1711,7 +1717,7 @@ test("an event run still disarms an armed pull request that now holds", async ()
 });
 
 test("a reader that fails, prints no JSON or reports another head arms nothing and disarms", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const dir = tempDir("enable-auto-merge-");
   const scripts = {
     exits: "import sys\nsys.stderr.write('boom\\n')\nsys.exit(1)\n",
     garbage: "print('not json')\n",
@@ -1751,7 +1757,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
 // and an issue carrying a label naming untrusted work, in any spelling, refuses
 // for a person, a label added after admission included.
 test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs, a failed read or an untrusted issue", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-link-"));
+  const dir = tempDir("enable-auto-merge-link-");
   const wrapper = join(dir, "lane_link.py");
   writeFileSync(
     wrapper,
@@ -1839,11 +1845,12 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
 });
 
 // The reader's own listing rules (babysit_verify_evidence.py main and
-// Reader._current_listing), its judgment stubbed to a pass that reads the
-// listing: every candidate is allowed, so a run that lists again before an
+// Reader._current_listing), each listing from the API stubbed to one call
+// (`_complete_listing`, with no base to build on) and its judgment to a pass
+// that reads the listing: every candidate is allowed, so a run that lists again before an
 // allow on the saved listing would page once per candidate.
 test("a reader run pages the artifact listing once for all its candidates", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-listing-"));
+  const dir = tempDir("enable-auto-merge-listing-");
   const wrapper = join(dir, "shared_listing.py");
   writeFileSync(
     wrapper,
@@ -1867,7 +1874,7 @@ def gh(args, **_):
 def listing(self):
     with open(os.environ["LISTINGS"], "a") as log:
         log.write("listing\\n")
-    return [{"total_count": 0, "artifacts": []}]
+    return []
 
 def passes(self, number, head, pr=None):
     self._listing()
@@ -1875,7 +1882,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_incremental", lambda self, *args: None), mock.patch.object(ve.Reader, "_complete_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args, **kwargs: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -1996,7 +2003,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
     [{ ...ROOM, refusal: "rung-off:demotion" }, "pr-merge's gate holds its lane off (rung-off:demotion); left unarmed: #1, #2"],
   ];
   for (const [lane, expected] of cases) {
-    const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+    const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
     writeFileSync(summary, "");
     const { lines } = await run(pulls, { GITHUB_STEP_SUMMARY: summary }, {}, lane);
     assert.deepEqual(
@@ -2006,7 +2013,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
     assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
   }
   // A lane with room raises neither.
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
@@ -2022,7 +2029,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
 // it was not.
 test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const lane = { ...ROOM, refusal: "rung-off:demotion" };
   const { lines, code } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary }, { disarmError: new Error("POST /graphql failed with status 502") }, lane);
@@ -2037,7 +2044,7 @@ test("a held room names a pull request whose disarm failed as still armed, at er
 
 test("a held room in report-only names the armed pull request a disarm would have turned off, not as unarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const lane = { ...ROOM, unreadable: "post-merge answer missing or unreadable" };
   const { lines, writes } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary, REPORT_ONLY: "true" }, {}, lane);
@@ -2085,7 +2092,7 @@ test("readRoom takes only lane-room's shape", () => {
 });
 
 test("pythonRoom passes the post-merge report, its check's commit, the rung cap as read, and the reader's token", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-"));
+  const dir = tempDir("enable-auto-merge-room-");
   const script = join(dir, "room.py");
   writeFileSync(
     script,
@@ -2177,7 +2184,7 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
 });
 
 test("the step summary carries each verifier read's cost even when the run raised nothing", async () => {
-  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const { github, writes } = world([pull(1)]);
   const verify = async ({ headRefOid: head }) => ({ ...PASSED, head });
@@ -2224,7 +2231,7 @@ raise gh.RateLimitExhausted("core", 4102444800, "x-ratelimit-reset reset, HTTP 4
 }
 
 test("a gate reader stopped on a rate limit ends the run: no later pull request is read", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-stopped-"));
+  const dir = tempDir("enable-auto-merge-stopped-");
   const env = { ...ENV, PATH: process.env.PATH, RUNNER_TEMP: "", VERIFY_EVIDENCE_SCRIPT: stoppedReader(dir) };
   const pulls = [pull(1), pull(2)];
   const { github, writes, calls, notes } = world(pulls);
@@ -2261,7 +2268,7 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
 // A lane-room reader stopped on a rate limit: its child wrote `pool` to the
 // job's stop file before exiting 75.
 async function roomStoppedOn(pool, pulls) {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-stop-"));
+  const dir = tempDir("enable-auto-merge-room-stop-");
   const stopFile = join(dir, "stop");
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
   const stderr =
@@ -2315,7 +2322,7 @@ test("a lane-room reader stopped on the GraphQL pool sends no disarm and fails n
 });
 
 test("a verifier read stopped on a rate limit disarms the armed lanes pull requests after it and arms nothing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-verify-stop-"));
+  const dir = tempDir("enable-auto-merge-verify-stop-");
   const stopFile = join(dir, "stop");
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
   const armed = { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } };
@@ -2375,7 +2382,7 @@ test("a review-lane hold the gate reads arms nothing and disarms an armed pull r
 // stays regular may rate below HIGH, so a symlink or a submodule pointer a
 // lane pull request adds holds, and a plain documentation change arms.
 test("a lane pull request adding a symlink or a submodule pointer is not armed, or is disarmed; a doc change arms", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-risk-"));
+  const dir = tempDir("enable-auto-merge-risk-");
   const wrapper = join(dir, "risk.py");
   writeFileSync(
     wrapper,
@@ -2438,7 +2445,7 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
 // from the config (merge.max-queue-ejections, default 2), so only Python
 // holds either. One removal arms; two, or an unread count, do not.
 test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-queue-"));
+  const dir = tempDir("enable-auto-merge-queue-");
   const wrapper = join(dir, "queue.py");
   writeFileSync(
     wrapper,

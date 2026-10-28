@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0] - 2026-10-28
+
+### Added
+
+- `/code-tidying:tidy-diff` tidies one change's own lines before its commit, scoped by a file-and-line list in the `<start><TAB><count><TAB><path>` shape `added-lines.sh` prints, so it needs no branch or base ref and runs on a detached head. On code it runs a behavior-preserving simplify pass and class-A comment deletions, each behind a COMMENT-ONLY verdict from its `change-shape.sh`; on markdown it applies `/docs-hygiene:write-for-agents` or `/docs-hygiene:write-for-humans` and `/ai-slop:audit fix` to the listed lines. `--turns <n>` bounds it: at the budget it skips the passes left and reports them, never failing its caller. It stages and commits nothing.
+
+## [0.30.8] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
 ## [0.30.7] - 2026-10-27
 
 ### Fixed

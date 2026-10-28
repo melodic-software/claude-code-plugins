@@ -210,6 +210,14 @@ rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 OUT_SC="$(run --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"
 assert_contains "--show-config prints the gates" "$OUT_SC" "fix_precision_bar"
+assert_contains "an unset gate is attributed to the defaults" "$OUT_SC" "gates.min_n_per_class=10 (bundled default)"
+
+mkdir -p "$CLAUDE_PROJECT_DIR/docs/conventions"
+printf '%s\n' 'gates:' '  min_n_per_class: 3' >"$CLAUDE_PROJECT_DIR/docs/conventions/attribution.yaml"
+OUT_SC="$(run --show-config 2>&1)"
+assert_contains "a YAML gate names its layer" "$OUT_SC" \
+  "gates.min_n_per_class=3 (from $CLAUDE_PROJECT_DIR/docs/conventions/attribution.yaml)"
+rm -rf "$CLAUDE_PROJECT_DIR/docs"
 
 # --- Division by zero ------------------------------------------------------------
 

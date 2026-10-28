@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.0] - 2026-10-28
+
+### Added
+
+- `/work-items:work --ci` tidies its change before the review when the runner's prompt names tidy cutoffs: it measures the change (files, changed lines, areas, shared paths), and within the cutoffs invokes the named tidy entry with a lines file of its hunks and the tidy turn budget, then runs every check again. A change over a cutoff is not tidied, and `tidy` is recorded in `steps` either way; tidy never fails the run.
+
+## [3.10.3] - 2026-10-28
+
+### Changed
+
+- `/work-items:work` opens a `stopped` reason with a code the issue lane routes by: `host-only`, `intent-change`, `design-change`, `security-risk` or `cost-risk`. A reason with none still goes to a person. Runs on [#6930](https://github.com/melodic-software/claude-code-plugins/issues/6930) and [#6887](https://github.com/melodic-software/claude-code-plugins/issues/6887) stopped for a host-only need in free text, so each went to `needs-human` instead of the host queue.
+
+## [3.10.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
 ## [3.10.1] - 2026-10-27
 
 ### Fixed

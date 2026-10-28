@@ -845,8 +845,9 @@ const MARKER_FILE = /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/;
 // where the write runner downloaded every attempt's marker for the model
 // call's activity (SCAN_REFUSED_DIR), `read` that download's outcome
 // (SCAN_REFUSED_READ). A download that failed cannot rule a refusal out, so
-// it reads `output`; any marker reads `patch` only when one names it. A
-// forged marker only hands the round to a person.
+// it reads `output`; the markers read `patch` only when every one names it,
+// so a mixed set fails closed to `output`. A forged marker only hands the
+// round to a person.
 export function scanRefusal({ dir = "", read = "" } = {}) {
   if (read === "failure") {
     return "output";
@@ -869,7 +870,7 @@ export function scanRefusal({ dir = "", read = "" } = {}) {
   if (kinds.length === 0) {
     return "";
   }
-  return kinds.includes("patch") ? "patch" : "output";
+  return kinds.every((kind) => kind === "patch") ? "patch" : "output";
 }
 
 export function need(env, keys) {

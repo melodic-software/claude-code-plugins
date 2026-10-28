@@ -42,6 +42,15 @@ name: pr-feedback-dispatch
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
 # broker trust with a review run as its upstream.
 #
+# A completed pull_request_target run of pr-merge.yml on a lane branch starts
+# the dispatch job too. That workflow wakes when a label comes off a PR, and
+# both writers that take needs-human off a lanes App PR (a person, and
+# clear-escalations with the lanes App token) start it. A head the human gate
+# skipped at its review completion has no other trigger, so the job decides
+# that head again, through its newest completed review run, with every gate as
+# before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
+# waits in that head's concurrency group and reads its dispatch record.
+#
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
 # last review lane has finished, so it reads both reviews, and records each
@@ -57,14 +66,17 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge]
     types: [completed]
 
 permissions: {}
 
 # Both review lanes finish on the same head; one listing at a time per head.
 # A pr-verify run's head is main's, so each such run has a group of its own;
-# the sweeps share one.
+# the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
+# otherwise keeps one pending run per group and cancels it for a newer one,
+# so a pr-merge completion, or a review re-run's, could drop the later review
+# lane's run and with it the one rerun-ci-status after both lanes.
 concurrency:
   group: >-
     pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
@@ -72,6 +84,7 @@ concurrency:
     || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
     || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # A pr-verify run of main, which only steps of that run could upload to.
@@ -177,7 +190,9 @@ jobs:
     # branch is not on a lanes App PR. A pr-verify run dispatches only once its
     # notes are on the PR, or, for a pass, once its job found a stale fail-note
     # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
-    # schedule started it on main. A job skipped here starts no runner.
+    # schedule started it on main. A pr-merge.yml run counts whatever its
+    # conclusion: it skips the lanes App's own unlabel, which still took the
+    # label off. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
@@ -191,7 +206,12 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
       && github.event.workflow_run.conclusion != 'skipped'
-      && github.event.workflow_run.conclusion != 'cancelled') }}
+      && github.event.workflow_run.conclusion != 'cancelled'
+      || github.event.workflow_run.path == '.github/workflows/pr-merge.yml'
+      && github.event.workflow_run.event == 'pull_request_target'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')) }}
     needs: post-verify-notes
     runs-on: ubuntu-24.04
     timeout-minutes: 10

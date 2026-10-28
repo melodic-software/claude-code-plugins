@@ -1,20 +1,27 @@
 // Expected values come from report-escalation.sh (its label, then its comment
 // with a Reason line) and its reason-to-activity map.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main } from "./lane-hold.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
 const HEAD = "a".repeat(40);
 
-function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed" } = {}) {
+function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed", reviewComments = [], reviews = [] } = {}) {
   return {
     getPull: async () => ({ head: { sha: HEAD }, labels: labels.map((name) => ({ name })) }),
+    listReviewComments: async () => {
+      if (reviewComments instanceof Error) {
+        throw reviewComments;
+      }
+      return reviewComments;
+    },
+    listReviews: async () => reviews,
     listTimeline: async () => [
       {
         event: "commented",
@@ -28,7 +35,7 @@ function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-dis
 }
 
 async function outputs(activity, options) {
-  const dir = mkdtempSync(join(tmpdir(), "lane-hold-"));
+  const dir = tempDir("lane-hold-");
   try {
     const env = {
       GITHUB_TOKEN: "t",
@@ -54,6 +61,14 @@ test("another lane's escalation leaves resolve-conflicts and fix-docs unheld and
 test("resolve-conflicts's own escalation or a person's label holds it", async () => {
   assert.equal(await outputs("resolve-conflicts", { reason: "unresolved-conflict" }), "held=true\nlane-escalated=false\n");
   assert.equal(await outputs("resolve-conflicts", { actor: PERSON }), "held=true\nlane-escalated=false\n");
+});
+
+test("a person's inline review-thread reply since the label, or an unread review listing, holds it", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const reply = (user) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" });
+  assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(PERSON)] }), "held=true\nlane-escalated=false\n");
+  assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(APP)] }), "held=false\nlane-escalated=true\n");
+  assert.equal(await outputs("resolve-conflicts", { reviewComments: new Error("GET pulls/7/comments returned 502") }), "held=true\nlane-escalated=false\n");
 });
 
 test("no human-gated label is no hold; do-not-merge is left to the activity's applies-when", async () => {

@@ -1073,11 +1073,15 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
    person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
-   README's "The pr-merge lane"). The decision records why as `eligibility.adoption`; its path
+   README's "The pr-merge lane"), idleness read from trusted-actor activity
+   (`trusted_activity`) and the head's arrival (`_head_last_seen`), never the raw `updated_at`
+   any commenter moves; an OWNER, MEMBER or COLLABORATOR account's changes-requested review or a
+   person's hold-phrase comment still counts. The decision records why
+   as `eligibility.adoption`; its path
    floor scores only changed paths a commit not the author's own (verified, author and, for a
    person, committer) touched (`foreign_paths`). The lane's
-   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
-   comment refreshed `updated_at`, until anyone else comments or reviews after that pin.
+   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though trusted
+   activity is fresh, until anyone else comments or reviews after its pin.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
@@ -1104,10 +1108,13 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
    `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
-   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
-   raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
+   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
+   a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring.
+   (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
+   and a new secrets reference or model leg holds as `secret-exposure-review` or
+   `agent-surface-review`, which a person clears.
+   Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung

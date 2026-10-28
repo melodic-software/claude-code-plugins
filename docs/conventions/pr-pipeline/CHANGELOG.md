@@ -1,5 +1,79 @@
 # Changelog for the PR pipeline convention
 
+## [6.2.0] - 2026-10-28
+
+### Added
+
+- A skill leaf's optional `tidy`: `entry` (the diff-scoped tidy skill), `passes` (the other quality skills it may call), `turn-share` (the percent of the run's turn cap tidy may spend) and `cutoffs` (`max-files`, `max-lines`, `max-areas`, `shared-paths`), the one value that decides whether a change is small and single-area enough to tidy in the run. The schema takes it only on a `read` skill whose `applied-by` sets `patch` with no `prepare`. `resolve-config` carries it on the selected activity. On the launcher, `collect-base-activity` stages the entry's and each pass's plugin read-only under `.lane/plugins`, allows `Skill(<plugin>:<skill>)` for each and no other skill, allows `code-tidying:tidy-diff`'s `change-shape.sh` and the `ai-slop:audit` script rules `fix-docs` already had, and names the cutoffs, the skills and the tidy turn budget in the preamble. `tidy` anywhere but an issue lane's patch skill with no prepare mode on the launcher fails the stage red.
+- `resolve-issue` tidies its own change before its last check run and before its review, with `code-tidying:tidy-diff` as the entry and `docs-hygiene:write-for-agents`, `docs-hygiene:write-for-humans` and `ai-slop:audit` as the passes, 25% of its turns, and cutoffs of 10 files, 300 changed lines, one area and no change under `.github/`, `.claude/`, `.claude-plugin/`, `scripts/`, `lib/`, `docs/conventions/`, `docs/standards/`, `AGENTS.md` or `CLAUDE.md`. The PR then reaches review tidied with no extra push, review run or token mint; pr-refine's skip for lane PRs stays.
+
+## [6.1.2] - 2026-10-28
+
+### Fixed
+
+- `resolve-conflicts`, `fix-ci` and `fix-docs` no longer work past another lane's escalation after a person replies inside an existing review thread. GitHub's timeline shows no event for such a reply, so the gate (`gate-source.mjs` `prHold`) now also reads the PR's review comments and reviews, and holds the PR when either read fails.
+
+## [6.1.1] - 2026-10-28
+
+### Fixed
+
+- pr-unblock's `feedback-incomplete` escalation names each kept review thread with no recorded disposition, where it named none and the log gave only counts (#8257). `publish-feedback.mjs` logs each one's id and names at most 20, with their root comments and then how many more, in the round marker it posts; `report-escalation.sh` lists them with each root comment's URL from the newest lanes App round marker on the head it stops on. With no such marker it says so and points at the run's publish-feedback log. No reply is posted, as before.
+
+## [6.1.0] - 2026-10-28
+
+### Added
+
+- `limits.stop-retries` in `pr-pipeline.yaml`: restarts after a retry-routed stop since a listed human last added `agent-ready`, 0 to 5.
+
+### Changed
+
+- The issue lane routes each stop by one table, `.github/scripts/work-resolve-issue/stop-routes.json`, instead of adding `needs-human` on every stop. `hold` (the human-gated label and escalation marker) is kept for a pushback, a run's `intent-change`, `design-change`, `security-risk` or `cost-risk` code, a stop with no code, an issue edited after `agent-ready`, a patch or output refusal that may be a credential shape, and a run whose patch collector refused a file left at a stub name such as `.npmrc` or `.env` (the new `collect-refused` input of the write file carries the read file's `scan-collect-refused` to report-outcome). A protected path or a run's `host-only` code adds `host-run` and removes `agent-ready`. A crash, an apply fault, a moved PR head and an unfinished or failed check keep `agent-ready` with an `outcome=retry` marker naming the branch, and work-unblock restarts the issue. A retry past the new `limits.stop-retries` (default 2), or a spent turn cap, removes `agent-ready` with no label and an `outcome=failed` marker, which the maintenance monitor reports as signal 9.
+
+## [6.0.5] - 2026-10-28
+
+### Changed
+
+- check-wip-cap takes `reads: pause`, which makes only the open lane PR listing and the merged count, the two searches `capped` depends on, and leaves the admission fields unread (`admission_basis` `not-read`, `admission-open` `true`). work-resolve-issue's pick-slot and work-unblock's hourly state save pass it: neither reads anything but the pause, and each used to spend the admitted count, the queued listing, a pull request read per lane PR whose first body line names no issue, and up to 30 blocker reads (26 GITHUB_TOKEN calls in one pick-slot run with 19 issues queued; 5 now, whatever the queue: the two searches and resolve-config's three issue reads). Every other caller still reads all.
+- pr-verify's resolve-pr looks up the FAIL names at a head before this pull request's pass names, and weighs a pass against the spec before looking up the FAIL named with the pull request's issues. Each path whose reads succeed resolves as before, and the new order makes a subset of the old lookups, so a failed lookup the old order would have reached can now be skipped; a FAIL named without issues now costs 5 calls instead of 9, and a pass whose spec is unchanged 11 instead of 13.
+
+- The hold-path floor documentation lists `pr-merge.yml` and `pr-require-checks.yml` under `enforcement`, cleared by a clean head-bound security review, instead of `gate` (owner direction 2026-10-27).
+
+- `pr-merge.yml`'s `merge` and `enable-auto-merge` jobs set up the repository's pinned Python and install only the hash-pinned PyYAML entry of `.github/requirements-ci.txt`, which the review-evidence binding needs to clear a read-only workflow-file change. A failed install warns and the job goes on, since the binding then holds every workflow change for a person. The hold-path floor documentation also states that a lane comment edited by anyone but its author unbinds the review as `comment-edited`.
+
+- The hold-path floor documentation states which workflow files are lane sources: a changed workflow whose head copy cannot post as `github-actions[bot]` with a write token nor reach a secret no longer stops the security review from binding, while the review callers, `pr-merge.yml` and `pr-require-checks.yml` still do (owner direction 2026-10-27).
+
+- The cost hold stops a pull request only for a real new charge. Subscription or prepaid spend, including a `pr-pipeline.yaml` spend line, is reported as the non-holding `cost-finding`. A new secrets reference or model leg in a workflow holds for a person as `secret-exposure-review` or `agent-surface-review`.
+
+## [6.0.4] - 2026-10-28
+
+### Changed
+
+- pr-merge starts at most one full run of main per 30 minutes, of main's tip, covering every merge since the last. dispatch-full-run and post-merge-dispatch read the newest pr-require-checks.yml dispatches on main first (`Read main's full-run cover`): within the cap they start nothing, and post-merge-dispatch starts one on its next scheduled run for a tip no full run covers, whoever merged, while the lane is live (kill switch and report-only off). A read of the cover refused for a rate limit stops the job red and sends nothing more (`.github/workflows/pr-merge.yml`).
+- dispatch-full-run ends once it dispatches, where it held a runner up to 39 minutes polling the run; its timeout drops from 45 to 10 minutes. post-merge-dispatch now sends a red full run to post-merge-demotion-alert.yml on its next scheduled run while the lane is live (kill switch and report-only off), up to 15 minutes after the run ends, once per run (`pr-merge-alerted-<id>`, counted only when its own run on main uploaded it, by `babysit_postmerge.py --lane-alerted`), and skips a run that never started.
+- pr-require-checks.yml's dispatches on main (attempt 1) share one concurrency group with no `queue` key and `cancel-in-progress` false: one runs, one waits, and a newer one replaces the waiting one. A re-run and every other run keep their own group and cancel.
+- post-merge-demotion-alert.yml files nothing for a cancelled full run with no job, one the concurrency group replaced before it started.
+
+### Fixed
+
+- work-unblock no longer adds `needs-human` when an issue's limit and funding stops reach `limits.limit-stops-per-issue`. That cap is a safety limit, so the issue takes the issue lane's `fail` route: the lanes App comments with an `<!-- work-resolve-issue outcome=failed run=<run id> -->` marker naming the stopped run, removes `agent-ready` and adds no label. The maintenance monitor's signal 9 now reports `outcome=failed` as `lane-stop:failed`, and a person's new `agent-ready` resumes the stopped run's branch. A sweep that finds a failed marker newest with `agent-ready` still on removes the label.
+- A funding stop with no regain date (no credit or a disabled key) no longer waits for a person to restart it: work-unblock restarts it `limits.fallback-reset` hours after the stop, as it does a limit stop with no reset, counted toward `limits.limit-stops-per-issue`.
+
+## [6.0.3] - 2026-10-27
+
+### Changed
+
+- pr-merge's merge job uploads its last saved artifact listing as `pr-merge-verify-listing` (scheduled and hand-started runs, one day), and the merge job, enable-auto-merge and ci-status's merge-queue reader fetch it from the newest such run on main (`.github/scripts/pr-merge/listing-carry.mjs`), so the verdict reader lists only the artifacts uploaded since instead of every page, one GITHUB_TOKEN request each (69 pages on 2026-10-27).
+
+### Fixed
+
+- In the pr-merge lane, adoption's idle rule reads a person's pull request's newest activity, not its raw `updatedAt` (#9136): the pull request's opening, the head's arrival, and each comment, review, inline review comment, label change, title edit, review request, ready for review, reopen or force push whose actor id is on the trusted-actor list. Another account's comments no longer keep an owner pull request from going idle there, unless one is a repository owner's, member's or collaborator's hold: a changes-requested review, or a person's comment or review saying "do not merge" or opening a line with `Hold:`, still refuses; a trusted person's request to wait still refuses. fix-ci still reads the last update.
+
+## [6.0.2] - 2026-10-27
+
+### Changed
+
+- The merge-authority and verifier sections point at loop-lane's [When work stops for the owner](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner) instead of restating the owner's rule.
+
 ## [6.0.1] - 2026-10-27
 
 ### Changed

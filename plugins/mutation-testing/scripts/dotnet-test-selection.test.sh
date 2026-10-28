@@ -16,6 +16,8 @@ FIXTURE="$SCRIPT_DIR/fixtures/dotnet-test-selection"
 WORK="$(mktemp -d)" || exit 1
 WORK="$(cd "$WORK" && pwd -P)" || exit 1
 trap 'rm -rf "$WORK"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$WORK"
 
 # The fixture: Shop.Tests holds CalculatorTests (2 tests, and 1 in its nested
 # Negatives class) and CalculatorTestsExtra (2), whose name extends it;
