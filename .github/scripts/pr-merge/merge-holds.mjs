@@ -794,32 +794,65 @@ export function baseMergeCarry(then, now, from, inBase = []) {
 // whole, and the two file lists the same file for file (sameNetChange, so
 // each list is under 300 files and every file has a patch). A file the merges
 // changed beyond the base, or a base change they dropped, carries nothing.
-// The compare API reports no file mode, so a merge that also flips a mode
-// reads the same: the residual sameNetChange already names.
-export function exactBaseCarry(merges, based) {
+// This assumes GitHub omits no file from a compare's list of fewer than 300
+// files; nothing here reads a second listing to check that. The compare API
+// reports no file mode, so `trees` ([H' tree, M' tree], each a recursive
+// git/trees answer) decide it (sameModes): every brought file must have the
+// same mode at H' as at M', and the trees cross-check that each path is
+// present (or, removed or renamed away, absent) in both.
+export function exactBaseCarry(merges, based, trees = null) {
   const forward = (compare, statuses) => statuses.includes(compare?.status) && compare.behind_by === 0 && listedCommits(compare) !== null;
-  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based);
+  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based) && sameModes(merges, trees);
+}
+
+// Whether each file a compare `merges` lists has one mode at both trees of
+// `trees` (two recursive git/trees answers, read whole: `truncated` false;
+// an entry whose mode is not text counts as absent):
+// present in both at one mode, or, for a removed file and a renamed file's
+// old path, in neither (babysit_merge_policy._same_modes).
+function sameModes(merges, trees) {
+  const modes = (tree) => {
+    if (tree?.truncated !== false || !Array.isArray(tree.tree)) return null;
+    const byPath = new Map();
+    for (const entry of tree.tree) {
+      if (typeof entry?.path === "string" && typeof entry.mode === "string" && entry.type !== "tree") byPath.set(entry.path, entry.mode);
+    }
+    return byPath;
+  };
+  if (!Array.isArray(trees) || trees.length !== 2) return false;
+  const [head, base] = trees.map(modes);
+  if (head === null || base === null) return false;
+  return merges.files.every((f) => {
+    const gone = [...(f.status === "removed" ? [f.filename] : []), ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])];
+    const kept = f.status === "removed" ? [] : [f.filename];
+    return gone.every((path) => !head.has(path) && !base.has(path)) && kept.every((path) => head.has(path) && head.get(path) === base.get(path));
+  });
 }
 
 // Whether an approval of `from` carries to the head `now` was read at
 // (babysit_merge_policy.approval_carry): every commit since is a merge of the
 // base (baseMergesOnly), and the net change is the same (sameNetChange) or
 // the merges brought exactly the base's changes (exactBaseCarry over
-// `merges` and `based`, null when not read). An approval GitHub dismissed as
-// stale (autoDismissed) passes its `dismissal` commit, which must be one of
-// the commits pushed since `from`, so the push the carry checks dismissed it.
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null) {
+// `merges`, `based` and `trees`, null when not read). An approval GitHub
+// dismissed as stale (autoDismissed) passes its `dismissal` commit, which
+// must be one of the commits pushed since `from`, so the push the carry
+// checks dismissed it.
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null) {
   if (!baseMergesOnly(then, now, from, new Set(inBase))) return false;
   if (dismissal !== null && !newCommits(then, now).some((c) => c?.sha === dismissal)) return false;
-  return sameNetChange(then, now) || exactBaseCarry(merges, based);
+  return sameNetChange(then, now) || exactBaseCarry(merges, based, trees);
 }
 
 // The reviews GitHub dismissed as stale, from the pull request's issue
 // timeline `events`, as a Map of review id (a string) to the dismissal
-// commit: a review_dismissed event of an approval with a null message (a
-// person's dismissal carries one, which the API requires), by a Bot (the
-// account whose push dismissed it; a person's push, or a person, revokes),
-// naming a commit SHA. A review with any other dismissal event is left out.
+// commit: a review_dismissed event of an approval with a null message, by a
+// Bot (the account whose push dismissed it), naming a commit SHA. A
+// dismissal whose actor is a User revokes: a person's own dismissal, or the
+// stale dismissal a person's push caused. That a Bot's deliberate dismissal
+// always carries a message is UNVERIFIED (the dismissal API documents the
+// message as required), so the null message is a second filter, not the
+// one that tells GitHub's dismissal from an App's. A review with any other
+// dismissal event is left out.
 // A review id as text, from a string or a safe integer (as JSON may give
 // either), else null (babysit_merge_policy._review_key).
 const reviewKey = (value) => (typeof value === "string" ? value : Number.isSafeInteger(value) ? String(value) : null);
@@ -893,9 +926,10 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
 // trusted-actor list widening only, never the holds an approving review of
 // the head itself lifts. Reads: the pull request (a head that is no longer
 // `head`, or is in a fork, lifts nothing), the reviews, the timeline, the
+// repository's default branch (a base that is not it carries nothing), the
 // base's tip, and the compares per approved head: against the tip, and when
-// the net change differs, H...H' and the range between the two merge bases
-// (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
+// the net change differs, H...H', the range between the two merge bases and
+// the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
 // read restores no dismissed approval): the caller keeps the exact-head
 // approvals it read (pathLifters).
 export async function liftersOf(github, repo, number, head, humans) {
@@ -908,11 +942,19 @@ export async function liftersOf(github, repo, number, head, humans) {
       ? await pages(github, `/repos/${repo}/issues/${number}/timeline`).then(autoDismissed, () => new Map())
       : new Map();
     const lifts = liftsOf(reviews, humans, dismissed);
-    const tip = lifts.some(({ sha }) => sha !== head) ? await baseTip(github, repo, base) : null;
+    // A carry runs only into the repository's default branch: another base
+    // may be non-linear, with criss-cross merge bases.
+    const carrying = lifts.some(({ sha }) => sha !== head) && (await github("GET", `/repos/${repo}`))?.default_branch === base;
+    const tip = carrying ? await baseTip(github, repo, base) : null;
     const compares = new Map();
     const compare = async (range) => {
       if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));
       return compares.get(range);
+    };
+    const treeReads = new Map();
+    const tree = async (sha) => {
+      if (!treeReads.has(sha)) treeReads.set(sha, await github("GET", `/repos/${repo}/git/trees/${sha}?recursive=1`));
+      return treeReads.get(sha);
     };
     const sha40 = (value) => (/^[0-9a-f]{40}$/.test(String(value)) ? value : null);
     const lifters = new Set();
@@ -921,17 +963,19 @@ export async function liftersOf(github, repo, number, head, humans) {
         if (dismissal === null) lifters.add(login);
         continue;
       }
+      if (!carrying) continue;
       const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
       // A compare listing fewer files than the pull request changes is
       // cut short, so it carries nothing.
       if (!Array.isArray(now?.files) || now.files.length !== pull.changed_files) continue;
       const inBase = await baseParents(compare, tip, then, now);
-      let [merges, based] = [null, null];
+      let [merges, based, trees] = [null, null, null];
       const [from, to] = [sha40(then?.merge_base_commit?.sha), sha40(now?.merge_base_commit?.sha)];
       if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now) && from && to) {
         [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
+        trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal)) lifters.add(login);
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {

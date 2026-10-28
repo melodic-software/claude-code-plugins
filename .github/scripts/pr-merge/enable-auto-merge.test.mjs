@@ -1391,6 +1391,7 @@ test("an approval before a base merge, or its stale dismissal, lifts the hold pa
   const TIP = "3".repeat(40);
   const rest = (number, headFiles, reviews = [approval]) => ({
     [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
+    [P]: { full_name: "melodic-software/claude-code-plugins", default_branch: "main" },
     [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
     [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
     [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },

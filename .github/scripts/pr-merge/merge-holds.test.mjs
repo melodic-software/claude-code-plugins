@@ -962,17 +962,27 @@ const BASE_DOC = { filename: "docs/base.md", status: "modified", patch: "@@ -1 +
 const brought = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MAIN }, { sha: HEAD }], total_commits: 2, ...extra });
 const baseRange = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MB_HEAD }], total_commits: 1, ...extra });
 const ranges = (merges = brought(), based = baseRange()) => ({ [`${OLD}...${HEAD}`]: merges, [`${MB_OLD}...${MB_HEAD}`]: based });
+// A recursive tree answer: each entry [path, mode].
+const treeOf = (entries, extra = {}) => ({ truncated: false, tree: entries.map(([path, mode = "100644"]) => ({ path, mode, type: "blob", sha: "b".repeat(40) })), ...extra });
+const FILES_AT = [["docs/base.md"], [".github/actions/collect-base-activity/collect-base-activity.test.mjs"], [".github/actions/resolve-config/live-config.test.mjs"], ["scripts/helper.sh"], ["scripts/lib.mjs"]];
+// The trees of the head and of its merge base with the tip, which the exact
+// carry reads for file modes.
+const trees = (head = treeOf(FILES_AT), base = treeOf(FILES_AT)) => ({ [HEAD]: head, [MB_HEAD]: base });
 const liftWorld = ({
   reviews = [review("APPROVED", OLD)],
   compares = { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH]) },
   // The two range compares the exact carry reads, consistent by default.
   across = ranges(),
+  modes = trees(),
+  // The pull request's base branch and the repository's default branch.
+  base = "main",
+  defaultBranch = "main",
+  fork = false,
   // The issue timeline, read for the review_dismissed events.
   timeline = [],
   // The base's answer per merged parent against its tip.
   bases = { [MAIN]: "ahead" },
   tip = TIP,
-  fork = false,
   // The pull request's own count of changed files; the head compare's by default.
   changed = null,
   // A label history and push history the earlier reader bound a removal by,
@@ -987,8 +997,14 @@ const liftWorld = ({
     reads.push(path);
     assert.equal(method, "GET");
     if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
-    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: "main" }, changed_files: changed ?? compares[HEAD]?.files?.length };
-    if (path === "/repos/owner/repo/git/ref/heads/main") return { ref: "refs/heads/main", object: { type: "commit", sha: tip } };
+    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: base }, changed_files: changed ?? compares[HEAD]?.files?.length };
+    if (path === "/repos/owner/repo") {
+      if (defaultBranch === null) throw new Error("the repository did not read");
+      return { full_name: REPO, default_branch: defaultBranch };
+    }
+    if (path === `/repos/owner/repo/git/ref/heads/${base}`) return { ref: `refs/heads/${base}`, object: { type: "commit", sha: tip } };
+    const tree = /^\/repos\/owner\/repo\/git\/trees\/([0-9a-f]{40})\?recursive=1$/.exec(path);
+    if (tree && tree[1] in modes) return modes[tree[1]];
     if (path.startsWith("/repos/owner/repo/pulls/99/reviews?")) return path.endsWith("page=1") ? reviews : [];
     if (path.startsWith("/repos/owner/repo/issues/99/events?")) return path.endsWith("page=1") ? events : [];
     if (path.startsWith("/repos/owner/repo/issues/99/timeline?")) return path.endsWith("page=1") ? timeline : [];
@@ -1253,6 +1269,41 @@ test("an approval carried over a base merge lifts no verifier hold, and an exact
   assert.deepEqual(world.reads, []);
 });
 
+// The independent security review of #10671: the compare API reports no
+// file mode, so the exact path reads the head's and its merge base's trees and
+// requires each brought file's mode to be the base's; and the carry runs only
+// on a base that is the repository's default branch.
+test("the exact carry reads file modes from the trees, and a non-default base carries nothing", async () => {
+  const flipped = FILES_AT.map(([path]) => [path, path === "docs/base.md" ? "100755" : "100644"]);
+  const heldFlip = FILES_AT.map(([path]) => [path, path === SHARED_AT_OLD.filename ? "100755" : "100644"]);
+  for (const [name, options] of Object.entries({
+    "a merge that also flips a base file's mode": { ...REPLAY, modes: trees(treeOf(flipped)) },
+    "a merge that flips the mode of a file both sides changed": { ...REPLAY, modes: trees(treeOf(heldFlip)) },
+    "a brought file missing from the head's tree": { ...REPLAY, modes: trees(treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a brought file missing from both trees": { ...REPLAY, modes: trees(treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md")), treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a brought file missing from the base's tree": { ...REPLAY, modes: trees(undefined, treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a truncated head tree": { ...REPLAY, modes: trees(treeOf(FILES_AT, { truncated: true })) },
+    "a base tree with no truncated flag": { ...REPLAY, modes: trees(undefined, { tree: treeOf(FILES_AT).tree }) },
+    "an unreadable tree": { ...REPLAY, fail: "/git/trees/" },
+    "an exact carry into a base that is not the default branch": { ...REPLAY, base: "release" },
+    "a same-net-change carry into a base that is not the default branch": { base: "release" },
+    "an unreadable repository": { defaultBranch: null },
+  })) {
+    const run = await lifting(liftWorld(options));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+  }
+  // A removed base file is absent from both trees, and that carries.
+  const removed = { filename: "docs/gone.md", status: "removed", patch: "@@ -1 +0,0 @@\n-x" };
+  const world = liftWorld({ ...REPLAY, across: ranges(brought([BASE_DOC, SHARED_BASE, removed]), baseRange([BASE_DOC, SHARED_BASE, removed])) });
+  const run = await lifting(world);
+  assert.equal(run.code, 0, run.out);
+  assert.ok(world.reads.includes(`/repos/owner/repo/git/trees/${HEAD}?recursive=1`) && world.reads.includes(`/repos/owner/repo/git/trees/${MB_HEAD}?recursive=1`), world.reads.join(" "));
+  // An approval of the head itself needs no default-branch read.
+  const exact = liftWorld({ base: "release", reviews: [review("APPROVED", HEAD)] });
+  assert.equal((await lifting(exact, { reviews: [] })).code, 0);
+});
+
 test("baseMergesOnly and baseMergeCarry read their inputs strictly", () => {
   const then = { commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 };
   const inBase = new Set([MAIN]);
@@ -1270,29 +1321,44 @@ test("baseMergesOnly and baseMergeCarry read their inputs strictly", () => {
 
 test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly", () => {
   const { approvalCarry, autoDismissed, exactBaseCarry } = holdsModule;
-  // Both directions: the base's files equal what the merges brought.
-  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])), true);
-  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC, SHARED_BASE])), false);
-  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC])), false);
+  // Both directions: the base's files equal what the merges brought, and
+  // each brought file has the base's mode in the head's tree.
+  const same = [treeOf(FILES_AT), treeOf(FILES_AT)];
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC]), same), true);
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC, SHARED_BASE]), same), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC]), same), false);
   // A base that did not move: nothing brought, nothing changed.
-  assert.equal(exactBaseCarry(brought([]), { status: "identical", behind_by: 0, files: [], commits: [], total_commits: 0 }), true);
-  assert.equal(exactBaseCarry(brought(), null), false);
-  assert.equal(exactBaseCarry(brought(undefined, { behind_by: undefined }), baseRange()), false);
-  assert.equal(exactBaseCarry(brought(undefined, { commits: undefined }), baseRange()), false);
-  // The compare API reports no file mode, so a merge that also flips a
-  // file's mode lists as the base's changes alone: the documented residual.
-  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC])), true);
+  assert.equal(exactBaseCarry(brought([]), { status: "identical", behind_by: 0, files: [], commits: [], total_commits: 0 }, same), true);
+  assert.equal(exactBaseCarry(brought(), null, same), false);
+  assert.equal(exactBaseCarry(brought(undefined, { behind_by: undefined }), baseRange(), same), false);
+  assert.equal(exactBaseCarry(brought(undefined, { commits: undefined }), baseRange(), same), false);
+  // The compare API reports no file mode, so a merge that also flips a base
+  // file's mode lists as the base's changes alone; the trees show it.
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md", "100755"]]), treeOf([["docs/base.md"]])]), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md"]], { truncated: true }), treeOf([["docs/base.md"]])]), false);
+  // A file the base removed is in neither tree.
+  const gone = { filename: "docs/gone.md", status: "removed", patch: "-x" };
+  assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), same), true);
+  assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), [treeOf([["docs/gone.md"]]), treeOf([])]), false);
+  // A renamed file's old path is in neither tree.
+  const moved = { ...BASE_DOC, status: "renamed", previous_filename: "docs/old.md" };
+  assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), same), true);
+  assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), [treeOf([...FILES_AT, ["docs/old.md"]]), treeOf(FILES_AT)]), false);
   const [then, now] = [atOld([HELD_PATCH, SHARED_AT_OLD]), merged([HELD_PATCH, SHARED_AT_HEAD])];
   const [merges, based] = [brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE])];
-  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based), true);
-  assert.equal(approvalCarry(then, now, OLD, [], merges, based), false);
-  assert.equal(approvalCarry(then, now, OLD, [MAIN], null, null), false);
+  const modes = [treeOf(FILES_AT), treeOf(FILES_AT)];
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, null, modes), true);
+  assert.equal(approvalCarry(then, now, OLD, [], merges, based, null, modes), false);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], null, null, null, modes), false);
+  // The exact path needs both trees; the same net change needs neither.
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based), false);
   assert.equal(approvalCarry(atOld(), merged([HELD_PATCH]), OLD, [MAIN], null, null), true);
   // A restored approval carries only when its dismissal commit is one the
   // merges pushed since the approved head.
-  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, HEAD), true);
-  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OLD), false);
-  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OTHER), false);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, HEAD, modes), true);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OLD, modes), false);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OTHER, modes), false);
   assert.deepEqual([...autoDismissed([STALE, { event: "reviewed" }, null])], [["41", HEAD]]);
   assert.deepEqual([...autoDismissed([STALE, stale({ dismissal_message: "x" })])], []);
   assert.deepEqual([...autoDismissed("not a list")], []);

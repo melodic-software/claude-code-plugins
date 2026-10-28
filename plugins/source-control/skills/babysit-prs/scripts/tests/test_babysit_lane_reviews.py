@@ -251,6 +251,23 @@ STALE = {
 }
 
 
+def tree(*paths: str, flipped: str = "", truncated: bool = False) -> dict[str, object]:
+    """A recursive git/trees answer: each path a blob at mode 100644, but
+    `flipped` at 100755."""
+    return {
+        "truncated": truncated,
+        "tree": [
+            {"path": p, "mode": "100755" if p == flipped else "100644", "type": "blob"}
+            for p in paths
+        ],
+    }
+
+
+PATHS = (".github/actions/resolve-config/live-config.test.mjs", SHARED, "docs/base.md", "scripts/helper.sh")
+# The trees of the head and of its merge base with main's tip.
+TREES = {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS)}
+
+
 def ranges(
     brought: list[dict[str, object]], based: list[dict[str, object]]
 ) -> dict[str, object]:
@@ -286,7 +303,11 @@ def carried(
     changed: int | None = None,
     across: dict[str, object] | None = None,
     timeline: list[dict[str, object]] | None = None,
+    trees: dict[str, object] | None = None,
+    default_branch: str = "main",
+    now_repo: str = REPO,
 ) -> list[str]:
+    trees = TREES if trees is None else trees
     across = ranges([BASE_DOC], [BASE_DOC]) if across is None else across
     compares = {
         OLD: {
@@ -312,7 +333,13 @@ def carried(
             reads.append(endpoint)
         if endpoint == f"repos/{REPO}/pulls/{pr['number']}":
             count = len(head_files) if changed is None else changed
-            return 200, {"head": {"sha": now_head}, "changed_files": count}
+            head = {"sha": now_head, "repo": {"full_name": now_repo}}
+            return 200, {"head": head, "changed_files": count}
+        if endpoint == f"repos/{REPO}":
+            return 200, {"full_name": REPO, "default_branch": default_branch}
+        if "/git/trees/" in endpoint:
+            sha = endpoint.split("/git/trees/")[1].split("?")[0]
+            return (200, trees[sha]) if sha in trees else (404, None)
         if endpoint == f"repos/{REPO}/git/ref/heads/main":
             return 200, {"ref": "refs/heads/main", "object": {"sha": TIP}}
         if endpoint.endswith(f"...{TIP}"):
@@ -345,10 +372,11 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
     def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
         reads: list[str] = []
         self.assertEqual(carried([HELD_PATCH], reads=reads), ["user5"])
-        # The head is re-read, then the base once by its full ref; every
-        # compare names its tip.
+        # The head is re-read, the repository's default branch checked, then
+        # the base read once by its full ref; every compare names its tip.
         self.assertEqual(reads[0], f"repos/{REPO}/pulls/{CARRIED_PR['number']}")
-        self.assertEqual(reads[1], f"repos/{REPO}/git/ref/heads/main")
+        self.assertEqual(reads[1], f"repos/{REPO}")
+        self.assertEqual(reads[2], f"repos/{REPO}/git/ref/heads/main")
         self.assertIn(f"repos/{REPO}/compare/{TIP}...{OLD}", reads)
         self.assertFalse(any("compare/main" in r or r.endswith("...main") for r in reads))
         # A non-hold file the approved head changed, unchanged by the merge.
@@ -411,6 +439,21 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             ),
             ["user5"],
         )
+        self.assertIn(f"repos/{REPO}/git/trees/{HEAD}?recursive=1", reads)
+        self.assertIn(f"repos/{REPO}/git/trees/{MB_HEAD}?recursive=1", reads)
+        # The independent security review of #10671: modes come from the
+        # trees, and only a base that is the default branch carries.
+        refused = {
+            "a merge that also flips a base file's mode": {"trees": {HEAD: tree(*PATHS, flipped="docs/base.md"), MB_HEAD: tree(*PATHS)}},
+            "a truncated tree": {"trees": {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS, truncated=True)}},
+            "an unreadable tree": {"trees": {HEAD: tree(*PATHS)}},
+            "a base that is not the default branch": {"default_branch": "trunk"},
+            "a head re-read in a fork": {"now_repo": "a/fork"},
+        }  # fmt: skip
+        for name, case in refused.items():
+            with self.subTest(name):
+                self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **replay, **case), [])
+        self.assertEqual(carried([HELD_PATCH], default_branch="trunk"), [])
         cases = {
             "a merge that also edits a hold path": ranges([BASE_DOC, SHARED_BASE, HELD_PATCH | {"patch": "+evil"}], [BASE_DOC, SHARED_BASE]),
             "a merge that also edits a non-hold file": ranges([BASE_DOC, SHARED_BASE, HELPER], [BASE_DOC, SHARED_BASE]),

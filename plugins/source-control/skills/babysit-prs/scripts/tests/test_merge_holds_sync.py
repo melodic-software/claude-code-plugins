@@ -1034,14 +1034,16 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
 
 NODE_CARRY = """
 import { approvalCarry, autoDismissed, baseMergeCarry, fromRest, liftsOf } from %s;
-const [lifts, carries, from] = JSON.parse(process.argv[1]);
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [lifts, carries, from] = JSON.parse(text);
 console.log(JSON.stringify([
   lifts.map(([reviews, events]) =>
     liftsOf(reviews.map(fromRest), new Set([1, 3]), autoDismissed(events)).map(({ login, sha, dismissal }) => [login, sha, dismissal]),
   ),
-  carries.map(([then, now, inBase, merges, based, dismissal]) => [
+  carries.map(([then, now, inBase, merges, based, dismissal, trees]) => [
     baseMergeCarry(then, now, from, inBase),
-    approvalCarry(then, now, from, inBase, merges, based, dismissal),
+    approvalCarry(then, now, from, inBase, merges, based, dismissal, trees),
   ]),
 ]));
 """
@@ -1147,6 +1149,21 @@ def _based(files: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
 
 
 _CLEAN = (_brought([_BASE_DOC]), _based([_BASE_DOC]))
+
+
+def _tree(*entries: tuple[str, str], truncated: Any = False) -> dict[str, Any]:
+    """A recursive git/trees answer of (path, mode) blobs."""
+    return {
+        "truncated": truncated,
+        "tree": [{"path": p, "mode": m, "type": "blob"} for p, m in entries],
+    }
+
+
+_PATHS = [_HELD, _SHARED, "docs/base.md", "docs/a.md", "scripts/helper.sh"]
+_ALL = _tree(*((p, "100644") for p in _PATHS))
+# The trees of the head and of its merge base with the tip.
+_TREES = [_ALL, _ALL]
+_GONE = {"filename": "docs/gone.md", "status": "removed", "patch": "-x"}
 _REPLAY_THEN = _THEN | {"files": [_PATCH, _SHARED_OLD]}
 _REPLAY_NOW = {"files": [_PATCH, _SHARED_HEAD], **_MERGED}
 _REPLAY_BASE = _based([_SHARED_BASE, _BASE_DOC])
@@ -1154,10 +1171,10 @@ _MANY = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i
 # (then, now, in_base, merges, based, dismissal): whether the approval at _OLD
 # carries to _HEAD, by base_merge_carry (the cost carry) and approval_carry.
 CARRY_CASES = {
-    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None),
-    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None),
-    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _HELPER | {"patch": "+evil"}]), _based([_BASE_DOC]), None),
-    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC]), _based([_BASE_DOC]), None),
+    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _HELPER | {"patch": "+evil"}]), _based([_BASE_DOC]), None, _TREES),
+    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC]), _based([_BASE_DOC]), None, _TREES),
     "a base merge after which the base holds a hold path's change": (
         {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}], **_moved((_OLD, [_BASE_SHA]))},
         {"files": [_PATCH], **_MERGED},
@@ -1165,39 +1182,45 @@ CARRY_CASES = {
         _brought([_BASE_DOC]),
         _based([_BASE_DOC, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}]),
         None,
+        _TREES,
     ),
-    "a merge of a parent the base does not hold": (_REPLAY_THEN, {"files": [_PATCH, _SHARED_HEAD], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
-    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, [], *_CLEAN, None),
-    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"patch": "+evil"}]), _based([_BASE_DOC]), None),
-    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}]), _based([_BASE_DOC]), None),
-    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}]), _based([_BASE_DOC]), None),
-    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE, *_CLEAN, None),
-    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, *_CLEAN, None),
-    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE, *_CLEAN, None),
-    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE, *_CLEAN, None),
-    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, {"filename": _HELD, "status": "modified"}]), _based([_BASE_DOC]), None),
+    "a merge of a parent the base does not hold": (_REPLAY_THEN, {"files": [_PATCH, _SHARED_HEAD], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, _TREES),
+    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, [], *_CLEAN, None, _TREES),
+    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"patch": "+evil"}]), _based([_BASE_DOC]), None, _TREES),
+    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}]), _based([_BASE_DOC]), None, _TREES),
+    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}]), _based([_BASE_DOC]), None, _TREES),
+    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE, *_CLEAN, None, _TREES),
+    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, {"filename": _HELD, "status": "modified"}]), _based([_BASE_DOC]), None, _TREES),
     # The owner's decision of 2026-10-28 (part b): the exact carry.
-    "#10224's shape": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
-    "#10224's shape, dismissed as stale on the merge's push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _HEAD),
-    "#10224's shape, dismissed by a commit the merges did not push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OTHER),
-    "#10224's shape, dismissed at the approved head": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OLD),
-    "#10224's shape with no range read": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, None, None, None),
-    "a merge that also edits a hold path": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _PATCH | {"patch": "+evil"}]), _REPLAY_BASE, None),
-    "a merge that also edits a non-hold file": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _HELPER]), _REPLAY_BASE, None),
-    "a merge that changes the base's hunk": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE | {"patch": "+evil"}]), _REPLAY_BASE, None),
-    "a base change reverted inside the merge": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_SHARED_BASE]), _REPLAY_BASE, None),
-    "300 files brought": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought(_MANY), _based(_MANY), None),
-    "a base range of 300 files": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _based(_MANY), None),
-    "a brought commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], total_commits=251), _REPLAY_BASE, None),
-    "a base range commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"total_commits": 251}, None),
-    "a head range that is not ahead": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], status="diverged", behind_by=1), _REPLAY_BASE, None),
-    "a base range that goes backwards": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"status": "behind", "behind_by": 1}, None),
-    "a base range listed ahead and behind": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"behind_by": 1}, None),
-    "a base range with no behind count": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), {k: v for k, v in _REPLAY_BASE.items() if k != "behind_by"}, None),
-    "a base that did not move": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, _brought([]), {"status": "identical", "behind_by": 0, "files": [], "commits": [], "total_commits": 0}, None),
-    # The compare API reports no file mode, so a merge that also flips a
-    # file's mode lists as the base's changes alone: the documented residual.
-    "a merge that also flips a file's mode": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
+    "#10224's shape": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, _TREES),
+    "#10224's shape, dismissed as stale on the merge's push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _HEAD, _TREES),
+    "#10224's shape, dismissed by a commit the merges did not push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OTHER, _TREES),
+    "#10224's shape, dismissed at the approved head": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OLD, _TREES),
+    "#10224's shape with no range read": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, None, None, None, _TREES),
+    "a merge that also edits a hold path": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _PATCH | {"patch": "+evil"}]), _REPLAY_BASE, None, _TREES),
+    "a merge that also edits a non-hold file": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _HELPER]), _REPLAY_BASE, None, _TREES),
+    "a merge that changes the base's hunk": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE | {"patch": "+evil"}]), _REPLAY_BASE, None, _TREES),
+    "a base change reverted inside the merge": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_SHARED_BASE]), _REPLAY_BASE, None, _TREES),
+    "300 files brought": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought(_MANY), _based(_MANY), None, _TREES),
+    "a base range of 300 files": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _based(_MANY), None, _TREES),
+    "a brought commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], total_commits=251), _REPLAY_BASE, None, _TREES),
+    "a base range commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"total_commits": 251}, None, _TREES),
+    "a head range that is not ahead": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], status="diverged", behind_by=1), _REPLAY_BASE, None, _TREES),
+    "a base range that goes backwards": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"status": "behind", "behind_by": 1}, None, _TREES),
+    "a base range listed ahead and behind": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"behind_by": 1}, None, _TREES),
+    "a base range with no behind count": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), {k: v for k, v in _REPLAY_BASE.items() if k != "behind_by"}, None, _TREES),
+    "a base that did not move": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, _brought([]), {"status": "identical", "behind_by": 0, "files": [], "commits": [], "total_commits": 0}, None, _TREES),
+    # The independent security review of #10671: the trees decide modes.
+    "a merge that also flips a base file's mode": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_tree(*((p, "100755" if p == "docs/base.md" else "100644") for p in _PATHS)), _ALL]),
+    "a brought file missing from the head's tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_tree(*((p, "100644") for p in _PATHS if p != "docs/base.md")), _ALL]),
+    "a truncated tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_ALL, _ALL | {"truncated": True}]),
+    "a tree with no truncated flag": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [{"tree": _ALL["tree"]}, _ALL]),
+    "a removed base file in neither tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _GONE]), _based([_BASE_DOC, _SHARED_BASE, _GONE]), None, _TREES),
+    "a removed base file still in the head's tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _GONE]), _based([_BASE_DOC, _SHARED_BASE, _GONE]), None, [_tree(*((p, "100644") for p in [*_PATHS, "docs/gone.md"])), _ALL]),
+    "no trees read": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, None),
 }  # fmt: skip
 
 
@@ -1210,10 +1233,10 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                 "--input-type=module",
                 "-e",
                 NODE_CARRY % json.dumps(MODULE.as_uri()),
-                json.dumps(
-                    [list(LIFT_CASES.values()), list(CARRY_CASES.values()), _OLD]
-                ),
             ],
+            input=json.dumps(
+                [list(LIFT_CASES.values()), list(CARRY_CASES.values()), _OLD]
+            ),
             capture_output=True,
             text=True,
             check=True,
@@ -1230,7 +1253,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                     ],
                     js,
                 )
-        for (name, (then, now, in_base, merges, based, dismissal)), js in zip(
+        for (name, (then, now, in_base, merges, based, dismissal, trees)), js in zip(
             CARRY_CASES.items(), carries, strict=True
         ):
             with self.subTest(name):
@@ -1238,7 +1261,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                     [
                         policy.base_merge_carry(then, now, _OLD, set(in_base)),
                         policy.approval_carry(
-                            then, now, _OLD, set(in_base), merges, based, dismissal
+                            then, now, _OLD, set(in_base), merges, based, dismissal, trees
                         ),
                     ],
                     js,
@@ -1277,7 +1300,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                 "a base that did not move",
                 "#10224's shape",
                 "#10224's shape, dismissed as stale on the merge's push",
-                "a merge that also flips a file's mode",
+                "a removed base file in neither tree",
             },
         )
 
