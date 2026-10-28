@@ -1249,6 +1249,23 @@ def _timeouts(
     return found
 
 
+_ITEM_KEYS = frozenset({"id", "name", "uses", "run"})
+
+
+def _item_ids(
+    entries: list[tuple[tuple[str, ...], str]],
+) -> dict[tuple[str, ...], tuple[tuple[str, str], ...]]:
+    """Each list item's identity by its indexed path: its own `id`, `name`,
+    `uses` (its ref dropped) and `run` values, so a step that shifts into a
+    deleted step's index does not read as that step."""
+    found: dict[tuple[str, ...], dict[str, str]] = {}
+    for path, value in entries:
+        if len(path) > 1 and path[-2].startswith("[") and path[-1] in _ITEM_KEYS:
+            ident = value.split("@", 1)[0] if path[-1] == "uses" else value
+            found.setdefault(path[:-1], {})[path[-1]] = ident
+    return {p: tuple(sorted(d.items())) for p, d in found.items()}
+
+
 def _path_timeouts(base: str, head: str) -> list[str]:
     """Timeouts the head text raises over the base text at the same key path.
     Where the base had none, a job ran to GitHub's default; one removed from
@@ -1258,11 +1275,20 @@ def _path_timeouts(base: str, head: str) -> list[str]:
     old, new = _timeouts(base_entries), _timeouts(head_entries)
     keys = {p for p, _ in head_entries}
     parents = {p[:i] for p in keys for i in range(len(p))}
-    # A timeout key the head drops from a job or step it keeps, by index.
+    old_ids, new_ids = _item_ids(base_entries), _item_ids(head_entries)
+    # A timeout key the head drops from a job or step it keeps: the same
+    # index holding the same item, not another step shifted into it.
     dropped = Counter(
         _unindexed(p)
         for p, v in base_entries
-        if _is_timeout(p, v) and p not in keys and p[:-1] in parents
+        if _is_timeout(p, v)
+        and p not in keys
+        and p[:-1] in parents
+        and all(
+            old_ids.get(p[: i + 1]) == new_ids.get(p[: i + 1])
+            for i, s in enumerate(p)
+            if s.startswith("[")
+        )
     )
     found = []
     for path in sorted(set(old) | set(new)):

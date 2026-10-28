@@ -672,6 +672,10 @@ class LowRatedShapes(_Finding):
             # A whole leg step removed beside steps that remain.
             (_jobs("30", steps=checkout + leg("10") + leg("20")),
              _jobs("30", steps=checkout + leg("20")), "-          leg-timeout-minutes: 10"),
+            # A leg step removed from the front, a step with `with:` shifting
+            # into its index.
+            (_jobs("30", steps=leg("10") + checkout), _jobs("30", steps=checkout),
+             "-          leg-timeout-minutes: 10"),
             # A timeout added below the default on a local-call workflow.
             (local.format(line=""), local.format(line="    timeout-minutes: 15\n"),
              "+    timeout-minutes: 15"),
