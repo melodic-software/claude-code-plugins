@@ -2268,9 +2268,11 @@ test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-
 const PATCH_LANES = [
   ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }, "apply-patch"],
   ["pr-refine.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
-  // apply-feedback-patch stays out of report-escalation: every refusal leaves
-  // no fix commit, and publish-feedback escalates feedback-not-landed
-  // (publish-feedback.test.mjs).
+  // report-escalation takes no escalation from apply-feedback-patch: every
+  // refusal leaves no fix commit, and publish-feedback escalates
+  // feedback-not-landed (publish-feedback.test.mjs). It reads only its
+  // pushed-commit, the one head its gate accepts after the select job's
+  // (PUSHED_COMMIT_READERS).
   [
     "pr-unblock.yml",
     "address-feedback",
@@ -2338,6 +2340,8 @@ const APPLY_GATE = {
 // address-feedback's empty patch is a round whose every reply needs no fix,
 // and review-dependency's one whose verdict needs none.
 // resolve-conflicts's empty patch leaves the conflicts unresolved.
+// The push jobs whose pushed-commit report-escalation passes its gate.
+const PUSHED_COMMIT_READERS = new Set(["apply-feedback-patch"]);
 const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false, "resolve-conflicts": true };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
 // The read runner output each push job reads per input: the scan job's alone,
@@ -2512,8 +2516,14 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
       assert.ok(escalation.needs.includes(applyId));
     } else {
       for (const id of [firstId, subId, fallbackId, applyId]) {
+        const reads = [...JSON.stringify(escalation).matchAll(new RegExp(`needs\\.${id}\\.([\\w.-]+)`, "g"))].map((m) => m[1]);
+        if (id === applyId && PUSHED_COMMIT_READERS.has(applyId)) {
+          assert.ok(escalation.needs.includes(id), `report-escalation needs ${id} for its pushed commit`);
+          assert.deepEqual([...new Set(reads)], ["outputs.pushed-commit"], `report-escalation reads only ${id}'s pushed-commit`);
+          continue;
+        }
         assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
-        assert.doesNotMatch(JSON.stringify(escalation), new RegExp(`needs\\.${id}\\.`), `report-escalation reads no ${id} output`);
+        assert.deepEqual(reads, [], `report-escalation reads no ${id} output`);
       }
     }
   });
@@ -5001,6 +5011,12 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
     evaluate(publish["expected-upstream-head"], { "inputs.dispatcher-run-id": dispatcher, "needs.address-feedback-select.outputs.head-sha": "e".repeat(40) });
   assert.equal(upstream("39000000001"), "e".repeat(40));
   assert.equal(upstream(""), "", "a human dispatch passes none");
+  // The reply job's gate accepts only the commit the push job pushed after that head.
+  const pushed = (dispatcher, commit) =>
+    evaluate(publish["pushed-commit"], { "inputs.dispatcher-run-id": dispatcher, "needs.apply-feedback-patch.outputs.pushed-commit": commit });
+  assert.equal(pushed("39000000001", "f".repeat(40)), "f".repeat(40));
+  assert.equal(pushed("39000000001", ""), "", "no push passes none");
+  assert.equal(pushed("", "f".repeat(40)), "", "a human dispatch passes none");
   // The read runner's feedback-attempt and scan-* outputs come from its scan job alone.
   const read = workflow("pr-run-activity-read.yml");
   assert.equal(read.on.workflow_call.outputs["feedback-attempt"].value, "${{ jobs.scan.outputs.feedback-attempt }}");
@@ -5012,7 +5028,8 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   // report-escalation takes the select job's escalation and head, never a model call's.
   const escalation = jobs["report-escalation"];
   assert.ok(escalation.needs.includes("address-feedback-select"));
-  assert.ok(!escalation.needs.includes("address-feedback") && !escalation.needs.includes("apply-feedback-patch"));
+  assert.ok(!escalation.needs.includes("address-feedback"));
+  assert.ok(escalation.needs.includes("apply-feedback-patch"), "for its pushed commit alone");
   const head = (dispatcher) =>
     evaluate(escalation.with["expected-upstream-head"], {
       "inputs.activity": "address-feedback",
@@ -5021,6 +5038,27 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
     });
   assert.equal(head("39000000001"), "e".repeat(40));
   assert.equal(head(""), "");
+  const pushedHead = (activity, dispatcher) =>
+    evaluate(escalation.with["pushed-commit"], {
+      "inputs.activity": activity,
+      "inputs.dispatcher-run-id": dispatcher,
+      "needs.apply-feedback-patch.outputs.pushed-commit": "f".repeat(40),
+    });
+  assert.equal(pushedHead("address-feedback", "39000000001"), "f".repeat(40));
+  assert.equal(pushedHead("address-feedback", ""), "", "a human dispatch passes none");
+  assert.equal(pushedHead("fix-ci", "39000000001"), "", "another activity passes none");
+});
+
+test("pr-run-activity-write.yml: pushed-commit leaves only from the base script step and reaches only the trigger gate", () => {
+  const write = workflow("pr-run-activity-write.yml");
+  assert.equal(write.on.workflow_call.outputs["pushed-commit"].value, "${{ jobs.run.outputs.pushed-commit }}");
+  assert.equal(write.jobs.run.outputs["pushed-commit"], "${{ steps.act-script.outputs.commit }}");
+  const steps = write.jobs.run.steps;
+  const gate = steps.find((step) => step.id === "gate");
+  assert.equal(gate.with["pushed-commit"], "${{ inputs.pushed-commit }}");
+  assert.equal(gate.with["expected-upstream-head"], "${{ inputs.expected-upstream-head }}");
+  const readers = steps.filter((step) => JSON.stringify(step).includes("inputs.pushed-commit")).map((step) => step.id);
+  assert.deepEqual(readers, ["gate"], "the broker request does not send it until the broker takes it");
 });
 
 test("pr-unblock.yml: the select job runs only base code with a read-only token and uploads the context only on proceed", () => {
