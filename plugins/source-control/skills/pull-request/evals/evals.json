@@ -753,6 +753,20 @@
         "Does not block pull request creation because of the warnings",
         "Does not revert either change without the user"
       ]
+    },
+    {
+      "id": 57,
+      "name": "create-refs-link-writes-remaining",
+      "prompt": "Open a PR for branch feat/csv-export-bom. It delivers only the UTF-8 byte order mark from issue #812; link it with Refs: #812, it must not close the issue.",
+      "expected_output": "Issue #812 is open. Its body lists three acceptance items: `- [x] header row even with no rows`, `- [ ] UTF-8 byte order mark`, and `- [ ] RFC 4180 quoting of cells holding a comma, quote or line break (Closes #813 when done)`; it has no sub-issues. The branch delivers the byte order mark. The body opens with `Refs: #812` and carries no closing keyword. Create reads the issue through the skill's issue read and writes a `## Remaining` section listing the RFC 4180 quoting item as a plain bullet, with the `Closes #813` text dropped. It leaves out the checked header-row item and the byte order mark this PR delivers. The Summary names the byte order mark as the part this PR delivers. Had the issue held no unchecked items, sub-issues or slice list, the section would be one line naming what this PR delivers and the condition that closes #812.",
+      "files": [],
+      "expectations": [
+        "The PR body opens with a `Refs: #812` line and has no closing keyword for #812",
+        "The body has a section headed Remaining that lists the RFC 4180 quoting item",
+        "The Remaining section omits the checked header-row item and the byte order mark this PR delivers",
+        "The Remaining items are plain bullets, not `- [ ]` checkboxes, and carry no `Closes #813` text",
+        "The Summary names the byte order mark as the part of #812 this PR delivers"
+      ]
     }
   ]
 }
