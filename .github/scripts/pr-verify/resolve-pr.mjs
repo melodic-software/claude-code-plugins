@@ -43,7 +43,7 @@ import {
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
 
@@ -208,11 +208,10 @@ async function pullsOfCommit(github, repository, head) {
 
 // The names that hold a counted verdict at the head: this PR's PASS,
 // PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
-// requests carry, each without a head-ref digest and with the digest of that
-// pull request's head branch (write-verdict.mjs headRefDigest), which doubles
-// the lookups. Once write-verdict writes only digest names, the digest-free
-// lookups are needed only until the last artifact named that way expires
-// (write-verdict.mjs retentionDays), and then go. Given `issues`, this PR's linked issue
+// requests carry, each in the form write-verdict.mjs artifactName writes.
+// It writes no head-ref digest, so no digest name is looked up; the change
+// that moves the writer to digest names adds their lookups beside these
+// until the last plain-named artifact expires. Given `issues`, this PR's linked issue
 // numbers, it looks up only this PR's FAIL names with `-i` and those issues
 // (write-verdict.mjs artifactName), so the caller reads the issues only for a
 // head the names without them leave unjudged; issues no name carries (over
@@ -226,24 +225,18 @@ async function pullsOfCommit(github, repository, head) {
 // runs' start times (`passes`), which `specChanged` weighs against the spec.
 // The FAIL names come first: a counted FAIL alone decides, so the passes are
 // looked up only when none is found.
-async function judged({ github, repository, number, head, base, refs, issues }) {
-  // The digest is hex whatever the branch holds, so any non-empty one is looked up.
-  const named = (pr, verdict) => {
-    const ref = refs.get(pr);
-    return [`pr-verify-${pr}-${head}-${verdict}`, ...(ref ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(ref)}`] : [])];
-  };
+async function judged({ github, repository, number, head, base, prs, issues }) {
+  const named = (pr, verdict) => `pr-verify-${pr}-${head}-${verdict}`;
   const suffix = issues === undefined ? "" : issuesSuffix(issues);
   const names =
     issues === undefined
       ? [
-          ...named(number, "fail"),
-          ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
-          ...["pass", "pass-notes"].flatMap((verdict) => named(number, verdict)),
+          named(number, "fail"),
+          ...[...prs].filter((other) => other !== number).map((other) => named(other, "fail")),
+          ...["pass", "pass-notes"].map((verdict) => named(number, verdict)),
         ]
       : suffix
-        ? named(number, "fail")
-            .map((name) => name + suffix)
-            .filter(isVerdictName)
+        ? [named(number, "fail") + suffix].filter(isVerdictName)
         : [];
   const passes = [];
   for (const name of names) {
@@ -433,12 +426,8 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
     return skip("author-not-lane-or-owner");
   }
-  const refs = new Map(
-    associated
-      .filter((item) => Number.isSafeInteger(item?.number) && item.number > 0)
-      .map((item) => [item.number, String(item.head?.ref ?? "")]),
-  );
-  const { fail, passes } = await judged({ github, repository, number: pull.number, head, base, refs });
+  const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
+  const { fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs });
   if (fail) {
     return skip("already-judged");
   }
@@ -476,7 +465,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
-  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
+  if ((await judged({ github, repository, number: pull.number, head, base, prs, issues })).fail) {
     return skip("already-judged");
   }
   return {

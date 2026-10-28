@@ -103,7 +103,7 @@ parent conversation instead.
 
 **A path-scoped rule may arrive after the file it governs is created.** Before Claude Code 2.1.288
 path scoping triggered on Read only, so creating a new file never fired a rule. From 2.1.288 Write
-and Edit fire it too, but the rule most likely arrives after the write, which is not yet measured.
+and Edit fire it too, but the rule arrives after the write (measured on Claude Code 2.1.312).
 Either way a rule governing how new files are made may be absent in the case it exists for, so
 creation-governing content is denied the path-scoped destination structurally, not by judgment.
 

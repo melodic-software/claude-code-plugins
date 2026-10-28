@@ -127,7 +127,8 @@ function fakes() {
         body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${HEAD} -->`,
       })),
     listReviewThreads: async () => [
-      { isResolved: false, comments: { nodes: [{ author: CLAUDE }], pageInfo: { hasNextPage: false } } },
+      // A reviewer-bot finding on a review of the marked head.
+      { isResolved: false, comments: { nodes: [{ author: CLAUDE, pullRequestReview: { author: CLAUDE, commit: { oid: HEAD } } }], pageInfo: { hasNextPage: false } } },
     ],
     listCheckRuns: async () => [],
     listWorkflowRuns: async () => [],
