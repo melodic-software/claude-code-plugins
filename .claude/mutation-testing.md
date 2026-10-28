@@ -53,10 +53,11 @@ timeout-ms: 115000
 
 # The verify-pr route's profile caps the run at 60 turns. The audit spends
 # about 17 on preflight, reading its references, baselines and triage, then
-# about 4 per mutant (read, Edit, covering tests, git restore): 8 mutants is
-# about 49 turns, and at about one covering-suite run each they fit the
-# 60-minute job. A larger diff reports what it dropped.
-max-mutants: 8
+# about 5 per mutant (read, Edit, covering tests, the reverting Edit, one
+# git diff and status check): 7 mutants is about 52 turns, and at about one
+# covering-suite run each they fit the 60-minute job. A larger diff reports
+# what it dropped.
+max-mutants: 7
 ```
 
 No `test-command`: the lane runs the default diff scope, and `scripts/run-test-file.sh` takes one

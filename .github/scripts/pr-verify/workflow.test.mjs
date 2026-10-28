@@ -70,6 +70,35 @@ const CREDENTIAL = {
   [FB]: ["fallback-token", FALLBACK],
 };
 const others = (job) => JOBS.filter((id) => id !== job).map((id) => CREDENTIAL[id]);
+const keyGate = () => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
+// Evaluates a gate of `a == b` terms joined by && and parenthesized || groups
+// on one run's context; an evaluated term of any other shape fails the test.
+const admits = (gate, context) => {
+  const value = (term) => (/^'.*'$/.test(term) ? term.slice(1, -1) : term.split(".").reduce((at, key) => at?.[key], context));
+  const equal = (term) => {
+    assert.match(term, /^\S+ == \S+$/);
+    const [left, right] = term.split(" == ");
+    return value(left) === value(right);
+  };
+  return gate.split(" && ").every((clause) => clause.replace(/^\(|\)$/g, "").split(" || ").some(equal));
+};
+// A branch filter pattern per GitHub's filter pattern cheat sheet: `*` stops
+// at `/`, `**` matches any character including `/`. Every other character is
+// taken literally, so a pattern using `?`, `+`, `[]` or `!` needs more here.
+const glob = (pattern) => {
+  const literal = pattern.replace(/[.+?^$()|[\]{}\\]/g, "\\$&");
+  return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
+};
+const REPO = "melodic-software/claude-code-plugins";
+const upstreamRun = (overrides = {}) => ({
+  github: {
+    ref: "refs/heads/main",
+    repository: REPO,
+    event: {
+      workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: REPO }, ...overrides },
+    },
+  },
+});
 
 test("the upload is each job's only artifact step and follows the written verdict", () => {
   for (const job of JOBS) {
@@ -158,9 +187,8 @@ test("each secret appears only in its own job", () => {
 // A failed upstream run reaches resolve-pr, which judges it only when its one
 // failure is a hold an approving review of the head lifts (heldOnly).
 test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
-  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
   assert.equal(
-    gate,
+    keyGate(),
     [
       "github.ref == 'refs/heads/main'",
       "&& github.event.workflow_run.event == 'pull_request'",
@@ -168,6 +196,37 @@ test("the key job runs on main for a same-repository pull_request run that passe
       "&& github.event.workflow_run.head_repository.full_name == github.repository",
     ].join(" "),
   );
+});
+
+// The trigger's branch filter matches the branch the pr-require-checks run ran
+// on (GitHub's events docs, workflow_run). A merge-queue run's branch is
+// gh-readonly-queue/main/... and a schedule or dispatch run's is main, so
+// neither starts a run that would only skip; every pull request branch still
+// reaches the gate.
+test("a same-repository pull_request run on a feature branch passes the trigger and the key job's gate", () => {
+  const on = /^on:\n([\s\S]*?)\n(?=\S)/m.exec(text)?.[1] ?? "";
+  assert.match(on, /^ {4}workflows: \[pr-require-checks\]$/m);
+  assert.match(on, /^ {4}types: \[completed\]$/m);
+  assert.doesNotMatch(on, /^ {4}branches:/m);
+  const ignored =
+    /^ {4}branches-ignore: \[(.*)\]$/m
+      .exec(on)?.[1]
+      .split(",")
+      .map((pattern) => pattern.trim().replace(/^'|'$/g, "")) ?? [];
+  assert.deepEqual(ignored, ["main", "gh-readonly-queue/**"]);
+  const triggers = (branch) => !ignored.some((pattern) => glob(pattern).test(branch));
+  for (const branch of ["feat/8695-skip-only-runs", "fix/a", "dependabot/npm_and_yarn/a/b", "main-follow-up", "mainline"]) {
+    assert.ok(triggers(branch), branch);
+    assert.ok(admits(keyGate(), upstreamRun({ head_branch: branch })), branch);
+    assert.ok(admits(keyGate(), upstreamRun({ head_branch: branch, conclusion: "failure" })), branch);
+  }
+  for (const branch of ["main", "gh-readonly-queue/main/pr-123-0123456789abcdef0123456789abcdef01234567"]) {
+    assert.ok(!triggers(branch), branch);
+  }
+  // What the trigger still admits but pr-verify does not judge, the gate skips.
+  assert.ok(!admits(keyGate(), upstreamRun({ conclusion: "cancelled" })));
+  assert.ok(!admits(keyGate(), upstreamRun({ event: "push" })));
+  assert.ok(!admits(keyGate(), upstreamRun({ head_repository: { full_name: "someone/fork" } })));
 });
 
 test("the subscription job runs only on a clean handoff or an empty key, on a fixed runner", () => {

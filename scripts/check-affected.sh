@@ -8,7 +8,7 @@
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
 #                                             once (default: $CHECK_AFFECTED_JOBS,
 #                                             else one less than the core count,
-#                                             at most 3)
+#                                             at most 8)
 #   scripts/check-affected.sh --budget S      time the selected shell suites against
 #                                             an S-second budget (default:
 #                                             $CHECK_AFFECTED_BUDGET, else 120); a
@@ -16,7 +16,7 @@
 #                                             (scripts/run-plugin-tests.sh BUDGET)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
-#                                             stale-base check
+#                                             run resolves it to a commit
 #   scripts/check-affected.sh --uncommitted   check the work tree as the commit
 #                                             it would make (default base: HEAD)
 #
@@ -107,11 +107,14 @@ usage() {
 run_tests=0
 # The selected suites run through run-plugin-tests.sh's job pool, which keeps
 # the suites in scripts/run-plugin-tests-serial.txt off the parallel group.
-# One less than the core count, at most 3: on a 4-vCPU runner, 3 is the proven
-# ceiling, and suites failed at 4 (scripts/affected-tests.sh, #3694).
+# One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
+# (scripts/affected-tests.sh, #3694). At most 8: past 8 the wall time is the
+# longest suite's (#10534), and on a host where several sessions run suites at
+# once, 23 jobs failed suites that passed at 4 and 6 (#10719).
 cores="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 [[ "$cores" =~ ^[1-9][0-9]*$ ]] || cores=2
-jobs=$((cores > 4 ? 3 : cores > 1 ? cores - 1 : 1))
+jobs=$((cores > 1 ? cores - 1 : 1))
+((jobs <= 8)) || jobs=8
 jobs="${CHECK_AFFECTED_JOBS:-$jobs}"
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=1
 budget="${CHECK_AFFECTED_BUDGET:-120}"
@@ -274,6 +277,14 @@ fetched=1
 if ((fetch)) && [[ "$base" == */* ]]; then
   git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || fetched=0
 fi
+# Then resolved to a commit once, so every check judges the base the run
+# started from: every worktree shares the remote-tracking refs, and another
+# session's fetch can move one mid-run. Later drift is CI's and the merge queue's.
+base_name="$base"
+base="$(git rev-parse --verify --quiet "$base^{commit}")" || {
+  echo "check-affected: cannot compute the merge-base of HEAD and $base_name: it names no commit" >&2
+  exit 2
+}
 
 merge_base="$(git merge-base HEAD "$base" 2>/dev/null)" || {
   echo "check-affected: cannot compute the merge-base of HEAD and $base" >&2
@@ -291,7 +302,7 @@ mapfile -t changed <<<"$changed_raw"
 # Nothing changed is a pass only when HEAD is the base; otherwise the run read
 # the wrong tree or range, and passing would check nothing.
 if [[ -z "$all_raw" && "$(git rev-list --count "$base...HEAD")" != 0 ]]; then
-  echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
+  echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base_name, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
   exit 2
 fi
 
@@ -383,7 +394,7 @@ if ((fetched)); then
   run_check stale-base-overlap "scripts/check-stale-base-overlap.sh --check $base" \
     "$tools/scripts/check-stale-base-overlap.sh" --check "$base"
 else
-  skip stale-base-overlap "git fetch of $base failed"
+  skip stale-base-overlap "git fetch of $base_name failed"
 fi
 
 if ((${#plugins[@]} == 0)); then
