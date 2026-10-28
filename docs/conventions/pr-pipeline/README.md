@@ -574,8 +574,9 @@ head:
 
 | Reason | Cleared when |
 |---|---|
-| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
+| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
+| `ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`, `ci-fix-escalated` | a trusted move took the head off the resume key, and at the new head no check other than `ci-status` (which the label itself fails) fails, runs or was cancelled, the latest run of each ended `success`, `neutral` or `skipped`, and one passed |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 | `refusal-cleared` (under `merge.lane-prs: native`, `enable-auto-merge`'s own unedited person refusal comment on a lanes App pull request, naming the current head, whose recorded verifier or risk cause is one the lanes clear: every code on `LANE_CAUSES`) | the gate's reader at that head finds nothing refusing, or only causes the lanes clear, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, any code off that list) is never read or lifted at its head (owner decision Q-CLEAR B): a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run |
@@ -584,9 +585,19 @@ It removes only a label whose newest `labeled` event has the lanes App as its ac
 when a person commented, reviewed or left a review comment since that event (a bot account, such
 as an AI review or another lane, does not count), or when an App comment
 written or edited since then carries any marker other than the escalation being judged (another
-`babysit-merge-*` marker, another lane's). Every other reason
-(`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
-`ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
+`babysit-merge-*` marker, another lane's). A trusted move is read with the job's own token, never
+from comment text: the PR head is in this repository, every push on its branch since the label went
+on is by a `human` of the base `trusted-actors.json` (matched by id; never the lanes App, so its
+own push never lifts its own stop), the newest one landed the current head, and the head is none of the recorded resume keys. A
+read that fails keeps the label. Every other reason waits for a person: the security, intent and
+decision stops (`feedback-uncertain`, `feedback-disputed`, `feedback-unadjudicated`,
+`feedback-question-*`, `feedback-round-cap`, `feedback-not-converging`, `dependency-security-close`,
+`dependency-escalate`), the protected-path and own-patch stops (`ci-fix-protected-path`,
+`unexpected-path-staged`, `conflict-patch-*`), and those with no cause-gone evidence yet (`repeat-cap`,
+`feedback-not-landed`, `feedback-invalid`, `feedback-partial`, `feedback-incomplete`, and the other
+`dependency-*` stops). Removing the label this way approves nothing: `ci-status` still fails a
+review-lane hold the lanes App unlabeled, and hold paths still need a trusted person's approving
+review. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 
 Accepted risk: a person's request relayed through an App posts as a Bot account (`claude[bot]`
 replying to an `@claude` mention that asks to wait), and so does a third-party App writing "needs
@@ -861,8 +872,9 @@ the rules that only tighten in
     request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
     other module the floored scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    the `retry-fetch.mjs` copy in each of those two directories, and the stop routes
-    `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`)
+    the `retry-fetch.mjs` copy in each of those two directories, the stop routes
+    `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
+    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
