@@ -151,6 +151,25 @@ assert_eq "an owner found by the scan contributes its root" $'root\t'"$ROOT3"$'\
 assert_eq "that root is scanned" $'worktree\t'"$ROOT3/d-wt3"$'\t'"$D" "$(rows worktree "$ROOT3/d-wt3")"
 git -C "$D" worktree remove --force "$ROOT/d-wt" >/dev/null 2>&1
 
+# A worktree below a root but not its direct child (inside another worktree's
+# .work/, or under a plain directory) is listed from its repository's registration.
+git -C "$A" worktree add -q -b wnest "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
+mkdir -p "$ROOT/group"
+git -C "$B" worktree add -q -b wdeep "$ROOT/group/b-deep" >/dev/null 2>&1
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+assert_exit "nested worktrees: exits 0" 0 "$RC"
+assert_eq "a worktree nested in another worktree is listed with its repository" \
+  $'worktree\t'"$ROOT/a-wt/.work/nested"$'\t'"$A" "$(rows worktree "$ROOT/a-wt/.work/nested")"
+assert_eq "a worktree under a plain directory below the root is listed" \
+  $'worktree\t'"$ROOT/group/b-deep"$'\t'"$B" "$(rows worktree "$ROOT/group/b-deep")"
+assert_eq "a direct child the scan found is not listed twice" \
+  $'worktree\t'"$ROOT/a-wt"$'\t'"$A" "$(rows worktree "$ROOT/a-wt")"
+assert_eq "the plain directory itself is no worktree row" "" "$(rows worktree "$ROOT/group")"
+assert_eq "the nested worktree counts toward its repository" $'repo\t'"$A"$'\t2' "$(rows repo "$A")"
+git -C "$A" worktree remove --force "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
+git -C "$B" worktree remove --force "$ROOT/group/b-deep" >/dev/null 2>&1
+rmdir "$ROOT/group" "$ROOT/a-wt/.work"
+
 # A path holding a tab cannot be a TSV field: skipped, with a warning.
 TABBED="$ROOT/tab"$'\t'"wt"
 if git -C "$A" worktree add -q -b wtab "$TABBED" >/dev/null 2>&1; then
@@ -194,6 +213,28 @@ run_disc /dev/null "$T/bin/no-ghq" --repo-dir
 assert_exit "--repo-dir without a value is a usage error" 2 "$RC"
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$T/missing"
 assert_exit "a missing root file is a usage error" 2 "$RC"
+
+# A git older than 2.36 rejects `worktree list -z`: fail closed, naming the
+# floor and the installed version, rather than reporting 0 linked worktrees.
+OLD_GIT_BIN="$T/old-git-bin"
+mkdir -p "$OLD_GIT_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the $@ belongs to the generated stub, not here.
+  printf 'case " $* " in *" worktree list "*" -z "*) echo "error: unknown switch z" >&2; exit 129 ;; esac\n'
+  # shellcheck disable=SC2016
+  printf 'if [[ "${1:-}" == --version ]]; then echo "git version 2.35.0"; exit 0; fi\n'
+  printf 'exec %q "$@"\n' "$(command -v git)"
+} >"$OLD_GIT_BIN/git"
+chmod +x "$OLD_GIT_BIN/git"
+PATH_SAVED="$PATH"
+PATH="$OLD_GIT_BIN:$PATH_SAVED"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+PATH="$PATH_SAVED"
+assert_exit "git without worktree list -z fails closed (exit 5)" 5 "$RC"
+assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
+assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
+assert_eq "the old-git failure prints no inventory" "" "$OUT"
 
 # --- --remove-input-files deletes the handed files and their dir (#8212) ---
 # The status block writes its two input files into a mktemp dir; the helper owns

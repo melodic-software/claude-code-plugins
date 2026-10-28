@@ -282,7 +282,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 26, "enforcement": 42},
+            {"trust": 5, "gate": 27, "enforcement": 43},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -334,6 +334,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/apply-patch/retry-fetch.mjs", ".github/scripts/apply-patch/retry-fetch.mjs"),
             (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
             (".github/scripts/pr-unblock/feedback-dispatch.mjs", ".github/scripts/pr-unblock/feedback-dispatch.mjs"),
+            (".github/scripts/pr-unblock/verify-notes.mjs", ".github/scripts/pr-unblock/verify-notes.mjs"),
             (".github/scripts/pr-unblock/limit-stop.mjs", ".github/scripts/pr-unblock/limit-stop.mjs"),
             (".github/scripts/pr-unblock/dispatch-record.mjs", ".github/scripts/pr-unblock/dispatch-record.mjs"),
             (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs"),
@@ -1222,6 +1223,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/apply-patch/retry-fetch.mjs",
             ".github/scripts/pr-unblock/fix-ci-context.mjs",
             ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            ".github/scripts/pr-unblock/verify-notes.mjs",
             ".github/scripts/pr-unblock/limit-stop.mjs",
             ".github/scripts/pr-unblock/dispatch-record.mjs",
             ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
@@ -1794,7 +1796,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 43)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

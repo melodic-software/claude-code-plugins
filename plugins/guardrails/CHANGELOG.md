@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.2] - 2026-10-28
+
+### Fixed
+
+- `reference-verify` pre-push entry: files in a `samples/` folder below an `evals/` folder, at the repository root or nested, are no longer handed to `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify`. Those files are recorded model output, so a flag, skill reference or path in them is data, and editing them to pass would corrupt the eval. An eval suite's prompts, graders and fixtures, and a `samples/` folder outside `evals/`, are still checked.
+
+## [0.61.1] - 2026-10-28
+
+### Fixed
+
+- The pre-push reference check judges a file over 128 KiB instead of skipping it: the file's text reaches jq as a file, not as one command-line argument, which the kernel refused ("Argument list too long").
+- The pre-push reference check judges a file added as a copy of a file the push also changes (a doc moved with a stub left at its old path) on the lines it adds, as it does a renamed file, so citations the doc already held are no longer reported as new.
+- `stale-path-verify` reads its deleted-path list in one pass (a rebuild took about 25 s on this repository's history, now well under a second) and lists the tracked files only for a root-level citation that has an extension.
+
 ## [0.61.0] - 2026-10-28
 
 ### Changed

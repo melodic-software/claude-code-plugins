@@ -70,6 +70,7 @@ FLOOR_ENTRIES = (
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
+    ".github/scripts/pr-merge/refire-refused.mjs",
 )
 # The scripts that act on a pr-unblock stop's route: report-escalation.sh adds
 # `needs-human` for a held reason, adjudicate-feedback.mjs decides which threads
@@ -239,8 +240,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 73)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 75)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 43)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )

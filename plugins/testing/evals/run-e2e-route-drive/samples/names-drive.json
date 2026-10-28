@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Route: drive. /app-control:drive launches the timer app, operates it and captures the evidence; say \"just use what you have\" and I will drive it myself.",
+      "why": "names drive with its slash"
+    },
+    {
+      "answer": "This run hands the launch to app-control:drive.",
+      "why": "names drive without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will start the app with npm run dev and drive the Start button with playwright-cli.",
+      "why": "own driving, drive never named"
+    }
+  ]
+}

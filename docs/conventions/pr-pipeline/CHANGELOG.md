@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.2] - 2026-10-28
+
+### Fixed
+
+- Every lane check run `report-check-run` posts now carries `external_id` `<lane>:<activity>:<run id>:<run attempt>`, not only one with a lane record. GitHub returns these check runs with `details_url` set to the check run's own page, so pr-merge's re-fire of a run the broker refused as `workflow-modified` never found the PR, and fix-ci-dispatch never paired a fix-ci check with its run's lane-stopped stop. Both now read the posting run from `external_id`.
+
+- pr-unblock's `publish-feedback` re-reads each thread against the reviewed heads `address-feedback-select` kept it on, which `run.json` now records as `reviewed_heads`, not against the reviewed-head markers as they are at publish. A review lane edits its one marker in place, so once it reviewed the round's fix push the marker named only the fix head, the re-read dropped the thread as changed, its reply never posted, and the next round escalated `feedback-untaken-threads`. The comment-id, resolved, comment-count and moved-head checks are unchanged; a `run.json` without `reviewed_heads` reads the markers as before.
+
+## [6.5.1] - 2026-10-28
+
+### Changed
+
+- The review callers' `hold-paths`, ci-status's exempt-author `hold_patterns` and merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS` are generated from `babysit_risk.FLOOR_CLASSES` and `COST_PATHS` by `scripts/sync-hold-floor.py` (`--check` fails on a stale copy); the floor holds the generator as `gate`.
+
+### Fixed
+
+- ci-status's exempt-author check matches the trust-gate paths case-insensitively, as the floor does elsewhere, so a Dependabot, release App or standards-sync pull request that changes `.github/codeowners` or `vendor/.GitModules` fails for a person instead of passing.
+
 ## [6.5.0] - 2026-10-28
 
 ### Added

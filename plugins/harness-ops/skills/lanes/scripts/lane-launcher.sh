@@ -287,8 +287,14 @@ run_bounded() {
   child=$!
   (
     sleep "$bound_s"
-    kill -TERM "$child" 2>/dev/null || exit 0
+    # Flag before the signal: the parent stops this watchdog once the child
+    # dies, so a flag written after the kill can be lost and a timeout read as
+    # the child's own exit.
     [[ -n "$flag" ]] && printf 'timeout\n' >"$flag"
+    if ! kill -TERM "$child" 2>/dev/null; then
+      [[ -n "$flag" ]] && : >"$flag"
+      exit 0
+    fi
     sleep "$PROBE_KILL_AFTER_S"
     kill -KILL "$child" 2>/dev/null || true
   ) >/dev/null 2>&1 &

@@ -1633,28 +1633,25 @@ test("a pass-only round waits like any round: not while a run for the PR is goin
   assert.deepEqual(held.calls.dispatch, []);
 });
 
-// pr-verify judges and verify-notes posts fail notes on an adopted PR a trusted
-// person opened, so a later pass there clears them too; any other round stays
-// on lanes App PRs.
-test("a pass-only round reaches a PR a trusted person opened; other rounds and other authors do not", async (t) => {
+// On a PR a person opened, verify-notes holds a FAIL with the pr-verify-failed
+// label, which the next pass removes, so no round of any kind goes there, a
+// trusted person's included; the lanes App resolves nothing on it.
+test("no round reaches a PR a person opened, a trusted one's included, pass-only or not", async (t) => {
   const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "kyle.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
   const opened = (id) => [{ number: 42, state: "open", draft: false, user: { id }, labels: [], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }];
   const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
-  const owner = verifyApi({ pulls: opened(KYLE.databaseId), threads: [], comments: [], checkRuns: [after] });
-  await passMain(dir, owner, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
-  assert.deepEqual(owner.calls.dispatch.map((request) => request.inputs), [
-    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
-  ]);
-  const stranger = verifyApi({ pulls: opened(KYLE.databaseId + 1), threads: [], comments: [], checkRuns: [after] });
-  const { lines } = await passMain(dir, stranger, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
-  assert.deepEqual(stranger.calls.dispatch, []);
-  assert.match(lines.at(-1), /not opened by the lanes App/);
-  const fail = verifyApi({ pulls: opened(KYLE.databaseId) });
-  await passMain(dir, fail, { VERIFY_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
-  assert.deepEqual(fail.calls.dispatch, []);
+  for (const id of [KYLE.databaseId, KYLE.databaseId + 1]) {
+    const pass = verifyApi({ pulls: opened(id), threads: [], comments: [], checkRuns: [after] });
+    const { lines } = await passMain(dir, pass, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+    assert.deepEqual(pass.calls.dispatch, [], `a pass-only round for author ${id}`);
+    assert.match(lines.at(-1), /not opened by the lanes App/);
+    const fail = verifyApi({ pulls: opened(id) });
+    await passMain(dir, fail, { VERIFY_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+    assert.deepEqual(fail.calls.dispatch, [], `a fail round for author ${id}`);
+  }
 });
 
 test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
