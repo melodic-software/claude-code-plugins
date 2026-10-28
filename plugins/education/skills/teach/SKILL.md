@@ -372,7 +372,7 @@ substituted or expanded on the way to the Bash tool.
 
 - **Write production code.** It teaches understanding; code changes go through the project's own
   implementation workflow.
-- **Extract book knowledge into skill reference files.** That is `/knowledge:book-distill` when installed.
+- **Extract book knowledge into skill reference files.** That is `/knowledge:distill` when installed.
 - **Task-context codebase investigation.** That is the project's code-exploration tooling;
   `/education:teach codebase` is structured learning.
 - **Answer a one-off inline question.** Answer it directly instead.

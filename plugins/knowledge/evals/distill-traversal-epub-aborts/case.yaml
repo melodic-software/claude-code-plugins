@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: bd-traversal-epub-aborts
+name: distill-traversal-epub-aborts
 context:
   scaffold_script: scaffold.sh
 graders:
