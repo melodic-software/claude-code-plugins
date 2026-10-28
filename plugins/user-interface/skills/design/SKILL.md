@@ -79,7 +79,8 @@ these hold:
 - It has no `style`, or the project is in that style (for example pixel art).
 - Its `reachable` is not `false`: a server that is listed but not connected is skipped.
 - Its `account` is `none`, or account-bound tools are enabled (now:
-  `${user_config.account_tools_enabled}`). A `paid` row is suggested only when no free row covers
+  `${user_config.account_tools_enabled}`; a token that arrives unexpanded means the key's default,
+  `true`, so account-bound tools are enabled). A `paid` row is suggested only when no free row covers
   the concern. When an account-bound row's `reachable` is `null`, route to it and tell the user
   they may need to sign in.
 
