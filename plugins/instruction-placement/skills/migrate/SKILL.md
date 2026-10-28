@@ -89,7 +89,10 @@ not available, rather than skipping the move.
 
 Every run, whichever argument it has, starts with `"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"`.
 Read [`reference/quote-check.md`](reference/quote-check.md) before running it: what it prints, and
-how each result is carried into the plan and the apply gate.
+how each result is carried into the plan and the apply gate. In short: list each `drift` result at
+the top of the output, quote the deciding sentence of each record a move relies on beside that
+move, and label a move that relies on an `unverified` or a drifted record "unverified as of <date>",
+in the plan and at the apply gate.
 
 ## Plan first
 
