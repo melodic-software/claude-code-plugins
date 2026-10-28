@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "This is a walk-through only. Nothing was read from the repository, driven, switched, written or committed.\n\n**Triage.** The handle was renamed in the code (`src/cart/total.ts:7`) and still works. That makes it doc drift, so the outcome is **changed**. Because the pass started on `feat/cart-tax`, which is neither `main` nor the upkeep branch, it follows the ticket-branch rule (refresh.md \u00a7 Ticket branch) instead of the four upkeep-branch steps.\n\n1. **Branch at the start:** `feat/cart-tax`. The pass records this as its starting point and stays on it for the whole pass. It never switches to `control-skill-upkeep/control-shop` and never creates that branch. First it runs `git status --porcelain -- \".claude/skills/control-shop\"`. The working tree is clean, so nothing there blocks the pass.\n2. **Where the commit goes:** onto `feat/cart-tax`. The pass changes `Total` to `Total with tax` in `.claude/skills/control-shop/features/cart/total/README.md` and runs the Check steps on the result. It then commits only that file, staged by path, as one commit on `feat/cart-tax`. This way the correction merges together with the code change it describes.\n3. **Push or pull request:** neither. It pushes nothing and opens or updates no pull request. When `/testing:run-e2e` pushes, the commit goes into the ticket's own pull request. The report names the commit so the caller knows HEAD moved by one commit that touches only the control skill directory. Because the pass was narrowed to one feature, it does not run `record` either.\n4. **Branch at the end:** `feat/cart-tax`. The return step switches back to the starting branch, which here does nothing because the pass never left it. `git branch --show-current` prints `feat/cart-tax`, and `/testing:run-e2e` carries on from there.",
+      "why": "correct; the no-op return step is not a switch (eval run with[0], a judge false fail)"
+    },
+    {
+      "answer": "1. **Branch I'm on:** `feat/cart-tax` the whole time. It's a ticket branch: it isn't `main` and it isn't the upkeep branch `control-skill-upkeep/control-shop`. Per refresh.md \u00a7 Ticket branch, I don't switch to anything. The working tree is clean, so nothing under `.claude/skills/control-shop/` blocks the commit.\n2. **Where the commit goes:** to `feat/cart-tax`. The only difference is doc drift, so the commit changes just `.claude/skills/control-shop/features/cart/total/README.md` to say `Total with tax` instead of `Total`, citing `src/cart/total.ts:7`. No upkeep branch is created and no `feature-map-upkeep/*` branch is used. The fix belongs on the ticket branch because it describes code that only exists there so far.\n3. **Push or pull request:** neither. I push nothing and open no pull request. When the caller (`/testing:run-e2e`) pushes `feat/cart-tax`, the commit goes into the ticket's pull request. The report gives the commit so the caller knows HEAD moved by one commit that only touches the control skill directory. The outcome is `changed`, so no clean pass is recorded. Running on a single feature id wouldn't record one anyway.\n4. **Branch at the end:** `feat/cart-tax`, where it started, so the caller picks up from there.",
+      "why": "correct (eval run with[2])"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**`/app-control:map` isn't installed in this session, so it did not run.** I can't tell you what its refresh steps say about branches, commits, pushes or pull requests. You can add it as an organization plugin or a project skill. As you asked, I didn't read the repo, run anything, switch branches, write or commit.\n\nBelow is what I'd expect to happen, based only on the facts you gave me. The command's own rules may differ.\n\n1. **Branch at start:** `feat/cart-tax`, with a clean working tree. Nothing here calls for a branch switch. The README change to `Total with tax` documents a change already made on this ticket branch, so the fix belongs with it and not on `main` or a separate docs branch.\n2. **Where the commit goes:** one commit on `feat/cart-tax`. It changes only `.claude/skills/control-shop/features/cart/total/README.md`, from `Total` to `Total with tax`, to match `src/cart/total.ts:7`.\n3. **Push or pull request:** neither. `/testing:run-e2e` called this as a nested `--unattended` refresh, so pushing and opening a pull request are left to the caller or to you. Nothing goes to `main`.\n4. **Branch at end:** still `feat/cart-tax`, now with the README commit added.",
+      "why": "leaves the pull request to the caller or the user, not the ticket's own pull request"
+    },
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop and push it, which updates the open upkeep pull request; end on feat/cart-tax.",
+      "why": "upkeep pull request"
+    },
+    {
+      "answer": "Commit on feat/cart-tax, push it, and update the ticket's pull request.",
+      "why": "the pass pushes"
+    },
+    {
+      "answer": "Commit on feat/cart-tax, then switch to main and stop there.",
+      "why": "ends off the ticket branch"
+    }
+  ]
+}
