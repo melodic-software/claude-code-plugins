@@ -66,7 +66,7 @@ cases judge the printed line, not a tool call. A base case sets only the project
 window, and each other case adds one element to a case it names as its control. No case passes
 `/autocompact` an argument, which would save to the operator's user settings. Under `claude -p` the
 command prints the window with no model turn: a `<synthetic>` assistant message and a result with
-`num_turns` 0, which the verdict reads as printed output (record 14). A model answer reads as
+`num_turns` 0, which the verdict reads as printed output (record 16). A model answer reads as
 `inconclusive`.
 
 ## Reading a result

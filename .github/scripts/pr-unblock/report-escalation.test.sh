@@ -73,6 +73,12 @@ case "$method $endpoint" in
   fi
   echo '{}'
   ;;
+"PATCH repos/o/r/issues/comments/"*)
+  echo '{}'
+  ;;
+"GET repos/o/r/commits/"*"/statuses?per_page=100")
+  cat "$STUB/statuses.json" 2>/dev/null || echo '[]'
+  ;;
 "POST repos/o/r/statuses/"*)
   [[ -f $STUB/fail_status ]] && { echo 'stub gh: status POST failed' >&2; exit 1; }
   echo '{}'
@@ -107,10 +113,49 @@ run() {
   RC=$?
   set -e
 }
-writes() { grep -c '^POST' "$STUB/requests" || true; }
-comment() { printf '[{"body":%s,"user":{"login":"%s","type":"%s"}}]' "$(jq -Rs . <<<"$1")" "$2" "$3"; }
+writes() { grep -cE '^(POST|PATCH)' "$STUB/requests" || true; }
+# comment <body> <login> <type> [id]
+comment() { printf '[{"id":%s,"body":%s,"user":{"login":"%s","type":"%s"}}]' "${4:-1}" "$(jq -Rs . <<<"$1")" "$2" "$3"; }
 # bot_marker <head> [reason]: the lanes App's escalation comment for that head and reason.
-bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-unresolved-conflict}"'`' 'melodic-automation-lanes[bot]' Bot; }
+bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-protected-path-conflict}"'`' 'melodic-automation-lanes[bot]' Bot; }
+activity_of() {
+  case $1 in
+    feedback-*) echo address-feedback ;;
+    dependency-*) echo review-dependency ;;
+    ci-fix-*) echo fix-ci ;;
+    *) echo resolve-conflicts ;;
+  esac
+}
+context_of() {
+  local activity
+  activity=$(activity_of "$1")
+  if [[ $activity == resolve-conflicts ]]; then echo pr-unblock/conflict; else echo "pr-unblock/$activity"; fi
+}
+
+# The routes: a person only for SAFETY (a path the lane token may not push,
+# supply-chain trust) or a question only a person answers (intent, design,
+# security, a person's own thread or hold), and every review-dependency stop,
+# whose failing status would be per head while the merge marker comes from the
+# lane's own re-run; every other stop is a failing status and no label.
+HOLD_REASONS=(protected-path-conflict workflow-staged conflict-patch-protected-path
+  feedback-protected-path feedback-round-cap feedback-uncertain feedback-disputed
+  feedback-question-intent feedback-question-design feedback-question-security
+  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-config-unreadable
+  dependency-files-truncated dependency-control-uncited
+  dependency-security-close dependency-escalate dependency-fix-refused dependency-workflow-unpinned
+  ci-fix-protected-path ci-fix-weaken-required)
+FAIL_REASONS=(unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
+  feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
+  feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
+  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated)
+ROUTES="$SCRIPT_DIR/escalation-routes.json"
+check "the routing table holds exactly these reasons" \
+  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
+check "the routing table holds these for a person" \
+  "$(printf '%s\n' "${HOLD_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "hold") | .key' "$ROUTES" | sort)"
+for reason in "${HOLD_REASONS[@]}" "${FAIL_REASONS[@]}"; do
+  check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
+done
 
 # Rejected reasons: workflow-files and dependency-workflow-held are retired names, the rest are not in the enum.
 for reason in workflow-files dependency-workflow-held bogus '' 'repeat-cap ' REPEAT-CAP; do
@@ -120,15 +165,8 @@ for reason in workflow-files dependency-workflow-held bogus '' 'repeat-cap ' REP
   check "rejects reason [$reason]: no gh call" '' "$(cat "$STUB/calls")"
 done
 
-# Accepted reasons: one comment, one label, both on the PR.
-for reason in protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict \
-  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
-  feedback-partial feedback-incomplete feedback-disputed feedback-not-converging \
-  feedback-unadjudicated feedback-question-intent feedback-question-design feedback-question-security \
-  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused \
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated \
-  conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path; do
+# Held reasons: one comment, one label, both on the PR.
+for reason in "${HOLD_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"
@@ -141,27 +179,64 @@ for reason in protected-path-conflict workflow-staged unexpected-path-staged rep
   has "$reason: comment says to remove the label" 'remove the `needs-human` label' "$STUB/bodies"
   has "$reason: comment says to dispatch pr-unblock" 'pr-unblock' "$STUB/bodies"
   has "$reason: comment names the PR to dispatch" 'pr-number=42' "$STUB/bodies"
-  case $reason in
-    feedback-*) want=address-feedback ;;
-    dependency-*) want=review-dependency ;;
-    ci-fix-*) want=fix-ci ;;
-    *) want=resolve-conflicts ;;
-  esac
+  want=$(activity_of "$reason")
   has "$reason: comment names the activity to dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
   has "$reason: label defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
   check "$reason: the comment run posts no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
 
-ALL_REASONS=(protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict
-  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid
-  feedback-partial feedback-incomplete feedback-disputed
-  feedback-unadjudicated feedback-question-intent feedback-question-design feedback-question-security
-  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated
-  conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path)
+# Fail-routed reasons: one lanes-stopped comment, no label, no status from
+# the comment run.
+for reason in "${FAIL_REASONS[@]}"; do
+  setup '[]' '[]'
+  run "$reason"
+  want=$(activity_of "$reason")
+  check "$reason, fail: exit 0" 0 "$RC"
+  check "$reason, fail: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+  check "$reason, fail: marker is the first line" "<!-- pr-unblock:lane-stopped activity=$want -->" "$(head -n 1 "$STUB/bodies")"
+  check "$reason, fail: no escalation marker" 0 "$(grep -c 'work-items:escalation' "$STUB/bodies" || true)"
+  has "$reason, fail: names the reason" "- Reason: \`$reason\`" "$STUB/bodies"
+  has "$reason, fail: names the head" "- Head: \`$HEAD_A\`" "$STUB/bodies"
+  has "$reason, fail: names the failing status" "failing \`$(context_of "$reason")\` status" "$STUB/bodies"
+  has "$reason, fail: says a retry or a new head runs again" 'A new commit to the branch starts clean' "$STUB/bodies"
+  has "$reason, fail: gives the dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
+  check "$reason, fail: names no label" 0 "$(grep -c 'needs-human' "$STUB/bodies" "$STUB/calls" | awk -F: '{s+=$2} END {print s}')"
+  check "$reason, fail: reads no issue labels" 0 "$(grep -c '^GET repos/o/r/issues/42$' "$STUB/requests" || true)"
+  check "$reason, fail: no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+done
 
-# Status mode: a failing pr-unblock/conflict status on the head, only for unresolved-conflict.
+# The fail comment is one per activity, edited in place: unchanged, nothing
+# is written; on a new head it is edited, never posted again.
+STOP_MARKER='<!-- pr-unblock:lane-stopped activity=fix-ci -->'
+setup '[]' '[]'
+run ci-fix-escalated
+fail_body=$(sed '/^=====$/d' "$STUB/bodies")
+setup '[]' "$(comment "$fail_body" 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-escalated
+check "fail, same head, comment unchanged: exit 0" 0 "$RC"
+check "fail, same head, comment unchanged: no write" 0 "$(writes)"
+
+setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-escalated "$HEAD_B"
+check "fail, new head: edits the comment in place" 'PATCH repos/o/r/issues/comments/77' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+has "fail, new head: the edit names the new head" "- Head: \`$HEAD_B\`" "$STUB/bodies"
+
+setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' someone User 77)"
+run ci-fix-escalated
+check "fail: a marker a user wrote is not the lane's comment" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+
+setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=address-feedback -->'$'\nolder' 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-escalated
+check "fail: another activity's comment is left alone" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+
+# A held reason on a PR that already shows a fail comment still holds.
+setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-protected-path
+check "hold beside a fail comment: label then a new comment" \
+  $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+
+# Status mode: a failing commit status on the head for a fail-routed reason,
+# pr-unblock/conflict for resolve-conflicts, pr-unblock/<activity> otherwise.
 setup '[]' '[]'
 MODE=status TARGET_URL=https://example.test/run/1 run unresolved-conflict
 check "status, unresolved-conflict: exit 0" 0 "$RC"
@@ -173,17 +248,29 @@ has "status, unresolved-conflict: description says CI does not run" \
   'description=Conflicts with the base branch; CI does not run until they are resolved' "$STUB/calls"
 has "status, unresolved-conflict: links the run" 'target_url=https://example.test/run/1' "$STUB/calls"
 
+# Re-armed on a new head: the status is the head's, so a later head starts
+# with none and gets its own only if the lane stops there too.
 setup '[]' '[]'
 MODE=status run unresolved-conflict "$HEAD_B"
 check "status on another head: posted on that head" "POST repos/o/r/statuses/$HEAD_B" "$(cat "$STUB/requests")"
 check "status without TARGET_URL: no target_url" 0 "$(grep -c target_url "$STUB/calls" || true)"
 
-for reason in "${ALL_REASONS[@]}"; do
+for reason in "${FAIL_REASONS[@]}"; do
   [[ $reason == unresolved-conflict ]] && continue
   setup '[]' '[]'
   MODE=status run "$reason"
   check "status, $reason: exit 0" 0 "$RC"
-  check "status, $reason: no gh call" '' "$(cat "$STUB/calls")"
+  check "status, $reason: one status POST on the head" "POST repos/o/r/statuses/$HEAD_A" "$(cat "$STUB/requests")"
+  has "status, $reason: state failure" 'state=failure' "$STUB/calls"
+  has "status, $reason: context" "context=$(context_of "$reason")" "$STUB/calls"
+  has "status, $reason: description names the reason" "description=Lane stopped: $reason; checked again on a new head" "$STUB/calls"
+done
+
+for reason in "${HOLD_REASONS[@]}"; do
+  setup '[]' '[]'
+  MODE=status run "$reason"
+  check "status, held $reason: exit 0" 0 "$RC"
+  check "status, held $reason: no gh call" '' "$(cat "$STUB/calls")"
 done
 
 setup '[]' '[]'
@@ -204,36 +291,36 @@ check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
 printf '{"config":{"role_labels":{"human-gated":"from-head"}}}' >"$STUB/ws/.work-item-tracker.json"
-run repeat-cap
+run workflow-staged
 check "role label: exit 0" 0 "$RC"
 has "role label: label from config" 'labels[]=status: blocked-human' "$STUB/calls"
 has "role label: comment names it" 'remove the `status: blocked-human` label' "$STUB/bodies"
 check "role label: workspace-root config ignored" 0 "$(grep -c from-head "$STUB/calls" || true)"
 
 setup '[]' '[]' '{"config":{"role_labels":{"autonomous-eligible":"go"}}}'
-run repeat-cap
+run workflow-staged
 has "role label: absent role defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
 
 setup '[]' '[]' '{not json'
-run repeat-cap
+run workflow-staged
 check "role label: unparsable config fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "role label: unparsable config writes nothing" 0 "$(writes)"
 
 for entry in false null 7 '""' '["needs-human"]'; do
   setup '[]' '[]' "{\"config\":{\"role_labels\":{\"human-gated\":$entry}}}"
-  run repeat-cap
+  run workflow-staged
   check "role label: present entry $entry fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
 done
 
 # Idempotency.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A")"
-run unresolved-conflict
+run protected-path-conflict
 check "re-run on the same head: exit 0" 0 "$RC"
 check "re-run on the same head: no write" 0 "$(writes)"
 
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_B")"
-run unresolved-conflict
+run protected-path-conflict
 check "labeled, marker for another head: comment only" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # Another activity's escalation on the same head is recorded too, so
@@ -244,7 +331,7 @@ check "labeled, same head, another reason: comment only" 'POST repos/o/r/issues/
 has "labeled, same head, another reason: comment names the new reason" 'ci-fix-round-cap' "$STUB/bodies"
 
 setup '[]' "$(bot_marker "$HEAD_A")"
-run unresolved-conflict
+run protected-path-conflict
 check "label removed by a human, same head: escalates again" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
@@ -253,13 +340,13 @@ check "label removed by a human, same head: escalates again" \
 LABEL_THEN_3_COMMENTS=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments'
 setup '[]' '[]'
 touch "$STUB/fail_labels"
-run unresolved-conflict
+run protected-path-conflict
 check "label write fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "label write fails: no comment posted" 0 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
 
 setup '[]' '[]'
 echo 1 >"$STUB/fail_comments"
-run unresolved-conflict
+run protected-path-conflict
 check "comment write fails once: exit 0" 0 "$RC"
 check "comment write fails once: label, then the comment twice" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments' \
@@ -272,7 +359,7 @@ check "comment write fails once: backs off once" 'sleep 5' "$(cat "$STUB/sleeps"
 exhausted() {
   setup '[]' '[]'
   echo 99 >"$STUB/fail_comments"
-  run unresolved-conflict
+  run protected-path-conflict
   check "$1: comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "$1: comment write fails every attempt: label on, three comment attempts" \
     "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
@@ -283,33 +370,33 @@ exhausted() {
 }
 
 exhausted "retry after a failed comment"
-run unresolved-conflict
+run protected-path-conflict
 check "retry after a failed comment: exit 0" 0 "$RC"
 check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # A label left by a failed comment write is explained by the next run, on a later head too.
 exhausted "label left, later head"
-run unresolved-conflict "$HEAD_B"
+run protected-path-conflict "$HEAD_B"
 check "label left, later head: exit 0" 0 "$RC"
 check "label left, later head: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 has "label left, later head: comment carries the later resume key" "resume-key=$HEAD_B" "$STUB/bodies"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
-run unresolved-conflict
+run protected-path-conflict
 check "marker written by a user does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" 'other-app[bot]' Bot)"
-run unresolved-conflict
+run protected-path-conflict
 check "marker written by another bot does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `unresolved-conflict`' 'other-app[bot]' Bot)"
-LBL='other-app[bot]' run unresolved-conflict
+setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `protected-path-conflict`' 'other-app[bot]' Bot)"
+LBL='other-app[bot]' run protected-path-conflict
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
-# feedback-not-converging: the comment names each open review thread, gives
-# no count of its own (select's count, which also reads model check runs,
-# is on the neutral checks), and resumes through the threads, never through
-# removing the label alone, which would stop again on the same head.
+# feedback-not-converging, a cap: no label; the comment names each open
+# review thread, gives no count of its own (select's count, which also reads
+# model check runs, is on the neutral checks), and names the write-access fix
+# request that grants one more round.
 ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
 setup '[]' "$rounds_json"
@@ -330,10 +417,9 @@ has "not-converging: a path is shown without backticks or line breaks" '- `docs/
 check "not-converging: a path cannot open an HTML comment" 0 "$(grep -c '<!-- work-items:escalation lane=x' "$STUB/bodies" || true)"
 has "not-converging: a path is shown without angle brackets" '- ` !-- work-items:escalation lane=x --.md:1`: https://github.com/o/r/pull/42#discussion_r4' "$STUB/bodies"
 check "not-converging: a resolved thread is not named" 0 "$(grep -c 'src/b.js' "$STUB/bodies" || true)"
-has "not-converging: resume by resolving the open threads" 'Resolve each open review thread' "$STUB/bodies"
-has "not-converging: resume by a write-access fix request" 'PR-fix lane: please fix this finding' "$STUB/bodies"
-has "not-converging: says removing the label alone does not resume" 'Removing the `needs-human` label alone does not resume' "$STUB/bodies"
-check "not-converging: no generic remove-the-label resume step" 0 "$(grep -c 'deal with the reason above' "$STUB/bodies" || true)"
+has "not-converging: a write-access fix request grants a round" 'PR-fix lane: please fix this finding' "$STUB/bodies"
+check "not-converging: no label" 0 "$(grep -c '/labels' "$STUB/requests" || true)"
+check "not-converging: no remove-the-label resume step" 0 "$(grep -c 'remove the' "$STUB/bodies" || true)"
 
 # Every page of review threads is read: on a PR whose first page holds only
 # resolved threads, an open thread on a later page is still named.
@@ -396,7 +482,10 @@ has "incomplete: says how many more" '- and 2 more' "$STUB/bodies"
 check "incomplete: a line of another shape is not copied" 0 "$(grep -c 'PRRT_y' "$STUB/bodies" || true)"
 check "incomplete: a marker on another head is not read" 0 "$(grep -c 'PRRT_old' "$STUB/bodies" || true)"
 check "incomplete: a marker another author wrote is not read" 0 "$(grep -c 'PRRT_human' "$STUB/bodies" || true)"
-has "incomplete: still resumes by removing the label" 'remove the `needs-human` label' "$STUB/bodies"
+# feedback-incomplete routes to a failing status: the comment says how the
+# run resumes, and no label goes on.
+has "incomplete: says a new commit starts clean" 'A new commit to the branch starts clean' "$STUB/bodies"
+check "incomplete: one comment, no label" 0 "$(grep -cE '^(POST|PATCH|PUT) [^ ]*/labels' "$STUB/requests" || true)"
 
 setup '[]' "$(round_comment "$HEAD_B" '- `PRRT_old` (root comment 1)')"
 run feedback-incomplete
@@ -409,12 +498,54 @@ run repeat-cap not-a-sha
 check "rejects a malformed head sha" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "malformed head sha: no gh call" '' "$(cat "$STUB/calls")"
 
-# Never touches the branch: no git, no contents API, no write outside the PR's issue.
+# Each stop names its run, so a later stop on the same head edits the comment.
 setup '[]' '[]'
-run workflow-staged
-check "never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"
-check "never calls the contents API" 0 "$(grep -c 'contents/' "$STUB/calls" || true)"
-check "writes only the issue comments and labels" 0 \
-  "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments|/labels)?$' "$STUB/requests" | grep -c . || true)"
+GITHUB_RUN_ID=555 run ci-fix-escalated
+has "fail: names the run that stopped" '- Run: https://github.com/o/r/actions/runs/555' "$STUB/bodies"
+
+# clear: a same-head attempt that did not stop posts success over the
+# activity's failing status, and nothing when the newest one is not a failure
+# or is another account's.
+clear_case() {
+  setup '[]' '[]'
+  printf '%s' "$2" >"$STUB/statuses.json"
+  set +e
+  (cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t GITHUB_REPOSITORY=o/r HEAD_SHA="$HEAD_A" \
+    ACTIVITY="$1" "$SUT" clear) >"$STUB/out" 2>&1
+  RC=$?
+  set -e
+}
+GHA='{"login":"github-actions[bot]"}'
+clear_case address-feedback "[{\"context\":\"pr-unblock/address-feedback\",\"state\":\"failure\",\"creator\":$GHA}]"
+check "clear: exit 0" 0 "$RC"
+check "clear: success posted over the failure" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+has "clear: state success" 'state=success' "$STUB/calls"
+has "clear: the activity's context" 'context=pr-unblock/address-feedback' "$STUB/calls"
+clear_case resolve-conflicts "[{\"context\":\"pr-unblock/conflict\",\"state\":\"failure\",\"creator\":$GHA}]"
+has "clear: resolve-conflicts clears pr-unblock/conflict" 'context=pr-unblock/conflict' "$STUB/calls"
+clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"success\",\"creator\":$GHA},{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":$GHA}]"
+check "clear: the newest is already success, nothing posted" 0 "$(writes)"
+clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":{\"login\":\"someone\"}}]"
+check "clear: another account's status is not the lane's, nothing posted" 0 "$(writes)"
+clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"error\",\"creator\":$GHA}]"
+has "clear: an error status is cleared as ci-status fails on it" 'context=pr-unblock/fix-ci' "$STUB/calls"
+clear_case fix-ci "[{\"context\":\"pr-unblock/other\",\"state\":\"success\",\"creator\":$GHA}][{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":$GHA}]"
+check "clear: a failure on a later page is cleared" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+has "clear: reads every page" '--paginate' "$STUB/calls"
+clear_case fix-ci '[]'
+check "clear: no status, nothing posted" 0 "$(writes)"
+clear_case bogus '[]'
+check "clear: an activity the table does not route fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "clear: an unknown activity makes no gh call" '' "$(cat "$STUB/calls")"
+
+# Never touches the branch: no git, no contents API, no write outside the PR's issue.
+for reason in workflow-staged ci-fix-escalated; do
+  setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=fix-ci -->'$'\nold' 'melodic-automation-lanes[bot]' Bot 9)"
+  run "$reason"
+  check "$reason: never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"
+  check "$reason: never calls the contents API" 0 "$(grep -c 'contents/' "$STUB/calls" || true)"
+  check "$reason: writes only the issue, its comments and labels" 0 \
+    "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments(\?per_page=100)?|/labels)?$|^PATCH repos/o/r/issues/comments/9$' "$STUB/requests" | grep -c . || true)"
+done
 
 exit "$FAILED"

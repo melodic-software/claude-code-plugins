@@ -286,7 +286,7 @@ jobs:
       # not named here. The run executes main's own code. Never '*'.
       - name: Run the mutation audit
         id: audit
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses, the mutated tests included, and gives Bash its

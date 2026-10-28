@@ -41,6 +41,15 @@
 //     ci-fix-protected-path    but ci-status (the label fails it) fails, runs
 //                              or was cancelled, each latest run ended
 //                              success, neutral or skipped, and one passed
+//     a fix-ci reason escalation-routes.json routes `fail` (a lane run before
+//     that route set the label): once a lane check of a pr-require-checks run
+//     on the current head reads failed (fix-ci-context's failingChecks;
+//     ci-status itself fails on the label, so it proves nothing, and an
+//     advisory lane's failure leaves ci-status green), so the head stays red
+//     without the label. Another fail-routed reason is a person's (below): a
+//     lane posts a pr-unblock/* status on a head only when it stops there or
+//     clears its own failure, so a moved head carries nothing that shows the
+//     cause gone or fails that head in the label's place
 //   A trusted move: the head is this repository's and none of the recorded
 //   resume keys, and every activity on its branch since the label (the
 //   activity API, read with the job token) is by an id trusted-actors.json
@@ -100,6 +109,9 @@
 //
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
+//   CHECKS_TOKEN         the job's own token (checks: read, actions: read), for
+//                        the head's pr-require-checks runs and check runs,
+//                        which the lane token cannot read
 //   GITHUB_REPOSITORY    owner/repo
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
@@ -122,15 +134,18 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { failingChecks } from "../pr-unblock/fix-ci-context.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import {
   CLEARED,
   ESCALATION,
   escalationsSince,
+  escalationActivity,
+  escalationRoute,
+  failingChecks,
   foreignMarker,
   isApp,
   labelHistory,
+  LANE_STOPPED,
   laneHold,
   lines,
   openReviewHold,
@@ -138,6 +153,7 @@ import {
   PAIRED_MS,
   personSince,
   RESUME_KEY,
+  ROUTES,
   same,
   spoken,
 } from "../pr-unblock/gate-source.mjs";
@@ -214,6 +230,43 @@ function laneCause(kind, reason) {
   return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
 }
 
+
+// The workflow whose lanes ci-status aggregates. An advisory lane's failure
+// (pr-test-windows) leaves ci-status green once the label is off, so only
+// this workflow's checks count.
+const REQUIRED_WORKFLOW = "pr-require-checks.yml";
+
+// Whether a lane check of a pr-require-checks run on the head (not ci-status)
+// failed. Every such run counts: a contract-only run posts its lanes skipped,
+// and failingChecks prefers a lane's real result over that skip. One read per
+// PR; a listing that fails, or may be cut short, reads as not failing.
+async function headFailing({ checks, repo, pull }) {
+  try {
+    const required = (await checks("GET", `/repos/${repo}/actions/workflows/${REQUIRED_WORKFLOW}/runs?head_sha=${pull.head.sha}&per_page=100`))?.workflow_runs;
+    if (!Array.isArray(required) || required.length >= 100) {
+      return false;
+    }
+    const suites = new Set(required.map((run) => run.check_suite_id));
+    const runs = [];
+    for (let page = 1; ; page += 1) {
+      const listed = (await checks("GET", `/repos/${repo}/commits/${pull.head.sha}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
+      if (!Array.isArray(listed)) {
+        return false;
+      }
+      runs.push(...listed);
+      if (listed.length < 100) {
+        break;
+      }
+      if (page === CHECK_PAGES) {
+        return false;
+      }
+    }
+    return failingChecks(runs.filter((run) => run.app?.slug === "github-actions" && suites.has(run.check_suite?.id))).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 const reasonOf = ({ body }) => REASON.exec(body.join("\n"))?.[1];
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
@@ -250,6 +303,27 @@ const CHECKS = Object.freeze({
       ? { held: "the pull request changes a protected path, or its file listing may be cut short" }
       : "the pull request changes nothing under .github/workflows/";
   },
+  // A fix-ci reason escalation-routes.json now routes to a failing status
+  // rather than a person, on a label an older lane run set: once the head's
+  // checks read failed, so it stays red without the label. Otherwise a ci-fix
+  // stop still clears as ciPasses decides (a trusted push fixed it). Every
+  // other fail-routed reason is a person's here: a lane posts a pr-unblock/*
+  // status on a head only when it stops there or clears its own failure
+  // (report-escalation.sh), so nothing on a new head proves its cause gone or
+  // fails that head in the label's place.
+  ...Object.fromEntries(
+    Object.keys(ROUTES)
+      .filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) === "fix-ci")
+      .map((reason) => [
+        reason,
+        async (context) => {
+          if (await context.failing()) {
+            return "the lane now ends it in a failing status, not a person, and the head's own checks read failed";
+          }
+          return CI_FIX.includes(reason) ? ciPasses(context) : { held: "the head's own checks do not read failed" };
+        },
+      ]),
+  ),
 });
 
 // A ci-fix stop: the lane could not fix CI at its resume key. Gone once a
@@ -416,7 +490,7 @@ function pairedWithPrMerge(appComments, since) {
   let ours = false;
   let escalated = false;
   for (const item of appComments) {
-    const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line));
+    const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line) && !LANE_STOPPED.test(line));
     const at = Math.max(...[item.created_at, item.updated_at].map(Date.parse).filter((time) => time <= since));
     if (markers.length === 0 || at < newest) {
       continue;
@@ -430,7 +504,7 @@ function pairedWithPrMerge(appComments, since) {
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
+async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -466,7 +540,7 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
   // the label again. Any marker on an App comment written or edited since the
   // label that is not the escalation being judged or this script's own keeps
   // it, so a marker this script does not know fails closed.
-  const known = merged.length > 0 ? prMergeLine : (line) => line === ESCALATION || RESUME_KEY.test(line);
+  const known = merged.length > 0 ? prMergeLine : (line) => line === ESCALATION || RESUME_KEY.test(line) || LANE_STOPPED.test(line);
   const foreign = foreignMarker(appComments, since, known);
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
@@ -532,6 +606,8 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
     reasons = [HEAD_MOVED];
     why.push(`its escalation names head \`${[...new Set(merged.map(({ head }) => head))].join("`, `")}\`, and the head is now \`${pull.head.sha}\``);
   } else {
+    let red;
+    const failing = () => (red ??= headFailing({ checks, repo, pull }));
     // A job-token read that fails keeps the label and leaves the run green:
     // it is retried on the next schedule.
     const read = async (fn) => {
@@ -550,6 +626,7 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
     const context = { github, repo, pull, mainSha, read, escalations };
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
     context.mainMerged = (reason) => mainMergedAt(context, reason);
+    context.failing = failing;
     for (const reason of reasons) {
       const cleared = await CHECKS[reason](context);
       if (typeof cleared !== "string") {
@@ -605,7 +682,7 @@ function trustedIds(path) {
   }
 }
 
-export async function main({ env = process.env, github, verify, reader } = {}) {
+export async function main({ env = process.env, github, checks, verify, reader } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -618,6 +695,7 @@ export async function main({ env = process.env, github, verify, reader } = {}) {
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    checks ??= createGitHub({ token: env.CHECKS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
     // The job's own token reads branch activity, check runs and main's
@@ -641,7 +719,7 @@ export async function main({ env = process.env, github, verify, reader } = {}) {
         continue;
       }
       try {
-        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
+        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;

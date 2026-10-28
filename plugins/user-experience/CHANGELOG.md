@@ -3,6 +3,19 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.9] - 2026-10-28
+
+### Fixed
+
+- The five account-free routes (`/design:user-research`, `/design:research-synthesis`, `/design:design-critique`, `/product-management:synthesize-research` and `/product-management:metrics-review`) are now `confirmed` after an install test, so the job skills no longer say they have not been tested here. The account-bound routes stay `deferred`.
+
+## [0.2.8] - 2026-10-28
+
+### Fixed
+
+- The shared config resolver now tags each layer error with the key it names (`error_keys`, null for a
+  file-level error), so a reader can tell a key-level error from a whole-file one.
+
 ## [0.2.7] - 2026-10-27
 
 ### Security

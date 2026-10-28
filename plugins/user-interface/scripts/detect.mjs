@@ -255,20 +255,21 @@ const relabel = (v, names) => {
   return isMapping(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relabel(x, names)])) : v;
 };
 
-// How many problems checkRouting named: team.errors also holds the layer's non-routing problems.
-let routingProblems = 0;
-
 /** Checks the team `routing` key entry by entry, naming each problem on the team layer: an unknown
  * key drops only that key, a row, disable or deny entry that still fails drops alone, and an unknown
  * version drops routing. A row matching a bundled concern plus id may re-rank it, so it needs only
- * concern and id; a new or complete row needs the full row schema. */
+ * concern and id; a new or complete row needs the full row schema. Returns how many problems it
+ * named, since team.errors also holds the layer's other problems. */
 function checkRouting(out) {
   const routing = out.values.routing;
-  if (!isMapping(routing)) return;
+  if (!isMapping(routing)) return 0;
   const team = out.layers.find((l) => l.name === "team");
+  let problems = 0;
   const fail = (errors) => {
-    routingProblems += errors.length;
-    return team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`)) && errors.length > 0;
+    problems += errors.length;
+    team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`));
+    team.error_keys.push(...errors.map(() => "routing"));
+    return errors.length > 0;
   };
   const strip = (props, v, at) => {
     if (isMapping(v)) for (const k of Object.keys(v)) if (!Object.hasOwn(props, k)) fail([`${at}: unknown key ${k}, dropped`]) && delete v[k];
@@ -284,7 +285,7 @@ function checkRouting(out) {
   if ("version" in routing && fail(validate({ enum: [1] }, routing.version, "routing.version"))) {
     delete out.values.routing;
     delete out.provenance.routing;
-    return;
+    return problems;
   }
   const filter = (key, check) => {
     if (!(key in routing)) return;
@@ -302,6 +303,7 @@ function checkRouting(out) {
   filter("rows", (v, at) => warnConcern(validate(isMapping(v) && needsFull(strip(full.properties, v, at)) ? full : partial, v, at), v, at));
   filter("disable", (v, at) => warnConcern(validate(disable, strip(disable.properties, v, at), at), v, at));
   filter("deny", (v, at) => validate({ type: "string", minLength: 1 }, v, at));
+  return problems;
 }
 
 function config() {
@@ -323,18 +325,18 @@ function config() {
       teamOnly: ["routing"],
       userHome: opts.home,
     });
-    if (user.error) Object.assign(out.layers.find((l) => l.name === "userConfig"), { state: "invalid", errors: [user.error] });
+    if (user.error) Object.assign(out.layers.find((l) => l.name === "userConfig"), { state: "invalid", errors: [user.error], error_keys: [null] });
     if (seam) {
       for (const key of ["prose", "layers", "legacy"]) out[key] = relabel(out[key], seam.names);
       const local = out.layers.find((l) => l.name === "local");
       if (home === null) for (const l of out.layers) if (l.name === "team" ? !opts.team : l === local) l.path = null;
       if (seam.refused) {
         const why = "the convention home resolves outside the project; a repository layer stays inside it";
-        Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`] });
+        Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`], error_keys: [null] });
       }
     }
-    checkRouting(out);
-    return { ...out, home, ...(error && { home_error: error }), ...(skipped && { home_skipped: skipped }) };
+    const routingProblems = checkRouting(out);
+    return { resolved: { ...out, home, ...(error && { home_error: error }), ...(skipped && { home_skipped: skipped }) }, routingProblems };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
   }
@@ -361,17 +363,16 @@ const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIn
  * with a bundled concern plus id overrides it key by key, a new one adds a row, and `disable` and
  * `deny` skip. checkRouting has already dropped invalid entries. Returns {rows, skipped, notes}:
  * `skipped` lists each route a team entry removed, with the team file as its source, and `notes` the
- * disclosures (a degraded team file, a merged row that fails the row schema). */
-function applyRouting(bundled, cfg) {
+ * disclosures (a degraded team file, a merged row that fails the row schema). `routingProblems` is
+ * checkRouting's count. */
+function applyRouting(bundled, cfg, routingProblems) {
   const team = cfg.layers.find((l) => l.name === "team");
   const notes = [];
   if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
   // team.errors also holds problems with other keys, so count only those that cost routing:
-  // checkRouting's, else a bad `routing` key or a team .yaml file that could not be read at all
-  // (key-level messages open with the quoted key, file-level ones do not).
-  const at = `team (${team?.path}): `;
-  const costsRouting = (e) => e.startsWith(`${at}"routing"`) || (e.startsWith(at) && !e.startsWith(`${at}"`));
-  const n = isMapping(cfg.values.routing) || routingProblems > 0 ? routingProblems : team?.errors.filter(costsRouting).length ?? 0;
+  // checkRouting's, else the resolver's errors tagged with the `routing` key or with none (file-level).
+  const costsRouting = (key) => key === null || key === "routing";
+  const n = isMapping(cfg.values.routing) || routingProblems > 0 ? routingProblems : team?.error_keys.filter(costsRouting).length ?? 0;
   if (n > 0) {
     notes.push(`${team.path} has ${n} problem${n === 1 ? "" : "s"} (see config.layers); built-in routes are used for any team routing it could not supply, so those overrides and deny entries were not applied. Run /user-interface:setup check`);
   }
@@ -406,8 +407,8 @@ function applyRouting(bundled, cfg) {
 
 const project = projectSignals();
 const { rows: bundled } = JSON.parse(readFileSync(ROUTING, "utf8"));
-const resolved = opts.config ? config() : null;
-const routing = resolved ? applyRouting(bundled, resolved) : { rows: bundled };
+const { resolved, routingProblems } = opts.config ? config() : {};
+const routing = resolved ? applyRouting(bundled, resolved, routingProblems) : { rows: bundled };
 const found = installed(routing.rows, {
   pluginRoot: ROOT,
   home: opts.home,

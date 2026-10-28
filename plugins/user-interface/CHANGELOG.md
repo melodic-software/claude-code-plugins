@@ -3,6 +3,17 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.7] - 2026-10-28
+
+### Fixed
+
+- The shared config resolver now tags each layer error with the key it names (`error_keys`, null for a
+  file-level error), so a reader can tell a key-level error from a whole-file one.
+- `detect.mjs --config` counts team routing problems from those tags instead of message prefixes, so a
+  convention home outside the project or a refused team `.md` file is disclosed in `routing_notes`.
+- `/user-interface:design` Step 1 is one list, and its `config` bullet says the routing comes from
+  `routes`, not `config`; a new eval case checks that a team `deny` skip names the team file.
+
 ## [0.8.6] - 2026-10-27
 
 ### Changed

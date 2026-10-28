@@ -24,9 +24,10 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job. A
-//   trusted person's approving review of the head lifts it, as ci-status
-//   lifts it (merge-holds.pathLifters); it lifts no listing or check that
-//   could not run. A config that does not read arms nothing and labels
+//   trusted person's approving review of the head, or of an earlier head
+//   carried over base merges, lifts it, as ci-status lifts it
+//   (merge-holds.pathLifters and liftersOf); it lifts no listing or check
+//   that could not run. A config that does not read arms nothing and labels
 //   nothing; the next run reads it again.
 // - Its head changes no cost path, unless its body links the owner's cost
 //   decision: merge-holds.costHold and costDecision, which ci-status runs too.
@@ -174,7 +175,7 @@ import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trust
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, liftersOf, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -264,10 +265,14 @@ export const transient = (error) =>
 // share of 4 s, then of 8 s, so the waits sum to at most 12 s.
 export const RETRY_CAPS_MS = Object.freeze([4000, 8000]);
 // An error's message with its cause's code and message, any token scrubbed:
-// undici puts a whole header value in some messages.
-export function describe(error) {
+// undici puts a whole header value in some messages. With `label`, a
+// causeless error's message is followed by its errorLabel, unless the message
+// already is that label, and the scrub runs over both.
+export function describe(error, { label = false } = {}) {
   const cause = error?.cause;
-  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : String(error?.message ?? error);
+  const message = String(error?.message ?? error);
+  const named = label && errorLabel(error) !== message ? `${message} (${errorLabel(error)})` : message;
+  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : named;
   return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
 // `github` with every request on a connection of its own, and a GraphQL
@@ -1018,8 +1023,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // A hold path a person clears, lifted by a trusted approval of the head
-  // (`lifters`) as ci-status lifts it; a listing or check that could not run
+  // A hold path a person clears, lifted by a trusted person's approval of the
+  // head or of an earlier head carried over base merges (`lifters`) as
+  // ci-status lifts it; a listing or check that could not run
   // is a lane's, which the next run reads again.
   const pathHeld = pathHoldKind(detail.files, holdPaths);
   if (pathHeld !== null && pathHeld.kind !== "hold-path") {
@@ -1302,7 +1308,15 @@ export async function main({ env = process.env, github, actions, verify, room, s
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
-            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters: headLifters(detail, humans, pull.headRefOid) };
+            let lifters = headLifters(detail, humans, pull.headRefOid);
+            // An approval of an earlier head carried over base merges
+            // (merge-holds.liftersOf) lifts the hold path as ci-status lifts
+            // it, so a base merge after a person's approval does not send the
+            // pull request back to them.
+            if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
+              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans)).lifters;
+            }
+            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters };
           }
         } catch (error) {
           // A read that fails decides nothing and writes nothing.
@@ -1475,11 +1489,13 @@ export async function main({ env = process.env, github, actions, verify, room, s
           continue;
         }
         // Its slot stays counted: a lost answer may hide an arm that landed,
-        // and the next run counts it from autoMergeRequest.
+        // and the next run counts it from autoMergeRequest. A causeless error
+        // (undici's bare "fetch failed") is named, since its message alone does
+        // not say what threw.
         if (action === "arm" && transient(error)) {
           skippedArms.push(`#${pull.number}`);
           networkArms += 1;
-          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}`);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error, { label: true })}`);
           continue;
         }
         failed += 1;

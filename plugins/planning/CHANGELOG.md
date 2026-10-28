@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.119.0] - 2026-10-28
+
+### Changed
+
+- `/planning:interview` no longer accepts a bare `judgment` basis for a recommendation. Every recommendation now lists each fact it rests on with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output) and one `Inference:` line on why those facts lead to this answer for this user. A question with no fact to cite is researched first, or asked with a `Withheld:` line naming the evidence that would settle it. The page surface's `basis` field carries the same evidence list. The shared `context/recommendation-basis.md` contract is unchanged.
+
+## [0.118.3] - 2026-10-28
+
+### Fixed
+
+- The surface-ui-c browser suite no longer flakes on loaded runners: its checks wait on what the
+  page or the page server shows instead of fixed pauses. Picking a question retries until the card
+  holds the selection, even when a re-render collapses its group mid-click; saves wait until the
+  server records the event; phases 1 and 2 wait for the page to show an external answer, revise or
+  Accept all result before checking it; and phase 6 checks Live only once the server counts the
+  waiter, and the released state only once the server reports reading with no lease and no waiter.
+  A server test covers the state frame a waiter arriving or leaving pushes while the lease is held.
+
+## [0.118.2] - 2026-10-28
+
+### Fixed
+
+- **`round.sh record-terminal` refuses a decision on a superseded or archived question** ([#10472](https://github.com/melodic-software/claude-code-plugins/issues/10472)). On a superseded question it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the end of the `supersededBy` chain as the page server's 409 does. On an archived question it exits with `refused: <id> is archived`. Before, the decision was written and then counted nowhere, because `status` and `export-ledger` read the question as withdrawn. The interview skill's surface contract documents the refusal beside the server's 409.
+
 ## [0.118.1] - 2026-10-28
 
 ### Fixed
