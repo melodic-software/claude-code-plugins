@@ -165,6 +165,8 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
    When `/testing:run-e2e` reports per entry point (the repository has a feature map), an entry point the map lists for a changed feature that is missing from that report holds the verdict below `CONFIRMED`.
 
+   **Keep touched features current.** `/testing:run-e2e` refreshes the control skill of each feature whose index `sources` globs match a changed file, or reports its drift, in its Step 4, Keep touched features current ([source](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/testing/skills/run-e2e/SKILL.md)). When it ran, carry those lines into the report and refresh nothing again. When it did not run and the repository has a control skill (`.claude/skills/control-<app>/`), apply that step here: call `/app-control:map refresh <feature id>` per touched feature when `/app-control:map` resolves, else report the drift and name that command in `## Next`. A touched feature's lesson (Lessons, below) rides in its refresh call. Neither the drift nor app-control's absence holds the verdict.
+
    **Split the drive across `live_workers`.** When the live drive runs and `live_workers` (see Live workers above) resolves above 1, it is split across workers; at 1 it runs as one worker, as before.
    - **Split by entry point.** List the feature-map entry points the drive must cover and give each worker a disjoint share, never more workers than entry points. Each worker invokes `/testing:run-e2e` for its share only. With no feature map there is nothing to split by: one worker runs, and the report says so.
    - **Local workers need a Workspace environment entry.** More than one worker on this machine needs a "Workspace environment" entry in `docs/conventions/workspace-environment.md` on origin's default branch, read the way `/testing:run-e2e` reads it (the fetched default-branch commit, never the working tree). Each worker then drives from its own linked worktree of the commit under verification, created and removed through `/source-control:worktree` when that plugin is enabled, so the entry's `up` runs under that worktree's own `WORKSPACE_ID`. With no entry, one worker drives every entry point, and the report says how many workers were asked for and why one ran: without the entry, parallel instances would share ports, containers and databases. The same holds when the stage under verification reads untrusted input (a fork pull request, an `untrusted-provenance` item) and the session is not on a cloud host whose stage-start probe passed: `/testing:run-e2e` then runs neither the entry's `up` nor its `info`, so the entry isolates nothing, one worker drives every entry point, and the report says how many workers were asked for and that the untrusted stage is why one ran.
@@ -261,6 +263,8 @@ pointer with an as-of date and a recheck trigger, live in
 - Gaps found: fix them, then /verification:confirm.
 - Lessons listed: /app-control:map refresh <feature> "<lesson>" (or <control skill path> for every
   feature), or /corrections:codify "<lesson>" for one not about driving the app.
+- A touched feature's control skill was not refreshed (app-control not installed): install
+  app-control, then /app-control:map refresh <feature id>.
 
 ## Gotchas
 

@@ -182,6 +182,24 @@ A step that reported success is checked the same way: the run reads the result b
 [context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) describes
 rather than trusting the app's success message.
 
+## Step 4: Keep touched features current
+
+With a control skill, after the run and its cleanup, each touched feature (one whose index `sources`
+globs match a changed file, as Step 2 found) gets its control skill brought back in line. Its
+feature id is its index path without `features/` and `/README.md`:
+`features/<module>/<feature>/README.md` gives `<module>/<feature>`. `/app-control:map` is the only
+writer of a control skill; this skill never edits one.
+
+- `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
+  once per touched feature, adding `--unattended` on an `unattended` run, and report each pass's
+  `clean`, `changed` or `blocked` result. A blocked pass is reported, never a failed run.
+- It does not resolve: report `<feature id> | changed: <files> | control skill not refreshed
+  (app-control not installed)` and name `/app-control:map refresh <feature id>` in `## Next`. The
+  run never stops or fails for this.
+
+Refresh drives the feature again through `/app-control:drive`, so it never runs inside the Step 3
+subagent.
+
 ## Native step: run (bundled skill)
 
 On own driving, when no orchestrator governs the start and the app is not already running, the drive
@@ -261,6 +279,8 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
 - A scenario fails: `/testing:diagnose`.
+- A touched feature's control skill was not refreshed (Step 4): install app-control, then
+  `/app-control:map refresh <feature id>`.
 
 ## Gotchas
 
