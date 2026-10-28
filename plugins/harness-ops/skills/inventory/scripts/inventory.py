@@ -40,7 +40,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Literal, Mapping
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -587,11 +587,22 @@ def build_brace_map(s: str) -> BraceMap:
                 i += 1
             prev_sig, prev_word = "/", ""
             continue
+        if s.startswith("...", i):
+            # A spread operand can be a regex literal: `[...a, .../x/.test(y)]`.
+            prev_sig, prev_word = "(", ""
+            i += 3
+            continue
         if c in _ID_CHARS:
             j = i
             while j < n and s[j] in _ID_CHARS:
                 j += 1
-            prev_word = s[i:j]
+            # `of` is a keyword only after a `for` binding (`x of`, `] of`);
+            # elsewhere it is a minified name, as in `${of/1000}`.
+            word = s[i:j]
+            of_ident = word == "of" and not (
+                prev_sig in ("]", "}") or (prev_word and prev_word not in _REGEX_KEYWORDS)
+            )
+            prev_word = "" if of_ident else word
             prev_sig = s[j - 1]
             i = j
             continue
@@ -3145,16 +3156,77 @@ def _resolve_object(
     return None
 
 
+def _argument_object(
+    src: str, braces: BraceMap, ident: str, at: int
+) -> tuple[int, str] | Literal[False] | None:
+    """The object literal parameter `ident` of the function holding `at`
+    receives: `function h(t,r){...}` whose module names `h` only in that
+    declaration and one call `h(c)`, with `c={...}` in scope there. None when
+    `ident` is not that function's parameter; False when it is but the call
+    is not that one plain shape (exported, passed around, called twice) or
+    the body assigns `ident` before `at`."""
+    body = _function_block(src, braces, at)
+    if body is None:
+        return None
+    head_lo = max(0, body[0] - 256)
+    head = re.compile(r"function\s+(" + _IDENT + r")\s*\(([^()]*)\)\s*\Z").search(
+        src[head_lo : body[0]]
+    )
+    params = [p.strip() for p in head.group(2).split(",")] if head else []
+    if ident not in params:
+        return None
+    name = re.escape(ident)
+    if re.search(
+        r"(?<![\w$.])" + name + r"\s*[-+*/%&|^?]*=(?![=>])",
+        _mask_strings(src[body[0] : at]),
+    ):
+        return False
+    fn, k = head.group(1), params.index(ident)
+    lo, hi = _chunk_span(src, at)
+    refs = {
+        lo + m.start()
+        for m in re.finditer(
+            r"(?<![\w$.])" + re.escape(fn) + r"(?![\w$])", _mask_strings(src[lo:hi])
+        )
+    }
+    calls = refs - {head_lo + head.start(1)}
+    call = min(calls) if len(calls) == 1 else -1
+    if len(refs) != 2 or not src.startswith("(", call + len(fn)):
+        return False
+    try:
+        starts = _split_args(src, braces, call + len(fn) + 1)
+    except ValueError:
+        return False
+    arg_re = re.compile(_IDENT + r"(?=\s*[,)])")
+    arg = arg_re.match(src, starts[k]) if k < len(starts) else None
+    if arg is None:
+        return False
+    try:
+        v = _binding_value(
+            src, braces, arg.group(0), call, window=SHORT_IDENT_LOCALITY_BYTES
+        )
+    except (ValueError, IndexError, RecursionError):
+        return False
+    close = braces.pairs.get(v) if v is not None else None
+    return False if close is None else (v, src[v : close + 1])
+
+
 def _resolve_descriptor_name(
     src: str, braces: BraceMap, ident: str, at: int
 ) -> tuple[str, int] | None:
     """Resolve `name:x.name`: the registration reads its fields from a descriptor.
 
     `let t=c;registrar({name:t.name,description:t.description,...})` where
-    `c={name:o,...}` and `o="slides"`. Returns the name and the descriptor's
-    offset, whose fields stand in for the registration's member reads.
+    `c={name:o,...}` and `o="slides"`, or `function h(t){registrar({...})}`
+    called once as `h(c)` (`_argument_object`). Returns the name and the
+    descriptor's offset, whose fields stand in for the registration's member
+    reads.
     """
-    obj = _resolve_object(src, braces, ident, at)
+    obj = _argument_object(src, braces, ident, at)
+    if obj is None:
+        obj = _resolve_object(src, braces, ident, at)
+    elif obj is False:
+        return None
     if obj is None:
         return None
     open_i, body = obj
@@ -4599,7 +4671,14 @@ def _string_of(src: str, braces: BraceMap, ident: str, at: int) -> str | None:
     except (ValueError, IndexError, RecursionError):
         return None
     if v is None:
-        return None
+        # `function ident(){return"tengu_x"}`, read through `ident()`.
+        fn = _function_body(src, braces, ident, at)
+        m = (
+            re.match(r"\{\s*return\s*" + _STR + r"\s*;?\s*\}", src[fn[0] : fn[0] + 256])
+            if fn
+            else None
+        )
+        return _unescape(m.group(1)) if m else None
     m = re.match(r"(?:\(\)\s*=>\s*)?" + _STR + r"(?=\s*[;,)}\n])", src[v : v + 256])
     return _unescape(m.group(1)) if m else None
 
@@ -4634,14 +4713,17 @@ def _bool_of(src: str, braces: BraceMap, text: str, at: int) -> bool | None:
 def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | None:
     """Feature flags an `isAvailable` value tests: a call `f(FLAG, DEFAULT)`
     whose first argument reads a `tengu_` string, through one identifier.
-    Other conditions in the gate are runtime state and are not listed, so
-    the list is a floor. None when the gate expression itself is not read
-    (an identifier with no binding in reach, a call this reader cannot split)."""
+    The gate is the value itself, an identifier's binding, or the body of a
+    `function` it names. Other conditions in the gate are runtime state and
+    are not listed, so the list is a floor. None when the gate expression
+    itself is not read (an identifier with no binding in reach, a call this
+    reader cannot split, a function body showing no flag call)."""
     try:
         text_lo, text_hi = pos, _expr_end(src, braces, pos)
     except (ValueError, IndexError):
         return None
     ident = re.fullmatch(_IDENT, src[text_lo:text_hi].strip())
+    fn = None
     if ident:
         try:
             v = _binding_value(
@@ -4654,12 +4736,17 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | 
             )
         except (ValueError, IndexError, RecursionError):
             v = None
-        if v is None:
+        fn = _function_body(src, braces, ident.group(0), pos) if v is None else None
+        if fn is not None and fn[0] in braces.pairs:
+            # `isAvailable:t` with `function t(){...}`: the gate is its body.
+            text_lo, text_hi = fn[0], braces.pairs[fn[0]] + 1
+        elif v is None:
             return None
-        try:
-            text_lo, text_hi = v, _expr_end(src, braces, v)
-        except (ValueError, IndexError):
-            return None
+        else:
+            try:
+                text_lo, text_hi = v, _expr_end(src, braces, v)
+            except (ValueError, IndexError):
+                return None
     flags: list[dict[str, Any]] = []
     call = re.compile(r"(?<![\w$.])" + _IDENT + r"\(")
     for m in call.finditer(src, text_lo, text_hi):
@@ -4690,7 +4777,9 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | 
                     ),
                 }
             )
-    return flags
+    # A declared function's flag test may sit behind a helper it calls: a
+    # body that shows none is unread, not flag-free.
+    return None if fn is not None and not flags else flags
 
 
 def _array_elements(
