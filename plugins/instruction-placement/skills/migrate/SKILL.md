@@ -87,12 +87,11 @@ not available, rather than skipping the move.
 
 ## Check the mechanics quotes first
 
-Every run, whichever argument it has, starts with `"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"`.
-Read [`reference/quote-check.md`](reference/quote-check.md) before running it: what it prints, and
-how each result is carried into the plan and the apply gate. In short: list each `drift` result at
-the top of the output, quote the deciding sentence of each record a move relies on beside that
-move, and label a move that relies on an `unverified` or a drifted record "unverified as of <date>",
-in the plan and at the apply gate.
+Every run, whatever the argument, starts with `"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"`.
+Read [`reference/quote-check.md`](reference/quote-check.md) before running it: what it prints and
+how each result reaches the plan and the apply gate. In short: list each `drift` result at the top,
+quote the deciding sentence of each record a move relies on beside that move, and label a move
+relying on an `unverified` or drifted record "unverified as of <date>" in the plan and at the apply gate.
 
 ## Plan first
 
@@ -180,9 +179,8 @@ between steps must leave content duplicated rather than deleted:
    grant, each for fixed pages only: `cutover-check.sh` for the single page it has always read
    (`env-vars`, with `--max-age 0`), and `quote-check.sh` for the list in
    `${CLAUDE_PLUGIN_ROOT}/context/mechanics-sources.tsv`, which it takes no argument to change.
-   Validate every glob with
-   `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
-   nothing is a rule that never fires, and nothing goes red.
+   Validate every glob with `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is
+   written; a glob matching nothing is a rule that never fires, and nothing goes red.
 4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the
    directory had none (the whole job for an `agents-only` row), or reduce an existing one to that
    line once its content has a home. An HTML-comment note inside a shim is content: move it into
