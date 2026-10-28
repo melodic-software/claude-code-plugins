@@ -114,7 +114,8 @@ step-6 ask then covers the pass's other edits. A pass that stops before step 6.3
 edits are declined, undoes the conversion before it ends: it unstages each listed path
 (`git reset -q -- <path>`) and deletes it, then each directory the conversion created that is left
 empty; unstages the legacy directory (`git reset -q -- "<legacy dir>"`); copies the legacy files
-back from the temporary copy; and returns to the branch the pass started on. The report names each file
+back from the temporary copy; and returns to the pass's starting point (§ Return to the starting
+branch). The report names each file
 and says the conversion was undone. Done when `git status --porcelain` prints what it printed before
 the pass; only then, or after step 6.3 commits the conversion, is the copy deleted, and until then
 the report names its path. Every other pass keeps the order below.
