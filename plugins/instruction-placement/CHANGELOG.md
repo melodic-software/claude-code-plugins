@@ -3,6 +3,19 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-10-28
+
+### Added
+
+- **`scripts/quote-check.sh` checks each mechanics quote against its docs section** ([#9697](https://github.com/melodic-software/claude-code-plugins/issues/9697)). It reads only `context/mechanics-sources.tsv` and takes no arguments. Each page is fetched once through `scripts/fetch-docs.sh --cache`, and the section the URL's anchor names is taken with `scripts/docs-cache.sh slice`. It prints one line per record: `verified <id>`; `drift <id> <url>`, followed by the stored quote and the section's closest sentence; or `unverified <id> as of <as_of>` when the page could not be read fresh. It exits 0 whatever the results are. `QUOTE_CHECK_FIXTURE_DIR` points it at local page snapshots, so `scripts/quote-check.test.sh` covers the verified, drift and unverified cases without touching the network.
+
+## [0.26.8] - 2026-10-28
+
+### Changed
+
+- **The loading-mechanics record cites the docs by pointer record** ([#9696](https://github.com/melodic-software/claude-code-plugins/issues/9696)). Each docs-backed cell of the surface table in `context/verified-mechanics.md` now names a record id (`MS-<n>`) instead of a bare *(doc)* marker. The new `context/mechanics-sources.tsv` holds one row per record: the section URL with its anchor, the sentence quoted from that section, and the date it was read. A new "Pointer records" table says what each record decides and when to recheck it. Every measured result now carries the CLI version it ran on, including four that had none. `context/routing-rubric.md` names record ids where it prices a move instead of restating the docs.
+- **Cells the docs re-read changed.** The memory page now says a nested `CLAUDE.md` loads on a Read, Write or Edit in its subtree. The skill listing is rebuilt and re-injected after compaction on 2.1.304 and later. A subagent that skips the CLAUDE.md hierarchy (Explore, Plan, `omitClaudeMd`) still loads a nested `CLAUDE.md` or a matching path-scoped rule when it works with files there. A bare nested `AGENTS.md` beside a `CLAUDE.md` never loads only under the default **Project instructions** setting. That a bare nested `AGENTS.md` reloads when its subtree is touched again is now marked inferred, since no docs sentence states it.
+
 ## [0.26.7] - 2026-10-28
 
 ### Fixed

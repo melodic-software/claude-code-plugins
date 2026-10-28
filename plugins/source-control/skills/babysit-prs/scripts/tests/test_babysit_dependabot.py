@@ -54,9 +54,11 @@ def commit(
     committer: str = "noreply@github.com",
     verified: bool = True,
     login: str | None = None,
+    parents: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     return {
         "sha": sha,
+        "parents": [{"sha": p} for p in parents],
         "author": {"login": login} if login else None,
         "commit": {
             "message": message,
@@ -708,12 +710,156 @@ class Content(unittest.TestCase):
         )
 
 
-def push(kind: str, after: str, login: str = "dependabot[bot]") -> dict[str, Any]:
+def push(
+    kind: str, after: str, login: str = "dependabot[bot]", before: str = "0" * 40
+) -> dict[str, Any]:
     return {
         "activity_type": kind,
+        "before": before,
         "after": after,
         "actor": {"login": login, "type": "Bot"},
     }
+
+
+# One for one with dependency-classify.test.mjs's PUSH_VECTORS, so both lanes
+# tie each commit to the same pusher. Each vector is the pull request's
+# commits as (sha, author, parents), its pushes newest first as (type,
+# pusher, before, after), and the refusal; the head is the newest push's
+# `after` unless the vector names one.
+_D, _D2, _B, _A, _X, _ZERO = "d" * 40, "c" * 40, "e" * 40, "f" * 40, "9" * 40, "0" * 40
+PUSH_VECTORS: list[dict[str, Any]] = [
+    {
+        "why": "Dependabot's own branch",
+        "commits": [(_D, "dependabot", ())],
+        "pushes": [("branch_creation", "dependabot", _ZERO, _D)],
+        "want": None,
+    },
+    {
+        "why": "a lanes App fix on top, pushed by the App",
+        "commits": [(_D, "dependabot", ()), (_A, "lane", (_D,))],
+        "pushes": [
+            ("push", "lane", _D, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": None,
+    },
+    {
+        "why": "a lanes App push carrying a Dependabot-authored commit under its tip",
+        "commits": [
+            (_D, "dependabot", ()),
+            (_D2, "dependabot", (_D,)),
+            (_A, "lane", (_D2,)),
+        ],
+        "pushes": [
+            ("push", "lane", _D, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:agent-lanes[bot]",
+    },
+    {
+        "why": "a lanes App push carrying a version-bump commit under its tip",
+        "commits": [
+            (_D, "dependabot", ()),
+            (_B, "actions", (_D,)),
+            (_A, "lane", (_B,)),
+        ],
+        "pushes": [
+            ("push", "lane", _D, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:agent-lanes[bot]",
+    },
+    {
+        "why": "the version bump, pushed by github-actions[bot]",
+        "commits": [(_D, "dependabot", ()), (_B, "actions", (_D,))],
+        "pushes": [
+            ("push", "actions", _D, _B),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": None,
+    },
+    {
+        "why": "a github-actions[bot] push carrying a Dependabot-authored commit",
+        "commits": [
+            (_D, "dependabot", ()),
+            (_D2, "dependabot", (_D,)),
+            (_B, "actions", (_D2,)),
+        ],
+        "pushes": [
+            ("push", "actions", _D, _B),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:github-actions[bot]",
+    },
+    {
+        "why": "a Dependabot push carrying a lanes App commit",
+        "commits": [(_D, "dependabot", ()), (_A, "lane", (_D,))],
+        "pushes": [
+            ("push", "dependabot", _D, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:dependabot[bot]",
+    },
+    {
+        "why": "a lanes App force push that rewrote Dependabot's commit",
+        "commits": [(_D2, "dependabot", ()), (_A, "lane", (_D2,))],
+        "pushes": [
+            ("force_push", "lane", _D, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:agent-lanes[bot]",
+    },
+    {
+        "why": "a push by a person",
+        "commits": [(_D, "dependabot", ()), (_X, "other", (_D,))],
+        "pushes": [
+            ("push", "person", _D, _X),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "pushed-by:maintainer",
+    },
+    {
+        "why": "a history that misses the push bringing a commit",
+        "commits": [
+            (_D, "dependabot", ()),
+            (_D2, "dependabot", (_D,)),
+            (_A, "lane", (_D2,)),
+        ],
+        "pushes": [
+            ("push", "lane", _D2, _A),
+            ("branch_creation", "dependabot", _ZERO, _D),
+        ],
+        "want": "push-history-incomplete",
+    },
+    {
+        "why": "a history whose newest push is not the head",
+        "commits": [(_D, "dependabot", ()), (_A, "lane", (_D,))],
+        "pushes": [("branch_creation", "dependabot", _ZERO, _D)],
+        "head": _A,
+        "want": "push-history-incomplete",
+    },
+]
+_PUSHERS = {
+    "dependabot": "dependabot[bot]",
+    "actions": "github-actions[bot]",
+    "lane": IDENTITY,
+    "person": "maintainer",
+}
+
+
+def _vector_commit(sha: str, author: str, parents: tuple[str, ...]) -> dict[str, Any]:
+    if author == "dependabot":
+        return commit("x", sha=sha, parents=parents)
+    if author == "actions":
+        return commit(
+            "bump [dependabot skip]",
+            sha=sha,
+            name="github-actions[bot]",
+            email="41898282+github-actions[bot]@users.noreply.github.com",
+            parents=parents,
+        )
+    login = IDENTITY if author == "lane" else "maintainer"
+    return commit("fix", sha=sha, name="x", email="x@x", login=login, parents=parents)
 
 
 class Pushes(unittest.TestCase):
@@ -771,6 +917,20 @@ class Pushes(unittest.TestCase):
         self.assertIsNone(
             dependabot.push_refusal(history, HEAD, [commit("x"), fix], IDENTITY)
         )
+
+    def test_every_commit_arrives_in_its_own_authors_push(self) -> None:
+        for vector in PUSH_VECTORS:
+            with self.subTest(vector["why"]):
+                commits = [_vector_commit(*c) for c in vector["commits"]]
+                history = [
+                    push(kind, after, _PUSHERS[who], before)
+                    for kind, who, before, after in vector["pushes"]
+                ]
+                head = vector.get("head", history[0]["after"])
+                self.assertEqual(
+                    dependabot.push_refusal(history, head, commits, IDENTITY),
+                    vector["want"],
+                )
 
     def test_a_history_that_misses_the_head_or_dependabots_rewrite_is_refused(
         self,
