@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Installs the marketplace's default-on plugins in one step: a bundle with no skills, agents or hooks of its own, whose dependencies are the plugins the catalog enables by default.",
   "author": {
     "name": "Melodic Software",
