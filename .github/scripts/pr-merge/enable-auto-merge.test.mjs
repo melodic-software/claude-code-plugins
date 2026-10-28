@@ -288,7 +288,9 @@ const laneNote = (reason, since = NOW) =>
     "```",
       `<!-- pr-merge-unarmed-since head=${HEAD} at=${since} -->`,
   ].join("\n");
-const personNote = (reason) =>
+// `partial`: written without the verifier's answer, so its last line marks it
+// for the one read that widens it.
+const personNote = (reason, partial = false) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
     "<!-- babysit-merge-risk -->",
@@ -297,6 +299,7 @@ const personNote = (reason) =>
     "```text",
     reason,
     "```",
+    ...(partial ? [`<!-- pr-merge-partial head=${HEAD} -->`] : []),
   ].join("\n");
 const ISSUES = "/repos/melodic-software/claude-code-plugins/issues";
 const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
@@ -608,7 +611,7 @@ test("a person's hold whose verifier read did not come is noted with what it has
   const fresh = await run([pull(1, { files, verdict: RISK_HELD })], {}, { now: late });
   assert.deepEqual(fresh.verified, []);
   assert.deepEqual(fresh.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON, true) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
   // A standing comment that already names the hold path, with more, stands;
@@ -633,9 +636,36 @@ test("a person's hold whose verifier read did not come is noted with what it has
   assert.deepEqual(armed.verified, []);
   assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_2" }]);
   assert.deepEqual(armed.notes, [
-    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(HOLD_PATH_REASON, true) } },
     { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
   ]);
+});
+
+test("a labeled pull request whose standing refusal lacks the verifier's answer gets one read that widens it, then none", async () => {
+  const files = [{ filename: "docs/held.md" }];
+  const held = (overrides) => pull(2, { files, labels: labels("needs-human"), ...overrides });
+  // The next reader run, label on: one verifier read, and the comment names both.
+  const widened = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(widened.verified, [2]);
+  assert.deepEqual(widened.writes, []);
+  assert.deepEqual(widened.notes, [{ method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(BOTH) } }]);
+  // A verdict the lanes clear adds no reason, but the read came: the comment
+  // loses its mark in place, so no later run reads again.
+  const unscored = await run([held({ verdict: MISSING, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(unscored.verified, [2]);
+  assert.deepEqual(unscored.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
+  // A read that failed keeps the mark for the next run.
+  const failed = await run([held({ verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
+  assert.deepEqual(failed.verified, [2]);
+  assert.deepEqual(failed.notes, []);
+  // Widened: no read, no write.
+  const after = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
+  assert.deepEqual(after.verified, []);
+  assert.deepEqual(after.notes, []);
+  // A verdict that would arm it, with the hold path lifted, never arms a labeled one.
+  const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  assert.deepEqual(lifted.writes, []);
+  assert.deepEqual(lifted.notes, []);
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
@@ -1548,10 +1578,11 @@ test("the lane's own hold line is commented on once and labeled human-gated", as
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // The next run: labeled, it writes nothing and reads no discussion.
+  // The next run: labeled, it reads the discussion for a partial refusal to
+  // widen, finds none, and writes nothing and reads no verdict.
   const labeled = await run([laneHeld(1, { labels: labels("needs-human"), discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
   assert.deepEqual(labeled.notes, []);
-  assert.ok(!labeled.calls.some(({ body }) => body?.query === DETAIL_QUERY));
+  assert.deepEqual(labeled.verified, []);
   // A person removed the label after the comment: it stays off.
   const lifted = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(lifted.notes, []);
