@@ -691,6 +691,9 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
+        # Repo-local, as in test_prune_babysit_worktrees.py: a global
+        # commit.gpgsign would sign every fixture commit with the machine's key.
+        self.git(self.root, "config", "commit.gpgsign", "false")
         self.green = self.commit(
             {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
         )

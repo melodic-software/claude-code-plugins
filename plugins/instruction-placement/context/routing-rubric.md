@@ -48,14 +48,14 @@ absent at the moment it was needed, not how the sentence is worded.
 
 - **Creation-governing content is denied the `paths:` destination.** Before Claude Code 2.1.288 path
   scoping triggered on Read only, so creating a new file never fired the rule. From 2.1.288 a Write
-  to a matching path fires it, but most likely after the file is written, a timing not yet measured
-  (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
+  to a matching path fires it (MS-5), but most likely after the file is written, a timing not yet
+  measured (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
   made may not be in context for the creation it exists for. It may still route to a subtree
   destination, or stay. This is a deny of one *destination*, not of the candidate. Lift or narrow it
   only once a canary measures whether a Write-triggered rule arrives before the write.
 - **A candidate whose body is only an `@import` is never routed to a path-scoped rule.** The import
-  inlines at session start and defeats the scoping, producing a move that reads as a saving and is
-  not one.
+  inlines at session start and defeats the scoping (`verified-mechanics.md` finding 2), producing a
+  move that reads as a saving and is not one.
 
 When a hard-deny candidate is genuinely bloating an always-loaded file, the remedy is
 compression in place, not relocation: tighten the wording, cut what is derivable. Say that rather
@@ -87,16 +87,13 @@ routing; it does not author linters, and it does not delete the prose until the 
 
 **3. Is it a multi-step procedure?** Content that reads as *how to do a task* rather than *a fact to
 hold* → **skill**. Trigger words: numbered steps, "first… then…", a workflow with branches. Note the
-listing cost: a **new** skill adds an always-loaded listing entry (`name` plus `description`,
-truncated at 1,536 chars per
-<https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
-trigger: that page moving the cap re-derives this sentence), so the saving is the body minus that
-entry; folding into an **existing** skill adds nothing.
+listing cost: a **new** skill adds an always-loaded listing entry (its `name`, plus `description`
+and `when_to_use` capped per MS-27), so the saving is the body minus that entry; folding into an **existing** skill
+adds nothing.
 
 A procedure that applies only to some file kinds may take a **path-scoped skill**: a `SKILL.md`
 whose `paths:` frontmatter limits automatic loading to matching files, in the same format as
-rules (<https://code.claude.com/docs/en/skills#frontmatter-reference>, read 2026-10-17; recheck
-trigger: that table changing the `paths` row). Derive and validate its glob as under
+rules (MS-28, MS-33). Derive and validate its glob as under
 [Deriving the glob](#deriving-the-glob). Only procedure goes there: a constraint ("never", "always",
 a convention to hold) stays a rule, because a skill is invoked or matched, not held. A hard-deny
 candidate stays put whatever the destination.
@@ -120,7 +117,8 @@ file conventions, migration file conventions. Cross-cutting by nature.
 a module, package, or subtree regardless of file type: "the billing service owns its own retry
 policy", "everything under `infra/` is applied by CI, never locally". Write the shim wherever a
 `CLAUDE.md` on that directory's own path, the repository root's included, would be read instead of
-the new `AGENTS.md`, per `verified-mechanics.md` finding 3. It is exactly one line:
+the new `AGENTS.md` (MS-17, MS-18, MS-19), per `verified-mechanics.md` finding 3. It is exactly one
+line:
 
 ```markdown
 @AGENTS.md
@@ -169,9 +167,9 @@ Validation gates every derived glob:
   Code reports nothing when that happens.
 - **Is not over-broad.** A glob matching effectively the whole repo (`**/*`, or a match set within a
   small margin of the tracked-file count) is a demotion that saves nothing while adding a surface.
-- **Stays inside the brace budget**: 1,000 expanded patterns and 4 MiB across the rule's whole
-  `paths:` list. Over budget, the pattern is used unexpanded and matches nothing.
-- **Has valid bracket expressions.** An unbalanced `[` silently matches nothing.
+- **Stays inside the brace budget** across the rule's whole `paths:` list (MS-22). Over budget, the
+  pattern is used unexpanded and matches nothing (MS-23).
+- **Has valid bracket expressions.** An unbalanced `[` silently matches nothing (MS-24).
 
 Prefer the narrowest glob that covers the content's real scope. Breadth is not safety here: an
 over-broad glob loads the content constantly, which is the cost the move exists to avoid.
@@ -202,10 +200,14 @@ contributor guide into a rule creates two statements that drift. Resolve it per 
 Every recommendation states its cost alongside its benefit. A proposal that names only the saving is
 incomplete, and the operator cannot gate what they cannot see.
 
-State, for each candidate: the destination and its trigger; roughly what leaves the always-loaded
-budget; that the content is not inherited by a subagent and announces itself nowhere, so it arrives
-only once Claude works with a covered path in some context or reaches it through the index; and,
-for path-scoped destinations, that it returns after compaction only when its trigger fires again.
+State, for each candidate: the destination and its trigger (MS-2, MS-5, MS-19); roughly what
+leaves the always-loaded budget, which is nothing for an unscoped rule (MS-4); that the content is
+not inherited by a subagent (`verified-mechanics.md` finding 4; MS-15 for what a subagent does not
+see) and announces itself nowhere, so it arrives only once Claude
+works with a covered path in some context or reaches it through the index; and, for deferred
+destinations, that it returns after compaction only when its trigger fires again (MS-7, MS-9).
+Each `MS-<n>` is a record in [`mechanics-sources.tsv`](mechanics-sources.tsv), described in
+[`verified-mechanics.md`](verified-mechanics.md#pointer-records).
 
 ## What this rubric does not decide
 

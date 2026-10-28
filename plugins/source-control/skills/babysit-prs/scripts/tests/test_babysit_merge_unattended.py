@@ -1492,7 +1492,26 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+        # No `labels-absent` list in the config: the human-gated label holds.
+        self.assertEqual(
+            self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
+        )
+
+    def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
+        # #7783: a hold the issue gained since eligibility stops the enqueue.
+        self.closing_issue_now(["needs-human"])
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:closing-issue-held:needs-human",
+            out["blockers"],
+        )
+
+    def test_the_configured_hold_list_reaches_the_enqueue_recheck(self) -> None:
+        holds = ("needs-human", "status: needs-info")
+        self.config = dataclasses.replace(self.config, issue_holds=holds)
+        self.lane()
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41, "holds": holds})
 
     def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
@@ -5650,6 +5669,19 @@ class AdoptionHoldLabel(unittest.TestCase):
         label = mock.Mock(side_effect=AssertionError)
         assess = self.run_assess(policy.LOCAL_BABYSIT, label)
         self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+    def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
+        self,
+    ) -> None:
+        # A shared answer past the unverified age is kept only on the
+        # post-merge check's own verifying-run proof, for this repository.
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
+        runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
+        with mock.patch.object(
+            postmerge, "pending_runs_unchanged", return_value=True
+        ) as proof:
+            self.assertTrue(runs_unchanged(mock.sentinel.answer, "main"))
+        proof.assert_called_once_with("o/r", mock.sentinel.answer, "main")
 
 
 if __name__ == "__main__":
