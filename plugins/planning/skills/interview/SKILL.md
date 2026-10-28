@@ -480,7 +480,7 @@ Read [`context/routing.md`](context/routing.md) at entry and at every round boun
 ## Next
 
 - Contract locked: /planning:design, which records a one-line early exit when no design question is open.
-- A branch defers to another person's decision, or quickly accepted answers want a fresh-context check: /planning:questionnaire or /planning:audit-answers.
+- Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 

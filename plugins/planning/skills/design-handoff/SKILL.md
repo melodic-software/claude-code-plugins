@@ -157,7 +157,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   candidate (never for a near-miss), passing the decision and its recorded rationale from
   `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer,
   and the write. Otherwise list them under an "ADR candidates" heading for the human to record by
-  hand. The offer never blocks the handoff
+  hand. The offer never blocks the handoff: it runs beside the next step, not in place of it
 - Deferred research items with tags
 - Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)
@@ -188,7 +188,6 @@ table stays in the emitted output and is never written to disk.
 ## Next
 
 - The gate passed: /planning:plan, reading the plan-ready summary and PLAN.md's `## Design`.
-- A resolved decision is an ADR candidate: /architecture:record-decision, before the plan.
 - The gate failed: /planning:design.
 
 ## Gotchas
