@@ -8,17 +8,19 @@
 // request counts as it is, one on its linked issue (closing, else `Refs:`)
 // only when it names `#<number>`. It covers the head it decided, the sha of the
 // newest cost hold notice a review lane's status job recorded before it on a
-// run vetted not to change a review-lane workflow (#9635), and a later head
+// run vetted not to change a review-lane workflow (#9635), while the head
+// branch's push history shows a run of every lane on each head pushed since
+// it before the decision (#10437), and a later head
 // only when the net change against the base branch is the same at both (owner
 // decisions Q17 c and Q18 d on #9436).
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -40,6 +42,18 @@ const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "
   created,
   notes: [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${notice} criteria=${criteria} label=needs-human` }],
 });
+// The head branch's history as the repository activity API lists it, newest
+// first: a push of `after` at `timestamp`.
+const push = (after, timestamp) => ({ after, timestamp, activity_type: "push", ref: "refs/heads/fix/cost" });
+const newestFirst = (moves) => [...moves].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+// By default each run's head was pushed five minutes before its first status
+// job finished.
+const pushesOf = (runs) =>
+  newestFirst(
+    Object.entries(
+      runs.reduce((first, run) => ({ ...first, [run.sha]: Math.min(first[run.sha] ?? Infinity, Date.parse(run.at)) }), {}),
+    ).map(([sha, at]) => push(sha, new Date(at - 300_000).toISOString())),
+  );
 // A compare answer: the pull request's files against the base.
 const TF = { filename: "infra/main.tf", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const net = (...files) => ({ files });
@@ -70,10 +84,18 @@ function world({
   runs = [laneRun(HEAD)],
   compares = {},
   base = "main",
+  activity = pushesOf(runs),
 } = {}) {
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
   const github = async (method, path, body) => {
+    if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
+      reads.push("activity");
+      if (fail === "activity") {
+        throw new Error("activity failed");
+      }
+      return activity;
+    }
     const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
     const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     const jobs = /^\/repos\/owner\/repo\/actions\/runs\/([0-9]+)\/jobs\?filter=all&per_page=100&page=1$/.exec(path);
@@ -153,6 +175,7 @@ test("an owner decision on the closing issue, linked from the body, clears the c
     "jobs 1",
     "notes 1",
     "runs pr-review-security-hosted.yml",
+    "activity",
   ]);
 });
 
@@ -264,7 +287,7 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
 // each written as given (a string as it is), `evidence` left out when undefined.
 function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
+  const dir = tempDir("merge-holds-");
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
@@ -500,7 +523,7 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-3), ["runs pr-review-security-hosted.yml", `compare ${OLD}`, `compare ${HEAD}`]);
+  assert.deepEqual(commit.reads.slice(-3), ["activity", `compare ${OLD}`, `compare ${HEAD}`]);
 });
 
 test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
@@ -645,6 +668,63 @@ test("a lane run on a head that changes a review-lane workflow, or whose compare
     const mixed = await decide(undefined, { runs: [laneRun(OLD, "2026-10-22T10:40:00Z"), laneRun(HEAD)], compares: { [OLD]: answer } });
     assert.equal(mixed.link, null, name);
   }
+});
+
+// #10437: a deleted lane run of a head pushed after the decided head, before
+// the decision, would make an older notice the decided head. The branch's
+// push history, which deleting a run leaves, shows that head, and it must
+// have a run of every review lane started before the decision.
+test("a head pushed between the decided head and the decision with no run of every lane keeps the hold", async () => {
+  const NEW = "1111111111111111111111111111111111111111";
+  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
+  const history = (...moves) => newestFirst([push(OLD, "2026-10-22T10:25:00Z"), ...moves]);
+  const plain = (sha, lane) => laneRun(sha, "2026-10-22T11:20:00Z", { criteria: "trust-gate", lane, created: "2026-10-22T11:12:00Z" });
+  const carried = (runs, activity, options = {}) => decide(undefined, { runs: [laneRun(OLD), ...runs], compares: same, activity, ...options });
+  // No deletion: both lanes ran on the newer head, which noticed no cost.
+  const both = [plain(NEW, "pr-review-hosted.yml"), plain(NEW, "pr-review-security-hosted.yml")];
+  assert.equal((await carried(both, history(push(NEW, "2026-10-22T11:10:00Z")))).link, LINK);
+  // A head pushed after the decision needs no run here.
+  assert.equal((await carried([], history(push(NEW, "2026-10-22T12:10:00Z")))).link, LINK);
+  for (const [name, runs] of Object.entries({
+    "both lanes' runs deleted": [],
+    "the code lane's run deleted": [plain(NEW, "pr-review-security-hosted.yml")],
+    "the security lane's run deleted": [plain(NEW, "pr-review-hosted.yml")],
+    "a run started only after the decision": both.map((run) => ({ ...run, created: "2026-10-22T12:05:00Z" })),
+    "a run whose head is in another repository": both.map((run) => ({ ...run, repo: "fork/repo" })),
+  })) {
+    const kept = await carried(runs, history(push(NEW, "2026-10-22T11:10:00Z")));
+    assert.equal(kept.link, null, name);
+    assert.ok(kept.reads.includes("activity"), name);
+  }
+  // Pushing the decided head again after the decision makes it the head: the
+  // gap before the decision still keeps the hold.
+  const back = history(push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T12:30:00Z"));
+  assert.equal((await carried([], back, { head: OLD })).link, null);
+  // A history that shows no push of the decided head before the decision, a
+  // full page that may not reach it, or a read that fails keeps the hold.
+  assert.equal((await carried(both, [push(NEW, "2026-10-22T11:10:00Z")])).link, null);
+  assert.equal((await carried(both, [push(OLD, "2026-10-22T12:30:00Z")])).link, null);
+  const full = newestFirst([...Array.from({ length: 99 }, (_, i) => push(NEW, new Date(Date.parse("2026-10-22T12:10:00Z") + i * 1000).toISOString())), push(OLD, "2026-10-22T10:25:00Z")]);
+  assert.equal((await carried(both, full)).link, null);
+  assert.equal((await carried(both, full.slice(1))).link, LINK);
+  assert.equal((await carried(both, history(), { fail: "activity" })).link, null);
+  assert.equal((await carried(both, { message: "Not Found" })).link, null);
+});
+
+test("unranHead names the first head pushed after the decided head with no run of every lane", () => {
+  const NEW = "1111111111111111111111111111111111111111";
+  const at = "2026-10-22T12:00:00Z";
+  const moves = [push(NEW, "2026-10-22T11:10:00Z"), { ...push("0".repeat(40), "2026-10-22T11:05:00Z"), activity_type: "branch_deletion" }, push(OLD, "2026-10-22T10:25:00Z")];
+  assert.equal(unranHead(moves, [[OLD, NEW], [NEW]], OLD, at), null);
+  assert.match(unranHead(moves, [[OLD], [NEW]], OLD, at), new RegExp(NEW));
+  assert.match(unranHead(moves, [[OLD, NEW]], OLD, at), /every review lane/);
+  assert.match(unranHead(moves, null, OLD, at), /every review lane/);
+  assert.match(unranHead(moves, [[NEW], [NEW]], HEAD, at), /no push of/);
+  assert.match(unranHead(moves, [[NEW], [NEW]], OLD, "not a time"), /no push of/);
+  assert.match(unranHead([{ after: NEW, timestamp: "soon" }, ...moves], [[NEW], [NEW]], OLD, at), /unreadable/);
+  assert.match(unranHead("nope", [[], []], OLD, at), /unreadable/);
+  // Only the moves after the decided head's last push before the decision count.
+  assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
 });
 
 test("laneChange, costNotices and decidedHead", () => {

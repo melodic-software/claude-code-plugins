@@ -890,7 +890,7 @@ one page view's record, counted as `dropped`. In one on one the host knows who t
 these totals are that guest's: what keeps them unlinked is that they carry no pid, fingerprint,
 browser or page view, and no time but the session's end. A one-guest session's counts are kept
 only while its held batch is under 100,000 bytes, pairs included; past that a summary is dropped
-whole, and a crash or `share.sh stop` on Windows (below) loses them all.
+whole, and a crash or a server that `share.sh stop` has to force-end on Windows (below) loses them all.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
@@ -907,7 +907,11 @@ joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for
 wrong type, 400 `too-long`, and 429 `slow-down` past 20 faults or 6 summaries a minute from one
 person (two buckets, so neither starves the other). A summary the server takes has no `request`
 entry; a refused one has one with no pid. The server holds taken summaries in memory until their
-batch: a crash loses them, and so does `share.sh stop` on Windows, which ends the process at once.
+batch: a crash loses them. `share.sh stop` and `restart` first ask the server to shut down
+(`POST /api/shutdown` on the control listener), and that shutdown writes the held batch on every
+OS. A server that refuses or is still running 15 seconds later is force-ended. On POSIX that is
+TERM, which runs the same shutdown, then KILL 5 seconds later. On Windows it ends the process at
+once, before it writes anything, so a force-end there loses what the server held.
 
 `share.sh logs --summary` (add `--json` for one JSON line, `--since MINUTES` to narrow) adds the
 log up: the top 10 error fingerprints with counts, first and last seen (`firstSeen`, `lastSeen`,
@@ -1120,7 +1124,9 @@ Windows, macOS and Linux. Process start, liveness and stop go through `detached.
 CREATE_NEW_PROCESS_GROUP` (breaking away from the caller's job when allowed), `OpenProcess` and
 `GetExitCodeProcess`, and the guest port is bound with `SO_EXCLUSIVEADDRUSE`. A recorded pid
 counts only while its command line (POSIX) or executable (Windows) names the expected program, so
-a pid the OS reused is never stopped. Detached children start in the data folder.
+a pid the OS reused is never stopped. Windows has no TERM (Python's `os.kill` ends the process at
+once), so `share.sh stop` and `restart` ask the server to shut down through its control listener
+first and force-end it only when it does not. Detached children start in the data folder.
 
 File modes are 0600 where the OS has them. Windows has none here, so `ensure-running` and the
 server refuse (exit 1) a data folder outside `%USERPROFILE%`, whose inherited access limits it to

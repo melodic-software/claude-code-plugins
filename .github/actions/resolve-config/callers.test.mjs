@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -27,6 +26,10 @@ import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trus
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+// The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
+process.env.TMPDIR = tempDir("callers-tmp-");
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const workflow = (name) => parse(read(`../../workflows/${name}`));
@@ -347,7 +350,7 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
 
   const bots = gate.steps.find((step) => step.id === "bots");
   assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
-  const dir = mkdtempSync(join(tmpdir(), "bot-ids-"));
+  const dir = tempDir("bot-ids-");
   try {
     const ids = (lanesAppId) => {
       const output = join(dir, "output");
@@ -798,7 +801,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
   const step = pick.steps.find((s) => s.id === "slot");
-  const dir = mkdtempSync(join(tmpdir(), "slot-"));
+  const dir = tempDir("slot-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   const slotOf = (issue) => {
@@ -900,9 +903,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   const go = steps[index("go")];
   assert.equal(go.env.STALE, "${{ steps.workflow-current.outputs.stale }}");
   const decideGo = (env) => {
-    const dir = mkdtempSync(join(tmpdir(), "workflow-go-"));
-    after(() => rmSync(dir, { recursive: true, force: true }));
-    const out = join(dir, "out");
+    const out = join(tempDir("workflow-go-"), "out");
     writeFileSync(out, "");
     spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", ...env, GITHUB_OUTPUT: out } });
     return readFileSync(out, "utf8").trim();
@@ -920,7 +921,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
     assert.equal(evaluate(check.if, context), runs, `${issue || "no issue"} ${kind}`);
   }
 
-  const dir = mkdtempSync(join(tmpdir(), "workflow-current-"));
+  const dir = tempDir("workflow-current-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const base = join(dir, ".base");
   const git = (...args) => {
@@ -1210,7 +1211,7 @@ async function admitOn(sender, rerunner = sender) {
   const { jobs } = workflow("work-resolve-issue.yml");
   const gate = jobs.admit.steps.find((s) => s.id === "gate");
   const action = parse(read("../check-trusted-trigger/action.yml"));
-  const dir = mkdtempSync(join(tmpdir(), "admit-"));
+  const dir = tempDir("admit-");
   try {
     const eventPath = join(dir, "event.json");
     const output = join(dir, "output");
@@ -1764,7 +1765,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe and 30b251532b2e9f7e0c4215e1dee5be0d3c688743: lane.cjs:404-405; in cliArgs. A pin
+// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743 and 81a603a6e2b0319428c981bf28f3fe923032afb2: lane.cjs:404-405; in cliArgs. A pin
 // bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -1773,6 +1774,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
   "ba7af78d291f10bd75651857a0db2357c23df0fe",
   "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
+  "81a603a6e2b0319428c981bf28f3fe923032afb2",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -1800,7 +1802,7 @@ test("every run-claude-cli step pin in this repo's workflows is a launcher check
 test("pr-run-activity-read.yml: each launcher leg is followed by a check of the CLI's reported permission mode", (t) => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const at = (id) => steps.findIndex((s) => s.id === id);
-  const dir = mkdtempSync(join(tmpdir(), "mode-check-"));
+  const dir = tempDir("mode-check-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const copy = steps.find((s) => s.name === "Copy the patch collector and the output sealer from the base");
   assert.match(copy.run, /cp [^\n]*\.base\/\.github\/scripts\/read-patch\/check-permission-mode\.sh [^\n]*"\$DEST\/"/);
@@ -2386,7 +2388,7 @@ test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-
   const read = workflow("pr-run-activity-read.yml");
   const step = read.jobs.report.steps.find((s) => s.name === "Choose the head the check is posted on");
   const choose = (callerHead, runHead, postDecline = true) => {
-    const dir = mkdtempSync(join(tmpdir(), "w9207-"));
+    const dir = tempDir("w9207-");
     try {
       const output = join(dir, "output");
       writeFileSync(output, "");
@@ -2651,7 +2653,7 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
 async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {}, seed = {} } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
+  const root = tempDir("leak-scan-test-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
   const temp = join(root, "temp");
@@ -3136,7 +3138,7 @@ test("leak scan: an object planted under the name of the patch's blob never stan
 });
 
 test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's .git runs while the patch is collected or scanned", async (t) => {
-  const marks = mkdtempSync(join(tmpdir(), "leak-scan-marks-"));
+  const marks = tempDir("leak-scan-marks-");
   t.after(() => rmSync(marks, { recursive: true, force: true }));
   const mark = (name) => join(marks, name);
   const hook = (file, name) => {
@@ -3195,7 +3197,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
 // filter its .gitattributes names, an fsmonitor and a hook, each touching a
 // marker if git runs it.
 function plantedCheckout(t) {
-  const root = mkdtempSync(join(tmpdir(), "post-leg-git-"));
+  const root = tempDir("post-leg-git-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
   const temp = join(root, "temp");
@@ -3356,7 +3358,7 @@ function withInputs(step, values) {
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
 function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "carry-"));
+  const root = tempDir("carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
   const workspace = join(root, "workspace");
@@ -3440,7 +3442,7 @@ test("pr-run-activity-read.yml: a payload over its cap carries only its byte cou
 });
 
 test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "act-turns-"));
+  const root = tempDir("act-turns-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const stderr = (n) => ({ type: "user", message: { content: `<local-command-stderr>failure ${n}</local-command-stderr>` } });
   const messages = [1, 2, 3, 4, 5, 6].map(stderr).concat({ type: "result", subtype: "success", num_turns: 2, modelUsage: { m: {} } });
@@ -3468,7 +3470,7 @@ function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CA
   const base = steps.find((s) => s.id === "base");
   const ran = atStep(base.if, prRun(base.if, context, {}));
   if (!ran) return { ran, status: 0, log: "", output: "", env: "", dir: "" };
-  const temp = mkdtempSync(join(tmpdir(), "open-"));
+  const temp = tempDir("open-");
   t.after(() => rmSync(temp, { recursive: true, force: true }));
   const values = { "runner.temp": temp, "steps.key.outputs.id": CARRIER.keyId, "secrets.scan-carrier-private-key": privateText };
   for (const [name, expression] of Object.entries(step.with)) {
@@ -3779,7 +3781,7 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   const checked = job.steps.find((s) => s.id === "checked");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "false", "steps.prior.outcome": "skipped" }), true, "no claim needs no re-derive");
-  const root = mkdtempSync(join(tmpdir(), "issue-fields-"));
+  const root = tempDir("issue-fields-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const branch = "work-resolve-issue/issue-7-123-1";
   const tip = "c".repeat(40);
@@ -3997,7 +3999,7 @@ test("scan job: the verdict is built from the run job's checked outputs, never f
   for (const expression of Object.values(write.env).filter((value) => value.includes("needs.run.outputs."))) {
     assert.ok(decoded.has(expression), `${expression} is checked by the decode step`);
   }
-  const root = mkdtempSync(join(tmpdir(), "verdict-"));
+  const root = tempDir("verdict-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = {
     LANE: "pr-unblock",
@@ -4085,7 +4087,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned 30b251532b2e9f7e0c4215e1dee5be0d3c688743. cant-fail-ok: an external contract's value list.
+  // the pinned 81a603a6e2b0319428c981bf28f3fe923032afb2. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),
@@ -4140,7 +4142,7 @@ const OTHER = "f".repeat(40);
 
 // Runs the head step with the given env; returns its exit and outputs.
 function chooseHead(t, env) {
-  const root = mkdtempSync(join(tmpdir(), "report-head-"));
+  const root = tempDir("report-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = join(root, "github-output");
   writeFileSync(output, "");
@@ -4313,7 +4315,7 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   const signed = steps.find((s) => s.id === "signed");
   assert.equal(signed.with["pr-number"], "${{ steps.pr-head.outputs.number }}");
   // Stub gh: the PR's head.
-  const root = mkdtempSync(join(tmpdir(), "report-pr-"));
+  const root = tempDir("report-pr-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
   writeFileSync(join(root, "bin", "gh"), `#!/bin/sh\necho ${TRUSTED}\n`, { mode: 0o755 });
@@ -4349,7 +4351,7 @@ test("scan job: an empty default branch fails closed before the opener is checke
   assert.equal(assertStep.name, "Assert the default branch is set");
   assert.equal(assertStep.if, base.if, "runs whenever the checkout would");
   assert.equal(assertStep.env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
-  const root = mkdtempSync(join(tmpdir(), "scan-branch-"));
+  const root = tempDir("scan-branch-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const empty = runStep(assertStep, root, { DEFAULT_BRANCH: "" });
   assert.equal(empty.status, 1);
@@ -4941,7 +4943,7 @@ test("pr-run-activity-read.yml: the feedback context reaches the skill only as t
   }
   const head = "a".repeat(40);
   const runCheck = ({ threads = { pr: 42, head_sha: head }, run = '{"version":1}\n', extra = false, link = false, sha } = {}) => {
-    const dir = mkdtempSync(join(tmpdir(), "feedback-context-"));
+    const dir = tempDir("feedback-context-");
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const text = `${JSON.stringify(threads)}\n`;
     if (link) {
@@ -4979,7 +4981,7 @@ test("pr-run-activity-read.yml: the feedback context reaches the skill only as t
 // file in state/, which the collect-base-activity stage made before the copy.
 test("pr-run-activity-read.yml: the staged review-thread files are read-only and only state/ takes the replies file", (t) => {
   const step = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.name === "Stage the skill's files in the checkout");
-  const dir = mkdtempSync(join(tmpdir(), "stage-feedback-"));
+  const dir = tempDir("stage-feedback-");
   t.after(() => {
     spawnSync("chmod", ["-R", "u+w", dir]);
     rmSync(dir, { recursive: true, force: true });
@@ -5021,7 +5023,7 @@ test("pr-run-activity-read.yml: the replies leave the model job only for a revie
   assert.equal(repliesFile("ci-context"), "");
   assert.equal(repliesFile(""), "");
   assert.equal(repliesFile("review-threads"), "REPLIES_PATH");
-  const dir = mkdtempSync(join(tmpdir(), "carry-replies-"));
+  const dir = tempDir("carry-replies-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const carryWith = (bytes) => {
     const out = join(dir, `out-${bytes}`);
@@ -5083,7 +5085,7 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   }
   const script = steps.find((s) => s.id === "act-script");
   assert.equal(script.env.KEPT_THREADS_FILE, "${{ steps.patch-threads.outputs.file }}");
-  const dir = mkdtempSync(join(tmpdir(), "kept-threads-"));
+  const dir = tempDir("kept-threads-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, "threads.json");
   writeFileSync(file, '{"threads":[]}\n');
@@ -5117,7 +5119,7 @@ test("pr-run-activity-write.yml: apply-patch under the dependency-review row rea
     assert.equal(evaluate(step.if, context("")), false);
   }
   assert.equal(steps.find((s) => s.id === "act-script").env.DEPENDENCY_VERDICT, "${{ steps.patch-verdict.outputs.verdict }}");
-  const dir = mkdtempSync(join(tmpdir(), "patch-verdict-"));
+  const dir = tempDir("patch-verdict-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, "dependency-verdict.json");
   const runCheck = (text, sha = createHash("sha256").update(text).digest("hex")) => {
@@ -5621,7 +5623,7 @@ function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI
 // zero. Returns its exit, outputs, stdout and the arguments of each read.
 const HANDOFF_EVIDENCE = new URL("../../scripts/lib/handoff-evidence.sh", import.meta.url);
 function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "fix-ci-posted-"));
+  const root = tempDir("fix-ci-posted-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
   mkdirSync(join(root, ".base", ".github", "scripts", "lib"), { recursive: true });
@@ -6143,7 +6145,7 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   assert.equal(runs("true", TRUSTED), true);
   assert.equal(runs("true", ""), false, "a caller that gated no head, issue mode among them");
   assert.equal(runs("false", TRUSTED), false);
-  const root = mkdtempSync(join(tmpdir(), "gated-head-"));
+  const root = tempDir("gated-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const moved = runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
   assert.equal(moved.status, 1);
@@ -6477,7 +6479,7 @@ test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from t
   const launch = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.id === "launch");
   assert.equal(launch.env.TIMEOUT, "${{ inputs.timeout-minutes }}");
   const run = (timeout) => {
-    const dir = mkdtempSync(join(tmpdir(), "launch-timeout-"));
+    const dir = tempDir("launch-timeout-");
     const output = join(dir, "out");
     writeFileSync(output, "");
     const result = spawnSync("bash", ["-e", "-c", launch.run], {

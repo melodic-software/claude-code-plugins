@@ -9,6 +9,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REF="$SCRIPT_DIR/../../../reference/providers/github/pull-request/monitor.md"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$TEST_TMPDIR"
 
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"

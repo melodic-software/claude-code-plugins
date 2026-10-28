@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
@@ -482,7 +482,7 @@ const noActors = (dir) => {
 };
 
 test("main writes run-id and takes the upstream run from the event file", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   try {
     const output = join(dir, "output");
     writeFileSync(output, "");
@@ -546,7 +546,7 @@ async function verifyMain(dir, api, head = HEAD, record = null) {
 }
 
 test("a pr-verify run dispatches through the newest review run at the posted head", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const api = verifyApi();
   const asked = [];
@@ -568,7 +568,7 @@ test("a pr-verify run dispatches through the newest review run at the posted hea
 // A fork PR that pushed the same commit lists its review runs at the head too:
 // its newer run is passed over, not taken as the upstream and then refused.
 test("a pr-verify run dispatches through this repository's review run, not a fork's newer one", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const api = verifyApi();
   api.listCompletedRuns = async () => [
@@ -583,7 +583,7 @@ test("a pr-verify run dispatches through this repository's review run, not a for
 // An earlier round at the head (a no-model-turn skip, or one that answered
 // without pushing) handled the reviewer's threads, not the notes posted since.
 test("a pr-verify run dispatches past a check run and a handled record from before its notes", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const before = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", started_at: "2026-10-17T11:00:00Z", output: { title: "Skipped: no-model-turn" } };
   const record = join(dir, "record.json");
@@ -596,7 +596,7 @@ test("a pr-verify run dispatches past a check run and a handled record from befo
 });
 
 test("a pr-verify run does not dispatch twice: a check run started after it handles its notes", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T12:05:00Z" };
   const api = verifyApi({ checkRuns: [after] });
@@ -606,7 +606,7 @@ test("a pr-verify run does not dispatch twice: a check run started after it hand
 });
 
 test("a pr-verify run with no completed review run at the head dispatches nothing", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const api = verifyApi();
   api.listCompletedRuns = async () => [upstreamRun({ conclusion: "skipped" })];
@@ -621,7 +621,7 @@ test("a pr-verify run with no completed review run at the head dispatches nothin
 });
 
 test("an event file that holds no workflow run fails the run", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "event.json");
   writeFileSync(path, JSON.stringify({ action: "completed" }));
@@ -637,7 +637,7 @@ test("an event file that holds no workflow run fails the run", async (t) => {
 // The repository's GITHUB_TOKEN budget: a review of a PR the lanes App did not
 // open is the common case, and it needs only the PR list for the head.
 test("a review of a PR the lanes App did not open costs one API request", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const urls = [];
   const fetch = async (url) => {
@@ -946,7 +946,7 @@ for (const [label, options] of [
 }
 
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "feedback-dispatch-"));
+  const dir = tempDir("feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
@@ -1161,7 +1161,7 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
 }
 
 async function sweepMain(t, api, tick = TICK, now = undefined) {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -1465,7 +1465,7 @@ async function passMain(dir, api, env = { VERIFY_PASS_HEAD_SHA: HEAD }) {
 }
 
 test("a pr-verify pass with stale fail notes sends a pass-only round through the newest review run at its head", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
   const api = verifyApi({ threads: [], comments: [], checkRuns: [after] });
@@ -1477,7 +1477,7 @@ test("a pr-verify pass with stale fail notes sends a pass-only round through the
 });
 
 test("a pass-only round waits like any round: not while a run for the PR is going, nor on a held PR", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
   const busy = verifyApi({ workflowRuns: [going] });
@@ -1491,7 +1491,7 @@ test("a pass-only round waits like any round: not while a run for the PR is goin
 });
 
 test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   await assert.rejects(passMain(dir, verifyApi(), { VERIFY_HEAD_SHA: HEAD, VERIFY_PASS_HEAD_SHA: HEAD }), /exactly one/);
   await assert.rejects(passMain(dir, verifyApi(), {}), /VERIFY_HEAD_SHA/);

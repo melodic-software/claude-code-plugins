@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CHUNK, parsePublicKey, sealBundle } from "./seal.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ACTION = readFileSync(path.join(HERE, "action.yml"), "utf8");
@@ -22,8 +22,8 @@ function stepEnv(inputs) {
   return env;
 }
 
-function tempDir(t) {
-  const dir = mkdtempSync(path.join(tmpdir(), "seal-"));
+function sealDir(t) {
+  const dir = tempDir("seal-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -45,7 +45,7 @@ function runSeal(t, dir, inputs) {
 }
 
 test("the placeholder key, and any malformed key line, fails the step and seals nothing", (t) => {
-  const dir = tempDir(t);
+  const dir = sealDir(t);
   writeFileSync(path.join(dir, "reply.txt"), "hello\n");
   const good = publicLine();
   const [, id, key] = good.trim().split(" ");
@@ -69,7 +69,7 @@ test("the placeholder key, and any malformed key line, fails the step and seals 
 });
 
 test("a present payload seals into chunks one environment variable holds; absent and linked payloads are skipped", (t) => {
-  const dir = tempDir(t);
+  const dir = sealDir(t);
   writeFileSync(path.join(dir, "key.pub"), publicLine());
   writeFileSync(path.join(dir, "patch.diff"), crypto.randomBytes(262144));
   symlinkSync("/etc/hostname", path.join(dir, "link.txt"));
@@ -90,7 +90,7 @@ test("a present payload seals into chunks one environment variable holds; absent
 });
 
 test("a bundle over the chunks the caller carries fails the step", (t) => {
-  const dir = tempDir(t);
+  const dir = sealDir(t);
   writeFileSync(path.join(dir, "key.pub"), publicLine());
   writeFileSync(path.join(dir, "patch.diff"), crypto.randomBytes(CHUNK));
   const result = runSeal(t, dir, { "public-key-file": "key.pub", payloads: "patch.diff=patch.diff", "job-id": "run", "max-chunks": "1" });
@@ -99,7 +99,7 @@ test("a bundle over the chunks the caller carries fails the step", (t) => {
 });
 
 test("a bad payload name, a repeated name or a bad job id fails the step", (t) => {
-  const dir = tempDir(t);
+  const dir = sealDir(t);
   writeFileSync(path.join(dir, "key.pub"), publicLine());
   writeFileSync(path.join(dir, "a.txt"), "a");
   for (const [payloads, jobId] of [["../a.txt=a.txt", "run"], ["A.txt=a.txt", "run"], ["a.txt=a.txt\na.txt=a.txt", "run"], ["a.txt=a.txt", "run job"], ["a.txt=a.txt", ""]]) {
@@ -142,7 +142,7 @@ test("the read runner's payloads, each at its cap, seal into the chunks its run 
   assert.ok(seal, "the seal step");
   const names = seal[1].trim().split("\n").map((line) => line.trim().split("=")[0]);
   assert.deepEqual(names.toSorted(), Object.keys(caps).toSorted(), "every carried payload is sealed");
-  const dir = tempDir(t);
+  const dir = sealDir(t);
   writeFileSync(path.join(dir, "key.pub"), publicLine());
   for (const [name, cap] of Object.entries(caps)) writeFileSync(path.join(dir, name), crypto.randomBytes(cap));
   const sealOf = (payloads) =>

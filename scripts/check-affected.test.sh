@@ -525,6 +525,8 @@ check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 &&
 
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
+run -- --jobs 0
+check "a --jobs count below one is a usage error" '[[ $RC == 2 && $ERR == *"--jobs N"* ]]'
 run -- --base no-such-ref
 check "an unresolvable base is exit 2" '[[ $RC == 2 && $ERR == *"merge-base"* ]]'
 

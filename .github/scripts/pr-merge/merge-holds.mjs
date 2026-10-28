@@ -273,6 +273,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
+  [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
@@ -569,6 +570,46 @@ export function decidedHead(notices, at) {
   return heads.size === 1 ? [...heads][0] : null;
 }
 
+// Why the head branch's push history shows a lane run missing before a
+// decision made at `at`, else null (babysit_merge_policy.unran_head, and
+// ci-status's cost-hold step). `activity` is one page of the repository
+// activity API for the branch, newest first, which deleting a run leaves;
+// `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
+// `at`. Every head the branch moved to after its last push of `decided`
+// before `at` needs a run of every lane: with one deleted, an older notice
+// would become the decided head (#10437). No push of `decided` before `at`
+// or a full page, which may not reach it, keeps the hold too.
+export function unranHead(activity, ran, decided, at) {
+  if (!Array.isArray(activity)) {
+    return "the branch's push history is unreadable";
+  }
+  if (activity.length >= 100) {
+    return "the branch's push history fills a page";
+  }
+  if (!Array.isArray(ran) || ran.length !== REVIEW_LANES.length || !ran.every(Array.isArray)) {
+    return "the lane runs do not cover every review lane";
+  }
+  const moves = [];
+  for (const move of activity) {
+    const after = String(move?.after ?? "");
+    if (/^[0-9a-f]{40}$/.test(after) && !/^0{40}$/.test(after)) {
+      const made = Date.parse(move.timestamp);
+      if (!Number.isFinite(made)) {
+        return "the branch's push history is unreadable";
+      }
+      moves.push({ after, made });
+    }
+  }
+  const cutoff = Date.parse(at);
+  const before = moves.filter((m) => m.made < cutoff);
+  const last = Math.max(...before.filter((m) => m.after === decided).map((m) => m.made));
+  if (!Number.isFinite(last)) {
+    return `the branch shows no push of ${decided} before the decision`;
+  }
+  const gap = before.find((m) => m.after !== decided && m.made >= last && !ran.every((heads) => heads.includes(m.after)));
+  return gap ? `${gap.after} was pushed after the decided head with no run of every review lane before the decision` : null;
+}
+
 // Every item of the REST list at `path` whose answer holds it under `key`.
 async function listed(read, path, key) {
   const rows = [];
@@ -592,9 +633,10 @@ async function listed(read, path, key) {
 // repository's same-named branch speaks for another pull request), each
 // run's head vetted against
 // `base` (laneChange), its status job's cost notices (costNotices) from jobs
-// done before `at`, then decidedHead. A run on a head that fails the vet, or
-// a read that fails, decides nothing. `read` holds actions: read and
-// checks: read.
+// done before `at`, then decidedHead, kept only while the branch's push
+// history shows no lane run missing since the decided head (unranHead). A
+// run on a head that fails the vet, or a read that fails, decides nothing.
+// `read` holds contents: read, actions: read and checks: read.
 async function noticedHead(read, repo, branch, base, at) {
   const cutoff = Date.parse(at);
   if (!Number.isFinite(cutoff) || typeof branch !== "string" || !BRANCH.test(branch)) {
@@ -602,8 +644,11 @@ async function noticedHead(read, repo, branch, base, at) {
   }
   const notices = [];
   const vetted = new Set();
+  const ran = [];
   for (const [file, check] of REVIEW_LANES) {
     const runs = await listed(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
+    const heads = [];
+    ran.push(heads);
     for (const run of runs) {
       if (run?.head_repository?.full_name !== repo || !(Date.parse(run.created_at) < cutoff)) {
         continue;
@@ -612,6 +657,7 @@ async function noticedHead(read, repo, branch, base, at) {
       if (!/^[0-9a-f]{40}$/.test(head)) {
         return null;
       }
+      heads.push(head);
       if (!vetted.has(head)) {
         if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
           return null;
@@ -625,7 +671,12 @@ async function noticedHead(read, repo, branch, base, at) {
       }
     }
   }
-  return decidedHead(notices, at);
+  const decided = decidedHead(notices, at);
+  if (decided === null) {
+    return null;
+  }
+  const activity = await read("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
+  return unranHead(activity, ran, decided, at) === null ? decided : null;
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.

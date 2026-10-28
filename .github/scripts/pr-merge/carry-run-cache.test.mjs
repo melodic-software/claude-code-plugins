@@ -4,14 +4,14 @@
 // fail-head-ref, on-branch; babysit_merge*.py: the MAX_AGE-bounded and
 // credential-keyed ones); record shapes follow GET .../actions/runs/{id}.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { carry, main, read } from "./carry-run-cache.mjs";
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
 const NOW = Date.parse("2026-10-19T12:00:00+00:00");
@@ -148,7 +148,7 @@ test("drops an entry dated in the future, with no zone, or past the 90-day reten
 });
 
 test("carries file to file, and writes nothing when the file is missing or unreadable", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-"));
+  const dir = tempDir("carry-run-cache-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const from = join(dir, "from.json");
   const to = join(dir, "to.json");
@@ -194,7 +194,7 @@ const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
 // pr-merge-verify-run-cache file.
 async function readRun(t, { pages = [[]], files = {}, verify = {}, offMain = [], fail, planted, mainTag = false } = {}) {
   forgetMainTip();
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-read-"));
+  const dir = tempDir("carry-run-cache-read-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const to = join(dir, "pr-merge-carried.json");
   if (planted !== undefined) writeFileSync(to, planted);
@@ -377,7 +377,7 @@ test("read takes no verify file from an untrusted run or one off main", async (t
 });
 
 test("keep reports kept=true only when it kept a read", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-kept-"));
+  const dir = tempDir("carry-run-cache-kept-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const from = join(dir, "from.json");
   const output = join(dir, "output");
@@ -393,7 +393,7 @@ test("keep reports kept=true only when it kept a read", (t) => {
 // empty carried file beside its refusals; its enable-auto-merge reader fills
 // run-record and keeps it. The second tick starts its run cache warm.
 test("a second tick starts its run cache from the first tick's verifier reads", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-ticks-"));
+  const dir = tempDir("carry-run-cache-ticks-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));

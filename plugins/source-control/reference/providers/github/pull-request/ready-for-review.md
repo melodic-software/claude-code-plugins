@@ -121,13 +121,16 @@ when the count is above zero and unchanged across two polls, which keeps a late 
 flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
 assignment, which the flip block reads.
 
-`HEAD_SHA` is the local `git rev-parse HEAD`, the commit the verify gate recorded. GitHub's
+`HEAD_SHA` is the PR worktree's HEAD, the commit the verify gate recorded: `pr-worktree.sh`
+finds the worktree that has the PR's head branch checked out with the PR's head commit in its
+history, whichever checkout the shell sits in, and exits non-zero when none has. GitHub's
 `headRefOid` can lag a push by a read, so the block polls the PR's head until it equals `HEAD_SHA`, up to 60 seconds, instead of trusting the
-first read. A head that never matches (a peer push, a push that failed, a session whose HEAD is not
-the PR branch) leaves `HEAD_MATCH=0`, and the flip below refuses.
+first read. A head that never matches (a peer push, a push that failed, local commits never
+pushed) leaves `HEAD_MATCH=0`, and the flip below refuses.
 
 ```bash
-HEAD_SHA=$(git rev-parse HEAD) || exit 1
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1
+HEAD_SHA=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1
 HEAD_MATCH=0
 for _ in $(seq 12); do   # 12 polls x 5 s = 60 s
   [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] && { HEAD_MATCH=1; break; }

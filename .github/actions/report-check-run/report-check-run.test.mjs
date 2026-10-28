@@ -2,18 +2,17 @@ import assert from "node:assert/strict";
 import {
   cpSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
 import { main } from "./report-check-run.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_REL = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
@@ -25,7 +24,7 @@ const FALLBACK = "f".repeat(40);
 let dir;
 let basePath;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "report-check-run-"));
+  dir = tempDir("report-check-run-");
   basePath = path.join(dir, "base");
   mkdirSync(path.dirname(path.join(basePath, SCHEMA_REL)), { recursive: true });
   cpSync(LIVE_SCHEMA, path.join(basePath, SCHEMA_REL));
