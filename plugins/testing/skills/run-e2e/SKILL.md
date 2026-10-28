@@ -175,6 +175,14 @@ A step that reported success is checked the same way: the run reads the result b
 [context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) describes
 rather than trusting the app's success message.
 
+## Native step: run (bundled skill)
+
+On own driving, when no orchestrator governs the start and the app is not already running, the drive
+subagent launches through the bundled `run` skill when it resolves in this session.
+[context/own-driving.md § Native step](context/own-driving.md#native-step-run-bundled-skill) holds
+the identity check, the mutation fingerprint, the Already running table, the skip report and the
+result block. The drive route never invokes `run`: `/app-control:drive` launches.
+
 ## Worst-case content
 
 With `worst-case`, the Step 3 subagent renders `<target>` with the most demanding data a real user
