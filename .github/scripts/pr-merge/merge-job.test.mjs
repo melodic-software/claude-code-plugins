@@ -261,7 +261,7 @@ test("the listing fails with one clear error after three failed tries", () => {
 test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
   const block = step("Log the API budget at job end");
   assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
   assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);
@@ -1119,7 +1119,9 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\necho 2026-10-26T00:00:00Z\n`);
+    // The step reads through the wrapped gh, which asks for the headers (-i).
+    symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\nprintf 'HTTP/2.0 200 OK\\r\\n\\r\\n'\necho 2026-10-26T00:00:00Z\n`);
     writeFileSync(join(bin, "node"), `#!/usr/bin/env bash\necho "RUN_STARTED_AT=$RUN_STARTED_AT" >"${dir}/node"\n`);
     for (const file of ["gh", "node"]) chmodSync(join(bin, file), 0o755);
     const sweep = join(dir, "sweep.json");
@@ -1129,7 +1131,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep },
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
@@ -1305,7 +1307,7 @@ test("each candidate's check run is written by its own job, the only one holding
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
     writerSteps.map((s) => s.name),
-    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run", "Log the API budget at the end"],
   );
   assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
   for (const { name, block } of writerSteps.slice(2)) {

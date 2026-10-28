@@ -8,7 +8,8 @@
 # scripts/outside-node-packages.txt. That file is the package's own test
 # command, read from package.json "scripts.test". This script does not guess
 # node --test versus vitest. A package's `file:` dependency that has a lockfile
-# is installed (`npm ci`) before its tests run.
+# is installed (`npm ci`) before its tests run. Git reads a fixed test config in
+# place of the host's (scripts/lib/test-git-env.sh).
 #
 # --paths FILE is one repo-relative path per line (the suites affected-tests.sh
 # declined). A path is classified, not guessed:
@@ -26,6 +27,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+# shellcheck source=lib/test-git-env.sh
+. scripts/lib/test-git-env.sh
 
 PACKAGES_FILE="scripts/outside-node-packages.txt"
 EXCLUSIONS_FILE="scripts/outside-node-exclusions.txt"
@@ -98,7 +101,7 @@ run_package() {
   fi
   install_locked_deps "$pkg" || return 1
   echo "outside-node: npm test in $pkg ($test_cmd)"
-  (cd "$pkg" && npm test)
+  (test_git_env::isolate "$git_config" && cd "$pkg" && npm test)
 }
 
 # install_locked_deps <pkg>: `npm ci` each `file:` dependency of <pkg> that has
@@ -116,6 +119,8 @@ install_locked_deps() {
       | select(.value | startswith("file:")) | .value | ltrimstr("file:")' "$1/package.json" | tr -d '\r')
 }
 
+git_config=$(mktemp)
+trap 'rm -f "$git_config"' EXIT
 declare -A selected=() installed=()
 failed=0
 

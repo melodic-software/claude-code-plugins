@@ -152,6 +152,10 @@ expect() {
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
+  if [[ -n "${STUB_PIPELINE:-}" ]]; then
+    mkdir -p "$TMP_ROOT/base-config/docs/conventions"
+    printf '%s\n' "$STUB_PIPELINE" >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
+  fi
   local config="$TMP_ROOT/base-config"
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" STUB_NOW="${STUB_NOW_AT:-1792800000}" STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
@@ -201,6 +205,29 @@ expect "a hold comment from a person is not read" 1 1 "needs-human" 0 "" "Ignore
 expect "a github-actions[bot] hold comment with no lane footer is not read" 1 1 "needs-human" 0 "" "No lane footer"
 export STUB_COMMENTS="[$NEW,$OLD]"
 expect "a claude[bot] hold comment gives the reason" 1 1 "needs-human" 0 "(An older hold.). $APPROVE"
+# pr-merge's refusal (enable-auto-merge.mjs refusalBody), a person's: the
+# attend-queue marker, then the reasons marker, the reasons fenced. Newer
+# than the security hold, so it names the hold that set the label (#10224).
+APP='{"login":"melodic-automation-lanes[bot]","type":"Bot"}'
+REFUSAL_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\nit changes docs/held.md, a hold path\npr-merge\'s gate holds it on its risk score (cost-review-required: infra/main.tf)\n```'
+REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
+export STUB_COMMENTS="[$NEW,$REFUSAL]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
+expect "a newer pr-merge refusal beats an older security hold, naming its fenced reasons" 1 1 "needs-human" 0 \
+  "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
+export STUB_COMMENTS="[$REFUSAL,$NEW]"
+expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
+# A lane's refusal (no attend-queue marker) set no label, so a newer one
+# never names the hold that did.
+LANE_REFUSAL="$(hold "$APP" $'<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. The lanes clear this reason on their own; the next scheduled run judges it again.\n\n```text\nits verifier verdict is missing\n```\n<!-- pr-merge-unarmed-since head=bbbb at=2026-10-23T10:00:00Z -->')"
+export STUB_COMMENTS="[$NEW,$LANE_REFUSAL]"
+expect "a newer pr-merge lane refusal does not name the label's hold" 1 1 "needs-human" 0 "(Changes a trust gate:" "verdict is missing"
+export STUB_COMMENTS="[$NEW,$REFUSAL]"
+OTHER_REFUSAL="$(hold "$LANE" "$REFUSAL_BODY")"
+export STUB_COMMENTS="[$NEW,$OTHER_REFUSAL]"
+expect "a refusal-shaped comment by another bot is not read" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
+export STUB_COMMENTS="[$NEW,$REFUSAL]"
+unset STUB_PIPELINE
+expect "with merge.agent-identity unread, only the review lanes' holds are read" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
 LONG="$(printf 'x%.0s' {1..400})"
 STUB_COMMENTS="[$(hold "$CLAUDE" "<!-- claude-lane-hold lane=claude-review -->
 $LONG")]"

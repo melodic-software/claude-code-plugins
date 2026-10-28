@@ -3446,11 +3446,13 @@ def pending_runs_unchanged(
     *,
     now: datetime | None = None,
 ) -> bool:
-    """Whether `check` would judge `shared`'s unverified merges as it did:
-    no full or canary run on `branch` created since the earliest of them
-    completed or was re-run since `computed_at` (less
-    `policy.SINCE_CLOCK_MARGIN`; `_verifying_runs_unchanged`), none has
-    passed `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
+    """Whether `check` would judge `shared`'s merges as it did: no full or
+    canary run on `branch` created since the earliest of them, verified or
+    not (`_judge` reads a verified merge's runs from its `mergedAt`, and a
+    re-run keeps its creation time), completed or was re-run since
+    `computed_at` (less `policy.SINCE_CLOCK_MARGIN`;
+    `_verifying_runs_unchanged`), no unverified merge has passed
+    `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
     failure, and no quarantine that excused a failing suite has expired
     (`excusesExpireAt`; an answer without the field is False). Those are
     `_judge`'s time-based excuses. The listing reaches back to the earliest
@@ -3470,13 +3472,17 @@ def pending_runs_unchanged(
             excuse is not None and now >= _time(excuse)
         ):
             return False
+        created = min(
+            _time(m.get("mergedAt"))
+            for m in map(json_object, json_array(report.get("autoMerges")))
+        )
         outstanding = report["outstandingSince"]
         return _verifying_runs_unchanged(
             repo,
             branch,
-            created=earliest
+            created=created
             if outstanding is None
-            else min(earliest, _time(outstanding)),
+            else min(created, _time(outstanding)),
             since=shared.computed_at - policy.SINCE_CLOCK_MARGIN,
         )
     except PostMergeReadError:

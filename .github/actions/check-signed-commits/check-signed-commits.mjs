@@ -7,6 +7,11 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { SIGNED_COMMITS_HOLD } from "../../scripts/pr-unblock/gate-source.mjs";
+
+// The escalation comment's first line, which the lane fixers and
+// clear-escalations read as a hold (gate-source.mjs).
+export { SIGNED_COMMITS_HOLD };
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}$/;
@@ -63,6 +68,7 @@ function laneCommits(comparison, prCommits, prListComplete) {
 
 function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown, headConfirmed }) {
   const lines = [
+    SIGNED_COMMITS_HOLD,
     unverified.length > 0
       ? "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
         "pull request until a human reviews them."
