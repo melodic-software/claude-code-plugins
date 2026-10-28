@@ -6,9 +6,11 @@
 # WHAT IT ENFORCES — the declarative convention, where one is explicitly
 # tracked: the commit subject (first line of the canonical stdin-form message)
 # and the `gh pr create --title` value are validated against the POSIX-ERE
-# pattern resolved from the consumer's tracked `.claude/source-control.md` by
-# the vendored enforcement resolver (resolve-convention-pattern.sh — the
-# commit-convention seam, docs/conventions/commit-convention/). The sibling
+# pattern resolved from the consumer's tracked
+# `docs/conventions/source-control.yaml` (for one release, else the legacy
+# `.claude/source-control.md` surfaces) by the vendored enforcement resolver
+# (resolve-convention-pattern.sh — the commit-convention seam,
+# docs/conventions/commit-convention/). The sibling
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #
@@ -135,8 +137,8 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # `stat` process. Equal mtimes read as NOT newer, so a same-timestamp write
 # re-resolves rather than serving a stale pattern. That test alone is blind to a
 # dependency that DISAPPEARS: `-nt` against a missing file is true, so a cache
-# warmed while `.claude/source-control.md` (or the pointer target) existed would
-# keep enforcing a policy the team has since deleted, where the resolver now
+# warmed while `docs/conventions/source-control.yaml` (or a legacy file) existed
+# would keep enforcing a policy the team has since deleted, where the resolver now
 # answers no enforcement. So the entry also records every dependency with its
 # existence at warm time, and any recorded-as-existing dependency now missing,
 # or recorded-as-missing dependency now present (a higher-precedence file
@@ -145,12 +147,13 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # that sanitize to the same name cannot serve each other's patterns, and a
 # terminator line makes a truncated write read as a miss.
 #
-# RESIDUAL, deliberately not solved here: the resolver's well-known-path rung
-# only honors `docs/conventions/source-control/commit-convention.yml` when git
-# reports it TRACKED, and tracked status can change with no mtime change on any
-# file below. Such a change is picked up when any dependency is next written,
-# not at the moment of `git add`. Probing it would cost the `git ls-files` spawn
-# this cache exists to avoid.
+# RESIDUAL, deliberately not solved here: the resolver honors
+# `docs/conventions/source-control.yaml` and the well-known
+# `docs/conventions/source-control/commit-convention.yml` only when git reports
+# them TRACKED, and tracked status can change with no mtime change on any file
+# below. Such a change is picked up when any dependency is next written, not at
+# the moment of `git add`. Probing it would cost the `git ls-files` spawn this
+# cache exists to avoid.
 
 SUBJECT_ERE=""
 TITLE_ERE=""
@@ -160,7 +163,7 @@ SUBJECT_DIAG=""
 TITLE_DIAG=""
 CONV_LOADED=0
 
-# An explicit `## convention_source` H2 names a third file the resolver reads.
+# An explicit `## convention_source` H2 names one more file the resolver reads.
 # Scanned with bash builtins, never a process: the whole point here is that the
 # hit path spawns nothing. Reading the pointer wrong can only DELAY an
 # invalidation until the team file itself changes, never enforce a pattern the
@@ -193,6 +196,7 @@ ensure_convention_patterns() {
   CONV_LOADED=1
   REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
   CONV_DEPS=(
+    "$REPO_ROOT/docs/conventions/source-control.yaml"
     "$REPO_ROOT/.claude/source-control.md"
     "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
   )
