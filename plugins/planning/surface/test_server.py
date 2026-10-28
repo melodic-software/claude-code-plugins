@@ -1771,7 +1771,7 @@ class TestQuestionState(WaitCase):
         self.assertFalse(rev["A"])
 
     def test_8_archived(self):
-        rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")
+        rc, out = self.rp_ops({"op": "archive", "ids": ["D"], "why": "Off the chosen path."})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["D"], "archived")
 
@@ -1790,7 +1790,7 @@ class TestTerminalStale(WaitCase):
         code, data = self.post({"id": "A", "kind": "accept"})
         self.assertEqual(code, 200, data)
         time.sleep(1.1)  # timestamps have one-second resolution
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states(), {"A": "open", "B": "open"})
         time.sleep(1.1)
@@ -1816,7 +1816,7 @@ class TestAnswered(WaitCase):
         self.assertEqual(self.answered()["A"], (False, "open"))
 
     def test_2_terminal_decision_is_answered_and_state_stays_open(self):
-        rc, out = self.rp("record-terminal", "A", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "A", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.answered()["A"], (True, "open"))
 
@@ -1943,8 +1943,8 @@ class TestConfirm(WaitCase):
         body = {"id": "A", "kind": "confirm", "alt": "0"}
         code, first = self.post(body)
         self.assertEqual(code, 200, first)
-        rc, out = self.rp(
-            "revise", "A", "--commit", "Third", "--commit", "Fourth", "--force"
+        rc, out = self.rp_ops(
+            {"op": "revise", "id": "A", "commits": ["Third", "Fourth"], "force": True}
         )
         self.assertEqual(rc, 0, out)
         code, data = self.post(body)
@@ -1959,7 +1959,7 @@ class TestConfirm(WaitCase):
             for q in self.state()["questions"]["questions"]
             if q["id"] == "A"
         )
-        rc, out = self.rp("revise", "A", "--commit", "Fifth", "--force")
+        rc, out = self.rp_ops({"op": "revise", "id": "A", "commits": ["Fifth"], "force": True})
         self.assertEqual(rc, 0, out)
         before = len(self.state()["responses"]["events"])
         code, data = self.post(
@@ -2351,14 +2351,14 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
         for qid in ("B", "C", "D"):
             self.decide(qid)
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Different.",
-            "--affects",
-            "C",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "C",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         self.assertEqual(
@@ -2380,14 +2380,14 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_3_none_still_marks_the_direct_dependents(self):
         self.decide("E")
         self.assertEqual(self.states()["E"], "open")
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Once more.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Once more.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         marks = self.marks()
@@ -2402,7 +2402,7 @@ class TestRecChangeMarksUpstream(OpsCase):
 
     def test_5_a_session_terminal_record_clears_it_like_any_stale_question(self):
         time.sleep(1.1)  # a terminal decision is placed by its one-second timestamp
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.marks()["B"], ("open", None))
 
@@ -2425,18 +2425,18 @@ class TestTerminalAnswerRightAfterARecChange(OpsCase):
         )
 
     def test_1_the_later_write_wins_the_tie(self):
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Different.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "stale")
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "open")
 
@@ -2458,11 +2458,12 @@ class TestRepointAndRevisedDependencies(OpsCase):
         self,
     ):
         self.decide("B")
-        rc, out = self.rp(
-            "add", "--id", "N", "--short", "S", "--title", "T?", "--rec", "Yes.",
-            "--commit", "none", "--alt", "a:No", "--alt", "b:Later",
-            "--supersedes", "A", "--repoint",
-        )  # fmt: skip
+        n = self.tmp / "add-n.json"
+        n.write_text(
+            json.dumps({**question("N", short="S", title="T?"), "commits": []}),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("add", "--file", str(n), "--supersedes", "A", "--repoint")
         self.assertEqual(rc, 0, out)
         self.assertIn("repointed B, C from A to N", out)
         self.assertEqual(self.states()["B"], "open")
@@ -2471,7 +2472,7 @@ class TestRepointAndRevisedDependencies(OpsCase):
 
     def test_2_a_revised_dependency_list_changes_what_goes_stale(self):
         self.decide("C")
-        rc, out = self.rp("revise", "C", "--depends", "none", "--force")
+        rc, out = self.rp_ops({"op": "revise", "id": "C", "dependsOn": [], "force": True})
         self.assertEqual(rc, 0, out)
         self.decide("N", "alt", alt="a")
         self.assertEqual(self.states()["C"], "open")
@@ -2716,7 +2717,7 @@ class TestFrontierLockConfirm(OpsCase):
 
     def test_2_it_stays_owed_after_the_dependency_is_dropped(self):
         self.decide("Q8", outOfOrder=["Q7"])
-        rc, out = self.rp("revise", "Q8", "--depends", "none")
+        rc, out = self.rp_ops({"op": "revise", "id": "Q8", "dependsOn": []})
         self.assertEqual(rc, 0, out)
         self.decide("Q7")
         self.assertEqual(self.states()["Q8"], "stale")
@@ -2889,7 +2890,9 @@ class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
         self.assertEqual(self.changed_by()["G"], ["F"])
 
     def test_7_reconfirm_clears_it_and_unlocks_save(self):
-        rc, out = self.rp("reconfirm", "C", "--why", "It does not turn on A's answer.")
+        rc, out = self.rp_ops(
+            {"op": "reconfirm", "ids": ["C"], "why": "It does not turn on A's answer."}
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["C"], "open")
         self.assertNotIn("C", self.changed_by())
@@ -2900,14 +2903,14 @@ class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
         )
         self.assertEqual(line["reviewSeq"], self.state()["responses"]["seq"])
         self.decide("C")
-        rc, out = self.rp("reconfirm", "C", "--why", "Again.")
+        rc, out = self.rp_ops({"op": "reconfirm", "ids": ["C"], "why": "Again."})
         self.assertNotEqual(rc, 0, out)
         self.assertIn("refused: C not upstream-changed", out)
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
 
     def test_8_a_revise_of_the_question_clears_it_too(self):
-        rc, out = self.rp("revise", "G", "--title", "Is G still right?")
+        rc, out = self.rp_ops({"op": "revise", "id": "G", "title": "Is G still right?"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["G"], "open")
         self.assertEqual(self.changed_by(), {"D": ["B"]})
@@ -2943,10 +2946,16 @@ class TestUpstreamChangedUnderLockOff(OpsCase):
         self.decide("A")
         self.decide("A", text="Same answer, with a note.")
         self.assertEqual(self.states()["B"], "open")
-        rc, out = self.rp(
-            "revise", "A", "--rec", "Different.", "--affects", "none",
-            "--keep-alternatives", "--force",
-        )  # fmt: skip
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "none",
+                "keepAlternatives": True,
+                "force": True,
+            }
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "open")  # a recommendation change marks no undecided question
         self.decide("A")

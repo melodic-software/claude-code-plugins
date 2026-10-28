@@ -1107,9 +1107,8 @@ class TestDeclaredDepends(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("dependsOn", err)
         self.assertEqual(self.q("Q4")["dependsOn"], [])
-        flags = ["--id", "Q5", "--short", "S", "--title", "T?", "--rec", "Yes."]
-        flags += ["--commit", "none", "--alt", "a:No", "--alt", "b:Later"]
-        rc, out, err = self.rp("add", *flags, "--depends", "none")
+        q = question("Q5", short="S", title="T?", recommendation="Yes.")
+        rc, out, err = self.rp("add", "--file", self.file("q5.json", q), "--depends", "none")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("dependsOn", err)
         self.assertEqual(self.q("Q5")["dependsOn"], [])
@@ -1187,31 +1186,15 @@ class TestRecChangeStampsPageSeq(DirCase):
         )  # fmt: skip
 
     def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
-        rc, out, err = self.rp(
-            "revise",
-            "Q1",
-            "--rec",
-            "New.",
-            "--affects",
-            "Q3",
-            "--force",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="New.", affects="Q3", force=True, keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
-        rc, out, err = self.rp(
-            "reply",
-            "Q1",
-            "--rec",
-            "Newer.",
-            "--affects",
-            "none",
-            "--force",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "reply", id="Q1", rec="Newer.", affects="none", force=True, keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
-        rc, out, err = self.rp(
-            "revise", "Q1", "--title", "Renamed?", "--affects", "Q3", "--force"
-        )
+        rc, out, err = self.op("revise", id="Q1", title="Renamed?", affects="Q3", force=True)
         self.assertEqual(rc, 0, out + err)
         lines = self.q("Q1")["history"][-3:]
         self.assertEqual([h.get("pageSeq") for h in lines], [4, 4, None])
@@ -1265,19 +1248,19 @@ class TestReconfirm(DirCase):
         self.assertEqual(rc, 0, out + err)
 
     def test_refusals_write_nothing(self):
-        out = self.assert_refused("reconfirm", "Q3", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q3"], why="Fine.")
         self.assertIn("refused: Q3 not upstream-changed; nothing to reconfirm", out)
-        out = self.assert_refused("reconfirm", "Q2", "Q3", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q2", "Q3"], why="Fine.")
         self.assertIn("refused: Q3 not upstream-changed", out)
-        out = self.assert_refused("reconfirm", "Q2", "--why", "  ")
+        out = self.op_refused("reconfirm", ids=["Q2"], why="  ")
         self.assertIn("refused: reconfirm needs a why", out)
-        out = self.assert_refused("reconfirm", "Q9", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q9"], why="Fine.")
         self.assertIn("unknown question: Q9", out)
         ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"]}]}
         self.assert_refused("apply", "--file", self.file("ops.json", ops))
 
     def test_a_revise_line_carries_review_seq_and_clears_it(self):
-        rc, out, err = self.rp("revise", "Q2", "--title", "Still the question?")
+        rc, out, err = self.op("revise", id="Q2", title="Still the question?")
         self.assertEqual(rc, 0, out + err)
         line = self.q("Q2")["history"][-1]
         self.assertEqual((line["kind"], line["reviewSeq"]), ("revise", 2))
@@ -1303,10 +1286,8 @@ class TestSupersedeRepoint(DirCase):
         self.write_doc(doc)
 
     def add(self, *extra):
-        return self.rp(
-            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
-            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1", *extra,
-        )  # fmt: skip
+        q = question("Q6", short="S", title="T?", recommendation="Yes.")
+        return self.rp("add", "--file", self.file("q6.json", q), "--supersedes", "Q1", *extra)
 
     def test_without_the_flag_it_only_names_the_dependents(self):
         rc, out, err = self.add()
@@ -1587,10 +1568,8 @@ class TestStatusLive(DirCase):
             return answered, next(r[1] for r in rows if r[0] == "- Q1")
 
         self.assertEqual(counts(), (1, "answered"))
-        rc, out, err = self.rp(
-            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
-            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1",
-        )  # fmt: skip
+        q = question("Q6", short="S", title="T?", recommendation="Yes.")
+        rc, out, err = self.rp("add", "--file", self.file("q6.json", q), "--supersedes", "Q1")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(counts(), (0, "withdrawn"))
 
@@ -2675,13 +2654,13 @@ class TestClaudeActivity(DirCase):
     def test_cli_writes(self):
         for args in (
             ("bump",),
-            ("group", "g3", "--title", "T"),
+            ("apply", "--file", self.ops_file("group", {"id": "g3", "title": "T"})),
             ("handle", "--seq", "1"),
         ):
             rc, out, err = self.rp(*args)
             self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.entries(), [])
-        rc, out, err = self.rp("reply", "Q1", "--text", "Because.")
+        rc, out, err = self.op("reply", id="Q1", text="Because.")
         self.assertEqual(rc, 0, out + err)
         [e] = self.entries()
         self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
@@ -2692,7 +2671,7 @@ class TestClaudeActivity(DirCase):
         self.apply({"op": "reply", "id": "Q1", "text": "Because."})
         self.assertIs(self.entries()[-1].get("waits"), True)
         self.assertNotIn("revised", self.entries()[-1])
-        rc, out, err = self.rp("revise", "Q1", "--rec", "Do it now.", "--affects", "none", "--keep-alternatives", "--force")
+        rc, out, err = self.op("revise", id="Q1", rec="Do it now.", affects="none", keepAlternatives=True, force=True)  # fmt: skip
         self.assertEqual(rc, 0, out + err)
         self.assertIs(self.entries()[-1].get("revised"), True)
         self.assertNotIn("waits", self.entries()[-1])
@@ -2702,7 +2681,7 @@ class TestClaudeActivity(DirCase):
         self.assertNotIn("asks", self.entries()[-1])
         self.apply({"op": "note-reply", "needsAnswer": True, "text": "Anything else?"})
         self.assertIs(self.entries()[-1].get("asks"), True)
-        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        rc, out, err = self.op("note-reply", text="Which one?", needsAnswer=True)
         self.assertEqual(rc, 0, out + err)
         self.assertIs(self.entries()[-1].get("asks"), True)
 
@@ -2713,7 +2692,7 @@ class TestClaudeActivity(DirCase):
         )
         [e] = self.entries()
         self.assertEqual((e["ids"], e.get("notes")), (["Q1"], True))
-        rc, out, err = self.rp("note-reply", "--text", "Again.")
+        rc, out, err = self.op("note-reply", text="Again.")
         self.assertEqual(rc, 0, out + err)
         e = self.entries()[-1]
         self.assertIs(e.get("notes"), True)
@@ -2746,15 +2725,11 @@ class TestRecordTerminal(DirCase):
     """record-terminal --decision alt takes only a key from the question's alternatives."""
 
     def test_unknown_alt_key_is_refused(self):
-        out = self.assert_refused(
-            "record-terminal", "Q1", "--decision", "alt", "--alt", "z"
-        )
+        out = self.op_refused("record-terminal", id="Q1", decision="alt", alt="z")
         self.assertIn("alternatives", out)
 
     def test_known_alt_key_is_recorded(self):
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "alt", "--alt", "b"
-        )
+        rc, out, err = self.op("record-terminal", id="Q1", decision="alt", alt="b")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
@@ -2763,14 +2738,12 @@ class TestRecordTerminalHedged(DirCase):
     """record-terminal --decision hedged carries its condition in --text, one line."""
 
     def test_a_condition_is_required_and_capped_at_a_line(self):
-        for extra in ([], ["--text", "  "], ["--text", "x" * 501]):
-            self.assert_refused("record-terminal", "Q1", "--decision", "hedged", *extra)
+        for extra in ({}, {"text": "  "}, {"text": "x" * 501}):
+            self.op_refused("record-terminal", id="Q1", decision="hedged", **extra)
         self.assertNotIn("terminal", self.q("Q1"))
 
     def test_a_hedged_answer_is_recorded_and_validates(self):
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "hedged", "--text", "if cheap"
-        )
+        rc, out, err = self.op("record-terminal", id="Q1", decision="hedged", text="if cheap")
         self.assertEqual(rc, 0, out + err)
         t = self.q("Q1")["terminal"]
         self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
@@ -2803,7 +2776,7 @@ class TestReplyResolution(DirCase):
 
     def test_the_resolution_is_bound_to_the_answer_it_resolves(self):
         self.answer("own")
-        rc, out, err = self.rp("reply", "Q1", "--resolution", "2.0 s or less at p75")
+        rc, out, err = self.op("reply", id="Q1", resolution="2.0 s or less at p75")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(
             {k: v for k, v in self.q("Q1")["resolution"].items() if k != "at"},
@@ -2824,27 +2797,23 @@ class TestReplyResolution(DirCase):
             with self.subTest(kind=kind):
                 if kind:
                     self.answer(kind)
-                out = self.assert_refused("reply", "Q1", "--resolution", "x")
+                out = self.op_refused("reply", id="Q1", resolution="x")
                 self.assertIn("no counted own answer", out)
 
     def test_a_revised_recommendation_cannot_carry_one(self):
         self.answer("own")
-        out = self.assert_refused(
-            "reply", "Q1", "--resolution", "x", "--rec", "y", "--affects", "none"
-        )
+        out = self.op_refused("reply", id="Q1", resolution="x", rec="y", affects="none")
         self.assertIn("not both", out)
 
     def test_an_empty_resolution_is_refused(self):
         self.answer("own")
-        self.assertIn(
-            "needs text", self.assert_refused("reply", "Q1", "--resolution", " ")
-        )
+        self.assertIn("needs text", self.op_refused("reply", id="Q1", resolution=" "))
 
 
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
-    REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
+    REC = {"rec": "Use the lock.", "affects": "none", "keepAlternatives": True}
     CLOSED = "First group: 1 of 2 live answered; open: Q2 Short Q2"
     OPEN = "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2"
 
@@ -2876,7 +2845,7 @@ class TestReviseSetsAsideOwn(DirCase):
     def test_revise_rec_sets_the_own_answer_aside(self):
         self.answer("own", "what are the patterns?")
         self.assertIn(self.CLOSED, self.status())
-        rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+        rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q1")
         self.assertEqual(q["setAsideSeq"], 1)
@@ -2888,9 +2857,7 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_reply_rec_sets_the_own_answer_aside(self):
         self.answer("own", "what are the patterns?")
-        rc, out, err = self.rp(
-            "reply", "Q1", "--text", "See below.", *self.REC, "--seq", "1"
-        )
+        rc, out, err = self.op("reply", id="Q1", text="See below.", **self.REC, seq=1)
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["setAsideSeq"], 1)
         self.assertIsNone(self.latest())
@@ -2898,17 +2865,15 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_reply_without_rec_and_revise_without_rec_keep_the_answer(self):
         self.answer("own", "what are the patterns?")
-        self.assertEqual(self.rp("reply", "Q1", "--text", "Noted.", "--seq", "1")[0], 0)
-        self.assertEqual(
-            self.rp("revise", "Q1", "--title", "Renamed?", "--seq", "1")[0], 0
-        )
+        self.assertEqual(self.op("reply", id="Q1", text="Noted.", seq=1)[0], 0)
+        self.assertEqual(self.op("revise", id="Q1", title="Renamed?", seq=1)[0], 0)
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
     def test_accept_and_alt_answers_are_not_set_aside(self):
         for kind in ("accept", "alt"):
             self.answer(kind)
-            rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
@@ -2943,10 +2908,8 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_a_terminal_own_record_after_the_revision_counts(self):
         self.answer("own", "what are the patterns?")
-        self.assertEqual(self.rp("revise", "Q1", *self.REC, "--seq", "1")[0], 0)
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "own", "--text", "the patterns"
-        )
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="own", text="the patterns")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.latest()["decision"], "own")
         self.assertEqual(self.latest()["text"], "the patterns")
@@ -2986,7 +2949,7 @@ class TestArchive(DirCase):
     """AC20 server side: archive sets archived {why, at}, never state."""
 
     def test_archive_sets_archived_and_a_history_line(self):
-        rc, out, err = self.rp("archive", "Q2", "Q3", "--why", "Off the chosen path.")
+        rc, out, err = self.op("archive", ids=["Q2", "Q3"], why="Off the chosen path.")
         self.assertEqual(rc, 0, out + err)
         for qid in ("Q2", "Q3"):
             q = self.q(qid)
@@ -3001,7 +2964,7 @@ class TestArchive(DirCase):
         rc, out, err = self.rp("apply", "--file", self.file("hold.json", hold))
         self.assertEqual(rc, 0, out + err)
         self.assertTrue(self.q("Q2")["waiting"])
-        rc, out, err = self.rp("archive", "Q2", "--why", "Re-issued.")
+        rc, out, err = self.op("archive", ids=["Q2"], why="Re-issued.")
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q2")
         for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
@@ -3013,14 +2976,14 @@ class TestArchive(DirCase):
         self.assertNotIn("waits on:", out)
 
     def test_archive_unknown_id_is_refused(self):
-        self.assert_refused("archive", "Q2", "Q9", "--why", "x")
+        self.op_refused("archive", ids=["Q2", "Q9"], why="x")
 
     def test_archive_needs_why(self):
-        rc, _, _ = self.rp("archive", "Q2")
+        rc, _, _ = self.op("archive", ids=["Q2"])
         self.assertNotEqual(rc, 0)
 
     def test_status_does_not_count_archived_as_answered(self):
-        self.rp("archive", "Q3", "--why", "Off path.")
+        self.op("archive", ids=["Q3"], why="Off path.")
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
@@ -3453,7 +3416,7 @@ class TestGroupSummaryOf(DirCase):
     """A group summary records the questions it was written for and warns when they change."""
 
     def add_group(self, summary):
-        rc, out, err = self.rp("group", "g3", "--title", "T", "--summary", summary)
+        rc, out, err = self.op("group", id="g3", title="T", summary=summary)
         self.assertEqual(rc, 0, out + err)
 
     def add(self, qid):
@@ -3718,11 +3681,11 @@ class TestReplyHintOnOwnAnswer(DirCase):
                 }
             ]
         )
-        rc, _, err = self.rp("reply", "Q1", "--text", "Two readings: 1 or 2.")
+        rc, _, err = self.op("reply", id="Q1", text="Two readings: 1 or 2.")
         self.assertEqual(rc, 0, err)
         self.assertIn("revise", err)
         self.assertIn("wait --by user", err)
-        _, _, err = self.rp("reply", "Q2", "--text", "plain")
+        _, _, err = self.op("reply", id="Q2", text="plain")
         self.assertNotIn("hint:", err)
 
 
@@ -3877,7 +3840,7 @@ class TestRoundTooling(DirCase):
     def test_revise_leaves_a_binary_question_one_alternative(self):
         q = question("Q4", binary=True, alternatives=[{"key": "a", "text": "No"}])
         self.rp("add-round", "--file", self.round_file(q))
-        rc, out, err = self.rp("revise", "Q4", "--alt", "a:Not now")
+        rc, out, err = self.op("revise", id="Q4", alternatives=["a:Not now"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(
             self.q("Q4")["alternatives"], [{"key": "a", "text": "Not now"}]
@@ -3983,7 +3946,7 @@ class TestRoundTooling(DirCase):
     def test_revise_refuses_two_alternatives_on_a_binary_question(self):
         q = question("Q4", binary=True, alternatives=[{"key": "a", "text": "No"}])
         self.rp("add-round", "--file", self.round_file(q))
-        out = self.assert_refused("revise", "Q4", "--alt", "a:No", "--alt", "b:Later")
+        out = self.op_refused("revise", id="Q4", alternatives=["a:No", "b:Later"])
         self.assertIn("a binary question has exactly 1", out)
 
     def test_check_says_what_it_would_add(self):
