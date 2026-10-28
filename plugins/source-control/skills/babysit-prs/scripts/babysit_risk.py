@@ -791,8 +791,9 @@ def _labels(value: str) -> list[str]:
 
 
 def _runner_values(text: str) -> list[str]:
-    """Each runs-on value in workflow text: an inline label or list, and a
-    block's list items and `group:`/`labels:` entries (as `group:<name>`)."""
+    """Each runs-on value in workflow text: an inline label or list (a list
+    wrapped onto continuation lines too), and a block's list items and
+    `group:`/`labels:` entries (as `group:<name>`)."""
     values: list[str] = []
     lines = text.split("\n")
     for i, line in enumerate(lines):
@@ -800,7 +801,8 @@ def _runner_values(text: str) -> list[str]:
         if not m:
             continue
         if _scalar(m[2]):
-            values.append(_scalar(m[2]))
+            value, _ = _join_flow(m[2].split(" #", 1)[0], lines, i + 1)
+            values.append(_scalar(value))
             continue
         indent = len(m[1])
         for inner in lines[i + 1 :]:
@@ -819,20 +821,42 @@ def _runner_values(text: str) -> list[str]:
 _ENTRY = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:(?:\s+(.*))?$""")
 _FLOW_PAIR = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:\s*([^,{}]*)""")
 _BLOCK_SCALAR = re.compile(r"[|>][0-9+-]*")
+# A line whose value (a list item's too) starts a flow list or mapping.
+_FLOW_START = re.compile(r"""(?:-\s+)*(?:(['"]?)[^\s'":#{}\[\],]+\1\s*:\s+)?[\[{]""")
+
+
+def _join_flow(content: str, lines: list[str], i: int) -> tuple[str, int]:
+    """`content`, a line that starts a flow list or mapping, with the lines
+    from `lines[i]` on joined to it while that collection stays open, so a
+    list wrapped onto continuation lines reads whole; and the index after the
+    lines it took."""
+    if not _FLOW_START.match(content.lstrip()):
+        return content, i
+    depth = sum(map(content.count, "[{")) - sum(map(content.count, "]}"))
+    while depth > 0 and i < len(lines):
+        more = lines[i].split(" #", 1)[0].strip()
+        depth += sum(map(more.count, "[{")) - sum(map(more.count, "]}"))
+        content += " " + more
+        i += 1
+    return content, i
 
 
 def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
     """(key path, value) for each mapping entry and list scalar in YAML text,
     read from indentation: a list item's segment is its index (`[0]`), a
-    block entry's value is empty, a block scalar's lines are skipped, and a
-    one-line flow mapping adds its pairs. Enough to place a timeout or a
-    runner label, not a YAML parser."""
+    block entry's value is empty, a block scalar's lines are skipped, a flow
+    list or mapping wrapped onto continuation lines reads as one line, and a
+    flow mapping adds its pairs. Enough to place a timeout or a runner label,
+    not a YAML parser."""
     entries: list[tuple[tuple[str, ...], str]] = []
     stack: list[tuple[int, str]] = []
     items: Counter[tuple[str, ...]] = Counter()
     scalar_at = -1  # the indent of the key whose block scalar is open
-    for line in text.split("\n"):
-        content = line.split(" #", 1)[0].rstrip()
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        content = lines[i].split(" #", 1)[0].rstrip()
+        i += 1
         stripped = content.lstrip()
         indent = len(content) - len(stripped)
         if not stripped or stripped.startswith("#"):
@@ -840,6 +864,8 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         if scalar_at >= 0 and indent > scalar_at:
             continue
         scalar_at = -1
+        content, i = _join_flow(content, lines, i)
+        stripped = content.lstrip()
         dash = stripped == "-" or stripped.startswith("- ")
         # A list may sit at its key's own indent; a sibling item closes the
         # one before it.
@@ -913,7 +939,10 @@ def _referenced_runners(text: str) -> list[str]:
                 values += _labels(value)
             elif kind == "matrix" and item and names[-2:-1] == [name]:
                 values.append(value)
-            elif kind == "inputs" and names[-2:] == [name, "default"]:
+            elif kind == "inputs" and names[-2:] in (
+                [name, "default"],
+                [name, "options"],
+            ):
                 values += _labels(value)
             elif kind == "inputs" and item and names[-3:-1] == [name, "options"]:
                 values.append(value)
@@ -967,7 +996,6 @@ _SECRET_REF = re.compile(
 # Inside a `${{ }}` expression, the bare `secrets` context anywhere outside a
 # string literal (`${{ secrets }}`, `contains(secrets, 'X')`) is a reference
 # too; `has-secrets` or `steps.secrets-check` is another name.
-_EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}")
 _STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 _BARE_SECRETS = re.compile(r"(?<![\w.-])secrets(?![\w-])(?!\s*[.\[])", re.IGNORECASE)
 # A model leg: a claude-code-* action or image, run-claude-cli, or the
@@ -1060,33 +1088,63 @@ def _unsafe_pipeline_lines(patch: str) -> list[str]:
     return found
 
 
-# The most lines one open `${{` expression joins.
-_MAX_JOINED = 8
+def _expressions(
+    text: str, inside: bool = False, quoted: bool = False
+) -> tuple[list[str], bool, bool]:
+    """(bodies, inside, quoted): the body of each `${{ }}` expression in
+    `text`, read as GitHub reads one, so a `}}` inside a single-quoted
+    literal does not close it, and whether an expression and a literal in it
+    are still open at the end. An open expression's body runs to the end;
+    `inside` and `quoted` carry that state in from a line before."""
+    bodies: list[str] = []
+    start = i = 0
+    while i < len(text):
+        if not inside:
+            j = text.find("${{", i)
+            if j < 0:
+                break
+            inside, quoted = True, False
+            start = i = j + 3
+        elif quoted:
+            # A doubled `''` closes and reopens: the same literal.
+            quoted = text[i] != "'"
+            i += 1
+        elif text[i] == "'":
+            quoted = True
+            i += 1
+        elif text.startswith("}}", i):
+            bodies.append(text[start:i])
+            inside = False
+            i += 2
+        else:
+            i += 1
+    if inside:
+        bodies.append(text[start:])
+    return bodies, inside, quoted
 
 
 def _logical_lines(lines: list[str]) -> list[str]:
     """`lines` with each line that leaves a `${{` expression open joined to
-    the next, up to `_MAX_JOINED` lines, so a reference split across a folded
-    scalar reads whole."""
+    the next until it closes, so a reference split across a folded scalar
+    reads whole however many lines pad it. One still open at the end joins
+    every line after it."""
     joined: list[str] = []
-    held = ""
-    depth = count = 0
+    held: list[str] = []
+    inside = quoted = False
     for line in lines:
-        held = f"{held} {line}" if held else line
-        depth += line.count("${{") - line.count("}}")
-        count += 1
-        if depth <= 0 or count >= _MAX_JOINED:
-            joined.append(held)
-            held = ""
-            depth = count = 0
+        held.append(line)
+        _, inside, quoted = _expressions(line, inside, quoted)
+        if not inside:
+            joined.append(" ".join(held))
+            held = []
     if held:
-        joined.append(held)
+        joined.append(" ".join(held))
     return joined
 
 
 def _secret_refs(line: str) -> list[str]:
     found = _SECRET_REF.findall(line)
-    for expression in _EXPRESSION.findall(line):
+    for expression in _expressions(line)[0]:
         found += _BARE_SECRETS.findall(_STRING_LITERAL.sub("''", expression))
     return found
 

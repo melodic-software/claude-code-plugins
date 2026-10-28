@@ -768,6 +768,12 @@ class LowRatedShapes(_Finding):
             ("+  K: >-", "+    ${{ secrets", "+    .LANE_TOKEN }}"),
             ("+  K: ${{", "+    secrets.LANE_TOKEN }}"),
             ("+  ALL: ${{ toJSON(secrets.*) }}",),
+            # A `}}` inside a string literal does not end the expression.
+            ("+    if: ${{ '}}' || contains(secrets, 'LANE_TOKEN') }}",),
+            # However many lines pad a split reference.
+            ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
+            # An expression still open at the end of the added lines.
+            ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
         ):
             with self.subTest(lines=lines):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
@@ -880,6 +886,28 @@ class LowRatedShapes(_Finding):
         big = "          - {os: ubuntu-24.04-16-cores}\n"
         wf = _file(WORKFLOW, patch=_patch("+" + big.rstrip()), contents=(text(""), text(big)))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_wrapped_flow_list_gaining_a_larger_runner_holds(self):
+        matrix = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n"
+            "        os: [ubuntu-24.04,\n             {os}]\n"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        options = (
+            "on:\n  workflow_dispatch:\n    inputs:\n      runner:\n"
+            "        type: choice\n        options: [ubuntu-24.04,\n                  {os}]\n"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        runs_on = (
+            "jobs:\n  build:\n    runs-on: [ubuntu-24.04,\n              {os}]\n"
+            "    steps: []\n"
+        )
+        big = "ubuntu-24.04-16-cores"
+        for text in (matrix, options, runs_on):
+            with self.subTest(text=text):
+                contents = (text.format(os="ubuntu-22.04"), text.format(os=big))
+                wf = _file(WORKFLOW, patch=_patch(f"+             {big}]"), contents=contents)
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
 
 if __name__ == "__main__":
