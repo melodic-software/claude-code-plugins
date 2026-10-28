@@ -291,8 +291,9 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
 }
 
 // work-resolve-issue's stops that need a person to know: out of funding, the
-// usage limit, or the turn cap.
-const LANE_STOPS = new Set(["funding", "limited", "turn-cap"]);
+// usage limit, the turn cap, or a stop whose retries are spent (`failed`,
+// which adds no label, so this is where it shows).
+const LANE_STOPS = new Set(["funding", "limited", "turn-cap", "failed"]);
 
 export function laneStopFindings({ laneStops = [] }) {
   const groups = new Map();
