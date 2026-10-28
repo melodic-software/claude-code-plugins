@@ -697,9 +697,11 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // deferral whose label was lost, or a `status: ready` set by hand). One listing,
 // oldest updated first; an issue with a hold or refuse label, an open blocker
 // (its close admits it) or an open sub-issue is left out unread, and at most
-// `cap` of the rest are decided. Skipped as intake's admit skips: one already
-// agent-ready, or whose agent-ready removal stands (admit.mjs
-// admissionSettled). The writes are intake's (admit.mjs admit): an admit
+// `cap` of the rest are decided. Skipped as intake's admit skips, on two reads
+// and not counted against `cap`, since a skip writes nothing and so stays
+// oldest updated: one already agent-ready, whose `status: ready` neither a
+// listed human nor the App added, or whose agent-ready removal stands
+// (admit.mjs admissionSettled). The writes are intake's (admit.mjs admit): an admit
 // verdict within the gate's room gets agent-ready, past it admission-deferred;
 // a refusal parks at status: confirmed, or status: needs-decision when it
 // holds for a person; a wait on an open pull request adds admission-deferred.
@@ -733,7 +735,11 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
   const isMark = (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId);
   const closes = new Map();
   let failed = 0;
-  for (const item of candidates.slice(0, cap)) {
+  let decided = 0;
+  for (const item of candidates) {
+    if (decided >= cap) {
+      break;
+    }
     const number = Number(item.number);
     const base = `/repos/${repo}/issues/${number}`;
     try {
@@ -753,6 +759,7 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
         console.log(`label-unblocked: #${number} left as is: ${settled}`);
         continue;
       }
+      decided += 1;
       const { decision, facts } = await admissionDecision({ github, repo, number, issue, events, humans, bot, appId, closes, admission });
       const reasons = decision.reasons.join("; ");
       if (decision.verdict === "admit") {

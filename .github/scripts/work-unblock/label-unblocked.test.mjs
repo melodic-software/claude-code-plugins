@@ -3919,9 +3919,14 @@ test("a status: ready issue whose agent-ready a person removed is left alone unt
 
 test("a status: ready issue added by neither a listed human nor the lanes App is left alone", async (t) => {
   t.mock.method(console, "log", () => {});
-  const { github, calls } = readyWorld({ events: { 26: [labelAdd("status: ready", { id: 4242, login: "drive-by" })] } });
+  const { github, calls } = readyWorld({
+    items: [readyIssue(27), readyIssue(26)],
+    events: { 27: [labelAdd("status: ready", { id: 4242, login: "drive-by" })] },
+  });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(calls), []);
+  // #26, the App's status: ready, is admitted in the same sweep.
+  assert.deepEqual(writes(calls), [labeled(26)]);
+  assert.equal(fieldReadsOf(calls, 27), 0);
 });
 
 test("a status: ready issue with a hold or refuse label, an open blocker or an open sub-issue is not read", async (t) => {
@@ -3944,15 +3949,20 @@ test("a status: ready issue with a hold or refuse label, an open blocker or an o
 
 test("a sweep decides at most limits.readmit-per-run status: ready issues, oldest updated first, and skipped ones do not count", async (t) => {
   t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T08:00:00Z" };
+  // #29 is held and #33's agent-ready removal stands: neither is decided, and
+  // each skip writes nothing, so it stays oldest updated on every sweep.
   const items = [
     readyIssue(29, { labels: [...READY_LABELS, "needs-human"], updated: "2026-10-16T05:00:00Z" }),
+    readyIssue(33, { updated: "2026-10-16T05:30:00Z" }),
     readyIssue(27, { updated: "2026-10-16T06:00:00Z" }),
     readyIssue(28, { updated: "2026-10-16T07:00:00Z" }),
     readyIssue(26, { updated: "2026-10-16T08:00:00Z" }),
   ];
-  const { github, calls } = readyWorld({ items });
+  const { github, calls } = readyWorld({ items, events: { 33: [labelAdd("status: ready", LANES_BOT), removed] } });
   assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 2 } })), 0);
   assert.deepEqual(writes(calls), [labeled(27), labeled(28)]);
+  assert.equal(fieldReadsOf(calls, 33), 0);
   assert.equal(eventReads(calls, 26), 0);
 });
 
@@ -3961,14 +3971,15 @@ test("a status: ready issue already agent-ready or deferred is not run through a
   const queued = readyIssue(31, { labels: [...READY_LABELS, "agent-ready"] });
   const waiting = readyIssue(32, { labels: [...READY_LABELS, "admission-deferred"] });
   const { github, calls } = readyWorld({
-    items: [queued, waiting],
+    items: [queued, waiting, readyIssue(26)],
     deferred: [waiting],
     events: { 32: [labelAdd("status: ready", LANES_BOT), deferredAdd(LANES_BOT)] },
     extra: { blockedBy: { 32: [] } },
   });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
-  // The deferred path alone admits #32, once; #31 is left as it is.
-  assert.deepEqual(writes(calls), [labeled(32), undeferred(32)]);
+  // The deferred path alone admits #32, once; #31 is left as it is, and #26,
+  // in no queue, is admitted.
+  assert.deepEqual(writes(calls), [labeled(32), undeferred(32), labeled(26)]);
   assert.equal(eventReads(calls, 31), 0);
   assert.equal(fieldReadsOf(calls, 32), 0);
 });
