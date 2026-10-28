@@ -651,15 +651,14 @@ lanes:
         needs: [apply-verdict]
 
 # The model, effort and turn budget of every model run (README.md, Models).
-# Aliases only, never full model IDs. `default` passes no --model, so the
-# account's default model runs. A profile with no effort keeps its model's
-# default effort. A role profile names a multi-agent role in place of a model.
+# Aliases only, never full model IDs. A profile with no effort keeps its
+# model's default effort. A role profile names a multi-agent role in place of a model.
 # A skill activity with no route takes default-profile; pr-verify.yml's
 # judgment routes as verify-pr.
 models:
   profiles:
     standard:
-      model: default
+      model: opus
       max-turns: 75
     review:
       model: opus
