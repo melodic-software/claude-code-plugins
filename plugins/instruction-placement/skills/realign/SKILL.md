@@ -5,6 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   [
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/precompute.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
@@ -64,7 +65,8 @@ it is presented.** Say so in the run's opening line, then hold it literally.
 - **Present before asking.** The source and its line range, the destination, the exact `paths:` glob
   with its validated match count, what leaves the always-loaded budget, and the cost: that the
   content is not inherited by a subagent and announces itself nowhere, and post-compaction behavior
-  for that destination.
+  for that destination. Then the deciding sentence of each record its `Mechanics` field names, with
+  this run's quote-check result and label (below).
 - **A decline is recorded, not argued.** Write `declined` into the artifact and move on. A declined
   finding is not re-proposed by a later audit.
 
@@ -95,6 +97,35 @@ in the table above. Do not invent a format here. Four rules bind the write:
   like recording a decision while recording none.
 - **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no
   other worktree yet. Name that rather than implying the decision is already everywhere.
+
+## Check the mechanics quotes first
+
+The audit priced each finding on the docs records its `Mechanics` field names, and a page can change
+between that audit and this run. So the first command of a run, before the artifact is read, is:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"
+```
+
+It takes no arguments and fetches only the pages `${CLAUDE_PLUGIN_ROOT}/context/mechanics-sources.tsv` lists. It prints
+one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
+the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
+exits 0 whatever the results, so a run with no network still completes. Its grant names the script
+with no `*`, and a Bash rule with no `*` matches one exact command (see
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-10-28; recheck when that
+section changes how such a rule matches).
+
+- **Drift goes first.** Before the gate opens, list each `drift` result: the record id, its section
+  URL, the stored wording and the fetched one. A finding whose `Mechanics` field names a drifted
+  record is not applied on either wording: present it with both wordings and the unverified label
+  below, say that it looks wrong until re-audited, and offer the re-audit.
+- **Quote the deciding sentence** of each record the finding's `Mechanics` field names, from the
+  record's `quote` column, with this run's result beside it.
+- **Label what was not read.** A finding that relies on an `unverified` or a drifted record is
+  presented labeled "unverified as of <date>": the date the `unverified` line printed, or for a
+  drifted record its `as_of` in the list. For an `unverified` record the operator still decides.
+- **A finding with no `Mechanics` field** came from an audit that predates the check. Say so when it
+  is presented and offer a re-audit. Leave its records unnamed: naming them here would re-judge it.
 
 ## Prerequisites
 
