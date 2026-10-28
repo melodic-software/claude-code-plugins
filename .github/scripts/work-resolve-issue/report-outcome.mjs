@@ -704,8 +704,12 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, runner checks missing or not all
-// passed, and on a reused branch a leak scan that is missing or not clean.
+// changed path the merge lane refuses, a runner check that failed, and on a
+// reused branch a leak scan that is missing or not clean. Runner checks that
+// did not report hold nothing: ci-status reruns them on the head. The scan is
+// not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
+// or .gitleaksignore the branch can add, its password rule misses short or
+// symbol-bearing values scanLeak flags, and it reads only the commits' patches.
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
@@ -714,9 +718,8 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    !checks ||
-    checkFailures(checks).length > 0 ||
-    (reused && checks.scan !== "clean")
+    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
+    (reused && checks?.scan !== "clean")
   );
 }
 
@@ -817,7 +820,9 @@ export function reusePlan({
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
     "",
-    hold ? `Left out: ${leftOut}; a person reviews the diff before merging.` : `Left out: ${leftOut}.`,
+    hold
+      ? `Left out: ${leftOut}; a person reviews the diff before merging.`
+      : `Left out: ${leftOut}; ci-status, pr-verify and the security review lane check the head before it merges.`,
     "",
     "## Related",
     "",

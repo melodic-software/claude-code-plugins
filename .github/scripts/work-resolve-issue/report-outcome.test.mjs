@@ -3252,13 +3252,15 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "the runner checks are missing": { checks: null },
   "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
+// A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
+// does not cover what scanLeak flags, so a missing scan holds like a finding.
 const SCAN_CASES = {
   "the leak scan found something": { checks: { ...CLEAN_CHECKS, scan: "found" } },
   "the leak scan failed": { checks: { ...CLEAN_CHECKS, scan: "failed" } },
   "the leak scan never ran": { checks: { tip: TIP, results: CLEAN_CHECKS.results } },
+  "the runner checks and their scan are missing": { checks: null },
 };
 
 for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })) {
@@ -3267,6 +3269,13 @@ for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })
     assert.equal(reuseHeld(overrides), true, name);
   });
 }
+
+test("a reuse PR with a clean scan does not hold only because no runner check reported, and says what checks its head", () => {
+  const { body } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
+  assert.ok(!body.split("\n").includes(HOLD_LINE), body);
+  assert.ok(body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), body);
+  assert.ok(!body.includes("a person reviews the diff"), body);
+});
 
 test("a clean reuse PR names the clean leak scan and leaves the person's review out", () => {
   const { body } = reusePlan(CLEAN_REUSE);
@@ -3280,6 +3289,19 @@ test("a clean reuse PR names the clean leak scan and leaves the person's review 
 test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED, holdPaths: [] }), false);
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
+});
+
+test("mustHold: a reuse holds on any scan word but clean and on a failed check; runner checks that did not report hold nothing", () => {
+  const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
+  assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS }), false, "clean reuse");
+  assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), true, "scan missing");
+  assert.equal(mustHold({ ...facts, checks: null }), true, "checks and scan missing");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "failed" } }), true, "scan failed");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [] } }), false, "reuse, clean scan, no runner check reported");
+  assert.equal(mustHold({ ...facts, reused: false, checks: null }), false, "no reuse, runner checks missing");
+  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "no reuse, a failed check");
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
