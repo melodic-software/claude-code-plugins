@@ -21,6 +21,8 @@
 // `label`, `created_at`, `updated_at`. Text written by anyone but those
 // authors is never read.
 
+import { escalationActivity } from "./escalation-routes.mjs";
+
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
 export const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$/;
 // Any escalation marker, of any lane: one that is not a whole ESCALATION
@@ -31,6 +33,9 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
 const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
 export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
+// report-escalation.sh's comment for a fail-routed stop, one per activity,
+// edited in place; it adds no label.
+export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
 // A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
@@ -154,7 +159,7 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   // A whole escalation's two marker lines and address-feedback's own round
   // record are known; any other marker, another lane's escalation or an
   // escalation line out of place included, is not.
-  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line);
+  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line) || LANE_STOPPED.test(line);
   const malformed = appComments
     .filter((item) => writtenSince(item, since))
     .map((item) => lines(item.body))
@@ -169,25 +174,39 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
 // The Reason line report-escalation.sh writes into its escalation comment.
 const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
-// resolve-conflicts's reasons, which report-escalation.sh maps by default.
-const CONFLICT_REASONS = new Set(["protected-path-conflict", "workflow-staged", "unexpected-path-staged", "repeat-cap", "unresolved-conflict"]);
+export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
-// The activity a reason resumes, as report-escalation.sh maps it, or null for
-// a reason it does not list, which holds every activity.
-export const escalationActivity = (reason) =>
-  reason.startsWith("feedback-")
-    ? "address-feedback"
-    : reason.startsWith("dependency-")
-      ? "review-dependency"
-      : reason.startsWith("ci-fix-")
-        ? "fix-ci"
-        : CONFLICT_REASONS.has(reason) || reason.startsWith("conflict-patch-")
-          ? "resolve-conflicts"
-          : null;
+const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
+// The aggregate of the others: fixing them fixes it. It also fails on a hold
+// label, so it never stands for the head's CI.
+const AGGREGATE = "ci-status";
+// A contract-only run skips every lane, and ci-status then carries the last
+// full run's recorded verdict forward, so a skip says nothing about a check.
+const SILENT = new Set(["skipped", "neutral"]);
+const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
+
+// The latest run of each check name that is not a skip, when it failed or was
+// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
+// dispatcher reads a cancelled head through it too, so the two agree, and
+// clear-escalations reads a fix-ci stop's head through it.
+export function failingChecks(checkRuns) {
+  const latest = new Map();
+  for (const run of checkRuns) {
+    const kept = latest.get(run.name);
+    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
+      latest.set(run.name, run);
+    }
+  }
+  return [...latest.values()]
+    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
+    .sort((a, b) => a.id - b.id);
+}
+
 
 // A comment's last write: its creation or its last edit, so an old comment
-// edited to say "wait" counts at the edit. A time that does not parse is NaN.
-const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+// edited to say "wait" counts at the edit. A time that does not parse, a
+// missing updated_at included, is NaN, which personSince counts as since.
+const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at));
 
 // When a timeline item was written, and by whom, for a comment or a review
 // (clear-escalations.mjs reads people speaking the same way).
@@ -211,6 +230,22 @@ export function spoken(item) {
 // label", whatever source the entries come from.
 export const personSince = (entries, since) => entries.find(({ user, at }) => !(at < since) && user?.type !== "Bot");
 
+// A PR's REST review comments (pulls/<n>/comments) and reviews
+// (pulls/<n>/reviews) as personSince entries: a comment at its last write,
+// where a missing created_at or updated_at does not parse and so counts as
+// since; a review when submitted. The timeline shows no reply inside an
+// existing review thread, so laneEscalationAllows and clear-escalations.mjs
+// (pr-merge) both read these through this one mapping.
+export const reviewEntries = ({ comments, reviews }) => [
+  ...comments.map((comment) => ({ user: comment.user, at: Math.max(Date.parse(comment.created_at), Date.parse(comment.updated_at)) })),
+  ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
+];
+
+// `since` (epoch ms) as GitHub's `since` query value, to the second. GitHub
+// documents `since` as "updated after" without saying whether its own second
+// is included, so callers pass a second earlier and personSince filters again.
+export const sinceParam = (since) => new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
+
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
 // when gateSource reads a lane escalation, no person has commented, reviewed or
 // replied in a review thread since the label went on, and no escalation since
@@ -230,14 +265,10 @@ export function laneEscalationAllows({ timeline, reviewComments, reviews, label,
   // A person who commented or reviewed since the label went on may want the
   // lanes to wait. An unknown author counts as a person. GitHub's timeline
   // shows no event for a reply inside an existing review thread, so the review
-  // comments (at their last write) and reviews are read too. Known limit: a
+  // comments and reviews are read too, through reviewEntries. Known limit: a
   // review body edited after the label is not seen (a REST review carries no
   // update time).
-  const entries = [
-    ...timeline.flatMap(spoken),
-    ...reviewComments.map((comment) => ({ user: comment.user, at: lastWrite(comment) })),
-    ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
-  ];
+  const entries = [...timeline.flatMap(spoken), ...reviewEntries({ comments: reviewComments, reviews })];
   if (personSince(entries, since) !== undefined) {
     return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
@@ -255,8 +286,9 @@ export function laneEscalationAllows({ timeline, reviewComments, reviews, label,
 // Whether a PR carrying `labels` is held for `activity`: any of `holdLabels`
 // but the human-gated `gateLabel` holds it; `gateLabel` holds it unless
 // laneEscalationAllows reads `readTimeline()` (called only then) and
-// `readReviews()` ({ comments, reviews }: reviewReader's, called only when the
-// timeline alone does not hold it) as another lane's escalation. A
+// `readReviews(since)` ({ comments, reviews }: reviewReader's, called only
+// when the timeline alone does not hold it, with the label's time as
+// sinceParam gives it) as another lane's escalation. A
 // readReviews that throws, or whose comments or reviews is not an array,
 // holds with a fixed why. A null gateLabel
 // (unreadable) or no lanes App id holds. laneEscalated is true when the label
@@ -281,7 +313,7 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
   if (allowed) {
     let read;
     try {
-      read = await readReviews();
+      read = await readReviews(sinceParam(labelHistory(timeline, gateLabel).since - 1000));
     } catch {
       read = undefined;
     }
@@ -290,11 +322,12 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
   return allowed ? { held: false, laneEscalated: true, why: "" } : { held: true, laneEscalated: false, why: `held by ${gateLabel}: ${why}` };
 }
 
-// prHold's readReviews for PR `number`: its review comments and reviews
-// through `api`'s listReviewComments and listReviews (REST pulls/<n>/comments
-// and pulls/<n>/reviews, which a pull-requests: read token may list).
-export const reviewReader = (api, number) => async () => {
-  const [comments, reviews] = await Promise.all([api.listReviewComments(number), api.listReviews(number)]);
+// prHold's readReviews for PR `number`: its review comments written or edited
+// since `since` and every review, through `api`'s listReviewComments and
+// listReviews (REST pulls/<n>/comments and pulls/<n>/reviews, which a
+// pull-requests: read token may list; reviews take no since filter).
+export const reviewReader = (api, number) => async (since) => {
+  const [comments, reviews] = await Promise.all([api.listReviewComments(number, since), api.listReviews(number)]);
   return { comments, reviews };
 };
 

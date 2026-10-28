@@ -2,9 +2,10 @@
 // review lanes' hold marker (docs/conventions/pr-pipeline/README.md, "Review-lane
 // holds"), and from GitHub's GraphQL LabeledEvent and UnlabeledEvent shapes.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
+import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -49,6 +50,37 @@ test("a hold marker text a person wrote is not read", () => {
 test("another lane's marker on a lanes App comment since the label is unknown", () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), commented(APP, "<!-- babysit-merge-risk -->\nRisk.", "2026-10-18T10:02:00Z")];
   assert.equal(source(timeline), "unknown");
+});
+
+test("report-escalation.sh's lane-stopped comment, posted or edited since the label, leaves a lane escalation workable", () => {
+  const timeline = [
+    label("labeled", APP, "2026-10-18T10:00:00Z"),
+    escalation(),
+    { ...commented(APP, "<!-- pr-unblock:lane-stopped activity=fix-ci -->\nStopped.", "2026-10-18T09:00:00Z"), updated_at: "2026-10-18T10:30:00Z" },
+  ];
+  assert.equal(source(timeline), "lane-escalation");
+  // Only that marker's exact shape is known.
+  const odd = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), commented(APP, "<!-- pr-unblock:lane-stopped activity=Fix_CI -->", "2026-10-18T10:30:00Z")];
+  assert.equal(source(odd), "unknown");
+});
+
+// The write runner's escalation enum (pr-run-activity-write.yml, its first
+// step) is the list of reasons a run may hand report-escalation.sh; the
+// routing table must route each one, and route nothing else.
+test("escalation-routes.json routes every reason the write runner accepts, each to one activity and one route", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-run-activity-write.yml", import.meta.url), "utf8");
+  const block = workflow.slice(workflow.indexOf("case $ESCALATION_REASON in"), workflow.indexOf("patch-empty | patch-invalid"));
+  const accepted = [...block.matchAll(/(?<=^|[\s|])([a-z]+(?:-[a-z]+)+)(?=\s*(?:\||\)))/gm)].map((match) => match[1]);
+  assert.ok(accepted.length > 30, `read ${accepted.length} reasons from the enum`);
+  assert.deepEqual([...new Set(accepted)].sort(), Object.keys(ROUTES).sort());
+  for (const [reason, entry] of Object.entries(ROUTES)) {
+    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci"].includes(entry.activity), reason);
+    assert.ok(["hold", "fail"].includes(entry.route), reason);
+    assert.equal(escalationActivity(reason), entry.activity);
+    assert.equal(escalationRoute(reason), entry.route);
+  }
+  assert.equal(escalationActivity("bogus"), null);
+  assert.equal(escalationRoute("constructor"), null);
 });
 
 test("address-feedback's own round records since the escalation leave it workable", () => {
@@ -118,6 +150,14 @@ test("a person's comment edited after the label, or written in its own second, h
   assert.equal(allows(inlineEdited, "fix-ci"), false, "an inline comment edited after the label");
 });
 
+test("a person's timeline comment with no updated_at counts as written since the label", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const comment = [{ ...commented(OWNER, "Wait.", "2026-10-18T09:00:00Z"), updated_at: undefined }, ...base];
+  const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T09:00:00Z" }] }];
+  assert.equal(allows(comment, "fix-ci"), false, "a comment");
+  assert.equal(allows(inline, "fix-ci"), false, "an inline comment");
+});
+
 // GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
 // carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
 const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
@@ -134,6 +174,8 @@ test("a person's inline reply in a review thread, seen only in the review commen
   assert.equal(allows(timeline, "fix-ci", unknown), false, "an unknown author counts as a person");
   const before = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z")] };
   assert.equal(allows(timeline, "fix-ci", before), true, "a reply before the label");
+  const noUpdate = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z", { updated_at: undefined })] };
+  assert.equal(allows(timeline, "fix-ci", noUpdate), false, "a reply with no updated_at counts as written since the label, as clear-escalations reads it");
   const bot = { reviewComments: [reply(APP, "2026-10-18T11:00:00Z"), reply(ACTIONS, "2026-10-18T11:05:00Z")] };
   assert.equal(allows(timeline, "fix-ci", bot), true, "a bot's inline reply is no one asking to wait");
 });
@@ -237,6 +279,21 @@ test("prHold holds on a person's inline reply its review reader returns", async 
   };
   const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
   assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: a person commented or reviewed since needs-human went on" });
+});
+
+test("prHold's review reader asks for the review comments since a second before the label, and every review", async () => {
+  const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00.250Z"), escalated("feedback-disputed")];
+  const asked = [];
+  const api = {
+    listReviewComments: async (...args) => (asked.push(["comments", ...args]), []),
+    listReviews: async (...args) => (asked.push(["reviews", ...args]), []),
+  };
+  const result = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
+  assert.equal(result.held, false);
+  assert.deepEqual(asked, [
+    ["comments", 7, "2026-10-18T09:59:59Z"],
+    ["reviews", 7],
+  ]);
 });
 
 test("prHold holds when the review comments or the reviews read fails, or reads no array", async () => {
