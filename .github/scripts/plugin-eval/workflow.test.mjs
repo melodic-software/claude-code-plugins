@@ -33,8 +33,12 @@ test("a pull request run proves the policy denies the reads before any case runs
   const probe = step("Probe that the policy denies those reads");
   assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'pull_request'\n/);
   assert.match(probe, /RUNNER_ROOT: \$\{\{ steps\.deny\.outputs\.runner-root \}\}/);
-  assert.match(probe, /for path in \/proc\/self\/environ "\$RUNNER_ROOT\/\.runner"; do/);
-  assert.match(probe, /any\(\.permission_denials\[\]\?; \.tool_name == "Read" and \.tool_input\.file_path == \$p\)/);
+  assert.match(probe, /--allowedTools Read Grep Glob /);
+  assert.match(probe, /any\(\.permission_denials\[\]\?; \.tool_name == \$t and/);
+  for (const call of ["Read /proc/self/environ", 'Read "$RUNNER_ROOT/.runner"', "Grep /proc/self", "Glob /proc/self"]) {
+    assert.ok(probe.includes(`\n          denied ${call}\n`), `the probe checks a denied ${call}`);
+  }
+  assert.match(probe, /if grep -qF "\$CLAUDE_CODE_OAUTH_TOKEN" "\$out"; then\n[^\n]*\n {12}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
   assert.doesNotMatch(probe, /cat "\$out"|jq [^\n]*"\$out"[^\n]*\| *tee/);
   assert.ok(text.indexOf("- name: Install the locked root toolchain") < text.indexOf("- name: Probe that the policy"));

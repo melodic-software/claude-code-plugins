@@ -408,13 +408,19 @@ jobs:
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # Proof that the managed policy holds before any pull request case runs:
-      # one Claude Code run is told to Read /proc/self/environ and the runner's
-      # .runner file, and the job stops unless the result's permission_denials
-      # (code.claude.com/docs/en/agent-sdk/typescript, "SDKResultMessage", as
-      # of 2026-10-28) records both reads as denied. The result can hold what
-      # a read returned, so it stays in a file that is never printed and is
-      # removed after the check.
+      # Proof that the managed policy holds before any pull request case runs,
+      # for each of the three tools a case can use to read a file: one Claude
+      # Code run is told to Read /proc/self/environ and the runner's .runner
+      # file, Grep /proc/self/environ, and Glob for environ under /proc/self. The job stops
+      # unless the result's permission_denials (code.claude.com/docs/en/
+      # agent-sdk/typescript, "SDKResultMessage", as of 2026-10-28) records
+      # each of the four calls as denied, or if the result holds the
+      # credential anywhere. Claude Code applies Read deny rules to Glob and
+      # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
+      # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
+      # instead of reaching a case. The result can hold what a call returned,
+      # so it stays in a file that is never printed and is removed after the
+      # check.
       - name: Probe that the policy denies those reads
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
         env:
@@ -424,15 +430,21 @@ jobs:
         run: |
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          claude -p "Call the Read tool on /proc/self/environ, then call it on $RUNNER_ROOT/.runner. Make no other tool call." \
-            --model claude-sonnet-5-5 --allowedTools Read --max-turns 4 --output-format json >"$out" 2>/dev/null || true
-          for path in /proc/self/environ "$RUNNER_ROOT/.runner"; do
-            if ! jq -e --arg p "$path" 'any(.permission_denials[]?; .tool_name == "Read" and .tool_input.file_path == $p)' "$out" >/dev/null 2>&1; then
-              echo "::error::the managed policy did not record a denied Read of $path, so no pull request case runs"
-              exit 1
-            fi
-          done
-          echo "The managed policy denied both probe reads."
+          claude -p "Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern TOKEN and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self." \
+            --model claude-sonnet-5-5 --allowedTools Read Grep Glob --max-turns 8 --output-format json >"$out" 2>/dev/null || true
+          if grep -qF "$CLAUDE_CODE_OAUTH_TOKEN" "$out"; then
+            echo "::error::the probe's result holds the credential, so no pull request case runs"
+            exit 1
+          fi
+          denied() {
+            jq -e --arg t "$1" --arg p "$2" 'any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
+              { echo "::error::the managed policy did not record a denied $1 of $2, so no pull request case runs"; exit 1; }
+          }
+          denied Read /proc/self/environ
+          denied Read "$RUNNER_ROOT/.runner"
+          denied Grep /proc/self
+          denied Glob /proc/self
+          echo "The managed policy denied the probe's Read, Grep and Glob calls."
 
       # Chromium comes from the playwright that the locked playwright-cli
       # uses. Without sudo there is no --with-deps: the hosted image already
@@ -645,7 +657,7 @@ jobs:
         if: always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: eval-${{ github.run_id }}-${{ github.run_attempt }}
+          name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
           retention-days: 7
