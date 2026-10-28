@@ -115,7 +115,7 @@ const setupSkills = pluginFiles.filter((path) =>
 const configCascadeRegistry = join(
   root,
   "docs",
-  "conventions",
+  "contracts",
   "config-cascade",
   "README.md",
 );
