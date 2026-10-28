@@ -295,6 +295,20 @@
         }
       }
     },
+    "review-threads": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Review bots whose review threads pr-unblock's address-feedback works as the reviewer bot's. Absent: none. Contract: README.md, Review threads.",
+      "properties": {
+        "reviewer-ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "Account ids, as GitHub records them for a comment's author, of review bots besides claude[bot] and the review lanes. A thread one of them opened is worked exactly as the reviewer bot's, and its later comments count as the reviewer bot's; a login is never matched."
+        }
+      }
+    },
     "branch-cleanup": {
       "type": "object",
       "additionalProperties": false,

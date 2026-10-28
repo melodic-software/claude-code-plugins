@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.13.1] - 2026-10-28
+
+### Fixed
+
+- **behavior-probes reads a local slash command's output in a `prints` case.** Under `claude -p` the output arrives as a `<synthetic>` assistant message with a result of `num_turns` 0; the verdict now reads it instead of reporting `inconclusive` as a model turn. The `autocompact` area passed its first live run on Claude Code 2.1.312 (record 16).
+
 ## [4.13.0] - 2026-10-28
 
 ### Added

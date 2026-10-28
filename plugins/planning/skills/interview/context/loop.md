@@ -269,6 +269,8 @@ The read-only decision table (the degrade):
 
 When a round coins or leans on session-local shorthand, a label, abbreviation, or cross-repo term the user may not share, define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
 
+A question whose recommendation, option or `Commits you to:` part coins a name writes its glossary line to the ledger in the same step as its register row at ask-time, on every surface (on the page, also send the `glossary` op, [`surface.md`](surface.md)), and defines the name in the question itself. The assumption sweep reports a coined name missing from the glossary as a `coined-term` item ([`assumption-sweep.md`](assumption-sweep.md)).
+
 ```markdown
 **Session shorthand:**
 - lane: one parallel builder session working an isolated slice
@@ -513,6 +515,12 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 ### Problem
 <gap, who / how many, frequency, trend, cost, evidence (rated), one line each, per ../../../context/problem-framing.md "Problem fields">
 
+### Intent
+<the user's goal in one paragraph, in their own words, or none stated>
+- Q<N> asked: <a question the user put to Claude, verbatim>
+- note: <a note the user wrote, verbatim>
+- Q<N> own answer: <an answer the user wrote in place of the options, verbatim>
+
 ### Goal
 <one paragraph: outcome, not implementation>
 - Intent (why, in the user's words): <the user's reason, quoted, or none stated>
@@ -549,6 +557,8 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 **The Brief is the spec.** This template owns the Goal, the acceptance criteria and the deferred questions; `/planning:plan` points at these sections and writes no copy of them into PLAN.md.
 
 **The Intent line keeps the user's own words.** Quote the user's stated reason, never a paraphrase, and write `none stated` on any of the three Goal lines the user gave nothing for.
+
+**The Intent section is the user's words, unedited.** Before the confirmation restate, ask the user for the goal in one paragraph in their own words and write their reply as the section's paragraph (`none stated` when they give none). Then list, in the order they were said, each question the user asked, each note (other than the reply that gave the paragraph) and each own answer, verbatim, the question-tied ones under their `Q<N>`; leave out anything they withdrew. The Goal paragraph is Claude's outcome statement and its Intent line the user's reason; neither repeats this section. A page export writes this section itself.
 
 **The criteria bullet stays a plain bullet.** `- AC<n>: <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- AC<n>: [<pattern>] <criterion>`. `AC<n>` is the criterion's id, numbered from `AC1` in order and never reused: `/planning:plan` maps each id to the phases that satisfy it and `/work-items:decompose` to the slices that carry it. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
 

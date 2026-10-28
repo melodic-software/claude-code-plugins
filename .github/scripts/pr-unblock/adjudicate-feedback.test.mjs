@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicationReply, collect, DISPUTED, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicable, adjudicationReply, collect, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -459,4 +459,82 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
   const text = readFileSync(verdicts, "utf8");
   assert.deepEqual([...parseVerdicts(text, HEAD)], [["PRRT_a", { verdict: "lane", question: "none" }]]);
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`\nsha256=${sum(text)}\n$`));
+});
+
+// A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
+// opened: keepThreads tags it listed from the account id, never from its text,
+// with the security-review lane's state for it (held, clear or pending). The
+// badge line is Codex's, as on #10092 (P1) and #10293 (P2); its level is the
+// bot's own pick.
+const badged = (level, color, title = "The lock is read first") =>
+  `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  ${title}**\n\n\`lib/lock.mjs:40\` reads it.`;
+const listedThread = (id, body = badged("P2", "yellow"), security = "clear") => thread(id, [{ id: 1, author: "reviewer", listed: true, security, body }]);
+const slotted = (t) => disputes(fileOf(t), incorrect(t.id)).slots.map((slot) => slot.thread);
+const settle = (t, { verdict = { verdict: "lane", question: "none" }, pushed = false } = {}) =>
+  settleDisputes({
+    api: new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) }),
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: t.id, disposition: "INCORRECT" }],
+    replies: [],
+    shown: new Map([[t.id, { comment_ids: [1] }]]),
+    now: new Map([[t.id, t]]),
+    verdicts: new Map([[t.id, verdict]]),
+    pushed,
+    headMoved: async () => false,
+    resolveAfterReply: async () => assert.fail("not resolved"),
+    escalationReason: "",
+    log: () => {},
+  });
+
+test("a listed review bot's dispute is adjudicated at any badge once the security lane reviewed its head and holds nothing", () => {
+  for (const body of [
+    badged("P3", "green"),
+    badged("P2", "yellow"),
+    badged("P1", "orange"),
+    badged("P0", "red"),
+    "No badge at all.\n\n`lib/lock.mjs:40` reads it.",
+    // Security wording no keyword list catches: the security lane's rating,
+    // not the bot's words, decides, and it held nothing here.
+    badged("P2", "yellow", "The helper trusts the caller's ref"),
+  ]) {
+    assert.equal(adjudicable(listedThread("PRRT_l", body).comments), true, body);
+    assert.deepEqual(slotted(listedThread("PRRT_l", body)), ["PRRT_l"], body);
+  }
+  // The CRITICAL guard still holds for a listed finding.
+  assert.deepEqual(slotted(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`)), []);
+});
+
+test("a listed review bot's dispute the security lane held, or has not reviewed yet, is never adjudicated", () => {
+  for (const security of ["held", "pending", undefined]) {
+    const t = thread("PRRT_h", [{ id: 1, author: "reviewer", listed: true, ...(security ? { security } : {}), body: badged("P3", "green") }]);
+    assert.equal(adjudicable(t.comments), false, String(security));
+    assert.deepEqual(slotted(t), [], String(security));
+  }
+  // The state means nothing on the code lane's own finding.
+  assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", security: "held", body: "The token is logged." }]), true);
+});
+
+test("settleDisputes sends a held listed dispute to a person as a security question, whatever verdict arrived", async () => {
+  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), "held")), { escalationReason: "feedback-question-security", skipReason: "" });
+  assert.equal(escalationRoute("feedback-question-security"), "hold");
+  assert.deepEqual(await settle(listedThread("PRRT_h", badged("P3", "green"), "held"), { verdict: { verdict: "reviewer", question: "none" } }), { escalationReason: "feedback-question-security", skipReason: "" });
+});
+
+test("settleDisputes defers a listed dispute the security lane has not reviewed yet: no escalation, no verdict, the head released for the next round", async () => {
+  const pending = listedThread("PRRT_p", badged("P2", "yellow", "The helper trusts the caller's ref"), "pending");
+  // The verdict is ignored; nothing is posted or resolved (the API fails on any call).
+  assert.deepEqual(await settle(pending), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
+  assert.deepEqual(await settle(pending, { verdict: { verdict: "human", question: "security" } }), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
+  // A round that pushed moved the head; its review run starts the next round.
+  assert.deepEqual(await settle(pending, { pushed: true }), { escalationReason: "", skipReason: "" });
+  // A pending listed finding that carries `severity: CRITICAL` still goes to a person.
+  assert.deepEqual(await settle(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`, "pending")), { escalationReason: "feedback-disputed", skipReason: "" });
+});
+
+test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own security question still reaches a person", async () => {
+  assert.deepEqual(await settle(listedThread("PRRT_q", badged("P2", "yellow", "The helper trusts the caller's ref")), { verdict: { verdict: "human", question: "security" } }), {
+    escalationReason: "feedback-question-security",
+    skipReason: "",
+  });
 });

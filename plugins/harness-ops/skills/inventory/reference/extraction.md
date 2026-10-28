@@ -355,7 +355,7 @@ Per plugin, from the merged fields:
 | `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is the one default rule in the registrar module's functions that walk `.builtinPlugins` (`absent-default`); missing or ambiguous there, absent is unknown and partial |
 | `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | as written; absent is false |
 | `gated`, `gate_flags` | `isAvailable` present; each `f(FLAG,DEFAULT)` call in it whose first argument reads a `tengu_` string, through one identifier or a `()=>"tengu_x"` arrow. Other terms of the gate are runtime state and are not listed |
-| `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument |
+| `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument. In that literal a `...COND&&{...}` spread shadows only its own keys, which read as unresolved |
 | `agents`, `commands` | the function-hooks manifest's embedded files (`files:{"agents/author.md":`---…`}`), frontmatter `name` and `description`; plus commands passed to `.command.register(obj)` or `.registerCommand(obj)` in the module when the manifest declares `command.register`. An argument that is the enclosing arrow's own parameter is a pass-through and is skipped |
 | `hook_events` | the manifest's `scan.hooks` (or `shipped.hooks`); `[]` without a hooks module |
 | `mcp_servers` | the field's form (`getter`, `value`) or null; the server list is decided per session |
@@ -399,6 +399,7 @@ an export of it.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`), each with one registration, and only `cc-plugin-claude-test` and `cc-plugin-plugin-authoring` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286 and 2.1.287 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty. Derived per run, so no document restates the roster | 2026-10-01, Claude Code 2.1.287 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+| Accepted floor: `cc-plugin-claude-test`'s `gate_flags` stays partial, so the lane's partial-plugin advisory names it. Its `isAvailable:He` is a function declaration whose flag test is `ie.isOn()`, an object method calling `ct()`, which builds a state object from `pt({answer:()=>Fn(Te,!1),...})` with `Te="tengu_mellow_hollerith"`: four hops past the one identifier the gate rule follows, and the answer also turns on the signed-in login | `inventory.py --binary-only` on the 2.1.296 linux-x64 native build: `partial: ["gate_flags"]`, `gate_flags: null` | 2026-10-28, Claude Code 2.1.296 | the claude-test gate reads the flag through a direct `f(FLAG,DEFAULT)` call, or the advisory names another field of it |
 
 ### 12. Resolve bindings with a parser, when selected
 
