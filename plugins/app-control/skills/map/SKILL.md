@@ -201,8 +201,9 @@ conversion moves out of.
    Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
    directory, from the default branch, merged into and never rebased; open or update one pull
    request. List every local and remote `feature-map-upkeep/*` branch and report each one by
-   name, never adopting it. Started on a ticket branch, commit there instead and open nothing, so
-   the corrections merge with the code they describe; a conversion is blocked there
+   name, never adopting it. Started on a ticket branch, commit there instead, push nothing and
+   open nothing: the caller's push carries the commit into the ticket's pull request, so the
+   corrections merge with the code they describe. A conversion is blocked there
    (refresh.md § Ticket branch).
 7. **Return.** After each control skill's step 6, switch back to where the pass started, the branch
    or, from a detached HEAD, the commit (refresh.md § Return to the starting branch): before the

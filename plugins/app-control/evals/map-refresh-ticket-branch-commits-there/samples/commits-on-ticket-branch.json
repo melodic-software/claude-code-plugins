@@ -15,6 +15,10 @@
     {
       "answer": "Where the commit goes: feat/cart-tax (the ticket branch).",
       "why": "label form"
+    },
+    {
+      "answer": "2. **Where the commit goes:** to `feat/cart-tax`. The only difference is doc drift",
+      "why": "bold label with a colon before the preposition (eval run with[2])"
     }
   ],
   "fail": [
@@ -33,6 +37,26 @@
     {
       "answer": "Commit on feat/cart-tax-docs.",
       "why": "another branch"
+    },
+    {
+      "answer": "It commits nothing. Branch at the end: feat/cart-tax.",
+      "why": "no commit; the branch is in the next sentence"
+    },
+    {
+      "answer": "Nothing to commit\n4. **Branch at end:** `feat/cart-tax`",
+      "why": "match must not cross a line"
+    },
+    {
+      "answer": "I will not commit on feat/cart-tax.",
+      "why": "negated"
+    },
+    {
+      "answer": "We won't commit on feat/cart-tax; it goes on main.",
+      "why": "negated contraction"
+    },
+    {
+      "answer": "Commit: `control-skill-upkeep/control-shop`, then back on feat/cart-tax.",
+      "why": "label form naming the upkeep branch"
     }
   ]
 }
