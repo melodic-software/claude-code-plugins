@@ -98,6 +98,15 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
             [(h["number"], h["reason"]) for h in held], [(6, "do-not-merge")]
         )
 
+    def test_a_pr_verify_failed_candidate_is_dropped(self) -> None:
+        kept, held = self._run(
+            [_candidate(1), _candidate(8, labels=["pr-verify-failed"])]
+        )
+        self.assertEqual([c["number"] for c in kept], [1])
+        self.assertEqual(
+            [(h["number"], h["reason"]) for h in held], [(8, "pr-verify-failed")]
+        )
+
     def test_no_candidates_stay_none(self) -> None:
         self.assertEqual(self._run([]), ([], []))
 

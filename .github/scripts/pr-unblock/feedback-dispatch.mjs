@@ -19,7 +19,9 @@
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
-//   every comment is the reviewer bot's, a trusted person with write access
+//   every comment is the reviewer bot's or a listed review bot's
+//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
+//   person with write access
 //   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
@@ -111,7 +113,7 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -180,7 +182,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 // An unresolved thread, read in full, that the select job keeps: threadAuthors
 // accepts it and its review is on a marker-confirmed head (onReviewedHead).
 // `heads` is reviewedHeads of the PR's issue comments.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
+export function hasWorkableThread(threads, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
   return threads.some((thread) => {
     if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
       return false;
@@ -194,7 +196,7 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, h
         lastEditedAt: node.lastEditedAt,
         editorId: node.editor?.databaseId,
       })),
-      { reviewerId, appId, trustedHumans, requesters, fixers },
+      { reviewerId, reviewerIds, appId, trustedHumans, requesters, fixers },
     );
     const review = nodes[0]?.pullRequestReview;
     return (
@@ -204,7 +206,6 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, h
         firstAuthorId: nodes[0].author?.databaseId,
         review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
         heads,
-        reviewerId,
       })
     );
   });
@@ -258,6 +259,7 @@ export async function dispatchFeedback({
   log,
   settings = DEFAULTS,
   trustedHumans = new Set(),
+  reviewerIds = [],
   humanGatedLabel = "needs-human",
   now = Date.now(),
   record = emptyRecord(),
@@ -364,7 +366,7 @@ export async function dispatchFeedback({
     // job will not keep (a reviewer the lane does not act on, a review of an
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
-    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`);
     }
@@ -878,6 +880,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
     appSenderId: Number(env.APP_SENDER_ID),
+    reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),

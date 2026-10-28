@@ -522,6 +522,29 @@ json_strings_of() {
   jq_to "$__var" -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "$@")"
 }
 
+# Writes the object {"<name>": <value>, ...} to the file $1 from name and value
+# pairs, each name a plain identifier written unescaped and each value already
+# JSON text, for a jq program to destructure with `. as {$name, ...}`. A value
+# that grows with the fleet (the divergence records, the installed and enabled
+# rows) can pass the kernel's cap on one exec argument, so it reaches jq through
+# this file, never as --argjson; see context/gotchas.md.
+# printf is a builtin, so writing the file is not an exec. An empty value leaves
+# the file invalid JSON, and the jq that reads it fails rather than reading null.
+json_object_file() {
+  local __file="$1"
+  local __sep=""
+  shift
+  {
+    printf '{'
+    while (($# >= 2)); do
+      printf '%s"%s":%s' "$__sep" "$1" "$2"
+      __sep=","
+      shift 2
+    done
+    printf '}\n'
+  } >"$__file"
+}
+
 RUN_ERRORS=()
 MP_ERRORS=()
 
@@ -1002,13 +1025,15 @@ divergence_block() {
   # step's doing, so it is split out of the interval it first appeared in.
   local moved_rows
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
+  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c -n --argjson moved "$moved_rows" \
+  jq_to "$__var" -c \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
-    --argjson wt "$linked" --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF"'
+    --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF"'
+    . as {$moved, $wt}
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
-    ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
+    | ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
     | def act: [.divergences[]? | actionable | .id];
     def pin_class:
       if .projectPathPresent == false then "blocked"
@@ -1075,7 +1100,8 @@ divergence_block() {
                  | map((map(.id) | unique) as $ids
                        | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
                           more: ([($ids | length) - $cap, 0] | max)})
-                 | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path))}'
+                 | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path))}' \
+    "$RUN_DIR/.divergence-args.$mp.json"
 }
 
 # --- per-marketplace accumulators ----------------------------------------------
@@ -1115,22 +1141,20 @@ persist_first_pass_rows() {
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
+  json_object_file "$RUN_DIR/.first-pass-args.$mp.json" \
+    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to persisted -c -n \
-    --argjson errors "$errs" \
-    --argjson ir_failed "$ir_f" \
-    --argjson us_failed "$us_f" \
+  jq_to persisted -c \
     --arg refresh_rc "$REFRESH_RC" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
     --arg refresh_predicted "$REFRESH_PREDICTED" \
-    --argjson source_pull "$SOURCE_PULL_JSON" \
-    '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed, source_pull: $source_pull,
+    '{errors, ir_failed, us_failed, source_pull,
       refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
                 reason: $refresh_reason,
-                predicted: ($refresh_predicted == "true")}}'
+                predicted: ($refresh_predicted == "true")}}' "$RUN_DIR/.first-pass-args.$mp.json"
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
@@ -1923,11 +1947,12 @@ cache_content_block() {
   # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
   # tell an empty finding from a missing field.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to CACHE_JSON -c -n --argjson ids "$ids" \
-    '{scope: "user", checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
+  jq_to CACHE_JSON -c \
+    '. as $ids
+    | {scope: "user", checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
       not_checked: null, stale_ids: $ids,
       stale: ($ids | map({id: ., version: null, files_differ: null, unreleased_changes: null})),
-      source: "ids-fallback"}'
+      source: "ids-fallback"}' <<<"$ids"
 }
 
 # --- version capture --------------------------------------------------------------
@@ -2391,11 +2416,13 @@ emit_marketplace_block() {
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
   # An id this run went on to enable at user scope is no longer disabled.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to installed_disabled -c --argjson en "$en" '
-    [$en[] | select(.predicted == false and .rc == 0 and .scope == "user") | .id] as $on
-    | [.[] | select(.rc == 0 and .disabled_by_default == true) | .id | select(IN($on[]) | not)]' <<<"$inst"
+  jq_to installed_disabled -c -s '
+    .[0] as $inst | .[1] as $en
+    | [$en[] | select(.predicted == false and .rc == 0 and .scope == "user") | .id] as $on
+    | [$inst[] | select(.rc == 0 and .disabled_by_default == true) | .id | select(IN($on[]) | not)]' \
+    <<<"$inst"$'\n'"$en"
   # A field that could not be computed becomes an empty object, never an empty
-  # string: an empty --argjson would take the whole digest down with it.
+  # string: an empty value would leave the args file invalid and drop the block.
   [[ -n "$div" ]] || div='{}'
   [[ -n "$extras" ]] || extras='{}'
   [[ -n "$reg_rows" ]] || reg_rows='[]'
@@ -2403,28 +2430,31 @@ emit_marketplace_block() {
   # The window closes here, after every read above, so the `finalize` step
   # carries their cost; only the jq below and the append fall outside it.
   clock_into T_MP_E
+  local args_file="$RUN_DIR/.block-args.$mp.json"
+  local err_file="$RUN_DIR/.block-err.$mp"
+  local block_rc=0
+  local jq_err=""
+  json_object_file "$args_file" \
+    refresh_rc "${REFRESH_RC:-null}" refresh_predicted "$REFRESH_PREDICTED" \
+    project_root "$PROJECT_ROOT_JSON" \
+    ir_u "$ir_u" ir_f "$ir_f" ir_w "$ir_w" ir_l "$ir_l" \
+    us_u "$us_u" us_f "$us_f" us_w "$us_w" wh "$wh" dg "$dg" \
+    moved "$moved" noop_unverified "$NOOP_UNVERIFIED" \
+    install_gap "$INSTALL_GAP" inst "$inst" \
+    enable_gap "$ENABLE_GAP" en "$en" pr "$pr" rec "$rec" \
+    deferred "$INSTALL_DEFERRED" stopped "$STOPPED_BEFORE_INSTALL" \
+    normalize "$NORMALIZE_JSON" cache "$CACHE_JSON" reg_rows "$reg_rows" \
+    div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
+    extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
+    unset_cfg "${unset_cfg:-[]}" installed_disabled "${installed_disabled:-[]}" \
+    monitors "${monitors:-[]}" errors "$errs"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to block -c -n \
+  jq_to block -c \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
-    --argjson refresh_rc "${REFRESH_RC:-null}" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
-    --argjson refresh_predicted "$REFRESH_PREDICTED" \
-    --argjson project_root "$PROJECT_ROOT_JSON" \
-    --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
-    --argjson ir_l "$ir_l" --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
-    --argjson wh "$wh" --argjson dg "$dg" \
-    --argjson moved "$moved" --argjson noop_unverified "$NOOP_UNVERIFIED" \
-    --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
-    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" --argjson rec "$rec" \
-    --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
-    --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
-    --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
-    --argjson div "$div" --argjson self_updated "$SELF_UPDATED" --argjson self_update "$SELF_UPDATE" \
-    --argjson extras "$extras" --argjson checkout "${checkout:-null}" --argjson pull "${pull:-null}" \
-    --argjson unset_cfg "${unset_cfg:-[]}" --argjson installed_disabled "${installed_disabled:-[]}" \
-    --argjson monitors "${monitors:-[]}" \
+    --arg reg_interval "$reg_interval" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
     --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
@@ -2435,8 +2465,7 @@ emit_marketplace_block() {
     --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
     --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
-    --arg resolution "$CLOCK_RESOLUTION" \
-    --argjson errors "$errs" '
+    --arg resolution "$CLOCK_RESOLUTION" '
     # Seconds to three decimals; an empty stamp pair is a step that did not run.
     # Steps round DOWN and the total rounds UP, so the total is never below the
     # sum of its steps after rounding. Clamped at zero so a wall clock stepped
@@ -2446,7 +2475,12 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | floor) / 1000)] | max) end;
     def dur_up($s; $e):
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
-    {pre_refresh_read: dur($t_prr_s; $t_prr_e),
+    . as {$refresh_rc, $refresh_predicted, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
+          $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
+          $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
+          $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
+          $installed_disabled, $monitors, $errors}
+    | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
      marketplace_update: dur($t_mu_s; $t_mu_e),
      in_repo_update: dur($t_ir_s; $t_ir_e),
      user_sweep: dur($t_us_s; $t_us_e),
@@ -2492,8 +2526,18 @@ emit_marketplace_block() {
      self_updated: $self_updated,
      self_update: $self_update,
      updated_with_monitors: $monitors,
-     errors: $errors}'
-  printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
+     errors: $errors}' "$args_file" 2>"$err_file" || block_rc=$?
+  if ((block_rc == 0)) && [[ -n "$block" ]]; then
+    printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
+    return 0
+  fi
+  # The steps above already ran and only the report block is missing, so the
+  # run names the failure instead of reading as if no marketplace resolved.
+  # render-report.jq matches this wording to tell the two apart: change both
+  # together.
+  [[ -f "$err_file" ]] && IFS= read -r jq_err <"$err_file"
+  jq_err="${jq_err//$'\r'/}"
+  run_error "marketplace $mp: its report block could not be assembled (jq exit $block_rc: ${jq_err:-no error output})"
 }
 
 # --- main --------------------------------------------------------------------------
@@ -2674,9 +2718,6 @@ if ((PULL_SOURCES_SET == 1)); then
   done
 fi
 
-BLOCKS='[]'
-[[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"
-
 # Declared here as well as filled below, so the lint can see the assignment the
 # write-into-variable helper makes.
 RUN_ERRS='[]'
@@ -2702,7 +2743,7 @@ jq_to DIGEST -c -n \
   --arg source_pull "$SOURCE_PULL" \
   --arg source_pull_invalid "$SOURCE_PULL_INVALID" \
   --argjson quiet_auto_update "$QUIET_JSON" \
-  --argjson marketplaces "$BLOCKS" \
+  --slurpfile marketplaces "$RUN_DIR/.blocks.jsonl" \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
   --argjson first "$FIRST_PASS_TIMINGS" \

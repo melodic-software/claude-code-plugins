@@ -5,8 +5,9 @@
 //   select  run by .github/workflows/pr-unblock.yml's address-feedback-select
 //           job, which runs only base code, before the model job and any
 //           model turn, with the job's read-only token: keeps the unresolved
-//           review threads the reviewer bot opened in a review on a head a
-//           review lane's marker confirms, when every comment is the bot's,
+//           review threads the reviewer bot or a listed review bot opened
+//           in a review on a head a review lane's marker confirms, when
+//           every comment is the bot's,
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes
@@ -35,7 +36,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { commentItems, gateSource, laneHold, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 import { retryRung, stopSkip } from "./escalation-routes.mjs";
@@ -147,6 +148,40 @@ export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
     ...checkRunsByCommit.flat().filter((run) => isModelRun(run, ended)).map((run) => run.completed_at),
   ].map((time) => Date.parse(time ?? ""));
   return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
+}
+
+// The security-review lane's own signals on the PR: the heads it reviewed
+// (its reviewed-head marker, posted by github-actions[bot]) and the holds it
+// posted for a person on a CRITICAL rating (its hold comment naming
+// lane=claude-security-review and the critical-security criterion; laneHold
+// checks the author and footer), each with when it was posted.
+const SECURITY_HOLD = /^<!-- claude-lane-hold lane=claude-security-review sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->$/;
+export function securitySignals(issueComments) {
+  const reviewed = new Set();
+  const holds = [];
+  for (const comment of issueComments) {
+    const marker = comment.user?.id === MARKER_AUTHOR_ID ? REVIEWED_HEAD.exec(firstLine(comment.body)) : null;
+    if (marker?.[1] === "claude-security-review") {
+      reviewed.add(marker[2]);
+    }
+    const hold = SECURITY_HOLD.exec(laneHold({ event: "commented", ...comment }) ?? "");
+    if (hold?.[2].split(",").includes("critical-security")) {
+      holds.push({ sha: hold[1], at: Date.parse(comment.created_at ?? "") });
+    }
+  }
+  return { reviewed, holds };
+}
+
+// A listed bot's finding as the security-review lane left the PR: held (a
+// critical-security hold on the head the bot reviewed, or one posted at or
+// after its review, so on a later head), clear (the lane reviewed that head
+// and holds nothing), or pending (the lane has not reviewed it yet).
+export function securityState({ reviewed, holds }, review) {
+  const since = Date.parse(review.submitted_at ?? "");
+  if (holds.some((hold) => hold.sha === review.commit_id || hold.at >= since)) {
+    return "held";
+  }
+  return reviewed.has(review.commit_id) ? "clear" : "pending";
 }
 
 export function reviewedHeads(issueComments) {
@@ -329,8 +364,11 @@ export function humanGatedLabelFrom(path) {
 
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, a lane comment (isLaneComment,
-// which counts as the reviewer bot's throughout), or a verifier note
+// editorId }. The first is the reviewer bot's, a listed review bot's (one of
+// `reviewerIds`, pr-pipeline.yaml review-threads.reviewer-ids, matched on the
+// account id GitHub records; its comments count as the reviewer bot's
+// throughout), a lane comment (isLaneComment, which counts as the reviewer
+// bot's throughout), or a verifier note
 // (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
 // holds:
 // - every comment is the reviewer bot's, but a verifier note's own;
@@ -351,9 +389,9 @@ export function humanGatedLabelFrom(path) {
 // set of ids, given on a PR carrying the human-gated label), a thread is
 // worked only when a reply is a fix request by one of them, after the
 // escalation when there is one.
-export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
-  const reviewer = (comment) => comment.authorId === reviewerId || isLaneComment(comment);
+  const reviewer = (comment) => comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
   if (comments.length === 0 || (!reviewer(comments[0]) && !verifier)) {
     return null;
   }
@@ -413,24 +451,28 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 }
 
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
-// finder submitted on a marker-confirmed head: the reviewer bot's, or
+// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's, or
 // github-actions[bot]'s for a verifier note or a lane comment. A trusted
 // person's direction (a fix request, or a reply to the lane's escalation)
 // asks for the thread, so its review may be on an earlier head. `review` is
 // { user: { id }, commit_id }. keepThreads and the dispatcher
 // (feedback-dispatch.mjs hasWorkableThread) both judge a thread with this.
-export function onReviewedHead({ authors, firstAuthorId, review, heads, reviewerId }) {
+export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
   const directed = authors.some((a) => a.direction === true);
-  const reviewAuthor = authors[0].author === "verifier" || firstAuthorId === MARKER_AUTHOR_ID ? MARKER_AUTHOR_ID : reviewerId;
-  return review?.user?.id === reviewAuthor && (directed || heads.has(review.commit_id));
+  // threadAuthors accepted the root's author (the reviewer bot, a listed
+  // review bot, or github-actions[bot] for a verifier note or a lane comment),
+  // so its own review vouches for it.
+  return firstAuthorId !== undefined && review?.user?.id === firstAuthorId && (directed || heads.has(review.commit_id));
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review its author (the reviewer bot, or github-actions[bot] for a verifier
-// note) submitted on a marker-confirmed head (any head for a thread carrying
+// review its own author (the reviewer bot, a listed review bot, or
+// github-actions[bot] for a lane comment or a verifier note) submitted on a
+// marker-confirmed head (any head for a thread carrying
 // a trusted person's direction), and threadAuthors accepts its comments.
-// A thread with more comments than one page reads is left alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+// A thread with more comments than one page reads is left alone. A listed
+// review bot's comment is tagged `listed`, from its account id alone.
+export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -451,13 +493,13 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
         lastEditedAt: nodes[i].lastEditedAt,
         editorId: nodes[i].editor?.databaseId,
       })),
-      { reviewerId, appId, trustedHumans, requesters, fixers },
+      { reviewerId, reviewerIds, appId, trustedHumans, requesters, fixers },
     );
     if (authors === null) {
       continue;
     }
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads, reviewerId })) {
+    if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
       continue;
     }
     kept.push({
@@ -472,7 +514,11 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       // review lanes write; claude[bot] writes its own body.
       comments: rows.map((row, i) => {
         const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
-        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), body: row.body ?? "" };
+        const listed = authors[i].author === "reviewer" && reviewerIds.includes(row.user?.id);
+        // A listed bot's root carries the security-review lane's state for
+        // it (securityState): the lane's rating, not the bot's badge, decides.
+        const state = listed && i === 0 ? { security: securityState(security, review) } : {};
+        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), ...(listed ? { listed } : {}), ...state, body: row.body ?? "" };
       }),
     });
   }
@@ -486,6 +532,7 @@ export async function select({
   repository,
   appId,
   reviewerId,
+  reviewerIds = [],
   trustedHumans,
   humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
@@ -517,7 +564,9 @@ export async function select({
     reviewComments,
     reviews,
     heads: reviewedHeads(issueComments),
+    security: securitySignals(issueComments),
     reviewerId,
+    reviewerIds,
     appId,
     trustedHumans,
     requesters: gated ? fixers : null,
@@ -627,7 +676,7 @@ export function runRecord(file) {
 }
 
 // The kept threads of a PR as they are now: the reply job's re-read.
-export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans }) {
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -638,7 +687,7 @@ export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 
@@ -746,7 +795,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // The REST issue timeline, as gate-source.mjs prHold reads it.
     listTimeline: (pr) => paginate(`issues/${pr}/timeline`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
-    listReviewComments: (pr) => paginate(`pulls/${pr}/comments`),
+    // Written or edited since `since` (GitHub's since query value) when given.
+    listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
     // The repository activity for one ref, newest first (contents read).
     listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
@@ -948,6 +998,15 @@ export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
   return positive(actor?.id, `the ${login} id in ${trustedActorsPath}`);
 }
 
+// The listed review bots' ids, pr-pipeline.yaml review-threads.reviewer-ids
+// as the workflow prints it, one per line; unset is none.
+export function reviewerIdsFrom(text) {
+  return String(text ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((id) => positive(id, "an id in REVIEWER_IDS"));
+}
+
 export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
@@ -1000,6 +1059,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+      reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
       humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),

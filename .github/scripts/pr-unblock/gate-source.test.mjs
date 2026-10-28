@@ -150,6 +150,14 @@ test("a person's comment edited after the label, or written in its own second, h
   assert.equal(allows(inlineEdited, "fix-ci"), false, "an inline comment edited after the label");
 });
 
+test("a person's timeline comment with no updated_at counts as written since the label", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const comment = [{ ...commented(OWNER, "Wait.", "2026-10-18T09:00:00Z"), updated_at: undefined }, ...base];
+  const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T09:00:00Z" }] }];
+  assert.equal(allows(comment, "fix-ci"), false, "a comment");
+  assert.equal(allows(inline, "fix-ci"), false, "an inline comment");
+});
+
 // GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
 // carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
 const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
@@ -166,6 +174,8 @@ test("a person's inline reply in a review thread, seen only in the review commen
   assert.equal(allows(timeline, "fix-ci", unknown), false, "an unknown author counts as a person");
   const before = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z")] };
   assert.equal(allows(timeline, "fix-ci", before), true, "a reply before the label");
+  const noUpdate = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z", { updated_at: undefined })] };
+  assert.equal(allows(timeline, "fix-ci", noUpdate), false, "a reply with no updated_at counts as written since the label, as clear-escalations reads it");
   const bot = { reviewComments: [reply(APP, "2026-10-18T11:00:00Z"), reply(ACTIONS, "2026-10-18T11:05:00Z")] };
   assert.equal(allows(timeline, "fix-ci", bot), true, "a bot's inline reply is no one asking to wait");
 });
@@ -269,6 +279,21 @@ test("prHold holds on a person's inline reply its review reader returns", async 
   };
   const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
   assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: a person commented or reviewed since needs-human went on" });
+});
+
+test("prHold's review reader asks for the review comments since a second before the label, and every review", async () => {
+  const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00.250Z"), escalated("feedback-disputed")];
+  const asked = [];
+  const api = {
+    listReviewComments: async (...args) => (asked.push(["comments", ...args]), []),
+    listReviews: async (...args) => (asked.push(["reviews", ...args]), []),
+  };
+  const result = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
+  assert.equal(result.held, false);
+  assert.deepEqual(asked, [
+    ["comments", 7, "2026-10-18T09:59:59Z"],
+    ["reviews", 7],
+  ]);
 });
 
 test("prHold holds when the review comments or the reviews read fails, or reads no array", async () => {

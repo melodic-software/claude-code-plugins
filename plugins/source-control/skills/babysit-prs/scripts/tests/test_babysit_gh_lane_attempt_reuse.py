@@ -26,7 +26,7 @@ FIXTURE = (
     / "run_and_latest_attempt.json"
 )
 # Every attempt field babysit_review_evidence.bind() reads.
-BIND_FIELDS = ("id", "run_attempt", "status", "conclusion", "head_sha")
+BIND_FIELDS = gh.LANE_ATTEMPT_FIELDS
 
 
 class LaneAttemptReuseTests(unittest.TestCase):

@@ -1004,7 +1004,7 @@ test("the API client reads review threads across pages through GraphQL", async (
 // feedback-untaken-threads, and the not-run job's lane-stopped checks (on
 // address-feedback and publish-feedback) handle the head, so the next tick
 // does not fire again.
-const CODEX = { databaseId: 199175422 };
+const CODEX = { databaseId: 199175422, login: "chatgpt-codex-connector" };
 const selectStopped = [
   roundRun("address-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:00Z"),
   roundRun("publish-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:01Z"),
@@ -1351,6 +1351,65 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
   assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});
+
+// A listed review bot's thread (pr-pipeline.yaml review-threads.reviewer-ids),
+// keyed on the GraphQL author databaseId; Codex's id from #10092.
+const decideListed = (api, reviewerIds) =>
+  dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    reviewerIds,
+    resolveSlot: async () => resolvedLane(),
+    log: () => {},
+  });
+
+// On a needs-human PR, a thread whose root a review bot wrote in its own
+// review on HEAD, then a write-access trusted person's fix request.
+const listedAsked = (root, reviewer = root) => ({
+  isResolved: false,
+  comments: {
+    nodes: [
+      { author: root, body: "finding", pullRequestReview: { author: reviewer, commit: { oid: HEAD } } },
+      { author: KYLE_LOGIN, body: REQUEST },
+    ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
+    pageInfo: { hasNextPage: false },
+  },
+});
+const gatedListed = async (root, reviewerIds, reviewer = root) => (await decideListed(fakeApi({ pulls: humanGated(), threads: [listedAsked(root, reviewer)] }), reviewerIds))?.number ?? null;
+
+test("on a needs-human PR a listed review bot's thread is workable like the reviewer bot's; an unlisted bot's or a borrowed login's is not", async () => {
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId]), 42);
+  assert.equal(await gatedListed(CODEX, []), null);
+  assert.equal(await gatedListed({ databaseId: 206951365, login: "cursor" }, [CODEX.databaseId]), null);
+  assert.equal(await gatedListed({ databaseId: 4343, login: CODEX.login }, [CODEX.databaseId]), null);
+  // Codex's comment in another account's review is not vouched for.
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId], CLAUDE), null);
+});
+
+test("main reads the listed review bots from REVIEWER_IDS", async () => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  try {
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const env = {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      REVIEWER_IDS: "chatgpt-codex-connector[bot]",
+    };
+    await assert.rejects(main(env, { api: fakeApi({ threads: [thread([CODEX])] }), resolveSlot: async () => resolvedLane(), log: () => {} }), /REVIEWER_IDS/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // A round whose reply job stopped on a reason routed to a failing status

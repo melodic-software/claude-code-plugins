@@ -2298,6 +2298,11 @@ class EntryHold(unittest.TestCase):
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
 
+    def test_the_pr_verify_failed_label(self) -> None:
+        # A queued entry whose pr-verify FAIL labels it leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "PR-Verify-Failed"}]})
+        self.assertEqual(self.hold(), "pr-verify-failed")
+
     def test_the_needs_human_label(self) -> None:
         # A queued entry that gains the human-gated label leaves the queue.
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
@@ -4608,6 +4613,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_the_do_not_merge_label_holds(self) -> None:
         pr = owner_pr(labels=[{"name": "Do-Not-Merge"}])
         self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
+
+    def test_the_pr_verify_failed_label_holds(self) -> None:
+        pr = owner_pr(labels=[{"name": "pr-verify-failed"}])
+        self.assertEqual(self.refusal(pr), "hold-label:pr-verify-failed")
 
     def test_the_resolved_human_gated_label_holds(self) -> None:
         pr = owner_pr(labels=[{"name": "awaiting-owner"}])
