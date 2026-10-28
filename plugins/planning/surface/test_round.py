@@ -582,7 +582,7 @@ class TestRefusals(DirCase):
         self.assertIn(f"Q4 {self.FACTS_WARNING}", err)
         self.assertIn("basis carries no outcome label", err)
         self.assertEqual(self.raw(), before)
-        rc, out, err = self.rp("revise", "Q1", "--facts", "Every job shares the cache.")
+        rc, out, err = self.op("revise", id="Q1", facts="Every job shares the cache.")
         self.assertEqual(rc, 0, out + err)
         self.assertIn(f"Q1 {self.FACTS_WARNING}", err)
 
@@ -2794,14 +2794,14 @@ class TestRecordTerminalOffPath(DirCase):
         doc["questions"][0]["supersededBy"] = "Q2"
         doc["questions"][1]["supersededBy"] = "Q3"
         self.write_doc(doc)
-        out = self.assert_refused("record-terminal", "Q1", "--decision", "accept")
+        out = self.op_refused("record-terminal", id="Q1", decision="accept")
         self.assertIn("refused: Q1 is superseded; answer Q3 instead", out)
 
     def test_archived_is_refused(self):
         doc = base_doc()
         doc["questions"][2]["archived"] = {"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
         self.write_doc(doc)
-        out = self.assert_refused("record-terminal", "Q3", "--decision", "accept")
+        out = self.op_refused("record-terminal", id="Q3", decision="accept")
         self.assertIn("refused: Q3 is archived", out)
 
 
