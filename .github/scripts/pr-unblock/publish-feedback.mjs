@@ -11,15 +11,15 @@
 //   2. For VALID replies, which name no commit (the model job commits
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
-//      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
-//      VALID thread's path, or a line its evidence cites in a file of the PR
+//      row's Lane-Activity trailer (isLaneFix). Confirms its Lane-Thread
+//      trailer lines name each VALID thread and it changes that thread's path, or a line its evidence cites in a file of the PR
 //      or the thread's scope (touchesThread), and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
 //      .github/workflows/. With no such commit in that range and no patch
 //      written this round (a retry after a round whose fix landed but whose
 //      replies did not post), each VALID thread's fix is an earlier commit on
-//      the PR of the same kind, committed after the thread's newest reviewer
-//      or lane comment, that changed the thread's path and a line the
+//      the PR of the same kind whose Lane-Thread trailer names the thread,
+//      committed after the thread's newest reviewer or lane comment, that changed the thread's path and a line the
 //      reply's evidence cites, and that no lane reply already named as a
 //      fix (earlierFixOf). A push
 //      that was superseded, refused, escalated or held ends the round
@@ -107,7 +107,7 @@ import {
   trustedHumansFrom,
 } from "./address-feedback.mjs";
 import { DISPUTED, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
-import { inThreadScope } from "./thread-scope.mjs";
+import { inThreadScope, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
 // bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
@@ -117,7 +117,6 @@ export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 1
 const WEB_FLOW_ID = 19864447;
 // The trailer apply-patch.mjs writes from patch-rules.json's review-threads row.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
-const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
 const PATH_LINE = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
 // Tab and newline only, and no direction, zero-width or byte-order mark.
@@ -149,7 +148,8 @@ function check(condition, why) {
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
 // run.json is the select job's: the gated head and the threads it kept, with
-// the comment ids the model was shown.
+// the comment ids the model was shown and, from a select job that records
+// them, the reviewed heads it kept them on.
 export function parseRun(text) {
   let run;
   try {
@@ -168,6 +168,10 @@ export function parseRun(text) {
     run.stale_notes === undefined ||
       (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
     "run.json holds a malformed stale_notes list",
+  );
+  check(
+    run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
+    "run.json holds a malformed reviewed_heads list",
   );
   for (const thread of run.threads) {
     check(
@@ -283,8 +287,7 @@ function touchesThread(changed, thread, cited) {
 }
 
 // A commit the lanes App authored through the API (the web-flow committer,
-// with a valid signature, as upstreamHeadHolds in check-trusted-trigger.mjs
-// requires) with the fix trailer on a line of its own.
+// with a valid signature) with the fix trailer on a line of its own.
 const isLaneFix = (commit, appId) =>
   commit.author?.id === appId &&
   commit.committer?.id === WEB_FLOW_ID &&
@@ -295,7 +298,8 @@ const isLaneFix = (commit, appId) =>
     .some((line) => line.replace(/\r$/, "") === FIX_TRAILER);
 
 // The newest of the PR's `commits` (oldest first, as GET /pulls/{n}/commits
-// lists them) that is a lane fix commit, committed (the date GitHub sets for
+// lists them) that is a lane fix commit whose Lane-Thread trailer names
+// `thread`, committed (the date GitHub sets for
 // a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
 // lane reply already named as another thread's fix), whose files touch
 // `thread` (touchesThread), and in which one `evidence` path:line falls
@@ -307,7 +311,12 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
   const cites = evidence.map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))]);
   for (let i = commits.length - 1; i >= 0; i -= 1) {
     const commit = commits[i];
-    if (!isLaneFix(commit, appId) || claimed.has(commit.sha) || !(Date.parse(commit.commit?.committer?.date ?? "") > after)) {
+    if (
+      !isLaneFix(commit, appId) ||
+      !threadsNamed(commit.commit.message).has(thread.id) ||
+      claimed.has(commit.sha) ||
+      !(Date.parse(commit.commit?.committer?.date ?? "") > after)
+    ) {
       continue;
     }
     const later = new Set();
@@ -342,8 +351,8 @@ const claimedFixes = (reviewComments, appId) =>
 // threads' paths and the PR's own files (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (isLaneFix), and it must change, for every VALID
-// thread, its path, a file the PR already
+// exactly one fix commit (isLaneFix), whose Lane-Thread trailer must name
+// every VALID thread, and it must change, for every VALID thread, its path, a file the PR already
 // changes or inThreadScope allows for that thread alone at a line the reply's
 // evidence cites, or for a thread on a skill's SKILL.md any file in that
 // skill's directory (touchesThread).
@@ -389,8 +398,9 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const commitFiles = (await api.getCommit(fixSha)).files ?? [];
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
+    const named = threadsNamed(fixes[0].commit.message);
     const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
-    if (!valid.every((reply) => touches(threadOf.get(reply.thread), reply))) {
+    if (!valid.every((reply) => named.has(reply.thread) && touches(threadOf.get(reply.thread), reply))) {
       return null;
     }
     for (const reply of valid) {
@@ -630,7 +640,11 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [], undisposed };
     }
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans });
+    // The threads are judged on the heads the select job kept them on: the
+    // review lane re-marks its one marker on this round's fix push. A run.json
+    // from before the select job recorded them reads the markers now.
+    const heads = run.reviewed_heads && new Set(run.reviewed_heads);
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
@@ -656,7 +670,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       claimed: claimedFixes(reviewComments, appId),
     });
     if (landed === null) {
-      log("no reply is posted: no one fix commit for the VALID replies reached the PR branch, or the branch changed another path");
+      log("no reply is posted: no one fix commit naming each VALID thread reached the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";
       return { escalationReason, posted: [] };
     }

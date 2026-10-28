@@ -2,9 +2,10 @@
 // The only event field it takes is the upstream run id; every other fact is
 // read back from the API. It proceeds only when all of these hold, and
 // otherwise writes proceed=false with a reason:
-// - the run is a completed, successful pull_request run of
-//   pr-require-checks.yml, by exact path, in this repository on a head of
-//   this repository;
+// - the run is a completed pull_request run of pr-require-checks.yml, by
+//   exact path, in this repository on a head of this repository, that
+//   succeeded or failed only on holds an approving review of the head lifts
+//   (heldOnly), so a person approves a head pr-verify has judged;
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
 // - the PR is not a draft and not a dependency manager's (a Bot account with
@@ -31,6 +32,12 @@
 // body editors to SPEC_FILE, and the spec text trusted humans wrote, with
 // intake's refinement on their issues, to SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
+// This PR's own plain-named FAIL at the head (written when it linked no issue,
+// or more than a name carries) stops a new judgment unless the PR now links
+// issues a FAIL name can carry and, since that FAIL's run was created, only
+// trusted people edited its body or connected or disconnected an issue, at
+// least once (relinkedByPeople): reason `relinked`. The gate weighs the pass that
+// judgment writes by the same rule (babysit_verify_evidence `_superseded`).
 
 import { appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -100,6 +107,52 @@ const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }
 ${ACTOR}`;
 
+// The pull request's body edits and issue connect and disconnect events, the
+// ways its linked issues change at one head, read whole in one query;
+// babysit_verify_evidence.RELINK_QUERY is the same text.
+export const RELINK_QUERY =
+  "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){" +
+  "pullRequest(number:$n){userContentEdits(first:100){totalCount " +
+  "nodes{editedAt editor{...actor}}} " +
+  "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT]){" +
+  "filteredCount nodes{... on ConnectedEvent{createdAt actor{...actor}} " +
+  "... on DisconnectedEvent{createdAt actor{...actor}}}}}}}" +
+  "fragment actor on Actor{__typename login ... on User{databaseId} ... on Bot{databaseId}}";
+
+// A User on the trusted list's humans: never the lanes App or another Bot.
+const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.has(actor.databaseId);
+
+// Whether at least one body edit or issue connect or disconnect on the pull
+// request falls from `since` on, and every one there was a trusted person's
+// (babysit_verify_evidence `_relinked_by_people`, which ends the window at a
+// pass run's completion). None there means the link changed some way this read cannot
+// see. A failed read, a list cut short, or an act with no readable time is false.
+export async function relinkedByPeople(github, repository, number, humans, since) {
+  const start = Date.parse(since ?? "");
+  if (Number.isNaN(start)) {
+    return false;
+  }
+  const [o, r] = repository.split("/");
+  let pull;
+  try {
+    pull = (await github("POST", "/graphql", { query: RELINK_QUERY, variables: { o, r, n: number } }))?.data?.repository?.pullRequest;
+  } catch {
+    return false;
+  }
+  const edits = pull?.userContentEdits;
+  // totalCount counts every timeline item; filteredCount the kinds asked.
+  const events = pull?.timelineItems;
+  if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
+    return false;
+  }
+  const acts = [...edits.nodes.map((node) => [node?.editedAt, node?.editor]), ...events.nodes.map((node) => [node?.createdAt, node?.actor])];
+  if (acts.some(([at]) => Number.isNaN(Date.parse(at ?? "")))) {
+    return false;
+  }
+  const inside = acts.filter(([at]) => Date.parse(at) >= start);
+  return inside.length > 0 && inside.every(([, actor]) => trustedHuman(actor, humans));
+}
+
 // babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
 // `repository.<field>` names nothing, null there with every error a NOT_FOUND
 // at that path, as GitHub answers a `Refs: #<n>` whose number is no issue or
@@ -134,6 +187,70 @@ const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[
 const laneAuthored = (user, laneIdentity) =>
   loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
 const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
+
+// pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
+// App pull request, and the step after it that aggregates the lanes.
+export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
+export const AGGREGATE_STEP = "Aggregate lane results";
+// What merge-holds.mjs `holds` writes after each hold an approving review of
+// the head lifts, and the line the runner adds for the step's failing exit.
+export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
+const STEP_EXIT = "Process completed with exit code 1.";
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// One such hold's whole log line, `#<n>: <reason>.`: a hold path or a
+// trusted-actor list widening, then PERSON_LIFT and its carry-over clause,
+// in today's wording and the earlier one, to the end of the line. A changed
+// path is author text, so only the full shape counts, never a substring.
+export const personHoldLine = (line, number) =>
+  !line.includes("a cost path") &&
+  new RegExp(
+    `^#${number}: (?:it changes .+, a hold path|it widens the trusted-actor list \\(.+\\))${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
+  ).test(line);
+
+// The `##[error]` lines of a job log, without the runner's timestamp.
+export const errorLines = (log) =>
+  String(log)
+    .split(/\r?\n/)
+    .flatMap((line) => /^﻿?(?:\S+ )?##\[error\](.*)$/.exec(line)?.slice(1) ?? []);
+
+// Whether failed run `runId` failed only because a person has not yet approved
+// pull request `number`'s head: of its latest jobs only ci-status failed, its
+// only failed step is HOLD_STEP, the lanes aggregate succeeded, and every
+// error that job logged is one of `number`'s holds an approval lifts or that
+// step's exit. ci-status still fails, so such a head never merges unapproved;
+// the verdict a judgment writes lifts no hold path. A read that fails, a job
+// or step list cut short, or any other error is false.
+export async function heldOnly(github, readLog, repository, runId, number) {
+  try {
+    const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+    const jobs = listed?.jobs;
+    if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
+      return false;
+    }
+    const ci = jobs.filter((job) => job?.name === "ci-status");
+    if (ci.length !== 1 || ci[0].conclusion !== "failure" || !Number.isSafeInteger(ci[0].id)) {
+      return false;
+    }
+    if (jobs.some((job) => job !== ci[0] && !["success", "skipped", "neutral"].includes(job?.conclusion))) {
+      return false;
+    }
+    const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
+    const failed = steps.filter((step) => step?.conclusion !== "success" && step?.conclusion !== "skipped");
+    if (
+      failed.length !== 1 ||
+      failed[0].name !== HOLD_STEP ||
+      failed[0].conclusion !== "failure" ||
+      !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
+    ) {
+      return false;
+    }
+    const errors = errorLines(await readLog(ci[0].id));
+    const holds = errors.filter((line) => line !== STEP_EXIT);
+    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => personHoldLine(line, number));
+  } catch {
+    return false;
+  }
+}
 
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
@@ -218,41 +335,53 @@ async function pullsOfCommit(github, repository, head) {
 // the cap, or a number the pattern refuses) are never looked up, since the
 // writer names that FAIL plainly. A FAIL another PR left at the
 // head names issues this run never reads, so its suffixed name is missed and
-// the head is judged again; so is a head whose linked issues a body edit
-// changed since this PR's FAIL there. Each costs a run and changes nothing
-// the gate decides: the earlier FAIL stays tied and refuses the head.
+// the head is judged again; so is a head whose linked issues changed since
+// this PR's FAIL there. Each costs a run, and the earlier FAIL stays tied and
+// refuses the head unless the gate finds it superseded (`_superseded`: only
+// trusted people changed the link before the new pass started).
 // A counted FAIL answers `fail`; this PR's counted passes answer only their
 // runs' start times (`passes`), which `specChanged` weighs against the spec.
 // The FAIL names come first: a counted FAIL alone decides, so the passes are
-// looked up only when none is found.
-async function judged({ github, repository, number, head, base, prs, issues }) {
+// looked up only when none is found. This PR's plain FAIL answers instead
+// `ownFail`, the earliest creation time of its counted runs, so the caller
+// can weigh a relink (`relinkedByPeople`) and then look up the rest with
+// `afterOwn`.
+async function judged({ github, repository, number, head, base, prs, issues, afterOwn = false }) {
   const named = (pr, verdict) => `pr-verify-${pr}-${head}-${verdict}`;
+  const own = named(number, "fail");
   const suffix = issues === undefined ? "" : issuesSuffix(issues);
   const names =
     issues === undefined
       ? [
-          named(number, "fail"),
+          ...(afterOwn ? [] : [own]),
           ...[...prs].filter((other) => other !== number).map((other) => named(other, "fail")),
           ...["pass", "pass-notes"].map((verdict) => named(number, verdict)),
         ]
       : suffix
-        ? [named(number, "fail") + suffix].filter(isVerdictName)
+        ? [own + suffix].filter(isVerdictName)
         : [];
   const passes = [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
+    const created = [];
     for (const artifact of await artifactsNamed(github, repository, name)) {
       if (artifact?.name !== name || artifact.expired !== false) {
         continue;
       }
       const runId = artifact.workflow_run?.id;
       const run = Number.isSafeInteger(runId) ? await countedRun({ github, repository, runId, verdict, base }) : null;
-      if (run !== null && verdict === "fail") {
+      if (run !== null && verdict === "fail" && name === own && issues === undefined) {
+        created.push(Date.parse(run.created_at ?? ""));
+      } else if (run !== null && verdict === "fail") {
         return { fail: true, passes };
-      }
-      if (run !== null) {
+      } else if (run !== null) {
         passes.push(run.run_started_at);
       }
+    }
+    if (created.length > 0) {
+      // NaN for any missing time, which relinkedByPeople refuses.
+      const earliest = Math.min(...created);
+      return { fail: false, passes, ownFail: Number.isNaN(earliest) ? "" : new Date(earliest).toISOString() };
     }
   }
   return { fail: false, passes };
@@ -297,7 +426,7 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
     throw new Error(`#${number}: the closing issues could not be read`);
   }
-  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const trusted = (actor) => trustedHuman(actor, humans);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
@@ -377,7 +506,7 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
   };
 }
 
-export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -388,7 +517,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     run.path !== UPSTREAM_PATH ||
     run.event !== "pull_request" ||
     run.status !== "completed" ||
-    run.conclusion !== "success" ||
+    (run.conclusion !== "success" && run.conclusion !== "failure") ||
     run.repository?.full_name !== repository ||
     run.head_repository?.full_name !== repository ||
     !SHA.test(run.head_sha ?? "")
@@ -426,12 +555,30 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
     return skip("author-not-lane-or-owner");
   }
+  if (run.conclusion === "failure" && !(typeof readLog === "function" && (await heldOnly(github, readLog, repository, upstreamRunId, pull.number)))) {
+    return skip("not-a-passing-run");
+  }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
-  const { fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs });
+  let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs });
   if (fail) {
     return skip("already-judged");
   }
-  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
+  let specRead;
+  if (ownFail !== undefined) {
+    // This PR's plain FAIL stands unless it now links issues a FAIL name
+    // carries, which differ from the none or too many the FAIL recorded, and
+    // only trusted people changed the link since. A failed read keeps it.
+    specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList).catch(() => null);
+    const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
+    if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
+      return skip("already-judged");
+    }
+    ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true }));
+    if (fail) {
+      return skip("already-judged");
+    }
+  }
+  specRead ??= await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
@@ -470,7 +617,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   }
   return {
     proceed: true,
-    reason: passes.length > 0 ? "spec-changed" : "ok",
+    reason: ownFail !== undefined ? "relinked" : passes.length > 0 ? "spec-changed" : "ok",
     prNumber: pull.number,
     headSha: head,
     baseSha: pull.base.sha,
@@ -502,10 +649,28 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   }
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
+  // A job's log: GitHub answers with a redirect to storage, which is read
+  // without the token.
+  const send = fetchImpl ?? fetch;
+  const readLog = async (jobId) => {
+    let response = await send(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
+      redirect: "manual",
+    });
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 && location) {
+      response = await send(location);
+    }
+    if (!response.ok) {
+      throw new Error(`the log of job ${jobId} answered ${response.status}`);
+    }
+    return response.text();
+  };
   const result = await resolvePull({
     github: github ?? api(false),
     // The Refs read needs GraphQL errors back to tell a typo from a failure.
     readRefs: github ?? api(true),
+    readLog,
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     humans: trusted.humans,

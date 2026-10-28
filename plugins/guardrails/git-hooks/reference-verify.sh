@@ -9,11 +9,13 @@
 #
 # Runs the three verifiers that used to report after every Claude Code edit
 # (cli-flag-verify, skill-reference-verify, stale-path-verify) once per changed
-# .md, .sh, .bash, .ps1 or .psm1 file, through the plugin's run-guards.sh
+# .md, .sh, .bash, .ps1 or .psm1 file outside an evals/**/samples/ folder
+# (recorded model output), through the plugin's run-guards.sh
 # dispatcher, all installed beside this script as entry assets. Each file is
 # handed over the way the edit row handed it: a file new to the range as a
 # Write of its whole content, a changed file as an Edit whose new text is the
-# lines the range adds, so a finding is always about an added line. The
+# lines the range adds, so a finding is always about an added line; a file
+# renamed, or copied from a file the range also changes, counts as changed. The
 # verifiers' own scope gates hold (skill references are judged only in a
 # marketplace repository). It runs at pre-push, not pre-commit, because its
 # cost is over the commit budget (check-placement convention, measured rows).
@@ -84,6 +86,38 @@ is_new() {
     { [[ -z "$MAIN_BASE" ]] || ! git cat-file -e "$MAIN_BASE:$1" 2>/dev/null; }
 }
 
+# changed_lines: the lib's ranges, except that a file the range adds as a copy
+# of a file it also changes (a doc moved with a stub left at its old path) gets
+# the lines a copy-detecting diff adds to it, not the whole file: it is judged
+# like a rename's destination. The lib's diff detects renames, not copies.
+changed_lines() {
+  local d
+  checks_changed_lines
+  : >"$CHECKS_TMP/copies"
+  while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' d; do
+    printf '%s\n' "$d" >>"$CHECKS_TMP/copies"
+  done < <(checks_diff --name-status -C --diff-filter=C -z 2>/dev/null)
+  [[ -s "$CHECKS_TMP/copies" ]] || return 0
+  checks_diff -U0 --text -C --diff-filter=C --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
+    awk '
+      /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
+      /^@@ / && path != "" {
+        split($3, n, ",")
+        start = substr(n[1], 2) + 0
+        count = (n[2] == "") ? 1 : n[2] + 0
+        if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
+      }' >"$CHECKS_TMP/ranges.copy"
+  # A copy keeps its place in the table only when the lib listed it (a binary
+  # file it dropped stays out); a copy that adds no line keeps no range.
+  awk -F '\t' -v OFS='\t' '
+    FILENAME == ARGV[1] { copy[$0] = 1; next }
+    FILENAME == ARGV[2] { add[$1] = add[$1] $0 "\n"; next }
+    !($1 in copy) { print; next }
+    !($1 in done) { done[$1] = 1; printf "%s", add[$1] }' \
+    "$CHECKS_TMP/copies" "$CHECKS_TMP/ranges.copy" "$CHECKS_TMP/ranges" >"$CHECKS_TMP/ranges.new"
+  mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
+}
+
 # narrow_to_branch: a range whose tip merged the default branch since the last
 # push holds the lines that merge brought in, which the branch did not write.
 # Keep only the lines added both since the last push and against the tip's
@@ -93,7 +127,7 @@ narrow_to_branch() {
   [[ -n "$MAIN_BASE" ]] || return 0
   mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.push"
   printf '%s %s\n' "$MAIN_BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-  checks_changed_lines
+  changed_lines
   mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.main"
   printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
   awk -F '\t' -v OFS='\t' '
@@ -129,10 +163,13 @@ first_line() {
     "$CHECKS_TMP/ranges"
 }
 
-# verified_type <path>: an extension the verifiers read.
+# verified_type <path>: an extension the verifiers read, outside an eval
+# suite's samples/ folder. A sample is recorded model output: a flag, skill
+# reference or path in it is data, not a claim the repository makes.
 verified_type() {
   local f="$1"
   case "$f" in
+    evals/samples/* | evals/*/samples/* | */evals/samples/* | */evals/*/samples/*) return 1 ;;
     *.md | *.sh | *.bash | *.ps1 | *.psm1) return 0 ;;
     *) return 1 ;;
   esac
@@ -143,41 +180,34 @@ out="$CHECKS_TMP/findings"
 
 # check_range: every file the current range (or the worktree) changes.
 check_range() {
-  local f text payload ctx line msg _
-  local renamed=$'\n'
-  checks_changed_lines
+  local f ctx line msg _
+  local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload"
+  changed_lines
   narrow_to_branch
-  # A rename's destination is missing from the base but is no new text: only
-  # the lines the range adds to it are judged.
+  # A rename's or a copy's destination is missing from the base but is no new
+  # text: only the lines the range adds to it are judged.
   while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' f; do
-    renamed+="$f"$'\n'
-  done < <(checks_diff --name-status -M --diff-filter=R -z 2>/dev/null)
+    derived+="$f"$'\n'
+  done < <(checks_diff --name-status -C --diff-filter=RC -z 2>/dev/null)
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
     checks_regular_file --tip "$TIP" "$f" || continue
+    # The text goes to jq as a file: an argument over the kernel's per-argument
+    # limit (128 KiB on Linux) fails jq, and the file would go unjudged.
     # Git quotes a name holding a quote, a backslash or a control byte whatever
     # core.quotePath says, so the range table has no entry for it: such a file
     # is judged whole, as a new one is.
-    if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$renamed" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
-      text="$(
-        checks_file_text --tip "$TIP" "$f"
-        printf x
-      )"
-      text="${text%x}"
-      payload="$(jq -n --arg p "$PWD/$f" --arg c "$text" \
-        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}')"
+    if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$derived" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
+      checks_file_text --tip "$TIP" "$f" >"$text"
+      jq -n --arg p "$PWD/$f" --rawfile c "$text" \
+        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$payload"
     else
-      text="$(
-        checks_file_text --tip "$TIP" "$f" | added_lines "$f"
-        printf x
-      )"
-      text="${text%x}"
-      [[ -n "${text//[[:space:]]/}" ]] || continue
-      payload="$(jq -n --arg p "$PWD/$f" --arg c "$text" \
-        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}')"
+      checks_file_text --tip "$TIP" "$f" | added_lines "$f" >"$text"
+      grep -q '[^[:space:]]' "$text" || continue
+      jq -n --arg p "$PWD/$f" --rawfile c "$text" \
+        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload"
     fi
-    ctx="$(printf '%s' "$payload" |
-      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh 2>/dev/null |
+    ctx="$(CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" 2>/dev/null |
       jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
     [[ -n "$ctx" ]] || continue
     line="$(first_line "$f")"

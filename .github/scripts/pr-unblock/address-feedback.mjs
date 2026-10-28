@@ -20,7 +20,8 @@
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
-//           record the reply job checks the replies against (runRecord). On a PR carrying the
+//           record the reply job checks the replies against, with the
+//           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none, unless a lane escalation put
@@ -559,11 +560,12 @@ export async function select({
     }).source === "lane-escalation";
   const gated = labeled && !escalated;
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const heads = reviewedHeads(issueComments);
   const kept = keepThreads({
     threads,
     reviewComments,
     reviews,
-    heads: reviewedHeads(issueComments),
+    heads,
     security: securitySignals(issueComments),
     reviewerId,
     reviewerIds,
@@ -574,14 +576,19 @@ export async function select({
   });
   // An unresolved thread the lane does not take (a reviewer it does not
   // trust, a review on an older head, a reply it already gave) would block
-  // the merge with no stop on record, so it ends in a failing status.
-  // With no hold and no unresolved thread left, every thread stop is gone
-  // on this head: `resolved` lets report-stop-status clear its status.
+  // the merge with no stop on record, so it ends in a failing status. A
+  // pr-verify FAIL's note from an older head is not one: a pass at this head
+  // resolves it (the pass-only round in main), and a failing status here
+  // would fail ci-status, which pr-verify waits on, so no pass could come.
+  // The note still holds the merge, which needs every thread resolved.
+  // With no hold and no other unresolved thread left, every thread stop is
+  // gone on this head: `resolved` lets report-stop-status clear its status.
   if (kept.length === 0) {
     if (gated) {
       return { decision: "skip", skipReason: "awaiting-human", threads: kept };
     }
-    return threads.some((thread) => thread.isResolved === false)
+    const stale = new Set(staleVerifyNotes(threads, headSha));
+    return threads.some((thread) => thread.isResolved === false && !stale.has(thread.id))
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
       : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }
@@ -653,13 +660,17 @@ export async function select({
     fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
+    reviewedHeads: [...heads].sort(),
   };
 }
 
-// run.json, as its bytes: the gated head and the kept threads with the comment
-// ids the model is shown, a pure function of the thread file. publish-feedback.mjs
-// checks the model's replies against it.
-export function runRecord(file) {
+// run.json, as its bytes: the gated head, the kept threads with the comment
+// ids the model is shown, and the reviewed heads they were kept on, a pure
+// function of the thread file and those heads. publish-feedback.mjs checks the
+// model's replies against it and re-reads the threads against those heads: a
+// review lane edits its one marker in place, so after the fix push it may name
+// only the fix head.
+export function runRecord(file, reviewedHeads) {
   const run = {
     version: 1,
     head_sha: file.head_sha,
@@ -671,12 +682,15 @@ export function runRecord(file) {
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
+    ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
   };
   return `${JSON.stringify(run)}\n`;
 }
 
-// The kept threads of a PR as they are now: the reply job's re-read.
-export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans }) {
+// The kept threads of a PR as they are now: the reply job's re-read, judged
+// against `heads` (the select job's reviewed heads) when given, else the
+// markers as they are now.
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -687,7 +701,7 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 
@@ -705,6 +719,9 @@ const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!)
   }
 }`;
 
+const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $pr) { id mergeQueueEntry { id } } }
+}`;
 const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
@@ -894,8 +911,25 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async resolveThread(id) {
       return (await graphql(RESOLVE_MUTATION, { id })).resolveReviewThread.thread.isResolved;
     },
+    // The pull request's node id, and whether it sits in the merge queue.
+    async readQueueEntry(pr) {
+      const pull = (await graphql(QUEUE_ENTRY_QUERY, { owner, name, pr })).repository.pullRequest;
+      return { id: pull.id, queued: pull.mergeQueueEntry !== null };
+    },
+    async dequeuePull(id) {
+      await graphql("mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }", { id });
+    },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
+    },
+    async updateIssueComment(id, body) {
+      await request(`${repo}/issues/comments/${id}`, "PATCH", { body }, true);
+    },
+    async addLabels(pr, labels) {
+      await request(`${repo}/issues/${pr}/labels`, "POST", { labels }, true);
+    },
+    async removeLabel(pr, label) {
+      await request(`${repo}/issues/${pr}/labels/${encodeURIComponent(label)}`, "DELETE");
     },
     // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
@@ -1015,11 +1049,29 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
+  const selectThreads = () => {
+    need(env, ["TRUSTED_ACTORS"]);
+    return select({
+      api: client,
+      pr,
+      headSha: env.HEAD_SHA,
+      repository: env.GITHUB_REPOSITORY,
+      appId,
+      reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+      reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
+      trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
+      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
+      maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
+    });
+  };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
     // A pass-only round (pr-feedback-dispatch.yml after a pr-verify pass):
     // only the stale fail-note threads, for the reply job to resolve; no
     // thread for a model, so the round's model jobs and its neutral checks
-    // stay off. Nothing to resolve writes no output at all.
+    // stay off. With nothing to resolve (as on a rerun after the notes were
+    // resolved by hand), the full select runs for `stop-resolved` alone, so
+    // report-stop-status can clear a stop an earlier attempt left; no
+    // `proceed` or `resolve-only`, so no model or reply job starts.
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     if (!SHA.test(env.VERIFY_PASS_HEAD)) {
       throw new Error("VERIFY_PASS_HEAD is not a commit id");
@@ -1038,26 +1090,17 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(file, null, 2)}\n`);
       writeFileSync(env.RUN_FILE, runRecord(file));
       output("resolve-only", "true");
+    } else {
+      output("stop-resolved", String((await selectThreads()).resolved === true));
     }
     return 0;
   }
   if (command === "select") {
-    need(env, ["THREAD_FILE", "RUN_FILE", "TRUSTED_ACTORS"]);
-    const result = await select({
-      api: client,
-      pr,
-      headSha: env.HEAD_SHA,
-      repository: env.GITHUB_REPOSITORY,
-      appId,
-      reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
-      reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
-      trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
-      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
-      maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
-    });
+    need(env, ["THREAD_FILE", "RUN_FILE"]);
+    const result = await selectThreads();
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
-      writeFileSync(env.RUN_FILE, runRecord(result.file));
+      writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only

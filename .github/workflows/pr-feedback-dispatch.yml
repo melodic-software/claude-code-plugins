@@ -16,20 +16,23 @@ name: pr-feedback-dispatch
 # dispatched lane runs its own trigger gate, kill switch, config and round cap.
 #
 # A completed pr-verify run starts it too. When that run uploaded a fail
-# verdict for a PR still at the head it judged, the post-verify-notes job
-# posts the verdict's summary and notes on the PR as review comments, as
-# github-actions[bot] (.github/scripts/pr-unblock/verify-notes.mjs), which
-# address-feedback works like the reviewer bot's threads. The dispatch job
-# then decides as for a review run, with the newest completed review run at
-# that head as its upstream, so the gate and the broker check the same kind of
-# run either way. When the run uploaded a pass or pass-notes verdict instead,
-# for a PR still at the head it judged, the job posts nothing and resolves
-# nothing: it reads the PR's review threads, and when a fail-note thread from
-# an earlier head is still open (address-feedback.mjs staleVerifyNotes) it
-# names the head, and the dispatch job sends a pass-only round, whose
+# verdict for a lanes App PR still at the head it judged, the
+# post-verify-notes job posts the verdict's summary and notes on the PR as
+# review comments, as github-actions[bot]
+# (.github/scripts/pr-unblock/verify-notes.mjs), which address-feedback works
+# like the reviewer bot's threads. The dispatch job then decides as for a
+# review run, with the newest completed review run at that head as its
+# upstream, so the gate and the broker check the same kind of run either way.
+# When the run uploaded a pass or pass-notes verdict instead, for a lanes App
+# PR still at the head it judged, the job posts nothing and resolves nothing:
+# it reads the PR's review threads, and when a fail-note thread from an
+# earlier head is still open (address-feedback.mjs staleVerifyNotes) it names
+# the head, and the dispatch job sends a pass-only round, whose
 # publish-feedback job resolves those threads as the lanes App (resolving a
 # thread takes more than this job's token holds). A pass with no such thread
-# dispatches nothing.
+# dispatches nothing. On a PR a person opened, a fail is one PR comment and
+# the pr-verify-failed label, which ci-status holds in the merge queue, and a
+# pass at its head removes the label; neither dispatches.
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
@@ -108,7 +111,7 @@ jobs:
     permissions:
       contents: read # check out main
       actions: read # the pr-verify run's verdict
-      pull-requests: write # read the PR and its threads, and post a fail's notes on it
+      pull-requests: write # read the PR and its threads; post a fail's notes; add or remove pr-verify-failed
     outputs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
@@ -178,6 +181,7 @@ jobs:
         if: steps.verdict.outputs.name != ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
           VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs

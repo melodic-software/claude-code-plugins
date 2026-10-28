@@ -993,9 +993,11 @@ jobs:
   # in the kept threads' scope, read from the select job's thread file, skips
   # a head that moved since the select job read it, and pushes one commit
   # without force. It runs only on a written patch: no change (every thread
-  # INCORRECT or UNCERTAIN) needs no push. report-escalation does not need it:
-  # a patch that does not land leaves no fix commit, and publish-feedback
-  # ends the round feedback-not-landed.
+  # INCORRECT or UNCERTAIN) needs no push. report-escalation takes no
+  # escalation from it: a patch that does not land leaves no fix commit, and
+  # publish-feedback ends the round feedback-not-landed. Its pushed-commit
+  # output is the one head after the select job's that the reply job and
+  # report-escalation accept.
   apply-feedback-patch:
     # After adjudicate-feedback too, so the push lands right before the reply
     # job: a review run on the pushed head that finishes while this run still
@@ -1036,6 +1038,9 @@ jobs:
       patch-head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
       patch-threads-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       patch-threads-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      # The same leg's scanned replies, whose VALID threads the commit names.
+      patch-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+      patch-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       # true drops the human-gated label from the holds: the select job kept
       # only threads a trusted person with write access asked to fix, or a
       # lane escalation put the label on (gate-source.mjs).
@@ -1425,12 +1430,15 @@ jobs:
       # set only once its upload succeeded.
       review-adjudication-attempt: ${{ needs.adjudicate-feedback.outputs.attempt }}
       review-adjudication-sha256: ${{ needs.adjudicate-feedback.outputs.sha256 }}
-      # The push job moved the PR head off the reviewed one; the gate and the
-      # broker accept the review of the head the select job read when only
-      # commits GitHub signed for the lanes App during this run follow it. A
-      # human dispatch has no dispatcher and passes none.
+      # The push job moved the PR head off the reviewed one; the gate accepts
+      # the review of the head the select job read only while the PR is at it
+      # or at the one commit the push job pushed, never at a lanes App commit
+      # another job or run made. A human dispatch has no dispatcher and
+      # passes neither.
       expected-upstream-head: >-
         ${{ inputs.dispatcher-run-id != '' && needs.address-feedback-select.outputs.head-sha || '' }}
+      pushed-commit: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
 
   # review-dependency is six jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
@@ -2559,6 +2567,7 @@ jobs:
       - apply-conflict-patch
       - conflict-scan-refusal
       - address-feedback-select
+      - apply-feedback-patch
       - publish-feedback
       - review-dependency-select
       - apply-dependency-verdict
@@ -2639,6 +2648,7 @@ jobs:
       - apply-conflict-patch
       - conflict-scan-refusal
       - address-feedback-select
+      - apply-feedback-patch
       - publish-feedback
       - review-dependency-select
       - apply-dependency-verdict
@@ -2705,4 +2715,9 @@ jobs:
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
         && needs.address-feedback-select.outputs.head-sha || '' }}
+      # The push job's commit alone, never its escalation: as for the reply
+      # job, the gate accepts that one commit after the select job's head.
+      pushed-commit: >-
+        ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
+        && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
       trusted-base: default-tip

@@ -2792,7 +2792,7 @@ class Assess(unittest.TestCase):
         gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
         # The default branch head is the base, so the in-flight cap is the
         # base config's.
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": SHA}}
         return gh
 
     def readable(self) -> GhFake:
@@ -6183,7 +6183,7 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         """Main has moved past the base (whose config has no cap) to a head
         whose config read answers `head_config`."""
         gh = self.readable()
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
         gh.rest[self.HEAD_CONFIG] = head_config
         gh.rest[
             f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={MAIN_SHA}"
@@ -6339,7 +6339,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={SHA}"] = (
             file_payload(base_source)
         )
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
         gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
         gh.rest[self.MAIN_CONFIG] = (
             404
@@ -6502,7 +6502,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
 
     def test_an_unreadable_main_head_refuses(self) -> None:
         gh = self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE)
-        gh.rest[f"repos/{REPO}/commits/trunk"] = 502
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = 502
         self.lane_clear()
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=lambda floor, who: gate())
@@ -6610,7 +6610,7 @@ class TheStricterConfigEdges(unittest.TestCase):
                 policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)
                 gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
                 gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
-                gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+                gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
                 gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
                 for path, text in (
                     (policy.CONFIG_PATH, PIPELINE.replace("local-babysit", "pr-merge")),
@@ -6676,7 +6676,7 @@ class ConfigAtIsSharedByCommit(unittest.TestCase):
     ) -> None:
         gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
         gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": SHA}}
         start = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
         base = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
         # Past the repository-keyed window (two minutes), the head is read
@@ -6686,8 +6686,38 @@ class ConfigAtIsSharedByCommit(unittest.TestCase):
                 policy.run_cache, "now", return_value=start + timedelta(minutes=minutes)
             ):
                 policy.with_default_branch(REPO, base)
-        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}/commits/trunk"]), 3)
+        self.assertEqual(
+            gh.calls.count(["api", f"repos/{REPO}/git/ref/heads/trunk"]), 3
+        )
         self.assertEqual(self.reads(gh, SHA), 1)
+
+
+class TheDefaultBranchHeadIsReadByItsFullRef(unittest.TestCase):
+    """`_default_branch_head` reads the branch by its full ref (`base_tip`),
+    so no tag or other ref of the same name answers for it."""
+
+    HEAD_REF = f"repos/{REPO}/git/ref/heads/trunk"
+
+    def test_the_head_is_read_by_its_full_ref(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[self.HEAD_REF] = {"ref": "refs/heads/trunk", "object": {"sha": SHA}}
+        self.assertEqual(policy._default_branch_head(REPO, "trunk"), ("trunk", SHA))
+        self.assertEqual(gh.calls, [["api", self.HEAD_REF]])
+
+    def test_an_absent_ref_or_a_malformed_sha_raises(self) -> None:
+        gh = GhFake().install(self)
+        for answer in (
+            404,
+            {},
+            {"object": {}},
+            {"object": {"sha": "A" * 40}},
+            {"object": {"sha": "a" * 39}},
+            {"object": {"sha": 7}},
+        ):
+            with self.subTest(answer=answer):
+                gh.rest[self.HEAD_REF] = answer
+                with self.assertRaises(policy.PolicyReadError):
+                    policy._default_branch_head(REPO, "trunk")
 
 
 class SharedPostMergeAnswer(unittest.TestCase):
@@ -6704,7 +6734,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
 
     def bound(self) -> GhFake:
         gh = self.readable()
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
         # The merge config at the head this class moves main to: the base's.
         for sha in (MAIN_SHA, "f" * 40):
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
@@ -6793,7 +6823,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
         """Bound, but the default branch moved to a head that merged
         `merges` (a PolicyRecentMerges answer) since the floor."""
         gh = self.bound()
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "f" * 40}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": "f" * 40}}
         gh.graphql["PolicyRecentMerges"] = merges
         return gh
 
@@ -6819,7 +6849,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.flight()
         fresh = self.lane_assess(post_merge=lambda floor, who: counted)
         gh = self.moved(merges)
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "f" * 40}
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": "f" * 40}}
         self.flight()
         never = mock.Mock(side_effect=AssertionError("read fresh"))
         with mock.patch.object(policy, "read_demotion", never):
@@ -6827,7 +6857,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertEqual(reused.details["postMergeShared"], "used")
         self.assertEqual(self.decided(reused), self.decided(fresh))
         # An unreadable head leaves its config unread, which refuses.
-        gh.rest[f"repos/{REPO}/commits/trunk"] = 502
+        gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = 502
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=never, shared=self.shared(counted))
 
@@ -6957,7 +6987,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
         late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
         other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
         lane_merge = merge_pages([[merged(7, bot("agent-lanes"), None)]])
-        moved = {f"repos/{REPO}/commits/trunk": {"sha": "f" * 40}}
+        moved = {f"repos/{REPO}/git/ref/heads/trunk": {"object": {"sha": "f" * 40}}}
         for overrides, rest, graphql, reason in (
             ({}, moved, {"PolicyRecentMerges": lane_merge}, "new-merge:#7"),
             ({}, moved, {"PolicyRecentMerges": 502}, "merged-unreadable"),
@@ -7306,7 +7336,7 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
 
         def check(floor: Any, who: str) -> policy.PostMergeGate:
             called.append(policy.datetime.now(policy.UTC))
-            gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "e" * 40}
+            gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": "e" * 40}}
             return lane_gate(True)
 
         shared: list[policy.SharedPostMerge] = []
@@ -7451,7 +7481,7 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
 class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
     """Past `SHARED_UNVERIFIED_MAX_AGE`, a passing answer with lane merge
     #8040 unverified is kept up to `SHARED_MAX_AGE` when nothing it was read
-    from moved (`_still_current`) and no verifying run of #8040 reached a
+    from moved (`_moved`) and no verifying run of #8040 reached a
     conclusion since its `computedAt` (the real
     `babysit_postmerge.pending_runs_unchanged`, its listing faked at `_read`).
     The expected decisions are a recompute's: with no run concluded, the
@@ -7469,7 +7499,7 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
 
     def aged(self, minutes: float) -> GhFake:
         """Bound, with the answer computed `minutes` ago and main's head
-        on the answer's config commit, as `_still_current` reads it."""
+        on the answer's config commit, as `_moved` reads it."""
         gh = AStaleSharedAnswerIsRefreshed.aged(self, minutes)
         gh.rest[NEWEST_CONFIG.replace(SHA, MAIN_SHA)] = [{"sha": CONFIG_SHA}]
         return gh
@@ -7606,7 +7636,7 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
                 self.assertEqual(len(checks), 1)
 
     def test_a_moved_head_reads_the_answer_again(self) -> None:
-        # `_still_current` binds the keep to main's head: a newer head reads
+        # `_moved` binds the keep to main's head: a newer head reads
         # the check afresh even with no run concluded.
         self.aged(5)
         self.judged_flight()
@@ -7696,10 +7726,10 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         pipeline = PIPELINE.replace("local-babysit", "pr-merge")
         gh = config_fake(self, pipeline)
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
-        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": SHA}
+        gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": SHA}}
         if main_identity is not None:
             # Main has moved to a head that names another identity.
-            gh.rest[f"repos/{REPO}/commits/main"] = {"sha": MAIN_SHA}
+            gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": MAIN_SHA}}
             gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
             for path, text in (
                 (policy.CONFIG_PATH, pipeline.replace(IDENTITY, main_identity)),

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/billing/export/README.md"
+          }
+        }
+      ],
+      "why": "the grouped README"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/billing/export.md"
+          }
+        }
+      ],
+      "why": "the stray legacy file"
+    },
+    {
+      "answer": [],
+      "why": "read nothing"
+    }
+  ]
+}

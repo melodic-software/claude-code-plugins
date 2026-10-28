@@ -16,6 +16,7 @@
     "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Address review feedback on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "thread-trailer": true,
     "reads-report": null,
     "skip-moved-head": true,
     "escalations": ["feedback-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]

@@ -13,6 +13,9 @@
   judgment (the README's "Verifier verdict"); that is the one difference.
 - The `Refs:` rule: the one issue a pull request body's visible `Refs: #<n>`
   lines name (`babysit_merge_policy.refs_issue`, resolve-pr's `refsIssue`).
+- The relink rule: the same RELINK_QUERY text, and the same body edits and
+  issue connect or disconnect events let a FAIL be superseded (every one
+  since the FAIL a trusted person's; a cut or unreadable answer never).
 - The spec kind: the verdict write-verdict.mjs builds from resolve-pr's spec
   text records `spec_kind`, and the gate allows a pass only when it matches
   how the issue is linked now (a `Refs:` slice or a closing issue).
@@ -119,6 +122,62 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 completed = run["status"] == "completed"
                 self.assertEqual(js, gate_counts(run, verdict) and completed)
         self.assertIn(True, counted["counted"])
+
+    def test_a_relink_is_judged_the_same(self) -> None:
+        human, app = gate.HUMAN, gate.LANES_ACTOR
+        at, before = gate.RELINK_AT, "2026-10-13T00:00:00Z"
+        answers = [
+            gate.relink_answer([(at, human)], [(at, human)]),
+            gate.relink_answer([(before, app)], [(at, human)]),
+            gate.relink_answer([(at, app)]),
+            gate.relink_answer([], [(at, app)]),
+            gate.relink_answer([(at, None)]),
+            gate.relink_answer([(at, human)], edits_total=101),
+            gate.relink_answer([], [(at, human)], events_filtered=2),
+            gate.relink_answer([], [(None, human)]),
+            gate.relink_answer(),
+            {},
+        ]
+        script = (
+            f"import {{ RELINK_QUERY, relinkedByPeople }} from {json.dumps(RESOLVER.as_uri())};"
+            " const { answers, since, humans, repo } = JSON.parse(process.argv[1]);"
+            " const judged = [];"
+            " for (const pullRequest of answers) {"
+            "   const github = async () => ({ data: { repository: { pullRequest } } });"
+            "   judged.push(await relinkedByPeople(github, repo, 41, new Set(humans), since));"
+            " }"
+            " console.log(JSON.stringify({ query: RELINK_QUERY, judged }));"
+        )
+        payload = {
+            "answers": answers,
+            "since": gate.OLDER_START,
+            "humans": [gate.MAINTAINER["id"]],
+            "repo": gate.REPO,
+        }
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        self.assertEqual(js["query"], ve.RELINK_QUERY)
+        since = postmerge._time(gate.OLDER_START)
+        # The resolver judges up to now; the gate up to a pass's start.
+        until = postmerge._time("2100-01-01T00:00:00Z")
+        for answer, judged in zip(answers, js["judged"], strict=True):
+            fake = gate.FakeGitHub([], {})
+            fake.relink = answer
+            with (
+                mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            ):
+                reader = ve.Reader(gate.REPO, "main")
+                with self.subTest(answer):
+                    self.assertEqual(
+                        reader._relinked_by_people(gate.PR, since, until), judged
+                    )
+        self.assertEqual(js["judged"][:3], [True, True, False])
 
     def test_the_head_ref_digest_is_the_same(self) -> None:
         writer = RESOLVER.parent / "write-verdict.mjs"
