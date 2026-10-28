@@ -148,10 +148,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# and check-catalog, split from one job whose wall was 99 to 125 s over the
-# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
-# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
-# checkout included) in the 125 s run, 3 each;
+# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
+# composite schema steps it then ran plus 3 s for their pip-installed
+# replacement (those steps alone reached 121 s on a stalled uv download), 2,
+# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
+# and checkout included) in the 125 s run of the job it was split from, 3;
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
