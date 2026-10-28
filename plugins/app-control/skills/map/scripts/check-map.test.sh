@@ -301,6 +301,20 @@ assert_equals "size-budget: nested README one over" "$(run_check)" \
   "size-budget | features/cart/notes/README.md | 4001 characters, budget 4000"
 repeat é 3999 >"$SKILL/features/cart/notes/README.md"
 assert_equals "size-budget: counts characters, not bytes" "$(run_check)" ""
+# A host with no UTF-8 locale: its `wc -m` counts bytes. The count must not depend on it.
+mkdir -p "$TEST_TMPDIR/no-utf8-bin"
+cat >"$TEST_TMPDIR/no-utf8-bin/wc" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == -m ]]; then shift; exec $(command -v wc) -c "\$@"; fi
+exec $(command -v wc) "\$@"
+EOF
+chmod +x "$TEST_TMPDIR/no-utf8-bin/wc"
+assert_equals "size-budget: no UTF-8 locale, at its budget" \
+  "$(PATH="$TEST_TMPDIR/no-utf8-bin:$PATH" LC_ALL=C LANG=C bash "$CHECK" "$SKILL" --root "$ROOT")" ""
+repeat é 4000 >"$SKILL/features/cart/notes/README.md"
+assert_equals "size-budget: no UTF-8 locale, one over" \
+  "$(PATH="$TEST_TMPDIR/no-utf8-bin:$PATH" LC_ALL=C LANG=C bash "$CHECK" "$SKILL" --root "$ROOT")" \
+  "size-budget | features/cart/notes/README.md | 4001 characters, budget 4000"
 
 new_case
 repeat x 4000 >"$SKILL/features/wishlist.md"

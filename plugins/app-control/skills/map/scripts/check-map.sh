@@ -260,11 +260,12 @@ if [[ -d "$dir/shared" ]]; then
   done < <(cd "$dir" && find shared -mindepth 1 -maxdepth 1 -not -name '.*' | LC_ALL=C sort)
 fi
 
-# Size budget, in characters (newlines included) under a UTF-8 locale.
+# Size budget, in UTF-8 characters, newlines included. Every byte that is not a continuation byte
+# (0x80-0xBF) starts one character, so the count needs no UTF-8 locale on the host.
 HUB_BUDGET=16000 FEATURE_BUDGET=4000
 over_budget() { # <path relative to the control skill> <budget>
   local chars
-  chars="$(LC_ALL=C.UTF-8 wc -m <"$dir/$1" | tr -d ' ')"
+  chars="$(LC_ALL=C tr -d '\200-\277' <"$dir/$1" | wc -c | tr -d ' ')"
   ((chars <= $2)) || finding size-budget "$1" "$chars characters, budget $2"
 }
 over_budget SKILL.md "$HUB_BUDGET"
