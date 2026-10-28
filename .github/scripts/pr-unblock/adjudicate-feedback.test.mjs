@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { adjudicationReply, collect, DISPUTED, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->\n**pr-unblock / adjudicate-feedback: the finding stands**";
@@ -311,7 +311,7 @@ test("settleDisputes holds an UNCERTAIN or VALID-defer security-review or unknow
 });
 
 test("prepare writes one slot per dispute with the files at the head, and refuses another head's thread file", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const reads = [];
   const getText = async (path, ref) => {
@@ -339,7 +339,7 @@ test("prepare writes one slot per dispute with the files at the head, and refuse
 });
 
 test("prepare stages the whole review comment and the reviewer's cited files, recorded apart from the lane's", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const citing = thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-review", body: CITING }]);
   const files = { "lib/install.mjs": "a\n", "lib/lock.mjs": "lock\n", "lib/order.mjs": "order\n" };
@@ -356,7 +356,7 @@ test("prepare stages the whole review comment and the reviewer's cited files, re
 });
 
 test("prepare writes an empty index into an output directory that does not exist yet, as the workflow passes it", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const outDir = join(dir, "adjudicate");
   const result = await prepare({ threadsText: JSON.stringify(fileOf(thread("PRRT_a"))), repliesText: "", headSha: HEAD, outDir, getText: async () => null });
@@ -365,7 +365,7 @@ test("prepare writes an empty index into an output directory that does not exist
 });
 
 test("prepare stages a cited CLAUDE.md under the suffix, and a path that cannot be staged is absent, not a failed round", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   // `lib` is a file in this staging, so `lib/install.mjs.txt` cannot be written beside it.
   const getText = async () => "text\n";
@@ -402,7 +402,7 @@ test("verdictOf takes only the schema's closed sets", () => {
 });
 
 test("collect pairs each slot's structured output with the thread the index names; a missing or bad one is null", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(join(dir, "index.json"), JSON.stringify({ version: 1, head_sha: HEAD, slots: [0, 1, 2].map((slot) => ({ slot, thread: `PRRT_${slot}` })), over: [] }));
   for (const [slot, text] of [[0, '{"verdict":"reviewer","question":"none"}'], [1, '{"verdict":"lane","question":"intent"}']]) {
@@ -429,7 +429,7 @@ test("parseVerdicts keeps valid entries for the gated head only", () => {
 });
 
 test("main prepare reads its inputs only as the bytes their writers hashed", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const threadsText = JSON.stringify(fileOf(thread("PRRT_a")));
   const repliesText = incorrect("PRRT_a");

@@ -142,7 +142,7 @@ reported, because the separation rule was measured against an unidentified body.
 ## Budgets, caching, and stopping
 
 Fetches are cheap and judge sampling is the cost center, so these budgets exist to bound runaway
-loops rather than to save money. All are config keys (`.claude/attribution.json`), and
+loops rather than to save money. All are config keys (see SKILL.md "Configuration"), and
 `--show-config` on the detector scripts names the layer that supplied each value.
 
 - `searches_per_candidate` (default 3) and `fetches_per_candidate` (default 5) cap one

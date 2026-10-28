@@ -166,6 +166,38 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   }
 });
 
+test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_request_target run of pr-merge.yml, whatever its conclusion", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-merge.yml",
+      "github.event.workflow_run.event": "pull_request_target",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      "github.event.workflow_run.head_branch": LANE_BRANCH,
+      "github.event.workflow_run.conclusion": "skipped",
+      "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
+      ...overrides,
+    });
+  assert.equal(runs(), true, "the lanes App's own unlabel skips pr-merge's job and still counts");
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "success" }), true);
+  for (const [label, overrides] of [
+    ["pr-merge's schedule", { "github.event.workflow_run.event": "schedule", "github.event.workflow_run.head_branch": "main" }],
+    ["a hand-started pr-merge run", { "github.event.workflow_run.event": "workflow_dispatch" }],
+    ["a branch the lanes App opens no PR from", { "github.event.workflow_run.head_branch": "feat/x" }],
+    ["a fork's PR", { "github.event.workflow_run.head_repository.full_name": "fork/claude-code-plugins" }],
+    ["another workflow's pull_request_target run", { "github.event.workflow_run.path": ".github/workflows/intake-reenter.yml" }],
+  ]) {
+    assert.equal(runs(overrides), false, label);
+  }
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  assert.match(text, /\n    workflows: \[[^\]]*\bpr-merge\b[^\]]*\]\n/, "pr-merge is a workflow_run upstream");
+});
+
 test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "post-verify-notes");
   const repo = "melodic-software/claude-code-plugins";
@@ -838,4 +870,12 @@ test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.
   for (const name of [...taken, ...refused]) {
     assert.equal(isVerdictName(name), taken.includes(name), name);
   }
+});
+
+test("pr-feedback-dispatch.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const block = /\nconcurrency:\n((?: {2}.*\n)+)/.exec(text);
+  assert.ok(block, "the workflow sets top-level concurrency");
+  assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
+  assert.match(block[1], /^ {2}queue: max$/m);
 });

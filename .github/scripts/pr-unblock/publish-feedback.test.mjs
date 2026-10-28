@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
 import { main, publish, renderReply } from "./publish-feedback.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -1114,7 +1114,7 @@ test("renderReply fences the note longer than any backtick run in it", () => {
 });
 
 test("main writes the escalation and skip reason files and refuses a symlinked artifact", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  const dir = tempDir("publish-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const replies = join(dir, "replies");
   const ws = join(dir, "ws");
@@ -1321,7 +1321,7 @@ test("a fix commit must be committed by web-flow with a valid signature", async 
 });
 
 test("main: a missing replies.jsonl writes the no-model-turn skip and no escalation; a missing run.json still escalates", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  const dir = tempDir("publish-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const replies = join(dir, "replies");
   mkdirSync(replies);
@@ -1411,7 +1411,7 @@ test("lineChanged reads a patch's new-side hunks", async () => {
 // collect-base-activity runs a script activity from a copy of its own
 // directory under $RUNNER_TEMP, so every import must resolve inside it.
 test("the script loads from a copy of its own directory alone", async () => {
-  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  const copy = tempDir("base-script-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
     const module = await import(pathToFileURL(join(copy, "publish-feedback.mjs")).href);

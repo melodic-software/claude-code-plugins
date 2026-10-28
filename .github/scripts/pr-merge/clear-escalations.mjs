@@ -98,6 +98,7 @@
 //   GITHUB_API_URL
 //   GITHUB_RUN_NUMBER    where the sweep starts (rotated)
 //   BABYSIT_VERIFY_GH_TOKEN, BABYSIT_VERIFY_LISTING, BABYSIT_VERIFY_HEAD_REFS,
+//   BABYSIT_VERIFY_LISTING_CARRY,
 //   BABYSIT_RUN_CACHE    the gate reader's Actions token and the run's shared
 //                        reads, as enable-auto-merge passes them
 import process from "node:process";

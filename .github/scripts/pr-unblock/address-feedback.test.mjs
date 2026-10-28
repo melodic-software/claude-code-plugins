@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -464,7 +465,7 @@ for (const [label, overrides] of [
 }
 
 test("trustedHumansFrom reads only the people on the list", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -508,7 +509,7 @@ test("an unresolved thread, taken or not, or a person's hold resolves nothing", 
 });
 
 test("a thread read that fails throws, so main writes no outputs and resolves nothing", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
@@ -915,7 +916,7 @@ test("injection-shaped finding text is carried as data and changes no decision",
 });
 
 test("main select writes outputs and the thread file; escalation writes no thread file", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -1301,7 +1302,7 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
 // pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at
 // the PR's head; the select job then lists only the stale fail-note threads.
 test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const OLD = "b".repeat(40);
   const note = (id, commit = OLD, resolved = false) => ({

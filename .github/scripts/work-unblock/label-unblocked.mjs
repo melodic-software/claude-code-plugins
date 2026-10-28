@@ -17,7 +17,8 @@
 // ready is labeled agent-ready within the room and loses admission-deferred,
 // a held one, or one an open pull request in this repository names (intake
 // defers those), stays deferred, and any other loses admission-deferred. Restarts, re-fires and relabels below
-// re-run admitted issues and are never paced.
+// re-run admitted issues and are never paced. Each admission also lifts a
+// parked `status: confirmed` beside `status: ready`, as admit.mjs does.
 //
 // A listed human adding admission-deferred to an issue with `status: ready`
 // is the mark of a decided issue (owner decision Q75): the sweep reads its
@@ -70,8 +71,19 @@
 // added again by the App, which starts the lane. An issue whose newest marker
 // is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
 // restarted the same way at once, while its turn-cap markers since a person
-// last added agent-ready are within limits.turn-cap-restarts. At most
+// last added agent-ready are within limits.turn-cap-restarts. A funding stop
+// (the lane's Claude capacity: a spend limit, no credit or a disabled key) is
+// restarted like a limit stop, after its regain date or, with none,
+// limits.fallback-reset hours after the stop. At most
 // limits.restarts-per-run issues per run, longest-waiting first.
+//
+// Limit and funding stops past limits.limit-stops-per-issue since a person
+// last added agent-ready spend that cap, a safety limit, so the issue takes
+// the `fail` route of the issue lane's stop routes: the App posts
+// an outcome=failed marker naming the stopped run, which maintenance-monitor
+// signal 9 reports, and removes agent-ready, adding no label. It never gets
+// needs-human. A newest failed marker with agent-ready still on (a removal
+// that did not land) gets agent-ready removed.
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
@@ -100,7 +112,7 @@
 // backoff, a WIP cap skip without a per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
 // the broker passes on (its Retry-After is at most an hour), and only while
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
-// limit stop, so it never counts toward handing the issue to a person.
+// limit stop, so it never counts toward failing the issue.
 //
 // A run the token broker refused for the lanes kill switch, at broker-check's
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
@@ -189,7 +201,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -347,15 +359,21 @@ const trustedLabeler = (event, { bot, humans }) => event?.actor?.login === bot |
 const newestAdd = (events, name) =>
   events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name.toLowerCase()).at(-1);
 
+// Whether lowercased label names carry a parked status: confirmed beside
+// status: ready, which admission lifts so the issue keeps one status label
+// (a manual intake re-dispatch skips intake-reenter, which lifts it).
+const parkedBesideReady = (lower) => lower.includes(CONFIRMED) && lower.includes(READY);
+
 // Why `number` is not promoted (`reason`, null when it is ready), whether a
-// hold label is the reason, and whether it carries admission-deferred.
+// hold label is the reason, whether it carries admission-deferred, and
+// whether it carries a parked status: confirmed beside status: ready.
 async function refusal(args) {
   const base = `/repos/${args.repo}/issues/${args.number}`;
   const current = await args.github("GET", base);
   const lower = (current.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase());
   const held = lower.find((label) => HOLDS.has(label));
   const reason = current.state !== "open" ? "not open" : held ? `held by ${held}` : await readiness({ ...args, base, lower });
-  return { reason, held: current.state === "open" && Boolean(held), deferred: lower.includes(DEFERRED_LABEL), current };
+  return { reason, held: current.state === "open" && Boolean(held), deferred: lower.includes(DEFERRED_LABEL), confirmed: parkedBesideReady(lower), current };
 }
 
 async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
@@ -505,8 +523,9 @@ function admissionGate(status) {
   };
 }
 
-// Adds agent-ready to a ready issue within the gate's room, else defers it.
-async function admit({ github, repo, number, gate, deferred }) {
+// Adds agent-ready to a ready issue within the gate's room, lifting a parked
+// status: confirmed beside status: ready, else defers it.
+async function admit({ github, repo, number, gate, deferred, confirmed = false }) {
   const base = `/repos/${repo}/issues/${number}`;
   if (!(await gate.take())) {
     if (!deferred) {
@@ -518,6 +537,9 @@ async function admit({ github, repo, number, gate, deferred }) {
   await github("POST", `${base}/labels`, { labels: [LABEL] });
   if (deferred) {
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+  }
+  if (confirmed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
   }
   console.log(`label-unblocked: #${number} labeled ${LABEL}`);
 }
@@ -548,7 +570,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`::warning title=label-unblocked::#${number}: ${DEFERRED_LABEL} was added by neither the lanes App nor a listed human, so it is left as is and not re-admitted`);
         continue;
       }
-      const { reason, held, deferred, current } = await refusal({ github, repo, number, humans, closes, bot });
+      const { reason, held, deferred, confirmed, current } = await refusal({ github, repo, number, humans, closes, bot });
       if (humans.has(mark.actor?.id) && labelNames(current).includes(READY) && !held && current.state === "open") {
         await admitMarked({ github, repo, number, issue: current, events, humans, bot, appId, closes, gate, admission });
         continue;
@@ -559,7 +581,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
       if (pulls.length > 0) {
         console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} is for it`);
       } else if (reason === null) {
-        await admit({ github, repo, number, gate, deferred });
+        await admit({ github, repo, number, gate, deferred, confirmed });
       } else if (held) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
       } else {
@@ -627,7 +649,7 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
   const reasons = decision.reasons.join("; ");
   if (decision.verdict === "admit") {
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
-    await admit({ github, repo, number, gate, deferred: true });
+    await admit({ github, repo, number, gate, deferred: true, confirmed: parkedBesideReady(labelNames(issue).map((name) => name.toLowerCase())) });
   } else if (decision.verdict === "refuse") {
     // The comment first, then the needs-decision hold before status: ready
     // comes off, and admission-deferred last: a failed write leaves the issue
@@ -687,12 +709,12 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   const opened = (number) => (Number.isFinite(seen.get(number)) ? seen.get(number) : Number.POSITIVE_INFINITY);
   for (const number of [...seen.keys()].sort((a, b) => opened(a) - opened(b) || a - b)) {
     try {
-      const { reason, deferred } = await refusal({ github, repo, number, humans, closes, bot });
+      const { reason, deferred, confirmed } = await refusal({ github, repo, number, humans, closes, bot });
       if (reason !== null) {
         console.log(`label-unblocked: #${number} not labeled: ${reason}`);
         continue;
       }
-      await admit({ github, repo, number, gate, deferred });
+      await admit({ github, repo, number, gate, deferred, confirmed });
     } catch (error) {
       failed += 1;
       reportError(number, error);
@@ -701,11 +723,12 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   return failed;
 }
 
-// The hand-off to a person after limits.limit-stops-per-issue limit stops. Its marker lets
-// a later sweep see the comment was posted.
-const ESCALATED = "<!-- work-unblock escalated -->";
-export const escalationComment = (stops) =>
-  `${ESCALATED}\nThe usage limit stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\`, so work-unblock no longer restarts it. To try again, remove \`${HUMAN_LABEL}\`, then remove \`${LABEL}\` and add it back: adding it starts a new run and starts the count again. Removing \`${LABEL}\` by hand also means work-unblock never adds it to this issue again when its blockers close; from then on a person adds it.`;
+// The fail route's comment after limits.limit-stops-per-issue limit and
+// funding stops. It opens with the issue lane's outcome marker, so signal 9
+// reports it and findPrior resumes the stopped run's branch (`run`, and
+// `branch=resumed` when that run kept no branch of its own) on the next run.
+export const failedComment = ({ stops, run = "", onResumed = false }) =>
+  `<!-- work-resolve-issue outcome=failed${run ? ` run=${run}` : ""}${onResumed ? " branch=resumed" : ""} -->\nThe usage limit or the lane's funding stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\` (limits.limit-stops-per-issue), so work-unblock stopped restarting it: it removed \`${LABEL}\` and added no label. This is a capacity stop, not a decision for a person. To run it again, add \`${LABEL}\`; the next run continues the stopped run's branch while it is not behind the default branch.`;
 
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
@@ -1285,6 +1308,11 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
+  // A fail route whose comment went out but whose agent-ready removal did not
+  // land: no agent-ready was added since its marker, so finish it.
+  if (marker?.outcome === "failed") {
+    return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
+  }
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
@@ -1307,19 +1335,14 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
     return { reason: "no limit stop is its newest lane outcome" };
   }
   // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
-  // goes to a person: count both since a person last added agent-ready.
+  // spends the per-issue cap and takes the fail route: count both since a
+  // person last added agent-ready.
   const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
   if (stops >= limits["limit-stops-per-issue"]) {
-    const explained = comments.some(
-      (comment) =>
-        comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
-    );
-    return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
+    return { reason: `${stops} limit stops since a person last added ${LABEL}`, fail: { stops, run: marker.run, onResumed: marker.onResumed } };
   }
-  // A funding stop with no regain date waits for a person.
-  if (funding && marker.resets === null) {
-    return { reason: "waiting for a person to restore the lane's funding" };
-  }
+  // A funding stop with no regain date waits limits.fallback-reset, as a
+  // limit stop with no reset does (clampReset).
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
@@ -1381,18 +1404,17 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
           wipCapped,
           read,
         }));
-      const { reason, escalate, explained } = verdict;
-      if (escalate) {
-        // The comment first and the label last: the label is a hold, so a
-        // sweep after a failed comment would never come back to post it. A
-        // failed label write is retried by the next sweep, which finds the
-        // comment and adds only the label.
+      const { reason, fail } = verdict;
+      if (fail) {
+        // The fail route: the comment first and agent-ready last, so the stop
+        // is never invisible. A failed removal is retried by the next sweep,
+        // which finds the failed marker newest and removes only the label.
         const base = `/repos/${repo}/issues/${issue.number}`;
-        if (!explained) {
-          await github("POST", `${base}/comments`, { body: escalationComment(escalate) });
+        if (!fail.finish) {
+          await github("POST", `${base}/comments`, { body: failedComment(fail) });
         }
-        await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
-        console.log(`label-unblocked: #${issue.number} handed to a person: ${reason}`);
+        await github("DELETE", `${base}/labels/${LABEL}`);
+        console.log(`label-unblocked: #${issue.number} failed: ${reason}`);
         continue;
       }
       if (reason !== null) {

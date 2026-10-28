@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. `D:\\HealthReports\\reports\\health-2026-10-27T101500123Z.md`, the run's report.\n2. `<StateBase>\\state\\latest.json`.\n3. One appended line in `<StateBase>\\state\\history.jsonl`.",
+      "why": "Windows path to the dated report"
+    },
+    {
+      "answer": "The report goes to `<OutputBase>/reports/health-<UTC-timestamp>.md`, one file per run.",
+      "why": "template path with forward slashes"
+    },
+    {
+      "answer": "The dated report, D:\\HealthReports\\reports\\health-<UTC timestamp>.md.",
+      "why": "placeholder with a space in it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll write `D:\\HealthReports\\health-report.html` with the CRIT findings in red.",
+      "why": "an HTML file and no markdown report"
+    },
+    {
+      "answer": "The run writes a markdown report and updates history.jsonl.",
+      "why": "names no report path"
+    }
+  ]
+}

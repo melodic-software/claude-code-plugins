@@ -73,6 +73,8 @@ whose alternative may not repeat or contain the recommendation).
 add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
 independent; `--depends none` on the flags) or names a question still open in its own round; with
 the requireDepends setting on, both refuse.
+add, add-round and apply warn when one write supersedes three or more questions one for one, and
+point to revise, which keeps a question's id, thread and answer. archive clears any hold.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -179,6 +181,8 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 RESTATE_SENTENCES = 3
+# One write superseding this many questions one for one is a re-issue `revise` should do (G6).
+MASS_SUPERSEDE = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
@@ -758,7 +762,7 @@ def warn_bare_file_ref(qid, field, text):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -797,6 +801,21 @@ def lint_questions(doc, qs):
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
                         "file; spell it out or use the question's id"
                     )
+    warn_mass_supersede(qs)
+
+
+def warn_mass_supersede(qs):
+    """Warn when one write supersedes MASS_SUPERSEDE or more questions one for one: a re-issued
+    round starts each question over under a new id, where `revise` keeps the id, thread and
+    answer (G6)."""
+    pairs = [f"{q['supersedes']} by {q['id']}" for q in qs if q.get("supersedes")]
+    if len(pairs) >= MASS_SUPERSEDE:
+        shown = ", ".join(pairs[:5]) + (f" and {len(pairs) - 5} more" if len(pairs) > 5 else "")
+        warn(
+            f"this write supersedes {len(pairs)} questions one for one ({shown}); "
+            "to reword a question or change its recommendation, alternatives or commitments, "
+            "use revise <id>, which keeps its id, thread and answer"
+        )
 
 
 def group_members(doc, gid):
@@ -1497,13 +1516,23 @@ def op_record_terminal(d, doc, a):
 
 
 def op_archive(d, doc, a):
-    """Record why a question left the path; the server derives its archived state."""
+    """Record why a question left the path; the server derives its archived state. Any hold on it
+    is cleared, as `wait --clear` clears one (the setAside stamps stay), so an archived question
+    carries no `waiting` hold (G6)."""
     if not (a.why or "").strip():
         sys.exit("archive needs --why")
     capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
     for q in qs:
+        held = q.get("waiting")
+        label = HOLD_LABELS.get(q.get("waitingBy"), HOLD_LABELS["claude"])
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            q.pop(key, None)
+        if held:
+            q.setdefault("history", []).append(
+                {"at": at, "by": "claude", "text": f"No longer {label}."}
+            )
         q["archived"] = {"why": a.why, "at": at}
         q.setdefault("history", []).append(
             {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
