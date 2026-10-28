@@ -7,6 +7,12 @@
 // if/then/else and not. Object, array and string keywords apply to any value of that shape, whether
 // or not the sub-schema states `type`.
 
+/** A found value as JSON, clipped: file contents are data. */
+const show = (value) => {
+  const text = JSON.stringify(value) ?? String(value);
+  return text.length > 60 ? `${text.slice(0, 60)}...` : text;
+};
+
 /** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
  * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
 export function validate(s, value, at = "$") {
@@ -14,7 +20,7 @@ export function validate(s, value, at = "$") {
   const fail = (msg) => errors.push(`${at}: ${msg}`);
   const isObject = typeof value === "object" && value !== null && !Array.isArray(value);
   if ("const" in s && value !== s.const) fail(`must be ${s.const}`);
-  if (s.enum && !s.enum.includes(value)) fail(`must be one of ${s.enum.join(", ")}`);
+  if (s.enum && !s.enum.includes(value)) fail(`must be one of ${s.enum.join(", ")}, got ${show(value)}`);
   if (s.type === "object" && !isObject) return [`${at}: must be an object`];
   if (s.type === "array" && !Array.isArray(value)) return [`${at}: must be an array`];
   if (s.type === "string" && typeof value !== "string") return [`${at}: must be a string`];

@@ -310,7 +310,7 @@ describe("--config", () => {
     writeFileSync(team, "routing:\n  version: 2\n  deny:\n    - figma\n");
     const { config: c } = detect([...base, "--team", team]);
     assert.equal(c.values.routing, undefined);
-    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.version: must be one of 1/);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.version: must be one of 1, got 2$/m);
   });
 
   test("a complete team routing row is held to the full row schema, allOf included", () => {
@@ -480,14 +480,37 @@ describe("--config team routing applied to routes", () => {
     assert.ok(!out.installed.includes("/playgrounds:use"));
   });
 
+  const FIGMA = "figma@claude-plugins-official";
+  const figmaRows = JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows.filter((r) => r.detect === FIGMA);
+
   test("deny removes every route it names, installed ones from installed, and names the team file", () => {
     const team = teamFile("route-deny.yaml", "routing:\n  version: 1\n  deny:\n    - figma\n");
     const out = detect([...args, "--team", team]);
     assert.ok(!out.routes.some((r) => r.detect.startsWith("figma")));
     const denied = out.skipped.filter((s) => s.by === "deny");
-    assert.deepEqual([...new Set(denied.map((s) => s.id))], ["figma@claude-plugins-official"]);
-    assert.ok(denied.length > 1, "one route per concern holding the figma row");
-    for (const s of denied) assert.deepEqual([s.name, s.source], ["figma", team]);
+    assert.deepEqual(denied.map((s) => s.concern), figmaRows.map((r) => r.concern), "one route per figma row");
+    for (const s of denied) assert.deepEqual([s.id, s.name, s.source], [FIGMA, "figma", team]);
+  });
+
+  test("deny matches a route by its id", () => {
+    const team = teamFile("route-deny-id.yaml", "routing:\n  version: 1\n  deny:\n    - /playgrounds:use\n");
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "/playgrounds:use"), undefined);
+    assert.deepEqual(out.skipped, [{ concern: "typography-color", id: "/playgrounds:use", by: "deny", name: "/playgrounds:use", source: team }]);
+  });
+
+  test("deny matches a route by its full detect value", () => {
+    const team = teamFile("route-deny-detect.yaml", `routing:\n  version: 1\n  deny:\n    - ${FIGMA}\n`);
+    const out = detect([...args, "--team", team]);
+    assert.ok(!out.routes.some((r) => r.detect === FIGMA));
+    assert.deepEqual(out.skipped.map((s) => [s.concern, s.by, s.name]), figmaRows.map((r) => [r.concern, "deny", FIGMA]));
+  });
+
+  test("deny by full detect value reaches a route whose id differs from its detect", () => {
+    const team = teamFile("route-deny-own-detect.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool\n${ROW}  deny:\n    - brand-tool@brand-market\n`);
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "brand-tool"), undefined);
+    assert.deepEqual(out.skipped, [{ concern: "typography-color", id: "brand-tool", by: "deny", name: "brand-tool@brand-market", source: team }]);
   });
 
   test("a denied plugin that is installed leaves installed and reachable", () => {
@@ -510,18 +533,19 @@ describe("--config team routing applied to routes", () => {
     const bundled = JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows;
     assert.deepEqual(out.routes, bundled);
     assert.deepEqual(out.skipped, []);
-    assert.match(out.routing_notes.join("\n"), new RegExp(`${team.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")} has \\d+ problems?.*built-in routes are used`));
+    assert.match(out.routing_notes.join("\n"), new RegExp(`${team.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")} has 1 problem \\(.*built-in routes are used`));
   });
 
   test("a team routing an unknown version or with a dropped entry is disclosed, and the valid rest applies", () => {
     const v2 = teamFile("route-v2.yaml", "routing:\n  version: 2\n  deny:\n    - figma\n");
     const dropped = detect([...args, "--team", v2]);
     assert.deepEqual(dropped.skipped, []);
-    assert.match(dropped.routing_notes.join("\n"), /has \d+ problems?/);
-    const partial = teamFile("route-partial.yaml", "routing:\n  version: 1\n  deny:\n    - 5\n    - canva\n"); // spellchecker:disable-line
+    assert.match(dropped.routing_notes.join("\n"), / has 1 problem \(/);
+    assert.match(dropped.config.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.version: must be one of 1, got 2$/m);
+    const partial = teamFile("route-partial.yaml", "routing:\n  version: 1\n  deny:\n    - 5\n    - 6\n    - canva\n"); // spellchecker:disable-line
     const out = detect([...args, "--team", partial]);
     assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva")); // spellchecker:disable-line
-    assert.match(out.routing_notes.join("\n"), /has \d+ problems?/);
+    assert.match(out.routing_notes.join("\n"), / has 2 problems \(/);
   });
 
   test("a bad non-routing key is not disclosed as a routing problem, and team routing applies", () => {
