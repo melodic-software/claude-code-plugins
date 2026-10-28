@@ -3002,6 +3002,16 @@ class TestBuiltinPlugins(unittest.TestCase):
         )
         self.assertIn("skills", rec["partial"])
 
+    def test_a_conditional_spread_name_leaves_the_factory_name_unresolved(
+        self,
+    ) -> None:
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{name:"override"},async',
+        )
+        self.assertNotIn("claude-test", {s["name"] for s in rec["skills"]})
+        self.assertIn("skills", rec["partial"])
+
     def test_a_present_but_unresolved_description_is_partial(self) -> None:
         rec = self._test_module('description:"Claude Test",', "description:qq(),")
         self.assertEqual(rec["description_source"], "unresolved")

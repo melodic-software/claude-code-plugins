@@ -4770,6 +4770,10 @@ def _factory_skill(
             if table is not None:
                 row = resolve_field(src, braces, table, literal[expr.group(2)])
                 name = row["value"] if row and row["source"] == "literal" else None
+    merged = fields.get("name")
+    if entry and merged is not None and merged[1:] != (entry[0], entry[1]):
+        # A later spread (`...COND&&{name:...}`) sets the name at run time.
+        name = None
     fields = {k: v for k, v in fields.items() if k != "name"}
     return fields, complete, name
 
