@@ -247,6 +247,7 @@ jobs:
         .github/scripts/apply-patch/retry-fetch.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
+        .github/scripts/pr-unblock/verify-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
