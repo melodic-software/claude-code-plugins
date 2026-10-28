@@ -378,6 +378,19 @@
         "Names /corrections:codify as where the lesson goes",
         "Reports the outcome clean and opens no pull request"
       ]
+    },
+    {
+      "id": 31,
+      "name": "check-reports-over-budget-feature-file",
+      "prompt": "/app-control:map check .claude/skills/control-shop. The hub SKILL.md is 5,200 characters and indexes two features, cart and export, and every index line, section and link is in order. features/cart/README.md is 9,400 characters, because its Gotchas section has grown to sixty lines; features/billing/export/README.md is 1,300 characters.",
+      "expected_output": "check-map.sh runs on the directory and prints one finding, size-budget | features/cart/README.md | 9400 characters, budget 4000. The report gives that line and the count 1, reports nothing for the hub or the export feature, edits no file, and gives no verdict word such as pass, fail or clean.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports features/cart/README.md under the size-budget rule with the 4000-character budget",
+        "Reports no finding for SKILL.md or features/billing/export/README.md",
+        "Edits no file and gives no verdict word"
+      ]
     }
   ]
 }

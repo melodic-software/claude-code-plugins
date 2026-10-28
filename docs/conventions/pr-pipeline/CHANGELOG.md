@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [7.0.1] - 2026-10-28
+
+### Changed
+
+- The lanes adopt a trusted person's pull request after 2 hours of no trusted-actor push, comment or label change (`adoption.idle-hours`), down from 24. A session waiting in the GITHUB_TOKEN gate is idle for up to 2 hours during a breaker trip, so a longer quiet period no longer shows the session is still working. Pull requests here open ready, so being non-draft does not show one is finished.
+
+## [7.0.0] - 2026-10-28
+
+### Changed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `default` for a profile's `model`, so a `pr-pipeline.yaml` that names it fails validation; name `opus` instead ([#8724](https://github.com/melodic-software/claude-code-plugins/issues/8724)). `default` passed no `--model`, which run-claude-cli cannot pass. `fable` and `best` stay refused for `model` and `subagent-model`. resolve-config now resolves a model profile's `model` and `subagent-model` outside `haiku`, `sonnet` and `opus` to `opus`, as it does for a role profile, so a config that skipped the schema check still never runs `default` or the frontier tier; `inherit` still sets no subagent model. The built-in `standard` profile, this repository's `standard` profile and the example config's now name `opus`.
+
+### Fixed
+
+- pr-verify judges a lanes App pull request whose `ci-status` fails only on a hold an approving review of the head lifts (a hold path, a trusted-actor list widening), so the person approves a head pr-verify has already judged. `ci-status` still fails until that approval, and any other failure still keeps pr-verify from judging the head.
+
+- post-merge-demotion-alert.yml warns when the suite judge (`babysit_postmerge.py --judge-run`) exits 2 to 4, with the judge's `error` from its JSON output, and still files the demotion as before. Before, the record was filed with nothing saying the judge had failed.
+- A dispatched red run is treated as recovered, and files nothing, only when the newer green run's head descends from the red SHA and is on the `main` branch's history. Both `compare <red SHA>...<newer SHA>` and `compare <newer SHA>...<main tip>` must read `ahead` or `identical`, with the main tip read from `git/ref/heads/main`. Any other status, or a failed read, files as if no newer run had passed. A green run on a tag named `main` no longer suppresses the alert unless the tag points at a commit already on the branch.
+- `scripts/run-plugin-tests.sh` prints `Advisory nonce: <16 hex>` before any suite block when advisory suites are on, and repeats the nonce in each advisory warning. The nonce is never exported to suites.
+
+- The `wip.pause-from` docs state that leaving it empty removes intake admission's queued cap: over that cap check-wip-cap leaves admissions open with no room limit, so intake still adds `agent-ready`. An incomplete or failed queued read still defers. An intake admission test covers the empty case.
+
 ## [6.5.5] - 2026-10-28
 
 ### Fixed
