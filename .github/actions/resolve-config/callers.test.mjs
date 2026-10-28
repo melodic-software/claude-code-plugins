@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -27,6 +26,10 @@ import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trus
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+// The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
+process.env.TMPDIR = tempDir("callers-tmp-");
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const workflow = (name) => parse(read(`../../workflows/${name}`));
@@ -325,6 +328,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-issue": { contents: "read" },
+    "refine-issue-subscription": { contents: "read" },
     "apply-refinement": { contents: "read", "id-token": "write" },
     "redispatch-refined": { actions: "write" },
     "triage-split-children": { actions: "write" },
@@ -347,7 +351,7 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
 
   const bots = gate.steps.find((step) => step.id === "bots");
   assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
-  const dir = mkdtempSync(join(tmpdir(), "bot-ids-"));
+  const dir = tempDir("bot-ids-");
   try {
     const ids = (lanesAppId) => {
       const output = join(dir, "output");
@@ -417,26 +421,78 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
+// The refine-issue legs as the parity check compares them: every step, in
+// order, with every field, except the four places the legs may differ: the
+// credential check's env and run (which secret it tests, and whether an empty
+// one warns or fails), the launcher's credential input, the key leg's handoff
+// report (the subscription leg never hands off), and the last step's `if`.
+function refineLegShape(job) {
+  return job.steps
+    .filter((step) => step.id !== "handoff")
+    .map((step) => {
+      const shape = structuredClone(step);
+      if (step.id === "credential") {
+        delete shape.env;
+        delete shape.run;
+      }
+      if (step.id === "run") {
+        delete shape.with["api-key"];
+        delete shape.with["subscription-token"];
+      }
+      if (step.name === "Fail without a refinement") delete shape.if;
+      return shape;
+    });
+}
+
+test("intake-triage.yml: the refine legs' parity check fails on any other difference, step order included", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const key = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
+  assert.deepEqual(refineLegShape(key), refineLegShape(sub));
+  const differs = (mutate) => {
+    const copy = structuredClone(sub);
+    mutate(copy);
+    assert.notDeepEqual(refineLegShape(key), refineLegShape(copy));
+  };
+  const step = (job, name) => job.steps.find((s) => s.name === name);
+  differs((job) => delete step(job, "Refine the issue")["continue-on-error"]);
+  differs((job) => (step(job, "Refine the issue")["timeout-minutes"] = 30));
+  differs((job) => (step(job, "Refine the issue").env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "0"));
+  differs((job) => {
+    const settings = job.steps.findIndex((s) => s.name === "Apply the Claude managed settings");
+    const isolate = job.steps.findIndex((s) => s.name === "Isolate the runner");
+    [job.steps[settings], job.steps[isolate]] = [job.steps[isolate], job.steps[settings]];
+  });
+  differs((job) => (step(job, "Collect the refinement").run += "\ntrue"));
+  differs((job) => (step(job, "Upload the refinement").with["retention-days"] = 2));
+  differs((job) => (step(job, "Check the credential").if = "always()"));
+  differs((job) => (step(job, "Check the context").run = "true"));
+  differs((job) => job.steps.pop());
+});
+
 test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
   const { jobs } = workflow("intake-triage.yml");
   const select = jobs["refine-select"];
   const model = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
   const apply = jobs["apply-refinement"];
   const again = jobs["redispatch-refined"];
   assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
+  assert.deepEqual(sub.permissions, { contents: "read" }, "the subscription leg holds no write grant");
   assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
   assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
   assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
   assert.deepEqual(model.needs, ["refine-select"]);
-  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue"]);
+  assert.deepEqual(sub.needs, ["refine-select", "refine-issue"]);
+  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription"]);
   assert.deepEqual(again.needs, ["apply-refinement"]);
 
   const groups = Object.values(jobs)
     .map((job) => job.concurrency?.group)
     .filter(Boolean);
   assert.equal(new Set(groups).size, groups.length, "each job has its own concurrency group");
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
@@ -444,30 +500,69 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "success" }), true);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "skipped" }), false);
+  // The subscription leg runs only after the key leg handed off or found no key.
+  const leg = (refine, handoff, present) => ({
+    "needs.refine-select.outputs.refine": refine,
+    "needs.refine-issue.outputs.handoff": handoff,
+    "needs.refine-issue.outputs.credential-present": present,
+  });
+  assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
+  assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
+  assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
+  assert.equal(evaluate(sub.if, leg("true", "", "")), false);
+  assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
+  // apply-refinement reads whichever leg uploaded the refinement.
+  const refined = (key, subscription) => ({
+    "needs.refine-issue.outputs.refined": key,
+    "needs.refine-issue-subscription.outputs.refined": subscription,
+  });
+  assert.equal(evaluate(apply.if, refined("true", "")), true);
+  assert.equal(evaluate(apply.if, refined("false", "true")), true);
+  assert.equal(evaluate(apply.if, refined("false", "")), false);
+  assert.equal(evaluate(apply.if, refined("", "false")), false);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
   // Every checkout is the default branch without credentials.
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
     assert.equal(checkout.with.ref, "refs/heads/main");
     assert.equal(checkout.with["persist-credentials"], false);
   }
 
-  // The model step: no project settings, an explicit permission mode, and
-  // no tool that writes or runs code.
-  const run = model.steps.find((s) => s.uses?.startsWith("anthropics/claude-code-action@"));
-  const args = run.with.claude_args;
-  assert.match(args, /--setting-sources user/);
-  assert.match(args, /--permission-mode dontAsk/);
-  assert.doesNotMatch(JSON.stringify(model), /bypassPermissions|dangerously/);
+  // The model step, in each leg: run-claude-cli (--restricted, so no user,
+  // project or local settings), an explicit dontAsk, Read, Grep, Glob and
+  // WebFetch on the hosts the prompt names, and no tool that writes or runs
+  // code. The legs differ only in the credential.
   const prompt = model.steps.find((s) => s.id === "prompt").run;
-  assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
-  assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
-  assert.match(prompt, /WebFetch\(domain:\$domain\)/);
-  assert.deepEqual(stepSecrets(model), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
+  const domains = prompt.match(/domains="([^"]+)"/)[1].split(" ");
+  const launcher = (job) => job.steps.find((s) => s.id === "run");
+  for (const job of [model, sub]) {
+    const run = launcher(job);
+    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
+    assert.equal(run.with.role, "intake");
+    assert.equal(run.with["permission-mode"], "dontAsk");
+    assert.deepEqual(run.with.tools.trim().split("\n"), ["Read", "Grep", "Glob", "WebFetch"]);
+    assert.deepEqual(run.with["allowed-tools"].trim().split("\n"), ["Read(./refine-data/**)", ...domains.map((d) => `WebFetch(domain:${d})`)]);
+    assert.deepEqual(run.with["disallowed-tools"].trim().split("\n"), ["Bash", "Edit", "Write", "NotebookEdit", "WebSearch", "Agent", "Skill", "mcp__*"]);
+    assert.equal(run.with["prompt-file"], "${{ runner.temp }}/refine-prompt.md");
+    assert.equal(run.with["json-schema-file"], "${{ runner.temp }}/refine-schema.json");
+    assert.doesNotMatch(JSON.stringify(job), /bypassPermissions|dangerously|--bare|setting-sources/);
+    assert.ok(!job.steps.some((s) => s.uses?.startsWith("anthropics/claude-code-action@")));
+    assert.equal(job.steps.find((s) => s.id === "prompt").run, prompt, "both legs build the same prompt");
+    const collect = job.steps.find((s) => s.id === "collect");
+    assert.equal(collect.env.MODE, "dontAsk");
+    assert.match(collect.run, /check-permission-mode\.sh/);
+  }
+  assert.deepEqual(refineLegShape(model), refineLegShape(sub), "the legs differ only where refineLegShape allows");
+  const { "api-key": keyLegKey, "subscription-token": keyLegToken } = launcher(model).with;
+  const { "api-key": subLegKey, "subscription-token": subLegToken } = launcher(sub).with;
+  assert.equal(keyLegKey, "${{ secrets.INTAKE_CLAUDE_API_KEY }}");
+  assert.equal(subLegToken, "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(keyLegToken, undefined);
+  assert.equal(subLegKey, undefined);
+  assert.deepEqual(stepSecrets(launcher(model)), ["INTAKE_CLAUDE_API_KEY"]);
+  assert.deepEqual(stepSecrets(launcher(sub)), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -798,7 +893,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
   const step = pick.steps.find((s) => s.id === "slot");
-  const dir = mkdtempSync(join(tmpdir(), "slot-"));
+  const dir = tempDir("slot-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   const slotOf = (issue) => {
@@ -900,9 +995,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   const go = steps[index("go")];
   assert.equal(go.env.STALE, "${{ steps.workflow-current.outputs.stale }}");
   const decideGo = (env) => {
-    const dir = mkdtempSync(join(tmpdir(), "workflow-go-"));
-    after(() => rmSync(dir, { recursive: true, force: true }));
-    const out = join(dir, "out");
+    const out = join(tempDir("workflow-go-"), "out");
     writeFileSync(out, "");
     spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", ...env, GITHUB_OUTPUT: out } });
     return readFileSync(out, "utf8").trim();
@@ -920,7 +1013,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
     assert.equal(evaluate(check.if, context), runs, `${issue || "no issue"} ${kind}`);
   }
 
-  const dir = mkdtempSync(join(tmpdir(), "workflow-current-"));
+  const dir = tempDir("workflow-current-");
   after(() => rmSync(dir, { recursive: true, force: true }));
   const base = join(dir, ".base");
   const git = (...args) => {
@@ -1210,7 +1303,7 @@ async function admitOn(sender, rerunner = sender) {
   const { jobs } = workflow("work-resolve-issue.yml");
   const gate = jobs.admit.steps.find((s) => s.id === "gate");
   const action = parse(read("../check-trusted-trigger/action.yml"));
-  const dir = mkdtempSync(join(tmpdir(), "admit-"));
+  const dir = tempDir("admit-");
   try {
     const eventPath = join(dir, "event.json");
     const output = join(dir, "output");
@@ -1764,7 +1857,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe and 30b251532b2e9f7e0c4215e1dee5be0d3c688743: lane.cjs:404-405; in cliArgs. A pin
+// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743 and 81a603a6e2b0319428c981bf28f3fe923032afb2: lane.cjs:404-405; in cliArgs. A pin
 // bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -1773,6 +1866,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
   "ba7af78d291f10bd75651857a0db2357c23df0fe",
   "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
+  "81a603a6e2b0319428c981bf28f3fe923032afb2",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -1800,7 +1894,7 @@ test("every run-claude-cli step pin in this repo's workflows is a launcher check
 test("pr-run-activity-read.yml: each launcher leg is followed by a check of the CLI's reported permission mode", (t) => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const at = (id) => steps.findIndex((s) => s.id === id);
-  const dir = mkdtempSync(join(tmpdir(), "mode-check-"));
+  const dir = tempDir("mode-check-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const copy = steps.find((s) => s.name === "Copy the patch collector and the output sealer from the base");
   assert.match(copy.run, /cp [^\n]*\.base\/\.github\/scripts\/read-patch\/check-permission-mode\.sh [^\n]*"\$DEST\/"/);
@@ -2386,7 +2480,7 @@ test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-
   const read = workflow("pr-run-activity-read.yml");
   const step = read.jobs.report.steps.find((s) => s.name === "Choose the head the check is posted on");
   const choose = (callerHead, runHead, postDecline = true) => {
-    const dir = mkdtempSync(join(tmpdir(), "w9207-"));
+    const dir = tempDir("w9207-");
     try {
       const output = join(dir, "output");
       writeFileSync(output, "");
@@ -2651,7 +2745,7 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
 async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {}, seed = {} } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
+  const root = tempDir("leak-scan-test-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
   const temp = join(root, "temp");
@@ -3136,7 +3230,7 @@ test("leak scan: an object planted under the name of the patch's blob never stan
 });
 
 test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's .git runs while the patch is collected or scanned", async (t) => {
-  const marks = mkdtempSync(join(tmpdir(), "leak-scan-marks-"));
+  const marks = tempDir("leak-scan-marks-");
   t.after(() => rmSync(marks, { recursive: true, force: true }));
   const mark = (name) => join(marks, name);
   const hook = (file, name) => {
@@ -3195,7 +3289,7 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
 // filter its .gitattributes names, an fsmonitor and a hook, each touching a
 // marker if git runs it.
 function plantedCheckout(t) {
-  const root = mkdtempSync(join(tmpdir(), "post-leg-git-"));
+  const root = tempDir("post-leg-git-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
   const temp = join(root, "temp");
@@ -3356,7 +3450,7 @@ function withInputs(step, values) {
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
 function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "carry-"));
+  const root = tempDir("carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
   const workspace = join(root, "workspace");
@@ -3440,7 +3534,7 @@ test("pr-run-activity-read.yml: a payload over its cap carries only its byte cou
 });
 
 test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "act-turns-"));
+  const root = tempDir("act-turns-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const stderr = (n) => ({ type: "user", message: { content: `<local-command-stderr>failure ${n}</local-command-stderr>` } });
   const messages = [1, 2, 3, 4, 5, 6].map(stderr).concat({ type: "result", subtype: "success", num_turns: 2, modelUsage: { m: {} } });
@@ -3468,7 +3562,7 @@ function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CA
   const base = steps.find((s) => s.id === "base");
   const ran = atStep(base.if, prRun(base.if, context, {}));
   if (!ran) return { ran, status: 0, log: "", output: "", env: "", dir: "" };
-  const temp = mkdtempSync(join(tmpdir(), "open-"));
+  const temp = tempDir("open-");
   t.after(() => rmSync(temp, { recursive: true, force: true }));
   const values = { "runner.temp": temp, "steps.key.outputs.id": CARRIER.keyId, "secrets.scan-carrier-private-key": privateText };
   for (const [name, expression] of Object.entries(step.with)) {
@@ -3779,7 +3873,7 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   const checked = job.steps.find((s) => s.id === "checked");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "false", "steps.prior.outcome": "skipped" }), true, "no claim needs no re-derive");
-  const root = mkdtempSync(join(tmpdir(), "issue-fields-"));
+  const root = tempDir("issue-fields-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const branch = "work-resolve-issue/issue-7-123-1";
   const tip = "c".repeat(40);
@@ -3859,7 +3953,7 @@ test("work-resolve-issue.yml: every resolve-issue output a job reads is the read
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   // The subscription call's are the same outputs, read in the same picks.
   assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
@@ -3997,7 +4091,7 @@ test("scan job: the verdict is built from the run job's checked outputs, never f
   for (const expression of Object.values(write.env).filter((value) => value.includes("needs.run.outputs."))) {
     assert.ok(decoded.has(expression), `${expression} is checked by the decode step`);
   }
-  const root = mkdtempSync(join(tmpdir(), "verdict-"));
+  const root = tempDir("verdict-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = {
     LANE: "pr-unblock",
@@ -4085,7 +4179,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned 30b251532b2e9f7e0c4215e1dee5be0d3c688743. cant-fail-ok: an external contract's value list.
+  // the pinned 81a603a6e2b0319428c981bf28f3fe923032afb2. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),
@@ -4140,7 +4234,7 @@ const OTHER = "f".repeat(40);
 
 // Runs the head step with the given env; returns its exit and outputs.
 function chooseHead(t, env) {
-  const root = mkdtempSync(join(tmpdir(), "report-head-"));
+  const root = tempDir("report-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = join(root, "github-output");
   writeFileSync(output, "");
@@ -4313,7 +4407,7 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   const signed = steps.find((s) => s.id === "signed");
   assert.equal(signed.with["pr-number"], "${{ steps.pr-head.outputs.number }}");
   // Stub gh: the PR's head.
-  const root = mkdtempSync(join(tmpdir(), "report-pr-"));
+  const root = tempDir("report-pr-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
   writeFileSync(join(root, "bin", "gh"), `#!/bin/sh\necho ${TRUSTED}\n`, { mode: 0o755 });
@@ -4349,7 +4443,7 @@ test("scan job: an empty default branch fails closed before the opener is checke
   assert.equal(assertStep.name, "Assert the default branch is set");
   assert.equal(assertStep.if, base.if, "runs whenever the checkout would");
   assert.equal(assertStep.env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
-  const root = mkdtempSync(join(tmpdir(), "scan-branch-"));
+  const root = tempDir("scan-branch-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const empty = runStep(assertStep, root, { DEFAULT_BRANCH: "" });
   assert.equal(empty.status, 1);
@@ -4941,7 +5035,7 @@ test("pr-run-activity-read.yml: the feedback context reaches the skill only as t
   }
   const head = "a".repeat(40);
   const runCheck = ({ threads = { pr: 42, head_sha: head }, run = '{"version":1}\n', extra = false, link = false, sha } = {}) => {
-    const dir = mkdtempSync(join(tmpdir(), "feedback-context-"));
+    const dir = tempDir("feedback-context-");
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const text = `${JSON.stringify(threads)}\n`;
     if (link) {
@@ -4979,7 +5073,7 @@ test("pr-run-activity-read.yml: the feedback context reaches the skill only as t
 // file in state/, which the collect-base-activity stage made before the copy.
 test("pr-run-activity-read.yml: the staged review-thread files are read-only and only state/ takes the replies file", (t) => {
   const step = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.name === "Stage the skill's files in the checkout");
-  const dir = mkdtempSync(join(tmpdir(), "stage-feedback-"));
+  const dir = tempDir("stage-feedback-");
   t.after(() => {
     spawnSync("chmod", ["-R", "u+w", dir]);
     rmSync(dir, { recursive: true, force: true });
@@ -5021,7 +5115,7 @@ test("pr-run-activity-read.yml: the replies leave the model job only for a revie
   assert.equal(repliesFile("ci-context"), "");
   assert.equal(repliesFile(""), "");
   assert.equal(repliesFile("review-threads"), "REPLIES_PATH");
-  const dir = mkdtempSync(join(tmpdir(), "carry-replies-"));
+  const dir = tempDir("carry-replies-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const carryWith = (bytes) => {
     const out = join(dir, `out-${bytes}`);
@@ -5083,7 +5177,7 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   }
   const script = steps.find((s) => s.id === "act-script");
   assert.equal(script.env.KEPT_THREADS_FILE, "${{ steps.patch-threads.outputs.file }}");
-  const dir = mkdtempSync(join(tmpdir(), "kept-threads-"));
+  const dir = tempDir("kept-threads-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, "threads.json");
   writeFileSync(file, '{"threads":[]}\n');
@@ -5117,7 +5211,7 @@ test("pr-run-activity-write.yml: apply-patch under the dependency-review row rea
     assert.equal(evaluate(step.if, context("")), false);
   }
   assert.equal(steps.find((s) => s.id === "act-script").env.DEPENDENCY_VERDICT, "${{ steps.patch-verdict.outputs.verdict }}");
-  const dir = mkdtempSync(join(tmpdir(), "patch-verdict-"));
+  const dir = tempDir("patch-verdict-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, "dependency-verdict.json");
   const runCheck = (text, sha = createHash("sha256").update(text).digest("hex")) => {
@@ -5621,7 +5715,7 @@ function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI
 // zero. Returns its exit, outputs, stdout and the arguments of each read.
 const HANDOFF_EVIDENCE = new URL("../../scripts/lib/handoff-evidence.sh", import.meta.url);
 function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "fix-ci-posted-"));
+  const root = tempDir("fix-ci-posted-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
   mkdirSync(join(root, ".base", ".github", "scripts", "lib"), { recursive: true });
@@ -6143,7 +6237,7 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   assert.equal(runs("true", TRUSTED), true);
   assert.equal(runs("true", ""), false, "a caller that gated no head, issue mode among them");
   assert.equal(runs("false", TRUSTED), false);
-  const root = mkdtempSync(join(tmpdir(), "gated-head-"));
+  const root = tempDir("gated-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const moved = runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
   assert.equal(moved.status, 1);
@@ -6477,7 +6571,7 @@ test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from t
   const launch = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.id === "launch");
   assert.equal(launch.env.TIMEOUT, "${{ inputs.timeout-minutes }}");
   const run = (timeout) => {
-    const dir = mkdtempSync(join(tmpdir(), "launch-timeout-"));
+    const dir = tempDir("launch-timeout-");
     const output = join(dir, "out");
     writeFileSync(output, "");
     const result = spawnSync("bash", ["-e", "-c", launch.run], {

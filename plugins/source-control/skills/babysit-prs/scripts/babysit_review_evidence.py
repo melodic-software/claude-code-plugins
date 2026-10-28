@@ -17,9 +17,12 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   (`.../attempts/{n}/jobs`), each job with its check run's `annotations`
   (`check-runs/{job id}/annotations`). Each run's `head_commit.tree_id`
   names its head's tree, which finding closure keys on (`_open_findings`).
-- `comments`: the pull request's issue comments (REST).
+- `comments`: the pull request's issue comments (REST), each by
+  github-actions[bot] or the Claude App carrying an `edit` record: GraphQL's
+  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
-  or None when they could not be read.
+  whose comments carry `lastEditedAt` and `editor`, or None when they could
+  not be read.
 - `is_human`: the merge policy's test of one GraphQL actor (or None).
 - `head_file`: reads a file at the pinned head, given its path and the
   commit a thread was raised on: its text, None when that file was deleted
@@ -37,7 +40,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import LaneEvidence
+from babysit_risk import FLOOR, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -51,7 +54,10 @@ LANES: dict[str, tuple[str, str]] = {
 
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
-# any workflow it adds can post a github-actions[bot] reviewed-head marker),
+# a workflow it adds or edits whose token can write posts as
+# github-actions[bot], the reviewed-head marker's author, so it could forge a
+# marker or a `critical-findings:` count; `readonly_workflow` clears the
+# workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
@@ -80,6 +86,55 @@ LANE_SOURCE_NAMES = (
     "AGENTS.md",
     "REVIEW.md",
     ".gitattributes",
+)
+
+# A changed workflow file `readonly_workflow` may clear: a top-level `.yml`.
+# A `.yaml` stays a lane source, since its stem could repeat a `.yml`'s name
+# (the name rule below).
+WORKFLOW_PATH_RE = re.compile(r"^\.github/workflows/([a-z0-9][a-z0-9_-]*)\.yml$")
+# The review callers stay lane sources whatever their content: the head's copy
+# runs the review itself.
+REVIEW_CALLERS = frozenset(path for path, _ in LANES.values())
+WORKFLOW_KEYS = frozenset(
+    {"name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"}
+)
+JOB_KEYS = frozenset(
+    {
+        "name",
+        "permissions",
+        "needs",
+        "if",
+        "runs-on",
+        "snapshot",
+        "environment",
+        "concurrency",
+        "outputs",
+        "env",
+        "defaults",
+        "steps",
+        "timeout-minutes",
+        "strategy",
+        "continue-on-error",
+        "container",
+        "services",
+        "uses",
+        "with",
+    }
+)
+# Triggers that run a privileged default-branch copy on another run's behalf,
+# and `workflow_call`: a privileged caller run on the branch would act on the
+# head copy's outputs with its own write token.
+DENIED_TRIGGERS = frozenset({"pull_request_target", "workflow_run", "workflow_call"})
+# Any secret can carry a credential (a GitHub App private key, a PAT) whose
+# token ignores `permissions:`; GITHUB_TOKEN is the job's own token.
+SECRETS_RE = re.compile(r"\bsecrets\b", re.IGNORECASE)
+GITHUB_TOKEN_SECRET_RE = re.compile(r"\bsecrets\.github_token\b", re.IGNORECASE)
+# Raw-text backstops, so a parser difference between PyYAML and GitHub's
+# cannot hide a write grant or a denied trigger.
+WORKFLOW_DENIED_TEXT_RE = re.compile(
+    r"id-token|pull_request_target|workflow_run|workflow_call"
+    r"|:\s*['\"]?write(?:-all)?['\"]?\s*(?:[,}\]#]|$)",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 RECORD_TITLE = "claude-lane-review-complete"
@@ -132,6 +187,13 @@ INSTALL_FAILURE_RE = re.compile(
 # verdict. The step's text comes from the switch values only, and a head that
 # edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
 # binds a re-run but does not start one: the gate cannot read the switch.
+# Or when an outage ended attempt 1 without a result: a run GitHub concluded
+# cancelled, timed out or never started (the lost-run reconciler's `LOST` in
+# .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs). Attempt 1
+# then left no verdict unless its lane already posted on the head
+# (`_lost_unposted`), which leaves the run to a person.
+LOST = "lost"
+LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
 KILL_SWITCH_JOB = "kill-switch"
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
@@ -149,6 +211,9 @@ LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
 # GraphQL drops the suffix). Such a comment is the lane's only when its last
 # non-blank line is that lane's footer.
 ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
+# Every author a lane comment can have; the caller attaches each one's edit
+# record (babysit_merge._attach_edits).
+LANE_AUTHORS = ACTIONS_LOGINS | CLAUDE_APP_LOGINS
 
 
 def _footer_lane(body: str) -> str | None:
@@ -212,6 +277,7 @@ def bind(
     changed_paths: Sequence[str] | None,
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
+    base_sha: str | None = None,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -227,7 +293,9 @@ def bind(
     diff against another base, so no lane binds. `changed_paths` holds every
     path the pull request changes (both sides of a rename), or None when the
     list is unread or incomplete: no lane binds then, nor when one is a lane
-    source (`lane_source`).
+    source (`lane_source`) that `readonly_workflow` does not clear through
+    `head_file`, with `base_sha` (the pull request's base commit) proving a
+    deletion.
 
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
@@ -240,7 +308,11 @@ def bind(
             raise Unbound("base-retargeted")
         if not isinstance(changed_paths, list | tuple):
             raise Unbound("changed-files-unread")
-        if any(lane_source(path) for path in changed_paths):
+        sources = [path for path in changed_paths if lane_source(path)]
+        # Paths first, so no file is read when one source can never clear.
+        if not all(_readonly_candidate(path) for path in sources) or not all(
+            readonly_workflow(path, head_file, base_sha) for path in sources
+        ):
             raise Unbound("lane-source-changed")
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
@@ -276,6 +348,183 @@ def lane_source(path: Any) -> bool:
     )
 
 
+def _readonly_candidate(path: Any) -> bool:
+    """A lane source `readonly_workflow` may clear by its content: a workflow
+    that is neither a review caller nor on the merge floor
+    (`babysit_risk.FLOOR`), whose text no rewrite may clear."""
+    return (
+        isinstance(path, str)
+        and bool(WORKFLOW_PATH_RE.match(path))
+        and path not in REVIEW_CALLERS
+        and not any(glob_match(glob, path) for glob in FLOOR)
+    )
+
+
+def readonly_workflow(
+    path: str,
+    head_file: Callable[[str, str], str | None] | None,
+    base_sha: str | None,
+) -> bool:
+    """Whether a changed workflow file cannot post as github-actions[bot] with
+    write access, nor reach a credential that could: a head copy that passes
+    `_readonly_workflow_text`. A deleted workflow is not cleared, since what it
+    enforced goes with it; nor is a review caller, a floor workflow, any other
+    lane source, or any doubt (no reader, no base, a read that fails)."""
+    if not _readonly_candidate(path) or head_file is None:
+        return False
+    if not isinstance(base_sha, str) or not SHA_RE.match(base_sha):
+        return False
+    try:
+        text = head_file(path, base_sha)
+    except Exception:  # noqa: BLE001 - unread is not cleared
+        return False
+    if text is None:
+        return False
+    stem = WORKFLOW_PATH_RE.match(path)[1]  # type: ignore[index]
+    return isinstance(text, str) and _readonly_workflow_text(text, stem)
+
+
+def _readonly_workflow_text(text: str, stem: str) -> bool:
+    """Whether workflow text, read as GitHub would, grants its token no write
+    scope and reaches no secret:
+
+    - one plain YAML document: no anchor, alias, explicit tag, directive,
+      `<<` merge key or repeated key (PyYAML and GitHub's parser could read
+      those differently), and only known top-level and job keys;
+    - `name:` equal to the file stem, so no `workflow_run` listener that
+      names another workflow fires on it (its `workflows` filter matches
+      names, and an omitted name is the file path);
+    - no `pull_request_target`, `workflow_run` or `workflow_call` trigger;
+    - every job's token set by a `permissions:` of its own or the top level,
+      each scope `read` or `none` (`read-all` or `{}` too): a scope set
+      leaves every other `none`, while a job with neither inherits the
+      repository default, which the pull request cannot show;
+    - no `secrets` reference but `secrets.GITHUB_TOKEN`, the job's own
+      token, which also rules out `secrets: inherit` on a reusable call (a
+      called workflow's permissions can only be kept or reduced);
+    - none of `WORKFLOW_DENIED_TEXT_RE` anywhere in the raw text.
+
+    Without PyYAML nothing clears."""
+    try:
+        import yaml
+    except ImportError:
+        return False
+    if WORKFLOW_DENIED_TEXT_RE.search(text) or _mentions_secrets(text):
+        return False
+    try:
+        for event in yaml.parse(text, Loader=yaml.SafeLoader):
+            if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
+                return False
+            if getattr(event, "tag", None) is not None:
+                return False
+            if isinstance(event, yaml.DocumentStartEvent) and (
+                event.version or event.tags
+            ):
+                return False
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+        top = _yaml_mapping(root, yaml)
+    except Exception:  # noqa: BLE001 - unreadable is not cleared
+        return False
+    if top is None or not set(top) <= WORKFLOW_KEYS:
+        return False
+    name, on, jobs = top.get("name"), top.get("on"), top.get("jobs")
+    if not isinstance(name, yaml.ScalarNode) or name.value != stem:
+        return False
+    triggers = _yaml_names(on, yaml)
+    if not triggers or {t.casefold() for t in triggers} & DENIED_TRIGGERS:
+        return False
+    default = top.get("permissions")
+    if default is not None and not _readonly_permissions(default, yaml):
+        return False
+    job_map = _yaml_mapping(jobs, yaml)
+    if not job_map:
+        return False
+    for job in job_map.values():
+        keys = _yaml_mapping(job, yaml)
+        if keys is None or not set(keys) <= JOB_KEYS:
+            return False
+        own = keys.get("permissions")
+        if own is None and default is None:
+            return False
+        if own is not None and not _readonly_permissions(own, yaml):
+            return False
+    return True
+
+
+def _mentions_secrets(text: str) -> bool:
+    return bool(SECRETS_RE.search(GITHUB_TOKEN_SECRET_RE.sub("", text)))
+
+
+def _yaml_mapping(node: Any, yaml: Any) -> dict[str, Any] | None:
+    """A mapping node's values by key, after checking every node under it:
+    each mapping key a plain string scalar, not `<<`, and unique even
+    ignoring case; each decoded scalar free of `secrets`. None when `node`
+    is not a mapping; raises on a check that fails."""
+    if not isinstance(node, yaml.MappingNode):
+        return None
+    _check_yaml_tree(node, yaml)
+    return {key.value: value for key, value in node.value}
+
+
+def _check_yaml_tree(node: Any, yaml: Any) -> None:
+    if isinstance(node, yaml.ScalarNode):
+        # A double-quoted escape can spell `secrets` the raw text hides.
+        if _mentions_secrets(str(node.value)):
+            raise ValueError("secrets")
+        return
+    if isinstance(node, yaml.SequenceNode):
+        for item in node.value:
+            _check_yaml_tree(item, yaml)
+        return
+    if not isinstance(node, yaml.MappingNode):
+        raise ValueError("node")
+    seen: set[str] = set()
+    for key, value in node.value:
+        # GitHub reads every key as a string: PyYAML's YAML 1.1 bool tag on
+        # a plain `on` does not matter, and the parse refused explicit tags.
+        if not isinstance(key, yaml.ScalarNode):
+            raise ValueError("key")
+        folded = str(key.value).casefold()
+        if key.value == "<<" or folded in seen:
+            raise ValueError("key")
+        seen.add(folded)
+        _check_yaml_tree(key, yaml)
+        _check_yaml_tree(value, yaml)
+
+
+def _yaml_names(node: Any, yaml: Any) -> list[str]:
+    """The event names an `on:` node lists, or [] when its shape is not one
+    GitHub reads (a name, a list of names, or a mapping keyed by name)."""
+    if isinstance(node, yaml.ScalarNode):
+        return [str(node.value)] if node.value else []
+    if isinstance(node, yaml.SequenceNode):
+        items = node.value
+        if all(isinstance(item, yaml.ScalarNode) for item in items):
+            return [str(item.value) for item in items]
+        return []
+    if isinstance(node, yaml.MappingNode):
+        return [str(key.value) for key, _ in node.value]
+    return []
+
+
+def _readonly_permissions(node: Any, yaml: Any) -> bool:
+    """`read-all`, or a mapping whose every scope is `read` or `none` and
+    whose `id-token`, which has no read level, is `none`."""
+    if isinstance(node, yaml.ScalarNode):
+        return node.value == "read-all"
+    if not isinstance(node, yaml.MappingNode):
+        return False
+    for key, value in node.value:
+        if not isinstance(value, yaml.ScalarNode) or value.value not in (
+            "read",
+            "none",
+        ):
+            return False
+        if str(key.value).casefold() == "id-token" and value.value != "none":
+            return False
+    return True
+
+
 def _bind_lane(
     lane: str,
     head: str,
@@ -288,7 +537,7 @@ def _bind_lane(
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs)
+        reviewed, chain = _resolve(lane, head, lane_runs, _poster(comments, threads))
         marker = _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
@@ -353,9 +602,10 @@ def _carried_blocking(
         heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
     except Exception:  # noqa: BLE001 - nothing read, nothing carried
         return None
+    posted = _poster(comments, threads)
     for sha in dict.fromkeys(h for h in heads if isinstance(h, str)):
         try:
-            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs)
+            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs, posted)
             marker = _require_marker(SEVERITY_LANE, sha, comments, newest_only=False)
             _require_marked_runs(SEVERITY_LANE, lane_runs, comments)
             _, _, critical = _open_findings(
@@ -393,8 +643,13 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
+# Whether a lane posted on a head between two times (`lane_posted`, bound to
+# the pull request's comments and threads by `_poster`).
+Poster = Callable[[str, str, Any, Any], bool]
+
+
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]]
+    lane: str, head: str, lane_runs: list[Mapping[str, Any]], posted: Poster
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -404,51 +659,61 @@ def _resolve(
     review needs every earlier link bound, back to a whole review. Each link
     is the newest run's latest attempt at its head (`_bound_record`).
     """
-    rec = _bound_record(lane, head, lane_runs)
+    rec = _bound_record(lane, head, lane_runs, posted)
     seen = {head}
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
-        rec = _skip_target(lane, rec.through, lane_runs, seen)
+        rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
     reviewed = rec.sha
     chain = [rec]
     for _ in range(MAX_CHAIN):
         if rec.whole:
             return reviewed, chain
-        rec = _link(lane, rec.since, lane_runs, seen)  # type: ignore[arg-type]
+        rec = _link(lane, rec.since, lane_runs, seen, posted)  # type: ignore[arg-type]
         if rec.skip is not None:
             raise Unbound("incremental-gap")
         if rec.through is not None:
-            rec = _skip_target(lane, rec.through, lane_runs, seen)
+            rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
         chain.append(rec)
     raise Unbound("incremental-gap")
 
 
 def _skip_target(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
-    rec = _link(lane, sha, lane_runs, seen)
+    rec = _link(lane, sha, lane_runs, seen, posted)
     if rec.through is not None or rec.skip is not None:
         raise Unbound("skip-chain")
     return rec
 
 
 def _link(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], seen: set[str]
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    seen: set[str],
+    posted: Poster,
 ) -> _Record:
     """An earlier head in the chain; any failure to bind it is a gap."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
     try:
-        return _bound_record(lane, sha, lane_runs)
+        return _bound_record(lane, sha, lane_runs, posted)
     except Unbound as exc:
         if exc.reason in {"count-inconsistent", "evidence-error", "evidence-missing"}:
             raise
         raise Unbound("incremental-gap") from exc
 
 
-def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _Record:
+def _bound_record(
+    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], posted: Poster
+) -> _Record:
     at_sha = [item for item in lane_runs if item["head_sha"] == sha]
     if not at_sha:
         raise Unbound("no-run")
@@ -479,7 +744,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if not rerun_binds(lane, newest["id"], first):
+        if not rerun_binds(lane, newest["id"], first, sha, latest, posted):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
     if job.get("conclusion") != "success" or job.get("head_sha") != sha:
@@ -557,9 +822,13 @@ RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
 }
 # The ones the merge gate re-runs itself (babysit_merge
-# `rerun_rate_limited_review`). A rejected credential is left to a person: a
-# re-run before the secret is fixed would spend the one allowed attempt.
-GATE_RERUN_CLASSES = frozenset({"rate-limit", "publish-rate-limit", INSTALL_FAILED})
+# `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
+# run's conclusion names rather than an annotation. A rejected credential is
+# left to a person: a re-run before the secret is fixed would spend the one
+# allowed attempt.
+GATE_RERUN_CLASSES = frozenset(
+    {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
+)
 
 
 def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
@@ -572,15 +841,133 @@ def rerun_classes(lane: str, job: Mapping[str, Any]) -> frozenset[str]:
     )
 
 
-def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
-    """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
-    failed on one of `RERUN_CLASSES`, or a kill switch stopped it
-    (`_kill_switch_stopped`)."""
+def rerun_binds(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None = None,
+    second: Mapping[str, Any] | None = None,
+    posted: Poster | None = None,
+) -> bool:
+    """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
+    `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch stopped it
+    (`_kill_switch_stopped`), or an outage lost it before its lane posted
+    (`_lost_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
+    if first.get("conclusion") in LOST_CONCLUSIONS:
+        return _lost_unposted(lane, run_id, first, sha, second, posted)
     if first.get("conclusion") != "failure":
         return False
     return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
+
+
+def recorded(job: Mapping[str, Any]) -> bool:
+    """Whether a job's annotations hold a completion record, well formed or not."""
+    return any(
+        isinstance(a, Mapping) and a.get("title") == RECORD_TITLE
+        for a in job.get("annotations") or ()
+    )
+
+
+def _lost_unposted(
+    lane: str,
+    run_id: int,
+    first: Mapping[str, Any],
+    sha: str | None,
+    second: Mapping[str, Any] | None,
+    posted: Poster | None,
+) -> bool:
+    """Whether lost attempt 1 reached no side effect: its lane job, when it
+    has one, was lost too and left no completion record, and the lane posted
+    nothing on `sha` from attempt 1's start to attempt 2's (`lane_posted`). A
+    lane job that ended on its own (a failure outside `RERUN_CLASSES`) judged
+    the head, so a re-run could trade its verdict away."""
+    if sha is None or second is None or posted is None:
+        return False
+    jobs = first.get("jobs")
+    if not isinstance(jobs, list | tuple):
+        raise Unbound("evidence-missing")
+    if _has_lane_job(lane, jobs):
+        job = _lane_job(lane, run_id, first)
+        if job.get("conclusion") not in LOST_CONCLUSIONS or recorded(job):
+            return False
+    return not posted(
+        lane, sha, first.get("run_started_at"), second.get("run_started_at")
+    )
+
+
+def lane_posted(
+    lane: str,
+    head: str,
+    since: Any,
+    until: Any,
+    comments: Any,
+    threads: Any,
+) -> bool:
+    """Whether the lane posted on `head` from `since` to before `until` (both
+    timestamps; `until` None is now): its reviewed-head marker naming `head`,
+    another lane comment, or a lane thread opened then. An unreadable `since`,
+    time or input counts as posted; an unreadable `until` reads as now."""
+    start = _time(since)
+    if start is None or not isinstance(comments, list | tuple):
+        return True
+    end = _time(until)
+
+    def within(value: Any) -> bool:
+        at = _time(value)
+        return at is None or (start <= at and (end is None or at < end))
+
+    for comment in comments:
+        if not isinstance(comment, Mapping):
+            return True
+        user = comment.get("user")
+        login = user.get("login") if isinstance(user, Mapping) else None
+        body = str(comment.get("body") or "")
+        mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if mark is not None:
+            if login == MARKER_AUTHOR and mark[1] == lane and mark[2] == head:
+                if within(comment.get("created_at")):
+                    return True
+            continue
+        if _lane_comment(lane, login, body) and within(comment.get("created_at")):
+            return True
+    if not isinstance(threads, list | tuple):
+        return True
+    for thread in threads:
+        if not isinstance(thread, Mapping):
+            return True
+        if _lane_thread(lane, thread) and within(
+            thread["comments"][0].get("createdAt")
+        ):
+            return True
+    return False
+
+
+def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
+    suffix = LANES[lane][1]
+    return any(
+        isinstance(job, Mapping)
+        and str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix
+        for job in jobs
+    )
+
+
+def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether an outage lost this attempt before its lane job existed."""
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") in LOST_CONCLUSIONS
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+    )
+
+
+def _poster(comments: Any, threads: Any) -> Poster:
+    """`lane_posted` over this pull request's comments and threads."""
+    return lambda lane, head, since, until: lane_posted(
+        lane, head, since, until, comments, threads
+    )
 
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
@@ -658,6 +1045,10 @@ def _require_marker(
         user = comment.get("user")
         if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
             continue
+        # Before the body is read: an edit could change the line that makes
+        # it a marker.
+        if _edited_by_another(user, comment.get("edit")):
+            raise Unbound("comment-edited")
         first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
         match = MARKER_RE.match(first_line)
         if not match or match[1] != lane or not (newest_only or match[2] == head):
@@ -695,7 +1086,15 @@ def _summary_comments(
             user.get("login") != MARKER_AUTHOR or user.get("type") != "Bot"
         ):
             continue
-        if _lane_comment(lane, user.get("login"), body) and created is not None:
+        # Before the body is read: an edit could drop the footer that makes
+        # it the lane's.
+        if user.get("login") in LANE_AUTHORS and _edited_by_another(
+            user, comment.get("edit")
+        ):
+            raise Unbound("comment-edited")
+        if not _lane_comment(lane, user.get("login"), body):
+            continue
+        if created is not None:
             found.append((created, body))
     return found
 
@@ -800,11 +1199,14 @@ def _open_findings(
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped or kill-switched run reviewed nothing.
+            # A draft-skipped or kill-switched run reviewed nothing, nor did a
+            # lost one that never reached its lane job.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
-            ) or _kill_switch_stopped(lane, item["id"], attempt):
+                or _kill_switch_stopped(lane, item["id"], attempt)
+                or _lost_before_lane_job(lane, attempt)
+            ):
                 continue
             job = _lane_job(lane, item["id"], attempt)
             rec = _record(lane, item["head_sha"], job)
@@ -983,6 +1385,35 @@ def _line_changed(
         return False
 
 
+def _edited_by_another(author: Mapping[str, Any], record: Any) -> bool:
+    """Whether a lane comment's text may not be its author's: anyone with
+    write access can edit a comment, and the last editor wrote the whole body
+    (GraphQL `editor`, "The actor who edited the comment", and
+    `lastEditedAt`, "The moment the editor made the last edit"). `record`
+    holds those two fields: a thread comment itself, or the `edit` record the
+    caller attaches to an issue comment. The lane producer edits its own
+    reviewed-head marker on each review (ci-workflows publish.cjs
+    `writeMarker`), so an edit by the author, a Bot, is its own text. A
+    record that is missing or unreadable is not proven unedited."""
+    if not isinstance(record, Mapping) or "lastEditedAt" not in record:
+        return True
+    if record["lastEditedAt"] is None:
+        return False
+    editor = record.get("editor")
+    return not (
+        isinstance(editor, Mapping)
+        and editor.get("__typename") == "Bot"
+        and _bare_login(editor.get("login")) == _bare_login(author.get("login"))
+    )
+
+
+def _bare_login(login: Any) -> str | None:
+    """A login without REST's `[bot]` suffix, which GraphQL drops."""
+    if not isinstance(login, str) or not login:
+        return None
+    return login.removesuffix("[bot]")
+
+
 def _time(value: Any) -> datetime | None:
     """An aware timestamp, or None when absent or unreadable."""
     if not isinstance(value, str):
@@ -1010,4 +1441,8 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
         return False
     if author.get("__typename") != "Bot":
         return False
+    # Before the body is read: an edit could drop the footer that makes it
+    # the lane's.
+    if author.get("login") in LANE_AUTHORS and _edited_by_another(author, first):
+        raise Unbound("comment-edited")
     return _lane_comment(lane, author.get("login"), str(first.get("body") or ""))

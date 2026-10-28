@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [3.10.1] - 2026-10-27
+
+### Fixed
+
+- `/work-items:work` CI mode files a test run the lane could not execute in `not_done` as left to the PR's CI with `"required": false`, so the run no longer stops for a suite the PR's CI runs. A test that ran and failed, and any other required check the run could not run, still make the lane report the run `stopped`.
+
 ## [3.10.0] - 2026-10-27
 
 ### Added

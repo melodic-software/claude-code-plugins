@@ -13,14 +13,14 @@
 // pr-verify run shapes follow a recorded workflow_run run (head_branch main,
 // head_sha the main tip, no pull_requests).
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, prefilterSpec, WRITE_STEP } from "./reconcile.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -136,7 +136,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
     order.push(method === "GET" ? "read" : "write");
     return github(method, path, body);
   });
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-"));
+  const dir = tempDir("reconcile-");
   try {
     const files = {
       PLAN_PATH: path.join(dir, "plan.json"),
@@ -241,7 +241,7 @@ test("a run already re-fired is not re-fired again", async () => {
 // (test-bash (3) past its 9-minute limit both times). It is not re-run again,
 // and the summary names the head, the run, the attempt and who takes it.
 test("a CI run lost again at attempt 2 is named in the summary, not re-run", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-summary-"));
+  const dir = tempDir("reconcile-summary-");
   try {
     const summary = path.join(dir, "summary.md");
     writeFileSync(summary, "");
@@ -368,7 +368,7 @@ test("the first rate-limit error stops the run", async () => {
 // The rate guard's refusal carries status 429: it stops the run like a 429
 // answer, with no request sent and no wait taken.
 test("a call the rate guard refuses stops the run without a request or a wait", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-stop-"));
+  const dir = tempDir("reconcile-stop-");
   try {
     const stopFile = path.join(dir, "stop");
     writeFileSync(stopFile, `* ${Math.floor(Date.now() / 1000) + 3600}\n`);
@@ -561,7 +561,7 @@ test("a verify run whose verdict write started is held with its reason, not re-r
         ]
       : [s],
   );
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-summary-"));
+  const dir = tempDir("reconcile-summary-");
   try {
     const summary = path.join(dir, "summary.md");
     writeFileSync(summary, "");
@@ -1212,7 +1212,7 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
 }
 
 async function withTrustedList(fn) {
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-actors-"));
+  const dir = tempDir("reconcile-actors-");
   try {
     const actors = path.join(dir, "trusted-actors.json");
     writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
@@ -1395,7 +1395,7 @@ test("without the trusted list no spec is checked", async () => {
 test("act re-runs no CI run whose plan names another record", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-"));
+  const dir = tempDir("reconcile-");
   try {
     const PLAN_PATH = path.join(dir, "plan.json");
     const item = { kind: "ci", pr: 1, id: 101, path: CHECKS, conclusion: "cancelled", head: sha(1), record: `reconcile-rerun-101-2-${sha(2)}` };
@@ -1419,7 +1419,7 @@ const switchJobs = ({ message = `#1: ${KILL_SWITCH_NOTE} (CLAUDE_LANES_DISABLED 
   { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes: [{ annotation_level: "failure", message }] },
 ];
 async function withLaneList(fn) {
-  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-actors-"));
+  const dir = tempDir("reconcile-actors-");
   try {
     const actors = path.join(dir, "trusted-actors.json");
     writeFileSync(

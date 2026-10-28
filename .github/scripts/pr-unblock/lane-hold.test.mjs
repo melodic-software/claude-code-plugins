@@ -1,12 +1,12 @@
 // Expected values come from report-escalation.sh (its label, then its comment
 // with a Reason line) and its reason-to-activity map.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main } from "./lane-hold.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -28,7 +28,7 @@ function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-dis
 }
 
 async function outputs(activity, options) {
-  const dir = mkdtempSync(join(tmpdir(), "lane-hold-"));
+  const dir = tempDir("lane-hold-");
   try {
     const env = {
       GITHUB_TOKEN: "t",
