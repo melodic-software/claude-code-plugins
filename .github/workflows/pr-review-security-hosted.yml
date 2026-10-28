@@ -72,10 +72,6 @@ jobs:
       contents: read # check out the default branch for the models block
     outputs:
       claude-args: ${{ steps.models.outputs.claude-args }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
-    env:
-      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,14 +115,6 @@ jobs:
             exit 1
           fi
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
   # The pinned reusable reads no kill switch, so this caller does. The org
   # and repository switches fail closed (check-kill-switch); the lane's own
   # CLAUDE_SECURITY_REVIEW_DISABLED stops it only at `true`, as github-iac's
@@ -149,7 +137,6 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
-            /.github/actions/log-api-budget/
             /.node-version
           sparse-checkout-cone-mode: false
 
@@ -173,14 +160,6 @@ jobs:
           LANE_SWITCH: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
         run: |
           echo "::notice::a kill switch stops this security review (lanes: ${REASON:-unreadable}, CLAUDE_SECURITY_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
 
   pr-review-security:
     needs: [resolve-model, kill-switch]

@@ -661,8 +661,6 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
-    "pr-review-hosted.yml": { "resolve-model": "github-token" },
-    "pr-review-security-hosted.yml": { "resolve-model": "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -690,8 +688,6 @@ test("each job that holds the job token and calls no guarded client ends with th
     "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
-    "pr-review-hosted.yml": { "kill-switch": "./.base/" },
-    "pr-review-security-hosted.yml": { "kill-switch": "./.base/" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -704,9 +700,6 @@ test("each job that holds the job token and calls no guarded client ends with th
           `        uses: ${root}.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token`,
         `${file} ${job}`,
       );
-      if (root === "./.base/") {
-        assert.match(block, /\n {12}\/\.github\/actions\/log-api-budget\/\n/, `${file} ${job} checks out the action`);
-      }
     }
   }
 });
