@@ -761,7 +761,9 @@ function fakeFetch(routes) {
     const method = init.method ?? "GET";
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
-    const route = routes.find(([m, p]) => m === method && p.test(path));
+    // An issue no open PR closes, unless a route says otherwise.
+    const none = path === "/graphql" ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }] : null;
+    const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
   };
@@ -1114,7 +1116,7 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
         ["POST", /\/pulls$/, 201, { number: 90 }],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
-      const writes = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path}`);
+      const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
@@ -3443,4 +3445,96 @@ test("scan-reuse.mjs prints failed when the scan cannot finish, and refuses argu
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// #10698 (run 40732936415): the earlier-work check read no closing PR at
+// 17:11, a listed human's open #10686 gained a closing keyword at 17:13, and the
+// lane still opened a second PR at 17:19. report-outcome reads the closers
+// again before the open.
+async function openWithClosers(nodes, { own = [] } = {}) {
+  return withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: BRANCH }),
+      "runner-checks": checksFile(),
+      "trusted.json": TRUSTED_LIST,
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, own],
+        ["POST", /^\/graphql$/, 200, graphql(nodes)],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+        ...HISTORY,
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      const lines = [];
+      const log = console.log;
+      console.log = (line) => lines.push(line);
+      try {
+        const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch });
+        return { code, calls, lines };
+      } finally {
+        console.log = log;
+      }
+    },
+  );
+}
+const opened = (calls) => calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls");
+
+test("main on done opens no PR when a listed human's open PR already closes the issue, and keeps agent-ready", async () => {
+  const { code, calls, lines } = await openWithClosers([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }]);
+  assert.equal(code, 0);
+  assert.ok(!opened(calls), JSON.stringify(calls));
+  assert.ok(lines.some((line) => line.includes("#10686")), lines.join("\n"));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry run=123 -->"), comment);
+  assert.match(comment, /`closed-by-open-pr`/);
+  // Quoted as the stop's words, so its `#` is neutralized like any run text.
+  assert.match(comment, /PR .10686 already closes this issue/);
+  assert.ok(comment.includes(BRANCH), comment);
+});
+
+test("main on done still opens the PR when no open PR closes the issue, or only an outsider's does", async () => {
+  for (const nodes of [[], [closer("User", "stranger", 42)], [closer("User", "kyle-sexton", OWNER_ID, "fork/r")]]) {
+    const { code, calls } = await openWithClosers(nodes);
+    assert.equal(code, 0, JSON.stringify(nodes));
+    assert.ok(opened(calls), JSON.stringify(nodes));
+    assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")), JSON.stringify(nodes));
+  }
+});
+
+// A rerun of the report finds the lanes App's own PR from this branch, which
+// closes the issue itself, so it is never read as a second PR.
+test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {
+  const { code, calls } = await openWithClosers([closer("Bot", BOT)], { own: [{ number: 90, user: { login: BOT }, head: { sha: CHECKED_TIP } }] });
+  assert.equal(code, 0);
+  assert.ok(!calls.some((c) => c.path === "/graphql"));
+  assert.ok(!opened(calls));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")));
+});
+
+test("main opens no PR when the closing PRs cannot be read", async () => {
+  await withAsyncDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /^\/graphql$/, 200, { errors: [{ message: "boom" }] }],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 1);
+      assert.ok(!opened(calls));
+    },
+  );
 });

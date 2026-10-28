@@ -2140,6 +2140,12 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
+- Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none
+  open from the branch, `report-outcome` reads the issue's open closing PRs again, with the same
+  trust rule as `issue-prior`: a closing keyword can land on another PR while the model runs. When
+  one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
+  routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
+  fails the job and opens no PR.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

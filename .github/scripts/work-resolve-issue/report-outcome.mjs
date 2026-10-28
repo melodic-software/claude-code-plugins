@@ -1121,6 +1121,17 @@ export function readBranch(dir, issueNumber, key = "branch") {
   }
 }
 
+// The first of the issue's open closing PRs (closingPulls) in this repository
+// that the lanes App or a listed human opened: anyone can write `Closes #N`, so
+// an outsider's PR would let anyone stop the lane.
+export const trustedCloser = (closing, { repo, bot, humans }) =>
+  closing.find(
+    ({ author, repository }) =>
+      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
+      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
+        (author?.__typename === "User" && humans.has(author.databaseId))),
+  );
+
 // Whether an earlier run already did the issue's work, from facts read before
 // the resolve-issue mint:
 //   stop   a lanes-App PR from a lane branch is open, or an open PR in this
@@ -1168,12 +1179,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   if (open) {
     return { action: "stop", reason: `the lanes App's PR from ${open.name} is open` };
   }
-  const trusted = closing.find(
-    ({ author, repository }) =>
-      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
-      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
-        (author?.__typename === "User" && humans.has(author.databaseId))),
-  );
+  const trusted = trustedCloser(closing, { repo, bot, humans });
   if (trusted) {
     return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
   }
@@ -1785,23 +1791,49 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           (candidate) => candidate.user?.login === bot,
         );
       let pull = await findOpen();
-      if (!pull) {
-        const fields = { title: plan.title, body: plan.body, head: plan.branch, base: base || (await github("GET", repo)).default_branch, draft: false };
-        try {
-          pull = await github("POST", `${repo}/pulls`, fields);
-        } catch (error) {
-          // A create that failed on the network may have opened the PR, so
-          // it is read back first, and created once more only when absent.
-          if (!networkError(error)) {
-            throw error;
+      // A PR that closes the issue may have opened, or gained its closing
+      // keyword, while the model ran, after the earlier-work check
+      // (--find-prior) read none, so the closers are read again just before
+      // the open. A failed read throws, like this script's other reads, and
+      // opens no PR.
+      const closer = pull
+        ? undefined
+        : trustedCloser(await closingPulls(github, { owner, name: env.GITHUB_REPOSITORY.split("/")[1], number: issueNumber }), {
+            repo: env.GITHUB_REPOSITORY,
+            bot,
+            humans: listedHumans(),
+          });
+      if (closer) {
+        console.log(`report-outcome: open PR #${closer.number} already closes issue #${issueNumber}, so no PR opens from ${plan.branch}`);
+        plan = routeStop("closed-by-open-pr", {
+          outcome: stopped(`Open PR #${closer.number} already closes this issue, so no second PR opened from \`${plan.branch}\`.`),
+          issueNumber,
+          branch: plan.branch,
+          humanLabel,
+          runUrl,
+          runId,
+        });
+      } else {
+        if (!pull) {
+          const fields = { title: plan.title, body: plan.body, head: plan.branch, base: base || (await github("GET", repo)).default_branch, draft: false };
+          try {
+            pull = await github("POST", `${repo}/pulls`, fields);
+          } catch (error) {
+            // A create that failed on the network may have opened the PR, so
+            // it is read back first, and created once more only when absent.
+            if (!networkError(error)) {
+              throw error;
+            }
+            pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
           }
-          pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
         }
-      }
-      // A plan with a tip opens only at it: a PR whose head moved off the
-      // checked tip is closed, and the issue goes to a person. Closing a
-      // closed PR changes nothing, so the close is resent.
-      if (plan.tip && pull.head?.sha !== plan.tip) {
+        // A plan with a tip opens only at it: a PR whose head moved off the
+        // checked tip is closed, and the issue goes to a person. Closing a
+        // closed PR changes nothing, so the close is resent.
+        if (!plan.tip || pull.head?.sha === plan.tip) {
+          console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+          return 0;
+        }
         await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
         console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
         plan = routeStop("pr-head-moved", {
@@ -1814,9 +1846,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runUrl,
           runId,
         });
-      } else {
-        console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-        return 0;
       }
     }
     await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits });
