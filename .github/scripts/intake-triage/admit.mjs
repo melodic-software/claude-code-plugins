@@ -1162,8 +1162,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
-    // Listed only when the issue read counts any.
-    subIssues: (issue.sub_issues_summary?.total ?? 0) > 0 ? await paginate(github, `${base}/sub_issues`) : [],
+    subIssues: await openSubIssues(github, base, issue),
     events: await paginate(github, `${base}/events`),
   };
 }
