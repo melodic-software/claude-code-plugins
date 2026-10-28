@@ -1876,8 +1876,12 @@ only when none holds a counted verdict does it read the pull request's linked is
 spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
 left at the same head names issues it never reads, and that head is judged again. So is a head
 whose linked issues a body edit changed after this pull request's `fail` there: the new set names
-another `-i`, so one run follows each change of the issue set. Neither changes what the gate
-decides, since the earlier `fail` stays tied to the pull request and refuses the head. Runs share one concurrency group per pull request and
+another `-i`, so one run follows each change of the issue set. The pull request's own plain `fail`
+at the head (it linked no issue, or more than a name carries) stops a new judgment unless the
+pull request now links issues a `fail` name carries and, since that `fail`'s run was created, only
+trusted people edited its body or connected or disconnected an issue, at least once; the resolver
+then proceeds with the reason `relinked`. In every case the earlier `fail` stays tied to the pull
+request and refuses the head unless the gate finds it superseded (below). Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
@@ -1957,7 +1961,17 @@ head:
   nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a
   trusted human, as below;
-- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
+  relink superseded it: every counted `fail` there is this pull request's, every counted pass
+  there was created after them and records other `linked_issues` than each `fail` does, and from
+  the first `fail`'s run's creation to each pass run's completion (`updated_at`) the pull request
+  has at least one body edit (`userContentEdits`) or issue connect or disconnect event, every one
+  by a `User` on the trusted-actor list's humans. The lanes App, any other Bot, an actor GitHub
+  cannot name, a read that fails or is cut short, a time that cannot be read, or the same linked
+  issues keep the refusal. Both the resolver and the gate read these acts in one GraphQL query,
+  only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
+  passes then decide as below. A judgment on an older listing (pr-merge's provisional one) can
+  still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
   the head-ref map below, else the verdict JSON) refuses (`verify:earlier-fail`). The name is trusted only from a run of
@@ -1982,7 +1996,9 @@ head:
   every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
   `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
   that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
-  or a `fail` record that cannot be read keeps the refusal. A pass judged
+  or a `fail` record that cannot be read keeps the refusal. A `fail`ed head of the same change,
+  a head that only merges the branch included, also clears when its `fail` was superseded at its
+  own head by the passes there (the rule in the item above). A pass judged
   before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be

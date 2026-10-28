@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.13.3] - 2026-10-28
+
+### Changed
+
+- **bump @microsoft/tui-test from 0.1.0 to 0.1.1 in /plugins/harness-ops/skills/control-claude-code/driver in the npm-minor-patch group** (#10643).
+  - `@microsoft/tui-test` 0.1.0→0.1.1
+
+### Fixed
+
+- `lanes` start, restart and status now report a `claude plugin test` probe that hangs on the pure-Bash timeout path (macOS) as "did not finish in N s" every time; the watchdog could lose its timeout flag and report "gave no message the launcher knows" instead.
+
 ## [4.13.2] - 2026-10-28
 
 ### Fixed
