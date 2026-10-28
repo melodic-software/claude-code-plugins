@@ -2180,7 +2180,9 @@ def lane_risk_refusal(
     (`merge_policy.cost_decision`). A read that fails holds. A configured or
     floor high path is lifted, as ci-status lifts it, by a trusted person's
     approval of the head (`merge_policy.path_lifters` over the pull request's
-    reviews and `humans`, the trusted list's people); an aliasing path keeps
+    reviews and `humans`, the trusted list's people), or by their approval of
+    an earlier head carried over base merges (`merge_policy.carried_lifters`);
+    an aliasing path keeps
     its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
@@ -2240,7 +2242,12 @@ def lane_risk_refusal(
                 f"repos/{repo}/pulls/{number}/reviews?per_page=100",
                 f"{repo}#{number} reviews",
             )
-            lifted = bool(merge_policy.path_lifters(reviews, humans(), head))
+            trusted = humans()
+            # An approval of an earlier head carries over base merges that
+            # leave its net change the same.
+            lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
+                merge_policy.carried_lifters(repo, pr, reviews, trusted)
+            )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing
             lifted = False
         if lifted:

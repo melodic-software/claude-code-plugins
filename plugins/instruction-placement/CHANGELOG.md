@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1] - 2026-10-28
+
+### Fixed
+
+- `cutover-check.sh` condition 1 no longer reads a `sub-agents.md` link on a line that mentions a flag as the env-vars page tying `AGENTS.md` to a flag. The "moved bullet" check now matches `AGENTS.md` case-sensitively and as a whole name, so a delisted page grades `[MET]` instead of `[UNREACH]`.
+
 ## [0.28.0] - 2026-10-28
 
 ### Added
