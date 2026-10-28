@@ -1527,9 +1527,10 @@ class TestEventStreamWaiter(WaitCase):
             )
             seen = len(frames)
             box = {}
+            # The waiter outlasts until()'s 3 s window, so its frame is seen while it is still in.
             th = threading.Thread(
                 target=lambda: box.update(
-                    r=self.wait("after=handled&timeout=3&watcher=w1")
+                    r=self.wait("after=handled&timeout=8&watcher=w1")
                 )
             )
             th.start()
