@@ -26,6 +26,7 @@ import {
   THREAD_PAGE_QUERY,
   UNLABELED_QUERY,
   decide,
+  describe,
   liftedByPerson,
   READER_EVENTS,
   personReason,
@@ -128,6 +129,12 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   const notes = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
+    // A pull request's own REST answers (`rest`, by path), such as the
+    // reads of a lift carried over base merges (merge-holds.liftersOf).
+    const own = method === "GET" ? pulls.find((candidate) => candidate.rest && path in candidate.rest) : undefined;
+    if (own) {
+      return own.rest[path];
+    }
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listing && filesError) {
       throw filesError;
@@ -152,7 +159,11 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
       return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
     }
-    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
+    // main resolves to its tip commit, which the lane-change vet compares.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/git/ref/heads/main") {
+      return { ref: "refs/heads/main", object: { type: "commit", sha: "3".repeat(40) } };
+    }
+    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/${"3".repeat(40)}...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
@@ -895,6 +906,18 @@ test("an armed pull request that now holds is disarmed", async () => {
   ]);
 });
 
+test("a pr-verify-failed pull request is not armed, and an armed one is disarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  for (const EVENT_NAME of ["schedule", "pull_request_target"]) {
+    const { code, writes } = await run(
+      [pull(1, { labels: labels("pr-verify-failed") }), pull(2, { autoMergeRequest: armed, labels: labels("PR-Verify-Failed") })],
+      { EVENT_NAME },
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], EVENT_NAME);
+  }
+});
+
 test("only the lanes App's ready pull requests from this repository are armed", async () => {
   const { writes } = await run([
     pull(1, { author: { __typename: "User", login: "kyle-sexton" } }),
@@ -976,10 +999,19 @@ test("one pull request whose arm fails on the network every attempt is skipped, 
   const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } });
   assert.equal(code, 0);
   assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
-  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (TypeError)"));
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
   assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
   assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a causeless error is named once, a caused one keeps its cause text, and the label is scrubbed with the message", () => {
+  assert.equal(describe(bare(), { label: true }), "fetch failed (TypeError)");
+  assert.equal(describe(new TypeError("TypeError"), { label: true }), "TypeError");
+  assert.equal(describe(reset(), { label: true }), "fetch failed (cause: ECONNRESET read ECONNRESET)");
+  assert.equal(describe(reset(), { label: true }), describe(reset()));
+  assert.equal(describe(bare()), "fetch failed");
+  assert.equal(describe(Object.assign(new Error("lost"), { name: "ghp_abc123" }), { label: true }), "lost (***)");
 });
 
 test("every arm in the run failing on the network, after the listing read, is an outage and fails red", async () => {
@@ -1365,6 +1397,67 @@ test("a hold path stays held without a trusted approval of the head", async () =
     trustedKyle(),
   );
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
+});
+
+// The churn measured on #10224: Kyle approved OLD, then a lane merged the
+// base. The approval carries to the merge, so it arms and is not labeled
+// again; a merge that also edits the hold path is sent back to a person, and
+// a label removal alone lifts nothing (the owner's decision on #10596).
+test("an approval before a base merge, or its stale dismissal, lifts the hold path at the merge, and an evil merge, a dismissal with a message or a label removal does not", async () => {
+  const OLD = "a".repeat(40);
+  const MAIN = "5".repeat(40);
+  const P = "/repos/melodic-software/claude-code-plugins";
+  const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
+  const approval = { id: 41, user: { login: "kyle-sexton", id: 5, type: "User" }, state: "APPROVED", commit_id: OLD, submitted_at: "2026-10-27T23:26:14Z" };
+  // main resolves to TIP, its tip commit, which every compare names.
+  const TIP = "3".repeat(40);
+  const rest = (number, headFiles, reviews = [approval]) => ({
+    [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
+    [P]: { full_name: "melodic-software/claude-code-plugins", default_branch: "main" },
+    [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
+    [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
+    [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
+    [`${P}/compare/${MAIN}...${TIP}`]: { status: "ahead" },
+    [`${P}/compare/${TIP}...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 },
+  });
+  const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
+  assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
+  assert.deepEqual(lifted.notes, []);
+  const evil = await run([pull(61, { files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
+  assert.deepEqual(evil.writes, []);
+  assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
+  // The label history the earlier reader bound a removal by.
+  const removal = {
+    ...rest(62, [held], []),
+    [`${P}/issues/62/events?per_page=100&page=1`]: [
+      { event: "labeled", label: { name: "needs-human" }, actor: { id: 2, login: "lanes[bot]" }, performed_via_github_app: { slug: "lanes" }, created_at: "2026-10-27T23:05:00Z" },
+      { event: "unlabeled", label: { name: "needs-human" }, actor: { id: 5, login: "kyle-sexton" }, performed_via_github_app: null, created_at: "2026-10-27T23:26:14Z" },
+    ],
+    [`${P}/activity?ref=refs%2Fheads%2Ffix%2Fheld-62&direction=desc&per_page=100`]: [
+      { after: HEAD, timestamp: "2026-10-27T23:32:00Z" },
+      { after: OLD, timestamp: "2026-10-27T23:00:00Z" },
+    ],
+  };
+  const removed = await run([pull(62, { headRefName: "fix/held-62", files: HELD, rest: removal })], trustedKyle());
+  assert.deepEqual(removed.writes, []);
+  // The owner's decision of 2026-10-28: the approval GitHub dismissed as
+  // stale on the merge's push (a Bot's dismissal with no message, by the
+  // pushed head) still carries; one dismissed with a message does not.
+  const dismissedEvent = (message) => ({
+    event: "review_dismissed",
+    actor: { login: "lanes[bot]", type: "Bot" },
+    dismissed_review: { review_id: 41, state: "approved", dismissal_message: message, dismissal_commit_id: HEAD },
+  });
+  const staleRest = (number, message) => ({
+    ...rest(number, [held], [{ ...approval, state: "DISMISSED" }]),
+    [`${P}/issues/${number}/timeline?per_page=100&page=1`]: [dismissedEvent(message)],
+  });
+  const stale = await run([pull(63, { files: HELD, rest: staleRest(63, null) })], trustedKyle());
+  assert.deepEqual(stale.writes, [{ mutation: "arm", id: "PR_63", head: HEAD }]);
+  assert.deepEqual(stale.notes, []);
+  const revoked = await run([pull(64, { files: HELD, rest: staleRest(64, "stale") })], trustedKyle());
+  assert.deepEqual(revoked.writes, []);
+  assert.deepEqual(revoked.notes.map(({ path }) => path), [`${ISSUES}/64/comments`, `${ISSUES}/64/labels`]);
 });
 
 test("an approval lifts no unread hold-path check and no capped file listing", () => {

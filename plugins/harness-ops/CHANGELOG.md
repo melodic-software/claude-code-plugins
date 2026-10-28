@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.13.0] - 2026-10-28
+
+### Added
+
+- behavior-probes: a `subagent/skill-tool-skill-placeholder-effort` case for `${CLAUDE_EFFORT}` in a skill a subagent pinned `low` loads through the Skill tool, with the session at `medium`. Its live run on Claude Code 2.1.310 showed the subagent's `low`, while a rerun of the preloaded case on the same version still read the session's `medium`; `records.md` gains records 14 and 15, and a rerun of both on 2.1.312 gave the same results.
+
 ## [4.12.2] - 2026-10-27
 
 ### Changed

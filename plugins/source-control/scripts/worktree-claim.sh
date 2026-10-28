@@ -126,7 +126,19 @@ normalize_path() {
 # `check-enter .` or a `/tmp` vs `/private/tmp` spelling still matches
 # porcelain (git-worktree(1) accepts relative or absolute).
 canonicalize_path() {
-  local p="$1" base="${2:-$PWD}" phys
+  local out
+  canonicalize_path_to out "$@"
+  printf '%s' "$out"
+}
+
+# canonicalize_path_to <var> <path> [base]: canonicalize_path into <var>
+# without forking in the common case (an already-clean path to an existing
+# directory), which parse_worktrees hits once per registered worktree. Siblings
+# under one non-symlink parent share a single `cd -P` through CANON_PARENT.
+CANON_PARENT=""
+CANON_PARENT_PHYS=""
+canonicalize_path_to() {
+  local __var="$1" p="$2" base="${3:-$PWD}" here="$PWD" phys
   p="${p%$'\r'}"
   # shellcheck disable=SC2088
   if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
@@ -135,8 +147,22 @@ canonicalize_path() {
   if [[ "$p" != /* && ! "$p" =~ ^[A-Za-z]:/ ]]; then
     p="${base%/}/$p"
   fi
-  p="$(normalize_path "$p")"
-  if [[ -d "$p" ]]; then
+  if [[ "$p" == *//* || "$p" == */./* || "$p" == */../* || "$p" == */. || "$p" == */.. || "$p" == ?*/ ]]; then
+    p="$(normalize_path "$p")"
+  fi
+  local parent="${p%/*}"
+  if [[ -d "$p" && ! -L "$p" && -n "$parent" && "$parent" == "$CANON_PARENT" ]]; then
+    # Sibling of the last directory resolved: reuse its parent's physical path.
+    p="${CANON_PARENT_PHYS}/${p##*/}"
+  elif [[ -d "$p" && -d "$here" ]] && CDPATH='' builtin cd -P -- "$p" 2>/dev/null; then
+    phys="$PWD"
+    builtin cd -- "$here" || exit "$EX_ENV"
+    if [[ ! -L "$p" && -n "$parent" ]]; then
+      CANON_PARENT="$parent"
+      CANON_PARENT_PHYS="${phys%/*}"
+    fi
+    p="$phys"
+  elif [[ -d "$p" ]]; then
     phys="$(cd "$p" && pwd -P 2>/dev/null)" || phys=""
     [[ -n "$phys" ]] && p="$phys"
   elif [[ -e "$p" ]]; then
@@ -146,7 +172,7 @@ canonicalize_path() {
       p="${dir}/$(basename -- "$p")"
     fi
   fi
-  printf '%s' "$p"
+  printf -v "$__var" '%s' "$p"
 }
 
 # Resolve --session-id / CLAUDE_SESSION_ID. Echoes empty when neither is usable.
@@ -175,7 +201,7 @@ valid_session_id() {
 # Fills WT_PATHS / WT_REASONS / WT_IS_LINKED from the shared fact record.
 # Linked means "not the main worktree and not bare".
 parse_worktrees() {
-  local repo="$1" porcelain i
+  local repo="$1" porcelain i canon
   WT_PATHS=()
   WT_REASONS=()
   WT_IS_LINKED=()
@@ -189,7 +215,8 @@ parse_worktrees() {
   [[ ${#WT_FACT_PATH[@]} -gt 0 ]] || return 0
   for i in "${!WT_FACT_PATH[@]}"; do
     [[ "${WT_FACT_BARE[$i]}" == "yes" ]] && continue
-    WT_PATHS+=("$(canonicalize_path "${WT_FACT_PATH[$i]}")")
+    canonicalize_path_to canon "${WT_FACT_PATH[$i]}"
+    WT_PATHS+=("$canon")
     WT_REASONS+=("${WT_FACT_LOCKED[$i]}")
     if [[ "${WT_FACT_LINKED[$i]}" == "yes" ]]; then
       WT_IS_LINKED+=(1)

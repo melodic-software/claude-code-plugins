@@ -32,6 +32,12 @@ VECTORS = (
 REPO = "example-org/example-repo"
 LANES_LOGIN = "agent-lanes[bot]"
 CHILD = 9
+# Each branch's tip object, distinct per branch, so a read names the tip of
+# the branch it meant.
+TIPS = {
+    branch: {"sha": digit * 40, "type": "commit"}
+    for branch, digit in (("main", "a"), ("trunk", "b"), ("feature-x", "c"))
+}
 # The `task-list` of `.github/actions/resolve-config/admission-rules.json`,
 # which the fake serves as the branch's rules.
 TASK_LIST = json.loads(
@@ -122,6 +128,10 @@ class FakeGitHub:
         self.fail = False
         self.rules_fail = False
         self.default_fail = False
+        # Each branch's tip, as `git/ref/heads/<branch>` answers it; a branch
+        # absent here answers 404, and a value that is not a SHA is served as
+        # it stands.
+        self.tips: dict[str, Any] = {b: TIPS[b] for b in TIPS}
         self.calls: list[tuple[list[str], Any]] = []
 
     def graphql_calls(self) -> int:
@@ -134,13 +144,19 @@ class FakeGitHub:
             if any(ve.ADMISSION_RULES_PATH in a for a in args)
         )
 
-    def rules_refs(self) -> list[str]:
+    def refs(self, path: str) -> list[str]:
         return [
             a.rpartition("?ref=")[2]
             for args, _ in self.calls
             for a in args
-            if ve.ADMISSION_RULES_PATH in a
+            if path in a
         ]
+
+    def rules_refs(self) -> list[str]:
+        return self.refs(ve.ADMISSION_RULES_PATH)
+
+    def actors_refs(self) -> list[str]:
+        return self.refs(ve.TRUSTED_ACTORS_PATH)
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -150,6 +166,13 @@ class FakeGitHub:
             if self.default_fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
             answer = {"default_branch": self.default_branch}
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
+        heads = f"repos/{REPO}/git/ref/heads/"
+        if len(args) == 2 and args[1].startswith(heads):
+            branch = args[1].removeprefix(heads)
+            if branch not in self.tips:
+                return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
+            answer = {"ref": f"refs/heads/{branch}", "object": self.tips[branch]}
             return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         if args[:2] == ["api", "graphql"]:
             assert any(a == f"query={ve.SPLIT_CHILD_QUERY}" for a in args), args
@@ -173,7 +196,11 @@ class FakeGitHub:
 
 
 def judge(
-    fake: FakeGitHub, issue: dict[str, Any], identity: str | None, **reader: Any
+    fake: FakeGitHub,
+    issue: dict[str, Any],
+    identity: str | None,
+    branch: str = "main",
+    **reader: Any,
 ) -> bool:
     with (
         mock.patch.dict("os.environ", {}, clear=False) as env,
@@ -181,7 +208,7 @@ def judge(
         mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
     ):
         env.pop("BABYSIT_RUN_CACHE", None)
-        found = ve.Reader(REPO, "main", agent_identity=identity, **reader)
+        found = ve.Reader(REPO, branch, agent_identity=identity, **reader)
         return found._trusted_spec({"linked_issues": [issue]})
 
 
@@ -331,7 +358,69 @@ class TheRulesComeFromTheDefaultBranch(unittest.TestCase):
             self.assertTrue(
                 reader._trusted_spec({"linked_issues": [linked(case["child"])]})
             )
-        self.assertEqual(fake.rules_refs(), ["trunk"])
+        self.assertEqual(fake.rules_refs(), [TIPS["trunk"]["sha"]])
+        # The trusted list keeps the reader's branch, at its tip.
+        self.assertEqual(fake.actors_refs(), [TIPS["feature-x"]["sha"]])
+
+
+class TheReadsNameACommit(unittest.TestCase):
+    """Both trust reads name the branch's tip SHA, read by its full ref, so a
+    tag of the same name cannot stand in for the branch; a tip that does not
+    resolve to a commit SHA reads nothing and fails closed."""
+
+    def setUp(self) -> None:
+        data = json.loads(VECTORS.read_text(encoding="utf-8"))
+        case = next(c for c in data["cases"] if c["name"] == "the trusted child")
+        self.child = linked(case["child"])
+        self.fake = FakeGitHub(
+            data["humans"], data["app_id"], graphql_issue(case, data["parents"])
+        )
+        self.fake.default_branch = "trunk"
+
+    def judge(self) -> bool:
+        return judge(self.fake, self.child, LANES_LOGIN, branch="feature-x")
+
+    def test_each_read_names_a_sha_never_a_branch(self) -> None:
+        self.assertTrue(self.judge())
+        refs = self.fake.actors_refs() + self.fake.rules_refs()
+        self.assertEqual(
+            refs, [TIPS["feature-x"]["sha"], TIPS["trunk"]["sha"]]
+        )
+        heads = [
+            args[1]
+            for args, _ in self.fake.calls
+            if args[1].startswith(f"repos/{REPO}/git/ref/heads/")
+        ]
+        self.assertEqual(
+            heads,
+            [
+                f"repos/{REPO}/git/ref/heads/feature-x",
+                f"repos/{REPO}/git/ref/heads/trunk",
+            ],
+        )
+
+    def test_an_unreadable_tip_fails_closed(self) -> None:
+        bad = {
+            "absent (404)": None,
+            "a short sha": {"sha": "abc123", "type": "commit"},
+            "an uppercase sha": {"sha": "A" * 40, "type": "commit"},
+            "the branch name": {"sha": "trunk", "type": "commit"},
+            "no sha": {"type": "commit"},
+            "no object": "",
+        }
+        for branch in ("feature-x", "trunk"):
+            for label, tip in bad.items():
+                with self.subTest(branch=branch, tip=label):
+                    self.setUp()
+                    if tip is None:
+                        del self.fake.tips[branch]
+                    else:
+                        self.fake.tips[branch] = tip
+                    with self.assertRaises(ve._Unreadable):
+                        self.judge()
+                    # Nothing reads a trust file at the branch's name.
+                    self.assertNotIn(branch, self.fake.actors_refs())
+                    self.assertNotIn(branch, self.fake.rules_refs())
 
 
 class OneReadPerChild(unittest.TestCase):

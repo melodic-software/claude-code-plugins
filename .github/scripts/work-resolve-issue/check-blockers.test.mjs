@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { after, test } from "node:test";
+import { after, describe, test } from "node:test";
 
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { main } from "./check-blockers.mjs";
@@ -42,7 +42,15 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
       if (subject.issue instanceof Error) {
         throw subject.issue;
       }
-      return { number: 42, state: "open", labels: (subject.labels ?? []).map((name) => ({ name })) };
+      return {
+        number: 42,
+        state: "open",
+        labels: (subject.labels ?? []).map((name) => ({ name })),
+        ...(subject.summary && { sub_issues_summary: subject.summary }),
+      };
+    }
+    if (path.startsWith("/repos/o/r/issues/42/sub_issues")) {
+      return subject.subs ?? [];
     }
     if (path.startsWith("/repos/o/r/issues/42/events")) {
       if (subject.events instanceof Error) {
@@ -124,7 +132,7 @@ test("a merged pull request blocker costs no trust read, so a read that would fa
       throw new Error("GET failed: 502");
     }
     if (path === "/repos/o/r/issues/42") {
-      return { number: 42, state: "open", labels: [] };
+      return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     }
     if (path.includes("/events")) {
       return [];
@@ -199,7 +207,7 @@ test("an issue number that is not one, no trusted list, or no App id skips the r
 test("a split parent the lanes App closed after a listed human closed every part no longer blocks; an open part keeps it blocking", async () => {
   const record = { id: 61, user: APP, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [50, 51] })}` };
   const world = (partState) => (path) => {
-    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [] };
+    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     if (path.startsWith("/repos/o/r/issues/42/events")) return [];
     if (path.includes("/42/dependencies/blocked_by")) return [issue(7, "closed", { closer: APP })];
     if (path === "/repos/o/r/issues/7") return issue(7, "closed", { closer: APP });
@@ -212,4 +220,62 @@ test("a split parent the lanes App closed after a listed human closed every part
   };
   assert.deepEqual((await run(world("closed"))).outputs, RUN);
   assert.deepEqual((await run(world("open"))).outputs, SKIP);
+});
+
+// An umbrella's work is its sub-issues' (owner Q93, intake admission's wait):
+// the run gate skips it, agent-ready kept, while one is open, and never hands
+// it to a person. The issue read's sub_issues_summary decides whether the
+// sub-issues are listed at all.
+describe("an umbrella issue", () => {
+  const summary = (total, completed) => ({ total, completed, percent_completed: total ? Math.round((completed * 100) / total) : 0 });
+
+  test("with an open sub-issue skips the run, agent-ready kept, with a notice naming each open one", async () => {
+    const subs = [issue(9691, "open"), issue(9692, "closed"), issue(9693, "open")];
+    const { code, calls, lines, outputs } = await run([], { subject: { summary: summary(3, 1), subs } });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(calls.every((call) => call.startsWith("GET ")));
+    const notice = lines.find((line) => line.startsWith("::notice"));
+    assert.match(notice, /#9691/);
+    assert.match(notice, /#9693/);
+    assert.doesNotMatch(notice, /#9692/);
+    assert.doesNotMatch(notice, /needs-human/);
+  });
+
+  test("whose sub-issues are all closed, as completed or not planned, runs", async () => {
+    assert.deepEqual((await run([], { subject: { summary: summary(2, 2), subs: [issue(9691, "closed"), issue(9692, "closed")] } })).outputs, RUN);
+    // A close as not planned may not count as completed, so the list decides.
+    const notPlanned = [issue(9691, "closed"), issue(9692, "closed", { reason: "not_planned" })];
+    assert.deepEqual((await run([], { subject: { summary: summary(2, 1), subs: notPlanned } })).outputs, RUN);
+  });
+
+  test("costs no call past the issue read when the summary shows none open", async () => {
+    for (const subject of [{ summary: summary(0, 0) }, { summary: summary(4, 4) }]) {
+      const { calls, outputs } = await run([], { subject });
+      assert.deepEqual(outputs, RUN, JSON.stringify(subject));
+      assert.ok(!calls.some((call) => call.includes("/sub_issues")), JSON.stringify(subject));
+    }
+  });
+
+  test("an issue read with no summary lists the sub-issues, and an open one skips the run", async () => {
+    const { calls, outputs } = await run([], { subject: { subs: [issue(9691, "open")] } });
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(calls.some((call) => call.includes("/sub_issues")));
+    assert.deepEqual((await run([], { subject: { subs: [] } })).outputs, RUN);
+  });
+
+  test("a sub-issue list it cannot read skips the run with a warning, not for good", async () => {
+    const { code, lines, outputs } = await run((path) => {
+      if (path.includes("/sub_issues")) {
+        throw new Error("GET failed: 502");
+      }
+      if (path === "/repos/o/r/issues/42") {
+        return { number: 42, state: "open", labels: [], sub_issues_summary: summary(2, 0) };
+      }
+      return [];
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(lines.some((line) => line.startsWith("::warning")));
+  });
 });

@@ -510,11 +510,12 @@ done
 # The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
 # AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
 # The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
+# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve rule byte-identical. The template's example bullets fold to one each and the resolver paragraph is rewrapped, to stay under the 500-line cap
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "cae25d912208f98eed9d04abf99d186e293a6eacea8fc8fbf212f821da6ac01d"
+  "32ca83a2a8dfeef1db43ba8f85cbdc7582118c9a8a225fa47f78edb56aa79ed3"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -586,11 +587,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
 # The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
 # gate reads only the Restatement stamp (#9912); no defense weakened
+# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "9beea2e4efe382b0d4d2bd5c3be72cc06dd2122a7c35eea2207ad0324b96d0ca"
+  "8d7ccf3b8a4b1467db520c8d068bc1716da6f7147104c3159f4e042002e0df23"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -678,25 +680,29 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
 # PRD seeds the Brief; Variation intent rename
+# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve and constraint-ledger defenses intact
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "106bd557fc1336e3faf59a833f98ed4d6ea5c4461d818df8f600f026bdab2c7c"
+  "2df6c8a7940d5851b889dc10b6a134925556be55c5d3a87277544e5c6ea698aa"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
 # The section's pointers now name context/lane-page.md and context/question-shape.md; a pointer changes no rule.
+# Re-pinned for #8314: the edit adds one paragraph to the Session-shorthand glossary subsection (write the glossary line with the register row at ask-time); the late-commitment next-free-id rule and its defense are untouched.
+# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "ac4456c25873fde66592daa3202789a242c15b7bea34b50cde9076a6864bbed2"
+  "34aa94749e1db8a945f1fdb1241b5830bdbb883d55e70ccfbb38e2d56a5167aa"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
+# Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "d6f9547c32238ff246566ff0d31df39c159da40deb57563da6e775a5a6d1353d"
+  "8d08f205a52b09ccd422bf5adad012bf5bb215f021a06aa4e18d801f797cef8c"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -729,8 +735,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
 # Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
 # Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
+# Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "111ee4d6105972c243c9e11744e68f2387cceec06062c92bab3efeb647122f0d"
+  "2699328835acd8f10e2552005e0af9ccd8121b92c3ac526e4aefb7ba78db5873"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

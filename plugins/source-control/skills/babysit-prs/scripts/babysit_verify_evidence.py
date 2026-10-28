@@ -1386,18 +1386,29 @@ class Reader:
             run_cache.note(self._humans_at)
         return self._humans or frozenset()
 
+    def _tip(self, branch: str) -> str:
+        """`branch`'s tip SHA (`merge_policy.base_tip`), so no tag of the same
+        name stands in for it; `_Unreadable` when it does not resolve."""
+        owner, _, name = self.repo.partition("/")
+        try:
+            return merge_policy.base_tip(owner, name, branch)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+
     def _read_trusted_list(self) -> None:
-        """Read the trusted list at the branch once: its human ids, and every
-        login's id (`_lane_app_id`), each shared by the run's gate processes."""
+        """Read the trusted list at the branch's tip once: its human ids, and
+        every login's id (`_lane_app_id`), each shared by the run's gate
+        processes."""
         key = f"{self.repo}@{self.branch}"
         at = run_cache.now()
+        tip = self._tip(self.branch)
         listing = json_object(
             _read(
                 [
                     "api",
                     "-H",
                     "Accept: application/vnd.github.raw",
-                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
+                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={tip}",
                 ],
                 "trusted-actor list",
             )
@@ -1456,13 +1467,14 @@ class Reader:
                 self._task_list_value, at = shared
             else:
                 at = run_cache.now()
+                tip = self._tip(default)
                 rules = json_object(
                     _read(
                         [
                             "api",
                             "-H",
                             "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={default}",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={tip}",
                         ],
                         "admission rules",
                     )
@@ -2180,7 +2192,9 @@ def lane_risk_refusal(
     (`merge_policy.cost_decision`). A read that fails holds. A configured or
     floor high path is lifted, as ci-status lifts it, by a trusted person's
     approval of the head (`merge_policy.path_lifters` over the pull request's
-    reviews and `humans`, the trusted list's people); an aliasing path keeps
+    reviews and `humans`, the trusted list's people), or by their approval of
+    an earlier head carried over base merges (`merge_policy.carried_lifters`);
+    an aliasing path keeps
     its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
@@ -2240,7 +2254,12 @@ def lane_risk_refusal(
                 f"repos/{repo}/pulls/{number}/reviews?per_page=100",
                 f"{repo}#{number} reviews",
             )
-            lifted = bool(merge_policy.path_lifters(reviews, humans(), head))
+            trusted = humans()
+            # An approval of an earlier head carries over merges that bring
+            # only the base's changes.
+            lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
+                merge_policy.carried_lifters(repo, pr, reviews, trusted)
+            )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing
             lifted = False
         if lifted:
@@ -2579,6 +2598,8 @@ def _answer_key(
             parts["config"] = asdict(config)
             bot = (config.agent_identity or "").removesuffix("[bot]") or None
         listing = reader.listing()
+        # `_task_list` reads the rules at the default branch, whatever the base.
+        default = merge_policy._default_branch(args.repo, shared=True)
     except (merge_policy.PolicyReadError, RuntimeError) as exc:
         raise _ProbeFailed(str(exc)) from exc
     owner, _, name = args.repo.partition("/")
@@ -2589,8 +2610,9 @@ def _answer_key(
             "r": name,
             "n": args.number,
             "h": args.head,
-            "ta": f"{args.branch}:{TRUSTED_ACTORS_PATH}",
-            "ar": f"{args.branch}:{ADMISSION_RULES_PATH}",
+            # By full ref: a bare name resolves as git does, a tag first.
+            "ta": f"refs/heads/{args.branch}:{TRUSTED_ACTORS_PATH}",
+            "ar": f"refs/heads/{default}:{ADMISSION_RULES_PATH}",
         },
     )
     pull = json_object(repository.get("pullRequest"))

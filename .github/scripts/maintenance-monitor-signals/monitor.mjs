@@ -125,6 +125,7 @@ async function main(env = process.env) {
   const windowStart = new Date(now.getTime() - Number(env.WINDOW_MINUTES ?? 65) * 60_000);
   const { call, used } = client(env);
   const get = (path) => call("GET", path);
+  const graphql = (query, variables) => call("POST", "/graphql", { query, variables });
   const getStatus = async (url) => {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
@@ -144,6 +145,7 @@ async function main(env = process.env) {
 
   const data = await collect({
     get,
+    graphql,
     getStatus,
     readArtifact,
     repo,
