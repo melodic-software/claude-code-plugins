@@ -371,8 +371,9 @@ activities:
       # The agent-ready label alone admits the issue, whoever added it; the
       # trigger gate checks that a listed human or the lanes App added it.
       # No `work-class:` label admits or refuses it. A person decides an
-      # issue carrying one of these labels, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info"]
+      # issue carrying one of these labels, or, for attended, takes its step
+      # present, so it starts nothing.
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -398,6 +399,7 @@ activities:
         - needs-owner-decision
         - "status: needs-decision"
         - "status: needs-info"
+        - attended
       labels:
         - agent-ready
   report-outcome:
@@ -910,6 +912,21 @@ adoption:
 # chatgpt-codex-connector[bot] (its threads on #10092).
 review-threads:
   reviewer-ids: [199175422]
+
+# Work that needs the owner present (owner decision 2026-10-28): a manual step
+# on external state an agent cannot safely run or test. Intake's refinement
+# records `External state: manual (<class>: <what>)` only for a class listed
+# here (refine.mjs reads the list into the model's context and refuses any
+# other), and admission refuses such an issue with the `attended` label. An
+# IaC repository's preview and deploy flow is no such step. Dropping a class
+# is an edit here.
+attended:
+  classes:
+    dns: a DNS record or registrar change
+    cloud-resource: a cloud resource created outside an IaC repository's preview and deploy flow
+    credential: an API key, token or secret created or rotated
+    host-elevation: an elevated (UAC or sudo) pass on a host
+    network: a network or IP address registration
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
