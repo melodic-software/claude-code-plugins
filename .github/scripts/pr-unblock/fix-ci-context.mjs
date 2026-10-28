@@ -22,7 +22,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
@@ -103,19 +103,19 @@ async function contextOf(api, run, notes) {
 }
 
 // Each kept thread's opening comment: where it points and what it says.
-async function reviewFindings(api, pr, { appId, reviewerId }) {
+async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
-  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId })
+  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId })
     .slice(0, MAX_FINDINGS)
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-export async function select({ api, pr, appId, reviewerId, maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
+export async function select({ api, pr, appId, reviewerId, reviewerIds = [], maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
   if (!SHA.test(String(headSha))) {
@@ -178,7 +178,7 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
   // The findings are a lead, so a failed read costs them, not the run.
   let review_findings = [];
   try {
-    review_findings = await reviewFindings(api, pr, { appId, reviewerId });
+    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds });
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
@@ -204,6 +204,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await loopFromBase(env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   // The base checkout's list, the one address-feedback reads.
   const reviewerId = reviewerIdFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`);
+  const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const client =
     api ??
     createGitHubApi({
@@ -213,7 +214,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
-  const result = await select({ api: client, pr, appId, reviewerId, maxRounds, humanGatedLabel, log });
+  const result = await select({ api: client, pr, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });
   let sha256 = "";
   if (result.file) {
     const text = `${JSON.stringify(result.file, null, 2)}\n`;
