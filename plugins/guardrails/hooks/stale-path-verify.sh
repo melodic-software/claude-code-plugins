@@ -433,9 +433,10 @@ normalize_candidate() {
     # Deleted root-level paths such as `CONTRIBUTING.md` are valid repo-relative
     # citations; admit them only when root_basename_is_ambiguous says the token is
     # referentially unambiguous. Generic root names and multiply-occurring basenames
-    # stay out — see #1446.
-    root_basename_is_ambiguous "$t" && return 0
+    # stay out — see #1446. The extension test goes first: it is free, and the
+    # ambiguity test lists the tracked files.
     [[ "$last" == *.* ]] || return 0
+    root_basename_is_ambiguous "$t" && return 0
   else
     # A bare directory reference with no extension and no trailing slash is
     # ambiguous with a namespace, a module path, or a URL path fragment.
@@ -737,14 +738,12 @@ build_deleted_set() {
     return 0
   fi
 
-  local rest
-  walk=${walk//$'\r'/}
-  rest=$walk
-  while [[ -n "$rest" ]]; do
-    p=${rest%%$'\n'*}
+  # mapfile splits in one pass; chopping the walk one line at a time copies the
+  # rest each time, quadratic in a long history.
+  local -a walk_lines=()
+  mapfile -t walk_lines <<<"${walk//$'\r'/}"
+  for p in "${walk_lines[@]}"; do
     [[ -n "$p" ]] && DELETED["$p"]=1
-    [[ "$rest" == *$'\n'* ]] || break
-    rest=${rest#*$'\n'}
   done
 
   if [[ -n "$cache" ]]; then

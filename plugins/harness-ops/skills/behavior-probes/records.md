@@ -386,3 +386,31 @@ local slash command.
 | `autocompact/project-per-model-beats-top-level` | 400k | `... 400k tokens (from settings)` | pass |
 | `autocompact/flag-beats-project-settings` | 200k | `... 200k tokens (from settings)` | pass |
 | `autocompact/env-beats-flag` | 150k | `... 150k tokens (from CLAUDE_CODE_AUTO_COMPACT_WINDOW)` | pass |
+
+## Basis for record 17
+
+A live run of the `lane-permissions` area, `probe.py run --live --area lane-permissions --retries 1`
+(default ceilings), with the launch above plus `--permission-mode dontAsk` and the write lane's lists
+from `cases/lib/lane-write-tools.json` as `--allowedTools` and `--disallowedTools`. Linux (WSL2),
+Claude Code **2.1.312**, 2026-10-28: 7 runs, no retry needed. Every case is verdict-only: no stream
+was saved, `raw/` stayed empty, and every result row's tool text was blank. The recheck trigger and
+expiry above apply.
+
+## 17. The write lane's Read deny rules keep Grep, Glob and Read out of `/proc` and `.git`
+
+**Claim.** Under `dontAsk` with the write lane's tool lists, `Read(//proc/**)` denies Grep and Glob
+calls that reach `/proc/*/environ`, and `Read(/<workspace>/.git/**)` denies a Grep of the checkout's
+`.git` directory and a Read of its `.git/config`. Grep and Read of a file inside the checkout run.
+
+**Recheck trigger.** A release note naming Read rules on Grep or Glob, `--allowedTools`,
+`--disallowedTools` or `dontAsk`, or a change to the lane's lists in `collect-base-activity`.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `lane-permissions/grep-proc-environ-denied` | deny (rule) | deny, rule | pass |
+| `lane-permissions/grep-proc-self-glob-environ-denied` | deny (rule) | deny, rule | pass |
+| `lane-permissions/glob-proc-environ-denied` | deny (rule) | deny, rule | pass |
+| `lane-permissions/grep-git-dir-denied` | deny (rule) | deny, rule | pass |
+| `lane-permissions/read-git-config-denied` | deny (rule) | deny; seen only in `result.permission_denials`, so `unknown` | pass |
+| `lane-permissions/grep-in-checkout-runs` | ran | ran | pass |
+| `lane-permissions/read-in-checkout-runs` | ran | ran | pass |

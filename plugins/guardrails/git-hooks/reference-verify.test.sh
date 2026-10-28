@@ -180,6 +180,48 @@ expect "a new file citing a deleted repository path blocks" \
   "1|README.md:1: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
+# A file over the kernel's per-argument limit (128 KiB on Linux) is judged, not
+# skipped: its text never travels as one argument.
+new_repo
+{
+  printf '#!/usr/bin/env bash\n'
+  for ((i = 0; i < 2500; i++)); do printf 'echo "filler line %05d, padding the file past the argument limit"\n' "$i"; done
+  printf 'faketool --bogus\n'
+} >"$REPO/big.sh"
+commit_all big
+expect "a new file over 128 KiB is judged (the fixture is over the limit)" yes \
+  "$(test "$(wc -c <"$REPO/big.sh")" -gt 131072 && echo yes)"
+expect "an unknown flag in a new file over 128 KiB blocks" "1|big.sh:1: ${FLAG_FINDING/in run.sh/in big.sh}" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# A doc moved with a stub left at its old path is a copy, not a rename (the old
+# path is changed, the new one added): only the lines the move adds are judged,
+# so a citation the doc already held, here a deletion record, passes.
+new_repo
+mkdir -p "$REPO/docs/old"
+{
+  printf '# Topic\n\n'
+  for ((i = 1; i <= 10; i++)); do printf 'Paragraph %d of the topic, unchanged by the move.\n\n' "$i"; done
+  # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+  printf 'The `docs/gone.md` page was removed.\n'
+} >"$REPO/docs/old/README.md"
+commit_all topic
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+mkdir -p "$REPO/docs/new"
+cp "$REPO/docs/old/README.md" "$REPO/docs/new/README.md"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# Topic\n\nMoved to `docs/new/README.md`.\n' >"$REPO/docs/old/README.md"
+commit_all move
+expect "a moved doc is judged on the lines the move adds, so a citation it held passes" "0|" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf 'See `docs/gone.md` for the details.\n' >>"$REPO/docs/new/README.md"
+commit_all move-cites
+expect "a line the move adds to the moved doc is judged, at that line" \
+  "1|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+
 # The verifiers judge the pushed tip's tree, not the checkout. Each case below
 # pushes a branch while main, which differs from it, is checked out.
 # new_readme_repo: new_repo plus a pushed README.md, so a branch edits it.
