@@ -42,7 +42,7 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
@@ -205,6 +205,7 @@ export async function dispatchConflicting({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       // Not recorded: the hold can come off with the head unchanged.
       if (held) {
@@ -397,8 +398,11 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
-    // A held PR's issue timeline (gate-source.mjs reads its REST shape).
+    // A held PR's issue timeline, review comments and reviews (gate-source.mjs
+    // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
+    listReviewComments: (number) => paginate(`pulls/${Number(number)}/comments`),
+    listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
     // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
     async listCommitCheckRuns(sha) {
@@ -545,17 +549,19 @@ function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's timeline is read at most once a run, however many dispatchers
-// ask.
+// A held PR's timeline, review comments and reviews are each read at most once
+// a run, however many dispatchers ask.
 export function shareTimeline(base) {
-  const seen = new Map();
-  const listTimeline = (number) => {
-    if (!seen.has(number)) {
-      seen.set(number, base.listTimeline(number));
-    }
-    return seen.get(number);
+  const shared = (method) => {
+    const seen = new Map();
+    return (number) => {
+      if (!seen.has(number)) {
+        seen.set(number, base[method](number));
+      }
+      return seen.get(number);
+    };
   };
-  return { ...base, listTimeline };
+  return { ...base, listTimeline: shared("listTimeline"), listReviewComments: shared("listReviewComments"), listReviews: shared("listReviews") };
 }
 
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,

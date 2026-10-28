@@ -2,7 +2,8 @@
 // from its timeline. clear-escalations.mjs (pr-merge) uses the pieces to decide
 // whether the label may come off; feedback-dispatch.mjs and address-feedback.mjs
 // (pr-unblock) use gateSource to decide whether address-feedback works the PR
-// while the label stays on.
+// while the label stays on, and prHold, which also reads the PR's review
+// comments and reviews, whether resolve-conflicts, fix-ci and fix-docs do.
 //
 // Two writers put the label on:
 // - a lane escalation: the lanes App's report-escalation.sh (pr-unblock,
@@ -205,22 +206,33 @@ export function spoken(item) {
 export const personSince = (entries, since) => entries.find(({ user, at }) => !(at < since) && user?.type !== "Bot");
 
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
-// when gateSource reads a lane escalation, no person has commented since the
-// label went on, and no escalation since then is `activity`'s own, so one
-// lane's escalation does not stop the others. `why` is a fixed phrase, safe to
-// log.
-export function laneEscalationAllows({ timeline, label, head, isLanesApp, activity }) {
+// when gateSource reads a lane escalation, no person has commented, reviewed or
+// replied in a review thread since the label went on, and no escalation since
+// then is `activity`'s own, so one lane's escalation does not stop the others.
+// `reviewComments` and `reviews` are the PR's REST pulls/<n>/comments and
+// pulls/<n>/reviews; either not an array (unread) disallows. `why` is a fixed
+// phrase, safe to log.
+export function laneEscalationAllows({ timeline, reviewComments, reviews, label, head, isLanesApp, activity }) {
   const gate = gateSource({ timeline, label, head, isLanesApp });
   if (gate.source !== "lane-escalation") {
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
+  if (!Array.isArray(reviewComments) || !Array.isArray(reviews)) {
+    return { allowed: false, why: "its review comments or reviews were not read" };
+  }
   const { since } = labelHistory(timeline, label);
   // A person who commented or reviewed since the label went on may want the
-  // lanes to wait. An unknown author counts as a person. This reads the
-  // timeline only, which shows no reply inside an existing review thread;
-  // clear-escalations.mjs also reads the review threads. That gap is open:
-  // #10564.
-  if (personSince(timeline.flatMap(spoken), since) !== undefined) {
+  // lanes to wait. An unknown author counts as a person. GitHub's timeline
+  // shows no event for a reply inside an existing review thread, so the review
+  // comments (at their last write) and reviews are read too. Known limit: a
+  // review body edited after the label is not seen (a REST review carries no
+  // update time).
+  const entries = [
+    ...timeline.flatMap(spoken),
+    ...reviewComments.map((comment) => ({ user: comment.user, at: lastWrite(comment) })),
+    ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
+  ];
+  if (personSince(entries, since) !== undefined) {
     return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
@@ -236,10 +248,14 @@ export function laneEscalationAllows({ timeline, label, head, isLanesApp, activi
 
 // Whether a PR carrying `labels` is held for `activity`: any of `holdLabels`
 // but the human-gated `gateLabel` holds it; `gateLabel` holds it unless
-// laneEscalationAllows reads `readTimeline()` (called only then) as another
-// lane's escalation. A null gateLabel (unreadable) or no lanes App id holds.
-// laneEscalated is true when the label is on and this activity works past it.
-export async function prHold({ labels, holdLabels, gateLabel, head, activity, appId, readTimeline }) {
+// laneEscalationAllows reads `readTimeline()` (called only then) and
+// `readReviews()` ({ comments, reviews }: reviewReader's, called only when the
+// timeline alone does not hold it) as another lane's escalation. A
+// readReviews that throws, or whose comments or reviews is not an array,
+// holds with a fixed why. A null gateLabel
+// (unreadable) or no lanes App id holds. laneEscalated is true when the label
+// is on and this activity works past it.
+export async function prHold({ labels, holdLabels, gateLabel, head, activity, appId, readTimeline, readReviews }) {
   const hard = labels.find((name) => holdLabels.includes(name) && name !== gateLabel);
   if (hard !== undefined) {
     return { held: true, laneEscalated: false, why: `held by ${hard}` };
@@ -251,9 +267,30 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
     return { held: true, laneEscalated: false, why: `held by ${gateLabel}` };
   }
   const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
-  const { allowed, why } = laneEscalationAllows({ timeline: await readTimeline(), label: gateLabel, head, isLanesApp, activity });
+  const timeline = await readTimeline();
+  const allows = (reviewComments, reviews) => laneEscalationAllows({ timeline, reviewComments, reviews, label: gateLabel, head, isLanesApp, activity });
+  // More entries can only hold it, so the timeline is judged alone first and
+  // the review reads are spent only on a PR it does not hold.
+  let { allowed, why } = allows([], []);
+  if (allowed) {
+    let read;
+    try {
+      read = await readReviews();
+    } catch {
+      read = undefined;
+    }
+    ({ allowed, why } = allows(read?.comments, read?.reviews));
+  }
   return allowed ? { held: false, laneEscalated: true, why: "" } : { held: true, laneEscalated: false, why: `held by ${gateLabel}: ${why}` };
 }
+
+// prHold's readReviews for PR `number`: its review comments and reviews
+// through `api`'s listReviewComments and listReviews (REST pulls/<n>/comments
+// and pulls/<n>/reviews, which a pull-requests: read token may list).
+export const reviewReader = (api, number) => async () => {
+  const [comments, reviews] = await Promise.all([api.listReviewComments(number), api.listReviews(number)]);
+  return { comments, reviews };
+};
 
 const LABEL_EVENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {

@@ -23,7 +23,7 @@ import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
-import { failingChecks, prHold } from "./gate-source.mjs";
+import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
 // merge path floor in gate-source.mjs.
@@ -134,6 +134,7 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
     activity: "fix-ci",
     appId,
     readTimeline: () => api.listTimeline(pr),
+    readReviews: reviewReader(api, pr),
   });
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };

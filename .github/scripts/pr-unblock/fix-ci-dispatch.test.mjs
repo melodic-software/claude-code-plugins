@@ -85,6 +85,7 @@ function fakeApi({
   baseCommittedAt,
   comments = new Map(),
   labelEvents = new Map(),
+  reviewComments = new Map(),
   history = new Map(),
   stops = new Map(),
   annotations = new Map(),
@@ -143,6 +144,13 @@ function fakeApi({
     async listTimeline(number) {
       calls.timeline.push(number);
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
+    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
+    async listReviewComments(number) {
+      return reviewComments.get(number) ?? [];
+    },
+    async listReviews() {
+      return [];
     },
     // The head's tested run of the workflow at path and its latest jobs; a
     // real failure at attempt 2 (its one re-run spent) unless the test names
@@ -618,6 +626,31 @@ test("needs-human from another lane's escalation does not hold fix-ci; fix-ci's 
   assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
   assert.ok(lines.includes("skip fix-ci #2: held by needs-human: fix-ci escalated it"), lines.join("\n"));
   assert.deepEqual(api.calls.timeline, [1, 2, 3], "a do-not-merge PR needs no timeline read");
+});
+
+test("a person's inline review-thread reply, seen only in the review comments, holds fix-ci past another lane's escalation", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const reply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" }];
+  const { lines, result } = await run(
+    {
+      pages: [[pr(1, humanGated), pr(2, humanGated)]],
+      labelEvents: new Map([
+        [1, labeledBy(APP_USER)],
+        [2, labeledBy(APP_USER)],
+      ]),
+      comments: new Map([
+        [1, escalationComment("feedback-disputed")],
+        [2, escalationComment("feedback-disputed")],
+      ]),
+      reviewComments: new Map([
+        [1, reply(PERSON)],
+        [2, reply(APP_USER)],
+      ]),
+    },
+    { gateLabel: "needs-human", maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [2], "a bot's inline reply does not hold");
+  assert.ok(lines.includes("skip fix-ci #1: held by needs-human: a person commented or reviewed since needs-human went on"), lines.join("\n"));
 });
 
 test("an awaiting-human skip left while the PR was held does not hold it once the hold is gone, but counts toward the per-head cap", async () => {

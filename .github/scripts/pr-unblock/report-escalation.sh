@@ -195,6 +195,27 @@ if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     threads='- the open review threads could not be read; see the pull request'"'"'s Files changed tab'
   fi
   details=$'\n'"The review rounds are not converging after the round cap and one fresh fixer round. Open review threads:"$'\n\n'"$threads"$'\n'
+elif [[ $ESCALATION_REASON == feedback-incomplete ]]; then
+  # Each kept thread with no disposition, as publish-feedback.mjs named it
+  # (undisposedLines) in the newest lanes App round marker on this head. Only
+  # a line of that exact shape is copied, rebuilt from its id and comment id.
+  # When this round's marker failed to post, an earlier round's on the same
+  # head is the newest; the run's publish-feedback log names this round's.
+  round_marker='<!-- pr-unblock:address-feedback-round -->'
+  discussion="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$PR_NUMBER#discussion_r"
+  # shellcheck disable=SC2016  # jq string interpolation, not shell expansions
+  if threads=$(gh api --paginate "$issue/comments?per_page=100" | jq -sr --arg bot "$bot" --arg m "$round_marker" \
+    --arg on " on $HEAD_SHA." --arg url "$discussion" \
+    '[add[] | select(.user.login == $bot) | (.body // "") | split("\n") | map(rtrimstr("\r"))
+      | select(.[0] == $m and any(.[]; endswith($on)))] | last // []
+      | [.[] | (capture("^- `(?<id>PRRT_[A-Za-z0-9_-]{1,100})` \\(root comment (?<c>[1-9][0-9]{0,18})\\)$") | "- `\(.id)`: \($url)\(.c)"),
+        select(test("^- and [1-9][0-9]* more$"))]
+      | join("\n")'); then
+    [[ -n $threads ]] || threads='- none named in the lane'"'"'s round record on this head; the run'"'"'s publish-feedback log names them'
+  else
+    threads='- the lane'"'"'s round record could not be read; the run'"'"'s publish-feedback log names them'
+  fi
+  details=$'\n'"Kept review threads with no disposition:"$'\n\n'"$threads"$'\n'
 fi
 
 body=$(mktemp)

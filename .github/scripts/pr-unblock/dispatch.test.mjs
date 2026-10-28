@@ -79,8 +79,9 @@ function fakeApi({
   docsPulls = [],
   comments = new Map(),
   labelEvents = new Map(),
+  reviewComments = new Map(),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [] };
+  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [] };
   let round = 0;
   return {
     calls,
@@ -137,6 +138,15 @@ function fakeApi({
     async listTimeline(number) {
       calls.timeline.push(number);
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
+    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
+    async listReviewComments(number) {
+      calls.reviewComments.push(number);
+      return reviewComments.get(number) ?? [];
+    },
+    async listReviews(number) {
+      calls.reviews.push(number);
+      return [];
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
@@ -500,6 +510,51 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   }
   assert.deepEqual(api.calls.dispatch, [], "a person's label holds all three");
   assert.deepEqual(api.calls.timeline, [61]);
+  assert.deepEqual(api.calls.reviewComments, [], "a PR the timeline alone holds needs no review read");
+});
+
+// GitHub's timeline has no event for a reply inside an existing review thread
+// (#10526, #10533): it is only in pulls/<n>/comments, with in_reply_to_id.
+const inlineReply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
+
+test("a person's inline review-thread reply since another lane's escalation holds all three, read once", async () => {
+  const held = pr(71, LABELS("needs-human"));
+  const ci = { ...ciFixPull(71), labels: { nodes: [{ name: "needs-human" }] } };
+  const docs = { ...docsPull(71), labels: { nodes: [{ name: "needs-human" }] } };
+  const api = fakeApi({
+    pages: [[held]],
+    ciFixPulls: [ci],
+    docsPulls: [docs],
+    labelEvents: new Map([[71, labeledBy(APP_USER)]]),
+    comments: new Map([[71, escalationComment("feedback-disputed")]]),
+    reviewComments: new Map([[71, inlineReply(OWNER)]]),
+  });
+  const dir = tempDir("pr-unblock-dispatch-");
+  try {
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(api.calls.dispatch, [], "the person's inline reply holds all three");
+  assert.deepEqual([api.calls.timeline, api.calls.reviewComments, api.calls.reviews], [[71], [71], [71]]);
+});
+
+test("a bot's inline review-thread reply leaves another lane's escalation workable for resolve-conflicts", async () => {
+  const disputed = pr(81, LABELS("needs-human"));
+  const { api, run } = harness(
+    {
+      pages: [[disputed]],
+      labelEvents: new Map([[81, labeledBy(APP_USER)]]),
+      comments: new Map([[81, escalationComment("feedback-disputed")]]),
+      reviewComments: new Map([[81, inlineReply(APP_USER)]]),
+    },
+    { appSenderId: LANES_APP, maxDispatch: 9 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["81"]);
 });
 
 test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {

@@ -590,6 +590,57 @@ class TestRefusals(DirCase):
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("names a local file", err, rec)
 
+    FACTS_WARNING = "facts carries no link, file:line or judgment label"
+
+    def test_facts_with_no_reference_warns_and_check_exits_zero(self):
+        q = question("Q4", facts="The cache is shared by every job today.")
+        before = self.raw()
+        path = self.file("round.json", {"questions": [q]})
+        rc, out, err = self.rp("add-round", "--file", path, "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.FACTS_WARNING}", err)
+        self.assertIn("basis carries no outcome label", err)
+        self.assertEqual(self.raw(), before)
+        rc, out, err = self.rp("revise", "Q1", "--facts", "Every job shares the cache.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q1 {self.FACTS_WARNING}", err)
+
+    def test_facts_with_a_link_file_line_or_judgment_label_is_quiet(self):
+        for n, facts in enumerate(
+            (
+                "> Releases ship on a weekday.\n\n[Release policy](https://example.com/policy#days)",
+                "The cache is shared (https://example.com/ci#cache).",
+                "The lock is per data dir (`plugins/planning/surface/round.py:217`).",
+                "The pin is a digest (plugins/planning/tests/interview-defenses.test.sh:644).",
+                "Checked against: C1, C3",
+                "Checked against: none\n\nMost jobs would gain from it. Judgment",
+                "(judgment) Most jobs would gain from it.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn(self.FACTS_WARNING, err, facts)
+
+    def test_no_facts_draws_no_warning(self):
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.FACTS_WARNING, err)
+
+    def test_a_time_of_day_or_judgment_as_a_word_is_not_a_reference(self):
+        for n, facts in enumerate(
+            (
+                "The nightly build starts at 16:30.",
+                "Checked against: C2\n\nWhich cache to keep is a judgment call for the team.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertIn(f"Q{n} {self.FACTS_WARNING}", err, facts)
+
     def test_bare_unknown_id_token_warns(self):
         q = question(
             "Q4",
@@ -4619,6 +4670,133 @@ class TestConfirmationRecap(DirCase):
         self.assertTrue(gone.startswith(head))
         self.assertTrue(gone.endswith(f"Q{self.LIVE + self.WITHDRAWN}"))
         self.assertNotIn("Q1 withdrawn", "\n".join(lines))
+
+
+class TestRecapFromTheLedger(unittest.TestCase):
+    """export-ledger --recap --ledger reads the ledger alone with no data dir (the terminal lane),
+    saves its rows beside the ledger, and --changed lists only the rows changed since."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it",
+        "- Q2 | open | round 1 | Which runner image? |",
+        "- Q3 | answered | round 2 | Keep the lock file? | keep it",
+        "- Q4 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1",
+    ]
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-recap-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ledger = self.tmp / "interview-checklist.md"
+        self.state = self.tmp / "interview-checklist.last-recap.json"
+        self.write_ledger(self.ROWS)
+
+    def write_ledger(self, rows):
+        text = "# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n"
+        self.ledger.write_text(text, encoding="utf-8")
+
+    def recap(self, *extra):
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return out_path.read_text(encoding="utf-8").splitlines(), p.stderr
+
+    def test_the_recap_reads_the_ledger_alone_and_saves_its_rows(self):
+        lines, _ = self.recap()
+        self.assertEqual(
+            lines,
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Q3 answered: Keep the lock file? (keep it)",
+                "Withdrawn (1): Q4",
+            ],
+        )
+        rows = json.loads(self.state.read_text(encoding="utf-8"))["rows"]
+        self.assertEqual(sorted(rows), ["Q1", "Q2", "Q3", "Q4"])
+        self.assertEqual(rows["Q3"], "answered: Keep the lock file? (keep it)")
+
+    def test_a_missing_data_dir_reads_the_ledger_alone_too(self):
+        lines, _ = self.recap("--dir", str(self.tmp / "no-such-dir"))
+        self.assertEqual(lines[0], "Q1 answered: Share the cache? (accepted: share it)")
+
+    def test_changed_lists_every_row_until_a_recap_is_saved(self):
+        lines, _ = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertFalse(any(x.startswith("Unchanged") for x in lines), lines)
+
+    def test_changed_lists_only_the_changed_rows_and_counts_the_rest(self):
+        self.recap()
+        rows = list(self.ROWS)
+        rows[1] = "- Q2 | answered | round 1 | Which runner image? | the slim image"
+        rows.append("- Q5 | open | round 3 | Cache the test data? |")
+        self.write_ledger(rows)
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines,
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Q5 open: Cache the test data? ()",
+                "Unchanged since the last recap (3): 2 answered, 1 withdrawn",
+            ],
+        )
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines, ["Unchanged since the last recap (5): 3 answered, 1 open, 1 withdrawn"]
+        )
+
+    def test_an_unreadable_saved_recap_warns_and_lists_every_row(self):
+        self.state.write_text("not json", encoding="utf-8")
+        lines, err = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertIn("cannot read the last recap", err)
+
+    def test_a_ledger_with_no_register_is_refused(self):
+        self.ledger.write_text("# Interview ledger\n\nNo register here.\n", encoding="utf-8")
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("0 open-question register headings", p.stderr)
+        self.assertFalse(out_path.exists())
+        self.assertFalse(self.state.exists())
+
+    def test_changed_needs_recap_and_a_ledger(self):
+        d = self.tmp / "data"
+        d.mkdir()
+        (d / "questions.json").write_text(json.dumps(base_doc()), encoding="utf-8")
+        rc, out, err = run_round(
+            d, "export-ledger", "--changed", "--out", str(self.tmp / "x.md")
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertIn("--changed needs --recap and --ledger", out + err)
 
 
 class TestCliHygiene(DirCase):

@@ -54,7 +54,7 @@ import {
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { laneStop } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
@@ -546,6 +546,7 @@ export async function dispatchCiFixes({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
