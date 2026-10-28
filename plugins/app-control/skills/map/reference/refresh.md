@@ -78,10 +78,10 @@ A control skill whose feature files are any flat `features/<id>.md` is due a fla
 conversion; a legacy map is due a format conversion. Both follow Converting a legacy map. Started
 on a ticket branch (§ Ticket branch), a flat-to-folder conversion is **blocked**, since it is
 written after the passes read the ticket's code; a pass from the default branch clears it. A legacy
-conversion goes ahead when the ticket branch has not changed the legacy map:
-`git diff --quiet <tip> HEAD -- "<legacy dir>"` (tip per § Return to the starting branch) exits
-0. It then switches to the upkeep branch, cut from the tip, before step 4, so that pass reads the
-default branch's code and every edit rides the upkeep pull request. On a difference, the outcome
+conversion goes ahead when the ticket branch has not changed the legacy map since it forked:
+`git diff --name-only <tip>...HEAD -- "<legacy dir>"` (tip per § Return to the starting branch)
+prints nothing. It then switches to the upkeep branch, cut from the tip, before step 4, so that pass reads the
+default branch's code and every edit rides the upkeep pull request. When it prints paths, the outcome
 is **blocked**, naming the changed paths: the conversion runs once the ticket merges.
 
 ## 2. Decide whether to run
