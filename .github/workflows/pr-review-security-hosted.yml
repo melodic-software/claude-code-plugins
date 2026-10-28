@@ -227,6 +227,7 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
+        .github/actions/report-check-run/posting-run.mjs
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
         .github/scripts/pr-unblock/escalation-routes.json
