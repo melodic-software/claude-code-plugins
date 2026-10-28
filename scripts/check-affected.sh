@@ -7,7 +7,13 @@
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
 #                                             once (default: $CHECK_AFFECTED_JOBS,
-#                                             else one less than the core count)
+#                                             else one less than the core count,
+#                                             at most 3)
+#   scripts/check-affected.sh --budget S      time the selected shell suites against
+#                                             an S-second budget (default:
+#                                             $CHECK_AFFECTED_BUDGET, else 120); a
+#                                             suite over its share fails
+#                                             (scripts/run-plugin-tests.sh BUDGET)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
 #                                             stale-base check
@@ -56,7 +62,8 @@
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
 #                          file changed
-#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
+#   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
+#                          --budget <S> --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
 #                          stale locked npm packages, then the selected Node
 #                          suites of scripts/outside-node-packages.txt through
@@ -93,18 +100,22 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") [--tests] [--jobs N] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
+  echo "usage: $(basename "$0") [--tests] [--jobs N] [--budget S] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
   exit 2
 }
 
 run_tests=0
 # The selected suites run through run-plugin-tests.sh's job pool, which keeps
 # the suites in scripts/run-plugin-tests-serial.txt off the parallel group.
-# One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
-# (scripts/affected-tests.sh, #3694).
-cores="$(nproc 2>/dev/null || echo 2)"
-jobs="${CHECK_AFFECTED_JOBS:-$((cores > 1 ? cores - 1 : 1))}"
+# One less than the core count, at most 3: on a 4-vCPU runner, 3 is the proven
+# ceiling, and suites failed at 4 (scripts/affected-tests.sh, #3694).
+cores="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+[[ "$cores" =~ ^[1-9][0-9]*$ ]] || cores=2
+jobs=$((cores > 4 ? 3 : cores > 1 ? cores - 1 : 1))
+jobs="${CHECK_AFFECTED_JOBS:-$jobs}"
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=1
+budget="${CHECK_AFFECTED_BUDGET:-120}"
+[[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=120
 fetch=1
 uncommitted=0
 base=
@@ -119,6 +130,12 @@ while (($#)); do
     shift
     ;;
   --jobs=*) jobs="${1#--jobs=}" ;;
+  --budget)
+    [[ $# -ge 2 ]] || usage
+    budget="$2"
+    shift
+    ;;
+  --budget=*) budget="${1#--budget=}" ;;
   --base)
     [[ $# -ge 2 && -n "$2" ]] || usage
     base="$2"
@@ -129,7 +146,7 @@ while (($#)); do
   esac
   shift
 done
-[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || usage
+[[ "$jobs" =~ ^[1-9][0-9]*$ && "$budget" =~ ^[1-9][0-9]*$ ]] || usage
 
 tools="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || exit 2
 top="$(git -C "${CHECK_DATA_ROOT:-$tools}" rev-parse --show-toplevel 2>/dev/null)" || {
@@ -193,7 +210,7 @@ if ((uncommitted)); then
   # A shallow clone's boundary, so history walks stop where the clone does.
   [[ ! -f "$shallow" ]] || cp "$shallow" "$snap/tree/.git/shallow" || exit 2
   git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
-  args=(--base "$base" --no-fetch --jobs "$jobs")
+  args=(--base "$base" --no-fetch --jobs "$jobs" --budget "$budget")
   ((run_tests)) && args+=(--tests)
   # A snapshot of this tree's own work tree is no foreign code, so the inner
   # run's tests run here, where the selector reads the same uncommitted edits.
@@ -616,7 +633,7 @@ elif ((run_tests)); then
     local -a pkgs=() exclusions=() node=() unrun=()
     # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
     # that inherits it points its checkers at the real tree instead of its fixtures.
-    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&
@@ -664,7 +681,7 @@ elif ((run_tests)); then
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"
   else
-    run_check tests "scripts/affected-tests.sh --run --jobs $jobs --base $base" affected
+    run_check tests "scripts/affected-tests.sh --run --jobs $jobs --budget $budget --base $base" affected
   fi
 fi
 

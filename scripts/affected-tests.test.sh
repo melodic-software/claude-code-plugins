@@ -630,6 +630,29 @@ for bad in 0 x '' -1; do
   fi
 done
 
+# --budget hands the selection to run-plugin-tests.sh even at one job, since
+# that runner owns the per-suite share.
+out="$(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --budget 600 lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" 'within a 600s budget' && contains "$out" 's of the 600s budget.'; then
+  ok "--run --budget 600 runs the selection through run-plugin-tests.sh against the budget"
+else
+  fail "--run --budget 600 did not run the selection against the budget (rc=$RC): $out"
+fi
+for bad in 0 x -1 '' '='; do
+  if [[ "$bad" == = ]]; then
+    (cd "$repo" && bash scripts/affected-tests.sh --run --budget= lib/widget.sh >/dev/null 2>&1)
+  else
+    (cd "$repo" && bash scripts/affected-tests.sh --run --budget "$bad" lib/widget.sh >/dev/null 2>&1)
+  fi
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--budget '$bad' is a usage error (rc=2)"
+  else
+    fail "--budget '$bad' should exit 2, got rc=$RC"
+  fi
+done
+
 # --- --shard is a partition, not a filter -----------------------------------
 # The claim CI makes when it fans one selection across four runners is that the
 # legs together ARE the selection and no suite ran twice. Proved on the fixture
