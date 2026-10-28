@@ -40,6 +40,11 @@ PASS=0
 FAIL=0
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+# Fixtures read only their own git config: a global commit.gpgsign or signing
+# program would sign every fixture commit with the machine's key, and decide
+# what the sync-stale-base cases sign.
+: >"$WORKDIR/gitconfig-global"
+export GIT_CONFIG_GLOBAL="$WORKDIR/gitconfig-global" GIT_CONFIG_NOSYSTEM=1
 
 BRANCH="feat/x"
 
@@ -588,10 +593,6 @@ unset PB_GITHUB_ROOT
 #     rebase), so the pre-push stale-base refusal does not bounce it. Off by
 #     default; on through sync_stale_base in docs/conventions/source-control.yaml
 #     or --sync-stale-base, off again through --no-sync-stale-base.
-# Signing is read from the fixture alone: a global commit.gpgsign or signing
-# program would decide what these cases sign.
-: >"$WORKDIR/gitconfig-global"
-export GIT_CONFIG_GLOBAL="$WORKDIR/gitconfig-global" GIT_CONFIG_NOSYSTEM=1
 # sync_clone <name> <yes|no>: make_clone plus a ten-line c.txt (and, for yes, the
 # config turning the sync on) committed on feat/x and pushed as the remote's
 # trunk, so both sides share it.
