@@ -231,6 +231,7 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
+        .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
