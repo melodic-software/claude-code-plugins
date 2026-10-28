@@ -2709,6 +2709,9 @@ CARRY_REFUSES: tuple[str, ...] = (
     "docs/conventions/pr-pipeline/**",
     "scripts/**",
     "lib/**",
+    "plugins/source-control/skills/babysit-prs/scripts/**",
+    "plugins/performance/scripts/**",
+    "plugins/harness-ops/skills/inventory/scripts/**",
 )
 
 

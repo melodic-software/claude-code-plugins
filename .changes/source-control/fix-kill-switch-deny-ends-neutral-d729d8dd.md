@@ -15,7 +15,9 @@ bump: patch
   That diff must also touch no file a hold path loads: the enforcement
   floor, and CARRY_REFUSES for the workflows, actions and scripts
   hold-path workflows run, the trusted-actor list and the pipeline
-  config. test_merge_holds_sync.py derives that closure and fails on any
-  member outside the floor and CARRY_REFUSES. A compare not read whole, a
+  config, and babysit-prs' own scripts directory. test_merge_holds_sync.py
+  derives that closure, including scripts a workflow runs by a bare or
+  variable-prefixed path, and fails on any member outside the floor and
+  CARRY_REFUSES. A compare not read whole, a
   head not ahead, a dismissal the push did not make, an untrusted or
   dismissed approval still carry nothing.

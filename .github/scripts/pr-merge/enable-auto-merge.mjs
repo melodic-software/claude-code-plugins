@@ -169,17 +169,31 @@
 //
 // A reader run takes the human-gated label off a pull request whose newest
 // refusal at its head names only hold paths once a trusted person approved
-// that head (approvalLift), which re-runs ci-status there; every other
-// person's refusal keeps waiting for a person to remove the label.
+// that head (approvalLift), which re-runs ci-status there, but only while the
+// label stands for that refusal alone (liftBlocker): never a label a person
+// set or one another escalation or hold stands behind. Every other person's
+// refusal keeps waiting for a person to remove the label.
 
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import {
+  lines as bodyLines,
+  foreignMarker,
+  isApp,
+  labelHistory,
+  openReviewHold,
+  openSignedCommitsHold,
+  personSince,
+  reviewEntries,
+  sinceParam,
+  spoken,
+} from "../pr-unblock/gate-source.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import {
   BODY_HOLD,
@@ -646,6 +660,68 @@ export function approvalLift(pull, detail, { bot, label, holdPaths }) {
     return false;
   }
   return costHold(detail.files, detail.costDecision) === null && Array.isArray(detail.lifters) && detail.lifters.length > 0;
+}
+
+// Whether `label` stands for enable-auto-merge's refusal alone, so the lane
+// may take it off: null when it does, else why it stays. The same label also
+// carries holds that live only in the label, so it stays unless all hold:
+// - the newest `labeled` event is the lanes App's (`login`, the REST login),
+//   and the App's marked comment written last at or before it is a person's
+//   refusal (pr-merge's escalation and refusal markers, nothing else);
+// - no review-lane or check-signed-commits hold comment stands since the
+//   label was last removed (gate-source's readers, as clear-escalations reads
+//   them);
+// - no lanes App comment written or edited since the label carries any marker
+//   but the refusal's: a pr-unblock escalation adds no label event;
+// - no person commented, replied on a review thread, reviewed or labeled
+//   since, a trusted approval (`humans`) aside.
+// A time that does not parse counts as since, which keeps the label.
+const REFUSAL_LINES = (line) => line === ATTEND_QUEUE_MARKER || line === REFUSAL_MARKER || /^<!-- pr-merge-partial head=[0-9a-f]{40} -->$/.test(line);
+export function liftBlocker({ timeline, reviewComments = [], reviews = [], label, login, humans }) {
+  const { labeled, since, lifted } = labelHistory(timeline, label);
+  if (!isApp(labeled?.actor, login)) {
+    return `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`;
+  }
+  const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, login));
+  const marked = (item) => bodyLines(item.body).filter((line) => line.includes("<!--"));
+  const before = appComments
+    .map((item) => ({ markers: marked(item), at: Math.max(...[item.created_at, item.updated_at ?? item.created_at].map(Date.parse).filter((time) => time <= since)) }))
+    .filter(({ markers, at }) => markers.length > 0 && at > -Infinity)
+    .sort((a, b) => a.at - b.at);
+  const paired = before.at(-1);
+  if (paired === undefined || before.filter(({ at }) => at === paired.at).length > 1 || !paired.markers.includes(REFUSAL_MARKER) || !paired.markers.includes(ATTEND_QUEUE_MARKER)) {
+    return `${label} does not pair with enable-auto-merge's refusal`;
+  }
+  if (openReviewHold(timeline, lifted) !== undefined) {
+    return "a review lane holds it";
+  }
+  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
+    return "check-signed-commits holds it";
+  }
+  const foreign = foreignMarker(appComments, since, REFUSAL_LINES);
+  if (foreign !== undefined) {
+    return `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}`;
+  }
+  const approval = (user, state) => String(state).toUpperCase() === "APPROVED" && humans.has(user?.id);
+  const entries = [
+    ...timeline.filter((item) => !(item.event === "reviewed" && approval(item.user, item.state))).flatMap(spoken),
+    ...timeline.filter((item) => item.event === "labeled" || item.event === "unlabeled").map((item) => ({ user: item.actor, at: Date.parse(item.created_at) })),
+    ...reviewEntries({ comments: reviewComments, reviews: reviews.filter((review) => !approval(review.user, review.state)) }),
+  ];
+  const speaker = personSince(entries, since);
+  return speaker === undefined ? null : `${speaker.user?.login ?? "an account"} spoke or labeled after ${label} went on`;
+}
+
+// liftBlocker over `number`'s timeline, review comments and reviews.
+async function liftBlocked(github, repo, number, options) {
+  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+  const { labeled, since } = labelHistory(timeline, options.label);
+  if (!isApp(labeled?.actor, options.login) || Number.isNaN(since)) {
+    return liftBlocker({ timeline, ...options });
+  }
+  const reviewComments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
+  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
+  return liftBlocker({ timeline, reviewComments, reviews, ...options });
 }
 
 // A reason as the comment's fenced block carries it.
@@ -1393,7 +1469,27 @@ export async function main({ env = process.env, github, actions, verify, room, s
             // lifts: the lane takes its label off, which re-runs ci-status at
             // the head (pr-require-checks.yml runs on unlabeled), and judges
             // it as unlabeled from here.
-            if (widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths })) {
+            // The label must stand for that refusal alone (liftBlocker), and
+            // the head read again just before the delete must be the one
+            // judged. A read that fails keeps the label.
+            let lift = widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths });
+            if (lift) {
+              let kept;
+              try {
+                kept = await liftBlocked(github, repo[0], pull.number, { label: humanGated, login: env.LANES_BOT_LOGIN, humans });
+                if (kept === null && write) {
+                  const fresh = await github("GET", `/repos/${repo[0]}/pulls/${pull.number}`);
+                  kept = fresh?.head?.sha === pull.headRefOid ? null : `its head moved to ${fresh?.head?.sha ?? "an unread head"}`;
+                }
+              } catch (error) {
+                kept = `the label's history did not read: ${describe(error)}`;
+              }
+              if (kept !== null) {
+                console.log(`enable-auto-merge: #${pull.number} keeps ${escapeCommand(humanGated)}: ${escapeCommand(kept)}`);
+              }
+              lift = kept === null;
+            }
+            if (lift) {
               if (write) {
                 await github("DELETE", `/repos/${repo[0]}/issues/${pull.number}/labels/${encodeURIComponent(humanGated)}`);
               }

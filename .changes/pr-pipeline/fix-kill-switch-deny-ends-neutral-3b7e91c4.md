@@ -27,14 +27,21 @@ bump: patch
   approved that head (merge-holds `pathLifters`, or `liftersOf` over base merges), the release the
   refusal and ci-status already name. Removing the label re-runs ci-status at the head. A cost,
   risk or verifier reason, a refusal at another head, an approval of another head, a dismissed
-  approval, an untrusted reviewer or a report-only run lifts nothing.
+  approval, an untrusted reviewer or a report-only run lifts nothing. The same label also carries
+  holds that live only in it, so the label stays unless it stands for that refusal alone: the
+  newest `labeled` event is the lanes App's and pairs with the refusal comment; no review-lane or
+  check-signed-commits hold stands; the lanes App wrote no pr-unblock escalation or other marked
+  comment since; no person commented, replied on a review thread, reviewed (an approval aside) or
+  labeled since; and the head read again just before the delete is the one judged. A failed read
+  keeps it. It never removes a label a person applied or one another escalation stands behind.
 
 - A trusted person's approval of a hold-path head now also carries to a later head when the diff
   between the two touches no hold path and no file a hold path loads (the owner's decision Q10 of
   2026-10-28, #10759), in `merge-holds.mjs` `approvalCarry` and its twin
   `babysit_merge_policy.approval_carry`. The diff is read with the hold-path rules plus the
   enforcement floor and `CARRY_REFUSES` (workflows, actions, `.github/scripts`, `.github/standards`,
-  the pipeline config's directory, `scripts/` and `lib/`). Any edit to such a file, a test-only
+  the pipeline config's directory, `scripts/`, `lib/`, babysit-prs' scripts and the two plugin
+  scripts ci-status runs). Any edit to such a file, a test-only
   or comment-only edit included, needs a new approval, and so do a compare not read whole and a
   head that is not ahead of the approved one. `test_merge_holds_sync.py` derives every file the
   hold paths load and fails on one outside the floor and `CARRY_REFUSES`. The control is still a
