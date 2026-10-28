@@ -30,16 +30,44 @@ test("it runs only from main on pr-require-checks' completion", () => {
   assert.match(text, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
 });
 
-test("its tokens can only read", () => {
-  assert.match(text, /^permissions: \{\}$/m);
-  const grants = [...text.matchAll(/^ {6}([a-z-]+): (\w+)(?: #.*)?$/gm)].filter(([, scope]) =>
+const jobText = (id) => {
+  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
+  assert.ok(found, `a job ${id}`);
+  return found[1];
+};
+const grantsOf = (block) =>
+  [...block.matchAll(/^ {6}([a-z-]+): (\w+)(?: #.*)?$/gm)].filter(([, scope]) =>
     ["contents", "pull-requests", "actions", "checks", "issues", "statuses", "id-token"].includes(scope),
   );
-  assert.ok(grants.length > 0);
-  for (const [line, , level] of grants) {
-    assert.equal(level, "read", line);
-  }
-  assert.doesNotMatch(text, /write-all|:\s*write\b/);
+
+test("the model's job can only read, and the one writer runs no model", () => {
+  assert.match(text, /^permissions: \{\}$/m);
+  const review = grantsOf(jobText("review"));
+  assert.ok(review.length > 0);
+  for (const [line, , level] of review) assert.equal(level, "read", line);
+  const record = jobText("record");
+  assert.deepEqual(grantsOf(record).map(([, scope, level]) => `${scope}:${level}`), ["checks:write"]);
+  assert.doesNotMatch(record, /run-claude-cli|secrets\.|actions\/checkout@/);
+  // It posts counts only, read as numbers from this run's verdicts.
+  assert.match(record, /critical =~ \^\[0-9\]\{1,6\}\$/);
+  assert.match(record, /repos\/\$GITHUB_REPOSITORY\/check-runs/);
+  assert.doesNotMatch(text, /write-all/);
+});
+
+test("the diff shows every file as text and refuses one a review cannot read whole", () => {
+  const diff = step("Write the diff");
+  assert.match(diff, /git -C "\$SRC" diff --text --no-ext-diff --no-textconv/);
+  assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
+  assert.match(diff, /-gt "\$MAX_DIFF_BYTES"/);
+  assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
+});
+
+test("each leg leaves a lane record", () => {
+  const report = step("Report the review's outcome");
+  assert.match(report, /report-lane-outcome@[0-9a-f]{40}/);
+  assert.match(report, /^ {10}lane: pr-review-main$/m);
+  assert.ok(index("Review the pull request") < index("Report the review's outcome"));
+  assert.match(step("Review the pull request"), /^ {8}continue-on-error: true$/m);
 });
 
 test("it checks out main only, and runs local actions from that checkout", () => {

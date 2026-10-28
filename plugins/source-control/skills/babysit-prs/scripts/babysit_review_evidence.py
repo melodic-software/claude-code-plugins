@@ -100,6 +100,12 @@ MAIN_REVIEW_PREFIX = "pr-review-main"
 MAIN_REVIEW_SCHEMA = 1
 
 
+def main_review_check(lane: str) -> str:
+    """The check run pr-review-main.yml's record job posts for `lane` on each
+    head it reviewed, titled `findings=<n> critical=<m>`."""
+    return f"{MAIN_REVIEW_PREFIX}: {lane}"
+
+
 def main_review_name(lane: str, pr: int, tree: str) -> str:
     """The artifact a main-run review of `lane` uploads for a pull request
     head whose tree is `tree`: every review of one tree shares the name, so
@@ -400,23 +406,43 @@ def _main_lane(
 ) -> LaneEvidence:
     """The lane's evidence for a pull request that changes a lane source:
     bound when a counted main-run review names the pinned head
-    (`_main_bound`), else unbound as `lane-source-changed`. The security
-    lane's blocking count is the most of the main-run reviews' CRITICAL
-    findings and any its pull_request review left open (`_carried_blocking`),
-    so a finding either reported holds."""
+    (`_main_bound`) and the recorded counts were read, else unbound as
+    `lane-source-changed`. The security lane's blocking count is the most of
+    the main-run reviews' CRITICAL findings at this tree, any its
+    pull_request review left open (`_carried_blocking`), and the most any
+    main-run review recorded on another head of this pull request
+    (`_recorded_critical`), so a finding any of them reported holds, bound
+    or not."""
     try:
         found = _main_bound(lane, head, records, context)
     except Exception:  # noqa: BLE001 - any doubt is unbound
         found = None
-    if found is None:
-        return _unbound(lane, "lane-source-changed", head, *carried)
-    findings, critical = found
+    recorded = _recorded_critical(lane, context)
     if lane != SEVERITY_LANE:
-        return LaneEvidence(lane, True, None, findings, False, None)
+        if found is None or recorded is None:
+            return _unbound(lane, "lane-source-changed", head, *carried)
+        return LaneEvidence(lane, True, None, found[0], False, None)
     runs, comments, threads, is_human, head_file = carried
     left = _carried_blocking(head, runs, comments, threads, is_human, head_file)
-    blocking = max(critical, left or 0)
+    if found is None or recorded is None:
+        held = max(left or 0, recorded or 0)
+        return LaneEvidence(
+            lane, False, "lane-source-changed", None, False, held or None
+        )
+    findings, critical = found
+    blocking = max(critical, left or 0, recorded)
     return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
+
+
+def _recorded_critical(lane: str, context: Mapping[str, Any] | None) -> int | None:
+    """The most CRITICAL findings a main-run review recorded for `lane` on any
+    head of this pull request (`main_context["carried_critical"]`), so a
+    later tree's clean review, a whitespace push included, never clears one
+    an earlier tree's review found. None when it was not read: the lane
+    then does not bind."""
+    found = context.get("carried_critical") if isinstance(context, Mapping) else None
+    value = found.get(lane) if isinstance(found, Mapping) else None
+    return value if _count(value) else None
 
 
 def _main_bound(

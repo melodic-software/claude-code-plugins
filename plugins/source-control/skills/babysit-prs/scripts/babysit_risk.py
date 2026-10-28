@@ -82,7 +82,8 @@ and counts as a gain; an added file compares against none; unread text, a
 repeated key or an alias holds), with net-added `write` lines as a raw-text
 backstop. Where PyYAML is not installed the text alone decides: a `write`
 grant the head adds, a `permissions:` key it drops, or an added file with
-jobs and no `permissions:` key. One that gains a `pull_request_target` or `workflow_run` trigger
+jobs and no `permissions:` key. One that gains a `PRIVILEGED_TRIGGERS` trigger (`pull_request_target`, `workflow_run`, or one
+on text an outsider writes: issues, comments, reviews, discussions, `repository_dispatch`)
 rates HIGH as `privileged-trigger-review`, read the same two ways. They widen
 what a credential, an agent or a write token can reach, so all four are a
 person's (`PERSON_CODES`) and no cost decision clears them.
@@ -234,7 +235,10 @@ class RiskResult:
 #   GITHUB_TOKEN or that mints a lane token (pr-merge, ci-status and
 #   pr-unblock among them). A workflow outside this list that gains a write
 #   scope, a privileged trigger or a secret holds by its patch instead
-#   (`_workflow_privilege_reasons`, `secret-exposure-review`).
+#   (`_workflow_privilege_gains`, `secret-exposure-review`). And what
+#   changes what agents may do unattended or what later reviews judge
+#   against: Claude Code settings (hooks, permission allows), `.mcp.json`,
+#   `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and the synced standards.
 # - `enforcement`: the rest of the
 #   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
@@ -341,6 +345,13 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/workflows/pr-review-hosted.yml", "gate"),
     (".github/workflows/pr-review-main.yml", "gate"),
     (".github/scripts/pr-review-main/**", "gate"),
+    ("**/.claude/settings*.json", "gate"),
+    ("**/.mcp.json", "gate"),
+    ("**/CLAUDE.md", "gate"),
+    ("**/CLAUDE.local.md", "gate"),
+    ("**/AGENTS.md", "gate"),
+    ("REVIEW.md", "gate"),
+    ("docs/standards/**", "gate"),
     (".github/workflows/pr-review-security-hosted.yml", "gate"),
     (".github/workflows/pr-run-activity-read.yml", "gate"),
     (".github/workflows/pr-run-activity-write.yml", "gate"),
@@ -1015,8 +1026,20 @@ def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
 PERMISSION_WIDENING_CODE = "permission-widening-review"
 PRIVILEGED_TRIGGER_CODE = "privileged-trigger-review"
 # Triggers that run the default branch's copy with a write token on another
-# event's behalf.
-PRIVILEGED_TRIGGERS = frozenset({"pull_request_target", "workflow_run"})
+# event's behalf, or on text anyone who can comment or open an issue writes.
+PRIVILEGED_TRIGGERS = frozenset(
+    {
+        "pull_request_target",
+        "workflow_run",
+        "issue_comment",
+        "issues",
+        "pull_request_review",
+        "pull_request_review_comment",
+        "discussion",
+        "discussion_comment",
+        "repository_dispatch",
+    }
+)
 # A job with no `permissions:` of its own or at the top level runs on the
 # repository default, which this module cannot see, so it may write.
 _DEFAULT_TOKEN = "repository-default"
@@ -1027,15 +1050,20 @@ _DEFAULT_TOKEN = "repository-default"
 _WRITE_TEXT = re.compile(
     r"\b(?:id-token|[a-z-]+)\s*:\s*['\"]?write\b|\bwrite-all\b", re.IGNORECASE
 )
+_TRIGGER_NAMES = "|".join(sorted(PRIVILEGED_TRIGGERS, key=len, reverse=True))
+# A key form never takes `issues`, which is also a permissions scope.
 _TRIGGER_KEY = re.compile(
-    r"^\s*(?:-\s*)?['\"]?(pull_request_target|workflow_run)['\"]?\s*(?::|,|$)"
+    r"^\s*['\"]?("
+    + "|".join(sorted(PRIVILEGED_TRIGGERS - {"issues"}, key=len, reverse=True))
+    + r")['\"]?\s*(?::|,|$)"
 )
+_TRIGGER_ITEM = re.compile(r"^\s*-\s*['\"]?(" + _TRIGGER_NAMES + r")['\"]?\s*$")
 _ON_LINE = re.compile(r"^\s*['\"]?on['\"]?\s*:(.*)$")
-_TRIGGER_NAME = re.compile(r"(?<![.\w-])(pull_request_target|workflow_run)(?![.\w-])")
+_TRIGGER_NAME = re.compile(r"(?<![.\w-])(" + _TRIGGER_NAMES + r")(?![.\w-])")
 
 
 def _trigger_tokens(line: str) -> list[str]:
-    key = _TRIGGER_KEY.match(line)
+    key = _TRIGGER_KEY.match(line) or _TRIGGER_ITEM.match(line)
     if key:
         return [key[1]]
     on = _ON_LINE.match(line)
@@ -1375,9 +1403,18 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     elif cap is not None and len(files) > cap:
         reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
     for path in dict.fromkeys(f.path for f in files if f.has_patch is False):
-        reasons.append(
-            Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
-        )
+        if path.casefold().endswith(MEDIA_SUFFIXES):
+            reasons.append(
+                Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
+            )
+        else:
+            detail = (
+                "no patch, so no review read it (git calls a file with a NUL byte"
+                " binary, and an over-size patch is not sent); a person reads it"
+            )
+            reasons.append(
+                Reason(f"{UNREVIEWED_PATCH_PREFIX}{path}", Risk.HIGH, detail)
+            )
     return reasons
 
 
@@ -1492,6 +1529,14 @@ MERGEABLE_MED = frozenset(
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
+# A file with no patch passes unread only as an image, font or PDF, which
+# nothing runs. Any other file (a script whose NUL byte makes git call it
+# binary, an over-size patch) no review read, so a person does.
+MEDIA_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
+    ".woff", ".woff2", ".ttf", ".otf", ".pdf",
+)  # fmt: skip
+UNREVIEWED_PATCH_PREFIX = "unreviewed-patch:"
 
 
 def holding(result: RiskResult) -> list[Reason]:
@@ -1528,7 +1573,7 @@ PERSON_CODES = frozenset(
         FILES_CAPPED_CODE,
     }
 )
-PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:")
+PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNREVIEWED_PATCH_PREFIX)
 
 
 def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:

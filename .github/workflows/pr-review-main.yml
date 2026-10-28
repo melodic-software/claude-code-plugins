@@ -15,7 +15,8 @@ name: pr-review-main
 # the artifact pr-review-main-<lane>-<pr>-<tree> (write-verdict.mjs); only a
 # run's own steps can upload its artifacts, so the gate authenticates the
 # name through this run's record (path, workflow_run event, main, completed
-# success). The job tokens can only read and nothing is posted.
+# success). The review job's token can only read; the record job, which runs
+# no model, posts only each verdict's counts as a check run.
 #
 # One leg per lane, on the reviews role's API key. A run that leaves no
 # verdict (a handoff, a kill switch, a failure) leaves the lane unbound, as
@@ -144,8 +145,12 @@ jobs:
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file. The tree the
-      # verdict is keyed on comes from git, never from the model.
+      # so nothing in the PR runs; the patch is a data file. `--text` shows a
+      # file git would call binary (a NUL byte early in a script) as text, so
+      # the reviewer sees what node or bash would run. A patch that still
+      # shows a binary file, or is larger than one review can read whole,
+      # gets no verdict: the step fails and the lanes stay unbound. The tree
+      # the verdict is keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
@@ -155,13 +160,24 @@ jobs:
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
+          # About 75k tokens of patch: room in the lane's turn budget to read
+          # it whole beside the criteria (judgment).
+          MAX_DIFF_BYTES: "300000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
           git init -q "$SRC"
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
-          git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" diff --text --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
+            echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
+            echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
@@ -179,20 +195,23 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main.
+      # The lane's criteria and the repository's standards, from main. The
+      # skill keeps its place under the plugin's layout, so a relative pointer
+      # in it (`../../reference/...`) resolves inside the data directory; the
+      # rules the code lane names go beside the standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success'
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
-          mkdir -p "$DATA/criteria" "$DATA/standards"
-          cp .base/plugins/review/skills/"$SKILL"/SKILL.md "$DATA/criteria/"
-          if [ -d .base/plugins/review/skills/"$SKILL"/reference ]; then
-            cp -R .base/plugins/review/skills/"$SKILL"/reference "$DATA/criteria/"
-          fi
+          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          rm -rf "$DATA/review/skills/$SKILL/evals"
+          cp -R .base/plugins/review/reference "$DATA/review/reference"
           cp .base/REVIEW.md "$DATA/standards/"
           cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -234,6 +253,7 @@ jobs:
         env:
           DATA: ${{ github.workspace }}/pr-review-main-data
           LANE: ${{ matrix.lane }}
+          SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
           PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
@@ -244,21 +264,25 @@ jobs:
           fi
           prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
           prompt=${prompt//LANE_NAME/$LANE}
-          prompt=${prompt//CRITERIA_DIR/$DATA/criteria}
+          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
           prompt=${prompt//STANDARDS_DIR/$DATA/standards}
           prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
           prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
           prompt=${prompt//PR_FILE/$DATA/pr.json}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
       # Under dontAsk only the allow rule's directory is readable; the deny
       # rules hold if the tools or the working directory change. The model
       # may share its job with the upload: it has Read alone and the job
       # token can only read.
+      # continue-on-error keeps a launcher failure from ending the job before
+      # the outcome report; "Fail without a verdict" carries the red.
       - name: Review the pull request
         id: review
         if: steps.prompt.outcome == 'success'
+        continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
@@ -292,6 +316,23 @@ jobs:
             mcp__*
           json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
           leg-timeout-minutes: "15"
+
+      # One lane record per leg, as pr-verify.yml keeps one, so this lane's
+      # model legs show in lane telemetry and spend.
+      - name: Report the review's outcome
+        if: steps.review.outcome == 'success' || steps.review.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review.outcome }}
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          log-file: ${{ steps.review.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
 
       # The structured output is untrusted model text: read from the file and
       # checked by the script, never interpolated into a command.
@@ -347,3 +388,49 @@ jobs:
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
+
+  # Each verdict's counts as a check run on the reviewed head, which no token
+  # can delete (the checks API has no delete), so a later tree's clean review
+  # cannot hide an earlier CRITICAL finding once its artifact is gone: the
+  # merge gate takes the most CRITICAL findings any of this PR's commits
+  # carries (babysit_review_evidence `_main_lane`). A forged one can only add
+  # a hold. No model runs in this job; it reads only the counts that
+  # write-verdict.mjs checked, from this run's own artifacts.
+  record:
+    needs: review
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write # the per-lane count check run on the reviewed head
+    steps:
+      - name: Download this run's verdicts
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pr-review-main-*
+          path: ${{ runner.temp }}/pr-review-main-verdicts
+
+      - name: Record the counts
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICTS: ${{ runner.temp }}/pr-review-main-verdicts
+        run: |
+          shopt -s nullglob
+          for file in "$VERDICTS"/*/verdict.json; do
+            lane=$(jq -r '.lane' "$file"); head=$(jq -r '.head_sha' "$file")
+            critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
+            [[ $lane =~ ^claude(-security)?-review$ && $head =~ ^[0-9a-f]{40}$ && $critical =~ ^[0-9]{1,6}$ && $findings =~ ^[0-9]{1,6}$ ]] || {
+              echo "::error::a verdict file is malformed: $file"; exit 1; }
+            # Neutral either way: the gate reads the title, and a red check would
+            # send the fix-ci lane after a review finding.
+            conclusion=neutral
+            gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
+              -f conclusion="$conclusion" \
+              -f "output[title]=findings=$findings critical=$critical" \
+              -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
+            echo "recorded $lane $head findings=$findings critical=$critical"
+          done

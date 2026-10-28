@@ -892,7 +892,13 @@ REPO = "owner/repo"
 PR = 42
 MAIN_SHA = "c3" * 20
 HEAD_TREE = tree_of(S)
-CONTEXT = {"repo": REPO, "pr": PR, "tree": HEAD_TREE, "branch": "main"}
+CONTEXT = {
+    "repo": REPO,
+    "pr": PR,
+    "tree": HEAD_TREE,
+    "branch": "main",
+    "carried_critical": {lane: 0 for lane in LANES},
+}
 
 
 def main_review(
@@ -1141,6 +1147,57 @@ class MainRunReviewTests(Base):
         security = result["claude-security-review"]
         self.assertTrue(security.bound)
         self.assertEqual(security.blocking_findings, 1)
+
+    def test_a_critical_an_earlier_head_recorded_holds_after_a_clean_re_roll(
+        self,
+    ) -> None:
+        # A whitespace push makes a new tree whose clean review would bind at
+        # zero; the CRITICAL the record job left on the earlier head holds.
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
+        )
+        result = self.main_bind([main_review(lane) for lane in LANES], context=context)
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (2, 2))
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn(
+            "security-finding",
+            [r.code for r in risk.person_reasons(risk.holding(scored))],
+        )
+
+    def test_a_recorded_critical_holds_with_no_verdict_at_the_head(self) -> None:
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 1}
+        )
+        security = self.main_bind([], context=context)["claude-security-review"]
+        self.assertFalse(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+
+    def test_unread_recorded_counts_bind_no_lane(self) -> None:
+        reviews = [main_review(lane) for lane in LANES]
+        for carried in (
+            None,
+            {},
+            {"claude-review": 0},
+            {"claude-review": 0, "claude-security-review": -1},
+        ):
+            with self.subTest(carried):
+                context = {k: v for k, v in CONTEXT.items() if k != "carried_critical"}
+                if carried is not None:
+                    context["carried_critical"] = carried
+                result = self.main_bind(reviews, context=context)
+                self.assertUnbound(
+                    result["claude-security-review"], "lane-source-changed"
+                )
 
     def test_a_retargeted_pull_request_still_binds_nothing(self) -> None:
         result = by_lane(

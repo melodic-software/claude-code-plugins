@@ -2483,9 +2483,18 @@ class MainReviewInputTests(unittest.TestCase):
                 merge, "gh_json", return_value={"tree": {"sha": tree}}
             ) as read,
             mock.patch.object(merge, "collect_main_reviews", side_effect=collect),
+            mock.patch.object(merge, "_force_pushed_heads", return_value=["b" * 40]),
+            mock.patch.object(
+                merge,
+                "collect_main_review_criticals",
+                side_effect=lambda repo, shas, names, env: (
+                    calls.append(("criticals", list(shas), names))
+                    or {"claude-review": 0, "claude-security-review": 1}
+                ),
+            ),
         ):
             reviews, context = merge._main_reviews(
-                "owner/repo", 5, HEAD, changed, None, None, None
+                "owner/repo", 5, HEAD, changed, None, None, None, [HEAD]
             )
         calls.extend(read.call_args_list)
         return reviews, context, calls
@@ -2498,7 +2507,26 @@ class MainReviewInputTests(unittest.TestCase):
         tree = "e" * 40
         self.assertEqual(reviews, [{"lane": "claude-review"}])
         self.assertEqual(
-            context, {"repo": "owner/repo", "pr": 5, "tree": tree, "branch": "main"}
+            context,
+            {
+                "repo": "owner/repo",
+                "pr": 5,
+                "tree": tree,
+                "branch": "main",
+                "carried_critical": {"claude-review": 0, "claude-security-review": 1},
+            },
+        )
+        # Every head of the pull request, force-pushed ones included.
+        self.assertEqual(
+            calls[1],
+            (
+                "criticals",
+                [HEAD, "b" * 40],
+                {
+                    "claude-review": "pr-review-main: claude-review",
+                    "claude-security-review": "pr-review-main: claude-security-review",
+                },
+            ),
         )
         self.assertEqual(
             calls[0],
@@ -2512,6 +2540,36 @@ class MainReviewInputTests(unittest.TestCase):
                 "main",
             ),
         )
+
+
+class ForcePushedHeadsTests(unittest.TestCase):
+    """The heads force pushes replaced, whose recorded review counts still
+    hold; a listing that is not whole raises."""
+
+    def heads(self, total: int, oids: list[Any]) -> list[str]:
+        nodes = [
+            {"beforeCommit": None if oid is None else {"oid": oid}} for oid in oids
+        ]
+        data = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {"totalCount": total, "nodes": nodes}
+                    }
+                }
+            }
+        }
+        with mock.patch.object(merge, "gh_json_graphql", return_value=data):
+            return merge._force_pushed_heads("owner/repo", 5)
+
+    def test_names_each_replaced_head(self) -> None:
+        self.assertEqual(
+            self.heads(3, ["a" * 40, None, "b" * 40]), ["a" * 40, "b" * 40]
+        )
+
+    def test_a_listing_past_one_page_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.heads(101, ["a" * 40])
 
 
 if __name__ == "__main__":

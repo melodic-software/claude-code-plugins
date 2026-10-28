@@ -2471,6 +2471,45 @@ def collect_main_reviews(
     return records
 
 
+# The check run pr-review-main.yml's record job posts per lane on each head it
+# reviewed, titled with its counts.
+MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+
+
+def collect_main_review_criticals(
+    repo: str,
+    shas: Iterable[str],
+    names: Mapping[str, str],
+    env_overrides: Mapping[str, str] | None = None,
+) -> dict[str, int]:
+    """Per lane, the most CRITICAL findings any check run named `names[lane]`
+    records on one of `shas` (every head of the pull request). The checks API
+    has no delete, so a count recorded once stays readable after its verdict
+    artifact expires or is deleted. A check run of that name whose title does
+    not read counts one CRITICAL, so a doubtful record holds rather than
+    clears. A failed read raises `RuntimeError`."""
+    found = dict.fromkeys(names, 0)
+    for sha in dict.fromkeys(shas):
+        if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
+            raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
+        for lane, name in names.items():
+            runs = fetch_paginated_api(
+                f"repos/{repo}/commits/{sha}/check-runs"
+                f"?check_name={quote(name, safe='')}&per_page=100",
+                f"{name} on {sha[:12]}",
+                items_key="check_runs",
+                env_overrides=env_overrides,
+            )
+            for check in runs:
+                if check.get("name") != name:
+                    continue
+                title = str(json_object(check.get("output")).get("title") or "")
+                match = MAIN_REVIEW_CHECK_TITLE.fullmatch(title)
+                critical = int(match[2]) if match else 1
+                found[lane] = max(found[lane], critical)
+    return found
+
+
 def collect_lane_runs(
     repo: str,
     number: int,

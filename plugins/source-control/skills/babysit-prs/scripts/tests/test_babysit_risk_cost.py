@@ -622,6 +622,12 @@ class WorkflowPrivilegeHolds(_Finding):
             "on: pull_request_target\n",
             "on: [push, workflow_run]\n",
             "on:\n  push:\n  workflow_run:\n    workflows: [ci]\n",
+            "on:\n  push:\n  issue_comment:\n    types: [created]\n",
+            "on: [push, issues]\n",
+            "on:\n  - push\n  - issues\n",
+            "on:\n  push:\n  pull_request_review_comment:\n",
+            "on:\n  push:\n  discussion:\n",
+            "on:\n  push:\n  repository_dispatch:\n",
         ):
             with self.subTest(on=on):
                 head = _workflow("permissions: {}\n", on=on)
@@ -638,6 +644,14 @@ class WorkflowPrivilegeHolds(_Finding):
         result = self._change(base, base, patch=patch)
         self.assertNotHeld(result, PRIVILEGED_TRIGGER_CODE)
         self.assertNotHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_an_issues_permission_is_not_an_issues_trigger(self):
+        base = _workflow("permissions:\n  issues: read\n")
+        head = _workflow("permissions:\n  issues: none\n")
+        patch = _patch("-  issues: read", "+  issues: none")
+        self.assertNotHeld(
+            self._change(base, head, patch=patch), PRIVILEGED_TRIGGER_CODE
+        )
 
     def test_an_added_trigger_line_holds_even_when_the_text_reads_alike(self):
         # The raw-text backstop: the patch adds the trigger whatever the text.

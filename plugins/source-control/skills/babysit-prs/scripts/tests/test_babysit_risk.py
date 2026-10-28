@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 55, "enforcement": 40},
+            {"trust": 5, "gate": 62, "enforcement": 40},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -380,7 +380,6 @@ class HighReasonTests(unittest.TestCase):
     def test_paths_off_the_floor_take_no_path_code(self):
         # Owner direction 2026-10-23: only a takeover path waits for the owner.
         for path in (
-            ".claude/settings.json",
             "plugins/foo/settings.local.json",
             "package.json",
             "plugins/foo/package-lock.json",
@@ -481,7 +480,8 @@ class OrderingTests(unittest.TestCase):
         )
         files = (
             _file("CODEOWNERS"),
-            _file(".gitmodules", has_patch=False),
+            _file(".gitmodules"),
+            _file("plugins/foo/logo.png", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
         result = score(
@@ -501,7 +501,7 @@ class OrderingTests(unittest.TestCase):
                 "files-incomplete",
                 "findings:claude-review",
                 "lines-over",
-                "no-patch:.gitmodules",
+                "no-patch:plugins/foo/logo.png",
             ),
         )
 
@@ -1261,8 +1261,6 @@ class LanePathFloorTests(unittest.TestCase):
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
         for path in (
-            "AGENTS.md",
-            "CLAUDE.md",
             "prompts/x.md",
             ".claude/rules/x.md",
             "plugins/foo/hooks/hooks.json",
@@ -1271,11 +1269,9 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/foo/lib/x.sh",
             "plugins/foo/scripts/run.py",
             "plugins/foo/skills/bar/scripts/run.ps1",
-            "plugins/foo/.mcp.json",
             "plugins/foo/.lsp.json",
             "plugins/foo/monitors/monitors.json",
             "docs/conventions/x.md",
-            "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
@@ -1292,8 +1288,6 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
-            ".claude/settings.json",
-            "plugins/foo/.claude/settings.local.json",
             "package.json",
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
@@ -1577,6 +1571,20 @@ class PersonReasonsTests(unittest.TestCase):
         self.assertFalse(holds(result), result.reasons)
         self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
 
+    def test_a_file_no_review_could_read_holds_for_a_person(self):
+        # git calls a script with an early NUL byte binary, so the files API
+        # sends no patch and no review read what node or bash would run.
+        for path in (".github/scripts/pr-unblock/x.mjs", "scripts/x.sh", "data.bin"):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path, has_patch=False),)))
+                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                self.assertIn(f"unreviewed-patch:{path}", persons)
+                self.assertNotIn(f"no-patch:{path}", _codes(result))
+        for path in ("docs/a.PNG", "fonts/x.woff2", "paper.pdf"):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path, has_patch=False),)))
+                self.assertFalse(holds(result), result.reasons)
+
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(
@@ -1784,7 +1792,7 @@ class ReviewFlagClassTests(unittest.TestCase):
 
 def _floor_sample(glob):
     """A path the floor glob `glob` matches."""
-    return glob.removeprefix("**/").replace("**", "x.mjs")
+    return glob.removeprefix("**/").replace("**", "x.mjs").replace("*", "")
 
 
 _REPO = pathlib.Path(__file__).resolve().parents[6]
@@ -1840,6 +1848,40 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     f"high-path:{path}"
                     in [r.code for r in person_reasons(result.reasons)],
                     held,
+                )
+
+    def test_what_agents_may_do_or_reviews_judge_against_holds_for_a_person(self):
+        # Coordinator decision 2026-10-28 on #10743: these change what agents
+        # may do unattended (AGENTS.md: ask the owner first) or what later
+        # reviews judge against, so an AI review alone does not clear them.
+        for path in (
+            ".claude/settings.json",
+            "plugins/foo/.claude/settings.local.json",
+            ".mcp.json",
+            "plugins/foo/.mcp.json",
+            "CLAUDE.md",
+            "plugins/foo/CLAUDE.md",
+            "CLAUDE.local.md",
+            "AGENTS.md",
+            "plugins/foo/skills/bar/AGENTS.md",
+            "REVIEW.md",
+            "docs/standards/README.md",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                persons = [r.code for r in person_reasons(result.reasons)]
+                self.assertTrue(
+                    any(c.startswith("high-path:") for c in persons), persons
+                )
+        for path in (
+            ".claude/rules/x.md",
+            "plugins/foo/.lsp.json",
+            "docs/REVIEW.md.bak",
+        ):
+            with self.subTest(path):
+                codes = _codes(score(_input(files=(_file(path),))))
+                self.assertFalse(
+                    [c for c in codes if c.startswith("high-path:")], codes
                 )
 
     def test_the_main_run_reviews_own_scripts_hold_for_a_person(self):

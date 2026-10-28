@@ -1278,6 +1278,57 @@ class CollectMainReviewsTests(unittest.TestCase):
                 )
 
 
+class CollectMainReviewCriticalsTests(unittest.TestCase):
+    """The counts pr-review-main's record job left as check runs on each head:
+    the most CRITICAL findings per lane, a title that does not read counting
+    one."""
+
+    NAMES = {
+        "claude-review": "pr-review-main: claude-review",
+        "claude-security-review": "pr-review-main: claude-security-review",
+    }
+
+    def collect(self, by_sha: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+        def fake(args: list[str], env: Any = None) -> Any:
+            sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
+            return [{"check_runs": by_sha.get(sha, [])}]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_main_review_criticals(
+                "owner/repo", list(by_sha), self.NAMES
+            )
+
+    def check(self, lane: str, title: str) -> dict[str, Any]:
+        return {"name": self.NAMES[lane], "output": {"title": title}}
+
+    def test_takes_the_most_critical_findings_on_any_head(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "findings=3 critical=2")
+                ],
+                "b" * 40: [
+                    self.check("claude-security-review", "findings=0 critical=0")
+                ],
+                "c" * 40: [
+                    self.check("claude-review", "findings=4 critical=1"),
+                    {"name": "other", "output": {"title": "findings=9 critical=9"}},
+                ],
+            }
+        )
+        self.assertEqual(found, {"claude-review": 1, "claude-security-review": 2})
+
+    def test_a_title_that_does_not_read_counts_one(self) -> None:
+        found = self.collect(
+            {"a" * 40: [self.check("claude-security-review", "critical=0")]}
+        )
+        self.assertEqual(found["claude-security-review"], 1)
+
+    def test_a_head_that_is_not_a_sha_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.collect({"main": []})
+
+
 class CollectLaneRunsTests(unittest.TestCase):
     """The bind() input collector (the Phase 9 caller contract): runs listed
     by branch with no head_sha filter, kept by PR number, attempts counted

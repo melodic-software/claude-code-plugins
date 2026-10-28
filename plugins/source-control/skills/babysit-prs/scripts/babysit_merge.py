@@ -185,6 +185,7 @@ from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
     collect_lane_runs,
+    collect_main_review_criticals,
     collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
@@ -3192,7 +3193,14 @@ def _lane_evidence(
     head_file = _head_file(repo, head_sha)
     base_sha = json_object(pr.get("base")).get("sha")
     main_reviews, main_context = _main_reviews(
-        repo, number, head_sha, changed_paths, head_file, base_sha, read_env
+        repo,
+        number,
+        head_sha,
+        changed_paths,
+        head_file,
+        base_sha,
+        read_env,
+        [str(item.get("sha")) for item in commits],
     )
     lanes = review_evidence.bind(
         head_sha,
@@ -3218,11 +3226,14 @@ def _main_reviews(
     head_file: Any,
     base_sha: Any,
     read_env: Mapping[str, str] | None,
+    pull_request_heads: Sequence[str] = (),
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
-    read from the commit, and the default branch), or (None, None) when the
-    pull request changes none, so no read is spent."""
+    read from the commit, the default branch, and per lane the most CRITICAL
+    findings the record job's check runs carry on any head of the pull
+    request: its commits and the heads force pushes replaced), or
+    (None, None) when the pull request changes none, so no read is spent."""
     if not review_evidence.needs_main_review(changed_paths, head_file, base_sha):
         return None, None
     branch = repository_default_branch(repo)
@@ -3243,7 +3254,65 @@ def _main_reviews(
     reviews = collect_main_reviews(
         repo, names, review_evidence.MAIN_REVIEW_WORKFLOW, branch, read_env
     )
-    return reviews, {"repo": repo, "pr": number, "tree": tree, "branch": branch}
+    carried = collect_main_review_criticals(
+        repo,
+        [*pull_request_heads, *_force_pushed_heads(repo, number)],
+        {lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES},
+        read_env,
+    )
+    return reviews, {
+        "repo": repo,
+        "pr": number,
+        "tree": tree,
+        "branch": branch,
+        "carried_critical": carried,
+    }
+
+
+_FORCE_PUSHES_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){timelineItems(first:100,itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{totalCount nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
+)
+
+
+def _force_pushed_heads(repo: str, number: int) -> list[str]:
+    """The heads force pushes replaced, which the commits list no longer
+    names but whose recorded counts still hold. Any doubt raises, so the
+    evidence is unbound rather than missing a count."""
+    owner, name = repo.split("/", 1)
+    data = gh_json_graphql(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={_FORCE_PUSHES_QUERY}",
+            "-f",
+            f"o={owner}",
+            "-f",
+            f"r={name}",
+            "-F",
+            f"n={number}",
+        ],
+        label=f"#{number} force pushes",
+    )
+    items = json_object(
+        json_object(
+            json_object(json_object(json_object(data).get("data")).get("repository")).get(
+                "pullRequest"
+            )
+        ).get("timelineItems")
+    )
+    nodes = items.get("nodes")
+    if not is_json_array(nodes) or items.get("totalCount") != len(nodes):
+        raise RuntimeError(f"#{number} force pushes: unread or past one page")
+    heads = []
+    for node in nodes:
+        oid = json_object(json_object(node).get("beforeCommit")).get("oid")
+        # GitHub leaves beforeCommit null when the old commit is gone.
+        if oid is not None:
+            heads.append(str(oid))
+    return heads
 
 
 # The review lanes' comment authors: `review_evidence.bind()` reads only theirs.

@@ -240,7 +240,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 100)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 107)
         self.assertEqual(len(risk.REVIEW_FLOOR), 40)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
