@@ -474,7 +474,7 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
   plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml \
-  .github/workflows/pr-require-checks.yml .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
+  .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
   .github/scripts/pr-review-main/write-verdict.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
@@ -493,6 +493,7 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/apply-patch/apply-patch.mjs \
   .github/scripts/apply-patch/predicates.mjs .github/scripts/apply-patch/protected-paths.mjs \
   .github/scripts/apply-patch/retry-fetch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs \
+  .github/workflows/pr-require-checks.yml \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the gate, not ci-status, holds $path" 0 3 "no hold path"

@@ -376,19 +376,21 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     "docs/conventions/pr-pipeline.yaml",
-    // Workflows that hold a write token or a lane token are gate paths.
-    ".github/workflows/pr-require-checks.yml",
+    // A workflow that mints a lane token is a gate path.
     ".github/workflows/pr-merge.yml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
     pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
     pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
+    // ci-status is a job-token writer, off the gate (Q11 (A)) and enforcement.
+    pull(96, { files: [{ filename: ".github/workflows/pr-require-checks.yml" }] }),
   ]);
   assert.equal(code, 0);
   assert.deepEqual(writes, [
     { mutation: "arm", id: "PR_98", head: HEAD },
     { mutation: "arm", id: "PR_99", head: HEAD },
+    { mutation: "arm", id: "PR_96", head: HEAD },
   ]);
   assert.deepEqual(
     notes,

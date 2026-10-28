@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 62, "enforcement": 40},
+            {"trust": 5, "gate": 52, "enforcement": 41},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1799,9 +1799,9 @@ _REPO = pathlib.Path(__file__).resolve().parents[6]
 
 
 def _credentialed(text: str) -> bool:
-    """Whether workflow text holds a credential a review cannot judge itself:
-    a write scope (top level or any job), a secret other than GITHUB_TOKEN,
-    or a lane token, read independently of babysit_risk."""
+    """Whether workflow text holds a credential beyond its job's GITHUB_TOKEN
+    (owner decision Q11 (A)): a secret other than GITHUB_TOKEN, a lane token,
+    or an OIDC token, read independently of babysit_risk."""
     import re
 
     import yaml
@@ -1810,44 +1810,124 @@ def _credentialed(text: str) -> bool:
     perms = [data.get("permissions")] + [
         job.get("permissions") for job in (data.get("jobs") or {}).values()
     ]
-    writes = any(
-        p == "write-all" or (isinstance(p, dict) and "write" in p.values())
-        for p in perms
-    )
+    oidc = any(isinstance(p, dict) and p.get("id-token") == "write" for p in perms)
     code = "\n".join(
         line.split(" #")[0]
         for line in text.splitlines()
         if not line.lstrip().startswith("#")
     )
-    secrets = {m.casefold() for m in re.findall(r"secrets\.([A-Za-z0-9_]+)", code)} - {
-        "github_token"
-    }
-    return writes or bool(secrets) or "request-lane-token" in code
+    secrets = {m.casefold() for m in re.findall(r"secrets\.([A-Za-z0-9_]+)", code)}
+    lane_token = any(
+        "request-lane-token" in str(step.get("uses", ""))
+        for job in (data.get("jobs") or {}).values()
+        for step in job.get("steps") or ()
+    )
+    return oidc or bool(secrets - {"github_token"}) or lane_token
 
 
 @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
 class CredentialedWorkflowsAreGate(unittest.TestCase):
-    """Owner direction 2026-10-28: a review cannot be trusted to judge the
-    workflows that hold its own credential or one it cannot see. Each
-    workflow with a write token, a secret or a lane token, and the review
-    workflows, is a `gate` path, held for a person; the rest are not floor
-    paths and the main-run review clears them."""
+    """Owner decision Q11 (A), 2026-10-28: the workflow `gate` class keeps
+    only the review workflows and those that hold a credential beyond the
+    job's GITHUB_TOKEN; a job-token writer leaves it, its widenings still
+    held by patch. Membership is derived from the files
+    (scripts/sync-hold-floor.py `gate_workflows`), never kept by hand."""
 
-    def test_every_credentialed_workflow_holds_for_a_person(self):
-        gate = {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+    def gate(self):
+        return {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+
+    def test_the_gate_is_exactly_the_credentialed_and_review_workflows(self):
         found = sorted((_REPO / ".github/workflows").glob("*.yml"))
         self.assertGreater(len(found), 20)
+        held_count = 0
         for wf in found:
             path = wf.relative_to(_REPO).as_posix()
-            review = wf.stem.startswith("pr-review")
+            want = wf.stem.startswith("pr-review") or _credentialed(wf.read_text())
+            held_count += want
             with self.subTest(path):
-                held = path in gate
-                self.assertEqual(held, review or _credentialed(wf.read_text()))
+                self.assertEqual(path in self.gate(), want)
                 result = score(_input(files=(_file(path),)))
                 self.assertEqual(
                     f"high-path:{path}"
                     in [r.code for r in person_reasons(result.reasons)],
-                    held,
+                    want,
+                )
+        # A job-token writer is off the gate: ci-status, intake re-entry.
+        for name in ("pr-require-checks", "intake-reenter", "pr-feedback-dispatch"):
+            self.assertNotIn(f".github/workflows/{name}.yml", self.gate())
+        self.assertLess(held_count, len(found))
+
+    def test_a_secret_moves_an_ungated_workflow_into_the_gate(self):
+        text = "name: x\non: push\npermissions:\n  contents: write\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ${{ secrets.GITHUB_TOKEN }}\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "      - run: echo ${{ secrets.DEPLOY_KEY }}\n",
+            "      - run: echo ${{ toJSON(secrets) }}\n",
+            "      - uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[x]\n",
+            "    permissions:\n      id-token: write\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        # A comment or a quoted path naming one is no credential.
+        self.assertFalse(
+            babysit_risk.gated_workflow(
+                "x",
+                text
+                + "  # secrets.DEPLOY_KEY\n      - run: echo '.github/actions/request-lane-token/*'\n",
+            )
+        )
+
+    def test_the_generator_puts_a_newly_credentialed_workflow_on_the_floor(self):
+        import importlib.util
+        import shutil
+        import tempfile
+
+        spec = importlib.util.spec_from_file_location(
+            "sync_hold_floor", _REPO / "scripts/sync-hold-floor.py"
+        )
+        sync = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sync)
+        with tempfile.TemporaryDirectory() as tmp:
+            workflows = pathlib.Path(tmp)
+            for wf in (_REPO / ".github/workflows").glob("*.yml"):
+                shutil.copy(wf, workflows / wf.name)
+            plain = workflows / "pr-test-windows.yml"
+            self.assertNotIn(".github/workflows/pr-test-windows.yml", self.gate())
+            plain.write_text(
+                plain.read_text() + "\n# added\nenv:\n  K: ${{ secrets.NEW_KEY }}\n"
+            )
+            original = sync.WORKFLOWS
+            sync.WORKFLOWS = workflows
+            try:
+                rows = dict(sync.floor_classes())
+            finally:
+                sync.WORKFLOWS = original
+            self.assertEqual(rows.get(".github/workflows/pr-test-windows.yml"), "gate")
+
+    def test_dropping_a_review_workflow_from_the_class_fails_the_check(self):
+        # The committed table must match what the generator derives, so a
+        # hand edit that drops a review workflow is a stale copy.
+        for name in ("pr-review-hosted", "pr-review-security-hosted", "pr-review-main"):
+            path = f".github/workflows/{name}.yml"
+            with self.subTest(name):
+                self.assertIn(path, self.gate())
+                risk_file = (
+                    _REPO
+                    / "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"
+                )
+                text = risk_file.read_text()
+                row = f'    ("{path}", "gate"),\n'
+                self.assertIn(row, text)
+                import importlib.util
+
+                spec = importlib.util.spec_from_file_location(
+                    "sync_hold_floor", _REPO / "scripts/sync-hold-floor.py"
+                )
+                sync = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(sync)
+                tampered = text.replace(row, "")
+                self.assertNotEqual(
+                    sync.generate(sync.RISK, tampered), tampered, "the check passes"
                 )
 
     def test_what_agents_may_do_or_reviews_judge_against_holds_for_a_person(self):
@@ -1898,12 +1978,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     [r.code for r in person_reasons(result.reasons)],
                 )
 
-    def test_the_review_workflows_are_gate(self):
-        gate = {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
-        for name in ("pr-review-hosted", "pr-review-security-hosted", "pr-review-main"):
-            with self.subTest(name):
-                self.assertIn(f".github/workflows/{name}.yml", gate)
-
 
 class ReviewClearedFloorTests(unittest.TestCase):
     """Owner decision Q26 option B: an `enforcement` floor path holds as
@@ -1916,7 +1990,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 40)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 41)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

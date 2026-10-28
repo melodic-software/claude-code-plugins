@@ -933,10 +933,16 @@ the rules that only tighten in
     `babysit_review_evidence.py`, which compute the security review's clear condition. And every
     workflow a review cannot be trusted to judge (owner direction 2026-10-28): the review callers
     and `pr-review-main.yml` with `.github/scripts/pr-review-main/**`, which run the review itself and
-    set the counts the gate reads, and each workflow whose token can write,
-    that names a secret other than `GITHUB_TOKEN`, or that mints a lane token, `pr-merge.yml`,
-    `pr-require-checks.yml` and `pr-unblock.yml` among them. `test_babysit_risk.py` reads every
-    workflow and requires each that holds one of those on this list. And what changes what agents
+    set the counts the gate reads, and each workflow that holds a credential beyond its job's
+    `GITHUB_TOKEN`: a secret other than `GITHUB_TOKEN`, a lane token (`request-lane-token`), or an
+    OIDC token (`id-token: write`), `pr-merge.yml` and `pr-unblock.yml` among them (owner decision
+    Q11 (A), 2026-10-28: a job token dies with its job and cannot push to main past branch
+    protection, while an App key or PAT outlives the run). `scripts/sync-hold-floor.py` derives
+    these rows from the workflow files with `babysit_risk.gated_workflow`, so a workflow that gains
+    a secret joins the gate, and `--check` fails on a stale table. A workflow whose token only
+    writes through its job token, such as `pr-require-checks.yml` (an `enforcement` path), is off
+    the gate: the main-run review binds it, and a gained write scope, trigger, secret or model leg
+    holds by its patch. And what changes what agents
     may do unattended or what later reviews judge against: `**/.claude/settings*.json` (hooks,
     permission allows), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`, `**/AGENTS.md`,
     `REVIEW.md` and `docs/standards/**`.
