@@ -550,5 +550,337 @@ class SecurityAndCostHolds(_Finding):
         self.assertIn(COST_CODE, _codes(result))
 
 
+def _jobs(a: str, b: str = "300", steps: str = "") -> str:
+    """Two jobs, `a` with a model leg, at the timeouts given ("" for none)."""
+    a_line = f"    timeout-minutes: {a}\n" if a else ""
+    b_line = f"    timeout-minutes: {b}\n" if b else ""
+    return (
+        "jobs:\n  a:\n    runs-on: ubuntu-24.04\n" + a_line + "    steps:\n" + steps
+        + "      - uses: anthropics/claude-code-action@v1\n"
+        "  b:\n    runs-on: ubuntu-24.04\n" + b_line + "    steps: []\n"
+    )  # fmt: skip
+
+
+class LowRatedShapes(_Finding):
+    """S&C's LOW-rated probe rows on #9224 (#9241): the timeout and model-leg
+    shapes it held, the secret and runner gaps in checks the hold makes, and
+    the accepted move."""
+
+    def assertCharge(self, wf):
+        """Billed minutes off a public repository; free ones on it."""
+        for public in (False, None):
+            with self.subTest(public=public):
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
+        self.assertReported(_cost([wf], public=True))
+
+    def test_one_jobs_raise_is_not_hidden_by_another_jobs_value(self):
+        # 30 to 200 on `a`, with `b`'s unchanged 300 removed and re-added.
+        patch = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 200",
+            "-    timeout-minutes: 300",
+            "+    timeout-minutes: 300",
+        )
+        self.assertCharge(_file(WORKFLOW, patch=patch, contents=(_jobs("30"), _jobs("200"))))
+        unread = _file(WORKFLOW, patch=patch, contents=None)
+        self.assertIn(COST_CODE, _codes(_cost([unread], public=False)))
+
+    def test_a_timeout_swapped_between_jobs_counts_at_its_key_path(self):
+        patch = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 300",
+            "-    timeout-minutes: 300",
+            "+    timeout-minutes: 30",
+        )
+        contents = (_jobs("30", "300"), _jobs("300", "30"))
+        self.assertCharge(_file(WORKFLOW, patch=patch, contents=contents))
+
+    def test_a_removed_timeout_lets_the_default_apply(self):
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("-    timeout-minutes: 30"),
+            contents=(_jobs("30"), _jobs("")),
+        )
+        self.assertCharge(wf)
+
+    def test_a_removed_job_or_a_removed_timeout_above_the_default_does_not_count(self):
+        for base, head in ((_jobs("30") + "  c:\n    timeout-minutes: 5\n", _jobs("30")),
+                           (_jobs("400"), _jobs(""))):  # fmt: skip
+            with self.subTest(base=base):
+                wf = _file(WORKFLOW, patch=_patch("-    x: y"), contents=(base, head))
+                codes = _codes(_cost([wf], public=False))
+                self.assertNotIn(COST_CODE, codes)
+
+    def test_a_timeout_set_to_an_expression(self):
+        line = "+    timeout-minutes: ${{ inputs.minutes }}"
+        head = _jobs("${{ inputs.minutes }}")
+        self.assertCharge(_file(WORKFLOW, patch=_patch(line), contents=(_jobs("30"), head)))
+        self.assertCharge(_file(WORKFLOW, patch=_patch(line), contents=None))
+
+    def test_a_flow_style_timeout(self):
+        head = (
+            "jobs:\n  a: {runs-on: ubuntu-24.04, timeout-minutes: 90}\n"
+            "  b:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n"
+        )
+        base = head.replace("90", "30")
+        patch = _patch(
+            "-  a: {runs-on: ubuntu-24.04, timeout-minutes: 30}",
+            "+  a: {runs-on: ubuntu-24.04, timeout-minutes: 90}",
+        )
+        self.assertCharge(_file(WORKFLOW, patch=patch, contents=(base, head)))
+
+    def test_a_raised_timeout_on_a_workflow_calling_a_local_workflow_or_action(self):
+        for call in ("./.github/workflows/judge.yml", "./.github/actions/judge"):
+            with self.subTest(call=call):
+                head = (
+                    "jobs:\n  a:\n    timeout-minutes: 90\n"
+                    f"    steps:\n      - uses: {call}\n"
+                )
+                wf = _file(
+                    WORKFLOW,
+                    patch=_patch("-    timeout-minutes: 30", "+    timeout-minutes: 90"),
+                    contents=(head.replace("90", "30"), head),
+                )
+                self.assertCharge(wf)
+
+    def test_a_step_added_before_a_model_step_does_not_move_its_timeout(self):
+        steps = "      - uses: actions/checkout@v4\n"
+        leg = (
+            "      - uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n          leg-timeout-minutes: 10\n"
+        )
+        base = _jobs("30", steps=leg)
+        head = _jobs("30", steps=steps + leg)
+        wf = _file(WORKFLOW, patch=_patch("+" + steps.rstrip()), contents=(base, head))
+        for public in (True, False):
+            codes = _codes(_cost([wf], public=public))
+            self.assertNotIn(COST_CODE, codes)
+            self.assertNotIn(COST_FINDING_CODE, codes)
+
+    def test_a_removed_step_or_a_lowering_timeout_does_not_count(self):
+        def leg(n: str) -> str:
+            return (
+                f"      - uses: o/r/.github/actions/run-claude-cli@{n}\n"
+                f"        with:\n          leg-timeout-minutes: {n}\n"
+            )
+
+        checkout = "      - uses: actions/checkout@v4\n        with:\n          x: 0\n"
+        local = (
+            "jobs:\n  a:\n{line}    steps:\n      - uses: ./.github/actions/setup\n"
+        )
+        for base, head, line in (
+            # A whole leg step removed beside steps that remain.
+            (_jobs("30", steps=checkout + leg("10") + leg("20")),
+             _jobs("30", steps=checkout + leg("20")), "-          leg-timeout-minutes: 10"),
+            # A timeout added below the default on a local-call workflow.
+            (local.format(line=""), local.format(line="    timeout-minutes: 15\n"),
+             "+    timeout-minutes: 15"),
+            # A commented-out timeout.
+            (_jobs("30"), _jobs("30"), "+    # timeout-minutes: 600"),
+        ):  # fmt: skip
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
+                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=False)))
+
+    def test_a_removed_leg_timeout_counts(self):
+        leg = (
+            "      - uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n          prompt: x\n"
+        )
+        base = _jobs("30", steps=leg + "          leg-timeout-minutes: 10\n")
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("-          leg-timeout-minutes: 10"),
+            contents=(base, _jobs("30", steps=leg)),
+        )
+        self.assertCharge(wf)
+
+    def test_model_settings_on_a_model_step_are_reported(self):
+        for line in (
+            "+          ANTHROPIC_MODEL: claude-opus",
+            "+          model: opus",
+            "+          max-turns: 200",
+            "+          max_turns: 200",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertReported(_cost([wf], public=True))
+                codes = _codes(_cost([wf], public=False))
+                self.assertIn(COST_FINDING_CODE, codes)
+                self.assertNotIn(COST_CODE, codes)
+
+    def test_a_new_local_workflow_or_action_call_is_reported(self):
+        for line in (
+            "+    uses: ./.github/workflows/judge.yml",
+            "+      - uses: ./.github/actions/judge",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertReported(_cost([wf], public=True))
+        moved = _patch(
+            "-      - uses: ./.github/actions/judge", "+        - uses: ./.github/actions/judge"
+        )
+        wf = _file(WORKFLOW, patch=moved, contents=("", "jobs: {}\n"))
+        self.assertNotIn(COST_FINDING_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_model_leg_in_a_composite_action_holds_for_security(self):
+        action = ".github/actions/judge/action.yml"
+        for line in (
+            "+    - uses: anthropics/claude-code-action@v1",
+            "+      run: npx @anthropic-ai/claude-code -p hi",
+        ):
+            with self.subTest(line=line):
+                result = _cost([_file(action, patch=_patch(line))], public=True)
+                self.assertSecurityHold(result, AGENT_SURFACE_CODE)
+        repin = _patch(
+            "-    - uses: anthropics/claude-code-action@aaa",
+            "+    - uses: anthropics/claude-code-action@bbb",
+        )
+        codes = _codes(_cost([_file(action, patch=repin)], public=True))
+        self.assertNotIn(AGENT_SURFACE_CODE, codes)
+
+    def test_model_settings_in_actions_and_scripts_are_reported(self):
+        for path, line in (
+            (".github/actions/judge/action.yml", "+        claude_args: --model opus"),
+            (".github/actions/judge/action.yaml", "+        max-turns: 200"),
+            (".github/actions/judge/action.yml", "+        ANTHROPIC_MODEL: opus"),
+            (".github/scripts/judge/run.sh", "+claude -p --model opus"),
+            (".github/scripts/judge/run.mjs", "+  args.push('--max-turns', '200');"),
+        ):
+            with self.subTest(path=path, line=line):
+                result = _cost([_file(path, patch=_patch(line))], public=True)
+                self.assertReported(result)
+
+    def test_other_action_and_script_lines_are_not_reported(self):
+        for path, line in (
+            (".github/actions/judge/action.yml", "+    - run: make"),
+            (".github/actions/judge/run.mjs", "+  const model = '--model';"),
+            (".github/scripts/judge/run.mjs", "+  const model = config.model;"),
+        ):
+            with self.subTest(path=path, line=line):
+                codes = _codes(_cost([_file(path, patch=_patch(line))], public=True))
+                self.assertNotIn(COST_FINDING_CODE, codes)
+
+    def test_new_secret_reference_shapes_hold_for_security(self):
+        for lines in (
+            ("+  ALL: ${{ secrets }}",),
+            ("+    if: ${{ contains(secrets, 'LANE_TOKEN') }}",),
+            ("+  K: >-", "+    ${{ secrets", "+    .LANE_TOKEN }}"),
+            ("+  K: ${{", "+    secrets.LANE_TOKEN }}"),
+            ("+  ALL: ${{ toJSON(secrets.*) }}",),
+        ):
+            with self.subTest(lines=lines):
+                wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
+                self.assertSecurityHold(_cost([wf], public=True), SECRET_EXPOSURE_CODE)
+
+    def test_secrets_in_prose_or_as_a_key_does_not_hold(self):
+        for line in (
+            "+      - name: Rotate keys, secrets, tokens",
+            "+    secrets:",
+            "+      run: echo secrets are masked",
+            "+    if: ${{ contains(fromJSON(needs.a.outputs.jobs || '[]'), 'x-secrets') }}",
+            "+    if: ${{ needs.x.outputs.has-secrets }}",
+            "+    if: ${{ steps.secrets-check.outputs.ok }}",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                codes = _codes(_cost([wf], public=True))
+                self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
+
+    def test_a_secret_reference_moved_within_one_file_passes(self):
+        # Accepted: `_net_added` counts only what the patch gains over what it
+        # removes, so a move is net zero.
+        moved = (
+            "@@ -1,2 +1,1 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
+            "@@ -40,1 +39,2 @@\n context\n+      K: ${{ secrets.LANE_TOKEN }}"
+        )
+        split = (
+            "@@ -1,2 +1,3 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
+            "+  K: >-\n+    ${{ secrets\n+    .LANE_TOKEN }}"
+        )
+        for patch in (moved, split):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
+                codes = _codes(_cost([wf], public=True))
+                self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
+                self.assertNotIn(COST_CODE, codes)
+
+    def test_a_runner_expression_gaining_a_larger_runner_holds(self):
+        matrix = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n        os: [{os}]\n"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        block = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n"
+            "          - os: ubuntu-24.04\n{extra}"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        inputs = (
+            "on:\n  workflow_call:\n    inputs:\n      runner:\n"
+            "        type: string\n        default: {os}\n"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        options = (
+            "on:\n  workflow_dispatch:\n    inputs:\n      runner:\n"
+            "        type: choice\n        options:\n          - ubuntu-24.04\n{extra}"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        big = "ubuntu-24.04-16-cores"
+        for base, head in (
+            (matrix.format(os="ubuntu-24.04"), matrix.format(os=f"ubuntu-24.04, {big}")),
+            (block.format(extra=""), block.format(extra=f"          - os: {big}\n")),
+            (inputs.format(os="ubuntu-24.04"), inputs.format(os=big)),
+            (options.format(extra=""), options.format(extra=f"          - {big}\n")),
+        ):
+            with self.subTest(head=head):
+                wf = _file(WORKFLOW, patch=_patch(f"+        - {big}"), contents=(base, head))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_runner_expression_gaining_a_free_label_does_not_hold(self):
+        head = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n"
+            "        os: [ubuntu-24.04, macos-26]\n"
+            "    runs-on: ${{ matrix.os }}\n    steps: []\n"
+        )
+        base = head.replace(", macos-26", "")
+        wf = _file(WORKFLOW, patch=_patch("+        - macos-26"), contents=(base, head))
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_matrix_growth_behind_another_expression_adds_no_runner_value(self):
+        def text(runs_on: str, matrix: str) -> str:
+            return (
+                f"jobs:\n  build:\n    strategy:\n      matrix:\n        {matrix}\n"
+                f"    runs-on: {runs_on}\n    steps: []\n"
+            )
+
+        for runs_on, before, after in (
+            ("${{ matrix.config.os }}",
+             "config:\n          - {os: ubuntu-latest, cc: gcc}",
+             "config:\n          - {os: ubuntu-latest, cc: gcc}\n"
+             "          - {os: ubuntu-latest, cc: clang}"),
+            ("${{ matrix.platform.os }}",
+             "platform: [{os: ubuntu-latest, arch: x64}]",
+             "platform: [{os: ubuntu-latest, arch: x64}, {os: ubuntu-latest, arch: arm64}]"),
+            ("${{ matrix.os == 'win' && 'windows-latest' || 'ubuntu-latest' }}",
+             "os: [win]", "os: [win, linux]"),
+        ):  # fmt: skip
+            with self.subTest(runs_on=runs_on):
+                contents = (text(runs_on, before), text(runs_on, after))
+                wf = _file(WORKFLOW, patch=_patch("+        - x"), contents=contents)
+                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_flow_style_include_entry_gaining_a_larger_runner_holds(self):
+        def text(extra: str) -> str:
+            return (
+                "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n"
+                f"          - {{os: ubuntu-24.04}}\n{extra}"
+                "    runs-on: ${{ matrix.os }}\n    steps: []\n"
+            )
+
+        big = "          - {os: ubuntu-24.04-16-cores}\n"
+        wf = _file(WORKFLOW, patch=_patch("+" + big.rstrip()), contents=(text(""), text(big)))
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+
 if __name__ == "__main__":
     unittest.main()

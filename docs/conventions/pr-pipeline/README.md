@@ -914,7 +914,9 @@ the rules that only tighten in
     standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
-    on any other repository every one, and any added `windows` or `macos` line;
+    on any other repository every one, and any added `windows` or `macos` line. A `runs-on`
+    expression that names a matrix key or an input (`${{ matrix.os }}`, `${{ inputs.runner }}`)
+    counts each value that key or the input's `default:` and `options:` gain in the same file;
   - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
     (a schedule runs billed minutes), a raised timeout as below, or an artifact
     `retention-days` the patch adds above every one it removes, or above GitHub's
@@ -922,24 +924,45 @@ the rules that only tighten in
     when it removes none (storage past the free quota);
   - a workflow or pipeline file with no patch.
 
+  A raised timeout is a `timeout-minutes` or `leg-timeout-minutes`. In a workflow whose head text
+  uses one of the model actions below, or could not be read, it is one the patch adds above every
+  one it removes once equal values cancel, so a value removed and re-added on another job hides
+  nothing, or one set to an expression. In a workflow whose head text uses a model action or a
+  local `uses: ./` workflow or action, it is also, head text against base text at each job's key
+  path (a step's timeouts compared among its job's steps), block or flow style, one raised, set
+  to an expression, set where none was above GitHub's
+  [360-minute default](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
+  or removed from a job or step the head still has, so that default or the action's own applies.
+
   Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
   `cost-finding`, which never holds:
-  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
-    `cron:` key;
-  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
-    every one it removes, in a workflow whose head text uses one of those actions or could not be
-    read, and a raised artifact `retention-days`;
+  - a workflow patch that adds a `--model` or `--max-turns` flag, an `ANTHROPIC_*MODEL`
+    variable, a `model:` or `max-turns:` input, a new local `uses: ./` call (which may start a
+    model leg), or on a public repository a `cron:` key;
+  - a composite action's `.github/actions/**/action.yml` patch that adds one of those model
+    settings, a `.github/scripts/**` patch that adds a `--model` or `--max-turns` flag, and
+    either file with no patch;
+  - on a public repository, a raised timeout and a raised artifact `retention-days`;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
     on the same lines in place. Flow style, quoted keys and new list items count.
 
-  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
-  `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
-  gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
-  case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
-  each counted against the lines it removes so a moved line or a repin is not new. These widen
-  what a credential or an agent can reach, not only spend, so a person clears them and no cost
-  decision does.
+  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
+  `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
+  in a `${{ }}` expression outside a string, such as `${{ secrets }}` or
+  `contains(secrets, 'X')`) scores HIGH as
+  `secret-exposure-review`, and a workflow or composite action patch that gains a `uses:` of
+  `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line
+  invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`, each counted against
+  the lines it removes, an expression split across a folded scalar read whole, so a moved line or
+  a repin is not new. These widen what a credential or an agent can reach, not only spend, so a
+  person clears them and no cost decision does.
+
+  Accepted: a `secrets` reference moved within one file is net zero and does not hold. New
+  triggers, a removed `concurrency` or job `if:` guard, matrix growth and `max-parallel`, a
+  non-Claude model action, and paths outside the ones above (a workflow in a subdirectory of
+  `.github/workflows/`, `Pulumi.yml`, ARM templates, `*.tf.json`) are left to the review lanes'
+  cost hold, which holds for a real charge (`pr-review-hosted.yml`).
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
