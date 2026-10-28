@@ -899,6 +899,7 @@ jobs:
           leg-timeout-minutes: "20"
 
       - name: Report a handoff
+        id: handoff
         if: steps.run.outputs.handoff == 'true'
         env:
           LANE_CLASS: ${{ steps.run.outputs.lane-class }}
@@ -947,8 +948,10 @@ jobs:
 
   # The subscription leg, as its own job on a new VM: refine-issue's
   # processes, files and environment do not reach it. Its steps repeat
-  # refine-issue's from a fresh checkout but for the credential (callers.test.mjs
-  # holds them equal). It reads only two refine-issue outputs, each compared to
+  # refine-issue's from a fresh checkout, in the same order, but for the
+  # credential check, the launcher's credential input, the key leg's handoff
+  # report and the last step's `if` (callers.test.mjs holds every other step
+  # and field equal). It reads only two refine-issue outputs, each compared to
   # a fixed string in its `if`. Only this job references the subscription
   # token, and it never hands off.
   refine-issue-subscription:
