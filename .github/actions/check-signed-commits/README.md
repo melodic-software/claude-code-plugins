@@ -37,7 +37,11 @@ or force-pushes.
   `<invalid-sha>`, so no free text reaches the output or the comment.
 - On any unverified commit, or a PR it cannot check whole, it adds `escalation-label` only if that label already exists on the
   repository (it never creates one), then posts one fixed comment listing the SHAs. No model text
-  reaches the comment. When no commit is unverified but the PR could not be checked whole, the log
+  reaches the comment. Its first line, `<!-- check-signed-commits hold -->` (`SIGNED_COMMITS_HOLD`,
+  defined in `.github/scripts/pr-unblock/gate-source.mjs`), holds the PR even when a lane
+  escalation put the label on first: resolve-conflicts, fix-ci and fix-docs do not work past the
+  label, address-feedback works only threads a trusted person asked it to fix, and
+  clear-escalations does not remove the label. Removing the label lifts the hold. When no commit is unverified but the PR could not be checked whole, the log
   line and the comment say the commits could not be verified, never that they are unverified.
 
 ## Outputs
