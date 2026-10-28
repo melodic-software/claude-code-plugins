@@ -52,7 +52,7 @@ const history = (counts = [], earlier = counts.map(() => 0)) => ({
   },
 });
 
-function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), runJobs = new Map() } = {}) {
+function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), reviewComments = new Map(), runJobs = new Map() } = {}) {
   const calls = { history: [], dispatch: [], jobs: [] };
   return {
     calls,
@@ -69,6 +69,13 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
+    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
+    async listReviewComments(number) {
+      return reviewComments.get(number) ?? [];
+    },
+    async listReviews() {
+      return [];
     },
     async listDocsFixCandidates({ after }) {
       const index = after === undefined ? 0 : Number(after);
@@ -172,6 +179,32 @@ test("needs-human from a lane escalation does not hold fix-docs, which never esc
   );
   assert.deepEqual(numbers(api), ["15"]);
   assert.equal(isHandled(record, CHECK, pr(16).headRefOid), false, "a held PR is not done");
+});
+
+test("a person's inline review-thread reply since a lane escalation holds fix-docs; a bot's does not", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const reply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" }];
+  const gated = { labels: { nodes: [{ name: "needs-human" }] } };
+  const { api, lines } = await run(
+    {
+      pages: [[pr(17, gated), pr(18, gated)]],
+      comments: new Map([
+        [17, escalation],
+        [18, escalation],
+      ]),
+      labelEvents: new Map([
+        [17, labeledBy(APP_USER)],
+        [18, labeledBy(APP_USER)],
+      ]),
+      reviewComments: new Map([
+        [17, reply({ login: "kyle-sexton", id: 153232337, type: "User" })],
+        [18, reply(APP_USER)],
+      ]),
+    },
+    { gateLabel: "needs-human", appSenderId: LANES_APP },
+  );
+  assert.deepEqual(numbers(api), ["18"]);
+  assert.ok(lines.includes("skip fix-docs #17: held by needs-human: a person commented or reviewed since needs-human went on"), lines.join("\n"));
 });
 
 test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the release App's and the standards-sync App's are not", async () => {

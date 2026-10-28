@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
-import { main, publish, renderReply } from "./publish-feedback.mjs";
+import { main, publish, renderReply, undisposedLines } from "./publish-feedback.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -429,6 +429,57 @@ test("an empty or partial reply set posts nothing and escalates feedback-incompl
     assert.deepEqual(api.resolved(), []);
     assert.equal(api.markers().length, 1);
   }
+});
+
+// #8218's round 1 on 9c0a446 (2026-10-18): the select job kept one claude[bot]
+// thread on lib/session-bridge/session_bridge.py, root comment 4306751638, and
+// the model recorded no disposition for it. Its node id is not public, so
+// PRRT_8218 stands in for it.
+const RUN_8218 = { version: 1, head_sha: GATED, threads: [{ id: "PRRT_8218", path: "lib/session-bridge/session_bridge.py", comment_ids: [4306751638] }] };
+
+test("feedback-incomplete names each kept thread with no disposition in the round marker and the log", async () => {
+  const cases = [
+    [RUN_8218, "", [{ id: "PRRT_8218", comment: 4306751638 }]],
+    [RUN, lines(reply()), [{ id: "PRRT_b", comment: 200 }]],
+  ];
+  for (const [runJson, repliesText, undisposed] of cases) {
+    const api = fakeApi();
+    const logged = [];
+    const result = await publish({
+      api,
+      pr: 42,
+      headSha: NOW,
+      headRef: "feature",
+      appId: APP,
+      modelRun: "5000-1",
+      reviewerId: REVIEWER,
+      readArtifact: () => ({ runText: JSON.stringify(runJson), repliesText }),
+      fileExists: exists,
+      log: (line) => logged.push(line),
+    });
+    assert.equal(result.escalationReason, "feedback-incomplete");
+    assert.deepEqual(result.undisposed, undisposed);
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(
+      api.markers()[0][2],
+      [
+        `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 1 of max 3 on ${NOW}.`,
+        "",
+        "Kept review threads with no disposition:",
+        ...undisposed.map(({ id, comment }) => `- \`${id}\` (root comment ${comment})`),
+      ].join("\n"),
+    );
+    assert.ok(logged.some((line) => line.endsWith(`none for ${undisposed.map(({ id }) => id).join(", ")}`)), logged.join("\n"));
+  }
+});
+
+test("the round marker names at most 20 threads with no disposition, then how many more", () => {
+  const undisposed = Array.from({ length: 23 }, (_, n) => ({ id: `PRRT_${n}`, comment: n + 1 }));
+  const shown = undisposedLines(undisposed);
+  assert.equal(shown.at(-2), "- `PRRT_19` (root comment 20)");
+  assert.equal(shown.at(-1), "- and 3 more");
+  assert.deepEqual(undisposedLines([]), []);
 });
 
 // Owner decision 2026-10-24: a disputed finding goes to an adjudicator, not

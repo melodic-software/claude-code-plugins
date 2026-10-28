@@ -615,6 +615,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
+    "pr-merge.yml": { "post-merge-dispatch": "github-token" },
+    "intake-reenter.yml": { reenter: "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -670,6 +672,10 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
   assert.ok(block, "ci-status sets API_BUDGET_SH as a block scalar");
   const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
   assert.equal(carried, readFileSync(LIB, "utf8"));
+});
+
+test("ci-status emits the api-calls notice beside its api-budget notice", () => {
+  assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
 });
 
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
