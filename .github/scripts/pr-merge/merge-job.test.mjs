@@ -1305,7 +1305,7 @@ test("each candidate's check run is written by its own job, the only one holding
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
     writerSteps.map((s) => s.name),
-    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run", "Log the API budget at the end"],
   );
   assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
   for (const { name, block } of writerSteps.slice(2)) {

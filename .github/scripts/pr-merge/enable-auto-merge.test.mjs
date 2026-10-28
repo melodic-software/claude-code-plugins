@@ -39,6 +39,7 @@ import {
   CACHE_ONLY_TIMEOUT_MS,
   CACHE_ONLY_WINDOW_MS,
   ghCalls,
+  ghCallsLine,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   VERIFY_BUDGET_MS,
@@ -2150,6 +2151,8 @@ test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and 
   assert.deepEqual(ghCalls(`warning: something\n${line}\n`), { total: 4, githubToken: 3, paginated: 1 });
   assert.equal(ghCalls("no calls line\n"), null);
   assert.equal(ghCalls("babysit-gh-calls {not json\n"), null);
+  assert.equal(ghCallsLine("babysit-gh-calls {not json\n"), null);
+  assert.equal(ghCallsLine("no calls line\n"), null);
   assert.equal(costLine({ number: 7, calls: { total: 4, githubToken: 3, paginated: 1 }, ms: 1500 }), "#7 calls=4 github-token=3 paginated=1 ms=1500");
   assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
 });
@@ -2173,7 +2176,11 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
   } finally {
     console.log = log;
   }
-  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250"]);
+  // The reader's per-endpoint calls line reaches the log after each cost
+  // line, in the shape the merge job's tee logs, as one line of JSON.
+  const logged = `babysit-gh-calls ${JSON.stringify(JSON.parse(line.slice("babysit-gh-calls ".length)))}`;
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", logged, "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250", logged]);
+  assert.deepEqual(JSON.parse(logged.slice("babysit-gh-calls ".length)).calls, JSON.parse(line.slice("babysit-gh-calls ".length)).calls);
   assert.deepEqual(
     verify.costs.map(({ number, ms }) => [number, ms]),
     [
