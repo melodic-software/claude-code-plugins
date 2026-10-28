@@ -121,8 +121,9 @@ still adds whatever it names on top.
 
 A feature's id is its index path without `features/` and the trailing `/README.md`, or `.md` for a
 legacy flat file: `features/billing/export/README.md` gives `billing/export`, and
-`features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, its file
-resolved in `/app-control:drive`'s order, on either route. Before driving, write each entry point's expected outcome from
+`features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, on either
+route, its file resolved in `/app-control:drive`'s order: `features/<id>/README.md` when it exists,
+and then never open the legacy `features/<id>.md`; only without that README, the legacy file. Before driving, write each entry point's expected outcome from
 the requirement or acceptance criterion ([context/e2e.md](context/e2e.md), workflow step 1).
 
 ### Report per entry point
