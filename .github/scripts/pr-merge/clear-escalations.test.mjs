@@ -11,6 +11,7 @@ import { after, test } from "node:test";
 
 import { main, NATIVE_READS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
+import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -32,9 +33,26 @@ const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10
 
 // One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
+// `headChecks` is the head's check runs, as the job token lists them, or an
+// Error its read throws.
+// The head's pr-require-checks runs are suites 500 and 501.
+const REQUIRED_SUITES = [500, 501];
+const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
+const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
   const calls = [];
+  const checks = async (method, path) => {
+    calls.push({ method, path, token: "checks" });
+    if (headChecks instanceof Error) {
+      throw headChecks;
+    }
+    if (path === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&per_page=100`) {
+      return { workflow_runs: REQUIRED_SUITES.map((id) => ({ id: id * 10, check_suite_id: id })) };
+    }
+    assert.equal(path, `/repos/${REPO}/commits/${HEAD}/check-runs?filter=all&per_page=100&page=1`);
+    return { check_runs: headChecks };
+  };
   const reads = [];
   const verify = async (pull, rung) => {
     reads.push({ pull, rung });
@@ -75,7 +93,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { github, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
+  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
 }
 
 const run = async (w, env = {}) => {
@@ -83,7 +101,7 @@ const run = async (w, env = {}) => {
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    return { code: await main({ env: { ...ENV, ...env }, github: w.github, verify: w.verify, reader: w.reader }), logs };
+    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader }), logs };
   } finally {
     console.log = original;
   }
@@ -235,6 +253,84 @@ test("a reason a person decides is never cleared", async () => {
   const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("feedback-round-cap")] });
   await run(w);
   assert.deepEqual(w.writes(), []);
+});
+
+// escalation-routes.json now ends these in a failing status, not a person.
+// A fix-ci label an older lane run set comes off while the head's own CI
+// checks read failed. Any other stays on for a person, on the head the lane
+// stopped on and on a new one alike: a lane posts a pr-unblock/* status on a
+// head only when it stops there or clears its own failure, so a new head
+// carries nothing that proves the cause gone or fails it in the label's place.
+test("a label for a reason now routed to a failing status: fix-ci comes off on a red head, others stay after the head moves", async () => {
+  for (const reason of ["ci-fix-escalated", "ci-fix-round-cap"]) {
+    const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), atHead], headChecks: RED });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", reason);
+    assert.match(w.writes()[0].body.body, new RegExp(`\`${reason}\``));
+  }
+  const others = Object.keys(ROUTES).filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && reason !== "unresolved-conflict");
+  assert.ok(others.includes("feedback-not-landed") && others.includes("unexpected-path-staged"));
+  assert.ok(!others.some((reason) => escalationActivity(reason) === "review-dependency"), "every review-dependency stop holds for a person");
+  for (const reason of others) {
+    const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
+    const same = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), atHead], headChecks: RED });
+    await run(same);
+    assert.deepEqual(same.writes(), [], `${reason} on the head it stopped on`);
+    const moved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], headChecks: RED });
+    const { logs } = await run(moved);
+    assert.deepEqual(moved.writes(), [], `${reason} after the head moved`);
+    assert.ok(logs.some((line) => line.includes("one a person decides")), reason);
+  }
+});
+
+// The security finding on #10252: a fix-ci label came off with no CI result
+// read. Only a failed GitHub Actions check on the current head other than
+// ci-status clears it; ci-status itself fails on the label, so it is skipped.
+test("a fix-ci label comes off only while the head's own checks read failed", async () => {
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
+  for (const [label, headChecks, cleared] of [
+    ["red", RED, true],
+    ["timed out", [check("test-bash (1/4)", "timed_out")], true],
+    // ci-status reads a cancelled lane job as red, so it stays red without the label.
+    ["cancelled", [check("test-node", "cancelled")], true],
+    ["green", [check("test-node", "success"), check("lint", "success", { id: 2 })], false],
+    ["only ci-status red", [check("ci-status", "failure"), check("test-node", "success", { id: 2 })], false],
+    ["a skip", [check("test-node", "skipped")], false],
+    ["no checks", [], false],
+    ["another app's failure", [check("test-node", "failure", { slug: "someone-else" })], false],
+    ["read fails", new Error("HTTP 502"), false],
+    // An advisory lane is no pr-require-checks lane: ci-status would go green.
+    ["only pr-test-windows red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
+    // A contract-only run's later skip does not hide the real run's failure.
+    ["a failed lane with a newer skipped duplicate", [check("test-node", "failure"), check("test-node", "skipped", { id: 2, suite: 501 })], true],
+  ]) {
+    const w = world({ timeline, headChecks });
+    const { code } = await run(w);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, label);
+    assert.ok(w.calls.filter((call) => call.token === "checks").length <= 2, label);
+  }
+});
+
+test("a reason still held for a person keeps the label beside a fail-routed one", async () => {
+  for (const reason of ["feedback-uncertain", "feedback-question-security", "dependency-escalate", "dependency-security-close", "ci-fix-protected-path"]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason), escalated("ci-fix-escalated", { at: "2026-10-18T10:05:00Z" })] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], reason);
+  }
+});
+
+test("report-escalation.sh's lane-stopped comment since the label is the lane's own, not another marker", async () => {
+  const w = world({
+    timeline: [
+      labeled(BOT, "2026-10-18T10:00:00Z"),
+      escalated(),
+      commented(BOT, "<!-- pr-unblock:lane-stopped activity=fix-ci -->\nStopped.", "2026-10-18T09:00:00Z", "2026-10-18T10:30:00Z"),
+    ],
+  });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
 });
 
 test("a conflict reason clears only once GitHub reports the PR mergeable", async () => {

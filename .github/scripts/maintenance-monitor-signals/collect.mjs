@@ -3,7 +3,9 @@
 // that fails to read is recorded in `gaps` and the others still run. Every
 // list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { parseBudget } from "./signals.mjs";
+import { escalationActivity, escalationRoute } from "../pr-unblock/escalation-routes.mjs";
+import { failingChecks } from "../pr-unblock/gate-source.mjs";
+import { parseBudget, STALLED_HOURS } from "./signals.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -15,7 +17,65 @@ export const LIMITS = {
   mergeGroupRuns: 10,
   sweepArtifacts: 5,
   commentPages: 5,
+  // Open pull requests the stalled-stop read covers, most recently updated
+  // first: one GraphQL query lists the first stalledPulls with each one's
+  // newest 100 comments and the open count; at most stalledCommentRounds more
+  // queries read 100 older comments for every PR whose newest name no stop on
+  // its head; at most stalledChecks check-run reads in all (a fix-ci
+  // resolution check's listing pages count among them). So the source
+  // spends at most 1 + 2 + 20 of CALL_BUDGET. stalledPulls covers every open
+  // pull request at today's count; past it, a gap leaves signal 10 unread
+  // rather than missing a stop.
+  stalledPulls: 40,
+  stalledCommentRounds: 2,
+  stalledChecks: 20,
 };
+// report-escalation.sh's comment for a stop routed to a failing status, one
+// per activity, edited at each stop (gate-source.mjs LANE_STOPPED).
+const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=([a-z]+(?:-[a-z]+)*) -->$/;
+const STOP_FIELD = (name) => new RegExp(`^- ${name}: \`([^\`]+)\``, "m");
+// clear-escalations.mjs's comment when it took off a needs-human an older run
+// set (gate-source.mjs CLEARED): a reason now routed to a failing status left
+// that head with no stop comment of its own.
+const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=([a-z,-]+) head=([0-9a-f]{40}) -->$/;
+// One GraphQL query reading one field per item under its own alias, so a
+// source reads every pull request it covers in one call. The repository is
+// the query's $owner and $name.
+export const batchQuery = (fields) =>
+  `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.map((field, i) => `a${i}: ${field}`).join(" ")} } }`;
+async function queryRepo(graphql, repo, query) {
+  const [owner, name] = repo.split("/");
+  const result = await graphql(query, { owner, name });
+  if (result?.errors?.length) throw new Error(`GraphQL: ${result.errors.map((e) => e.message).join("; ")}`);
+  return result?.data?.repository ?? {};
+}
+// A comment connection's page, oldest first; GraphQL names a Bot without
+// [bot], so its login is put back in the REST form agentIdentity uses.
+const COMMENT_PAGE = "pageInfo { hasPreviousPage startCursor } nodes { author { __typename login } body createdAt updatedAt url }";
+const restComment = (node) => ({
+  user: { login: node.author?.__typename === "Bot" ? `${node.author.login}[bot]` : node.author?.login },
+  body: node.body,
+  created_at: node.createdAt,
+  updated_at: node.updatedAt,
+  html_url: node.url,
+});
+// An attempt of the activity on the head: any of its check runs but a skip,
+// which a select job posts without running the activity (a stop's own
+// lane-stopped, a held awaiting-human, or not-applicable).
+const attempted = (run) => !(run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped:"));
+// A select job that finds the stop gone on its head (stop-resolved) skips
+// not-applicable and report-stop-status posts success over the failing
+// status, which this job cannot read. On a non-draft pull request (the slot's
+// only not-applicable miss for both activities is `draft: [false]`,
+// pr-pipeline.yaml) the address-feedback select skips not-applicable only
+// when it is resolved (address-feedback.mjs select). fix-ci's also skips it
+// with no fixable failure, so it counts only when the head's checks read
+// whole, every one completed, none failing (fix-ci-context.mjs select's own
+// rule) now; one that skipped while checks were still running and went green
+// later reads as resolved too, though no success was posted.
+const NOT_APPLICABLE = "Skipped: not-applicable";
+const RESOLVES = new Set(["address-feedback", "fix-ci"]);
+const CHECK_PAGES = 3;
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
 // Pull-request and merge-group runs hold no lane token, and a merge-group
 // failure is counted as an ejection instead.
@@ -34,7 +94,7 @@ const RUN_ID = /^[0-9]+$/;
 const RUN_LOOKBACK_HOURS = 6;
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export async function collect({ get, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null }) {
+export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null }) {
   const gaps = [];
   const jobsMemo = new Map();
   const annotationsMemo = new Map();
@@ -252,6 +312,123 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
       if (!unread) break;
     }
     if (unread) gaps.push(`lane stops: over ${LIMITS.commentPages * 100} comments in the window; the oldest were not read`);
+  });
+
+  // Open pull requests whose head carries a stop the pr-unblock lane routed to
+  // a failing status (its lane-stopped comment, by the lanes App, names the
+  // PR's current head) with no attempt of that activity started on the head
+  // since the comment's last edit, and no stop-resolved skip ending it
+  // (NOT_APPLICABLE above): its per-head retries are spent. Any PR, not only
+  // the lanes App's: fix-ci adopts owners'. The status itself needs
+  // statuses: read, which this job's token lacks, so the comment and the
+  // activity's check runs stand for it.
+  await source("stalled stops", async () => {
+    data.stalledStops = [];
+    const cutoff = now.getTime() - STALLED_HOURS * 3600_000;
+    let checks = 0;
+    const listed = await queryRepo(
+      graphql,
+      repo,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number isDraft headRefOid comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
+    );
+    if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
+    const total = listed.pullRequests.totalCount ?? 0;
+    if (total > LIMITS.stalledPulls) {
+      gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
+    }
+    const pulls = (listed.pullRequests?.nodes ?? []).map((node) => ({
+      number: node.number,
+      draft: node.isDraft === true,
+      head: { sha: node.headRefOid },
+      comments: (node.comments?.nodes ?? []).map(restComment),
+      older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
+    }));
+    // A PR's own markers on its current head: a lane-stopped comment naming it,
+    // or a cleared label for it. An older head's marker says nothing of this
+    // head's stop, which can sit in an older comment edited in place.
+    const marks = (pull) =>
+      pull.comments.some((c) => {
+        if (c.user?.login !== agentIdentity) return false;
+        const body = String(c.body ?? "").replaceAll("\r\n", "\n");
+        const first = body.split("\n")[0];
+        return (LANE_STOPPED.test(first) && STOP_FIELD("Head").exec(body)?.[1] === pull.head.sha) || CLEARED.exec(first)?.[2] === pull.head.sha;
+      });
+    for (let round = 0; round < LIMITS.stalledCommentRounds; round += 1) {
+      const deeper = pulls.filter((pull) => pull.older !== null && !marks(pull));
+      if (deeper.length === 0) break;
+      const older = await queryRepo(
+        graphql,
+        repo,
+        batchQuery(deeper.map((pull) => `pullRequest(number: ${pull.number}) { comments(last: 100, before: ${JSON.stringify(pull.older)}) { ${COMMENT_PAGE} } }`)),
+      );
+      for (const [i, pull] of deeper.entries()) {
+        const page = older[`a${i}`]?.comments;
+        pull.comments = [...(page?.nodes ?? []).map(restComment), ...pull.comments];
+        pull.older = page?.pageInfo?.hasPreviousPage ? page.pageInfo.startCursor : null;
+      }
+    }
+    for (const pull of pulls) {
+      const head = pull.head?.sha;
+      const comments = pull.comments;
+      // Each stop on this head: the newest lane-stopped comment per activity,
+      // or a cleared label whose reason is now routed to a failing status.
+      const stops = new Map();
+      for (const c of comments) {
+        if (c.user?.login !== agentIdentity) continue;
+        const lines = String(c.body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
+        const body = lines.join("\n");
+        const activity = LANE_STOPPED.exec(lines[0])?.[1];
+        if (activity) {
+          if (STOP_FIELD("Head").exec(body)?.[1] === head) {
+            stops.set(activity, { activity, reason: STOP_FIELD("Reason").exec(body)?.[1] ?? "unknown", stoppedAt: c.updated_at ?? c.created_at, url: c.html_url });
+          }
+          continue;
+        }
+        const cleared = CLEARED.exec(lines[0]);
+        if (cleared && cleared[2] === head) {
+          for (const reason of cleared[1].split(",")) {
+            const of = escalationActivity(reason);
+            if (escalationRoute(reason) === "fail" && !stops.has(of)) {
+              stops.set(of, { activity: of, reason, stoppedAt: c.created_at, url: c.html_url });
+            }
+          }
+        }
+      }
+      if (pull.older !== null && !marks(pull)) {
+        gaps.push(`stalled stops: #${pull.number} has over ${comments.length} comments and none names a stop on its head; older ones not read`);
+      }
+      for (const stop of stops.values()) {
+        if (!(Date.parse(stop.stoppedAt) < cutoff)) continue;
+        if (checks >= LIMITS.stalledChecks) {
+          gaps.push(`stalled stops: over ${LIMITS.stalledChecks} candidate stops; #${pull.number} and later not judged`);
+          return;
+        }
+        checks += 1;
+        const runs = (await get(`/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(`pr-unblock / ${stop.activity}`)}&filter=all&per_page=100`)).check_runs ?? [];
+        const since = runs.filter((run) => Date.parse(run.started_at) > Date.parse(stop.stoppedAt));
+        if (since.some(attempted)) continue;
+        if (RESOLVES.has(stop.activity) && !pull.draft && since.some((run) => run.conclusion === "neutral" && run.output?.title === NOT_APPLICABLE)) {
+          if (stop.activity === "address-feedback") continue;
+          const listed = [];
+          let whole = false;
+          for (let page = 1; page <= CHECK_PAGES; page += 1) {
+            if (checks >= LIMITS.stalledChecks) {
+              gaps.push(`stalled stops: over ${LIMITS.stalledChecks} check-run reads; #${pull.number} and later not judged`);
+              return;
+            }
+            checks += 1;
+            const batch = (await get(`/repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`)).check_runs ?? [];
+            listed.push(...batch);
+            if (batch.length < 100) {
+              whole = true;
+              break;
+            }
+          }
+          if (whole && listed.every((run) => run.status === "completed") && failingChecks(listed).length === 0) continue;
+        }
+        data.stalledStops.push({ pr: pull.number, head, ...stop });
+      }
+    }
   });
 
   await source("audits", async () => {
