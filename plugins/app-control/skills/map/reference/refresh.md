@@ -266,8 +266,9 @@ starting branch) other than the default branch and the control skill's upkeep br
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
    Changes outside the directory are the caller's work and stay untouched.
 2. **Write**, as step 2 above.
-3. **Commit** on the ticket branch with a pathspec, `git commit -- <each control skill path>`, so
-   only those paths are committed and any work the caller already staged stays staged. Done when
+3. **Commit** on the ticket branch: stage each control skill path, new files included, with
+   `git add -- <paths>`, then `git commit -- <paths>` with the same paths, so only they are
+   committed and any work the caller already staged stays staged. Done when
    `git show --name-only --format= HEAD` lists only paths inside the control skill directory.
 4. **Hand back.** Push nothing and open no pull request: the caller's push carries the commit into
    the ticket's pull request. The report names the commit, so the caller knows HEAD moved by a
