@@ -784,9 +784,9 @@ the rules that only tighten in
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
   reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
-  `findings:claude-review`, `findings:claude-security-review`). Every other MEDIUM reason
+  `findings:claude-review`, `findings:claude-security-review`, `cost-finding`). Every other MEDIUM reason
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
-- **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
+- **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
   claude-review or a lower security one, is listed in the reasons and does not hold.
@@ -897,33 +897,46 @@ the rules that only tighten in
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
   CRITICAL. Its other open findings are reported as `findings:claude-security-review`.
-- **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
-  2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
-  says and whatever an adopted author's own paths leave off the floor, and waits for a human like
-  any other HIGH reason. It catches:
+- **Cost hold.** Cost is not a stop; only a real new charge is ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)). A change
+  that could start one (billed infrastructure or billed runner minutes) scores HIGH as
+  `cost-review-required` in both lanes, whatever `high-path-floor` says and whatever an adopted
+  author's own paths leave off the floor, and waits for a human like any other HIGH reason. It
+  catches:
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
     file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
     list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
-  - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
-    model credits) or a `--model` or `--max-turns` flag; or that gains any `secrets` reference
-    (`secrets.NAME`, `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`), a `uses:` of
-    `run-claude-cli` or any `claude-code*` action or image (matched ignoring case), or a run line
-    invoking `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved
-    line or a repin is not new;
-  - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
-    workflow whose head text uses one of those actions or could not be read;
   - a runner value the workflow's head text gains over its base text, or an added inline
     `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
     standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
+  - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
+    (a schedule runs billed minutes), a raised timeout as below, or an artifact
+    `retention-days` the patch adds above every one it removes, or above GitHub's
+    [90-day default](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
+    when it removes none (storage past the free quota);
+  - a workflow or pipeline file with no patch.
+
+  Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
+  `cost-finding`, which never holds:
+  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
+    `cron:` key;
+  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
+    every one it removes, in a workflow whose head text uses one of those actions or could not be
+    read, and a raised artifact `retention-days`;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
-    on the same lines in place.
-    Flow style, quoted keys and new list items hold;
-  - a workflow or pipeline file with no patch.
+    on the same lines in place. Flow style, quoted keys and new list items count.
+
+  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
+  `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
+  gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
+  case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
+  each counted against the lines it removes so a moved line or a repin is not new. These widen
+  what a credential or an agent can reach, not only spend, so a person clears them and no cost
+  decision does.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
