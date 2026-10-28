@@ -2598,6 +2598,8 @@ def _answer_key(
             parts["config"] = asdict(config)
             bot = (config.agent_identity or "").removesuffix("[bot]") or None
         listing = reader.listing()
+        # `_task_list` reads the rules at the default branch, whatever the base.
+        default = merge_policy._default_branch(args.repo, shared=True)
     except (merge_policy.PolicyReadError, RuntimeError) as exc:
         raise _ProbeFailed(str(exc)) from exc
     owner, _, name = args.repo.partition("/")
@@ -2610,7 +2612,7 @@ def _answer_key(
             "h": args.head,
             # By full ref: a bare name resolves as git does, a tag first.
             "ta": f"refs/heads/{args.branch}:{TRUSTED_ACTORS_PATH}",
-            "ar": f"refs/heads/{args.branch}:{ADMISSION_RULES_PATH}",
+            "ar": f"refs/heads/{default}:{ADMISSION_RULES_PATH}",
         },
     )
     pull = json_object(repository.get("pullRequest"))
