@@ -94,6 +94,13 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "readmit-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Open status: ready issues with neither agent-ready nor admission-deferred that one work-unblock sweep runs intake's admission rules on, oldest updated first. Only an issue that reaches the rules counts: one with a hold or refuse label, an open blocker or an open sub-issue, or one admission skips (its status: ready added by neither a listed human nor the lanes App, or its agent-ready removal standing), does not."
+        },
         "limit-stops-per-head": {
           "type": "integer",
           "minimum": 1,

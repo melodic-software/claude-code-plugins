@@ -6,12 +6,16 @@
 // the `pull` step output. No model runs here.
 //
 // Env: STRUCTURED_OUTPUT, AUDIT_RESULT (the audit job's result), RESTORED
-// (`true` or `false` from the audit job's own check of the checkout), BEFORE,
+// (`true` or `false` from the audit job's own check of the checkout),
+// STOP_CLASS (`rate-limit` or `overloaded` when a limit stopped the audit, else
+// empty), BEFORE,
 // AFTER, RANGE_MODE (`range`, `commit` when the push had no usable previous
 // head, or empty when the audit stopped first), REPOSITORY, GITHUB_TOKEN,
 // GITHUB_STEP_SUMMARY, COMMENT_PATH, GITHUB_OUTPUT, GITHUB_RUN_ID.
-// Exits 1 when the audit left no valid result or could not restore the tree;
-// surviving mutants alone never fail it (the plugin gates on no score).
+// Exits 1 when the audit left no valid result or RESTORED is not `true` after
+// a `restore-failed` outcome: the workflow's check of the tree decides a
+// restore, never the model's own report. A limit stop exits 0. Surviving
+// mutants alone never fail it (the plugin gates on no score).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -106,7 +110,7 @@ const fenced = (text) => {
   return `${fence}text\n${text}\n${fence}`;
 };
 
-export function render({ result, error, before, after, mode, pulls, repository }) {
+export function render({ result, error, stop, before, after, mode, pulls, repository }) {
   const short = (sha) => (SHA.test(sha ?? "") ? sha.slice(0, 12) : "unknown");
   const range =
     mode === "range"
@@ -121,6 +125,7 @@ export function render({ result, error, before, after, mode, pulls, repository }
         ? pulls.map((n) => `[#${n}](https://github.com/${repository}/pull/${n})`).join(", ")
         : "none (a direct push)";
   const lines = ["## Post-merge mutation testing", "", `- Range: ${range}`, `- Merged pull request: ${merged}`];
+  if (stop) return [...lines, `- Outcome: stopped on class ${stop}, a usage or capacity limit; the next push runs again.`, ""].join("\n");
   if (error) return [...lines, `- Outcome: no result. ${error}`, ""].join("\n");
   const { count, coveredScore, mutationScore } = scores(result.mutants);
   lines.push(`- Outcome: ${result.outcome}`);
@@ -150,9 +155,10 @@ export function render({ result, error, before, after, mode, pulls, repository }
 // The pull request comment: render's report with no free model text. The
 // detail is left out, and a failed result names no violation, since a
 // violation names the model's values; the run's summary has both.
-export function commentBody({ result, error, before, after, mode, pulls, repository, runId }) {
+export function commentBody({ result, error, stop, before, after, mode, pulls, repository, runId }) {
   const report = render({
     result: result && { ...result, detail: "" },
+    stop,
     error: error && "The run's summary says why.",
     before,
     after,
@@ -164,8 +170,11 @@ export function commentBody({ result, error, before, after, mode, pulls, reposit
   return `${MARKER}\n${report}\n${run}\n`;
 }
 
+const STOPS = new Set(["rate-limit", "overloaded"]);
+
 function outcomeOf(env) {
   if (env.RESTORED === "false") return { error: "the checkout differs from the pushed head after the audit, so no result is reported" };
+  if (STOPS.has(env.STOP_CLASS)) return { stop: env.STOP_CLASS };
   if (env.AUDIT_RESULT !== "success") return { error: `the audit job ended ${env.AUDIT_RESULT || "without a result"}` };
   return parseResult(env.STRUCTURED_OUTPUT);
 }
@@ -187,9 +196,16 @@ export async function main(env = process.env, { github } = {}) {
     console.log(`::error::${parsed.error}`);
     return 1;
   }
+  if (parsed.stop) {
+    console.log(`::notice::the audit stopped on class ${parsed.stop}; no defect`);
+    return 0;
+  }
   if (parsed.result.outcome === "restore-failed") {
-    console.log("::error::the audit could not restore the checkout after a mutant; its result describes an edited tree");
-    return 1;
+    if (env.RESTORED !== "true") {
+      console.log("::error::the audit could not restore the checkout after a mutant; its result describes an edited tree");
+      return 1;
+    }
+    console.log("::warning::the audit reported restore-failed, but the workflow's check found the checkout equal to the pushed head; mutants after the stop did not run");
   }
   return 0;
 }

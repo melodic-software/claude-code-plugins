@@ -484,7 +484,11 @@ activities:
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
     # triage (`status: ready` and agent-ready off, which the hourly triage
     # sweep dispatches intake for), lifting only the needs-human
-    # report-outcome set for a Refs PR that merged or closed unmerged. A
+    # report-outcome set for a Refs PR that merged or closed unmerged.
+    # Hourly it also runs intake's admission rules on at most
+    # limits.readmit-per-run open `status: ready` issues in no queue (neither
+    # agent-ready nor admission-deferred, no hold, refuse label, open blocker
+    # or open sub-issue), oldest updated first, writing as intake does. A
     # script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
