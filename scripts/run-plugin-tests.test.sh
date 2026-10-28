@@ -58,6 +58,17 @@ assert_output_has() {
   fi
 }
 
+# assert_error_count <label> <n>: RUN_OUTPUT holds exactly n suite error annotations.
+assert_error_count() {
+  local label="$1" want="$2" got
+  got="$(grep -c '^::error title=' <<<"$RUN_OUTPUT" || true)"
+  if [[ "$got" -eq "$want" ]]; then
+    ok "$label"
+  else
+    fail "$label: expected $want ::error annotation(s), got $got; output: $RUN_OUTPUT"
+  fi
+}
+
 assert_output_lacks() {
   local label="$1" needle="$2"
   if [[ "$RUN_OUTPUT" != *"$needle"* ]]; then
@@ -476,6 +487,7 @@ assert_output_has "on main, the advisory failure is a warning" \
 assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui.test.sh"
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
+assert_output_lacks "on main, the advisory failure gets no error annotation" "::error"
 
 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on a pull request, the same advisory-listed failure fails the run" --root "$r"
@@ -488,6 +500,21 @@ write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
 assert_output_lacks "on main, a non-advisory failure gets no warning" "::warning::"
+
+# One annotation per failing suite, so a log reader can group by suite.
+assert_output_has "a failing suite gets its own error annotation" \
+  "::error title=plugins/b/b.test.sh::plugins/b/b.test.sh failed (exit 1)"
+assert_error_count "a failing suite gets exactly one error annotation" 1
+
+# A colon or comma in a suite path would end the title property early; the
+# property escapes (%3A, %2C) apply, and the message keeps the raw path.
+r="$(make_root annotate-escape)"
+write_suite "$r" "plugins/od:d,x/name.test.sh" 'exit 4'
+write_suite "$r" "plugins/ok/ok.test.sh" 'echo ok'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a failing suite with : and , in its path fails the run" --root "$r"
+assert_output_has "the annotation title escapes : and ," \
+  "::error title=plugins/od%3Ad%2Cx/name.test.sh::plugins/od:d,x/name.test.sh failed (exit 4)"
+assert_error_count "the escaped suite gets exactly one error annotation" 1
 
 stale_advisory="$scratch/advisory-stale.txt"
 printf 'plugins/gone/gone.test.sh\n' >"$stale_advisory"
