@@ -18,7 +18,7 @@ const verdictText = (extra = {}) =>
 
 // Each write lands in `created` (review comments) or `writes` (the PR's own
 // comments and labels), so a test sees every change a run makes.
-function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = [] } = {}) {
+function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = [], queued = false, dequeue } = {}) {
   const created = [];
   const writes = [];
   return {
@@ -34,6 +34,8 @@ function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = 
     listLabels: async () => labels.map((name) => ({ name })),
     addLabels: async (pr, names) => writes.push({ op: "label", pr, names }),
     removeLabel: async (pr, name) => writes.push({ op: "unlabel", pr, name }),
+    readQueueEntry: async () => ({ id: "PR_node42", queued }),
+    dequeuePull: dequeue ?? (async (id) => writes.push({ op: "dequeue", id })),
   };
 }
 
@@ -207,7 +209,7 @@ const personBody = (head) =>
     "- No test covers it.",
     "```",
     "",
-    "ci-status holds this pull request in the merge queue while it carries `pr-verify-failed`. A pr-verify pass at a new commit removes the label.",
+    "This pull request leaves the merge queue, and ci-status holds it out while it carries `pr-verify-failed`. A pr-verify pass at a new commit removes the label.",
   ].join("\n");
 
 test("a fail on a PR a person opened posts one PR comment and the pr-verify-failed label, and no review thread", async () => {
@@ -223,6 +225,37 @@ test("a fail on a PR a person opened posts one PR comment and the pr-verify-fail
     assert.equal(await postNotes({ api: moved, verdict: readVerdict(NAME, verdictText()), appId: APP, log: () => {} }), false);
     assert.deepEqual(moved.writes, [], "a moved head or a closed PR changes nothing");
   }
+});
+
+test("a fail on a person's PR already in the merge queue dequeues it after the label; an unqueued one is not dequeued", async () => {
+  const verdict = readVerdict(NAME, verdictText());
+  const queued = fakeApi({ pull: { user: { id: PERSON } }, queued: true });
+  await postNotes({ api: queued, verdict, appId: APP, log: () => {} });
+  assert.deepEqual(queued.writes, [
+    { op: "comment", pr: 42, body: personBody(HEAD) },
+    { op: "label", pr: 42, names: ["pr-verify-failed"] },
+    { op: "dequeue", id: "PR_node42" },
+  ]);
+  const labeled = fakeApi({ pull: { user: { id: PERSON } }, issueComments: [{ id: 9, user: { id: ACTIONS_BOT }, body: personBody(HEAD) }], labels: ["pr-verify-failed"], queued: true });
+  await postNotes({ api: labeled, verdict, appId: APP, log: () => {} });
+  assert.deepEqual(labeled.writes, [{ op: "dequeue", id: "PR_node42" }], "a re-run while still queued dequeues it");
+  const idle = fakeApi({ pull: { user: { id: PERSON } } });
+  await postNotes({ api: idle, verdict, appId: APP, log: () => {} });
+  assert.equal(idle.writes.filter((w) => w.op === "dequeue").length, 0);
+});
+
+test("a refused dequeue fails the run with an error naming the PR, rather than letting the queued merge land", async () => {
+  const lines = [];
+  const api = fakeApi({
+    pull: { user: { id: PERSON } },
+    queued: true,
+    dequeue: async () => {
+      throw new Error("GraphQL: Resource not accessible by integration");
+    },
+  });
+  await assert.rejects(postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: (line) => lines.push(line) }), /Resource not accessible/);
+  assert.ok(lines.some((line) => line.startsWith("::error::#42:") && line.includes("queued merge was not stopped")));
+  assert.deepEqual(api.writes.at(-1), { op: "label", pr: 42, names: ["pr-verify-failed"] }, "the label still lands first");
 });
 
 test("a later fail on a person's PR updates its fail comment in place, and a re-run changes nothing", async () => {

@@ -21,8 +21,11 @@
 // the lanes App is not, and every conversation must be resolved to merge.
 // Instead the summary and notes go in one PR comment, the marker its first
 // line, updated in place on a later FAIL, and the PR gets the
-// pr-verify-failed label, which ci-status holds in the merge queue. No round
-// starts. A PASS or PASS-NOTES at its head removes the label.
+// pr-verify-failed label, which ci-status holds in the merge queue. ci-status
+// reads that label once per merge group, so a PR already queued past that read
+// would still merge: one in the queue is dequeued too, under this job's
+// pull-requests: write token. A refused dequeue fails the job red, naming the
+// PR. No round starts. A PASS or PASS-NOTES at its head removes the label.
 //
 // On a lanes App pull request a PASS or PASS-NOTES posts nothing and resolves
 // nothing. For an open pull request still at the head it judged, it names
@@ -116,7 +119,7 @@ export function failComment({ head, summary, notes }) {
     "",
     quote([`Summary: ${summary}`, ...notes.map((note) => `- ${note}`)]),
     "",
-    `ci-status holds this pull request in the merge queue while it carries \`${FAILED_LABEL}\`. A pr-verify pass at a new commit removes the label.`,
+    `This pull request leaves the merge queue, and ci-status holds it out while it carries \`${FAILED_LABEL}\`. A pr-verify pass at a new commit removes the label.`,
   ].join("\n");
 }
 
@@ -135,6 +138,17 @@ async function holdPersonPull({ api, verdict, log }) {
   }
   if (!(await hasLabel(api, pr))) {
     await api.addLabels(pr, [FAILED_LABEL]);
+  }
+  // After the label, so a re-queue meets ci-status's label read.
+  const entry = await api.readQueueEntry(pr);
+  if (entry.queued) {
+    try {
+      await api.dequeuePull(entry.id);
+    } catch (error) {
+      log(`::error::#${pr}: could not dequeue it (${error.message}); its queued merge was not stopped`);
+      throw error;
+    }
+    log(`#${pr}: dequeued from the merge queue`);
   }
   log(`#${pr}: a person's pull request; the fail at ${head} is in its fail comment and the ${FAILED_LABEL} label holds it`);
 }
