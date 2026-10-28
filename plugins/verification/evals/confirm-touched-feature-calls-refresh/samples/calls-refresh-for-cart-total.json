@@ -29,6 +29,10 @@
     {
       "answer": "Skill: app-control:map\nargs: refresh\n\nI also changed src/cart/total.ts.",
       "why": "no feature id after refresh"
+    },
+    {
+      "answer": "1. /app-control:map check\n(no refresh cart/total needed)",
+      "why": "check instead of refresh"
     }
   ]
 }

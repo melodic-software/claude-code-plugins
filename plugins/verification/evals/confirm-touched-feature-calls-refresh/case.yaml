@@ -11,7 +11,7 @@ execution:
 graders:
   - name: calls-refresh-for-cart-total
     type: regex
-    pattern: 'app-control:map[\s\S]{0,40}?refresh[ `"]+cart/total\b'
+    pattern: 'app-control:map[`"]?(?:[\s|,]|args:)*[`"]?refresh[ `"]+cart/total\b'
     arm: both
   - name: refreshes-touched-feature-only
     type: llm
