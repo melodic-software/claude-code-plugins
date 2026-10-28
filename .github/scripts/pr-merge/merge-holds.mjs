@@ -290,6 +290,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
+  [".github/actions/report-check-run/posting-run.mjs", "gate"],
   ["scripts/sync-hold-floor.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],

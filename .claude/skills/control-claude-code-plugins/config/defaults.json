@@ -1,0 +1,14 @@
+{
+  "environment": "local",
+  "environments": {
+    "local": {}
+  },
+  "pluginDir": "plugins/discipline",
+  "credentials": {},
+  "safety": {
+    "recipients": {},
+    "signInAttempts": {},
+    "production": {},
+    "unattendedWrites": false
+  }
+}
