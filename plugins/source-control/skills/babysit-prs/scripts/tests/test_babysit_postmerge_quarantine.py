@@ -677,6 +677,13 @@ class AffectedSuites(unittest.TestCase):
         return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
+        # The machine's global config signs commits (commit.gpgsign) through a
+        # key the fixture cannot reach, which fails `git commit` under load.
+        env = mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        )
+        env.start()
+        self.addCleanup(env.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = pathlib.Path(tmp.name) / "clone"

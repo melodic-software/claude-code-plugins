@@ -147,7 +147,7 @@
     "block_convention_gate_enabled": {
       "type": "boolean",
       "title": "Block-convention-violation guard",
-      "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
+      "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in docs/conventions/source-control.yaml, or for one release in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
       "default": true
     },
     "git_hooks_notice_enabled": {
