@@ -345,17 +345,37 @@ jobs:
       # and which nothing in the run overrides (code.claude.com/docs/en/
       # plugin-evals, "How runs are isolated"; code.claude.com/docs/en/
       # settings, "Settings precedence", as of 2026-10-27), denies those
-      # paths. Written while sudo is still there; the job stops if it cannot
-      # be written or read back.
+      # paths. The runner's install directory is read from the Runner.Worker
+      # process above this step, not guessed; the job's _temp and _actions
+      # directories are denied beside it. Written while sudo is still there;
+      # the job stops if the runner directory is not found or the file cannot
+      # be written or read back. The probe step below proves the denial.
       - name: Deny the eval's reads of process and runner state
+        id: deny
         if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
         run: |
+          runner_root="" pid=$$
+          while [ "${pid:-0}" -gt 1 ]; do
+            exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+            case "$exe" in */bin/Runner.Worker) runner_root=${exe%/bin/Runner.Worker}; break ;; esac
+            pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)
+          done
+          if [ -z "$runner_root" ]; then
+            echo "::error::no Runner.Worker process above this step, so the runner's directory cannot be denied"
+            exit 1
+          fi
+          work=$(dirname "$RUNNER_WORKSPACE")
           policy=$(mktemp)
-          jq -n '{permissions: {deny: [
+          jq -n --arg runner "Read(/$runner_root/**)" --arg temp "Read(/$work/_temp/**)" --arg actions "Read(/$work/_actions/**)" \
+            '{permissions: {deny: [
             "Read(//proc/**)",
             "Read(//sys/**)",
             "Read(//etc/claude-code/**)",
+            $runner,
+            "Read(//home/runner/runners/**)",
             "Read(//home/runner/actions-runner/**)",
+            $temp,
+            $actions,
             "Read(//home/runner/.config/**)",
             "Read(//home/runner/.ssh/**)",
             "Read(//home/runner/.docker/**)",
@@ -364,6 +384,8 @@ jobs:
           ]}}' >"$policy"
           sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
           jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
+          echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
+          echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
 
       # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
       # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
@@ -382,6 +404,32 @@ jobs:
           cp .base/package.json .base/package-lock.json /opt/tools/
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # Proof that the managed policy holds before any pull request case runs:
+      # one Claude Code run is told to Read /proc/self/environ and the runner's
+      # .runner file, and the job stops unless the result's permission_denials
+      # (code.claude.com/docs/en/agent-sdk/typescript, "SDKResultMessage", as
+      # of 2026-10-28) records both reads as denied. The result can hold what
+      # a read returned, so it stays in a file that is never printed and is
+      # removed after the check.
+      - name: Probe that the policy denies those reads
+        if: steps.stage.outputs.go == 'true' && github.event_name == 'pull_request'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
+        run: |
+          out=$(mktemp)
+          trap 'rm -f "$out"' EXIT
+          claude -p "Call the Read tool on /proc/self/environ, then call it on $RUNNER_ROOT/.runner. Make no other tool call." \
+            --model claude-sonnet-5-5 --allowedTools Read --max-turns 4 --output-format json >"$out" 2>/dev/null || true
+          for path in /proc/self/environ "$RUNNER_ROOT/.runner"; do
+            if ! jq -e --arg p "$path" 'any(.permission_denials[]?; .tool_name == "Read" and .tool_input.file_path == $p)' "$out" >/dev/null 2>&1; then
+              echo "::error::the managed policy did not record a denied Read of $path, so no pull request case runs"
+              exit 1
+            fi
+          done
+          echo "The managed policy denied both probe reads."
 
       # Chromium comes from the playwright that the locked playwright-cli
       # uses. Without sudo there is no --with-deps: the hosted image already
