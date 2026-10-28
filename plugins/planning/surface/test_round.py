@@ -269,6 +269,27 @@ class TestRefusals(DirCase):
         out = self.assert_refused("add", "--file", self.file("q.json", q))
         self.assertIn("alternatives", out)
 
+    def test_each_apply_only_command_refuses_and_points_at_apply(self):
+        from round import APPLY_ONLY
+
+        for name in APPLY_ONLY:
+            with self.subTest(command=name):
+                out = self.assert_refused(name, "Q1", "--text", "old-style page text")
+                self.assertIn("apply --file", out)
+
+    def test_add_without_file_is_refused_and_writes_nothing(self):
+        before = self.raw()
+        rc, out, err = self.rp("add", "--id", "Q4")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("--file", out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_add_with_a_non_object_file_is_refused(self):
+        for name, data in (("list.json", [question("Q4")]), ("str.json", "Q4")):
+            with self.subTest(file=name):
+                out = self.assert_refused("add", "--file", self.file(name, data))
+                self.assertIn("holds one question object", out)
+
     def test_add_with_explicit_empty_commits_is_allowed(self):
         rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
         self.assertEqual(rc, 0, out + err)
