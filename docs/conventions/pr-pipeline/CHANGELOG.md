@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [6.3.3] - 2026-10-28
+
+### Changed
+
+- pr-verify's resolver looks up only the verdict names `write-verdict.mjs` writes, so it no longer looks up the head-ref digest names no writer produces: an unjudged head whose pull request links an issue takes 7 API calls instead of 11 (one with no linked issue, 3 fewer), and each other pull request at the head one lookup instead of two. The change that moves the writer to digest names adds those lookups back.
+- The lost-run reconciler's spec pre-filter looks up a candidate's pass by the same written names, 2 lookups instead of 4.
+
+## [6.3.2] - 2026-10-28
+
+### Fixed
+
+- The pr-unblock verdict job's merge path checks who pushed each commit before it posts a merge marker ([#9006](https://github.com/melodic-software/claude-code-plugins/issues/9006)). `pushRefusal` in `dependency-classify.mjs` (the twin of pr-merge's `push_refusal`, with one-for-one `PUSH_VECTORS` in both test suites) reads the head branch's repository activity back to Dependabot's newest branch creation or force push. Each commit a push brought must be its pusher's own: Dependabot's in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, a lanes App commit in a lanes App push. Anything else escalates `dependency-fix-refused`, so a Dependabot-authored commit under a lanes App tip no longer gets a merge marker. The README's **Pushes** check states the rule for both lanes.
+
 ## [6.3.1] - 2026-10-28
 
 ### Changed
