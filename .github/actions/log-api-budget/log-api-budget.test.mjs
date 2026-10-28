@@ -189,6 +189,25 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
+test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
+  withDir((dir) => {
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
+    assert.ok(block, "ci-status emits its notices in one block");
+    const out = execFileSync("bash", ["-c", block[1]], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+    });
+    assert.equal(
+      out,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "::notice title=api-calls::github-token=2 not-modified=1\n",
+    );
+    // With no reading, no line, as the action skips a token with none.
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    assert.equal(execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }), "");
+  }));
+
 // The shell port of the rate guard decides every shared vector as
 // rate-guard.mjs does.
 test("api_budget_classify decides every rate-guard vector", () => {
