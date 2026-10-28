@@ -23,7 +23,7 @@
 // The carried reads stay untrusted all the same: each kept read lands in a
 // carried-* section that babysit_verify_evidence.py reads only on a FAIL's
 // path and only where the value counts the FAIL; any other answer is read
-// from GitHub.
+// from GitHub. lane-run, last below, is the one exception.
 //   run-record        a pr-verify run's record of origin shape (a run of
 //                     pr-verify.yml on the branch of this repository), kept
 //                     as carried-run-record with each repository trimmed to
@@ -35,6 +35,15 @@
 //   on-branch         a run head found on the branch (main forbids force
 //                     pushes), kept as carried-on-branch; a yes counts a
 //                     FAIL's run as origin, and a PASS's run never reads it
+//   lane-run          a completed review-lane run's attempts with their jobs
+//                     and annotations (babysit_gh.collect_lane_runs), kept as
+//                     carried-lane-run, the LANE_RUN_MAX newest within
+//                     LANE_RUN_DAYS. Unlike the reads above it can bind a
+//                     lane, so allow: it is used only while the run's live
+//                     listing shows the same completed attempt, updated_at and
+//                     latest-attempt fields, and forging one needs code
+//                     running in main's pr-merge.yml, as forging the listing
+//                     carry does (babysit_verify_evidence.py "Carried reads")
 // Everything else is dropped: a read bounded by MAX_AGE, keyed by
 // credentials, or a sweep stamp can change between runs. So is an entry dated
 // in the future or more than RETENTION_DAYS ago, past the artifact retention
@@ -64,11 +73,18 @@ import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const CARRY_ARTIFACT = "pr-merge-run-cache";
 export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
-const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch"];
+const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
 // A FAIL verdict's artifact retention (write-verdict.mjs retentionDays; .github/artifact-retention.json `pr-verify-*`).
 export const RETENTION_DAYS = 90;
+// The carried lane runs' bound (judgment): a few weeks of an open PR's lane
+// runs, each read again once it ages out. babysit_gh.LANE_RUN_FORMAT names
+// the key's last field.
+export const LANE_RUN_DAYS = 30;
+export const LANE_RUN_MAX = 400;
+const LANE_RUN_BYTES = 65_536;
+const LANE_RUN_FORMAT = "v1";
 const WORKFLOW_PATH = ".github/workflows/pr-verify.yml";
 const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -78,10 +94,10 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-function dated(entry, now) {
+function dated(entry, now, days = RETENTION_DAYS) {
   if (!isObject(entry) || typeof entry.at !== "string" || !ZONED.test(entry.at)) return false;
   const age = now - Date.parse(entry.at);
-  return age >= 0 && age <= RETENTION_DAYS * 86_400_000;
+  return age >= 0 && age <= days * 86_400_000;
 }
 
 function originRecord(key, value, repo, branch) {
@@ -123,6 +139,29 @@ function onBranch(key, value, repo, branch) {
   return match !== null && match[1] === repo && match[3] === branch && value === true;
 }
 
+// A completed run's attempts saved under `repo|run|attempt|lane job|format`:
+// one record per attempt, each of this run, the last with updated_at.
+function laneRun(key, value, repo) {
+  const match = /^([1-9][0-9]{0,15})\|([1-9][0-9]{0,3})\|([A-Za-z0-9_.-]+)\|([a-z0-9]+)$/.exec(key.slice(repo.length + 1));
+  if (!key.startsWith(`${repo}|`) || match === null || match[4] !== LANE_RUN_FORMAT) return false;
+  const [id, count] = [Number(match[1]), Number(match[2])];
+  return (
+    isObject(value) &&
+    typeof value.updated_at === "string" &&
+    Array.isArray(value.attempts) &&
+    value.attempts.length === count &&
+    value.attempts.every(
+      (attempt, i) =>
+        isObject(attempt) &&
+        attempt.id === id &&
+        attempt.run_attempt === i + 1 &&
+        Array.isArray(attempt.jobs) &&
+        attempt.jobs.every(isObject),
+    ) &&
+    JSON.stringify(value).length <= LANE_RUN_BYTES
+  );
+}
+
 // The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
@@ -143,6 +182,18 @@ export function carry(data, { repo, branch, now }) {
   for (const from of ["carried-on-branch", "on-branch"]) {
     take(from, "carried-on-branch", (k, v) => onBranch(k, v, repo, branch));
   }
+  for (const from of ["carried-lane-run", "lane-run"]) {
+    if (!isObject(data[from])) continue;
+    for (const [key, entry] of Object.entries(data[from])) {
+      if (dated(entry, now, LANE_RUN_DAYS) && laneRun(key, entry.value, repo)) {
+        out["carried-lane-run"][key] = { at: entry.at, value: entry.value };
+      }
+    }
+  }
+  const newest = Object.entries(out["carried-lane-run"])
+    .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, LANE_RUN_MAX);
+  out["carried-lane-run"] = Object.fromEntries(newest);
   return out;
 }
 
