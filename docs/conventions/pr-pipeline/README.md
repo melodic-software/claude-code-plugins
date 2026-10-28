@@ -1065,7 +1065,13 @@ except six:
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
   read. No linked issue, or more than one closing issue, refuses (`linked-issues:<n>`); right
   before the enqueue the linked issue is read again and a different one refuses
-  (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
+  (`closing-issue-changed:<was>><now>`). The linked issue also refuses, at eligibility and again
+  before the enqueue, while it carries a label from resolve-issue's
+  `activities.resolve-issue.applies-when.labels-absent` (`closing-issue-held:<label>`), the one
+  list of labels a person decides an issue on; with no such list, the tracker's human-gated role
+  label holds it, and an issue label set or hold label that cannot be read refuses. A person
+  clears the hold by removing the label. An edit to the issue after admission is the verifier's
+  (`verify:spec-changed`), not a second check here. A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
   refuses. An adopted pull request (owner decisions Q22 and 2026-10-22, [Adoption](#adoption)) is
   one a `User` or `Bot` on the trusted-actor list opened, matched by account id, never by

@@ -627,9 +627,19 @@ class PipelineConfig:
     # resolve-config resolves it) or `gate`; None for no file, a parse error
     # or any other value (`babysit_postmerge.native_auto_merge`).
     lane_prs: str | None = None
+    # `activities.resolve-issue.applies-when.labels-absent` (`ISSUE_HOLDS_KEY`):
+    # the labels a person decides an issue on, which also hold a lane pull
+    # request whose linked issue carries one (`issue_hold_labels`). Absent or
+    # empty, the tracker's human-gated role label holds instead.
+    # `stricter_config` takes both sides'.
+    issue_holds: tuple[str, ...] = ()
 
 
 LANE_PRS_MODES = ("native", "gate")
+# The one list of labels that keep an issue for a person: resolve-issue
+# starts nothing on such an issue, and the pr-merge lane merges no pull
+# request linked to one.
+ISSUE_HOLDS_KEY = "activities.resolve-issue.applies-when.labels-absent"
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -824,6 +834,7 @@ def read_config_at(
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
             ("merge.lane-prs", False),
+            (ISSUE_HOLDS_KEY, True),
         ],
     )
     if values is None:
@@ -984,6 +995,7 @@ def read_config_at(
         if confirm_wait is not None
         else CONFIRM_WAIT_MINUTES,
         lane_prs=lane_prs,
+        issue_holds=tuple(values[ISSUE_HOLDS_KEY]),
     )
 
 
@@ -1057,6 +1069,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
         spec_from_body_apps=main.spec_from_body_apps,
+        issue_holds=_union(base.issue_holds, main.issue_holds),
     )
 
 
@@ -1103,6 +1116,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.notes,
                     c.check_inputs,
                     c.head_check_inputs,
+                    c.issue_holds,
                 )
             )
             and all(
@@ -1782,6 +1796,34 @@ def trust_refusal(
     if _untrusted_removed_by_non_human(owner, name, issue["number"], human, timelines):
         return "untrusted-provenance-removed-by-non-human"
     return None
+
+
+def issue_hold_labels(
+    config: PipelineConfig, human_gated: str | None
+) -> tuple[str, ...]:
+    """The labels that hold a lane pull request through its linked issue:
+    the config's `issue_holds` (`ISSUE_HOLDS_KEY`), else the resolved
+    `human_gated` role label. Empty when neither resolves, which
+    `issue_hold_refusal` refuses."""
+    if config.issue_holds:
+        return config.issue_holds
+    return (human_gated,) if human_gated else ()
+
+
+def issue_hold_refusal(issue: dict[str, Any], holds: Collection[str]) -> str | None:
+    """Why a hold refuses the lane's linked `issue` (a node read with its
+    `labels`), or None: no hold label resolved (`issue_hold_labels`), labels
+    that cannot be read whole, or a label in `holds`, matched
+    case-insensitively and named. A person clears it by removing the label;
+    an edit to the issue is the verifier's (`verify:spec-changed`)."""
+    if not holds:
+        return "closing-issue-holds-unresolved"
+    labels = _label_names(issue)
+    if labels is None:
+        return "issue-labels-unreadable"
+    names = {label.casefold() for label in labels}
+    held = next((h for h in holds if h.casefold() in names), None)
+    return f"closing-issue-held:{held}" if held else None
 
 
 def _claimed_before(
@@ -3056,6 +3098,7 @@ def lane_eligibility(
     adoption_human_ids: Collection[int] = (),
     ejected_enqueue: Callable[[], Any] = lambda: None,
     toggled_at_head: Callable[[], bool] = lambda: False,
+    issue_holds: Collection[str] = (),
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
@@ -3070,10 +3113,11 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read, but the linked issue
     must clear the trust hold (`trust_refusal`, as `eligibility` reads it,
-    a human judged with `agent_identity`, `self_logins` and `permission`).
+    a human judged with `agent_identity`, `self_logins` and `permission`)
+    and carry none of `issue_holds` (`issue_hold_refusal`; empty refuses).
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (a hold label, a `Hold:` line) are the gate's, and
-    adoption's too."""
+    reach. Holds on the pull request (a hold label, a `Hold:` line) are the
+    gate's, and adoption's too."""
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
@@ -3141,7 +3185,7 @@ def lane_eligibility(
                     permission=permission,
                 ),
                 {},
-            )
+            ) or issue_hold_refusal(issue, issue_holds)
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
         # when a person or a script wrote them (`spec_from_body_ids`: the
@@ -3620,10 +3664,13 @@ def dependabot_eligibility(
     return Eligibility(True, None, "C2", dependabot=tier)
 
 
-def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
+def recheck_lane_issue(
+    repo: str, number: int, *, issue: int | None, holds: Collection[str] = ()
+) -> str | None:
     """The linked issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it, and the base must still be the
+    since the verifier verdict binds to it, still carry none of `holds`
+    (`issue_hold_refusal`; empty refuses), and the base must still be the
     default branch (`_base_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
     try:
@@ -3638,7 +3685,7 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return _base_refusal(owner, name, node)
+        return issue_hold_refusal(found, holds) or _base_refusal(owner, name, node)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -5340,6 +5387,8 @@ def assess(
                 trusted = trusted_actors(repo, head, exclude=skip)
             except (PolicyReadError, StopReadError):
                 pass
+        # Read again right before the enqueue (`recheck_lane_issue`).
+        inputs["issue_holds"] = issue_hold_labels(config, human_gated)
         eligible = lane_eligibility(
             repo,
             number,
@@ -5365,6 +5414,7 @@ def assess(
                 str(json_object(pr.get("head")).get("sha") or ""),
                 str(pr.get("node_id") or ""),
             ),
+            issue_holds=inputs["issue_holds"],
             **readers,
         )
         promoted = True

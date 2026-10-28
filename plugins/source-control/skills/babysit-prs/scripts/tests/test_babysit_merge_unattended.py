@@ -1492,7 +1492,26 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+        # No `labels-absent` list in the config: the human-gated label holds.
+        self.assertEqual(
+            self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
+        )
+
+    def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
+        # #7783: a hold the issue gained since eligibility stops the enqueue.
+        self.closing_issue_now(["needs-human"])
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:closing-issue-held:needs-human",
+            out["blockers"],
+        )
+
+    def test_the_configured_hold_list_reaches_the_enqueue_recheck(self) -> None:
+        holds = ("needs-human", "status: needs-info")
+        self.config = dataclasses.replace(self.config, issue_holds=holds)
+        self.lane()
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41, "holds": holds})
 
     def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
