@@ -4403,7 +4403,8 @@ def unattended_enqueue(
         return hold(f"kill-switch:{kill.reason}")
     # The opt-in, like the kill switch, is read again here: for the local
     # lane a removal (or a removal and a non-human re-add) since the
-    # eligibility read refuses; for the pr-merge lane a changed closing issue.
+    # eligibility read refuses; for the pr-merge lane a changed closing issue,
+    # or a hold label on it.
     eligible = inputs.get("eligibility")
     eligible_dependabot = getattr(eligible, "dependabot", None)
     if eligible_dependabot is not None:
@@ -4425,7 +4426,10 @@ def unattended_enqueue(
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(
-            repo, number, issue=getattr(eligible, "issue", None)
+            repo,
+            number,
+            issue=getattr(eligible, "issue", None),
+            holds=inputs.get("issue_holds") or (),
         )
     else:
         opt_in = merge_policy.recheck_opt_in(
