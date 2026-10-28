@@ -137,6 +137,7 @@ jobs:
       result: ${{ steps.audit.outputs.structured_output }}
       mode: ${{ steps.target.outputs.mode }}
       restored: ${{ steps.restored.outputs.restored }}
+      stop-class: ${{ steps.stop.outputs.class }}
     env:
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
@@ -244,10 +245,13 @@ jobs:
             .base/.github/scripts/post-merge-test-mutation/result.schema.json)
           lint="$MARKETPLACE/plugins/mutation-testing/scripts/suppression-lint.sh"
           # A rule path starting `//` is absolute. Bash runs only the covering
-          # tests, the git reads the audit skill uses and restore, and the
-          # plugin's suppression lint. Read-only git forms run without an allow
-          # rule, so the denies keep git diff on the checkout's own paths (no
-          # --no-index, no path outside it) and from writing a file, and drop
+          # tests, the git reads the audit skill uses, and the plugin's
+          # suppression lint. No git command that writes is allowed: under the
+          # env scrub every Bash command runs sandboxed, and the Edit(./.git/**)
+          # deny also denies the sandbox writes under .git, so `git restore`
+          # cannot take .git/index.lock; Edit reverts each mutant instead.
+          # Read-only git forms run without an allow rule, so the denies keep
+          # git diff on the checkout's own paths (no --no-index, no path outside it) and from writing a file, and drop
           # git log and git show, which the skill never runs. Edit reaches only
           # the checkout, less the paths the config's mutate list excludes,
           # where no mutant lands. These rules bound the model's own tools;
@@ -256,7 +260,7 @@ jobs:
           # contents: read token. Egress stays open.
           # disallowedTools is single-quoted so the action's parse keeps `$`.
           allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit(./**),Agent"
-          allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *),Bash(git restore -- *)"
+          allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *)"
           allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *)"
           allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
           denied="Write,NotebookEdit,WebFetch,WebSearch"
@@ -283,9 +287,13 @@ jobs:
 
       # A push to main lands through the merge queue, so the triggering
       # run's actor can be github-merge-queue[bot]; the action refuses a bot
-      # not named here. The run executes main's own code. Never '*'.
+      # not named here. The run executes main's own code. Never '*'. A
+      # failure does not stop the job here: "Fail the audit unless a limit
+      # stopped it" below fails it unless the class is a usage or capacity
+      # limit.
       - name: Run the mutation audit
         id: audit
+        continue-on-error: true
         uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
@@ -345,6 +353,40 @@ jobs:
             exit 1
           fi
 
+      # The failure class from the execution file's last result, through the
+      # classifier the other Claude lanes use (pr-run-activity-write.yml).
+      - name: Record the lane outcome
+        id: lane-record
+        if: always() && (steps.audit.outcome == 'success' || steps.audit.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.audit.outcome }}
+          execution-file: >-
+            ${{ steps.audit.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          lane: post-merge-test-mutation
+          max-turns: ${{ steps.models.outputs.max-turns }}
+
+      # A usage limit (rate-limit) or an overloaded API (overloaded) is a
+      # designed stop, not a defect: the run ends green with a notice and the
+      # report says so. Any other failed audit fails the job.
+      - name: Fail the audit unless a limit stopped it
+        id: stop
+        if: always() && steps.audit.outcome == 'failure'
+        env:
+          FAILURE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
+        run: |
+          case $FAILURE_CLASS in
+            rate-limit | overloaded)
+              echo "class=$FAILURE_CLASS" >>"$GITHUB_OUTPUT"
+              echo "::notice::the audit stopped on class $FAILURE_CLASS; nothing to fix in the lane"
+              ;;
+            *)
+              echo "::error::the audit failed with class ${FAILURE_CLASS:-unknown}"
+              exit 1
+              ;;
+          esac
+
   report:
     needs: [prep, audit]
     if: ${{ !cancelled() && needs.prep.outputs.proceed == 'true' }}
@@ -386,6 +428,7 @@ jobs:
           STRUCTURED_OUTPUT: ${{ needs.audit.outputs.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           RESTORED: ${{ needs.audit.outputs.restored }}
+          STOP_CLASS: ${{ needs.audit.outputs.stop-class }}
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
           RANGE_MODE: ${{ needs.audit.outputs.mode }}
