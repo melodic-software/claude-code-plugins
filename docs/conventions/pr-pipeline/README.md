@@ -2666,8 +2666,11 @@ that fails leaves admissions open (`admission_basis: fail-open`) and changes no 
 search that answers `incomplete_results: true` (a degraded search can answer a false empty) is
 unknown, not failed: admissions pause whether or not `pause-from` is set or reached
 (`admission_basis` and `admission_reason` `search-incomplete`), with a `check-wip-cap` warning,
-and work-unblock's deferral log names that reason. The queued cap itself still pauses only on or
-after `pause-from`, and no run pause changes.
+and work-unblock's deferral log names that reason. A base config the check cannot read (a failed
+resolve-config import, as after a failed `npm ci` of its dependencies) leaves the caps unknown, so
+admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
+a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
+pauses only on or after `pause-from`, and no run pause changes.
 The search lists at most 1,000 issues: past that, the issues it counted but did not list count as
 queued, and admissions pause (`queued_truncated: true`).
 
@@ -2705,7 +2708,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 `admission-open` is `false` only while new admissions pause. A job that reads only `capped`
 (pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
 open listing and the merged count, and leaves the admission fields null with `admission_basis`
-`not-read`.
+`not-read` (`search-incomplete` or `config-unreadable` when either applies).
 
 | Field | Meaning |
 |---|---|
@@ -2727,8 +2730,8 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
-| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` or `search-incomplete` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
-| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `not-read` under `reads: pause`. |
+| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued`, `search-incomplete` or `config-unreadable` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
+| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `config-unreadable` when the base config could not be read; otherwise `not-read` under `reads: pause`. |
 
 ## Adoption
 
