@@ -1228,9 +1228,11 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
     assert.equal(code, 0);
     assert.deepEqual(reruns, [601]);
     assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
-    // A pass named with the head-ref digest is found the same way.
-    const digested = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", digest: true }).setup, env });
-    assert.deepEqual(digested.reruns, [601]);
+    // write-verdict.mjs writes no head-ref digest, so a pass named with one is
+    // not looked up, here or by resolve-pr, and re-runs nothing.
+    const digested = specChanged({ edited: "2026-10-19T19:45:00Z", digest: true });
+    assert.deepEqual((await reconcile({ ...digested.setup, env })).reruns, []);
+    assert.ok(digested.passReads.every((apiPath) => !apiPath.includes(FIX_1_DIGEST)));
   });
 });
 
@@ -1238,19 +1240,19 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
   await withTrustedList(async (env) => {
     // The checks run was created at 18:59:43 and the pass started at 19:30.
     // [options, full reads, pre-filter reads, pass artifact reads: pass and
-    // pass-notes, each with and without the head-ref digest]
+    // pass-notes]
     const cases = {
       // Touched after the checks run but not after the pass: the pass is read,
       // and the second pre-filter skips the full read.
-      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 2, 4],
+      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 2, 2],
       // Untouched since the checks run: the first pre-filter skips the pass read.
       "never edited": [{ edited: null }, [], 1, 0],
       // An issue updatedAt after the pass with no spec time after it (as a
       // label change might leave it): the full read runs, and specChanged
       // still says no.
-      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 2, 4],
+      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 2, 2],
       "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0, 0],
-      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 1, 4],
+      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 1, 2],
     };
     for (const [label, [options, read, prefiltered, artifacts]] of Object.entries(cases)) {
       const { setup, specReads, prefilterReads, passReads } = specChanged(options);

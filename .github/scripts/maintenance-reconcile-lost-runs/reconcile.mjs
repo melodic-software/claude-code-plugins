@@ -91,7 +91,6 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
-import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import {
   AGGREGATE_JOBS,
@@ -339,17 +338,13 @@ async function holdReason(call, repo, runId) {
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
-// PASS or PASS-NOTES at the head, by exact name with and without the head-ref
-// digest (write-verdict.mjs artifactName, headRefDigest); empty when it has
-// none. A run that cannot be read gives null. resolve-pr's full read checks
-// each pass's origin; these feed only the pre-filter.
-async function passStarts(call, repo, number, head, ref) {
-  const digest = ref ? `-${headRefDigest(ref)}` : "";
+// PASS or PASS-NOTES at the head, by the exact names write-verdict.mjs
+// artifactName writes, as resolve-pr looks them up; empty when it has none. A
+// run that cannot be read gives null. resolve-pr's full read checks each
+// pass's origin; these feed only the pre-filter.
+async function passStarts(call, repo, number, head) {
   const ids = new Set();
-  for (const name of ["pass", "pass-notes"].flatMap((verdict) => {
-    const plain = `pr-verify-${number}-${head}-${verdict}`;
-    return digest ? [plain, plain + digest] : [plain];
-  })) {
+  for (const name of ["pass", "pass-notes"].map((verdict) => `pr-verify-${number}-${head}-${verdict}`)) {
     const page = await call("GET", `/repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
     for (const a of page?.artifacts ?? []) {
       if (a?.name === name && a.expired === false && Number.isSafeInteger(a.workflow_run?.id)) {
@@ -590,7 +585,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   // failure: the next tick asks again. A rate limit still stops the run.
   for (const { pull, checks } of await prefilterSpec(call, repo, passed)) {
     try {
-      const starts = await passStarts(call, repo, pull.number, pull.head.sha, pull.head.ref);
+      const starts = await passStarts(call, repo, pull.number, pull.head.sha);
       if (starts.length > 0) {
         specCandidates.push({ pull, checks, starts });
       }
