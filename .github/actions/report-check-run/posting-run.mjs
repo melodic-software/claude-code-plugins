@@ -6,7 +6,7 @@
 
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const RUN_NUMBER = /^[1-9][0-9]{0,19}$/;
-const EXTERNAL_ID = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:([1-9][0-9]{0,19}):[1-9][0-9]{0,19}$/;
+const EXTERNAL_ID = /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:([1-9][0-9]{0,19}):([1-9][0-9]{0,19})$/;
 // A check posted with a details_url GitHub kept: the run's own page.
 const RUN_PAGE = /\/actions\/runs\/([1-9][0-9]{0,19})$/;
 
@@ -21,4 +21,11 @@ export function externalIdOf({ lane, activity, runId, runAttempt }) {
 // The id of the workflow run that posted `check` (a REST check run), or null.
 export function postingRunId(check) {
   return EXTERNAL_ID.exec(String(check?.external_id ?? ""))?.[1] ?? RUN_PAGE.exec(String(check?.details_url ?? ""))?.[1] ?? null;
+}
+
+// `<run id>:<run attempt>` of the workflow run attempt that posted `check`, read
+// from external_id alone (a run page names no attempt), or null.
+export function postingAttempt(check) {
+  const match = EXTERNAL_ID.exec(String(check?.external_id ?? ""));
+  return match ? `${match[1]}:${match[2]}` : null;
 }

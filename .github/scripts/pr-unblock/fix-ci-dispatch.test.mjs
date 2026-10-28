@@ -1299,6 +1299,22 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
 });
 
+// A re-run is the same run id at its next attempt (external_id
+// `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
+// attempt it followed.
+test("a stop in a run's first attempt leaves the head handled when the re-run fixed it", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time, attempt) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at(time), completed_at: at(time), external_id: `pr-unblock:fix-ci:40700900804:${attempt}` });
+  const stop = (time, attempt) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), external_id: `pr-unblock:apply-patch:40700900804:${attempt}` });
+  const rerun = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1), fixCi("10:30", 2)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
+  assert.ok(rerun.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), rerun.lines.join("\n"));
+  assert.deepEqual(rerun.api.calls.dispatch, []);
+  // A stop in the same attempt still marks it.
+  const same = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
+  assert.ok(same.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), same.lines.join("\n"));
+});
+
 // A head whose fix-ci stop still fails after its checks went green (a flaky
 // check re-run past ci-fix-escalated): fix-ci runs once more there, finds
 // nothing failing, and report-stop-status clears the status.

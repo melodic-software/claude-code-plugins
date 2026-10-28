@@ -71,7 +71,8 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
 - `details_url` is this workflow run's page, built from the runner's own environment; GitHub
   returns a check run this token posts with its own page there instead. `external_id` is
   `<lane>:<activity>:<GITHUB_RUN_ID>:<GITHUB_RUN_ATTEMPT>` whenever all four are well formed, and
-  [posting-run.mjs](posting-run.mjs) `postingRunId` reads the run back from it.
+  [posting-run.mjs](posting-run.mjs) `postingRunId` reads the run back from it, and `postingAttempt`
+  the run and attempt.
 - When the run job's `lane-class`, `lane-resets`, `lane-turns`, `lane-max-turns`, `lane-models` and
   `lane-profile` outputs make a lane record ([lane-record.mjs](lane-record.mjs)), it opens
   `output.summary` as one line of `key=value` tokens

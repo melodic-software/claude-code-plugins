@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { externalIdOf, postingRunId } from "./posting-run.mjs";
+import { externalIdOf, postingAttempt, postingRunId } from "./posting-run.mjs";
 
 const REPO = "https://github.com/melodic-software/claude-code-plugins";
 
@@ -35,4 +35,12 @@ test("a check with no run-scoped external_id is read from a details_url naming t
   assert.equal(postingRunId({ details_url: `${REPO}/runs/1`, external_id: "pr-merge-gate" }), null);
   assert.equal(postingRunId({ external_id: "pr-unblock:x:7:1 " }), null);
   assert.equal(postingRunId({}), null);
+});
+
+test("the posting attempt is the run id and attempt external_id names, and only external_id", () => {
+  assert.equal(postingAttempt({ external_id: "pr-unblock:fix-ci:40700900804:2" }), "40700900804:2");
+  assert.notEqual(postingAttempt({ external_id: "pr-unblock:fix-ci:40700900804:1" }), postingAttempt({ external_id: "pr-unblock:fix-ci:40700900804:2" }));
+  assert.equal(postingAttempt({ details_url: `${REPO}/actions/runs/40700900804`, external_id: "" }), null);
+  assert.equal(postingAttempt({ external_id: "pr-unblock:fix-ci:40700900804:0" }), null);
+  assert.equal(postingAttempt({}), null);
 });
