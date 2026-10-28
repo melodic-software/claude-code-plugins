@@ -1216,6 +1216,17 @@ test("a third limit stop since a person added agent-ready fails the issue: a fai
   });
   assert.equal(await sweep({ github: stale.github }), 0);
   assert.equal(writes(stale.calls).length, 2);
+  // A person's agent-ready after the newest marker, a failed one, starts a new
+  // run: the sweep takes it to the re-fire checks, never the fail route, so
+  // it never removes that agent-ready, whether the run is recent or stranded.
+  for (const at of ["2026-10-16T11:00:00Z", "2026-10-16T07:00:00Z"]) {
+    const readded = stopped({
+      comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")],
+      events: [added("2026-10-16T05:00:00Z"), { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T06:30:01Z" }, added(at, OWNER)],
+    });
+    assert.equal(await sweep({ github: readded.github }), 0);
+    assert.deepEqual(writes(readded.calls), [], at);
+  }
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [note(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);
@@ -1268,6 +1279,50 @@ test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop
     issues: { 20: issue(20) },
     blockedBy: { 20: [issue(10, { state: "closed" })] },
     comments: { 20: [note(), capNote("2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A stop stop-routes.json routes to retry (a crash, an unfinished check):
+// report-outcome keeps agent-ready and leaves a retry marker while
+// limits.stop-retries allows one, and the sweep restarts the issue at once.
+// More retry markers since a person added agent-ready than the limit allows
+// restart nothing, so every retry has a hard end.
+const retryNote = (at, run = 7) => ({
+  id: 34,
+  body: `<!-- work-resolve-issue outcome=retry run=${run} -->\nThe work-resolve-issue lane stopped on this issue (\`outcome-unread\`).`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("an issue a retry-routed stop left on agent-ready is restarted while limits.stop-retries allows it", async () => {
+  for (const limits of [{}, { "stop-retries": 1 }]) {
+    const { github, calls } = stopped({ comments: [note(), retryNote("2026-10-16T11:55:00Z")] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), restarted(30), JSON.stringify(limits));
+  }
+});
+
+test("retry stops past limits.stop-retries, or any with it at 0, restart nothing", async () => {
+  for (const [limits, comments] of [
+    [{ "stop-retries": 0 }, [note(), retryNote("2026-10-16T11:55:00Z")]],
+    [{ "stop-retries": 1 }, [note(), retryNote("2026-10-16T08:00:00Z", 6), retryNote("2026-10-16T11:55:00Z")]],
+  ]) {
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+  }
+});
+
+test("the App's remove-and-re-add after a retry stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), retryNote("2026-10-16T06:00:00Z")] },
     events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
   });
   assert.equal(await main({ env: envFor(), github }), 0);

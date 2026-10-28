@@ -43,6 +43,14 @@
 //     cause gone or fails that head in the label's place
 //   A listing that may be cut short, or a mergeable state not yet computed,
 //   counts as the reason still holding.
+// - No person wrote or edited a review comment, or submitted a review, since
+//   the label went on. GitHub's timeline shows no event for a reply inside an
+//   existing review thread, so a lift the rules above allow reads
+//   pulls/<n>/comments (since the label) and pulls/<n>/reviews too; a failed
+//   read keeps the label. Known limits: a review body edited after the label
+//   is not seen (a REST review carries no update time), and any account
+//   GitHub does not mark Bot, an outsider included, keeps the label, which
+//   costs throughput only.
 // Any other reason is decided by a person and is never cleared here.
 //
 // With no pr-unblock escalation since the label, a pr-merge escalation clears
@@ -121,6 +129,7 @@ import {
   lines,
   openReviewHold,
   PAIRED_MS,
+  personSince,
   RESUME_KEY,
   ROUTES,
   same,
@@ -232,16 +241,18 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
-// Why each reason no longer holds at `pull`'s head, or null while it holds.
+// Why each reason no longer holds at `pull`'s head, or { held } saying why it
+// still does.
 const CHECKS = Object.freeze({
   "workflow-staged": async ({ github, repo, pull, mainSha }) => {
     const files = (await github("GET", `/repos/${repo}/compare/${pull.head.sha}...${mainSha}`))?.files;
     if (!Array.isArray(files) || files.length >= COMPARE_CAP) {
-      return null;
+      return { held: `main ${mainSha}'s file listing against it may be cut short` };
     }
     const workflow = (path) => /^\.github\/workflows\//.test(String(path ?? ""));
-    return files.some((file) => workflow(file.filename) || workflow(file.previous_filename))
-      ? null
+    const changed = files.flatMap((file) => [file.filename, file.previous_filename]).find(workflow);
+    return changed !== undefined
+      ? { held: `main ${mainSha} changes ${changed}` }
       : `main changes nothing under .github/workflows/ since its merge base with ${pull.head.sha}`;
   },
   "unresolved-conflict": async ({ pull }) => mergeable(pull),
@@ -249,7 +260,7 @@ const CHECKS = Object.freeze({
   "feedback-protected-path": async ({ github, repo, pull }) => {
     const files = await paginate(github, `/repos/${repo}/pulls/${pull.number}/files`);
     return files.length >= FILES_CAP || files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))
-      ? null
+      ? { held: "the pull request changes a protected path, or its file listing may be cut short" }
       : "the pull request changes nothing under .github/workflows/";
   },
   // A fix-ci reason escalation-routes.json now routes to a failing status
@@ -270,7 +281,9 @@ const CHECKS = Object.freeze({
 });
 
 function mergeable(pull) {
-  return pull.mergeable === true && pull.mergeable_state !== "dirty" ? "GitHub reports no conflict with main" : null;
+  return pull.mergeable === true && pull.mergeable_state !== "dirty"
+    ? "GitHub reports no conflict with main"
+    : { held: `GitHub reports mergeable ${pull.mergeable ?? "unknown"} (${pull.mergeable_state ?? "unknown"})` };
 }
 
 const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
@@ -394,9 +407,9 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   }
   // Only a person speaking keeps the label; an account GitHub marks Bot does
   // not. An unknown author counts as a person.
-  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && user?.type !== "Bot");
+  const speaker = personSince(timeline.flatMap(spoken), since);
   if (speaker !== undefined) {
-    return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on` };
+    return { reason: spokeReason(speaker, label) };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
@@ -419,6 +432,12 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
     }
     if (native !== null) {
+      // The review threads first: a person's reply there keeps the label
+      // whatever the reader answers, so it spends none of the run's reads.
+      const speaker = await threadSpeaker(github, repo, number, since);
+      if (speaker !== undefined) {
+        return { reason: spokeReason(speaker, label) };
+      }
       if (reads.left <= 0) {
         return { reason: `enable-auto-merge's refusal waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
       }
@@ -433,10 +452,13 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
-      return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
-        `it refused this head (${native.reason})`,
-        held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
-      ]);
+      return {
+        ...cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
+          `it refused this head (${native.reason})`,
+          held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+        ]),
+        threadsRead: true,
+      };
     }
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
@@ -448,8 +470,8 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     const failing = () => (red ??= headFailing({ checks, repo, pull }));
     for (const reason of reasons) {
       const cleared = await CHECKS[reason]({ github, repo, pull, mainSha, failing });
-      if (cleared === null) {
-        return { reason: `${reason} still holds at ${pull.head.sha}` };
+      if (typeof cleared !== "string") {
+        return { reason: `${reason} still holds at ${pull.head.sha}: ${cleared?.held ?? "unknown"}` };
       }
       why.push(cleared);
     }
@@ -464,7 +486,27 @@ function cleared(timeline, bot, since, reasons, head, why) {
   const explained = timeline.some(
     (item) => item.event === "commented" && isApp(item.user, bot) && Date.parse(item.created_at) >= since && lines(item.body)[0] === marker,
   );
-  return { reason: null, recorded, head, why: why.join("; "), explained };
+  return { reason: null, recorded, head, why: why.join("; "), explained, since };
+}
+
+const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on`;
+
+// Who spoke on `number`'s review threads or reviews after `since`, which the
+// timeline misses for a reply inside an existing thread: the first person, or
+// undefined. A comment counts at its last write (the `since` filter is on
+// update time), so an edit after the label counts too. A failed read throws,
+// which keeps the label.
+async function threadSpeaker(github, repo, number, since) {
+  const at = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${at}`);
+  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
+  return personSince(
+    [
+      ...comments.map((comment) => ({ user: comment.user, at: Math.max(Date.parse(comment.created_at), Date.parse(comment.updated_at)) })),
+      ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
+    ],
+    since,
+  );
 }
 
 export async function main({ env = process.env, github, checks, verify } = {}) {
@@ -502,6 +544,11 @@ export async function main({ env = process.env, github, checks, verify } = {}) {
         const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
+          continue;
+        }
+        const speaker = result.threadsRead ? undefined : await threadSpeaker(github, repo, number, result.since);
+        if (speaker !== undefined) {
+          console.log(`clear-escalations: #${number} kept: ${spokeReason(speaker, label)}`);
           continue;
         }
         // The comment first: a failed removal is retried by the next sweep,

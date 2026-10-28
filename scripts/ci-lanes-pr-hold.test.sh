@@ -483,7 +483,8 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/pr-unblock/retry-fetch.mjs \
   .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs \
-  .github/scripts/work-resolve-issue/retry-fetch.mjs \
+  .github/scripts/work-resolve-issue/retry-fetch.mjs .github/scripts/work-resolve-issue/stop-routes.json \
+  .github/scripts/work-resolve-issue/stop-routes.mjs \
   .github/scripts/pr-unblock/escalation-routes.mjs .github/scripts/pr-unblock/escalation-routes.json \
   .github/scripts/pr-unblock/report-escalation.sh .github/scripts/pr-unblock/adjudicate-feedback.mjs \
   .github/scripts/pr-unblock/publish-feedback.mjs .github/scripts/pr-unblock/request-budget.mjs \

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -1344,4 +1344,17 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+test("scanRefusal reads a patch and an output marker together as output, in either order", () => {
+  for (const [base, rungUp] of [["patch", "output"], ["output", "patch"]]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(scanRefusal({ dir, read: "success" }), "output", `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });

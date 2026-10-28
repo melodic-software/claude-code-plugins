@@ -115,6 +115,14 @@ on:
         required: false
         type: string
         default: ""
+      collect-refused:
+        description: >-
+          In issue mode, for report-outcome: the model run's scan-collect-refused
+          output, `true` when collect-patch.sh refused a stub name holding
+          content. Exported to the script as COLLECT_REFUSED; only `true` counts.
+        required: false
+        type: string
+        default: ""
       review-replies:
         description: >-
           For the reply script of an address-feedback round: download the
@@ -1842,6 +1850,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the four reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Issue mode only; report-outcome counts only `true`.
+          COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}

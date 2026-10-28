@@ -120,7 +120,14 @@
           "minimum": 0,
           "maximum": 5,
           "default": 0,
-          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the issue goes to a person. 0 never restarts."
+          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the stop takes the turn-cap-spent route in the issue lane's stop-routes.json. 0 never restarts."
+        },
+        "stop-retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2,
+          "description": "Times work-unblock restarts an issue whose stop routes to retry in the issue lane's stop-routes.json, since a listed human last added agent-ready; past it the stop takes the retry-spent route. 0 never retries."
         },
         "fix-ci-per-run": {
           "type": "integer",
