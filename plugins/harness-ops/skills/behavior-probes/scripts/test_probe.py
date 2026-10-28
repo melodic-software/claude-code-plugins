@@ -252,6 +252,23 @@ class PrintsVerdictTests(unittest.TestCase):
         self.assertEqual(row["verdict"], "inconclusive")
         self.assertIn("model turn", row["note"])
 
+    def local_command(self, turns):
+        echo = {
+            "type": "assistant",
+            "message": {
+                "model": "<synthetic>",
+                "content": [{"type": "text", "text": "Window: 200k (from settings)"}],
+            },
+        }
+        done = {**final(cost=0), "result": "Window: 200k (from settings)"}
+        return judge(prints_case(), INIT, echo, {**done, "num_turns": turns})
+
+    def test_local_command_echo_with_no_turns_passes(self):
+        self.assertEqual(self.local_command(0)["verdict"], "pass")
+
+    def test_same_shape_after_a_turn_stays_inconclusive(self):
+        self.assertEqual(self.local_command(1)["verdict"], "inconclusive")
+
     def test_no_init_is_inconclusive(self):
         self.assertEqual(
             judge(prints_case(), printed("200k"))["verdict"], "inconclusive"

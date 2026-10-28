@@ -18,6 +18,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -725,6 +726,8 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
         return {"repository": {"issues": page}}
 
     gh.graphql["PolicyIssuesByAuthor"] = by_author
+    # Before the single read's name, which the batch query's name extends.
+    gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
     return gh
 
@@ -998,6 +1001,138 @@ class ReadDemotion(unittest.TestCase):
         result = read_demotion()
         self.assertTrue(result.active)
         self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
+
+
+class RecordsFake:
+    """`read_demotion`'s reads over many records: the identity's listing names
+    each of `records`; the batch query answers each alias it asks for, less
+    `dropped`, or fails when it asks for any of `failing`; a single read
+    answers its record, or nothing for a number with none."""
+
+    ALIAS = re.compile(r"i(\d+):issue\(number:(\d+)\)")
+
+    def __init__(self, records: dict[int, dict[str, Any]]) -> None:
+        self.records = records
+        self.dropped: set[int] = set()
+        self.failing: set[int] = set()
+        self.queries: list[str] = []
+
+    def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        query = next(a for a in args if a.startswith("query="))
+        variables = dict(a.split("=", 1) for a in args if "=" in a and a[0] != "q")
+        self.queries.append(query.split("(", 1)[0].removeprefix("query=query "))
+        if "PolicyIssuesByAuthor" in query:
+            nodes = [
+                {"number": n, "body": DEMOTION_BODY, "lastEditedAt": None}
+                for n in self.records
+                if variables["a"] == IDENTITY
+            ]
+            page = {"pageInfo": {"hasNextPage": False, "endCursor": None}}
+            return ok({"data": {"repository": {"issues": page | {"nodes": nodes}}}})
+        if "PolicyDemotionRecords" in query:
+            asked = [int(n) for _, n in self.ALIAS.findall(query)]
+            if self.failing & set(asked):
+                return ok({"errors": [{"type": "NOT_FOUND"}], "data": None})
+            repository = {
+                f"i{n}": self.records.get(n) for n in asked if n not in self.dropped
+            }
+            return ok({"data": {"repository": repository}})
+        number = int(variables["n"])
+        return ok({"data": {"repository": {"issue": self.records.get(number)}}})
+
+
+def demotion_record(number: int, **issue: Any) -> dict[str, Any]:
+    return {
+        "number": number,
+        "state": "CLOSED",
+        "body": DEMOTION_BODY,
+        "createdAt": f"2026-10-12T10:{number:02d}:00Z",
+        "author": bot("agent-lanes"),
+        "userContentEdits": {"totalCount": 0, "nodes": []},
+        "timelineItems": {
+            "nodes": [
+                {
+                    "createdAt": f"2026-10-12T12:{number:02d}:00Z",
+                    "actor": user(OPERATOR),
+                    "closer": None,
+                }
+            ]
+        },
+    } | issue
+
+
+class ReadDemotionBatched(unittest.TestCase):
+    """`read_demotion` reads records `DEMOTION_BATCH` to a query and answers
+    exactly as reading each one on its own does."""
+
+    def read(self, fake: RecordsFake, *, per_issue: bool = False) -> Any:
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(policy, "gh_capture", fake))
+            if per_issue:
+                # The reference: every record read on its own.
+                stack.enter_context(
+                    mock.patch.object(policy, "_demotion_records", lambda *a: {})
+                )
+            return read_demotion()
+
+    def test_45_records_take_two_listings_and_three_batches(self) -> None:
+        fake = RecordsFake({n: demotion_record(n) for n in range(1, 46)})
+        result = self.read(fake)
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(result.records, tuple(range(1, 46)))
+        self.assertEqual(
+            fake.queries,
+            ["PolicyIssuesByAuthor"] * 2 + ["PolicyDemotionRecords"] * 3,
+        )
+
+    def test_batched_reads_equal_per_issue_reads(self) -> None:
+        open_hold = {"state": "OPEN", "timelineItems": {"nodes": []}}
+        edit = {"editedAt": "2026-10-12T11:00:00Z", "deletedAt": None}
+        edit |= {"editor": bot("agent-lanes"), "diff": "scrubbed"}
+        truncated = {
+            "body": "scrubbed",
+            "userContentEdits": {"totalCount": 150, "nodes": [edit] * 100},
+        }
+        cases: dict[str, tuple[dict[int, dict[str, Any]], set[int], set[int]]] = {
+            "all clear": ({}, set(), set()),
+            "a hold before an unreadable record": ({5: open_hold}, set(), set()),
+            "a truncated edit history": ({12: truncated}, set(), set()),
+            "a batch error falls back": ({3: open_hold}, {7}, set()),
+            "an issue missing from the batch answer": ({}, set(), {24}),
+            "a missing issue with no single read either": ({}, set(), {30}),
+        }
+        for name, (overrides, failing, dropped) in cases.items():
+            with self.subTest(name):
+                records = {n: demotion_record(n) for n in range(1, 31)}
+                for n, issue in overrides.items():
+                    records[n] |= issue
+                if name.startswith("a missing issue"):
+                    records[30] = None  # type: ignore[assignment]
+                if name.startswith("a hold before"):
+                    records[22] = None  # type: ignore[assignment]
+                batched_fake = RecordsFake(records)
+                batched_fake.failing, batched_fake.dropped = failing, dropped
+                batched = self.read(batched_fake)
+                expected = self.read(RecordsFake(records), per_issue=True)
+                self.assertEqual(batched, expected)
+                singles = batched_fake.queries.count("PolicyDemotionRecord")
+                if failing:
+                    # The failed chunk's records, each read on its own up to the hold.
+                    self.assertEqual(singles, 3)
+                if dropped:
+                    self.assertEqual(singles, len(dropped))
+
+    def test_the_cases_reach_their_answers(self) -> None:
+        # The equality cases above are not all one answer.
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[12] |= {"userContentEdits": {"totalCount": 101, "nodes": []}}
+        self.assertEqual(
+            self.read(RecordsFake(records)).reason, "#12 edit-history-incomplete"
+        )
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[30] = None  # type: ignore[assignment]
+        reason = self.read(RecordsFake(records)).reason
+        self.assertEqual(reason, "demotion-unreadable: issue #30 returned nothing")
 
 
 class ResolveIdentity(unittest.TestCase):
@@ -2162,6 +2297,11 @@ class EntryHold(unittest.TestCase):
     def test_the_do_not_merge_label(self) -> None:
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
+
+    def test_the_pr_verify_failed_label(self) -> None:
+        # A queued entry whose pr-verify FAIL labels it leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "PR-Verify-Failed"}]})
+        self.assertEqual(self.hold(), "pr-verify-failed")
 
     def test_the_needs_human_label(self) -> None:
         # A queued entry that gains the human-gated label leaves the queue.
@@ -4473,6 +4613,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_the_do_not_merge_label_holds(self) -> None:
         pr = owner_pr(labels=[{"name": "Do-Not-Merge"}])
         self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
+
+    def test_the_pr_verify_failed_label_holds(self) -> None:
+        pr = owner_pr(labels=[{"name": "pr-verify-failed"}])
+        self.assertEqual(self.refusal(pr), "hold-label:pr-verify-failed")
 
     def test_the_resolved_human_gated_label_holds(self) -> None:
         pr = owner_pr(labels=[{"name": "awaiting-owner"}])

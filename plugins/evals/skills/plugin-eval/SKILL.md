@@ -22,7 +22,7 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `preflight <target>` | Print the report below and stop. No CLI invocation, no spend |
 | `validate [<eval-dir>]` | Run the static case validator only. No model call |
 | `run <target>` (default) | Preflight, validate, print the estimate, then invoke the CLI |
-| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest |
+| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest, then remove the sandboxes its run kept ([sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes)) |
 | `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
@@ -361,7 +361,7 @@ What the number means:
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
 noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read
 found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those
-conditions that failed.
+conditions that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
 
 ## Iterating
 
