@@ -251,10 +251,11 @@ Then the outcome:
 
 ### Return to the starting branch
 
-A pass over several control skills records `git branch --show-current` before the first one. After
-each control skill's step 6, whatever its outcome, it switches back to that branch before the next
-skill's step 1, so no skill is refreshed on another skill's upkeep branch. Done when `git branch
---show-current` prints the starting branch.
+Every pass records `git branch --show-current` before step 1. After each control skill's step 6,
+whatever its outcome, it switches back to that branch: before the next skill's step 1, so no skill
+is refreshed on another skill's upkeep branch, and before the pass reports, so a caller such as
+`/testing:run-e2e` resumes on the branch it is verifying. Done when `git branch --show-current`
+prints the starting branch.
 
 ## Converting a legacy map
 
