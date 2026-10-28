@@ -1486,24 +1486,41 @@ request event and in the merge queue, where a red group removes the pull request
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head (their newest review of it that approves,
 requests changes or was dismissed must approve). Then re-run `ci-status`, since a review does not.
-Only an approving review lifts it: removing the human-gated label does not, and a dismissed
-approval never counts. The approval carries to a later head whose every change since is a merge
-of the base (`merge-holds.mjs` `liftersOf` and `baseMergeCarry`), so a base merge after a
-person's approval does not send the pull request back to them:
+Only an approving review lifts it: removing the human-gated label does not. The approval carries
+to a later head whose every change since is a merge of the base (`merge-holds.mjs` `liftersOf`
+and `approvalCarry`), so a base merge after a person's approval does not send the pull request
+back to them:
 
 - Each trusted person's newest review that approves, requests changes or was dismissed counts
-  (`liftsOf`); it lifts only when it approves, and then its commit.
-- The carry (`baseMergeCarry`): the base branch is read once by its full ref (`baseTip`,
-  `refs/heads/<base>`), and every compare names its tip commit, so no tag of the same name stands
-  in for it. Every commit the current head adds is a merge whose parents other than the first the
-  base holds (`baseMergesOnly` over `mergedParents`; `baseParents` reads each parent's compare
-  against the tip, `ahead` or `identical`), and the approved head is among its commits, so a
-  non-merge commit, a merge of another branch or of a crafted merge commit, or a force push that
-  rewrites the approved head carries nothing. The net change against the tip is the same at both
-  heads over every file (`sameNetChange`), so a merge that writes any change of its own, to a hold
-  path or any other file, carries nothing; an honest merge after the base changed one of the
-  pull request's files fails closed too and needs a new approval. A commit list the compare cuts
-  at 250 carries nothing, and so does a head in a fork.
+  (`liftsOf`); it lifts only when it approves, and then its commit. An approval GitHub dismissed
+  as stale on a push (the trust-root ruleset's `dismiss_stale_reviews_on_push`) still counts,
+  bound to its own commit and only through the carry (`autoDismissed`): the issue timeline's one
+  `review_dismissed` event for that review has a Bot actor (the account whose push dismissed it),
+  a null message and a dismissal commit among those pushed since the approved head. A dismissal
+  whose actor is a person revokes the approval: their own dismissal, or the stale dismissal their
+  push caused. The Bot actor is what tells GitHub's dismissal from a person's; that an App's
+  deliberate dismissal always carries a message is unverified, so the null message is a second
+  filter.
+- The carry (`approvalCarry`) runs only when the pull request's base is the repository's default
+  branch, since another base may be non-linear, with criss-cross merge bases. The base branch is
+  read once by its full ref (`baseTip`, `refs/heads/<base>`), and every compare against it names
+  its tip commit, so no tag of the same name stands in for it. Every commit the current head adds
+  is a merge whose parents other than the first the base holds (`baseMergesOnly` over
+  `mergedParents`; `baseParents` reads each parent's compare against the tip, `ahead` or
+  `identical`), and the approved head is among its commits, so a non-merge commit, a merge of
+  another branch or of a crafted merge commit, or a force push that rewrites the approved head
+  carries nothing. Then either the net change against the tip is the same at both heads over
+  every file (`sameNetChange`), or the merges brought exactly the base's changes
+  (`exactBaseCarry`): the compare from the approved head H to the current head H' lists, file for
+  file and with the same status, `previous_filename` and patch, what the compare between the merge
+  bases of H and of H' (M and M') with the tip lists, and the recursive trees of H' and M' give
+  each of those files one mode (a removed file, or a renamed file's old path, in neither). A merge
+  that writes any change of its own, to a hold path or any other file, flips the mode of a file the
+  base changed, or drops a base change, carries nothing. Either compare listing 300 files or more,
+  a commit list not read whole, a file with no patch, a truncated tree, or a head in a fork carries
+  nothing. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
+  files; nothing checks that against a second listing. The compare API reports no file mode, so a
+  mode-only change still reads the same on the same-net-change path: a known residual there.
 - An approval of the current head lifts the verifier and issue-link holds too; an approval of an
   earlier head does not, since the merge result is new to pr-verify.
 

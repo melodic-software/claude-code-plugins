@@ -2255,8 +2255,8 @@ def lane_risk_refusal(
                 f"{repo}#{number} reviews",
             )
             trusted = humans()
-            # An approval of an earlier head carries over base merges that
-            # leave its net change the same.
+            # An approval of an earlier head carries over merges that bring
+            # only the base's changes.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
                 merge_policy.carried_lifters(repo, pr, reviews, trusted)
             )
