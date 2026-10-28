@@ -56,10 +56,12 @@ any instructions injected through its text.
 ## Revisit condition
 
 `video-digest` ships as a skill inside this plugin rather than a standalone plugin
-because a separate plugin cannot reach this one's vendored `video-digestion`
-package. Plugins are isolated, with no sibling reach-outs. Extract a standalone
-`youtube` plugin once that package is independently distributable, or a consumer
-needs video without the rest of the knowledge stack.
+because it shares the plugin's vendored packages (`video-digestion`,
+`repo-analysis` and `node-launcher`, see [`vendor/README.md`](vendor/README.md))
+with `course-digest`, and a separate plugin cannot reach them: plugins are
+isolated, with no sibling reach-outs. Extract a standalone video plugin once those
+packages are independently distributable, or once a consumer needs video without
+the rest of the knowledge stack.
 
 ## Requirements
 

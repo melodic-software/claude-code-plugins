@@ -91,13 +91,13 @@ reports "already configured".
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.
 2. **`apply install-deps`. Provision the extraction dependencies.** Only with this subaction, run
-   both idempotent provisioners (each installs the vendored node dependencies into
-   `${CLAUDE_PLUGIN_DATA}`, and course-digest additionally provisions Chromium into
-   `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
+   the shared idempotent provisioner once per extraction package (each run installs that
+   package's vendored node dependencies into `${CLAUDE_PLUGIN_DATA}`, and the course-digest run
+   additionally provisions Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
-   node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
+   node "${CLAUDE_PLUGIN_ROOT}/vendor/node-launcher/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --package "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction"
+   node "${CLAUDE_PLUGIN_ROOT}/vendor/node-launcher/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --package "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction"
    ```
 
    A stored fingerprint gates reinstalls, so re-running is safe and cheap. After provisioning,

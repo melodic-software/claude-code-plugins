@@ -23,7 +23,7 @@ Transform online video courses into structured knowledge and actionable repo rec
 
 ## How it works
 
-Uses browser automation (claude-in-chrome) to navigate course platforms, extract transcripts, capture screenshots of code/slides, and collect downloadable resources. Synthesizes raw content into analysis focused on what applies to the current repository.
+Uses browser automation (Playwright, driven by the extraction scripts) to navigate course platforms, extract transcripts, capture screenshots of code/slides, and collect downloadable resources. Synthesizes raw content into analysis focused on what applies to the current repository.
 
 Where this skill says "deeper research," use whatever external-research capability your project provides. Repo conventions override course claims. Surface convention conflicts explicitly; never silently adopt a course's shortcut over team rules.
 

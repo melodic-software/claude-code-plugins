@@ -26,6 +26,7 @@ import {
   diffSections,
   parseGitHubUrl,
 } from "@melodic/repo-analysis";
+import { shallowCloneGitHubRepo } from "@melodic/repo-analysis/clone";
 import { createLogger } from "@melodic/video-digestion/shared/logger";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
@@ -77,26 +78,29 @@ function checkRepoSize(parsed) {
   }
 }
 
-function cloneRepoToTemp(parsed) {
+async function cloneRepoToTemp(parsed) {
   const cloneDir = join(tmpdir(), `course-repo-${parsed.repo}-${Date.now()}`);
   const githubUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
   log.info(`  Cloning to temp: ${cloneDir}`);
 
-  const cloneResult = spawnSync(
-    "git",
-    ["clone", "--depth", "1", "--single-branch", "--", githubUrl, cloneDir],
-    { encoding: "utf-8", timeout: 120000 },
-  );
-
-  if (cloneResult.status !== 0) {
-    log.error(`  Clone failed: ${cloneResult.stderr?.trim()}`);
+  // A course repository is one the enrolled user may reach only with their own
+  // credentials, so git runs in the user's environment.
+  let gitStderr = "";
+  const cloned = await shallowCloneGitHubRepo(githubUrl, cloneDir, undefined, {
+    inheritGitEnvironment: true,
+    onStderr: (text) => {
+      gitStderr = text;
+    },
+  });
+  if (!cloned) {
+    log.error(`  Clone failed: ${gitStderr.trim()}`);
     process.exit(1);
   }
   log.info("  Clone complete.");
   return cloneDir;
 }
 
-function resolveCloneDir(parsed, codeOutputDir) {
+async function resolveCloneDir(parsed, codeOutputDir) {
   if (args["skip-clone"]) {
     if (!existsSync(codeOutputDir)) {
       log.error("  --skip-clone specified but code/ directory does not exist.");
@@ -107,7 +111,7 @@ function resolveCloneDir(parsed, codeOutputDir) {
   }
 
   checkRepoSize(parsed);
-  return { cloneDir: cloneRepoToTemp(parsed), isTemp: true };
+  return { cloneDir: await cloneRepoToTemp(parsed), isTemp: true };
 }
 
 function buildReadme(githubUrl, structure, frameworks, fileCounts) {
@@ -140,7 +144,7 @@ function buildReadme(githubUrl, structure, frameworks, fileCounts) {
     .join("\n");
 }
 
-function main() {
+async function main() {
   bindCli();
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const codeOutputDir = join(courseDir, "code");
@@ -164,7 +168,7 @@ function main() {
     process.exit(1);
   }
 
-  const { cloneDir, isTemp } = resolveCloneDir(parsed, codeOutputDir);
+  const { cloneDir, isTemp } = await resolveCloneDir(parsed, codeOutputDir);
 
   log.info("  Analyzing structure...");
   const structure = detectRepoStructure(cloneDir);
@@ -227,5 +231,8 @@ function main() {
 }
 
 if (isMainModule(import.meta.url)) {
-  main();
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  });
 }
