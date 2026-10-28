@@ -383,9 +383,12 @@ still exist and keep one for removal only when all of these hold:
 
 List every other candidate for the user with the condition it failed, and remove nothing for it.
 Remove exactly the kept ones by literal path, each single-quoted. The loop checks the symlink,
-location, name and layout conditions again itself, so a selection mistake cannot reach `chmod -R`
-or `rm -rf`. It opens the sandbox directory before the layout test, since a kept sandbox can be one
-the test cannot read, and it prints each skipped path with the reason:
+location, name and layout conditions again itself, so it confines `chmod -R` and `rm -rf` to
+layout-bearing `claude-eval-*` directories directly under `<tmp>`. It does not check the other
+conditions again (the `tracePath` segments, that the sandbox is the one the `tracePath` names, the
+quoting), and a concurrent run's `--keep-temp` sandbox passes it, so picking the right sandboxes
+remains the selection step's job. It opens the sandbox directory before the layout test, since a
+kept sandbox can be one the test cannot read, and it prints each skipped path with the reason:
 
 ```bash
 t=$(realpath "${TMPDIR:-/tmp}"); for d in '<sandbox>' '<sandbox>'; do r=$(realpath "$d"); if [ -L "$d" ] || [ ! -d "$d" ] || [ "$(dirname "$r")" != "$t" ]; then echo "skipped (not a directory directly under $t): $d"; continue; fi; case $(basename "$r") in claude-eval-*) ;; *) echo "skipped (not named claude-eval-*): $d"; continue;; esac; if ! chmod u+rwx "$r"; then echo "skipped (chmod cannot open it): $d"; continue; fi; if [ ! -d "$r/out" ] || [ ! -d "$r/sealed" ]; then echo "skipped (no out/ and sealed/): $d"; continue; fi; chmod 700 "$r/sealed"; chmod -R u+rwx "$r"; rm -rf "$r"; done
