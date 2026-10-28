@@ -37,6 +37,8 @@ cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
 [[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
+# The real selector diffs its own tree's work tree, so the stub logs that.
+[[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
 [[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
 while (($#)); do
   [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
@@ -488,6 +490,15 @@ chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
+# The snapshot is this tree's own work tree, so --tests selects from that work
+# tree, uncommitted edits included, as a committed run selects from its diff.
+run STUB_STATUS_LOG="$tmp/status.log" -- --uncommitted --tests
+check "--uncommitted --tests runs the suites over the uncommitted change" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* && $(cat "$tmp/status.log" 2>/dev/null) == *"?? new-tool"* ]]'
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --uncommitted --tests 2>&1)" || RC=$?
+check "a copy's --uncommitted --tests run still skips the checked tree's tests" \
+  '[[ $ERR == *"SKIP tests (runs the checked tree"* && $ERR != *"copy of affected-tests"* ]]'
 mkdir -p "$repo/plugins/demo"
 printf 'x\n' >"$repo/plugins/demo/new.md"
 printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit 1\n' >"$repo/scripts/validate-plugins.sh"
