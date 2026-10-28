@@ -2897,6 +2897,26 @@ class TestRecordTerminal(DirCase):
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
 
+class TestRecordTerminalOffPath(DirCase):
+    """record-terminal refuses a decision on a superseded or archived question, as the server's
+    409 does, so an answer that would count nowhere is never written."""
+
+    def test_superseded_names_the_end_of_the_chain(self):
+        doc = base_doc()
+        doc["questions"][0]["supersededBy"] = "Q2"
+        doc["questions"][1]["supersededBy"] = "Q3"
+        self.write_doc(doc)
+        out = self.assert_refused("record-terminal", "Q1", "--decision", "accept")
+        self.assertIn("refused: Q1 is superseded; answer Q3 instead", out)
+
+    def test_archived_is_refused(self):
+        doc = base_doc()
+        doc["questions"][2]["archived"] = {"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+        self.write_doc(doc)
+        out = self.assert_refused("record-terminal", "Q3", "--decision", "accept")
+        self.assertIn("refused: Q3 is archived", out)
+
+
 class TestRecordTerminalHedged(DirCase):
     """record-terminal --decision hedged carries its condition in --text, one line."""
 
