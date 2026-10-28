@@ -120,6 +120,12 @@ and drive every entry point those features list, not only the one the scenario n
 still adds whatever it names on top. Before driving, write each entry point's expected outcome from
 the requirement or acceptance criterion ([context/e2e.md](context/e2e.md), workflow step 1).
 
+A feature's id is its index path without `features/` and the trailing `/README.md`, or `.md` for a
+legacy flat file: `features/billing/export/README.md` gives `billing/export`, and
+`features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, on either
+route, its file resolved in `/app-control:drive`'s order: `features/<id>/README.md` when it exists,
+and then never open the legacy `features/<id>.md`; only without that README, the legacy file.
+
 ### Report per entry point
 
 The report has one line per listed entry point of each touched feature, on either driving route:
@@ -185,10 +191,9 @@ rather than trusting the app's success message.
 ## Step 4: Keep touched features current
 
 With a control skill, after the run and its cleanup, each touched feature (one whose index `sources`
-globs match a changed file, as Step 2 found) gets its control skill brought back in line. Its
-feature id is its index path without `features/` and `/README.md`:
-`features/<module>/<feature>/README.md` gives `<module>/<feature>`. `/app-control:map` is the only
-writer of a control skill; this skill never edits one.
+globs match a changed file, as Step 2 found) gets its control skill brought back in line, under
+its feature id (Step 2). `/app-control:map` is the only writer of a control skill; this skill never
+edits one.
 
 - `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
   once per touched feature, adding `--unattended` on an `unattended` run, and report each pass's
