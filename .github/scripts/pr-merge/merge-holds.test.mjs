@@ -151,9 +151,9 @@ function world({
       return runs[Number(notes[1]) - 1].notes;
     }
     if (compare) {
-      // The lane-change vet compares against the base by name; the carry,
-      // against the base's tip commit.
-      assert.ok(compare[1] === base || compare[1] === TIP, compare[1]);
+      // Every compare, the lane-change vet's and the carry's, names the
+      // base's tip commit, never the branch.
+      assert.equal(compare[1], TIP);
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
@@ -194,6 +194,7 @@ test("an owner decision on the closing issue, linked from the body, clears the c
     "pull",
     "GET /repos/owner/repo/issues/comments/7",
     "edited",
+    "ref",
     "runs pr-review-hosted.yml",
     `compare ${HEAD}`,
     "jobs 1",
@@ -551,7 +552,8 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-5), ["activity", "ref", `compare ${OLD}`, `compare ${HEAD}`, `base ${MAIN}`]);
+  assert.deepEqual(commit.reads.slice(-4), ["activity", `compare ${OLD}`, `compare ${HEAD}`, `base ${MAIN}`]);
+  assert.equal(commit.reads.filter((read) => read === "ref").length, 1);
 });
 
 test("a base merge with the same net change carries whatever order the files list in, and a rebase or a non-merge commit does not", async () => {
@@ -944,6 +946,8 @@ const liftWorld = ({
   bases = { [MAIN]: "ahead" },
   tip = TIP,
   fork = false,
+  // The pull request's own count of changed files; the head compare's by default.
+  changed = null,
   // A label history and push history the earlier reader bound a removal by,
   // served so a test proves no reader counts them now.
   events = [],
@@ -956,7 +960,7 @@ const liftWorld = ({
     reads.push(path);
     assert.equal(method, "GET");
     if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
-    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: "main" } };
+    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: "main" }, changed_files: changed ?? compares[HEAD]?.files?.length };
     if (path === "/repos/owner/repo/git/ref/heads/main") return { ref: "refs/heads/main", object: { type: "commit", sha: tip } };
     if (path.startsWith("/repos/owner/repo/pulls/99/reviews?")) return path.endsWith("page=1") ? reviews : [];
     if (path.startsWith("/repos/owner/repo/issues/99/events?")) return path.endsWith("page=1") ? events : [];
@@ -1069,6 +1073,8 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
     },
     "a history longer than the compare lists": { compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } } },
     "a head in a fork": { fork: true },
+    // A compare listing fewer files than the pull request changes is cut short.
+    "a compare that lists fewer files than the pull request changes": { changed: 2 },
     "a base branch that does not resolve to a commit": { tip: "main" },
     "an unreadable base ref": { fail: "/git/ref/" },
     // A dismissed approval never counts, whoever or whatever dismissed it.

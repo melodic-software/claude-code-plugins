@@ -643,7 +643,7 @@ async function listed(read, path, key) {
 // the head `branch` of `repo` started before `at` (a run from another
 // repository's same-named branch speaks for another pull request), each
 // run's head vetted against
-// `base` (laneChange), its status job's cost notices (costNotices) from jobs
+// `base`, the base branch's tip commit (laneChange), its status job's cost notices (costNotices) from jobs
 // done before `at`, then decidedHead, kept only while the branch's push
 // history shows no lane run missing since the decided head (unranHead). A
 // run on a head that fails the vet, or a read that fails, decides nothing.
@@ -698,6 +698,9 @@ const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastE
 // previous_filename and patch. A list of 300 files or more (the compare
 // API's cap), a file with no patch, a filename listed twice, or an answer
 // with no file list is not the same (babysit_merge_policy.same_net_change).
+// The compare API reports no file mode, so a change that only flips a
+// file's mode (such as making it executable) reads as the same: a known
+// residual a merge can carry.
 export function sameNetChange(decided, current) {
   const net = (compare) => {
     const files = compare?.files;
@@ -827,6 +830,9 @@ export async function liftersOf(github, repo, number, head, humans) {
         lifters.add(login);
       } else {
         const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
+        // A compare listing fewer files than the pull request changes is
+        // cut short, so it carries nothing.
+        if (!Array.isArray(now?.files) || now.files.length !== pull.changed_files) continue;
         if (baseMergeCarry(then, now, sha, await baseParents(compare, tip, then, now))) lifters.add(login);
       }
     }
@@ -853,17 +859,19 @@ async function pages(github, path) {
 
 // Whether the decision `comment` covers the pull request at `head` (owner
 // decisions Q17 c and Q18 d on #9436): its decided head (noticedHead, read
-// with `actions` from the head branch `branch`'s lane runs) is `head`, with
-// no compare read, or every change since is a merge of the base branch
-// `base`, so the net change against it is the same at both (sameNetChange).
-// No decided head, an unusable base name or a read that fails carries
-// nothing.
+// with `actions` from the head branch `branch`'s lane runs) is `head`, or
+// every change since is a merge of the base branch `base`, so the net change
+// against it is the same at both (baseMergeCarry). The base is resolved once
+// to its tip commit (baseTip), which the lane-change vet and every compare
+// name, so no tag of the same name stands in for it. No decided head, an
+// unusable base name or a read that fails carries nothing.
 async function carries(github, actions, repo, comment, head, base, branch) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
     }
-    const decided = await noticedHead(actions, repo, branch, base, comment.created_at);
+    const tip = await baseTip(github, repo, base);
+    const decided = await noticedHead(actions, repo, branch, tip, comment.created_at);
     if (decided === null) {
       return false;
     }
@@ -871,7 +879,6 @@ async function carries(github, actions, repo, comment, head, base, branch) {
       return true;
     }
     const compare = (range) => github("GET", `/repos/${repo}/compare/${range}`);
-    const tip = await baseTip(github, repo, base);
     const then = await compare(`${tip}...${decided}`);
     const now = await compare(`${tip}...${head}`);
     return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now));

@@ -237,6 +237,8 @@ def carried(
     head_commits: list[dict[str, object]] | None = None,
     pr: dict[str, object] = CARRIED_PR,
     reads: list[str] | None = None,
+    now_head: str = HEAD,
+    changed: int | None = None,
 ) -> list[str]:
     compares = {
         OLD: {
@@ -258,6 +260,9 @@ def carried(
     def get(endpoint: str, env: object = None) -> tuple[int | None, object]:
         if reads is not None:
             reads.append(endpoint)
+        if endpoint == f"repos/{REPO}/pulls/{pr['number']}":
+            count = len(head_files) if changed is None else changed
+            return 200, {"head": {"sha": now_head}, "changed_files": count}
         if endpoint == f"repos/{REPO}/git/ref/heads/main":
             return 200, {"ref": "refs/heads/main", "object": {"sha": TIP}}
         if endpoint.endswith(f"...{TIP}"):
@@ -277,8 +282,10 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
     def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
         reads: list[str] = []
         self.assertEqual(carried([HELD_PATCH], reads=reads), ["user5"])
-        # The base is read once by its full ref; every compare names its tip.
-        self.assertEqual(reads[0], f"repos/{REPO}/git/ref/heads/main")
+        # The head is re-read, then the base once by its full ref; every
+        # compare names its tip.
+        self.assertEqual(reads[0], f"repos/{REPO}/pulls/{CARRIED_PR['number']}")
+        self.assertEqual(reads[1], f"repos/{REPO}/git/ref/heads/main")
         self.assertIn(f"repos/{REPO}/compare/{TIP}...{OLD}", reads)
         self.assertFalse(any("compare/main" in r or r.endswith("...main") for r in reads))
         # A non-hold file the approved head changed, unchanged by the merge.
@@ -308,6 +315,16 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                     {"sha": OTHER, "parents": [{"sha": MAIN}, {"sha": MAIN}]},
                     {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": OTHER}]},
                 ],
+            },
+            # The third security review of #10596: the head judged moved
+            # before the re-read, or the compare is cut short.
+            "a head that moved since it was read": {
+                "head_files": [HELD_PATCH],
+                "now_head": "9" * 40,
+            },
+            "a compare listing fewer files than the pull request changes": {
+                "head_files": [HELD_PATCH],
+                "changed": 2,
             },
             "a head in a fork": {
                 "head_files": [HELD_PATCH],

@@ -2407,7 +2407,8 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
     the head `branch` of `owner`/`name` started before `at` (a run from
     another repository's same-named branch speaks for another pull request),
-    each run's head vetted against `base` (`lane_change`), its status job's cost notices (`cost_notices`)
+    each run's head vetted against `base`, the base branch's tip commit
+    (`lane_change`), its status job's cost notices (`cost_notices`)
     from jobs done before `at`, then `decided_head`, kept only while the
     branch's push history shows no lane run missing since the decided head
     (`unran_head`). A run on a head that fails the vet decides nothing, and a
@@ -2482,7 +2483,9 @@ def same_net_change(decided: Any, current: Any) -> bool:
     the pull request: the same filenames, each with the same status,
     previous_filename and patch. A list of 300 files or more (the compare
     API's cap), a file with no patch, a filename listed twice, or an answer
-    with no file list is not the same (merge-holds.mjs `sameNetChange`)."""
+    with no file list is not the same (merge-holds.mjs `sameNetChange`). The
+    compare API reports no file mode, so a change that only flips a file's
+    mode reads as the same: a known residual a merge can carry."""
 
     def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
         files = json_object(compare).get("files")
@@ -2667,12 +2670,22 @@ def carried_lifters(
     lifts = lifts_of(reviews, humans)
     lifters: set[str] = set()
     try:
+        # The head judged must still be the head, as merge-holds.mjs
+        # liftersOf re-reads it; its file count bounds the compare's.
+        status, now_pr = _get(f"repos/{owner}/{name}/pulls/{pr.get('number')}")
+        now_head = json_object(json_object(now_pr).get("head"))
+        if status != 200 or now_head.get("sha") != sha:
+            return []
+        changed = json_object(now_pr).get("changed_files")
         tip = base_tip(owner, name, base) if any(s != sha for _, s in lifts) else ""
         for login, lifted in lifts:
             if lifted == sha:
                 lifters.add(login)
                 continue
             then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
+            files = json_object(now).get("files")
+            if not is_json_array(files) or type(changed) is not int or len(files) != changed:
+                continue
             if base_merge_carry(then, now, lifted, base_parents(compare, tip, then, now)):
                 lifters.add(login)
     except PolicyReadError:
@@ -2686,8 +2699,9 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     (`_noticed_head`, from the head branch's review-lane runs) is the head,
     with no compare read, or every change since is a merge of the base
     branch, so the net change against it is the same at both
-    (`base_merge_carry`). No decided head, an unusable base name or a read
-    that fails carries nothing."""
+    (`base_merge_carry`). The base is resolved once to its tip commit
+    (`base_tip`), which the lane-change vet and every compare name. No decided
+    head, an unusable base name or a read that fails carries nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
     branch = json_object(pr.get("head")).get("ref")
     base = json_object(pr.get("base")).get("ref")
@@ -2695,7 +2709,8 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         return False
     owner, name = _split_repo(repo)
     try:
-        decided = _noticed_head(owner, name, branch, base, comment.get("created_at"))
+        tip = base_tip(owner, name, base)
+        decided = _noticed_head(owner, name, branch, tip, comment.get("created_at"))
     except PolicyReadError:
         return False
     if decided is None:
@@ -2710,7 +2725,6 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         return answer
 
     try:
-        tip = base_tip(owner, name, base)
         then, now = compare(f"{tip}...{decided}"), compare(f"{tip}...{sha}")
         in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:

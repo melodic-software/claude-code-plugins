@@ -266,9 +266,10 @@ class CostDecision(unittest.TestCase):
             self.reads,
             [
                 "repos/owner/repo/issues/comments/7",
+                f"repos/owner/repo/git/ref/heads/{BASE}",
                 "repos/owner/repo/actions/workflows/pr-review-hosted.yml/runs"
                 "?event=pull_request&branch=fix%2Fcost&per_page=100",
-                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
                 "repos/owner/repo/actions/runs/1/jobs?filter=all&per_page=100",
                 "repos/owner/repo/check-runs/1/annotations?per_page=100",
                 "repos/owner/repo/actions/workflows/pr-review-security-hosted.yml/runs"
@@ -277,6 +278,8 @@ class CostDecision(unittest.TestCase):
                 "&direction=desc&per_page=100",
             ],
         )
+        # The lane-change vet names the base's tip commit, never the branch.
+        self.assertFalse(any("/compare/main" in r or r.endswith("...main") for r in self.reads))
 
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
@@ -407,9 +410,8 @@ class CostDecision(unittest.TestCase):
         script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
         self.assertEqual(
-            self.reads[-4:],
+            self.reads[-3:],
             [
-                f"repos/owner/repo/git/ref/heads/{BASE}",
                 f"repos/owner/repo/compare/{TIP}...{OLD}",
                 f"repos/owner/repo/compare/{TIP}...{HEAD}",
                 f"repos/owner/repo/compare/{MAIN}...{TIP}",
@@ -692,7 +694,7 @@ class CostDecision(unittest.TestCase):
         self.assertEqual(self.decide(), LINK)
         self.assertEqual(
             [r for r in self.reads if "/compare/" in r],
-            [f"repos/owner/repo/compare/{BASE}...{HEAD}"],
+            [f"repos/owner/repo/compare/{TIP}...{HEAD}"],
         )
         # With no usable base no run can be vetted, so nothing carries.
         self.assertIsNone(self.decide(pull=PULL | {"base": {"ref": "-unusable"}}))

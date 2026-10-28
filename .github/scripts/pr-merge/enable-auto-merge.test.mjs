@@ -158,7 +158,11 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
       return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
     }
-    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
+    // main resolves to its tip commit, which the lane-change vet compares.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/git/ref/heads/main") {
+      return { ref: "refs/heads/main", object: { type: "commit", sha: "3".repeat(40) } };
+    }
+    if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/${"3".repeat(40)}...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/actions/runs/9/jobs?filter=all&per_page=100&page=1") {
@@ -1386,7 +1390,7 @@ test("an approval before a base merge lifts the hold path at the merge, and an e
   // main resolves to TIP, its tip commit, which every compare names.
   const TIP = "3".repeat(40);
   const rest = (number, headFiles, reviews = [approval]) => ({
-    [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" } },
+    [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
     [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
     [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
     [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
