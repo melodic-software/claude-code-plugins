@@ -51,6 +51,7 @@ import {
   stepsUnread,
   timeLimitNoted,
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
@@ -165,29 +166,26 @@ const fromRest = (run) => ({
 // per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
 // check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
 // the head may be retried under the same caps a failed run is. A check's
-// workflow run is the id in its details_url (report-check-run sets it to the
-// posting run's page); not its check suite, which GitHub picks for a check
-// created over the API. A stop marks the attempt of its own run; a check with
-// no run id falls back to timing, a stop after it and before the next fix-ci
-// check started.
-const RUN_PAGE = /\/actions\/runs\/([1-9][0-9]{0,19})$/;
+// workflow run is the one postingRunId names; not its check suite, which
+// GitHub picks for a check created over the API. A stop marks the attempt of
+// its own run; a check with no run id falls back to timing, a stop after it
+// and before the next fix-ci check started.
 export function withStops(runs, stopRuns) {
   const startOf = (run) => Date.parse(run.started_at ?? "");
-  const runOf = (run) => RUN_PAGE.exec(String(run.details_url ?? ""))?.[1] ?? null;
   const stops = stopRuns.filter(laneStop);
   const starts = runs.map(startOf).sort((a, b) => a - b);
   const stoppedAt = (run) => {
     const from = startOf(run);
     const until = starts.find((start) => start > from) ?? Infinity;
     return stops.some((stop) =>
-      runOf(stop) !== null && runOf(run) !== null
-        ? runOf(stop) === runOf(run)
+      postingRunId(stop) !== null && postingRunId(run) !== null
+        ? postingRunId(stop) === postingRunId(run)
         : startOf(stop) > from && startOf(stop) < until,
     );
   };
   const attempts = new Map();
   for (const run of runs) {
-    const key = runOf(run) ?? Symbol();
+    const key = postingRunId(run) ?? Symbol();
     const attempt = attempts.get(key) ?? { last: run, stopped: false, spent: 0 };
     if (startOf(run) >= startOf(attempt.last)) {
       attempt.last = run;

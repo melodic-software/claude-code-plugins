@@ -68,14 +68,16 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
       other non-null `patch` makes the verdict malformed.
 - Every neutral reason must be in `$defs/skip-reason` of `<base-path>/docs/conventions/pr-pipeline/pr-pipeline.schema.json`.
   A reason outside it, or an unreadable schema, turns the neutral into a failure.
-- `details_url` is this workflow run's page, built from the runner's own environment.
+- `details_url` is this workflow run's page, built from the runner's own environment; GitHub
+  returns a check run this token posts with its own page there instead. `external_id` is
+  `<lane>:<activity>:<GITHUB_RUN_ID>:<GITHUB_RUN_ATTEMPT>` whenever all four are well formed, and
+  [posting-run.mjs](posting-run.mjs) `postingRunId` reads the run back from it.
 - When the run job's `lane-class`, `lane-resets`, `lane-turns`, `lane-max-turns`, `lane-models` and
   `lane-profile` outputs make a lane record ([lane-record.mjs](lane-record.mjs)), it opens
   `output.summary` as one line of `key=value` tokens
   (`lane activity class resets turns max-turns models profile`, absent ones omitted, `models` a
   comma list of model IDs), goes into
-  `output.text` as one JSON block, sets `external_id` to `<lane>:<activity>:<GITHUB_RUN_ID>:<GITHUB_RUN_ATTEMPT>`
-  when both are positive integers. It never changes the conclusion or title.
+  `output.text` as one JSON block. It never changes the conclusion or title.
 - Exit 0 after posting; exit 1 on a refusal, a malformed repository,
   head SHA, fallback SHA or non-empty PR head SHA, or a failed POST.
 

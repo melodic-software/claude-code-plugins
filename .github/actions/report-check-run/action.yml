@@ -81,7 +81,7 @@ inputs:
     description: >
       The run job's lane-class output: report-lane-outcome's failure class,
       empty on a success. With the five below it becomes the first line of
-      the posted check run's output.summary, its output.text and external_id
+      the posted check run's output.summary and its output.text
       (lane-record.mjs).
     required: false
     default: ""
