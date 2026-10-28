@@ -146,6 +146,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && runs) {
       return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
     }
+    // The head branch's push history: the head, pushed before its run.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
+      return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
+    }
     if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }
@@ -355,19 +359,21 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/gate-check.mjs",
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-    ".github/workflows/pr-require-checks.yml",
-    ".github/workflows/pr-merge.yml",
     "docs/conventions/pr-pipeline.yaml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
     pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
     pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
+    pull(96, { files: [{ filename: ".github/workflows/pr-require-checks.yml" }] }),
+    pull(97, { files: [{ filename: ".github/workflows/pr-merge.yml" }] }),
   ]);
   assert.equal(code, 0);
   assert.deepEqual(writes, [
     { mutation: "arm", id: "PR_98", head: HEAD },
     { mutation: "arm", id: "PR_99", head: HEAD },
+    { mutation: "arm", id: "PR_96", head: HEAD },
+    { mutation: "arm", id: "PR_97", head: HEAD },
   ]);
   assert.deepEqual(
     notes,

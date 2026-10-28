@@ -27,8 +27,10 @@ workflow change after auto-merge is armed.
   place of an admin, a linked-issue comment counting only when it names the
   pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
   to the same heads: the decided head, read from the review lanes' check-run
-  notices (`noticedHead`, `_noticed_head`), or a later one with the same net
-  change against the base branch (`sameNetChange`).
+  notices (`noticedHead`, `_noticed_head`) while the head branch's push
+  history shows a run of every review lane on each head pushed since it
+  (`unranHead`, `unran_head`), or a later one with the same net change
+  against the base branch (`sameNetChange`).
 - The high-path lift: `pathLifters` over `fromRest` and
   `babysit_merge_policy.path_lifters` name the same trusted approvers of the
   head on the same REST review lists.
@@ -46,6 +48,7 @@ import shutil
 import subprocess
 import sys
 import unittest
+from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -228,7 +231,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
         self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
         self.assertEqual(len(risk.FLOOR_CLASSES), 53)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 23)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -589,14 +592,38 @@ def _run(
     }
 
 
+def _push(after: str, timestamp: str) -> dict[str, Any]:
+    return {"after": after, "timestamp": timestamp, "activity_type": "push"}
+
+
 # The head reads: the review lanes' runs on the head branch (a cost notice at
-# the head before the decision by default), their jobs and annotations, and a
-# compare per head; a run's head answers {"files": [TF]} unless `compares`
-# names it.
+# the head before the decision by default), their jobs and annotations, a
+# compare per head (a run's head answers {"files": [TF]} unless `compares`
+# names it), and the head branch's push history, newest first (`activity`,
+# by default each run's head pushed five minutes before its first status job
+# finished).
 DEFAULT_HEADS = {"runs": [_run(HEAD)], "compares": {}}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 LATE = "2026-01-02T18:00:00Z"
+NEW = "1" * 40
+# The decided head OLD, then NEW pushed before the decision; HEAD carries
+# OLD's net change.
+SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
+SAME = {OLD: {"files": [TF]}, HEAD: {"files": [TF]}}
+
+
+def _plain(lane: str) -> dict[str, Any]:
+    """A run on NEW before the decision whose status job noticed no cost."""
+    return _run(
+        NEW,
+        "2026-01-02T13:10:00Z",
+        criteria="trust-gate",
+        lane=lane,
+        created="2026-01-02T13:05:00Z",
+    )
+
+
 # Each case: the heads world for a decision on the pull request (_link(7)).
 CARRIES = {
     "a notice at the head": DEFAULT_HEADS,
@@ -667,6 +694,34 @@ CARRIES = {
         "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
     },
+    "a newer head pushed before it with a run of every lane": {
+        "runs": [
+            _run(OLD),
+            _plain("pr-review-hosted.yml"),
+            _plain("pr-review-security-hosted.yml"),
+        ],
+        "compares": SAME,
+        "activity": SINCE,
+    },
+    "a newer head pushed before it whose lane runs were deleted": {
+        "runs": [_run(OLD)],
+        "compares": SAME,
+        "activity": SINCE,
+    },
+    "a newer head pushed before it with one lane's run deleted": {
+        "runs": [_run(OLD), _plain("pr-review-security-hosted.yml")],
+        "compares": SAME,
+        "activity": SINCE,
+    },
+    "a history with no push of the decided head": {
+        "runs": [
+            _run(OLD),
+            _plain("pr-review-hosted.yml"),
+            _plain("pr-review-security-hosted.yml"),
+        ],
+        "compares": SAME,
+        "activity": SINCE[:1],
+    },
     "a patchless pure rename": {
         "runs": [_run(OLD)],
         "compares": {
@@ -685,10 +740,29 @@ def _answers(heads: dict[str, Any]) -> dict[str, Any]:
     return {r["sha"]: {"files": [TF]} for r in heads["runs"]} | heads["compares"]
 
 
+def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
+    if "activity" in heads:
+        return heads["activity"]
+    first: dict[str, str] = {}
+    for r in heads["runs"]:
+        first[r["sha"]] = min(first.get(r["sha"], r["at"]), r["at"])
+    pushes = [
+        _push(
+            sha,
+            (datetime.fromisoformat(at) - timedelta(minutes=5)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        )
+        for sha, at in first.items()
+    ]
+    return sorted(pushes, key=lambda m: m["timestamp"], reverse=True)
+
+
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads, answers] = JSON.parse(process.argv[1]);
+const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
+  if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
     if (!(sha in answers)) throw new Error("no such commit");
@@ -733,6 +807,7 @@ def js_decision(
                     ISSUE,
                     DEFAULT_HEADS | heads,
                     _answers(DEFAULT_HEADS | heads),
+                    _activity(DEFAULT_HEADS | heads),
                 ]
             ),
         ],
@@ -756,6 +831,11 @@ def py_decision(
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
+        if "/activity?" in endpoint:
+            assert endpoint == (
+                "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+            ), endpoint
+            return 200, _activity(heads)
         return 200, comment
 
     def paginated(
@@ -826,6 +906,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a notice at the head",
             "a base merge since the decided head",
             "a notice from the security lane",
+            "a newer head pushed before it with a run of every lane",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

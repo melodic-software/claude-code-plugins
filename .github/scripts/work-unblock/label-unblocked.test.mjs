@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
-import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -19,7 +19,7 @@ import {
   breakerComment,
   budgetLatch,
   checkCloser,
-  escalationComment,
+  failedComment,
   main as runMain,
   RECURRENCE_PREFIX,
   recurrenceComment,
@@ -1183,9 +1183,12 @@ test("a stated reset in the past still waits an hour from the stop", async () =>
   assert.deepEqual(writes(late.calls), restarted(30));
 });
 
-// Three limit stops since a person last added agent-ready hand the issue to a
-// person: needs-human and a comment, no restart.
-test("a third limit stop since a person added agent-ready adds needs-human with a comment instead of restarting", async () => {
+// Three limit stops since a person last added agent-ready spend the per-issue
+// cap, a safety limit, so the issue fails visibly (route `fail`): an
+// outcome=failed marker, which maintenance-monitor signal 9 reports, then
+// agent-ready off, and no label. No restart and no needs-human.
+const unready = (n) => `DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`;
+test("a third limit stop since a person added agent-ready fails the issue: a failed marker, agent-ready off, no needs-human", async () => {
   const stops = [
     limitedNote("2026-10-16T01:00:00Z", "2026-10-16T00:30:00Z"),
     limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"),
@@ -1196,20 +1199,34 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   const written = writes(third.calls);
   assert.equal(written.length, 2);
   assert.ok(written[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[0]);
-  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
-  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
-  // The comment went out but the label did not: the next sweep adds only the
-  // label. The App's explanation from before a person's re-add does not count.
-  const explanation = (at) => ({ id: 40, body: escalationComment(3), user: LANES_BOT, created_at: at });
-  const retry = stopped({ comments: [note(), ...stops, explanation("2026-10-16T06:30:00Z")] });
+  assert.ok(written[0].includes("<!-- work-resolve-issue outcome=failed run=7 -->"), written[0]);
+  assert.deepEqual(written.slice(1), [unready(30)]);
+  assert.ok(!written.some((call) => call.includes("needs-human")));
+  // The comment went out but the label did not come off: the next sweep, whose
+  // newest marker is that failed one, removes only the label.
+  const failedNote = (at) => ({ id: 40, body: failedComment({ stops: 3, run: "7" }), user: LANES_BOT, created_at: at });
+  const retry = stopped({ comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")] });
   assert.equal(await sweep({ github: retry.github }), 0);
-  assert.deepEqual(writes(retry.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.deepEqual(writes(retry.calls), [unready(30)]);
+  // A failed marker from before a person's re-add ends nothing now: the new
+  // stops fail the issue again, with a new marker.
   const stale = stopped({
-    comments: [note(), explanation("2026-10-15T23:00:00Z"), ...stops],
+    comments: [note(), failedNote("2026-10-15T23:00:00Z"), ...stops],
     events: [added("2026-10-15T22:00:00Z", OWNER), added("2026-10-15T23:30:00Z", OWNER)],
   });
   assert.equal(await sweep({ github: stale.github }), 0);
   assert.equal(writes(stale.calls).length, 2);
+  // A person's agent-ready after the newest marker, a failed one, starts a new
+  // run: the sweep takes it to the re-fire checks, never the fail route, so
+  // it never removes that agent-ready, whether the run is recent or stranded.
+  for (const at of ["2026-10-16T11:00:00Z", "2026-10-16T07:00:00Z"]) {
+    const readded = stopped({
+      comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")],
+      events: [added("2026-10-16T05:00:00Z"), { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T06:30:01Z" }, added(at, OWNER)],
+    });
+    assert.equal(await sweep({ github: readded.github }), 0);
+    assert.deepEqual(writes(readded.calls), [], at);
+  }
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [note(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);
@@ -1285,17 +1302,31 @@ test("a funding-stopped issue past its regain date is restarted", async () => {
   assert.deepEqual(writes(calls), restarted(30));
 });
 
-test("a funding-stopped issue before its regain date, or with none, waits", async () => {
-  for (const resets of ["2026-10-17T00:00:00Z", ""]) {
-    const { github, calls } = stopped({ comments: [note(), fundingNote(resets, "2026-10-16T06:00:00Z")] });
-    assert.equal(await sweep({ github }), 0);
-    assert.deepEqual(writes(calls), [], resets);
-  }
+test("a funding-stopped issue before its regain date waits", async () => {
+  const { github, calls } = stopped({ comments: [note(), fundingNote("2026-10-17T00:00:00Z", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// Funding is the lane's Claude capacity (a spend limit, no credit or a
+// disabled key), not a bill a restart can raise. With no regain date the
+// sweep tries again limits.fallback-reset hours after the stop, as it does a
+// limit stop with no reset, instead of waiting on a person; the per-issue cap
+// below bounds the tries.
+test("a funding-stopped issue with no regain date is restarted limits.fallback-reset hours after the stop", async () => {
+  const early = stopped({ comments: [note(), fundingNote("", "2026-10-16T08:00:00Z")] });
+  assert.equal(await sweep({ github: early.github }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = stopped({ comments: [note(), fundingNote("", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github: due.github }), 0);
+  assert.deepEqual(writes(due.calls), restarted(30));
+  assert.ok(!writes(due.calls).some((call) => call.includes("needs-human")));
 });
 
 // Funding and limit stops share limits.limit-stops-per-issue, so an outage
-// that outlasts the reset clamp hands the issue to a person, not a loop.
-test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
+// that outlasts the reset clamp fails the issue visibly, not a loop and not a
+// person.
+test("a third funding or limit stop since a person added agent-ready fails the issue", async () => {
   const comments = [
     note(),
     fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
@@ -1305,8 +1336,18 @@ test("a third funding or limit stop since a person added agent-ready goes to a p
   const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
   assert.equal(await sweep({ github }), 0);
   const written = writes(calls);
-  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
-  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.ok(written[0].includes("<!-- work-resolve-issue outcome=failed run=6 -->"), written[0]);
+  assert.deepEqual(written.slice(1), [unready(30)]);
+});
+
+// The failed marker parses as the lane's outcome marker, which signal 9's
+// collector and findPrior read: outcome failed, naming the stopped run (and
+// its branch=resumed tag), so a person's new agent-ready resumes that run's
+// branch.
+test("the failed marker parses as outcome failed naming the stopped run", () => {
+  assert.deepEqual(parseOutcomeMarker(failedComment({ stops: 3, run: "7" })), { outcome: "failed", resets: null, run: "7", onResumed: false });
+  assert.deepEqual(parseOutcomeMarker(failedComment({ stops: 3, run: "8", onResumed: true })), { outcome: "failed", resets: null, run: "8", onResumed: true });
+  assert.ok(!failedComment({ stops: 3, run: "7" }).includes("needs-human"));
 });
 
 test("a funding stop under the bound is restarted after its date", async () => {
@@ -1342,7 +1383,7 @@ test("the resolved limits set the sweep's restarts per run, limit stops per issu
   const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
   const second = stopped({ comments: [note(), ...stops] });
   assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
-  assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.deepEqual(writes(second.calls).slice(1), [unready(30)]);
 
   // No stated reset, stopped at 06:00: five hours has passed at 12:00, seven has not.
   const bare = stopped({ resets: "" });
