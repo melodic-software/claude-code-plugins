@@ -2051,7 +2051,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   fields): the comment opens with `<!-- work-resolve-issue outcome=funding resets=<date> run=<run id> -->`
   (no `resets` when no date is readable), it keeps `agent-ready` and adds no label, it counts
   toward `limits.limit-stops-per-issue` with limit stops (not `turn-cap-restarts`), and work-unblock restarts the issue after the date, held
-  within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
+  within `limits.reset-clamp-min` and `reset-clamp-max`, and with no date after `limits.fallback-reset` hours. Past
+  `limits.limit-stops-per-issue` limit and funding stops, work-unblock comments with `outcome=failed`, removes
+  `agent-ready` and adds no label. The
   status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
   branch like a `limited` one's.
 - On a reuse the skill run runs no model, and the [summary job](#the-summary-job) has a read-only
