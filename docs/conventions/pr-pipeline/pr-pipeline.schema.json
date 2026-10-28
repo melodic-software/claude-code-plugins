@@ -94,6 +94,13 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "readmit-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Open status: ready issues with neither agent-ready nor admission-deferred that one work-unblock sweep runs intake's admission rules on, oldest updated first; ones with a hold or refuse label, an open blocker or an open sub-issue are left out first and do not count."
+        },
         "limit-stops-per-head": {
           "type": "integer",
           "minimum": 1,
