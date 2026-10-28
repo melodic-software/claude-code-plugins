@@ -92,6 +92,8 @@
 // takes only its head SHA and decides as above with the newest completed
 // review run at that head as the upstream (reviewRunAt). The run does not say
 // which label came off, so a head still gated skips at the gate as before.
+// pr-merge runs on every pull_request_target event, so a head whose releasing
+// skips reached SWEEP_HEAD_CAP is skipped there as the sweep skips it.
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
@@ -796,6 +798,10 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       return 0;
     }
     const head = upstream.head_sha;
+    const pull = { number: upstream.pull_requests?.[0]?.number ?? "?", head: { sha: head } };
+    if ((await releaseState({ api: client, pull, log, settings: DEFAULTS })).capped) {
+      return 0;
+    }
     upstream = await reviewRunAt({ api: client, head, repository: common.repository });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);

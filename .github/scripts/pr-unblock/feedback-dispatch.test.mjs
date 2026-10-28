@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, main, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, main, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -1602,6 +1602,44 @@ test("a needs-human unlabel dispatches a head the gate skipped, through its newe
   const { output, lines } = await mergeMain(dir, api);
   assert.equal(api.calls.dispatch.length, 1, lines.join("\n"));
   assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("repeated pr-merge completions at a released head dispatch it at most SWEEP_HEAD_CAP times", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Each dispatched round handles nothing: its reply check skips no-model-turn,
+  // which releases the head for the next trigger.
+  const checkRuns = [];
+  const api = mergeApi({ checkRuns });
+  const dispatch = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    const minute = String(checkRuns.length).padStart(2, "0");
+    checkRuns.push(roundRun("address-feedback", "failure", "Failed", `2026-10-17T11:${minute}:00Z`), noModelTurn(`2026-10-17T11:${minute}:30Z`));
+    return dispatch(request);
+  };
+  const lines = [];
+  for (let completion = 0; completion < SWEEP_HEAD_CAP + 3; completion += 1) {
+    lines.push(...(await mergeMain(dir, api, { ...MERGE_RUN, pull_requests: [{ number: 42 }] })).lines);
+  }
+  assert.equal(api.calls.dispatch.length, SWEEP_HEAD_CAP, lines.join("\n"));
+  assert.match(lines.at(-1), new RegExp(`#42: head ${HEAD} was released ${SWEEP_HEAD_CAP} times, the sweep's cap`));
+});
+
+test("a needs-human unlabel at a head released under the cap dispatches it once", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const checkRuns = [failedRound, noModelTurn()];
+  const api = mergeApi({ checkRuns });
+  const dispatch = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    // The dispatched round's address-feedback check run, its reply still to come.
+    checkRuns.push(roundRun("address-feedback", "failure", "Failed", "2026-10-17T11:00:00Z"));
+    return dispatch(request);
+  };
+  assert.equal((await mergeMain(dir, api)).output, "run-id=38779200001\nupstream-run-id=13\n");
+  const again = await mergeMain(dir, api);
+  assert.equal(again.output, "");
+  assert.equal(api.calls.dispatch.length, 1, again.lines.join("\n"));
 });
 
 test("a pr-merge run on a head still gated, of another event, or with no review run dispatches nothing", async (t) => {
