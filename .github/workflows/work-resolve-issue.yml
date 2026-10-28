@@ -625,7 +625,12 @@ jobs:
             echo "No lane branch of this run to check"
             branch=""
           fi
+          reuse=""
+          if [ -n "$REUSE_BRANCH" ] && [ "$branch" = "$REUSE_BRANCH" ]; then
+            reuse=true
+          fi
           echo "branch=$branch" >>"$GITHUB_OUTPUT"
+          echo "reuse=$reuse" >>"$GITHUB_OUTPUT"
 
       - name: Check out the lane branch
         if: steps.branch.outputs.branch != ''
@@ -637,6 +642,29 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # A reused branch's commits were scanned when their run made them,
+      # against that day's patterns, or never when the branch predates
+      # issue-mode scanning. Before any check runs, the read runner's leak
+      # scan (lib/publish-gate.mjs, from the base) reads everything the
+      # branch changes since its merge base with the base tip. Its word and
+      # the tip it scanned go into the checks record, and report-outcome holds
+      # the reuse PR on any word but clean.
+      - name: Scan the reused branch for credentials
+        id: reuse-scan
+        if: steps.branch.outputs.reuse == 'true'
+        env:
+          BASE: ${{ github.workspace }}/.base
+          LANE: ${{ github.workspace }}/.lane
+        run: |
+          scan=failed
+          tip=""
+          if tip=$(git -C "$LANE" rev-parse HEAD) && base_tip=$(git -C "$BASE" rev-parse HEAD); then
+            scan=$(node "$BASE/.github/scripts/work-resolve-issue/scan-reuse.mjs" "$LANE" "$base_tip" "$tip") || scan=failed
+          fi
+          echo "Leak scan of the reused branch at $tip: $scan"
+          echo "scan=$scan" >>"$GITHUB_OUTPUT"
+          echo "tip=$tip" >>"$GITHUB_OUTPUT"
+
       - name: Run the activity's checks
         id: run-checks
         if: steps.branch.outputs.branch != ''
@@ -645,6 +673,11 @@ jobs:
           LANE: ${{ github.workspace }}/.lane
           BRANCH: ${{ steps.branch.outputs.branch }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
+          # Empty unless the branch is a reused one; a scan of another tip,
+          # or a step that set no word, counts as failed.
+          REUSE: ${{ steps.branch.outputs.reuse }}
+          SCAN: ${{ steps.reuse-scan.outputs.scan }}
+          SCAN_TIP: ${{ steps.reuse-scan.outputs.tip }}
         run: |
           fail() {
             echo "::error::$1"
@@ -689,8 +722,15 @@ jobs:
             results=$(jq -c --arg check "$check" --argjson exit "$status" '. + [{check: $check, exit: $exit}]' <<<"$results")
           done
           echo "::$token::"
-          record=$(jq -nc --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" \
-            '{version: 1, branch: $branch, tip: $tip, results: $results}')
+          scan=""
+          if [ "$REUSE" = true ]; then
+            scan=failed
+            if [ "$SCAN_TIP" = "$tip" ] && [[ $SCAN =~ ^(clean|found|failed)$ ]]; then
+              scan=$SCAN
+            fi
+          fi
+          record=$(jq -nc --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" --arg scan "$scan" \
+            '{version: 1, branch: $branch, tip: $tip, results: $results} + if $scan == "" then {} else {scan: $scan} end')
           echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:

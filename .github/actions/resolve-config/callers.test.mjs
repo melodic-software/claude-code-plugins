@@ -3184,10 +3184,10 @@ test("leak scan: a credential-format file name blocks, and a PEM header alone bl
 });
 
 test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
-  const gate = [
-    'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);',
-    "export const findSecret = (text) => (SECRET_PATTERNS[0][1].test(text) ? [SECRET_PATTERNS[0][0], 1] : null);",
-  ].join("\n");
+  // The main gate, its scan included, with a pattern list that has no warning label.
+  const main = read("../../../lib/publish-gate.mjs");
+  const gate = main.replace(/export const SECRET_PATTERNS = Object\.freeze\(\[[\s\S]*?\n\]\);/, 'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);');
+  assert.notEqual(gate, main, "the main gate's pattern list was replaced");
   assert.deepEqual((await scanWith(t, () => {}, gate)).clean, "true");
   const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
   assert.equal(hit.clean, "false");
@@ -4512,12 +4512,8 @@ test("leak scan: clean multi-line and clean UTF-16LE text stay clean in the repl
 });
 
 test("leak scan: the split-line pass joins patch hunk lines without their prefixes, and counts only a match across the join", async () => {
-  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
-  const body = script.slice(script.indexOf("const straddles"), script.indexOf("// Each source has a kind"));
-  const { findSecret, SECRET_PATTERNS } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
-  const WARN_ONLY = "password or secret assignment";
-  const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-  const deeper = new Function("blocking", "findSecret", "WARN_ONLY", `${body}; return deeper;`)(blocking, findSecret, WARN_ONLY);
+  // The leak scan's deeper passes, from the gate the scan job loads.
+  const { deeperLeak: deeper } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
   const hunk = `diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1,2 @@\n+the token is ${GHS.slice(0, 2)}\n+${GHS.slice(2)}\n`;
   assert.equal(deeper(hunk, true), "GitHub token", "an added-hunk split joins without the + prefixes");
   assert.equal(deeper(hunk, false), null, "kept, the + prefix breaks the token");
