@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, humanGatedLabelFrom, need, positive } from "./address-feedback.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
@@ -45,6 +45,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     activity: env.ACTIVITY,
     appId,
     readTimeline: () => client.listTimeline(pr),
+    readReviews: reviewReader(client, pr),
   });
   appendFileSync(env.GITHUB_OUTPUT, `held=${held}\nlane-escalated=${laneEscalated}\n`);
   log(held ? `#${pr} ${why}` : `#${pr} not held for ${env.ACTIVITY}${laneEscalated ? ` (another lane's escalation put ${gateLabel} on)` : ""}`);

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { gateSource, laneEscalationAllows, listLabelEvents, prHold } from "./gate-source.mjs";
+import { gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -68,7 +68,8 @@ test("an escalation more than a minute after the label is unknown", () => {
 // An escalation comment as report-escalation.sh writes it, with its Reason line.
 const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
   commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
-const allows = (timeline, activity) => laneEscalationAllows({ timeline, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
+  laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
 
 // report-escalation.sh maps each reason to the activity that resumes it:
 // feedback-* address-feedback, dependency-* review-dependency, ci-fix-* fix-ci,
@@ -117,6 +118,41 @@ test("a person's comment edited after the label, or written in its own second, h
   assert.equal(allows(inlineEdited, "fix-ci"), false, "an inline comment edited after the label");
 });
 
+// GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
+// carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
+const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
+
+test("a person's inline reply in a review thread, seen only in the review comments, holds every activity", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  assert.equal(allows(timeline, "fix-ci"), true, "the timeline alone shows no one");
+  const inline = { reviewComments: [reply(OWNER, "2026-10-18T11:00:00Z")] };
+  assert.equal(allows(timeline, "fix-ci", inline), false);
+  assert.equal(allows(timeline, "resolve-conflicts", inline), false);
+  const edited = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z", { updated_at: "2026-10-18T11:00:00Z" })] };
+  assert.equal(allows(timeline, "fix-ci", edited), false, "a reply edited after the label");
+  const unknown = { reviewComments: [reply(undefined, "2026-10-18T11:00:00Z")] };
+  assert.equal(allows(timeline, "fix-ci", unknown), false, "an unknown author counts as a person");
+  const before = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z")] };
+  assert.equal(allows(timeline, "fix-ci", before), true, "a reply before the label");
+  const bot = { reviewComments: [reply(APP, "2026-10-18T11:00:00Z"), reply(ACTIONS, "2026-10-18T11:05:00Z")] };
+  assert.equal(allows(timeline, "fix-ci", bot), true, "a bot's inline reply is no one asking to wait");
+});
+
+test("a person's review since the label, seen only in the reviews, holds; a bot's or an earlier one does not", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const review = (user, at) => ({ id: 9, user, state: "COMMENTED", submitted_at: at });
+  assert.equal(allows(timeline, "fix-ci", { reviews: [review(OWNER, "2026-10-18T11:00:00Z")] }), false);
+  assert.equal(allows(timeline, "fix-ci", { reviews: [review(OWNER, "2026-10-18T09:00:00Z")] }), true);
+  assert.equal(allows(timeline, "fix-ci", { reviews: [review(ACTIONS, "2026-10-18T11:00:00Z")] }), true);
+});
+
+test("review comments or reviews not read disallow", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const read = (reviewComments, reviews) => laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity: "fix-ci" });
+  assert.deepEqual(read(undefined, []), { allowed: false, why: "its review comments or reviews were not read" });
+  assert.deepEqual(read([], null), { allowed: false, why: "its review comments or reviews were not read" });
+});
+
 test("an escalation reason report-escalation.sh does not list holds every activity", () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("some-new-reason")];
   assert.equal(allows(timeline, "fix-ci"), false);
@@ -135,21 +171,54 @@ test("a person's label, a review-lane hold or an escalation with no reason holds
 
 test("prHold reads the timeline only for the human-gated label, and holds on any other hold label", async () => {
   let reads = 0;
+  let reviewReads = 0;
   const readTimeline = async () => {
     reads += 1;
     return [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
   };
+  const readReviews = async () => {
+    reviewReads += 1;
+    return { comments: [], reviews: [] };
+  };
   const hold_ = (labels, extra = {}) =>
-    prHold({ labels, holdLabels: ["do-not-merge", "needs-human"], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, ...extra });
+    prHold({ labels, holdLabels: ["do-not-merge", "needs-human"], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews, ...extra });
   assert.deepEqual(await hold_([]), { held: false, laneEscalated: false, why: "" });
   assert.equal(reads, 0);
   assert.equal((await hold_(["do-not-merge", "needs-human"])).held, true);
   assert.equal(reads, 0, "a do-not-merge hold needs no timeline read");
   assert.deepEqual(await hold_(["needs-human"]), { held: false, laneEscalated: true, why: "" });
-  assert.equal(reads, 1);
+  assert.deepEqual([reads, reviewReads], [1, 1]);
   assert.equal((await hold_(["needs-human"], { activity: "address-feedback" })).held, true, "its own escalation");
+  assert.equal(reviewReads, 1, "a PR the timeline alone holds needs no review read");
   assert.equal((await hold_(["needs-human"], { appId: undefined })).held, true, "with no lanes App id the label holds");
   assert.equal((await hold_(["needs-human"], { gateLabel: null })).held, true, "with no readable human-gated label it holds");
+});
+
+test("prHold holds on a person's inline reply its review reader returns", async () => {
+  const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const api = {
+    listReviewComments: async (number) => (number === 7 ? [reply(OWNER, "2026-10-18T11:00:00Z")] : []),
+    listReviews: async () => [],
+  };
+  const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
+  assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: a person commented or reviewed since needs-human went on" });
+});
+
+test("prHold holds when the review comments or the reviews read fails, or reads no array", async () => {
+  const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const failed = async () => {
+    throw Object.assign(new Error("GET pulls/7/comments returned 502"), { status: 502 });
+  };
+  const empty = async () => [];
+  const hold_ = (api) =>
+    prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
+  const unread = { held: true, laneEscalated: false, why: "held by needs-human: its review comments or reviews were not read" };
+  assert.deepEqual(await hold_({ listReviewComments: failed, listReviews: empty }), unread, "a failed comments read");
+  assert.deepEqual(await hold_({ listReviewComments: empty, listReviews: failed }), unread, "a failed reviews read");
+  assert.deepEqual(await hold_({ listReviewComments: async () => ({ message: "Not Found" }), listReviews: empty }), unread, "comments not an array");
+  assert.deepEqual(await hold_({ listReviewComments: empty, listReviews: async () => null }), unread, "reviews not an array");
+  const none = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline });
+  assert.deepEqual(none, unread, "no review reader");
 });
 
 test("listLabelEvents maps GraphQL label events to timeline items across pages", async () => {

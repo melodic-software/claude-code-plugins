@@ -23,7 +23,7 @@ import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
@@ -153,6 +153,7 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
     activity: "fix-ci",
     appId,
     readTimeline: () => api.listTimeline(pr),
+    readReviews: reviewReader(api, pr),
   });
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };
