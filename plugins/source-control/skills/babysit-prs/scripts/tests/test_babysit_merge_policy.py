@@ -7198,6 +7198,193 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         share.assert_not_called()
 
 
+class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
+    """Past `SHARED_UNVERIFIED_MAX_AGE`, a passing answer with lane merge
+    #8040 unverified is kept up to `SHARED_MAX_AGE` when nothing it was read
+    from moved (`_still_current`) and no verifying run of #8040 reached a
+    conclusion since its `computedAt` (the real
+    `babysit_postmerge.pending_runs_unchanged`, its listing faked at `_read`).
+    The expected decisions are a recompute's: with no run concluded, the
+    check answers what the kept answer says; any concluded run, failed read
+    or moved input reads it again."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    bound = SharedPostMergeAnswer.bound
+    issues_since = SharedPostMergeAnswer.issues_since
+    shared = SharedPostMergeAnswer.shared
+    judged_flight = AStaleSharedAnswerIsRefreshed.judged_flight
+
+    def aged(self, minutes: float) -> GhFake:
+        """Bound, with the answer computed `minutes` ago and main's head
+        on the answer's config commit, as `_still_current` reads it."""
+        gh = AStaleSharedAnswerIsRefreshed.aged(self, minutes)
+        gh.rest[NEWEST_CONFIG.replace(SHA, MAIN_SHA)] = [{"sha": CONFIG_SHA}]
+        return gh
+
+    def pending(self) -> policy.PostMergeGate:
+        """The check's answer with #8040's verifying run still running, in
+        the shape the check writes (`mergedAt`, `excusesExpireAt`,
+        `outstandingSince`)."""
+        merged = policy.datetime.now(policy.UTC) - timedelta(minutes=20)
+        return babysit_postmerge.gate_from_report(
+            {
+                "ok": True,
+                "readable": True,
+                "autoMerges": [
+                    {
+                        "number": 8040,
+                        "verified": False,
+                        "mergedAt": merged.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    }
+                ],
+                "failures": [],
+                "excusesExpireAt": None,
+                "outstandingSince": None,
+            }
+        )
+
+    def run_row(self, workflow: str, status: str, updated: datetime) -> dict[str, Any]:
+        return {
+            "path": f".github/workflows/{workflow}",
+            "status": status,
+            "updated_at": updated.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
+    def gate_with(
+        self,
+        rows: list[dict[str, Any]] | Exception,
+        *,
+        fresh: policy.PostMergeGate | None = None,
+        minutes: float = 5,
+    ) -> tuple[policy.UnattendedPolicy, list[Any], mock.Mock, list[list[str]]]:
+        """The candidate's decision with the answer `minutes` old and the
+        verifying-run listings answering `rows` (or raising it)."""
+        self.aged(minutes)
+        self.judged_flight()
+        listed: list[list[str]] = []
+
+        def read(args: list[str], label: str) -> dict[str, Any]:
+            listed.append(args)
+            if isinstance(rows, Exception):
+                raise rows
+            return {"total_count": len(rows), "workflow_runs": rows}
+
+        checks: list[Any] = []
+        share = mock.Mock()
+        with mock.patch.object(babysit_postmerge, "_read", side_effect=read):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: (
+                    checks.append(floor) or (fresh or self.pending())
+                ),
+                shared=self.shared(self.pending()),
+                share=share,
+                runs_unchanged=lambda answer, branch: (
+                    babysit_postmerge.pending_runs_unchanged(REPO, answer, branch)
+                ),
+            )
+        return result, checks, share, listed
+
+    def test_an_answer_no_run_concluded_since_is_kept_without_a_check(self) -> None:
+        result, checks, share, listed = self.gate_with([])
+        self.assertEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(checks, [], "no post-merge check")
+        share.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:unverified-auto-merge:#8040")
+        # One listing per verifying workflow on the default branch.
+        self.assertEqual(len(listed), 2)
+        for args in listed:
+            self.assertIn("branch=trunk", args[1])
+
+    def test_a_run_still_going_or_concluded_before_the_answer_keeps_it(self) -> None:
+        now = policy.datetime.now(policy.UTC)
+        before = now - timedelta(minutes=5) - policy.SINCE_CLOCK_MARGIN
+        rows = [
+            self.run_row(babysit_postmerge.FULL_RUN_WORKFLOW, "in_progress", now),
+            self.run_row(
+                babysit_postmerge.CANARY_WORKFLOW,
+                "completed",
+                before - timedelta(seconds=5),
+            ),
+        ]
+        result, checks, _, _ = self.gate_with(rows)
+        self.assertEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(checks, [])
+
+    def test_a_verifying_run_that_concluded_since_reads_the_answer_again(
+        self,
+    ) -> None:
+        # The post-merge safety case: #8040's full run went red (or green)
+        # after the answer was read; a kept passing answer would hide the red.
+        now = policy.datetime.now(policy.UTC)
+        for workflow, fresh, expected in (
+            (
+                babysit_postmerge.FULL_RUN_WORKFLOW,
+                lane_gate(False, failed=True),
+                "post-merge:failure:full-run#8040",
+            ),
+            (
+                babysit_postmerge.CANARY_WORKFLOW,
+                lane_gate(False, failed=True),
+                "post-merge:failure:full-run#8040",
+            ),
+            (babysit_postmerge.FULL_RUN_WORKFLOW, lane_gate(True), None),
+        ):
+            with self.subTest(workflow=workflow, expected=expected):
+                result, checks, _, _ = self.gate_with(
+                    [self.run_row(workflow, "completed", now - timedelta(seconds=30))],
+                    fresh=fresh,
+                )
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(len(checks), 1, "one post-merge check")
+                self.assertEqual(result.reason, expected)
+
+    def test_a_failed_or_partial_run_read_reads_the_answer_again(self) -> None:
+        for rows in (
+            babysit_postmerge.PostMergeReadError("runs 502"),
+            RuntimeError("gh failed"),
+        ):
+            with self.subTest(rows=rows):
+                result, checks, _, _ = self.gate_with(rows)
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(len(checks), 1)
+
+    def test_a_moved_head_reads_the_answer_again(self) -> None:
+        # `_still_current` binds the keep to main's head: a newer head reads
+        # the check afresh even with no run concluded.
+        self.aged(5)
+        self.judged_flight()
+        checks: list[Any] = []
+        with mock.patch.object(
+            babysit_postmerge,
+            "_read",
+            return_value={"total_count": 0, "workflow_runs": []},
+        ):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: checks.append(floor) or self.pending(),
+                shared=self.shared(self.pending(), main_sha="f" * 40),
+                share=mock.Mock(),
+                runs_unchanged=lambda answer, branch: (
+                    babysit_postmerge.pending_runs_unchanged(REPO, answer, branch)
+                ),
+            )
+        self.assertNotEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(len(checks), 1)
+
+    def test_an_answer_past_the_shared_age_is_stale_with_no_run_read(self) -> None:
+        minutes = policy.SHARED_MAX_AGE.total_seconds() / 60 + 1
+        result, checks, _, listed = self.gate_with([], minutes=minutes)
+        self.assertEqual(result.details["postMergeShared"], "unused:stale")
+        self.assertEqual(listed, [])
+        self.assertEqual(len(checks), 1)
+
+
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config

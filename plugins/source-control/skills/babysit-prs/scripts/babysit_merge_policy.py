@@ -4766,7 +4766,10 @@ class PostMergeGate:
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
 # How old a shared answer still waiting on a lane merge's verifying run may
-# be: that run may have passed since. The verify-evidence listing's bound.
+# be on age alone: that run may have reached a conclusion since. Past it,
+# `assess` keeps the answer up to `SHARED_MAX_AGE` only on evidence that
+# nothing it was read from moved (`_still_current`, with the caller's
+# `runs_unchanged`), else reads it again.
 SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
 # Refusals that bind the answer to another candidate, not to an older state,
 # or leave the binding unknown: a recompute under one is not written over
@@ -4915,7 +4918,8 @@ def shared_refusal(
     None: it must name the same identity, self logins and lane, give this
     base the floor its own read would (`merged_since_floor` with the shared
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
-    while it passes with a merge unverified) nor past a quarantine excuse's
+    while it passes with a merge unverified, a refusal its callers may
+    overrule on run evidence: `_still_current`) nor past a quarantine excuse's
     end (`_shared_age_refusal`), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
@@ -5012,6 +5016,7 @@ def assess(
     share: Callable[[SharedPostMerge], object] | None = None,
     human_gated: str | None = None,
     stop_when_closed: bool = False,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -5043,8 +5048,12 @@ def assess(
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
     `shared`, the run's one answer for every candidate, replaces the
-    demotion, floor and post-merge reads when `shared_refusal` passes it.
-    `share(answer)` receives those reads, when made and readable, bound as a
+    demotion, floor and post-merge reads when `shared_refusal` passes it, or
+    when it refuses it only as `unverified-stale` and `_still_current` with
+    `runs_unchanged(shared, branch)` (no verifying run of its unverified
+    merges reached a conclusion since) shows nothing it was read from moved
+    (`postMergeShared: kept:unverified-stale`); a kept answer is not handed
+    to `share`. `share(answer)` receives those reads, when made and readable, bound as a
     `SharedPostMerge` for the next candidate, unless `shared` was refused as
     bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
     `human_gated`, the tracker's resolved human-gated role label, holds an
@@ -5189,7 +5198,23 @@ def assess(
             lane=lane,
             authority=authority,
         )
-        details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
+        # Past the unverified age, a passing answer is kept on evidence:
+        # nothing it was read from moved and no verifying run of its
+        # unverified merges reached a conclusion since (`settle_shared`'s
+        # keep). Any failure reads it again.
+        kept = False
+        if unusable == "unverified-stale" and runs_unchanged is not None:
+            try:
+                kept = _still_current(
+                    repo, default, resolved.login, shared, runs_unchanged
+                )
+            except (RuntimeError, ValueError, OSError):
+                kept = False
+        if kept:
+            unusable = None
+            details["postMergeShared"] = "kept:unverified-stale"
+        else:
+            details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
         if unusable in SHARED_BINDING_REFUSALS:
             share = None

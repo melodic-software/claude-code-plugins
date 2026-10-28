@@ -1293,8 +1293,9 @@ unchanged while nothing its check reads has moved, `babysit_verify_evidence.py s
 `babysit_verify_evidence.py lane-room`; with no report it
 holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
 as the gate does; one refused only because a demotion record was filed or changed since is first
-kept when the demotion records alone read as they were; one past the gate's
-two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
+kept when the demotion records alone read as they were; one past the two-minute age only because a
+lane merge is still unverified is kept, here and by the gate for each candidate up to the
+answer's 30-minute age (`postMergeShared: kept:unverified-stale`), while main's head, its
 config commit, the demotion records and the unverified merges' full and canary runs are as they
 were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no
 quarantine that excused a failing suite has expired), and otherwise checked again as the gate does,
