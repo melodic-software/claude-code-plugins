@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.14.4] - 2026-10-28
+
+### Changed
+
+- babysit-prs holds the lanes' new `stop-routes.mjs` and `stop-routes.json`, which `report-outcome.mjs` loads, until a clean security review binds to the head, as it holds the other enforcement modules.
+
 ## [3.14.3] - 2026-10-28
 
 ### Changed
