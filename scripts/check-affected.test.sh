@@ -36,6 +36,7 @@ done
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
+[[ -z "${STUB_ARGS_LOG:-}" ]] || printf '%s\n' "$*" >"$STUB_ARGS_LOG"
 [[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
 # The real selector diffs its own tree's work tree, so the stub logs that.
 [[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
@@ -409,8 +410,10 @@ printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m skill
 run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
-check "a changed skill file runs changed-skills against the base" \
-  '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh plugin-base"* ]]'
+# shellcheck disable=SC2034 # read by the eval in check
+plugin_base_sha="$(git_test_config "$repo" rev-parse plugin-base)"
+check "a changed skill file runs changed-skills against the base, resolved to its commit" \
+  '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_plugin"
 
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
@@ -647,6 +650,42 @@ fi
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
 run -- --uncommitted
 check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 && $OUT == *"over 0 changed files"* ]]'
+
+# The default job count is one less than the core count, at most 8, on a host
+# whatever nproc reports; CHECK_AFFECTED_JOBS and --jobs still set it outright.
+unset CHECK_AFFECTED_JOBS
+mkdir -p "$tmp/nprocbin"
+printf '#!/usr/bin/env bash\necho "$STUB_NPROC"\n' >"$tmp/nprocbin/nproc"
+chmod +x "$tmp/nprocbin/nproc"
+jobs_env=(PATH="$tmp/nprocbin:$PATH" STUB_ARGS_LOG="$tmp/args.log")
+run "${jobs_env[@]}" STUB_NPROC=24 -- --base base --tests
+check "a 24-core host defaults to 8 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 8 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=4 -- --base base --tests
+check "a 4-core host defaults to 3 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 3 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_JOBS=16 -- --base base --tests
+check "CHECK_AFFECTED_JOBS sets the job count past the default cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 16 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_JOBS=16 -- --base base --tests --jobs 12
+check "--jobs sets the job count over CHECK_AFFECTED_JOBS and the cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 12 "* ]]'
+
+# The stale-base check judges the base as resolved at the start of the run,
+# not a remote-tracking ref another worktree's fetch moves while it runs. The
+# real check runs; the shell-portability stub, which runs before it, moves
+# origin/main to a commit that touches the branch's notes.txt.
+cp "$SELF_DIR/check-stale-base-overlap.sh" "$repo/scripts/"
+cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/gate-entry.sh" "$repo/scripts/lib/"
+moved="$(git_test_config "$repo" commit-tree "HEAD^{tree}" -p base -m moved)"
+printf '#!/usr/bin/env bash\n[[ -z "${STUB_MOVE_TO:-}" ]] || git update-ref refs/remotes/origin/main "$STUB_MOVE_TO"\n' \
+  >"$repo/scripts/check-shell-portability.sh"
+git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
+run STUB_MOVE_TO="$moved" -- --base origin/main --no-fetch
+check "a base that moves after the run starts does not fail stale-base-overlap" \
+  '[[ $RC == 0 && $ERR != *"stale-base-overlap"* ]]'
+git_test_config "$repo" update-ref refs/remotes/origin/main "$moved"
+run -- --base origin/main --no-fetch
+check "a branch behind its base at the start on an overlapping path fails stale-base-overlap" \
+  '[[ $RC == 1 && $ERR == *"FAIL stale-base-overlap"* && $ERR == *"notes.txt"* ]]'
+git_test_config "$repo" checkout -q -- scripts/check-stale-base-overlap.sh scripts/check-shell-portability.sh
+rm -f "$repo/scripts/lib/changed-files.sh" "$repo/scripts/lib/gate-entry.sh"
 
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'

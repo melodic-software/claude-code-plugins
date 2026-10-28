@@ -108,13 +108,14 @@
       "id": 8,
       "name": "work-lets-create-pushed-ready-the-pr",
       "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-731 on branch feat/731-csv-header, committed and pushed. The pre-PR diff gate passed, merge-hold.sh exited 1 for item #731 (no hold), and pr_open_state resolves to ready. What does the orchestrator do to open and ready the PR?",
-      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The orchestrator dispatches no ready of its own; monitoring and the post-green review pass follow from the persisted worktree, then the hand-off to /source-control:babysit-prs. The orchestrator does not flip the PR itself and does not merge.",
+      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The orchestrator dispatches no ready of its own. As soon as create --pushed returns, without waiting on CI, it dispatches one PR owner into /work/wt-731 at the strong tier, with the PR number passed explicitly, which runs the monitor watch to green and then the post-green review pass; there is no separate monitor dispatch, and the orchestrator waits on the owner with run_in_background or Monitor, never a poll loop. Fix workers stay fresh dispatches into the same worktree, and the hand-off to /source-control:babysit-prs follows. The orchestrator does not flip the PR itself and does not merge.",
       "files": [],
       "narration": true,
       "expectations": [
         "Opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731",
         "Relies on create --pushed to run ready --unattended and dispatches no second ready",
-        "Runs monitoring and the post-green review pass from the persisted worktree after the PR is open",
+        "As soon as create --pushed returns, dispatches one strong-tier agent into the persisted worktree that runs both the monitor watch and the post-green review pass, with no separate monitor dispatch",
+        "Waits on that agent event-driven (run_in_background or Monitor), never with a poll loop",
         "Never flips the draft with a bare forge command and never merges"
       ]
     },
