@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.3] - 2026-10-28
+
+### Fixed
+
+- pr-verify's resolver judges a head again (reason `relinked`) when the pull request's own plain-named FAIL there is followed by a relink to issues a FAIL name carries that only trusted humans made, read in one GraphQL query on that path only; the "Verifier verdict" section of the pr-pipeline convention states the supersede rule the gate applies to the resulting pass.
+
+- A pr-verify fail on a pull request a person opened no longer holds it with review threads the lanes App cannot resolve (GitHub lets only the author or a writer resolve one, and every conversation must be resolved to merge). `verify-notes.mjs` now posts the fail as one pull request comment, edited in place on a later fail, and adds the `pr-verify-failed` label; a pass at the pull request's head removes the label. ci-status's merge-queue run fails while the label is on, as it does for `do-not-merge`. `feedback-dispatch.mjs` no longer sends a pass-only round to such a pull request. Lanes App pull requests keep their fail-note threads and pass-only round.
+
+### Security
+
+- The `address-feedback` reply job (`publish-feedback`) and its `report-escalation` now accept a PR head past the reviewed one only when it is the exact commit `apply-feedback-patch` pushed, passed on as the write workflow's new `pushed-commit` output and the trigger gate's new `pushed-commit` input. A GitHub-verified lanes App commit made during the run, but not by that push, no longer passes the gate. The token broker still checks the old rule until it takes the pushed commit too.
+
 ## [6.5.2] - 2026-10-28
 
 ### Fixed
