@@ -1749,7 +1749,8 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
 of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
-writer moves to once the readers have run on main. After that, a `fail` name may end with `-i`
+writer moves to once the readers have run on main. resolve-pr looks up only the names the writer
+writes, so that change adds the digest lookups to it. After the digest, if any, a `fail` name may end with `-i`
 and the issue numbers the JSON's `linked_issues` records, ascending, each once, joined by dots
 (`-i7` or `-i7.12`, at most 10, each 1 to 10 digits with no leading zero), so a `fail` carries its
 issues in a name the run authenticates and one verdict has one name. Every reader refuses a `pass`
