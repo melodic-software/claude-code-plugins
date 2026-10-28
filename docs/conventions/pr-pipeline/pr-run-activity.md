@@ -870,7 +870,7 @@ stops for a hold only at the push job's label and draft re-read. Every path and 
 | The scan refused the model's output (leak-scan block, oversize patch) | conflict-scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
 | A model edit outside the conflicted set | push | `awaiting-human` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
 | A model edit a refusal names | push | `awaiting-human` | `conflict-patch-protected-path` / `conflict-patch-invalid` | neutral `apply-conflict-patch` |
-| A `.github/workflows/` change that is not the base's own | push | `awaiting-human` | `workflow-staged` | neutral `apply-conflict-patch` |
+| A `.github/workflows/` change that is not the base's own | push | `lane-stopped` | `workflow-staged` | neutral `apply-conflict-patch` |
 | Hold label or draft set during the run | push | `awaiting-human` | empty | neutral `apply-conflict-patch` |
 | Resolved, committed and pushed | push | none | empty | success `apply-conflict-patch` |
 
