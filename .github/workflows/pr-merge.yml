@@ -1652,7 +1652,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         env:
-          API_BUDGET_TOKEN: github-token
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
@@ -1666,6 +1665,9 @@ jobs:
           SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
         run: |
           set -euo pipefail
+          # The read goes through the wrapped gh, so the job-end notice counts it.
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
           # After the gate's rate-limit stop, no read: the start stays unknown.
           RUN_STARTED_AT=
           if [ "$LIMITED" != true ]; then

@@ -519,30 +519,69 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
   assert.deepEqual(unlogged, []);
 });
 
-// A node step whose only token is the job token keeps each answer's reading
-// under github-token (createGitHub's rate guard writes it when
-// API_BUDGET_TOKEN names the bucket), or the job-end notice counts nothing.
-test("every node step that calls GitHub with the job token alone names API_BUDGET_TOKEN github-token", () => {
+// A node step whose only token is the job token and whose script builds a
+// createGitHub client keeps each answer's reading under github-token (the
+// client's rate guard writes it when API_BUDGET_TOKEN names the bucket), or
+// the job-end notice counts nothing. A step whose script calls nothing needs
+// no bucket, so none is asked of it.
+test("every createGitHub step that calls GitHub with the job token alone names API_BUDGET_TOKEN github-token", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const unnamed = [];
+  const needless = [];
   for (const id of ids) {
     const body = job(id);
     const jobBucket = /(?:^|\n) {4}env:\n(?: {6}.*\n)*? {6}API_BUDGET_TOKEN: ([a-z-]+)$/m.exec(body.split("\n    steps:\n")[0])?.[1];
     for (const step of body.split(/\n {6}- name: /).slice(1)) {
       const name = step.split("\n")[0];
-      if (!/\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\//.test(step) ||
-        !step.includes("${{ github.token }}") ||
-        step.includes("${{ steps.lane-token.outputs.token }}")
-      ) {
+      const script = /\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\/(\S+\.mjs)/.exec(step)?.[1];
+      if (!script || !step.includes("${{ github.token }}") || step.includes("${{ steps.lane-token.outputs.token }}")) {
         continue;
       }
-      const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1] ?? jobBucket;
-      if (bucket !== "github-token") {
+      const calls = readFileSync(new URL(`../../../${script}`, import.meta.url), "utf8").includes("createGitHub(");
+      const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+      if (calls && (bucket ?? jobBucket) !== "github-token") {
         unnamed.push(`${id}: ${name}`);
+      }
+      if (!calls && bucket !== undefined) {
+        needless.push(`${id}: ${name}`);
       }
     }
   }
   assert.deepEqual(unnamed, []);
+  assert.deepEqual(needless, []);
+});
+
+// The sweep-count step's one read, the run's start, goes through the wrapped
+// gh, so the job-end notice counts it; sweep-summary.mjs calls nothing.
+test("the merge job's sweep-count read leaves one github-token reading", () => {
+  const step = /- name: Count the sweep's refusals\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))[1];
+  const run = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-sweep-count-");
+  try {
+    mkdirSync(join(dir, "bin"));
+    symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+    const headers = "X-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining: 4000\\r\\nX-Ratelimit-Used: 1000\\r\\nX-Ratelimit-Reset: 9999999999\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n";
+    writeFileSync(
+      join(dir, "bin", "gh"),
+      `#!/usr/bin/env bash
+printf 'HTTP/2.0 200 OK\\r\\n${headers}'
+while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10-28T00:00:00Z"}' | jq -r "$2"; exit; fi; shift; done
+`,
+      { mode: 0o755 },
+    );
+    writeFileSync(join(dir, "bin", "node"), "#!/usr/bin/env bash\necho \"$RUN_STARTED_AT\" >\"$RUNNER_TEMP/started\"\n", { mode: 0o755 });
+    writeFileSync(join(dir, "sweep.json"), '{"refusal_counts":{}}');
+    const r = spawnSync("bash", ["-c", run], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", GITHUB_RUN_ID: "77", LIMITED: "", RUNNER_TEMP: dir, SWEEP_SUMMARY_TO: join(dir, "sweep.json") },
+    });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(readFileSync(join(dir, "started"), "utf8"), "2026-10-28T00:00:00Z\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // A run that stops at the superseded step, before the lane token, still

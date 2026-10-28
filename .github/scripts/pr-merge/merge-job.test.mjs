@@ -1119,7 +1119,9 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\necho 2026-10-26T00:00:00Z\n`);
+    // The step reads through the wrapped gh, which asks for the headers (-i).
+    symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\nprintf 'HTTP/2.0 200 OK\\r\\n\\r\\n'\necho 2026-10-26T00:00:00Z\n`);
     writeFileSync(join(bin, "node"), `#!/usr/bin/env bash\necho "RUN_STARTED_AT=$RUN_STARTED_AT" >"${dir}/node"\n`);
     for (const file of ["gh", "node"]) chmodSync(join(bin, file), 0o755);
     const sweep = join(dir, "sweep.json");
@@ -1129,7 +1131,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep },
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
