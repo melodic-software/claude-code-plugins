@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.16.5] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.REVIEW_FLOOR` (the `enforcement` class of `FLOOR_CLASSES`, which holds a change until a clean security review binds to its head, not for a person) also covers `.github/scripts/pr-unblock/escalation-routes.mjs`, which `clear-escalations.mjs` and `gate-source.mjs` import, and `escalation-routes.json`, the routing table it reads, so the floor still holds every module its scripts load, and the scripts that act on a pr-unblock stop's route (`report-escalation.sh`, `adjudicate-feedback.mjs`, `publish-feedback.mjs`, `apply-patch.mjs`) with every module they import.
+
+### Fixed
+
+- The babysit merge gate reads the trusted-actor list and the admission rules at the tip commit of their branch, resolved by its full ref through `base_tip`, never by the branch name, so a tag named like the branch cannot supply them. The escalation lift reads the trusted list the same way, and the verdict answer key names both files by `refs/heads/<branch>`. A branch whose tip does not resolve to a commit SHA fails closed: the verdict read is unreadable and the label stays on.
+
 ## [3.16.4] - 2026-10-28
 
 ### Fixed
