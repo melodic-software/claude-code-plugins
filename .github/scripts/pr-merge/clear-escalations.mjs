@@ -14,6 +14,9 @@
 //   when it never was). A lane adding a label the PR already carries writes
 //   no `labeled` event, so its hold can sit under the App's label, and a
 //   person removing the label is what lifts it.
+// - check-signed-commits does not hold it: no github-actions[bot] comment
+//   whose first line is SIGNED_COMMITS_HOLD was written or edited since the
+//   label was last removed (ever, when it never was), by the same rule.
 // - Every escalation comment since that label event is the App's: its author
 //   is the bot login and a Bot account, its first line is the pr-unblock
 //   escalation marker, its second the resume-key line, and its `- Reason:`
@@ -112,6 +115,7 @@ import {
   laneHold,
   lines,
   openReviewHold,
+  openSignedCommitsHold,
   PAIRED_MS,
   personSince,
   RESUME_KEY,
@@ -307,6 +311,9 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
   const held = openReviewHold(timeline, lifted);
   if (held !== undefined) {
     return { reason: `a review lane holds it: ${laneHold(held).slice(0, 120)}` };
+  }
+  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
+    return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
   }
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.

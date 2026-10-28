@@ -174,8 +174,9 @@ reviewer bot, one the lane never answered where a fix request, below, follows th
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
 human-gated label, only one whose answer is a fix request, unless a lane escalation put the label
 on: the lanes App added it last, its `work-items:escalation lane=pr-unblock` comment (pr-unblock
-or fix-ci) followed within a minute, no other marker is on its comments since, and no review-lane
-`claude-lane-hold` names the current head or is open, per
+or fix-ci) followed within a minute, no other marker is on its comments since, no review-lane
+`claude-lane-hold` names the current head or is open, and no `check-signed-commits` hold is open,
+per
 `.github/scripts/pr-unblock/gate-source.mjs`; anything ambiguous keeps the fix-request rule, and
 the label stays on, and `clear-escalations.mjs` removes it only while no address-feedback round
 record is on the lanes App's comments since it went on; to stop the lane working such a PR, a
@@ -258,7 +259,12 @@ writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency
 `review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
 (`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
 `fix-ci-context`) read it; anything else, a person's label included, holds the PR as
-`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. When they work past the
+`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. `check-signed-commits`'
+escalation holds the PR too, even under a lane escalation: a `github-actions[bot]` comment whose
+first line is `<!-- check-signed-commits hold -->`, written or edited since the label was last
+removed, holds `resolve-conflicts`, `fix-ci` and `fix-docs`, leaves `address-feedback` to the
+fix-request rule above, and keeps `clear-escalations.mjs` from removing the label; the same marker
+from any other account is not read. When they work past the
 label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
 before the model turn: a person who comments, or a hold that lands, while the run works does not
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and

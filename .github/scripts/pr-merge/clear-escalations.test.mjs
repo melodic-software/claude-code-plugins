@@ -11,6 +11,7 @@ import { test } from "node:test";
 
 import { main, NATIVE_READS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
+import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
@@ -535,6 +536,46 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
     await run(w);
     assert.equal(w.writes().at(-1)?.method, "DELETE", hold.user.login);
   }
+});
+
+// check-signed-commits' escalation comment, as its report job posts it with
+// GITHUB_TOKEN: SIGNED_COMMITS_HOLD on the first line. Its label write adds no
+// `labeled` event when a lane escalation already put the label on.
+const signedHold = (user, at, updatedAt = at) =>
+  commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${KEY}\``, at, updatedAt);
+
+test("check-signed-commits' marked comment keeps the label a clearing pr-unblock escalation would take off", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), signedHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: check-signed-commits holds it: a lane commit could not be verified"), logs.join("\n"));
+});
+
+test("check-signed-commits' marked comment keeps a pr-merge head-moved escalation too", async () => {
+  const w = world({ timeline: [...mergeEscalated(verifyBody(OLD)), signedHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("an unmarked bot comment, or the marker from another account, does not keep the label", async () => {
+  for (const spoke of [
+    commented(ACTIONS_BOT, "Lane commit check: these commits are not GitHub-verified.", "2026-10-18T11:00:00Z"),
+    signedHold(CODEX_BOT, "2026-10-18T11:00:00Z"),
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", spoke.user.login);
+  }
+});
+
+test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a later escalation", async () => {
+  const lifted = [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+  const w = world({ timeline: lifted });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+  const edited = world({ timeline: [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", "2026-10-18T09:30:00Z"), ...lifted.slice(1)] });
+  await run(edited);
+  assert.deepEqual(edited.writes(), [], "edited after the unlabel");
 });
 
 // enable-auto-merge's own person refusal comment (refusalBody), then its
