@@ -3591,6 +3591,13 @@ LANE_DENIED = (
     "plugins/*/skills/**",
     "plugins/*/agents/**",
 )
+# resolve-issue's `labels-absent` in docs/conventions/pr-pipeline.yaml.
+ISSUE_HOLDS = (
+    "needs-human",
+    "needs-owner-decision",
+    "status: needs-decision",
+    "status: needs-info",
+)
 
 
 class LaneConfig(unittest.TestCase):
@@ -3742,7 +3749,9 @@ class LaneEligibility(unittest.TestCase):
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
         return gh
 
-    def eligibility(self, changed: int | None = None) -> Any:
+    def eligibility(
+        self, changed: int | None = None, holds: tuple[str, ...] = ISSUE_HOLDS
+    ) -> Any:
         pr = {
             "number": 7,
             "base": {"sha": SHA},
@@ -3755,6 +3764,7 @@ class LaneEligibility(unittest.TestCase):
             denied_paths=LANE_DENIED,
             agent_identity=IDENTITY,
             permission=HUMANS,
+            issue_holds=holds,
         )
 
     def test_a_lane_pr_whose_issue_has_no_class_label_is_eligible_as_c2(self) -> None:
@@ -3903,6 +3913,7 @@ class LaneEligibility(unittest.TestCase):
                     pr={"number": 7, "base": {"sha": SHA}, "changed_files": 2},
                     denied_paths=denied,
                     agent_identity=IDENTITY,
+                    issue_holds=ISSUE_HOLDS,
                 )
                 self.assertTrue(result.eligible, result.reason)
                 self.assertEqual(result.work_class, "C2")
@@ -3929,6 +3940,7 @@ class LaneEligibility(unittest.TestCase):
             pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=(),
             agent_identity=IDENTITY,
+            issue_holds=ISSUE_HOLDS,
         )
         self.assertTrue(result.eligible, result.reason)
 
@@ -3947,19 +3959,20 @@ class LaneEligibility(unittest.TestCase):
         self.fake(base_ref="release")
         self.assertEqual(self.eligibility().reason, "base-not-default:release")
         self.assertEqual(
-            policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+            "base-not-default:release",
         )
 
     def test_an_unreadable_default_branch_refuses(self) -> None:
         gh = self.fake()
         gh.rest[f"repos/{REPO}"] = 502
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        reason = policy.recheck_lane_issue(REPO, 7, issue=41)
+        reason = policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
         self.assertTrue(str(reason).startswith("unreadable:"))
 
     def test_the_enqueue_recheck_reads_the_closing_issue_again(self) -> None:
         def recheck(issue: int | None = 41) -> str | None:
-            return policy.recheck_lane_issue(REPO, 7, issue=issue)
+            return policy.recheck_lane_issue(REPO, 7, issue=issue, holds=ISSUE_HOLDS)
 
         self.fake()
         self.assertIsNone(recheck())
@@ -3975,6 +3988,93 @@ class LaneEligibility(unittest.TestCase):
         # No issue from the eligibility read: nothing to hold the recheck to.
         self.fake()
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
+
+    def test_each_configured_hold_on_the_issue_refuses_at_both_reads(self) -> None:
+        # #7783: a hold added to the issue after admission stops the merge.
+        for label in ISSUE_HOLDS:
+            with self.subTest(label=label):
+                self.fake(labels=["agent-ready", label.upper()])
+                self.assertEqual(
+                    self.eligibility().reason, f"closing-issue-held:{label}"
+                )
+                self.assertEqual(
+                    policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+                    f"closing-issue-held:{label}",
+                )
+
+    def test_an_unheld_issue_passes_both_reads(self) -> None:
+        self.fake(labels=["agent-ready", "priority: low"])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertIsNone(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
+        )
+
+    def test_a_hold_on_a_refs_issue_refuses(self) -> None:
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            self.issue_node(labels=["needs-owner-decision"])
+        )
+        self.assertEqual(
+            self.eligibility().reason, "closing-issue-held:needs-owner-decision"
+        )
+
+    def test_no_resolved_hold_label_refuses_at_both_reads(self) -> None:
+        self.fake()
+        self.assertEqual(
+            self.eligibility(holds=()).reason, "closing-issue-holds-unresolved"
+        )
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41),
+            "closing-issue-holds-unresolved",
+        )
+
+    def test_issue_labels_read_short_refuse_at_the_recheck(self) -> None:
+        node = self.issue_node(labels=["agent-ready"])
+        node["labels"]["totalCount"] = 101
+        self.fake(closing=[node])
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+            "issue-labels-unreadable",
+        )
+
+
+class IssueHoldLabels(unittest.TestCase):
+    """#7783: the labels a lane pull request's linked issue holds it on are
+    resolve-issue's `labels-absent`, read through the merge config reader,
+    else the tracker's human-gated role label."""
+
+    def test_the_configured_list_is_the_hold_set(self) -> None:
+        text = (
+            LANE_PIPELINE
+            + "activities:\n  resolve-issue:\n    applies-when:\n"
+            + '      labels-absent: [needs-human, needs-owner-decision, "status: '
+            + 'needs-decision", "status: needs-info"]\n'
+        )
+        config_fake(self, text)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(config.issue_holds, ISSUE_HOLDS)
+        self.assertEqual(policy.issue_hold_labels(config, "awaiting"), ISSUE_HOLDS)
+
+    def test_without_the_list_the_human_gated_label_holds(self) -> None:
+        config_fake(self, LANE_PIPELINE)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(config.issue_holds, ())
+        self.assertEqual(policy.issue_hold_labels(config, "awaiting"), ("awaiting",))
+        self.assertEqual(policy.issue_hold_labels(config, None), ())
+        issue = LaneEligibility.issue_node(self, labels=["Awaiting"])
+        self.assertEqual(
+            policy.issue_hold_refusal(issue, ("awaiting",)),
+            "closing-issue-held:awaiting",
+        )
+        self.assertIsNone(policy.issue_hold_refusal(issue, ("needs-human",)))
+
+    def test_the_stricter_config_holds_on_both_sides_lists(self) -> None:
+        base = policy.PipelineConfig(
+            SHA, "C2", "pr-merge", IDENTITY, None, (), None, issue_holds=("a",)
+        )
+        main = dataclasses.replace(base, base_sha="b" * 40, issue_holds=("b", "a"))
+        self.assertEqual(policy.stricter_config(base, main).issue_holds, ("a", "b"))
 
 
 def refs_answer(*issues: dict[str, Any], pulls: tuple[int, ...] = ()) -> Any:
@@ -4025,7 +4125,9 @@ class RefsIssueEligibility(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
         # The issue the cost-decision lookup and the enqueue recheck bind to.
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=41))
+        self.assertIsNone(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
+        )
 
     def test_hidden_refs_lines_name_nothing(self) -> None:
         for body in (
@@ -4680,6 +4782,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "spec_from_body_ids": (OWNER_ID,),
             "human_gated": "needs-human",
             "now": ADOPT_NOW,
+            "issue_holds": ISSUE_HOLDS,
         }
         args.update(kwargs)
         return policy.lane_eligibility(REPO, 7, pr=pr, **args)
@@ -4746,7 +4849,9 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(owner_pr(body=body))
                 self.assertEqual((result.reason, result.issue), (None, issue))
                 self.assertEqual(result.body_is_intent, True)
-                self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=issue))
+                self.assertIsNone(
+                    policy.recheck_lane_issue(REPO, 7, issue=issue, holds=ISSUE_HOLDS)
+                )
 
     def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
         # A model-written App body (claude[bot]) would grade the diff against
