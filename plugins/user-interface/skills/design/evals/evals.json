@@ -105,13 +105,15 @@
     {
       "id": 10,
       "name": "team-deny-names-team-file",
-      "prompt": "Our team file docs/conventions/user-interface.yaml has `routing: {deny: [figma]}`. The Figma plugin is installed here. Hand our new settings screen design off from Figma to code.",
-      "expected_output": "detect.mjs lists the figma rows in `skipped` with by `deny` and source docs/conventions/user-interface.yaml. Because Step 4 would have considered figma for design-tool handoff, the answer says the team file denied it, names that file as the source of the skip, and does not route to the Figma plugin.",
-      "files": [],
+      "prompt": "Build me a landing page hero section. I have the frontend-design plugin from claude-plugins-official installed and enabled, and this project has no design system yet. Our team's settings are in docs/conventions/user-interface.yaml.",
+      "expected_output": "With the fixture at docs/conventions/user-interface.yaml, detect.mjs lists the frontend-design rows in `skipped` with by `deny`, name frontend-design and source docs/conventions/user-interface.yaml. frontend-design is a confirmed, installed route for visual direction, so Step 4 would have considered it: the answer says the team file denied it, names that file as the source of the skip, and does not route the visual direction to frontend-design.",
+      "files": [
+        "evals/fixtures/team-deny/docs/conventions/user-interface.yaml"
+      ],
       "expectations": [
-        "The answer says the Figma route was skipped because the team routing denies it",
+        "The answer says the frontend-design route was skipped because the team routing denies it",
         "The answer names docs/conventions/user-interface.yaml, the team file, as the source of the skip",
-        "The answer does not route the handoff to the Figma plugin"
+        "The answer does not route the visual direction to frontend-design"
       ]
     }
   ]
