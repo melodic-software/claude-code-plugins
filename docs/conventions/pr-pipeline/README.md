@@ -251,15 +251,17 @@ step judges the threads as above.
 
 A lane escalation's human-gated label does not stop the other fixers that could clear its cause.
 `resolve-conflicts`, `fix-ci` and `fix-docs` work a PR carrying the label when `gate-source.mjs`
-reads it as a lane escalation (the conditions below), no person has commented since the label went
-on (they may want the lanes to wait, as `clear-escalations.mjs` reads it), and no escalation since
-then names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
-writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency-*`
-`review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
-(`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
-`fix-ci-context`) read it; anything else, a person's label included, holds the PR as
-`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. When they work past the
-label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
+reads it as a lane escalation (the conditions below), no person has commented, reviewed or replied
+in a review thread since the label went on (they may want the lanes to wait; GitHub's timeline
+shows no reply inside an existing review thread, so the PR's review comments and reviews are read
+too, and a failed read holds it), and no escalation since then names a reason of the activity's
+own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
+`feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
+`resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
+`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
+their `labels-absent`. When they work past the label, the write runner lifts only the human-gated
+hold for that push. That verdict is read once,
 before the model turn: a person who comments, or a hold that lands, while the run works does not
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
@@ -503,6 +505,16 @@ Each leaf declares:
   those domains, and run the research skills, wherever the runner gives it its edit tools
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true`.
+- `tidy` (optional, `skill` only, off when absent): the run tidies its own change before its last
+  check run. `entry` is the diff-scoped tidy skill, `passes` the other quality skills it may call,
+  `turn-share` the percent of the run's turn cap tidy may spend (at the cap the passes left are
+  skipped and the change is handed on; tidy never fails the run), and `cutoffs` the one named
+  value that decides whether a change is small and single-area enough to tidy in the run:
+  `max-files`, `max-lines` (added plus removed), `max-areas` (`plugins/<name>` with its
+  `.changes/<name>`, `docs/<dir>`, else the top-level segment) and `shared-paths` (a directory
+  ends in `/`). The runner allows the entry and the passes and no other skill. The schema takes
+  it only on a `read` skill whose `applied-by` sets `patch` with no `prepare`, and the launcher
+  stage only for an issue lane ([`pr-run-activity.md`](pr-run-activity.md#issue-mode)).
 - `permission-mode` (optional, `skill` only): `dontAsk` (the default) or `auto`, the Claude Code
   permission mode of a PR-mode skill on the read runner's launcher; other runners run `dontAsk`.
   The run job fails red unless the CLI reports the mode asked for
@@ -849,7 +861,8 @@ the rules that only tighten in
     request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
     other module the floored scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    and the `retry-fetch.mjs` copy in each of those two directories)
+    the `retry-fetch.mjs` copy in each of those two directories, and the stop routes
+    `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
@@ -2423,7 +2436,8 @@ with defaults.
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
-| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
+| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry`, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |

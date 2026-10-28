@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.14.4] - 2026-10-28
+
+### Changed
+
+- babysit-prs holds the lanes' new `stop-routes.mjs` and `stop-routes.json`, which `report-outcome.mjs` loads, until a clean security review binds to the head, as it holds the other enforcement modules.
+
+## [3.14.3] - 2026-10-28
+
+### Changed
+
+- The pr-merge hold-path floor moves `.github/workflows/pr-merge.yml` and `.github/workflows/pr-require-checks.yml` from the `gate` class to `enforcement` (owner direction 2026-10-27): a pull request that changes them clears on a clean security review bound to its head instead of waiting for a person, once that review can bind. It cannot: each is on the floor, which `babysit_review_evidence.readonly_workflow` never clears whatever the head's content or a deletion, so each stays a lane source and any change to either still waits for a person. `trust`, the pr-merge scripts, `docs/conventions/pr-pipeline.yaml` and `babysit_merge*` stay in `gate`. `babysit_risk.FLOOR_CLASSES` and `merge-holds.mjs` `HOLD_PATH_CLASSES` change together.
+
+- A changed workflow file no longer unbinds the review lanes when its head copy cannot post as `github-actions[bot]` with a write token nor reach a secret (`babysit_review_evidence.readonly_workflow`), so a clean security review clears such a pull request with no person (owner direction 2026-10-27). It must be a top-level `.github/workflows/*.yml` other than the two review callers and the floor workflows (`babysit_risk.FLOOR`), present at the head (read against the pull request's base, which `bind()` now takes as `base_sha`; a deleted workflow stays a lane source), and one plain YAML document with: no anchor, alias, tag, merge key or repeated key; only known top-level and job keys; `name:` equal to the file stem; no `pull_request_target`, `workflow_run` or `workflow_call` trigger; every job's `permissions:` set, its own or the top level's, with each scope `read` or `none` (`read-all` and `{}` too); and no `secrets` reference but `secrets.GITHUB_TOKEN`, which also rules out `secrets: inherit`. Anything else, a rename, a read that fails, or a gate with no PyYAML stays a lane source (`lane-source-changed`).
+
+- `babysit_risk` holds `cost-review-required` (HIGH) only for a real new charge:
+  - infrastructure as code or a Pulumi project;
+  - an unlisted base tree;
+  - a file renamed or copied into a workflow or pipeline path;
+  - a workflow or pipeline file with no patch;
+  - a non-free runner;
+  - on a repository not known to be public: a `runs-on:`, `windows`, `macos` or `cron` line, a raised model-leg timeout, or an artifact `retention-days` raised above the one removed or above GitHub's 90-day default.
+- Subscription or prepaid spend is the new MED `cost-finding`. It is reported, sits in `MERGEABLE_MED` and never holds a merge. It covers `--model`, `--max-turns`, a `pr-pipeline.yaml` spend line, and on a public repository a schedule, a raised timeout or a raised retention.
+- A net-new secrets reference now holds as the HIGH `secret-exposure-review`, and a new model leg or `@anthropic-ai/claude-code` run as the HIGH `agent-surface-review`. Both are in `PERSON_CODES`, and a cost decision does not clear them.
+
+### Fixed
+
+- `babysit_review_evidence.bind()` no longer trusts a lane comment someone else edited. Anyone with write access to a repository can edit a comment, so the pull request's own pusher could rewrite the reviewed-head marker, a summary's `critical-findings:` line, or an inline finding's `severity:` line. A marker, a summary or a thread's first comment now binds only while its last editor (GraphQL `editor` and `lastEditedAt`) is its own author, a Bot; any other editor, or edit fields that were not read, unbinds the review as `comment-edited`. The edit is read for every `github-actions[bot]` or Claude App comment before its body, so an edit that deletes the lane footer or the marker line unbinds instead of dropping the comment from the count. The lane producer's own marker updates still bind. `babysit_merge._lane_evidence` attaches each lane-author comment's edit record, reading GraphQL only for comments whose `updated_at` differs from `created_at`, and `fetch_review_threads` now reads `lastEditedAt` and `editor` on each thread comment.
+
 ## [3.14.2] - 2026-10-28
 
 ### Added
