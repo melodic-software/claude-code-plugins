@@ -1003,7 +1003,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
    human-gated hold unless the select job reported `fix-requested`, and commits with the
-   `Lane-Activity: pr-unblock/address-feedback` trailer. An empty patch (every reply needs no fix)
+   `Lane-Activity: pr-unblock/address-feedback` trailer followed by one `Lane-Thread: <thread id>`
+   line for each kept thread a `VALID` reply names. It reads those replies from the same call's
+   scan job artifact (`patch-replies-attempt`), downloaded before the mint and failed red unless
+   its SHA-256 is the scan job's (`patch-replies-sha256`); a reply naming a thread the select job
+   did not keep adds no line. An empty patch (every reply needs no fix)
    runs no push job, and `report-escalation` does not need it: a patch that does not land leaves
    no fix commit, which the reply job escalates.
 5. The reply job runs whenever the select job proceeded, so a round whose model or push job
@@ -1042,14 +1046,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
+     signature, whose `Lane-Thread` lines must name each `VALID` thread, and which must change
+     each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
      line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. With no such
      commit in the range and no patch written this round, as on a retry after a round whose fix
      landed but whose replies did not post, each `VALID` thread's fix is instead the newest
      earlier commit on the PR of the same kind (the lanes App's, the push job's trailer,
-     `web-flow`, `valid`), committed after the thread's newest comment by the reviewer, the
-     verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
+     `web-flow`, `valid`) whose `Lane-Thread` lines name the thread, committed after the
+     thread's newest comment by the reviewer, the verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
      skill's directory, and a line the reply's evidence cites in a file no later commit on the PR
      changed, and that no lane reply already names as a fix. Otherwise it posts no reply and escalates `feedback-not-landed`: a push
      that was superseded, refused, escalated or held made no such commit;
