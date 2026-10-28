@@ -67,10 +67,10 @@
 # `git ls-files 'plugins/toolchain/**/*.test.sh'` is empty. The generic hygiene
 # steps (typos, editorconfig-checker, gitleaks) read the bytes but validate
 # nothing about these files' contract. So they now fail loud, which is this
-# tool working. To bring them back, give them a real lane first: they have a
-# schema already — docs/contracts/ecosystem-commands/ecosystem.schema.json —
-# and wiring a check-jsonschema step against it is the natural way to earn an
-# entry here.
+# tool working. The four ecosystem-commands examples have since earned a lane:
+# docs/contracts/ecosystem-commands/examples.test.sh names each one and checks
+# it against ecosystem.schema.json, so they map to that suite, not to an entry
+# here. The toolchain ecosystem YAMLs still have none.
 .github/*
 .gitattributes
 .gitignore
