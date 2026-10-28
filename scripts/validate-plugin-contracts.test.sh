@@ -197,6 +197,26 @@ else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
 fi
 
+# --- 2c. The registry moved to docs/contracts/config-cascade/ and left a stub
+#         with no Implementers table at docs/conventions/config-cascade/. The
+#         moved file is read: alpha is a registered owner, and the stub raises
+#         no missing-section failure. ---------------------------------------
+reset_fixture
+write_registry alpha
+mkdir -p "$TMP/docs/contracts"
+mv "$TMP/docs/conventions/config-cascade" "$TMP/docs/contracts/config-cascade"
+mkdir -p "$TMP/docs/conventions/config-cascade"
+printf '# Consumer config cascade (moved)\n\nThis contract now lives at docs/contracts/config-cascade/.\n' \
+  >"$TMP/docs/conventions/config-cascade/README.md"
+make_plugin alpha alpha_api_key
+carve_out_body | write_setup_skill alpha '[check]'
+out="$(run_fixture)"
+if has_fail_line "$OWNS_TRACKED_CONFIG" && ! grep -q 'must carry an "## Implementers" section' <<<"$out"; then
+  ok "the registry is read from docs/contracts/, not the stub left at docs/conventions/"
+else
+  fail "the moved registry should be read, not the stub: $out"
+fi
+
 # --- 3. Mentioning apply in prose is not a carve-out declaration:
 #        a carve-out-shaped skill whose body only mentions apply in prose. ---
 reset_fixture
