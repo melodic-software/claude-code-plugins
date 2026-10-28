@@ -476,7 +476,8 @@ assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 # run leaves it unset, so the same failure fails the leg there.
 r="$(make_root advisory)"
 write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
-write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
+# shellcheck disable=SC2016 # the suite expands it, not this script
+write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"; echo "suite sees nonce: [${advisory_nonce:-}]"'
 advisory_list="$scratch/advisory.txt"
 printf '# fixture\nplugins/planning/shared/tests/ui.test.sh\n' >"$advisory_list"
 
@@ -488,10 +489,22 @@ assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
 assert_output_lacks "on main, the advisory failure gets no error annotation" "::error"
+# The nonce comes before any suite block, the warning repeats it, and no suite
+# sees it (babysit_postmerge.py credits only a warning carrying it).
+nonce="$(sed -n 's/^Advisory nonce: \([0-9a-f]\{16\}\)$/\1/p' <<<"$RUN_OUTPUT")"
+before_blocks="$(sed -n '/^=== /q; p' <<<"$RUN_OUTPUT")"
+if [[ -n "$nonce" && "$before_blocks" == *"Advisory nonce: $nonce"* &&
+  "$RUN_OUTPUT" == *"failed (exit 1) but is advisory on this run (nonce $nonce;"* ]]; then
+  ok "on main, a 16-hex nonce prints before any suite block and the warning carries it"
+else
+  fail "on main, no nonce before the blocks or in the warning: $RUN_OUTPUT"
+fi
+assert_output_has "no suite inherits the nonce" "suite sees nonce: []"
 
 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on a pull request, the same advisory-listed failure fails the run" --root "$r"
 assert_output_lacks "on a pull request, no advisory warning is printed" "::warning"
+assert_output_lacks "on a pull request, no nonce is printed" "Advisory nonce:"
 assert_output_has "on a pull request, the failure summary line" "One or more plugin tests failed."
 
 r="$(make_root advisory-other)"
