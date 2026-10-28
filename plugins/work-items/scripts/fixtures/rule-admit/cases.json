@@ -308,6 +308,12 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger github-hosted runners;" }
     },
     {
+      "name": "a charge word in a fenced block with CRLF line endings admits",
+      "source": "GitHub issue bodies typed in the web UI end lines in CRLF; a fence line ending in \\r still closes the block",
+      "issue": { "body": "Two rows in the install table read awkwardly.\r\n\r\n```yaml\r\nretention-days: 5\r\n```\r\n" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
       "name": "a paid subscription between two fenced blocks refuses when the first holds a ``` mid-line",
       "source": "CommonMark fenced code blocks: a fence is a whole line, so ``` inside a line neither opens nor closes one",
       "issue": { "body": "Two rows in the install table read awkwardly.\n\n```yaml\nmessage: \"```\"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```" },

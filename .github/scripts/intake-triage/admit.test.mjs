@@ -469,6 +469,9 @@ describe("decide", () => {
       // A fence is a whole line: ``` inside a line neither opens nor closes one.
       assert.equal(hits('```yaml\nmessage: "```"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```'), "subscription");
       assert.equal(hits("````\n```\nretention-days: 5\n````\n\n~~~\nretention-days: 5\n~~~~"), undefined);
+      // Web-typed bodies end lines in CRLF; a fence line ending in \r still closes.
+      assert.equal(hits("```yaml\r\nretention-days: 5\r\n```\r\n\r\n~~~\r\nretention-days: 5\r\n~~~\r\n"), undefined);
+      assert.equal(hits('```yaml\r\nmessage: "```"\r\n```\r\n\r\nBuy a paid subscription.\r\n\r\n```yaml\r\nretention-days: 5\r\n```'), "subscription");
       // A bare identifier still refuses: excluding words joined by - _ / . would
       // also drop prose such as per-seat billing or data-retention.
       assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
