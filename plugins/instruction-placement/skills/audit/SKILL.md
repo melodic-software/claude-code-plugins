@@ -71,7 +71,7 @@ live docs page. Before the detector runs, check that those sentences are still t
 "${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"
 ```
 
-It takes no arguments and fetches only the pages `context/mechanics-sources.tsv` lists. It prints
+It takes no arguments and fetches only the pages `${CLAUDE_PLUGIN_ROOT}/context/mechanics-sources.tsv` lists. It prints
 one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
 the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
 exits 0 whatever the results, so a run with no network still completes. Its grant names the script

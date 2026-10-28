@@ -87,33 +87,9 @@ not available, rather than skipping the move.
 
 ## Check the mechanics quotes first
 
-Where a shim, a nested `AGENTS.md` or a `.claude/rules/` file loads is priced by the surface table in
-[`../../context/verified-mechanics.md`](../../context/verified-mechanics.md), and each
-*(doc MS-<n>)* cell there rests on one sentence of a live docs page. The first command of every
-run, whichever argument it has, checks those sentences:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"
-```
-
-It takes no arguments and fetches only the pages `context/mechanics-sources.tsv` lists. It prints
-one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
-the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
-exits 0 whatever the results, so a run with no network still completes. Its grant names the script
-with no `*`, and a Bash rule with no `*` matches one exact command (see
-<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-10-28; recheck when that
-section changes how such a rule matches).
-
-A proposed move relies on the records its destination's row of the surface table cites.
-
-- **Drift goes first.** At the top of the output, list each `drift` result: the record id, its
-  section URL, the stored wording and the fetched one. A move that relies on a drifted record shows
-  both wordings and the unverified label below, and names the wording it is planned on.
-- **Quote the deciding sentence** of each record a move relies on, from the record's `quote`
-  column, beside that move in the plan.
-- **Label what was not read.** A move that relies on an `unverified` or a drifted record is
-  labeled "unverified as of <date>", in the plan and at the apply gate. The date is the one the
-  `unverified` line printed, or for a drifted record its `as_of` in the list.
+Every run, whichever argument it has, starts with `"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"`.
+Read [`reference/quote-check.md`](reference/quote-check.md) before running it: what it prints, and
+how each result is carried into the plan and the apply gate.
 
 ## Plan first
 
@@ -200,7 +176,7 @@ between steps must leave content duplicated rather than deleted:
    fetcher run unattended, so each call takes a permission prompt. Two scripts run the fetcher on a
    grant, each for fixed pages only: `cutover-check.sh` for the single page it has always read
    (`env-vars`, with `--max-age 0`), and `quote-check.sh` for the list in
-   `context/mechanics-sources.tsv`, which it takes no argument to change.
+   `${CLAUDE_PLUGIN_ROOT}/context/mechanics-sources.tsv`, which it takes no argument to change.
    Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
@@ -277,20 +253,12 @@ and the run exits non-zero unless every one is `[MET]`.
 |---|---|
 | 1, the remote flag | The shipped bundle's code default for the flag, resolved at run time (the identifier is minifier-assigned and the offsets are per build, so neither is ever hardcoded), and the `env-vars` feature-flag list fetched live. Either the default being true or the AGENTS.md bullet being gone satisfies it |
 | 2, CI | Every `claude-code-action` pin from `plan-migration.sh`'s `ACTION` rows, mapped to the CLI it installs and compared against the floor, plus the recorded CI canary |
-| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
+| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path. Why no tools, and the measurement behind it: [`reference/verification.md`](reference/verification.md), "Asking Claude" |
 | 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
 
 One more probe is **reported, not graded**: the nested write trigger, one metered `claude -p` turn
 offered **only the Write tool** that writes into `sub/` of a scratch tree with a root and a `sub/`
 `AGENTS.md` and no `CLAUDE.md`. It prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]`; condition G reads it.
-
-**A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
-working directory, a reply quoting that file is equally consistent with the model having read it
-for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
-load at session start, and a quotation from a session that *could* not read anything is evidence
-of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
-nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
-`NONE`. The nested write probe keeps that rule: Write alone, and the file it asked for must exist.
 
 **`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
 the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and
