@@ -1924,31 +1924,32 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 self.assertEqual(_codes(result), (f"high-path:{glob}",))
                 self.assertTrue(holds(result))
 
-    def test_a_review_caller_workflow_change_unbinds_the_review(self):
-        # A review caller stays a lane source whatever its content
-        # (babysit_review_evidence.REVIEW_CALLERS), so no lane binds and the
-        # enforcement path stays held.
+    def test_a_review_caller_workflow_change_holds_for_a_person(self):
+        # A review caller is a gate path: the review cannot judge the file
+        # that runs it, whatever a main-run review says.
         import babysit_review_evidence
 
         path = B + "babysit_verify_evidence.py"
-        changed = [path, ".github/workflows/pr-review-security-hosted.yml"]
+        caller = ".github/workflows/pr-review-security-hosted.yml"
         lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=changed
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller]
         )
         self.assertEqual(
             {lane.unbound_reason for lane in lanes}, {"lane-source-changed"}
         )
-        files = tuple(_file(each) for each in changed)
+        files = (_file(path), _file(caller))
         result = score(_input(files=files, lanes=lanes))
-        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{path}", _codes(result))
+        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        self.assertIn(f"high-path:{caller}", persons)
+        self.assertIn(f"review-path:{path}", _codes(result))
         self.assertTrue(holds(result))
 
 
-class UnbindableReviewPathTests(unittest.TestCase):
-    """Owner decision Q26 option B, follow-up: an enforcement path whose
-    security review can never bind at this head, because the pull request
-    also changes a lane source (`lane-source-changed`), is a person's
-    reason; a review not yet run or not read stays a lane's."""
+class LaneSourceReviewPathTests(unittest.TestCase):
+    """An enforcement path in a pull request that also changes a lane source
+    waits for the security review that binds from main
+    (babysit_review_evidence `_main_bound`): until then it is the lane's
+    `review-path:` hold, never a person's."""
 
     PATH = B + "babysit_verify_evidence.py"
 
@@ -1956,38 +1957,15 @@ class UnbindableReviewPathTests(unittest.TestCase):
         lanes = (_lane("claude-review"), security)
         return score(_input(files=(_file(self.PATH),), lanes=lanes))
 
-    def test_a_lane_source_change_makes_the_hold_a_persons(self):
-        security = _lane(
-            "claude-security-review", bound=False, unbound_reason="lane-source-changed"
-        )
-        result = self._score(security)
-        code = f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}"
-        self.assertIn(code, _codes(result))
-        self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
-        self.assertTrue(holds(result))
-        self.assertIn(
-            code, [r.code for r in babysit_risk.person_reasons(result.reasons)]
-        )
-
-    def test_a_workflow_change_through_bind_is_a_persons(self):
-        import babysit_review_evidence
-
-        changed = [self.PATH, ".github/workflows/pr-review-security-hosted.yml"]
-        lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=changed
-        )
-        result = score(_input(files=tuple(_file(p) for p in changed), lanes=lanes))
-        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
-        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}", persons)
-
-    def test_a_transient_unbind_stays_a_lanes(self):
-        for reason in ("no-run", "evidence-error", "changed-files-unread", None):
+    def test_an_unbound_review_holds_as_the_lanes(self):
+        for reason in ("lane-source-changed", "no-run", "evidence-error", None):
             with self.subTest(reason):
                 security = _lane(
                     "claude-security-review", bound=False, unbound_reason=reason
                 )
                 result = self._score(security)
                 self.assertIn(f"review-path:{self.PATH}", _codes(result))
+                self.assertTrue(holds(result))
                 self.assertEqual(
                     [
                         r.code
@@ -1997,10 +1975,7 @@ class UnbindableReviewPathTests(unittest.TestCase):
                     [],
                 )
 
-    def test_a_lane_source_change_on_the_code_lane_alone_is_not_enough(self):
-        lanes = (
-            _lane("claude-review", bound=False, unbound_reason="lane-source-changed"),
-            _lane("claude-security-review", bound=False, unbound_reason="no-run"),
-        )
-        result = score(_input(files=(_file(self.PATH),), lanes=lanes))
-        self.assertIn(f"review-path:{self.PATH}", _codes(result))
+    def test_a_clean_bound_review_clears_it(self):
+        result = self._score(_lane("claude-security-review"))
+        self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
+        self.assertFalse(holds(result))

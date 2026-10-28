@@ -354,11 +354,6 @@ REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enfor
 # Every floor glob, whichever clears it.
 FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
 REVIEW_PATH_PREFIX = "review-path:"
-# An enforcement path whose security review can never bind at this head: the
-# pull request also changes a lane source (babysit_review_evidence
-# `lane-source-changed`), so no lane can clear it and a person does.
-UNBINDABLE_PATH_PREFIX = "review-path-unbindable:"
-_UNBINDABLE_REASON = "lane-source-changed"
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
@@ -713,15 +708,12 @@ def _high_path_reasons(
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if not security_review_clean(inp.lanes):
-        unbindable = _security_review_unbindable(inp.lanes)
+        # A pull request that also changes a lane source binds the security
+        # review only from main (babysit_review_evidence `_main_bound`), so
+        # a clean main-run review clears these too.
         for pattern in REVIEW_FLOOR:
             hits = [path for path in paths if glob_match(pattern, path)]
-            if hits and unbindable:
-                detail = f"{', '.join(hits)}; it also changes a lane source, so no security review binds to this head"
-                reasons.append(
-                    Reason(f"{UNBINDABLE_PATH_PREFIX}{pattern}", Risk.HIGH, detail)
-                )
-            elif hits:
+            if hits:
                 detail = f"{', '.join(hits)}; a clean claude-security-review bound to this head clears it"
                 reasons.append(
                     Reason(f"{REVIEW_PATH_PREFIX}{pattern}", Risk.HIGH, detail)
@@ -1394,18 +1386,6 @@ def blocking(lane: Any) -> Any:
     return getattr(lane, "open_findings", None) if count is None else count
 
 
-def _security_review_unbindable(raw_lanes: Any) -> bool:
-    """Whether the security lane's evidence is unbound for good at this head:
-    its one entry says `lane-source-changed`. Any other unbind (no run yet, a
-    read that failed) a later review or read can clear."""
-    lanes = _sequence(raw_lanes) or ()
-    entries = [lane for lane in lanes if getattr(lane, "lane", None) == _HOLDING_LANE]
-    return (
-        len(entries) == 1
-        and getattr(entries[0], "unbound_reason", None) == _UNBINDABLE_REASON
-    )
-
-
 def security_review_clean(raw_lanes: Any) -> bool:
     """Whether the security lane's review clears a `REVIEW_FLOOR` path: its
     one evidence entry is bound to the head, with no unbound reason, and
@@ -1546,7 +1526,7 @@ PERSON_CODES = frozenset(
         FILES_CAPPED_CODE,
     }
 )
-PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNBINDABLE_PATH_PREFIX)
+PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:")
 
 
 def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:

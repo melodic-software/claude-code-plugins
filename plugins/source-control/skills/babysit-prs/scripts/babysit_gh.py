@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import io
 import json
 import math
 import os
@@ -13,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+import zipfile
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -2388,6 +2390,85 @@ def carried_lane_attempts(
     ):
         return None
     return [*attempts[:-1], {**item, "jobs": latest["jobs"]}]
+
+
+def collect_main_reviews(
+    repo: str,
+    names: Mapping[str, str],
+    workflow_path: str,
+    branch: str,
+    env_overrides: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """The `main_reviews` input of `babysit_review_evidence.bind()`: for each
+    lane in `names`, every artifact listed under its exact name
+    (`main_review_name`), with its run record, whether `branch` holds that
+    run's head (a compare read), and its `verdict.json`. An artifact whose
+    run is not `workflow_path` on a `workflow_run` event on `branch` is
+    skipped before any download: it cannot count, and a pull request's own
+    workflow can upload one under any name. bind() judges every field of
+    what is kept. Any failed read raises `RuntimeError`, which the caller
+    turns into unbound evidence."""
+    env = env_overrides
+
+    def read(path: str, binary: bool = False) -> Any:
+        if binary:
+            return _run_gh(
+                ["api", path],
+                timeout_seconds=None,
+                check=True,
+                env_overrides=env,
+                binary=True,
+            ).stdout
+        return gh_json(["api", path], env) if env else gh_json(["api", path])
+
+    records: list[dict[str, Any]] = []
+    on_branch: dict[str, bool] = {}
+    for lane, name in names.items():
+        listing = fetch_paginated_api(
+            f"repos/{repo}/actions/artifacts?name={quote(name, safe='')}&per_page=100",
+            f"{name} artifacts",
+            items_key="artifacts",
+            env_overrides=env,
+        )
+        for artifact in listing:
+            if artifact.get("name") != name or artifact.get("expired") is True:
+                continue
+            run_id = json_object(artifact.get("workflow_run")).get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                continue
+            run = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
+            if (
+                run.get("path") != workflow_path
+                or run.get("event") != "workflow_run"
+                or run.get("head_branch") != branch
+            ):
+                continue
+            head = run.get("head_sha")
+            if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
+                continue
+            if head not in on_branch:
+                compare = json_object(
+                    read(f"repos/{repo}/compare/{head}...{quote(branch, safe='')}")
+                )
+                on_branch[head] = compare.get("status") in ("ahead", "identical")
+            raw = read(f"repos/{repo}/actions/artifacts/{artifact.get('id')}/zip", True)
+            try:
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    verdict = json.loads(archive.read("verdict.json").decode("utf-8"))
+            except Exception as exc:  # noqa: BLE001 - zip, zlib or JSON: unread
+                raise RuntimeError(
+                    f"{name} artifact {artifact.get('id')}: {exc}"
+                ) from exc
+            records.append(
+                {
+                    "lane": lane,
+                    "artifact": artifact,
+                    "run": run,
+                    "on_branch": on_branch[head],
+                    "verdict": verdict,
+                }
+            )
+    return records
 
 
 def collect_lane_runs(

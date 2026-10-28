@@ -2464,5 +2464,55 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         method.assert_not_called()
 
 
+class MainReviewInputTests(unittest.TestCase):
+    """What the gate hands bind() for the main-run reviews: nothing, with no
+    read, unless the pull request changes a lane source; then each lane's
+    exact artifact name for the head's tree and the context bind() checks."""
+
+    def reviews(self, changed: list[str]) -> tuple[Any, Any, list[Any]]:
+        calls: list[Any] = []
+
+        def collect(repo, names, workflow, branch, env):
+            calls.append((repo, names, workflow, branch))
+            return [{"lane": "claude-review"}]
+
+        tree = "e" * 40
+        with (
+            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(
+                merge, "gh_json", return_value={"tree": {"sha": tree}}
+            ) as read,
+            mock.patch.object(merge, "collect_main_reviews", side_effect=collect),
+        ):
+            reviews, context = merge._main_reviews(
+                "owner/repo", 5, HEAD, changed, None, None, None
+            )
+        calls.extend(read.call_args_list)
+        return reviews, context, calls
+
+    def test_no_lane_source_reads_nothing(self) -> None:
+        self.assertEqual(self.reviews(["app.py"]), (None, None, []))
+
+    def test_a_lane_source_collects_by_the_heads_tree(self) -> None:
+        reviews, context, calls = self.reviews(["app.py", ".github/workflows/x.yml"])
+        tree = "e" * 40
+        self.assertEqual(reviews, [{"lane": "claude-review"}])
+        self.assertEqual(
+            context, {"repo": "owner/repo", "pr": 5, "tree": tree, "branch": "main"}
+        )
+        self.assertEqual(
+            calls[0],
+            (
+                "owner/repo",
+                {
+                    "claude-review": f"pr-review-main-claude-review-5-{tree}",
+                    "claude-security-review": f"pr-review-main-claude-security-review-5-{tree}",
+                },
+                ".github/workflows/pr-review-main.yml",
+                "main",
+            ),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

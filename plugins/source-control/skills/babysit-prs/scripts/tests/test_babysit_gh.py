@@ -1166,6 +1166,118 @@ class ThreadResolutionFailsClosedTests(unittest.TestCase):
         self.assertEqual(comments[0]["author"]["login"], "reviewer")
 
 
+def _zip(files: dict[str, str]) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
+
+
+class CollectMainReviewsTests(unittest.TestCase):
+    """The main-run review collector: every artifact under the exact name,
+    its run read fresh, a compare for whether main holds the run's head, and
+    verdict.json; an artifact from any other workflow, event or branch is
+    never downloaded."""
+
+    REPO = "owner/repo"
+    NAME = "pr-review-main-claude-review-5-" + "e" * 40
+    WORKFLOW = ".github/workflows/pr-review-main.yml"
+    HEAD = "c" * 40
+
+    def run_record(self, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": 7,
+            "path": self.WORKFLOW,
+            "event": "workflow_run",
+            "head_branch": "main",
+            "head_sha": self.HEAD,
+            **fields,
+        }
+
+    def collect(self, artifacts, runs, compare="ahead", archive=None):
+        listing = f"repos/{self.REPO}/actions/artifacts?name={self.NAME}&per_page=100"
+        downloads: list[str] = []
+
+        def fake_json(args: list[str], env: Any = None) -> Any:
+            if args[1] == listing:
+                return [{"artifacts": artifacts}]
+            if args[1].startswith(f"repos/{self.REPO}/actions/runs/"):
+                return runs[int(args[1].rsplit("/", 1)[-1])]
+            if args[1] == f"repos/{self.REPO}/compare/{self.HEAD}...main":
+                return {"status": compare}
+            raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+
+        def fake_run(args: list[str], **kw: Any) -> Any:
+            downloads.append(args[1])
+            body = (
+                archive
+                if archive is not None
+                else _zip({"verdict.json": '{"findings": 0}'})
+            )
+            return subprocess.CompletedProcess(args, 0, body, b"")
+
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_json),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_run),
+        ):
+            found = gh.collect_main_reviews(
+                self.REPO, {"claude-review": self.NAME}, self.WORKFLOW, "main"
+            )
+        return found, downloads
+
+    def artifact(self, artifact_id: int, run_id: int, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": artifact_id,
+            "name": self.NAME,
+            "expired": False,
+            "workflow_run": {"id": run_id},
+            **fields,
+        }
+
+    def test_keeps_a_main_run_review_with_its_run_and_verdict(self) -> None:
+        found, downloads = self.collect([self.artifact(1, 7)], {7: self.run_record()})
+        self.assertEqual(downloads, [f"repos/{self.REPO}/actions/artifacts/1/zip"])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["lane"], "claude-review")
+        self.assertIs(found[0]["on_branch"], True)
+        self.assertEqual(found[0]["run"]["id"], 7)
+        self.assertEqual(found[0]["verdict"], {"findings": 0})
+
+    def test_never_downloads_an_artifact_of_another_run(self) -> None:
+        runs = {
+            8: self.run_record(id=8, event="pull_request"),
+            9: self.run_record(id=9, head_branch="feature"),
+            10: self.run_record(id=10, path=".github/workflows/forge.yml"),
+        }
+        artifacts = [self.artifact(n, n) for n in runs] + [
+            self.artifact(11, 7, expired=True),
+            self.artifact(12, 7, name=self.NAME + "-x"),
+        ]
+        found, downloads = self.collect(artifacts, {**runs, 7: self.run_record()})
+        self.assertEqual((found, downloads), ([], []))
+
+    def test_a_head_main_does_not_hold_is_marked_so(self) -> None:
+        found, _ = self.collect(
+            [self.artifact(1, 7)], {7: self.run_record()}, "diverged"
+        )
+        self.assertIs(found[0]["on_branch"], False)
+
+    def test_an_unreadable_archive_raises(self) -> None:
+        for archive in (
+            b"not a zip",
+            _zip({"other.json": "{}"}),
+            _zip({"verdict.json": "{"}),
+        ):
+            with self.subTest(archive=archive[:10]), self.assertRaises(RuntimeError):
+                self.collect(
+                    [self.artifact(1, 7)], {7: self.run_record()}, archive=archive
+                )
+
+
 class CollectLaneRunsTests(unittest.TestCase):
     """The bind() input collector (the Phase 9 caller contract): runs listed
     by branch with no head_sha filter, kept by PR number, attempts counted

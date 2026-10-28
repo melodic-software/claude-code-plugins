@@ -185,6 +185,7 @@ from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
     collect_lane_runs,
+    collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
     fetch_issue_comments,
@@ -3187,18 +3188,62 @@ def _lane_evidence(
             permission=permission,
         )
 
+    head_sha = str(head.get("sha"))
+    head_file = _head_file(repo, head_sha)
+    base_sha = json_object(pr.get("base")).get("sha")
+    main_reviews, main_context = _main_reviews(
+        repo, number, head_sha, changed_paths, head_file, base_sha, read_env
+    )
     lanes = review_evidence.bind(
-        str(head.get("sha")),
+        head_sha,
         runs,
         comments,
         threads,
         is_human=human,
         changed_paths=changed_paths,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
-        head_file=_head_file(repo, str(head.get("sha"))),
-        base_sha=json_object(pr.get("base")).get("sha"),
+        head_file=head_file,
+        base_sha=base_sha,
+        main_reviews=main_reviews,
+        main_context=main_context,
     )
     return lanes, comments
+
+
+def _main_reviews(
+    repo: str,
+    number: int,
+    head_sha: str,
+    changed_paths: Sequence[str] | None,
+    head_file: Any,
+    base_sha: Any,
+    read_env: Mapping[str, str] | None,
+) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    """The main-run reviews `bind()` reads for a pull request that changes a
+    lane source, with the context it checks them against (the head's tree,
+    read from the commit, and the default branch), or (None, None) when the
+    pull request changes none, so no read is spent."""
+    if not review_evidence.needs_main_review(changed_paths, head_file, base_sha):
+        return None, None
+    branch = repository_default_branch(repo)
+    if not branch:
+        return None, None
+    commit = json_object(
+        gh_json(["api", f"repos/{repo}/git/commits/{head_sha}"], read_env)
+        if read_env
+        else gh_json(["api", f"repos/{repo}/git/commits/{head_sha}"])
+    )
+    tree = json_object(commit.get("tree")).get("sha")
+    if not isinstance(tree, str):
+        return None, None
+    names = {
+        lane: review_evidence.main_review_name(lane, number, tree)
+        for lane in review_evidence.LANES
+    }
+    reviews = collect_main_reviews(
+        repo, names, review_evidence.MAIN_REVIEW_WORKFLOW, branch, read_env
+    )
+    return reviews, {"repo": repo, "pr": number, "tree": tree, "branch": branch}
 
 
 # The review lanes' comment authors: `review_evidence.bind()` reads only theirs.

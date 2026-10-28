@@ -66,7 +66,8 @@ LANES: dict[str, tuple[str, str]] = {
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane. plugins/review/ is not listed:
+# prove no review by the default branch's lane; only a main-run review
+# (MAIN_REVIEW_WORKFLOW, `_main_bound`) binds it. plugins/review/ is not listed:
 # the reusable pr-review-cli.yml stages the review plugin from
 # claude-code-plugins' default-branch tip, never the head, and
 # scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
@@ -87,6 +88,24 @@ LANE_SOURCE_NAMES = (
     "REVIEW.md",
     ".gitattributes",
 )
+
+# The review lanes run again from main for a pull request that changes a lane
+# source: `workflow_run` runs the default branch's copy of this file, never a
+# head's, and it reads the head's diff as data. Each lane's verdict is the
+# artifact `main_review_name` names, keyed on the head's tree, holding
+# `verdict.json`. Only a run's own steps upload its artifacts, so the run
+# record authenticates the name (`_main_review_counted`), as for pr-verify.
+MAIN_REVIEW_WORKFLOW = ".github/workflows/pr-review-main.yml"
+MAIN_REVIEW_PREFIX = "pr-review-main"
+MAIN_REVIEW_SCHEMA = 1
+
+
+def main_review_name(lane: str, pr: int, tree: str) -> str:
+    """The artifact a main-run review of `lane` uploads for a pull request
+    head whose tree is `tree`: every review of one tree shares the name, so
+    one exact-name listing returns them all."""
+    return f"{MAIN_REVIEW_PREFIX}-{lane}-{pr}-{tree}"
+
 
 # A changed workflow file `readonly_workflow` may clear: a top-level `.yml`.
 # A `.yaml` stays a lane source, since its stem could repeat a `.yml`'s name
@@ -278,6 +297,8 @@ def bind(
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
     base_sha: str | None = None,
+    main_reviews: Sequence[Mapping[str, Any]] | None = None,
+    main_context: Mapping[str, Any] | None = None,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -302,6 +323,15 @@ def bind(
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
     the count, so it unbinds the lane rather than lowering the count.
+
+    A pull request that changes such a lane source binds a lane only on a
+    main-run review (`main_reviews`, `_main_bound`): its pull_request runs,
+    threads and comments, a reviewed-head marker included, come from a
+    workflow the head can rewrite, so none of them counts. `main_context`
+    holds what those records are checked against: `repo`, `pr` (the pull
+    request number), `tree` (the pinned head's tree) and `branch` (the
+    default branch). With either missing, a lane source unbinds as
+    `lane-source-changed`.
     """
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
@@ -315,7 +345,16 @@ def bind(
         if not all(_readonly_candidate(path) for path in sources) or not all(
             readonly_workflow(path, head_file, base_sha) for path in sources
         ):
-            raise Unbound("lane-source-changed")
+            return tuple(
+                _main_lane(
+                    lane,
+                    head_sha,
+                    main_reviews,
+                    main_context,
+                    (runs, comments, threads, is_human, head_file),
+                )
+                for lane in LANES
+            )
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
@@ -334,6 +373,157 @@ def bind(
             )
             for lane in LANES
         )
+
+
+def needs_main_review(
+    changed_paths: Sequence[str] | None,
+    head_file: Callable[[str, str], str | None] | None,
+    base_sha: str | None,
+) -> bool:
+    """Whether `bind()` would read only a main-run review for these changed
+    paths: some lane source that `readonly_workflow` does not clear. An
+    unread list is True, so the caller collects rather than guesses."""
+    if not isinstance(changed_paths, list | tuple):
+        return True
+    sources = [path for path in changed_paths if lane_source(path)]
+    return not all(_readonly_candidate(path) for path in sources) or not all(
+        readonly_workflow(path, head_file, base_sha) for path in sources
+    )
+
+
+def _main_lane(
+    lane: str,
+    head: str,
+    records: Sequence[Mapping[str, Any]] | None,
+    context: Mapping[str, Any] | None,
+    carried: tuple[Any, ...],
+) -> LaneEvidence:
+    """The lane's evidence for a pull request that changes a lane source:
+    bound when a counted main-run review names the pinned head
+    (`_main_bound`), else unbound as `lane-source-changed`. The security
+    lane's blocking count is the most of the main-run reviews' CRITICAL
+    findings and any its pull_request review left open (`_carried_blocking`),
+    so a finding either reported holds."""
+    try:
+        found = _main_bound(lane, head, records, context)
+    except Exception:  # noqa: BLE001 - any doubt is unbound
+        found = None
+    if found is None:
+        return _unbound(lane, "lane-source-changed", head, *carried)
+    findings, critical = found
+    if lane != SEVERITY_LANE:
+        return LaneEvidence(lane, True, None, findings, False, None)
+    runs, comments, threads, is_human, head_file = carried
+    left = _carried_blocking(head, runs, comments, threads, is_human, head_file)
+    blocking = max(critical, left or 0)
+    return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
+
+
+def _main_bound(
+    lane: str,
+    head: str,
+    records: Sequence[Mapping[str, Any]] | None,
+    context: Mapping[str, Any] | None,
+) -> tuple[int, int] | None:
+    """(findings, CRITICAL findings) for `lane` at `head` from main-run
+    reviews, or None when none binds. A record counts only when
+    `_main_review_counted` proves its origin; the lane binds when a counted
+    one names `head`, and then counts the most findings, and the most
+    CRITICAL ones, any counted review of the head's tree reported, so a
+    re-run, or an empty commit with the same tree, never clears one."""
+    if not isinstance(records, list | tuple) or not isinstance(context, Mapping):
+        return None
+    counted = [
+        verdict
+        for record in records
+        if (verdict := _main_review_counted(lane, record, context)) is not None
+    ]
+    if not any(verdict["head_sha"] == head for verdict in counted):
+        return None
+    return (
+        max(verdict["findings"] for verdict in counted),
+        max(verdict["critical"] for verdict in counted),
+    )
+
+
+def _count(value: Any) -> bool:
+    return (
+        isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**6
+    )
+
+
+def _main_review_counted(
+    lane: str, record: Any, context: Mapping[str, Any]
+) -> Mapping[str, Any] | None:
+    """A main-run review's verdict, when its record proves it: the artifact
+    is the one `main_review_name` names for this lane, pull request and
+    tree, uploaded by its listed run; that run is `MAIN_REVIEW_WORKFLOW`,
+    event `workflow_run`, on the default branch of this repository with a
+    head in this repository that the branch holds (the caller's
+    `on_branch`), completed with success; and `verdict.json` names this
+    lane, pull request and tree, a full head SHA and well-formed counts.
+    Anything else, a head's forged artifact included, is None."""
+    repo, pr, tree, branch = (context.get(k) for k in ("repo", "pr", "tree", "branch"))
+    if not (
+        isinstance(repo, str)
+        and repo
+        and _count(pr)
+        and isinstance(tree, str)
+        and SHA_RE.match(tree)
+        and isinstance(branch, str)
+        and branch
+        and isinstance(record, Mapping)
+        and record.get("lane") == lane
+    ):
+        return None
+    artifact, run, verdict = (record.get(k) for k in ("artifact", "run", "verdict"))
+    if not (
+        isinstance(artifact, Mapping)
+        and isinstance(run, Mapping)
+        and isinstance(verdict, Mapping)
+    ):
+        return None
+    source = artifact.get("workflow_run")
+    run_id = run.get("id")
+    head_sha = run.get("head_sha")
+    if not (
+        artifact.get("name") == main_review_name(lane, pr, tree)
+        and artifact.get("expired") is not True
+        and isinstance(source, Mapping)
+        and isinstance(run_id, int)
+        and not isinstance(run_id, bool)
+        and source.get("id") == run_id
+        and run.get("path") == MAIN_REVIEW_WORKFLOW
+        and run.get("event") == "workflow_run"
+        and run.get("head_branch") == branch
+        and _full_name(run.get("repository")) == repo
+        and _full_name(run.get("head_repository")) == repo
+        and isinstance(head_sha, str)
+        and SHA_RE.match(head_sha)
+        and record.get("on_branch") is True
+        and run.get("status") == "completed"
+        and run.get("conclusion") == "success"
+    ):
+        return None
+    findings, critical = verdict.get("findings"), verdict.get("critical")
+    reviewed = verdict.get("head_sha")
+    if not (
+        verdict.get("schema") == MAIN_REVIEW_SCHEMA
+        and verdict.get("lane") == lane
+        and verdict.get("pr") == pr
+        and verdict.get("tree") == tree
+        and isinstance(reviewed, str)
+        and SHA_RE.match(reviewed)
+        and _count(findings)
+        and _count(critical)
+        and critical <= findings
+    ):
+        return None
+    return verdict
+
+
+def _full_name(repository: Any) -> Any:
+    return repository.get("full_name") if isinstance(repository, Mapping) else None
 
 
 def lane_source(path: Any) -> bool:
