@@ -298,6 +298,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
     (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
     (".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"),
     (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
     (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),

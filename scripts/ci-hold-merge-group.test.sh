@@ -5,8 +5,9 @@
 #
 # A merge-group run carries no pull request, so this step is the only reader of
 # the hold labels in the merge queue: `do-not-merge` and the human-gated label
-# the base commit's .work-item-tracker.json names (default `needs-human`). It
-# must fail on either, pass without them, and fail closed when it cannot tell.
+# the base commit's .work-item-tracker.json names (default `needs-human`), and
+# `pr-verify-failed`. It must fail on any of them, pass without them, and fail
+# closed when it cannot tell.
 # For a pull request an automation opened it also applies the trust hold to
 # the linked issue: a label naming untrusted work, in any spelling, or one
 # removed other than by a person on the base's trusted-actor list, holds, so
@@ -168,7 +169,8 @@ expect "unlabeled queued pull request passes" 0 1 6419 "$QUEUE" "enhancement,ci"
 expect "pull request with no labels passes" 0 1 6419 "$QUEUE" "" 0
 expect "do-not-merge fails the run" 1 1 6419 "$QUEUE" "ci,do-not-merge" 0 "::error::#6419 carries the 'do-not-merge' label"
 expect "needs-human fails the run" 1 1 6419 "$QUEUE" "ci,needs-human" 0 "::error::#6419 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request"
-expect "a label that only contains the name does not hold" 0 1 6419 "$QUEUE" "do-not-merge-later,not-do-not-merge,needs-human-later" 0
+expect "pr-verify-failed fails the run" 1 1 6419 "$QUEUE" "ci,pr-verify-failed" 0 "::error::#6419 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."
+expect "a label that only contains the name does not hold" 0 1 6419 "$QUEUE" "do-not-merge-later,not-do-not-merge,needs-human-later,pr-verify-failed-later" 0
 expect "ref without refs/heads/ is read" 1 1 6419 "gh-readonly-queue/main/pr-6419-$SHA" "do-not-merge" 0
 expect "base branch with a slash is read" 1 1 12 "refs/heads/gh-readonly-queue/release/v2/pr-12-$SHA" "do-not-merge" 0
 expect "a transient read failure is retried" 1 2 6419 "$QUEUE" "do-not-merge" 1
