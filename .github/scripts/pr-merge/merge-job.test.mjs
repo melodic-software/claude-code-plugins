@@ -261,7 +261,7 @@ test("the listing fails with one clear error after three failed tries", () => {
 test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
   const block = step("Log the API budget at job end");
   assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
   assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);

@@ -484,7 +484,7 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   const block = /- name: Log the API budget at job end\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(arm)?.[1];
   assert.ok(block, "a job-end budget step");
   assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
   // The reader's gh calls read into both names.
@@ -498,7 +498,9 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
 // The hub ranks GITHUB_TOKEN spend by each job's `api-calls` notice, so a
 // job that calls GitHub with the job token and logs nothing is spend no one
 // sees. Every such job carries the log-api-budget step, run whatever failed
-// before it, naming github-token.
+// or stopped before it, naming github-token: under `always()` alone, so a job
+// that ends before it mints a lane token still logs the job token's calls. A
+// token with no reading gets no line (log-api-budget.test.mjs).
 test("every job that calls GitHub with the job token logs its api-calls", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
@@ -508,7 +510,7 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
   const unlogged = callers.filter((id) => {
     const step = `\n${/- name: Log the API budget[^\n]*\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(job(id))?.[1] ?? ""}`;
     return !(
-      /\n {8}if: always\(\)/.test(step) &&
+      /\n {8}if: always\(\)(?: && needs\.post-merge-dispatch\.outputs\.rate-limited == '')?\n/.test(step) &&
       /\n {8}continue-on-error: true\n/.test(step) &&
       /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /.test(step) &&
       /\n {10}tokens: (?:[a-z-]+ )*github-token\b/.test(step)
@@ -516,6 +518,105 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
   });
   assert.deepEqual(unlogged, []);
 });
+
+// A node step whose only token is the job token keeps each answer's reading
+// under github-token (createGitHub's rate guard writes it when
+// API_BUDGET_TOKEN names the bucket), or the job-end notice counts nothing.
+test("every node step that calls GitHub with the job token alone names API_BUDGET_TOKEN github-token", () => {
+  const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
+  const unnamed = [];
+  for (const id of ids) {
+    const body = job(id);
+    const jobBucket = /(?:^|\n) {4}env:\n(?: {6}.*\n)*? {6}API_BUDGET_TOKEN: ([a-z-]+)$/m.exec(body.split("\n    steps:\n")[0])?.[1];
+    for (const step of body.split(/\n {6}- name: /).slice(1)) {
+      const name = step.split("\n")[0];
+      if (!/\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\//.test(step) ||
+        !step.includes("${{ github.token }}") ||
+        step.includes("${{ steps.lane-token.outputs.token }}")
+      ) {
+        continue;
+      }
+      const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1] ?? jobBucket;
+      if (bucket !== "github-token") {
+        unnamed.push(`${id}: ${name}`);
+      }
+    }
+  }
+  assert.deepEqual(unnamed, []);
+});
+
+// A run that stops at the superseded step, before the lane token, still
+// ends with the job token's calls: who's read, the pending-run listing and
+// the waiting run's jobs read, each through createGitHub.
+for (const jobId of ["merge", "enable-auto-merge"]) {
+  test(`${jobId}: a run that stops as superseded still logs its github-token calls`, async () => {
+    const body = job(jobId);
+    const stepOf = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(body)?.[1];
+    const context = { "github.event_name": "workflow_dispatch", "github.actor_id": String(OWNER.id), "github.token": "t" };
+    const envOf = (step) =>
+      Object.fromEntries([...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e] ?? "")]));
+    const answers = {
+      "/repos/o/r/actions/runs/4242": { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: OWNER },
+      "/repos/o/r/actions/workflows/pr-merge.yml/runs": { workflow_runs: [{ id: 5000, status: "pending", event: "schedule", head_branch: "main", run_attempt: 1 }] },
+      "/repos/o/r/actions/runs/5000/jobs": { jobs: [{ name: jobId, status: "waiting" }] },
+    };
+    const server = createServer((req, res) => {
+      const answer = answers[req.url.split("?")[0]];
+      res.writeHead(answer ? 200 : 404, {
+        "Content-Type": "application/json",
+        "X-Ratelimit-Limit": "5000",
+        "X-Ratelimit-Remaining": "4000",
+        "X-Ratelimit-Used": "1000",
+        "X-Ratelimit-Reset": "9999999999",
+        "X-Ratelimit-Resource": "core",
+      });
+      res.end(JSON.stringify(answer ?? { message: "Not Found" }));
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const dir = tempDir("pr-merge-superseded-budget-");
+    try {
+      symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      writeFileSync(join(dir, "summary"), "");
+      const base = {
+        PATH: process.env.PATH,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_RUN_ID: "4242",
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_EVENT_NAME: "workflow_dispatch",
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        NODE_OPTIONS: "--preserve-symlinks-main",
+      };
+      for (const name of ["Check who started the run", "Check for a newer run that does this work"]) {
+        const step = stepOf(name);
+        const run = /\n {8}run: (.*)/.exec(step)[1];
+        const status = await new Promise((resolve) =>
+          spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: "ignore" }).on("close", resolve),
+        );
+        assert.equal(status, 0, name);
+      }
+      assert.match(readFileSync(output, "utf8"), /^proceed=true$/m);
+      assert.match(readFileSync(output, "utf8"), /^superseded=true$/m);
+      const log = stepOf("Log the API budget at job end");
+      assert.match(log, /^ {8}id: budget-end\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
+      const action = readFileSync(new URL("../../actions/log-api-budget/action.yml", import.meta.url), "utf8");
+      const out = spawnSync("bash", ["-c", /\n {6}run: \|\n([\s\S]*)$/.exec(action)[1].replace(/^ {8}/gm, "")], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
+      });
+      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0$/m);
+      assert.doesNotMatch(out.stdout, /lanes-app/);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
 
 // The lane's room (lane-room) reads this run's post-merge report, which
 // post-merge-dispatch keeps, rather than running the check a third time per
