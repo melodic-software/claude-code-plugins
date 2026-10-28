@@ -2,7 +2,8 @@
 # Contract tests for the guardrails pre-push entry git-hooks/reference-verify.sh:
 # an unknown CLI flag or a cited path the repository deleted, on a line the
 # pushed commits add, blocks with "<path>:<line>: <message>"; the same text on an
-# unchanged line, or in a file type the verifiers do not read, does not; a new
+# unchanged line, in a file type the verifiers do not read, or in an eval's
+# samples/ (recorded model output) does not, while its prompts and graders do; a new
 # branch ranges from its merge-base with the remote's default branch, a pushed
 # branch that merged main is judged only on its own lines, and a
 # deletion checks nothing; the failure names the way out (decline the entry;
@@ -248,6 +249,28 @@ printf 'faketool --bogus in a text file\n' >"$REPO/notes.txt"
 commit_all notes
 expect "a file type the verifiers do not read passes" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# Eval samples are recorded model output: data, not claims the repository makes.
+# shellcheck disable=SC2016 # markdown fence backticks, literal fixture text
+bogus_md() { printf '```bash\nfaketool --bogus\n```\n' >"$1"; }
+new_repo
+mkdir -p "$REPO/plugins/p/evals/c/samples" "$REPO/evals/sources/labels/T1/samples"
+bogus_md "$REPO/plugins/p/evals/c/samples/answer.md"
+bogus_md "$REPO/evals/sources/labels/T1/samples/run1.md"
+commit_all samples
+expect "an unknown flag in an eval sample does not block" "0|" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# The authored side of an eval suite (prompts, graders), and a samples folder
+# outside evals/, stay verified.
+for f in plugins/p/evals/c/graders/check.md plugins/p/evals/c/prompt.md docs/samples/x.md; do
+  new_repo
+  mkdir -p "$REPO/${f%/*}"
+  bogus_md "$REPO/$f"
+  commit_all authored
+  expect "an unknown flag in $f still blocks" "1|$f:1: ${FLAG_FINDING/in run.sh/in $f}" \
+    "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+done
 
 new_repo
 git -C "$REPO" checkout -q -b topic
