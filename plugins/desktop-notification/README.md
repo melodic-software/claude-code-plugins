@@ -7,8 +7,10 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 ## Behavior
 
-- **Fires on attention prompts.** We match only the `permission_prompt` and
-  `idle_prompt` notification types; every other notification is a silent no-op.
+- **Fires on attention prompts.** We match the `permission_prompt` and
+  `idle_prompt` notification types, plus the `plugin_notification` this plugin's
+  mod raises (title `desktop-notification`, see [Forwarding mod toasts](#forwarding-mod-toasts));
+  every other notification is a silent no-op.
 - **Advisory, never blocking.** The hook always exits `0`; a Notification hook is
   not a gate.
 - **Pointer**: the notification types and what a Notification hook can return are
@@ -41,6 +43,30 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
 just the message.
+
+### Forwarding mod toasts
+
+A hooks module (`hooks/register.ts`) hooks `ui.toast`. For each toast any mod shows,
+it raises `$.ui.notify` with the title `desktop-notification`, then calls `next` so
+the toast still shows. Claude Code fires a `plugin_notification` Notification for
+that call, and the hook above sends it through the same channels, headed
+`Claude Code`. A `plugin_notification` from any other mod is left alone.
+`desktop_notification_forward_toasts_enabled` turns forwarding off;
+`desktop_notification_enabled` set to `false` turns it off too.
+
+- **Probe** (Claude Code 2.1.312, two-plugin mod test under `claude plugin test`):
+  a user-tier mod's `ui.toast` hook hears toasts from mods at the `prepend`,
+  `user` and `append` tiers, and its own. Hooks run in tier order (`prepend`,
+  `user`, `append`), and toasts from two senders arrive in the order fired. Not
+  probed: toasts Claude Code raises itself, and a live interactive or `-p` session.
+- **Needs** Claude Code 2.1.287 or later with mods on; older versions skip the
+  module and the settings hook still runs.
+- **Pointer**: the `ui.toast` hook and `$.ui.notify` are in
+  [Mods API](https://code.claude.com/docs/en/plugins/mods/api.md#show-something-without-starting-a-turn),
+  and the `plugin_notification` title rule is in
+  [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
+  2026-10-28. **Recheck trigger**: either section renames `ui.toast`,
+  `$.ui.notify` or `plugin_notification`, or changes where the hook's `title` comes from.
 
 ## Requirements
 
@@ -85,6 +111,7 @@ Every channel is toggled by its own `userConfig` boolean (default **on**; set to
 | `desktop_notification_bell_enabled` | The `bell` channel. |
 | `desktop_notification_terminal_notify_enabled` | The `terminal_notify` (OSC 9) channel. |
 | `desktop_notification_os_toast_enabled` | The `os_toast` channel. |
+| `desktop_notification_forward_toasts_enabled` | Forwarding mod toasts as notifications. |
 
 Set them interactively with `/plugin configure desktop-notification@<marketplace>`, or headless
 on the install command:
@@ -115,6 +142,7 @@ reads it from.
 | `desktop_notification_bell_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED` | Audible terminal bell (a bare BEL). On by default. |
 | `desktop_notification_terminal_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED` | OSC 9 terminal notification emitted through the hook's terminalSequence output. On by default. |
 | `desktop_notification_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED` | OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
+| `desktop_notification_forward_toasts_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_FORWARD_TOASTS_ENABLED` | Sends each toast a mod shows as a native notification through the hooks module, and the toast still shows. On by default. Needs Claude Code 2.1.287 or later with mods on. |
 
 ### How to set these
 
