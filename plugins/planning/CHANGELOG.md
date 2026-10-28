@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.118.2] - 2026-10-28
+
+### Fixed
+
+- **`round.sh record-terminal` refuses a decision on a superseded or archived question** ([#10472](https://github.com/melodic-software/claude-code-plugins/issues/10472)). On a superseded question it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the end of the `supersededBy` chain as the page server's 409 does. On an archived question it exits with `refused: <id> is archived`. Before, the decision was written and then counted nowhere, because `status` and `export-ledger` read the question as withdrawn. The interview skill's surface contract documents the refusal beside the server's 409.
+
+## [0.118.1] - 2026-10-28
+
+### Fixed
+
+- A browser merged into the owner no longer joins again as a new person when one of its requests was already in flight when the merge happened. That request now gets 401 `merged-into-owner` as well, instead of `unknown-session`, so the page shows the open-your-owner-link notice. Before, the race failed `ui_merge.js` on main now and then.
+
 ## [0.118.0] - 2026-10-28
 
 ### Added
