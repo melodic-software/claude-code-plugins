@@ -62,7 +62,8 @@ legacy `features/<id>.md`, exists (with several, an attended pass asks which; an
 **blocked**, naming them). With none, the outcome is **blocked**, naming the id; when only a
 plugin's control skill holds it, say refresh edits only the repository's. An argument naming an
 existing directory that holds a `SKILL.md` is a path; any other is a feature id. When that control
-skill is due a conversion (below), the outcome is **blocked**: refresh its path first. Steps 4 and 5
+skill is due a conversion (below), the outcome is **blocked**: refresh its path first, from the
+default branch. Steps 4 and 5
 then cover that feature only, and a clean outcome skips the `record` command, since the other
 features went unchecked.
 
@@ -265,12 +266,15 @@ starting branch) other than the default branch and the control skill's upkeep br
    **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
    Changes outside the directory are the caller's work and stay untouched.
 2. **Write**, as step 2 above.
-3. **Commit**, as step 3 above, on the ticket branch.
+3. **Commit** on the ticket branch with a pathspec, `git commit -- <each control skill path>`, so
+   only those paths are committed and any work the caller already staged stays staged. Done when
+   `git show --name-only --format= HEAD` lists only paths inside the control skill directory.
 4. **Hand back.** Push nothing and open no pull request: the caller's push carries the commit into
    the ticket's pull request. The report names the commit, so the caller knows HEAD moved by a
    commit that touches only the control skill directory.
 
-A pass started on a detached HEAD whose commit is not the default branch's tip commits nothing: the
+The default branch's tip is its commit on the remote, fetched when the pass starts, never a local
+branch that may be stale. A pass started on a detached HEAD whose commit is not that tip commits nothing: the
 outcome is **blocked**, the edits go in the report unwritten, and a pass on the ticket's branch or
 on the default branch clears it.
 
