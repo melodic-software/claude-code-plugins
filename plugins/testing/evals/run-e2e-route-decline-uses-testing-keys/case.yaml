@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: run-e2e-route-decline-uses-testing-keys
+description: When the person declines app-control onboarding, run-e2e falls back to its own driving, which reads e2e_driver and reuse_running_instance from the testing config
+tags: [run-e2e, app-control, route, fallback, invented]
+expected_outcome: The reply takes run-e2e's own driving and does not use /app-control:drive or /app-control:map create. It resolves e2e_driver to playwright and reuse_running_instance to false, both from docs/conventions/testing.yaml, and acts on them. The app already answering on port 5173 is not driven, and with no Workspace environment entry the run stops with the gap report naming the collision.
+execution:
+  prompt: "/testing:run-e2e the signup form. Do not read the repository, launch, install or run anything; treat these as facts and treat each step as already run with the result given. The app-control plugin is installed and /app-control:drive resolves in this session, but the repository has no control skill. When you offer to set one up, I answer: \"No, I'm good. Just use what you have.\" docs/conventions/testing.yaml sets `e2e_driver: playwright` and `reuse_running_instance: false`; no other layer sets either key. Origin's default branch has no Workspace environment entry. No orchestrator governs the start, and an app already answers at http://localhost:5173. Tell me how the run continues after my answer, which values it uses and where each came from, and where it ends."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-collision-port
+    type: regex
+    pattern: '5173'
+    arm: both
+  - name: fallback-reads-testing-keys
+    type: llm
+    criteria: "PASS only if the reply (1) continues on run-e2e's own driving and neither invokes /app-control:drive nor runs /app-control:map create, (2) reports e2e_driver as playwright and reuse_running_instance as false, each from docs/conventions/testing.yaml, and (3) under reuse_running_instance false with no Workspace environment entry, does not drive the app answering at http://localhost:5173, starts no second instance, and stops with the gap report naming that collision and the setting. FAIL if it drives the app at port 5173, starts another instance, uses app-control after the decline, or ignores either key."

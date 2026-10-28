@@ -203,11 +203,14 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
-`pull-requests: write`) posts the verdict's summary and notes on the PR as file-level review
+`pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file; on an adopted PR the lanes App did not open, no round starts and
-the notes tell its author why the lane refuses it. A note that starts with a path the PR changes goes on
+that head, and only the comments that head does not hold yet, by file. A PR a person opened gets no
+review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
+neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
+with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
+`ci-status` holds in the merge queue. No round starts there. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The
@@ -216,24 +219,26 @@ upstream it records, except that only `pr-unblock / address-feedback` check runs
 `pr-verify` run was created count, and the head's handled record is not read, since the notes are
 new work at a head an earlier round may have handled; with none yet, the review run dispatches when it completes. The fix round's
 push gives a head the verifier judges again.
-When the run uploaded a `pass` or `pass-notes` verdict instead, `post-verify-notes` posts and
-resolves nothing: on an open PR still at that head it reads the review threads, and when an
+When the run uploaded a `pass` or `pass-notes` verdict instead, on an open PR still at that head
+`post-verify-notes` removes `pr-verify-failed` from a PR a person opened, if it is there, and
+dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads the review threads, and when an
 unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
 check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
-`pass-only`, which the dispatcher's release reads pass over. A pass-only round also goes to a PR
-a human on the trusted-actor list opened, since fail notes are posted there too; every other
-address-feedback round goes only to lanes App PRs. Resolving a thread
+`pass-only`, which the dispatcher's release reads pass over. Every address-feedback round,
+pass-only included, goes only to lanes App PRs. Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
 `apply-feedback-patch` (a script job with no model, `mutate-branch`) pushes the patch, and
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
-pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
+thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
+its one marker in place when it reviews the pushed fix.
 
 The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
 `github-actions[bot]` on a comment whose last non-blank line is a review lane's
@@ -677,6 +682,7 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
 | `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
+| `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default), `invalid` (`ci-context`, as the producer said it wrote a change) or `conflict` (`merge-base`: its `unresolved-conflict` reason, since the conflicts stay as git left them). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` and `docs` set `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
@@ -906,7 +912,9 @@ the rules that only tighten in
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **Narrow path floor.** A fixed set of globs in the wrapper's code, each with a class
-  (`babysit_risk.FLOOR_CLASSES`, equal to `merge-holds.mjs` `HOLD_PATH_CLASSES`; owner decisions
+  (`babysit_risk.FLOOR_CLASSES`, the one table; `scripts/sync-hold-floor.py` writes its copies into
+  `merge-holds.mjs` `HOLD_PATH_CLASSES`, the review callers' `hold-paths` and ci-status's
+  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
   and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
@@ -918,7 +926,7 @@ the rules that only tighten in
     process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
     defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
     `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
-    `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
+    `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition.
   - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
     `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
@@ -1557,8 +1565,9 @@ head-branch digest, taken by exact name and uploaded by a completed, successful
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
-successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read.
+`pull_request` run of `pr-require-checks` that succeeded or failed only on holds an approving
+review of the head lifts, so a `ci-status` red for anything else there would never get a verdict,
+and a pull request event makes no verdict read.
 
 The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
 from a checkout of main for the queued pull request at its live head, on a listing of its own, and
@@ -1581,11 +1590,11 @@ leaves it reading more. With no carried run cache, or one whose carried sections
 that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
 at once goes cold together: the cold reader starts only when the token's core pool has at least
-1,520 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, an
-incremental try of at most 13 pages, and 3 whole listings of up to 3 attempts of 77 pages, each
+1,546 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, 3
+incremental reads of at most 13 pages each, and 3 whole listings of up to 3 attempts of 77 pages, each
 with a top-up of at most 7) times `max_entries_to_build`, plus the read floor (`limits.api`
-`read-floor` of the planned limit, inlined in the job env), left: 7,700 with the queue building 5.
-An entry with a carried run cache but no carried listing pays the listing's part (up to 727)
+`read-floor` of the planned limit, inlined in the job env), left: 7,830 with the queue building 5.
+An entry with a carried run cache but no carried listing pays the listing's part (up to 753)
 without this check. A rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
@@ -1606,6 +1615,14 @@ unreadable link, label list, timeline or trusted-actor list fails closed. So a l
 the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
 not read.
+
+report-outcome writes no `Hold:` line only because the issue lane's runner checks did not report
+(missing or for another tip): that line would also fail `ci-status`, so pr-verify would never run,
+and `ci-status` reruns those checks on the head. A reuse leak scan is not covered that way, so on a
+reused branch any scan word but `clean` still holds: `lint-repo`'s gitleaks scan honors a
+`gitleaks:allow` comment or `.gitleaksignore` the branch can add, its password rule misses short
+or symbol-bearing values the lane scan flags, and it reads only the commits' patches. A failed
+runner check and every trust reason still write the line.
 
 A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
 issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
@@ -1827,7 +1844,11 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+same-repository, non-draft pull request into main, and after each one whose only failure is
+`ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
+widening; resolve-pr's `heldOnly` reads the run's jobs and the `ci-status` log). The person then
+approves a head pr-verify has judged; `ci-status` stays red until that approval, which no
+verdict replaces. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue
@@ -1872,8 +1893,12 @@ only when none holds a counted verdict does it read the pull request's linked is
 spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
 left at the same head names issues it never reads, and that head is judged again. So is a head
 whose linked issues a body edit changed after this pull request's `fail` there: the new set names
-another `-i`, so one run follows each change of the issue set. Neither changes what the gate
-decides, since the earlier `fail` stays tied to the pull request and refuses the head. Runs share one concurrency group per pull request and
+another `-i`, so one run follows each change of the issue set. The pull request's own plain `fail`
+at the head (it linked no issue, or more than a name carries) stops a new judgment unless the
+pull request now links issues a `fail` name carries and, since that `fail`'s run was created, only
+trusted people edited its body or connected or disconnected an issue, at least once; the resolver
+then proceeds with the reason `relinked`. In every case the earlier `fail` stays tied to the pull
+request and refuses the head unless the gate finds it superseded (below). Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
@@ -1953,7 +1978,17 @@ head:
   nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a
   trusted human, as below;
-- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
+  relink superseded it: every counted `fail` there is this pull request's, every counted pass
+  there was created after them and records other `linked_issues` than each `fail` does, and from
+  the first `fail`'s run's creation to each pass run's completion (`updated_at`) the pull request
+  has at least one body edit (`userContentEdits`) or issue connect or disconnect event, every one
+  by a `User` on the trusted-actor list's humans. The lanes App, any other Bot, an actor GitHub
+  cannot name, a read that fails or is cut short, a time that cannot be read, or the same linked
+  issues keep the refusal. Both the resolver and the gate read these acts in one GraphQL query,
+  only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
+  passes then decide as below. A judgment on an older listing (pr-merge's provisional one) can
+  still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
   the head-ref map below, else the verdict JSON) refuses (`verify:earlier-fail`). The name is trusted only from a run of
@@ -1978,7 +2013,9 @@ head:
   every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
   `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
   that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
-  or a `fail` record that cannot be read keeps the refusal. A pass judged
+  or a `fail` record that cannot be read keeps the refusal. A `fail`ed head of the same change,
+  a head that only merges the branch included, also clears when its `fail` was superseded at its
+  own head by the passes there (the rule in the item above). A pass judged
   before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
@@ -2145,8 +2182,9 @@ what it gates, and only a CRITICAL finding there holds. The callers name
 (`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
-`test_merge_holds_sync.py` checks that both callers' `hold-paths` and that check's
-`hold_patterns` each match every floor entry.
+`scripts/sync-hold-floor.py` writes both callers' `hold-paths` and that check's `hold_patterns`
+from `babysit_risk.FLOOR`, and `test_merge_holds_sync.py` checks that each matches every floor
+entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -2171,7 +2209,8 @@ them on every `pull_request` run, contract-only runs included:
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
-  trust-gate path (the hold-paths above less the security review's own files), since no lane
+  trust-gate path (the hold-paths above less the security review's own files, matched
+  case-insensitively), since no lane
   reviews it; a person merges it. A draft is exempt.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
@@ -2188,7 +2227,10 @@ gets one re-run, not one per lane. A ci-status not started yet, or one that star
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
-nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels.
+nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
+fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
+`pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
+the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths

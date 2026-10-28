@@ -102,7 +102,9 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
 7. **Verify deterministically.**
    `node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs compare --local <file> --source <fetched>
    --json` returns matched spans with local line offsets. Quote-stripping happens inside the
-   module, so a properly quoted excerpt never reaches shingling. Use the module's matched span
+   module, so a properly quoted excerpt never reaches shingling. A local JSON object or array is
+   measured by its string values, never its keys, each stripped on its own. Its spans report the
+   value's line in the file. Use the module's matched span
    as the finding's span for anything that could become fix-eligible: it is exact, where the
    nomination's range is approximate, and exactness is what makes a fix fenceable.
 

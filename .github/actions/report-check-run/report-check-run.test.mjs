@@ -93,6 +93,7 @@ test("a valid verdict POSTs one completed check run with the contract body", asy
   assert.deepEqual(Object.keys(call.body).sort(), [
     "conclusion",
     "details_url",
+    "external_id",
     "head_sha",
     "name",
     "output",
@@ -164,13 +165,35 @@ test("a malformed run attempt posts the record without an external_id", async ()
   assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
 });
 
-test("no lane record POSTs no annotations, text, external_id or record line", async () => {
+test("no lane record POSTs no annotations, text or record line, and still names its run in external_id", async () => {
   const { calls } = await run();
   const { output } = calls[0].body;
   assert.equal(output.annotations, undefined);
   assert.equal(output.text, undefined);
-  assert.equal("external_id" in calls[0].body, false);
+  assert.equal(calls[0].body.external_id, "pr-refine:simplify:123:1");
   assert.doesNotMatch(output.summary, /lane=/);
+});
+
+// The check run 122864732692 on #10583 posted: a run job the broker refused,
+// with no lane record. Its run is what refire-refused.mjs links back to.
+test("a run job that failed before the skill names its run in external_id", async () => {
+  const { calls } = await run({
+    LANE: "pr-unblock",
+    ACTIVITY: "apply-feedback-patch",
+    RUN_RESULT: "failure",
+    ACT_OUTCOME: "skipped",
+    VERDICT_PATH: path.join(dir, "missing.json"),
+    GITHUB_RUN_ID: "40700900804",
+  });
+  assert.equal(calls[0].body.conclusion, "failure");
+  assert.equal(calls[0].body.external_id, "pr-unblock:apply-feedback-patch:40700900804:1");
+});
+
+test("a malformed run id or attempt posts no external_id", async () => {
+  for (const env of [{ GITHUB_RUN_ID: "1/../../x" }, { GITHUB_RUN_ATTEMPT: "0" }]) {
+    const { calls } = await run(env);
+    assert.equal("external_id" in calls[0].body, false, JSON.stringify(env));
+  }
 });
 
 test("an absent verdict file POSTs failure on the env head", async () => {

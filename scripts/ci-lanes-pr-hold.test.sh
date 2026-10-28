@@ -693,21 +693,21 @@ STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, hea
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
-# plus the read floor left: 1520 x 1 + 0.1 x min(limit, 1000) = 1620 here.
+# plus the read floor left: 1546 x 1 + 0.1 x min(limit, 1000) = 1646 here.
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 1620)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 1646)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 1619)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1619 requests left, under the 1620 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 1645)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1645 requests left, under the 1646 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 # Every entry the queue builds at once goes cold together on a missing cache,
-# so the need scales with max_entries_to_build: 1520 x 5 + 100 = 7700.
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7700)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7699)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 7699 requests left, under the 7700 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3139)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3140 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 7700)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+# so the need scales with max_entries_to_build: 1546 x 5 + 100 = 7830.
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7830)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7829)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 7829 requests left, under the 7830 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3191)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3192 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 7830)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
 STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"

@@ -1,5 +1,41 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.4] - 2026-10-28
+
+### Changed
+
+- The merge queue's cold-read headroom is 1,546 requests per queue entry (7,830 with the queue building 5), up from 1,520. It now counts the verdict reader's three incremental reads of at most 13 pages each, where it counted one, so a cold reader starts only with the headroom its listing caps can spend.
+
+## [6.5.3] - 2026-10-28
+
+### Fixed
+
+- pr-verify's resolver judges a head again (reason `relinked`) when the pull request's own plain-named FAIL there is followed by a relink to issues a FAIL name carries that only trusted humans made, read in one GraphQL query on that path only; the "Verifier verdict" section of the pr-pipeline convention states the supersede rule the gate applies to the resulting pass.
+
+- A pr-verify fail on a pull request a person opened no longer holds it with review threads the lanes App cannot resolve (GitHub lets only the author or a writer resolve one, and every conversation must be resolved to merge). `verify-notes.mjs` now posts the fail as one pull request comment, edited in place on a later fail, and adds the `pr-verify-failed` label; a pass at the pull request's head removes the label. ci-status's merge-queue run fails while the label is on, as it does for `do-not-merge`. `feedback-dispatch.mjs` no longer sends a pass-only round to such a pull request. Lanes App pull requests keep their fail-note threads and pass-only round.
+
+### Security
+
+- The `address-feedback` reply job (`publish-feedback`) and its `report-escalation` now accept a PR head past the reviewed one only when it is the exact commit `apply-feedback-patch` pushed, passed on as the write workflow's new `pushed-commit` output and the trigger gate's new `pushed-commit` input. A GitHub-verified lanes App commit made during the run, but not by that push, no longer passes the gate. The token broker still checks the old rule until it takes the pushed commit too.
+
+## [6.5.2] - 2026-10-28
+
+### Fixed
+
+- Every lane check run `report-check-run` posts now carries `external_id` `<lane>:<activity>:<run id>:<run attempt>`, not only one with a lane record. GitHub returns these check runs with `details_url` set to the check run's own page, so pr-merge's re-fire of a run the broker refused as `workflow-modified` never found the PR, and fix-ci-dispatch never paired a fix-ci check with its run's lane-stopped stop. Both now read the posting run from `external_id`.
+
+- pr-unblock's `publish-feedback` re-reads each thread against the reviewed heads `address-feedback-select` kept it on, which `run.json` now records as `reviewed_heads`, not against the reviewed-head markers as they are at publish. A review lane edits its one marker in place, so once it reviewed the round's fix push the marker named only the fix head, the re-read dropped the thread as changed, its reply never posted, and the next round escalated `feedback-untaken-threads`. The comment-id, resolved, comment-count and moved-head checks are unchanged; a `run.json` without `reviewed_heads` reads the markers as before.
+
+## [6.5.1] - 2026-10-28
+
+### Changed
+
+- The review callers' `hold-paths`, ci-status's exempt-author `hold_patterns` and merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS` are generated from `babysit_risk.FLOOR_CLASSES` and `COST_PATHS` by `scripts/sync-hold-floor.py` (`--check` fails on a stale copy); the floor holds the generator as `gate`.
+
+### Fixed
+
+- ci-status's exempt-author check matches the trust-gate paths case-insensitively, as the floor does elsewhere, so a Dependabot, release App or standards-sync pull request that changes `.github/codeowners` or `vendor/.GitModules` fails for a person instead of passing.
+
 ## [6.5.0] - 2026-10-28
 
 ### Added

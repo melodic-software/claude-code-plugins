@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop from main, push it, then switch back to feat/cart-tax.",
+      "why": "names the upkeep branch"
+    },
+    {
+      "answer": "Branch: `control-skill-upkeep/control-shop`.",
+      "why": "backticked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit on control-skill-upkeep/shop.",
+      "why": "wrong branch name"
+    },
+    {
+      "answer": "Commit the README fix on feat/cart-tax.",
+      "why": "the ticket branch"
+    }
+  ]
+}

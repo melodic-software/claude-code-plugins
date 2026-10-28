@@ -45,18 +45,18 @@
     "e2e_driver": {
       "enum": ["auto", "harness", "run", "playwright", "chrome"],
       "default": "auto",
-      "description": "Who drives a /testing:run-e2e run. auto picks harness when a spec or script covers the changed flow, run for a CLI, TUI or service, and playwright for a browser; chrome is attended runs only."
+      "description": "Who drives a /testing:run-e2e run. auto picks harness when a spec or script covers the changed flow, run for a CLI, TUI or service, and playwright for a browser; chrome is attended runs only. Applies only when run-e2e drives itself; a run through /app-control:drive takes its tools from the control skill."
     },
     "reuse_running_instance": {
       "enum": ["auto", true, false, "true", "false"],
       "default": "auto",
-      "description": "Whether /testing:run-e2e drives an app that already answers. true, and auto when attended, reuse it. With a Workspace environment entry, false and unattended auto start the run's own instance through up and info instead; with no entry, unattended auto reuses it with labeled evidence and false stops with the gap report."
+      "description": "Whether /testing:run-e2e drives an app that already answers. true, and auto when attended, reuse it. With a Workspace environment entry, false and unattended auto start the run's own instance through up and info instead; with no entry, unattended auto reuses it with labeled evidence and false stops with the gap report. Applies only when run-e2e drives itself, not to a run through /app-control:drive."
     },
     "browser_driver": {
       "type": "string",
       "default": "playwright-cli",
       "pattern": "^[A-Za-z0-9._-]+$",
-      "description": "The command name of the one browser tool a /testing:run-e2e playwright drive uses. When the driver chosen for the run is playwright (pinned or picked by auto) and this command is not on PATH, the run stops before driving, naming this key, the value and its source; it never switches tools. Any other value is named and the key takes its default."
+      "description": "The command name of the one browser tool a /testing:run-e2e playwright drive uses. When the driver chosen for the run is playwright (pinned or picked by auto) and this command is not on PATH, the run stops before driving, naming this key, the value and its source; it never switches tools. Any other value is named and the key takes its default. Applies only when run-e2e drives itself, not to a run through /app-control:drive."
     },
     "tdd_refactor_step": {
       "enum": ["on", "off"],

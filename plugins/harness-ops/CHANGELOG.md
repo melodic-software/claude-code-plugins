@@ -3,6 +3,23 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.13.4] - 2026-10-28
+
+### Fixed
+
+- **The inventory reads Claude Code 2.1.312 again.** The bundle tokenizer now reads a regex after a spread (`.../x/.test(y)`) and treats `of` as a name outside a for-of head (`${of/1000}`). Both shapes are new in 2.1.312 and left brace pairs spanning most of the bundle, so the `builtin_tools`, `builtin_plugins` and `bundled_workflows` canaries went missing and 18 bundled skills read as computed names. The 19th, the slides skill, moved into a helper `function h(t){...name:t.name...}` called once as `h(f)`, and now resolves through it. A plugin gate written as a `function` declaration (`cc-plugin-easel`, `cc-plugin-claude-platform`) reports its flag. `cc-plugin-claude-platform`'s runtime-built `skills` getter is recorded as an accepted floor.
+
+## [4.13.3] - 2026-10-28
+
+### Changed
+
+- **bump @microsoft/tui-test from 0.1.0 to 0.1.1 in /plugins/harness-ops/skills/control-claude-code/driver in the npm-minor-patch group** (#10643).
+  - `@microsoft/tui-test` 0.1.0→0.1.1
+
+### Fixed
+
+- `lanes` start, restart and status now report a `claude plugin test` probe that hangs on the pure-Bash timeout path (macOS) as "did not finish in N s" every time; the watchdog could lose its timeout flag and report "gave no message the launcher knows" instead.
+
 ## [4.13.2] - 2026-10-28
 
 ### Fixed

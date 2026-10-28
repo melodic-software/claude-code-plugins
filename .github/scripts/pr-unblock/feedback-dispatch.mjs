@@ -58,9 +58,9 @@
 // the human gate (a needs-human PR dispatches here whoever applied the label)
 // nor the head's check runs decide it; the hold labels still skip it. It only
 // resolves notes a later pr-verify pass superseded, and the needs-human label
-// it leaves on still blocks the merge. Since verify-notes.mjs posts fail notes
-// on an adopted PR too, a pass-only round also goes to a PR a person on the
-// trusted-actor list opened; every other round goes only to lanes App PRs.
+// it leaves on still blocks the merge. Every round goes only to lanes App PRs:
+// on a PR a person opened, verify-notes.mjs holds a fail with a label it
+// removes itself on the next pass, so there is no thread to resolve.
 //
 // A round whose reply job skipped no-model-turn, or finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
@@ -312,7 +312,7 @@ export async function dispatchFeedback({
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
   }
-  if (pull.user?.id !== appSenderId && !(passOnly && trustedHumans.has(pull.user?.id))) {
+  if (pull.user?.id !== appSenderId) {
     return skip(`#${number} was not opened by the lanes App`);
   }
   const sent = record.dispatched.get(head);
