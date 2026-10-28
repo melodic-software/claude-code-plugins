@@ -9,6 +9,7 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -66,21 +67,72 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
-class Lanes:
-    """The head reads of `_noticed_head` over `runs`, and the compares: a
-    run's head answers _net(TF) unless `compares` names it. A read whose label
-    (or `compare <sha>`) is `unreadable` fails. `reads` logs every endpoint and
-    `envs` the environment each lane read took."""
+def _push(after: str, timestamp: str) -> dict[str, Any]:
+    """A push of `after` to the head branch, as the repository activity API
+    lists it."""
+    return {
+        "after": after,
+        "timestamp": timestamp,
+        "activity_type": "push",
+        "ref": "refs/heads/fix/cost",
+    }
 
-    def __init__(self, runs: list[dict[str, Any]], compares: dict[str, Any], unreadable: str = "") -> None:
+
+def _newest_first(moves: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(moves, key=lambda m: m["timestamp"], reverse=True)
+
+
+def _pushes(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each run's head pushed five minutes before its first status job
+    finished."""
+    first: dict[str, str] = {}
+    for r in runs:
+        first[r["sha"]] = min(first.get(r["sha"], r["at"]), r["at"])
+    return _newest_first(
+        [
+            _push(
+                sha,
+                (datetime.fromisoformat(at) - timedelta(minutes=5)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+            )
+            for sha, at in first.items()
+        ]
+    )
+
+
+class Lanes:
+    """The head reads of `_noticed_head` over `runs`, the compares (a run's
+    head answers _net(TF) unless `compares` names it) and the head branch's
+    push history (`activity`, by default `_pushes(runs)`). A read whose label
+    (or `compare <sha>`, or `activity`) is `unreadable` fails. `reads` logs
+    every endpoint and `envs` the environment each lane read took."""
+
+    def __init__(
+        self,
+        runs: list[dict[str, Any]],
+        compares: dict[str, Any],
+        unreadable: str = "",
+        activity: Any = None,
+    ) -> None:
         self.runs = runs
         self.compares = {r["sha"]: _net(TF) for r in runs} | compares
         self.unreadable = unreadable
+        self.activity = _pushes(runs) if activity is None else activity
         self.reads: list[str] = []
         self.envs: list[Any] = []
 
     def get(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
         self.reads.append(endpoint)
+        if "/activity?" in endpoint:
+            assert endpoint == (
+                "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
+                "&direction=desc&per_page=100"
+            ), endpoint
+            self.envs.append(env)
+            return (
+                (404, None) if self.unreadable == "activity" else (200, self.activity)
+            )
         sha = endpoint.rsplit("...", 1)[1]
         if sha in self.compares and self.unreadable != f"compare {sha}":
             return 200, self.compares[sha]
@@ -149,15 +201,16 @@ class CostDecision(unittest.TestCase):
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
         head: str = HEAD,
+        activity: Any = None,
     ) -> str | None:
         created = PR_CREATED if created is None else created
         self.lanes = lanes = Lanes(
-            [_run(HEAD)] if runs is None else runs, compares or {}, unreadable
+            [_run(HEAD)] if runs is None else runs, compares or {}, unreadable, activity
         )
         self.reads = lanes.reads
 
         def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-            if "/compare/" in endpoint:
+            if "/compare/" in endpoint or "/activity?" in endpoint:
                 return lanes.get(endpoint, env)
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
@@ -197,6 +250,8 @@ class CostDecision(unittest.TestCase):
                 "repos/owner/repo/check-runs/1/annotations?per_page=100",
                 "repos/owner/repo/actions/workflows/pr-review-security-hosted.yml/runs"
                 "?event=pull_request&branch=fix%2Fcost&per_page=100",
+                "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
+                "&direction=desc&per_page=100",
             ],
         )
 
@@ -432,13 +487,124 @@ class CostDecision(unittest.TestCase):
                 runs = [_run(OLD, "2026-10-22T10:40:00Z"), _run(HEAD)]
                 self.assertIsNone(self.decide(runs=runs, compares={OLD: answer}))
 
+    # #10437: a deleted lane run of a head pushed after the decided head,
+    # before the decision, would make an older notice the decided head. The
+    # branch's push history, which deleting a run leaves, shows that head, and
+    # it must have a run of every review lane started before the decision.
+    def test_a_head_pushed_since_the_decided_head_with_no_run_of_every_lane_keeps_the_hold(
+        self,
+    ) -> None:
+        new = "1" * 40
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+
+        def plain(sha: str, lane: str) -> dict[str, Any]:
+            return _run(
+                sha,
+                "2026-10-22T11:20:00Z",
+                criteria="trust-gate",
+                lane=lane,
+                created="2026-10-22T11:12:00Z",
+            )
+
+        def history(*moves: dict[str, Any]) -> list[dict[str, Any]]:
+            return _newest_first([_push(OLD, "2026-10-22T10:25:00Z"), *moves])
+
+        def carried(
+            runs: list[dict[str, Any]], activity: Any, **change: Any
+        ) -> str | None:
+            return self.decide(
+                runs=[_run(OLD), *runs], compares=same, activity=activity, **change
+            )
+
+        both = [
+            plain(new, "pr-review-hosted.yml"),
+            plain(new, "pr-review-security-hosted.yml"),
+        ]
+        pushed = history(_push(new, "2026-10-22T11:10:00Z"))
+        # No deletion: both lanes ran on the newer head, which noticed no cost.
+        self.assertEqual(carried(both, pushed), LINK)
+        # A head pushed after the decision needs no run here.
+        self.assertEqual(carried([], history(_push(new, "2026-10-22T12:10:00Z"))), LINK)
+        for name, runs in {
+            "both lanes' runs deleted": [],
+            "the code lane's run deleted": [
+                plain(new, "pr-review-security-hosted.yml")
+            ],
+            "the security lane's run deleted": [plain(new, "pr-review-hosted.yml")],
+            "a run started only after the decision": [
+                r | {"created": "2026-10-22T12:05:00Z"} for r in both
+            ],
+            "a run whose head is in another repository": [
+                r | {"repo": "fork/repo"} for r in both
+            ],
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(carried(runs, pushed))
+                self.assertTrue(any("/activity?" in r for r in self.reads))
+        # Pushing the decided head again after the decision makes it the head:
+        # the gap before the decision still keeps the hold.
+        back = history(
+            _push(new, "2026-10-22T11:10:00Z"), _push(OLD, "2026-10-22T12:30:00Z")
+        )
+        self.assertIsNone(carried([], back, head=OLD))
+        # No push of the decided head before the decision, a full page that may
+        # not reach it, or a read that fails keeps the hold.
+        self.assertIsNone(carried(both, [_push(new, "2026-10-22T11:10:00Z")]))
+        self.assertIsNone(carried(both, [_push(OLD, "2026-10-22T12:30:00Z")]))
+        full = _newest_first(
+            [_push(new, f"2026-10-22T12:10:{i:02d}Z") for i in range(59)]
+            + [_push(new, f"2026-10-22T12:11:{i:02d}Z") for i in range(40)]
+            + [_push(OLD, "2026-10-22T10:25:00Z")]
+        )
+        self.assertIsNone(carried(both, full))
+        self.assertEqual(carried(both, full[1:]), LINK)
+        self.assertIsNone(carried(both, pushed, unreadable="activity"))
+        self.assertIsNone(carried(both, {"message": "Not Found"}))
+
+    def test_unran_head_names_the_first_head_pushed_since_with_no_run_of_every_lane(
+        self,
+    ) -> None:
+        new = "1" * 40
+        at = "2026-10-22T12:00:00Z"
+        gone = _push("0" * 40, "2026-10-22T11:05:00Z") | {
+            "activity_type": "branch_deletion"
+        }
+        moves = [
+            _push(new, "2026-10-22T11:10:00Z"),
+            gone,
+            _push(OLD, "2026-10-22T10:25:00Z"),
+        ]
+        self.assertIsNone(policy.unran_head(moves, [[OLD, new], [new]], OLD, at))
+        self.assertIn(new, policy.unran_head(moves, [[OLD], [new]], OLD, at) or "")
+        self.assertIn(
+            "every review lane", policy.unran_head(moves, [[OLD, new]], OLD, at) or ""
+        )
+        self.assertIn(
+            "every review lane", policy.unran_head(moves, None, OLD, at) or ""
+        )
+        self.assertIn(
+            "no push of", policy.unran_head(moves, [[new], [new]], HEAD, at) or ""
+        )
+        self.assertIn(
+            "no push of",
+            policy.unran_head(moves, [[new], [new]], OLD, "not a time") or "",
+        )
+        odd = [{"after": new, "timestamp": "soon"}, *moves]
+        self.assertIn(
+            "unreadable", policy.unran_head(odd, [[new], [new]], OLD, at) or ""
+        )
+        self.assertIn("unreadable", policy.unran_head("nope", [[], []], OLD, at) or "")
+        # Only the moves after the decided head's last push before it count.
+        again = [_push(OLD, "2026-10-22T11:30:00Z"), *moves]
+        self.assertIsNone(policy.unran_head(again, [[OLD], [OLD]], OLD, at))
+
     def test_the_lane_reads_take_the_actions_token_when_set(self) -> None:
         with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: "job"}):
             self.assertEqual(self.decide(), LINK)
-        self.assertEqual(self.lanes.envs, [{"GH_TOKEN": "job"}] * 4)
+        self.assertEqual(self.lanes.envs, [{"GH_TOKEN": "job"}] * 5)
         with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: ""}):
             self.assertEqual(self.decide(), LINK)
-        self.assertEqual(self.lanes.envs, [None] * 4)
+        self.assertEqual(self.lanes.envs, [None] * 5)
 
     def test_the_decided_head_is_never_read_from_a_comment(self) -> None:
         self.decide()
@@ -500,7 +666,7 @@ class CostDecision(unittest.TestCase):
             lanes = Lanes(runs, changed)
 
             def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-                if "/compare/" in endpoint:
+                if "/compare/" in endpoint or "/activity?" in endpoint:
                     return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 

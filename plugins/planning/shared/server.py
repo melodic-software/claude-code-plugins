@@ -15,7 +15,8 @@ No secret travels on this command line: the control token and the owner token co
   `<img>` or a frame sends no header.
 - Control listener (`--control-port`): session_bridge's `LoopbackHandler` with NAME `shared`
   (token header `X-Shared-Token`), for `share.sh`, `watch.sh` and `wake.sh` only, never tunneled.
-  It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
+  It adds `POST /api/ops` (Claude's ops), `GET /api/status` and `POST /api/shutdown`, which
+  `share.sh stop` asks first so the server's own shutdown runs on every OS.
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
@@ -764,6 +765,9 @@ class ControlHandler(session_bridge.LoopbackHandler):
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path == "/api/live/stop":
             return self.stop_lives(msg)
+        if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
+            self.send(200, {"ok": True})  # answered before the shutdown starts, so share.py reads it
+            return app.quit.set()
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
         try:
@@ -1284,6 +1288,7 @@ class App:
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
+        self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
         self.live_starter = LIVE_STARTER
@@ -1612,11 +1617,10 @@ def main(argv=None):
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     app.serve()
-    done = threading.Event()
     with contextlib.suppress(ValueError):  # signals only reach the main thread
-        signal.signal(signal.SIGTERM, lambda *_: done.set())
+        signal.signal(signal.SIGTERM, lambda *_: app.quit.set())
     try:
-        while not done.wait(1.0):
+        while not app.quit.wait(1.0):
             pass
     except KeyboardInterrupt:
         pass
