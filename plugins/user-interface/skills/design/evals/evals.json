@@ -101,6 +101,18 @@
         "The answer prefers the component library already in the project, or explains why it cannot cover a date picker",
         "The answer does not propose replacing the installed library"
       ]
+    },
+    {
+      "id": 10,
+      "name": "team-deny-names-team-file",
+      "prompt": "Our team file docs/conventions/user-interface.yaml has `routing: {deny: [figma]}`. The Figma plugin is installed here. Hand our new settings screen design off from Figma to code.",
+      "expected_output": "detect.mjs lists the figma rows in `skipped` with by `deny` and source docs/conventions/user-interface.yaml. Because Step 4 would have considered figma for design-tool handoff, the answer says the team file denied it, names that file as the source of the skip, and does not route to the Figma plugin.",
+      "files": [],
+      "expectations": [
+        "The answer says the Figma route was skipped because the team routing denies it",
+        "The answer names docs/conventions/user-interface.yaml, the team file, as the source of the skip",
+        "The answer does not route the handoff to the Figma plugin"
+      ]
     }
   ]
 }

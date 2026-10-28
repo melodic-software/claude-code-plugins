@@ -578,6 +578,31 @@ describe("--config team routing applied to routes", () => {
     assert.match(out.routing_notes.join("\n"), /missing-dir.*no team overrides or deny floor/);
   });
 
+  test("a convention home that leaves the project applies no team routing and counts that as one problem", () => {
+    const outside = join(scratch, "route-outside-home");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "user-interface.yaml"), "routing:\n  version: 1\n  deny:\n    - figma\n");
+    const dir = join(scratch, "route-linked-home");
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    gitInit(dir);
+    symlinkSync(outside, join(dir, "docs/conventions"), "junction");
+    const out = detect(["--project", dir, ...seams, "--config"]);
+    assert.deepEqual(out.skipped, []);
+    assert.match(out.routing_notes.join("\n"), / has 1 problem \(.*built-in routes are used/);
+  });
+
+  test("a refused team .md file is disclosed as one problem though the team .yaml has no routing", { skip: process.platform === "win32" && "file symlinks need a privilege on Windows" }, () => {
+    const dir = join(scratch, "route-md-link");
+    mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    gitInit(dir);
+    writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\n");
+    writeFileSync(join(scratch, "route-md-target.md"), "# Team prose\n");
+    symlinkSync(join(scratch, "route-md-target.md"), join(dir, "docs/conventions/user-interface.md"));
+    const out = detect(["--project", dir, ...seams, "--config"]);
+    assert.equal(out.config.values.css.important, "allow");
+    assert.match(out.routing_notes.join("\n"), / has 1 problem \(/);
+  });
+
   test("routes are absent unless --config is asked for", () => {
     const out = detect(["--project", PROJECT, ...seams]);
     assert.ok(!("routes" in out) && !("skipped" in out));
