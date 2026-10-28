@@ -2,11 +2,11 @@ schema_version: "1.1"
 name: run-e2e-flat-feature-id-resolves
 description: Without app-control, run-e2e resolves a single-level feature id named in the scenario to the legacy flat file when its folder has no README.md, and refreshes it under the id, not the file name
 tags: [run-e2e, run-e2e-feature-id, feature-resolution, legacy, unattended, invented]
-expected_outcome: "The run takes own driving (app-control not installed, unattended). It finds no features/cart/README.md, resolves cart to .claude/skills/control-shop/features/cart.md, and its report has one line for each of that file's three entry points, the Add to cart button, the basket icon and POST /api/cart/items. It names /app-control:map refresh cart (the id, not cart.md) for the touched feature, launches nothing and asks nothing."
+expected_outcome: "The run takes own driving (app-control not installed, unattended). It finds no features/cart/README.md, resolves cart to .claude/skills/control-shop/features/cart.md, and its report has one line for each of that file's three entry points, the Add to cart button, the basket icon and POST /api/cart/items, each reported not driven with a reason. It names /app-control:map refresh cart (the id, not cart.md) for the touched feature, launches nothing and asks nothing."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/testing:run-e2e unattended cart\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/cart/basket.py. Do not launch, install or run anything. Name the feature file this run reads for the scenario and write the report lines the run would produce, then stop."
+  prompt: "/testing:run-e2e unattended cart\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/cart/basket.py. Do not launch, install or run anything. Since nothing runs here, report each entry point as not driven, with the reason. Name the feature file this run reads for the scenario and write the report lines the run would produce, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 12
   timeout_seconds: 300
