@@ -1018,7 +1018,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      nothing shaped like a GitHub token. Any failure, or a missing `run.json`, posts no reply and
      escalates `feedback-invalid`;
    - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
-     and escalates `feedback-incomplete`;
+     and escalates `feedback-incomplete`; its log names each kept thread with no reply, and its round
+     marker names at most 20 of them with their root comments, which `report-escalation.sh` lists
+     with each root comment's URL from the newest lanes App round marker on the head it stops on;
    - when a reply is `VALID` or the PR branch moved, compares the select job's head with the PR's
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
