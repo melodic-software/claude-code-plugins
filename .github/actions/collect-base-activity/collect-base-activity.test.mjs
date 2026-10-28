@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { LIMITS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
+import { LIMITS, UNPLAIN_PATTERN } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1904,8 +1905,28 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
     [1, LIMITS.reasons, LIMITS.reason],
   );
   assert.deepEqual([schema.properties.evidence.maxItems, schema.properties.evidence.items.maxLength], [LIMITS.evidence, LIMITS.evidenceItem]);
+  assert.deepEqual([schema.properties.reasons.items.not, schema.properties.evidence.items.not], [{ pattern: UNPLAIN_PATTERN }, { pattern: UNPLAIN_PATTERN }]);
   // With no web access the web tools stay denied.
   assert.ok(run.deniedTools.includes("WebFetch") && run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
+});
+
+// The launcher validates structured output against draft-07
+// (https://code.claude.com/docs/en/agent-sdk/structured-outputs), as Ajv's
+// default class does: a bare @-mention, a fence or an HTML comment in a reason
+// or evidence item fails the schema, a URL, a scoped package or a backticked
+// handle passes.
+test("run-claude-cli: the dependency verdict schema rejects a bare @-mention and passes URLs and scoped packages", () => {
+  const run = launchDependency({ web: false });
+  assert.equal(run.status, 0, run.stdout);
+  const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
+  const valid = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8")));
+  const verdict = (text) => ({ verdict: "escalate", reasons: [text], evidence: [text] });
+  for (const text of ["maintained by @koromix alone", "@koromix", "cc @a-b.c", "see\n", "```sh", "<!-- x -->"]) {
+    assert.equal(valid(verdict(text)), false, text);
+  }
+  for (const text of ["https://x/@a", "@scope/name", "maintained by `@koromix` alone", "mail a@b.org", "@ alone"]) {
+    assert.equal(valid(verdict(text)), true, `${text}: ${JSON.stringify(valid.errors)}`);
+  }
 });
 
 test("run-claude-cli: a dependency-review skill with no context file fails red before any output", () => {
