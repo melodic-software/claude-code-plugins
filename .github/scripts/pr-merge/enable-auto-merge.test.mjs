@@ -1391,7 +1391,7 @@ test("a hold path stays held without a trusted approval of the head", async () =
 // base. The approval carries to the merge, so it arms and is not labeled
 // again; a merge that also edits the hold path is sent back to a person, and
 // a label removal alone lifts nothing (the owner's decision on #10596).
-test("an approval before a base merge lifts the hold path at the merge, and an evil merge or a label removal does not", async () => {
+test("an approval before a base merge, or its stale dismissal, lifts the hold path at the merge, and an evil merge, a dismissal with a message or a label removal does not", async () => {
   const OLD = "a".repeat(40);
   const MAIN = "5".repeat(40);
   const P = "/repos/melodic-software/claude-code-plugins";
@@ -1401,6 +1401,7 @@ test("an approval before a base merge lifts the hold path at the merge, and an e
   const TIP = "3".repeat(40);
   const rest = (number, headFiles, reviews = [approval]) => ({
     [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
+    [P]: { full_name: "melodic-software/claude-code-plugins", default_branch: "main" },
     [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
     [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
     [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
@@ -1427,6 +1428,24 @@ test("an approval before a base merge lifts the hold path at the merge, and an e
   };
   const removed = await run([pull(62, { headRefName: "fix/held-62", files: HELD, rest: removal })], trustedKyle());
   assert.deepEqual(removed.writes, []);
+  // The owner's decision of 2026-10-28: the approval GitHub dismissed as
+  // stale on the merge's push (a Bot's dismissal with no message, by the
+  // pushed head) still carries; one dismissed with a message does not.
+  const dismissedEvent = (message) => ({
+    event: "review_dismissed",
+    actor: { login: "lanes[bot]", type: "Bot" },
+    dismissed_review: { review_id: 41, state: "approved", dismissal_message: message, dismissal_commit_id: HEAD },
+  });
+  const staleRest = (number, message) => ({
+    ...rest(number, [held], [{ ...approval, state: "DISMISSED" }]),
+    [`${P}/issues/${number}/timeline?per_page=100&page=1`]: [dismissedEvent(message)],
+  });
+  const stale = await run([pull(63, { files: HELD, rest: staleRest(63, null) })], trustedKyle());
+  assert.deepEqual(stale.writes, [{ mutation: "arm", id: "PR_63", head: HEAD }]);
+  assert.deepEqual(stale.notes, []);
+  const revoked = await run([pull(64, { files: HELD, rest: staleRest(64, "stale") })], trustedKyle());
+  assert.deepEqual(revoked.writes, []);
+  assert.deepEqual(revoked.notes.map(({ path }) => path), [`${ISSUES}/64/comments`, `${ISSUES}/64/labels`]);
 });
 
 test("an approval lifts no unread hold-path check and no capped file listing", () => {
