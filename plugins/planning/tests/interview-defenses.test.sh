@@ -44,7 +44,8 @@
 #      BESIDE a pinned line rather than to it.
 #      Digests cover nineteen sections (two of them audit-answers Step 1 and Step 4), the
 #      whole YAML frontmatter, the eight cases that speak to these rules, the case roster, the
-#      four fixtures, and context/assumption-sweep.md. Inside those regions, an
+#      four fixtures, context/assumption-sweep.md, context/coverage-prompt.md and
+#      context/ears.md. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
 #      defense, and every loop.md TWIN of a byte-pinned SKILL.md line, now sits inside a
 #      digested region — that is the invariant to preserve when adding a pin: a phrase pin
@@ -97,6 +98,8 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL="$PLUGIN_DIR/skills/interview/SKILL.md"
 LOOP="$PLUGIN_DIR/skills/interview/context/loop.md"
 SWEEP="$PLUGIN_DIR/skills/interview/context/assumption-sweep.md"
+COVERAGE="$PLUGIN_DIR/skills/interview/context/coverage-prompt.md"
+EARS="$PLUGIN_DIR/skills/interview/context/ears.md"
 AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
@@ -123,7 +126,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-for f in "$SKILL" "$LOOP" "$SWEEP" "$AUDIT" "$EVALS"; do
+for f in "$SKILL" "$LOOP" "$SWEEP" "$COVERAGE" "$EARS" "$AUDIT" "$EVALS"; do
   if [[ ! -f "$f" ]]; then
     echo "FAIL: missing required file: $f" >&2
     exit 1
@@ -705,6 +708,17 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "8d08f205a52b09ccd422bf5adad012bf5bb215f021a06aa4e18d801f797cef8c"
+# The coverage prompt's exemption from the register, the gate and the unattended ladder moved
+# here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
+# question still writes its row at ask-time and brings the gate into scope.
+pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts itself and nothing else)" \
+  "$COVERAGE" \
+  "0000000000000000000000000000000000000000000000000000000000000000"
+# The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
+# Step 4; they shape criteria text and resolve no register row.
+pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
+  "$EARS" \
+  "0000000000000000000000000000000000000000000000000000000000000000"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
