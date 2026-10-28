@@ -155,6 +155,21 @@ test("each secret appears only in its own job", () => {
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
+// A failed upstream run reaches resolve-pr, which judges it only when its one
+// failure is a hold an approving review of the head lifts (heldOnly).
+test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
+  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
+  assert.equal(
+    gate,
+    [
+      "github.ref == 'refs/heads/main'",
+      "&& github.event.workflow_run.event == 'pull_request'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
+      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+    ].join(" "),
+  );
+});
+
 test("the subscription job runs only on a clean handoff or an empty key, on a fixed runner", () => {
   const job = jobText(SUB);
   assert.match(job, /^ {4}needs: check-intent$/m);
@@ -164,7 +179,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
     [
       "github.ref == 'refs/heads/main'",
       "&& github.event.workflow_run.event == 'pull_request'",
-      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
       "&& github.event.workflow_run.head_repository.full_name == github.repository",
       "&& ((needs.check-intent.outputs.handoff == 'true'",
       "&& needs.check-intent.outputs.key-leg-clean == 'true')",
@@ -221,7 +236,7 @@ test("the fallback job runs only on the subscription job's clean handoff, on a f
     [
       "github.ref == 'refs/heads/main'",
       "&& github.event.workflow_run.event == 'pull_request'",
-      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
       "&& github.event.workflow_run.head_repository.full_name == github.repository",
       "&& needs.check-intent-subscription.outputs.handoff == 'true'",
       "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
