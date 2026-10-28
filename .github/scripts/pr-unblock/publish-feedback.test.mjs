@@ -1356,7 +1356,7 @@ test("no replies.jsonl where the scan named an upload escalates feedback-invalid
 
 // The lanes App's address, the trailer and a range position are what a person
 // can put on a local commit; GitHub's web-flow committer and a valid
-// signature are what only the App's API commit carries (upstreamHeadHolds).
+// signature are what only the App's API commit carries.
 test("a fix commit must be committed by web-flow with a valid signature", async () => {
   for (const [label, fields] of [
     ["committed by a person", { committer: { id: HUMAN } }],
