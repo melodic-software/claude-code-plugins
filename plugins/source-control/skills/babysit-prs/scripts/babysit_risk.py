@@ -228,7 +228,8 @@ class RiskResult:
 #   compute the review's clear condition), the pipeline config, and
 #   scripts/sync-hold-floor.py, which writes this table's copies; and every
 #   workflow that holds a credential a review cannot be trusted to judge: the
-#   review callers and pr-review-main.yml (the review itself), and each
+#   review callers and pr-review-main.yml with the scripts it runs (the
+#   review itself, whose verdict writer sets the counts), and each
 #   workflow whose token can write, that names a secret other than
 #   GITHUB_TOKEN or that mints a lane token (pr-merge, ci-status and
 #   pr-unblock among them). A workflow outside this list that gains a write
@@ -339,6 +340,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/workflows/pr-refine.yml", "gate"),
     (".github/workflows/pr-review-hosted.yml", "gate"),
     (".github/workflows/pr-review-main.yml", "gate"),
+    (".github/scripts/pr-review-main/**", "gate"),
     (".github/workflows/pr-review-security-hosted.yml", "gate"),
     (".github/workflows/pr-run-activity-read.yml", "gate"),
     (".github/workflows/pr-run-activity-write.yml", "gate"),

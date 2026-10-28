@@ -314,7 +314,8 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
-          retention-days: 30
+          # The longest: an expired verdict with findings would lower the count.
+          retention-days: 90
           if-no-files-found: error
 
       - name: Summarize the verdict

@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 54, "enforcement": 40},
+            {"trust": 5, "gate": 55, "enforcement": 40},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1840,6 +1840,20 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     f"high-path:{path}"
                     in [r.code for r in person_reasons(result.reasons)],
                     held,
+                )
+
+    def test_the_main_run_reviews_own_scripts_hold_for_a_person(self):
+        # Its verdict writer sets the counts the gate trusts, so a change to
+        # it is not one a review it produces may clear.
+        for path in (
+            ".github/scripts/pr-review-main/write-verdict.mjs",
+            ".github/scripts/pr-review-main/prompt.md",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertIn(
+                    "high-path:.github/scripts/pr-review-main/**",
+                    [r.code for r in person_reasons(result.reasons)],
                 )
 
     def test_the_review_workflows_are_gate(self):
