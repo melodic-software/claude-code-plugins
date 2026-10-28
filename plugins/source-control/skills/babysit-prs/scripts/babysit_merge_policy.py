@@ -5198,19 +5198,9 @@ def assess(
             lane=lane,
             authority=authority,
         )
-        # Past the unverified age, a passing answer is kept on evidence:
-        # nothing it was read from moved and no verifying run of its
-        # unverified merges reached a conclusion since (`settle_shared`'s
-        # keep). Any failure reads it again.
-        kept = False
-        if unusable == "unverified-stale" and runs_unchanged is not None:
-            try:
-                kept = _still_current(
-                    repo, default, resolved.login, shared, runs_unchanged
-                )
-            except (RuntimeError, ValueError, OSError):
-                kept = False
-        if kept:
+        if _kept_unverified(
+            repo, default, resolved.login, shared, unusable, runs_unchanged
+        ):
             unusable = None
             details["postMergeShared"] = "kept:unverified-stale"
         else:
@@ -5501,6 +5491,26 @@ def _still_current(
     )
 
 
+def _kept_unverified(
+    repo: str,
+    default: str,
+    identity: str,
+    shared: SharedPostMerge,
+    unusable: str | None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None,
+) -> bool:
+    """Whether an answer refused only as `unverified-stale` is kept up to
+    `SHARED_MAX_AGE`: nothing it was read from moved and no verifying run of
+    its unverified merges reached a conclusion since (`_still_current`). No
+    `runs_unchanged` or any failed read is not kept."""
+    if unusable != "unverified-stale" or runs_unchanged is None:
+        return False
+    try:
+        return _still_current(repo, default, identity, shared, runs_unchanged)
+    except (RuntimeError, ValueError, OSError):
+        return False
+
+
 def _recompute_shared(
     repo: str,
     default: str,
@@ -5633,10 +5643,8 @@ def settle_shared(
                 permission=permission_reader(repo),
             )
         else:
-            current = (
-                unusable == "unverified-stale"
-                and runs_unchanged is not None
-                and _still_current(repo, default, identity, shared, runs_unchanged)
+            current = _kept_unverified(
+                repo, default, identity, shared, unusable, runs_unchanged
             )
     except (RuntimeError, ValueError, OSError):
         current = False
