@@ -156,7 +156,7 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-test("the action emits each named token, the call count as an api-calls notice the hub reads, the summary and the costs output, and reads no /rate_limit", () =>
+test("the action emits each named token, the call count as an api-calls notice the hub reads (0 with no reading), the summary and the costs output, and reads no /rate_limit", () =>
   withDir((dir) => {
     // Two calls GitHub counted, then a conditional GET answered 304.
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
@@ -177,12 +177,14 @@ test("the action emits each named token, the call count as an api-calls notice t
     });
     assert.equal(
       out,
-      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+      "::notice title=api-calls::lanes-app=0 not-modified=0\n" +
+        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "::notice title=api-calls::github-token=2 not-modified=1\n",
     );
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+      "api-calls lanes-app=0 not-modified=0\n" +
+        `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "api-calls github-token=2 not-modified=1\ngithub-token-cost=28\n",
     );
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "costs=github-token-cost=28\n");
@@ -203,9 +205,12 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
       `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "::notice title=api-calls::github-token=2 not-modified=1\n",
     );
-    // With no reading, no line, as the action skips a token with none.
+    // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
-    assert.equal(execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }), "");
+    assert.equal(
+      execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
+      "::notice title=api-calls::github-token=0 not-modified=0\n",
+    );
   }));
 
 // The shell port of the rate guard decides every shared vector as
@@ -633,8 +638,11 @@ test("the action writes the content-creation notice after the token lines", () =
         TOKENS: "github-token",
       },
     });
-    assert.equal(out, `${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
-    assert.equal(readFileSync(join(dir, "summary"), "utf8"), `api-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`);
+    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
+    assert.equal(
+      readFileSync(join(dir, "summary"), "utf8"),
+      `api-calls github-token=0 not-modified=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`,
+    );
   }));
 
 // Every lane job that calls GitHub through the rate guard names its token and
@@ -653,6 +661,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
+    "pr-review-hosted.yml": { "resolve-model": "github-token" },
+    "pr-review-security-hosted.yml": { "resolve-model": "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -667,6 +677,36 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       assert.match(last, /^Log the API budget[^\n]*\n {8}if: always\(\)\n/, `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
       assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
+    }
+  }
+});
+
+// Jobs that hold the job token but call GitHub only through actions the
+// counter cannot see still end by logging it, so each run carries its
+// api-calls line, 0 when no step of the job's own called GitHub.
+test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
+  const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
+  const jobs = {
+    "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
+    "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
+    "release-publish-plugins.yml": { merge: "./", build: "./" },
+    "pr-review-hosted.yml": { "kill-switch": "./.base/" },
+    "pr-review-security-hosted.yml": { "kill-switch": "./.base/" },
+  };
+  for (const [file, byJob] of Object.entries(jobs)) {
+    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    for (const [job, root] of Object.entries(byJob)) {
+      const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
+      const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
+      assert.equal(
+        last,
+        "Log the API budget at the end\n        if: always()\n        continue-on-error: true\n        timeout-minutes: 1\n" +
+          `        uses: ${root}.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token`,
+        `${file} ${job}`,
+      );
+      if (root === "./.base/") {
+        assert.match(block, /\n {12}\/\.github\/actions\/log-api-budget\/\n/, `${file} ${job} checks out the action`);
+      }
     }
   }
 });

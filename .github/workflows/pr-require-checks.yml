@@ -3366,10 +3366,10 @@ jobs:
         #   api_budget_emit_content     the notice for the job's content-creating
         #                               writes: count and most in any 60 s
         #   api_budget_emit_calls <token>...
-        #                               the hub's api-calls notice for each token with
-        #                               a reading, `<token>=N not-modified=M`: N is
-        #                               the job's own calls, M its 304 answers, which
-        #                               GitHub does not count
+        #                               the hub's api-calls notice for each token,
+        #                               `<token>=N not-modified=M`: N is the job's own
+        #                               calls, M its 304 answers, which GitHub does not
+        #                               count; 0 for a token with no reading
         #
         # pr-require-checks.yml's ci-status job carries this file verbatim in its
         # API_BUDGET_SH env (it has no checkout of this directory);
@@ -3672,7 +3672,8 @@ jobs:
           local token file
           for token; do
             file=${RUNNER_TEMP:-}/api-budget/$token
-            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ && -s $file ]] || continue
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+            [[ -s $file ]] || file=/dev/null
             awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
           done
           return 0
