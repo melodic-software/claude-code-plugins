@@ -980,7 +980,8 @@ the rules that only tighten in
   A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
   `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
   in a `${{ }}` expression outside a string, such as `${{ secrets }}` or
-  `contains(secrets, 'X')`) scores HIGH as
+  `contains(secrets, 'X')`; every `${{` starts a fresh read, and an expression whose string is
+  still open where its read ends counts as one) scores HIGH as
   `secret-exposure-review`, and a workflow or composite action patch that gains a `uses:` of
   `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line
   invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`, each counted against

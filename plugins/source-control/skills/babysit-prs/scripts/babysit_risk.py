@@ -1095,14 +1095,19 @@ def _expressions(
     `text`, read as GitHub reads one, so a `}}` inside a single-quoted
     literal does not close it, and whether an expression and a literal in it
     are still open at the end. An open expression's body runs to the end;
-    `inside` and `quoted` carry that state in from a line before."""
+    `inside` and `quoted` carry that state in from a line before. Every `${{`
+    starts a fresh body with no literal open, even inside another one, so a
+    quote opened in a YAML comment cannot carry over a real expression; the
+    body it cuts short is kept, its literal still open."""
     bodies: list[str] = []
     start = i = 0
     while i < len(text):
-        if not inside:
+        if not inside or text.startswith("${{", i):
             j = text.find("${{", i)
             if j < 0:
                 break
+            if inside:
+                bodies.append(text[start:j])
             inside, quoted = True, False
             start = i = j + 3
         elif quoted:
@@ -1143,19 +1148,17 @@ def _logical_lines(lines: list[str]) -> list[str]:
 
 
 def _secret_refs(line: str) -> list[str]:
-    """Each `${{` starts a fresh read with no literal open, wherever it sits,
-    so a quote opened in a YAML comment or another expression cannot hide a
-    real expression's bare `secrets`; one several reads see counts once."""
+    """Each `${{` body's bare `secrets`, and a body whose literal is still
+    open where its read ends (the line ends, or a `${{` cuts it short), which
+    this read cannot follow, so it holds under its own text: only the same
+    body removed elsewhere offsets it."""
     found = _SECRET_REF.findall(line)
-    bare: dict[int, str] = {}
-    for start in (m.end() for m in re.finditer(r"\$\{\{", line)):
-        body = _expressions(line[start - 3 :])[0][0]
-        blanked = _STRING_LITERAL.sub(
-            lambda m: "'" + " " * (len(m.group()) - 2) + "'", body
-        )
-        for m in _BARE_SECRETS.finditer(blanked):
-            bare[start + m.start()] = m.group()
-    return found + list(bare.values())
+    for body in _expressions(line)[0]:
+        blanked = _STRING_LITERAL.sub("''", body)
+        if "'" in blanked.replace("''", ""):
+            found.append(f"unclosed literal in ${{{{{body}")
+        found += _BARE_SECRETS.findall(blanked)
+    return found
 
 
 def _net_added(

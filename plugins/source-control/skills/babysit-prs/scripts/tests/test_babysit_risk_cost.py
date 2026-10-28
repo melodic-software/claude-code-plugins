@@ -777,6 +777,18 @@ class LowRatedShapes(_Finding):
             # A quote a comment leaves open does not hide a later expression.
             ("+# ${{ '", "+  K: ${{ secrets }}'"),
             ("+  # ${{ '", "+  K: ${{ format('{0}{1}', secrets, 'a') }}"),
+            # Nor does it move where a split expression is joined.
+            (
+                "+# ${{ '",
+                "+  K: >-",
+                "+    ${{ format('{0}}}',",
+                "+    secrets, 'a') }}",
+            ),
+            # A `${{` inside a literal starts a new read but keeps the old one.
+            ("+  K: ${{ format('{0}{1}', secrets, '${{') }}",),
+            # A literal still open where the read ends holds unread.
+            ("+  # ${{ '",),
+            ("+  K: ${{ 'a", "+  # ${{ x }}"),
         ):
             with self.subTest(lines=lines):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
@@ -807,7 +819,11 @@ class LowRatedShapes(_Finding):
             "@@ -1,2 +1,3 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
             "+  K: >-\n+    ${{ secrets\n+    .LANE_TOKEN }}"
         )
-        for patch in (moved, split):
+        unclosed = (
+            "@@ -1,2 +1,1 @@\n context\n-  # ${{ '\n"
+            "@@ -40,1 +39,2 @@\n context\n+      # ${{ '"
+        )
+        for patch in (moved, split, unclosed):
             with self.subTest(patch=patch):
                 wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
                 codes = _codes(_cost([wf], public=True))
