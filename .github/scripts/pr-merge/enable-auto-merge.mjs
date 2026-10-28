@@ -260,10 +260,14 @@ export const transient = (error) =>
 // share of 4 s, then of 8 s, so the waits sum to at most 12 s.
 export const RETRY_CAPS_MS = Object.freeze([4000, 8000]);
 // An error's message with its cause's code and message, any token scrubbed:
-// undici puts a whole header value in some messages.
-export function describe(error) {
+// undici puts a whole header value in some messages. With `label`, a
+// causeless error's message is followed by its errorLabel, unless the message
+// already is that label, and the scrub runs over both.
+export function describe(error, { label = false } = {}) {
   const cause = error?.cause;
-  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : String(error?.message ?? error);
+  const message = String(error?.message ?? error);
+  const named = label && errorLabel(error) !== message ? `${message} (${errorLabel(error)})` : message;
+  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : named;
   return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
 // `github` with every request on a connection of its own, and a GraphQL
@@ -1366,7 +1370,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
         if (action === "arm" && transient(error)) {
           skippedArms.push(`#${pull.number}`);
           networkArms += 1;
-          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}${error?.cause ? "" : ` (${errorLabel(error)})`}`);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error, { label: true })}`);
           continue;
         }
         failed += 1;

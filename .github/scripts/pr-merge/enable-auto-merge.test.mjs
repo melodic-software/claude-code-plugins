@@ -26,6 +26,7 @@ import {
   THREAD_PAGE_QUERY,
   UNLABELED_QUERY,
   decide,
+  describe,
   liftedByPerson,
   READER_EVENTS,
   refusalBody,
@@ -834,6 +835,15 @@ test("one pull request whose arm fails on the network every attempt is skipped, 
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
   assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
   assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a causeless error is named once, a caused one keeps its cause text, and the label is scrubbed with the message", () => {
+  assert.equal(describe(bare(), { label: true }), "fetch failed (TypeError)");
+  assert.equal(describe(new TypeError("TypeError"), { label: true }), "TypeError");
+  assert.equal(describe(reset(), { label: true }), "fetch failed (cause: ECONNRESET read ECONNRESET)");
+  assert.equal(describe(reset(), { label: true }), describe(reset()));
+  assert.equal(describe(bare()), "fetch failed");
+  assert.equal(describe(Object.assign(new Error("lost"), { name: "ghp_abc123" }), { label: true }), "lost (***)");
 });
 
 test("every arm in the run failing on the network, after the listing read, is an outage and fails red", async () => {
