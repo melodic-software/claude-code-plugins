@@ -33,13 +33,14 @@ const RUN = {
   ],
 };
 // The commit apply-feedback-patch pushes: the lanes App's, with the
-// review-threads row's message and trailer (patch-rules.json).
+// review-threads row's message and trailer (patch-rules.json), naming both
+// kept threads as a round whose replies are both VALID does.
 const fixCommit = (sha = FIX, fields = {}) => ({
   sha,
   author: { id: APP },
   committer: { id: 19864447 },
   commit: {
-    message: "Address review feedback on feature\n\nLane-Activity: pr-unblock/address-feedback\n",
+    message: "Address review feedback on feature\n\nLane-Activity: pr-unblock/address-feedback\nLane-Thread: PRRT_a\nLane-Thread: PRRT_b\n",
     verification: { verified: true, reason: "valid" },
   },
   ...fields,
@@ -744,6 +745,34 @@ for (const [label, compare] of [
   });
 }
 
+// The fix commit's message as apply-patch writes it, naming `threads` in
+// Lane-Thread trailer lines; built here so the default fixture cannot hide a
+// commit that names the wrong thread.
+const fixMessage = (...threads) => ["Address review feedback on feature", "", "Lane-Activity: pr-unblock/address-feedback", ...threads.map((id) => `Lane-Thread: ${id}`), ""].join("\n");
+
+for (const [label, message] of [
+  // A sibling fix on the same file, bound to the other thread.
+  ["the fix commit names only a same-file sibling thread", fixMessage("PRRT_b")],
+  ["the fix commit names no thread", fixMessage()],
+  ["the thread id is in the subject, not a trailer line", fixMessage().replace("Address review feedback", "PRRT_a Address review feedback")],
+]) {
+  test(`feedback-not-landed, nothing posted: ${label}`, async () => {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit(FIX, { commit: { ...fixCommit().commit, message } })], files: [{ filename: "src/a.js" }] } });
+    const result = await run(api, lines(reply({ disposition: "VALID" })));
+    assert.equal(result.escalationReason, "feedback-not-landed");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+  });
+}
+
+test("a fix commit whose trailer names the VALID thread lands it, CRLF line ends included", async () => {
+  for (const message of [fixMessage("PRRT_a"), fixMessage("PRRT_b", "PRRT_a").replaceAll("\n", "\r\n")]) {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit(FIX, { commit: { ...fixCommit().commit, message } })], files: [{ filename: "src/a.js" }] } });
+    assert.equal((await run(api, lines(reply({ disposition: "VALID" })))).escalationReason, "");
+    assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  }
+});
+
 // A retry after a round whose fix commit landed but whose replies did not
 // post: the branch did not move since, and the fix is an earlier commit on
 // the PR. The thread's first comment is from 10:00.
@@ -794,6 +823,21 @@ for (const [label, pullCommits, files] of [
     assert.deepEqual(api.resolved(), []);
   });
 }
+
+// A same-file sibling fix: the newest lane commit changed src/a.js at the
+// line PRRT_a's evidence cites, but its trailer binds it to PRRT_b alone.
+test("feedback-not-landed: an earlier same-file fix whose trailer names another thread is not credited", async () => {
+  const sibling = earlierFix({ commit: { message: fixMessage("PRRT_b") } });
+  const api = retry([sibling]);
+  const result = await run(api, lines(reply({ disposition: "VALID" })));
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+  assert.deepEqual(api.resolved(), []);
+  // The same commit named for PRRT_a is its fix.
+  const own = retry([earlierFix({ commit: { message: fixMessage("PRRT_a") } })]);
+  assert.equal((await run(own, lines(reply({ disposition: "VALID" })))).escalationReason, "");
+  assert.deepEqual(own.resolved(), ["PRRT_a"]);
+});
 
 test("feedback-not-landed: an earlier commit a lane reply already named as another thread's fix is not credited again", async () => {
   const sibling = renderReply({ disposition: "VALID", evidence: ["src/a.js:3"], fixSha: EARLIER, note: "Guarded it." });
