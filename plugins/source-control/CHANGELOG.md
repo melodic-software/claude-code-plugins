@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.17.0] - 2026-10-28
+
+### Changed
+
+- The demotion record read (`read_demotion`), behind the post-merge check's floor, the merge gate and the lane room, reads its records 20 issues to a GraphQL query instead of one each, and reads on its own any record a batch fails or leaves out, so its answer is unchanged. On this repository's 39 candidate issues it took 5 calls instead of 42.
+
+- **`pull-request` monitor and `babysit-prs` subscribe to PR activity in cloud sessions** ([#7158](https://github.com/melodic-software/claude-code-plugins/issues/7158)). When the session offers `mcp__claude-code-remote__subscribe_pr_activity`, the monitor calls it for the PR after it arms the 60-90s poll, runs one iteration on each event wake, and unsubscribes at self-termination. `babysit-prs` subscribes once per PR per session, rescans the PR an event names, and unsubscribes when the PR is merged or closed. The poll stays at its cadence and remains the source of truth: in a cloud session probe, reviews and failed checks produced events, but the push and the successful and skipped checks did not. A session without the tool, or whose subscribe call fails, polls alone.
+
+- `worktree-claim.sh` resolves each registered worktree's path without starting a subshell in the common case (a clean absolute path to an existing directory), and siblings under one non-symlink parent share a single `cd -P`. Every verb, and the add-claim hook, used to fork three or four times per registered worktree. In a repository with 1,243 linked worktrees one `stale` call fell from 3.63 s to 0.44 s, with `report` output byte-identical across all 1,244 rows (#10562).
+
+### Fixed
+
+- A trusted person's approval of an earlier head now carries a hold-path lift over a base merge in the two cases that sent every such pull request back to them. An approval GitHub dismissed as stale on the merge's push still counts, bound to its own commit and only through the carry: the issue timeline's `review_dismissed` event has no message, a Bot actor and a dismissal commit among those pushed since the approved head (`auto_dismissed`). A dismissal with a message, by a person, or by a person's push still revokes it. When the base changed a file the pull request also changes, so the net change differs, the approval carries when the merges brought exactly the base's changes: the compare from the approved head to the current head equals, file for file with the same status and patch, the compare between the two merge bases with the base's tip (`exact_base_carry`, `approval_carry`, `carried_lifters`). A merge that writes any change of its own or drops a base change, a list of 300 files or more, or a commit list not read whole carries nothing. The owner's cost-decision carry is unchanged. The carry runs only into the repository's default branch, and the exact path also reads the recursive trees of the current head and of its merge base with the base's tip, so a merge that flips the mode of a file the base changed carries nothing; a truncated tree fails closed.
+
+- The merge gate holds a pull request labeled `pr-verify-failed` as it holds `do-not-merge` (`MERGE_HOLD_LABELS`): pr-merge's prefilter sets it aside, the gate does not merge or enqueue it, adoption refuses it, and a queued entry that gains the label leaves the queue. pr-merge's enable-auto-merge job neither arms it nor leaves it armed.
+
+## [3.16.5] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.REVIEW_FLOOR` (the `enforcement` class of `FLOOR_CLASSES`, which holds a change until a clean security review binds to its head, not for a person) also covers `.github/scripts/pr-unblock/escalation-routes.mjs`, which `clear-escalations.mjs` and `gate-source.mjs` import, and `escalation-routes.json`, the routing table it reads, so the floor still holds every module its scripts load, and the scripts that act on a pr-unblock stop's route (`report-escalation.sh`, `adjudicate-feedback.mjs`, `publish-feedback.mjs`, `apply-patch.mjs`) with every module they import.
+
+### Fixed
+
+- The babysit merge gate reads the trusted-actor list and the admission rules at the tip commit of their branch, resolved by its full ref through `base_tip`, never by the branch name, so a tag named like the branch cannot supply them. The escalation lift reads the trusted list the same way, and the verdict answer key names both files by `refs/heads/<branch>`. A branch whose tip does not resolve to a commit SHA fails closed: the verdict read is unreadable and the label stays on.
+
 ## [3.16.4] - 2026-10-28
 
 ### Fixed

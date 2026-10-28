@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.119.1] - 2026-10-28
+
+### Fixed
+
+- `/planning:interview` continuation wording: the `me`-mode persistence lines now recommend routing the next step rather than routing it, name Step 5's fallback when session-flow is absent, drop a stale cross-reference to a removed handoff-and-clear step, and give the context-window docs link in `context/loop.md` a Pointer / As of / Recheck trigger record.
+
+## [0.119.0] - 2026-10-28
+
+### Changed
+
+- `/planning:interview` no longer accepts a bare `judgment` basis for a recommendation. Every recommendation now lists each fact it rests on with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output) and one `Inference:` line on why those facts lead to this answer for this user. A question with no fact to cite is researched first, or asked with a `Withheld:` line naming the evidence that would settle it. The page surface's `basis` field carries the same evidence list. The shared `context/recommendation-basis.md` contract is unchanged.
+
 ## [0.118.3] - 2026-10-28
 
 ### Fixed

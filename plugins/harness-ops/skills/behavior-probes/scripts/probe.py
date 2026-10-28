@@ -89,7 +89,8 @@ TOOL_LISTS = (
 # have, so no case can widen the launch.
 CLI_FLAGS = {"--autocompact": r"auto|\d+[kKmM]?"}
 # Where a `prints` case looks for a slash command's output: a user message
-# wrapped in this tag, else the result event's text when no model turn ran.
+# wrapped in this tag, else the result event's text when no model turn ran
+# (a result reporting num_turns 0, the shape claude -p gives a local command).
 COMMAND_OUTPUT = re.compile(r"<local-command-stdout>(.*?)</local-command-stdout>", re.S)
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -381,6 +382,8 @@ def parse_stream(lines) -> dict:
                 obs["cost"] = max(cost, obs["cost"] or 0.0)
             if isinstance(event.get("result"), str):
                 obs["result_text"] = event["result"]
+            if event.get("num_turns") == 0:
+                obs["no_turns"] = True
         elif event.get("type") in ("assistant", "user"):
             content = (event.get("message") or {}).get("content")
             if event["type"] == "assistant":
@@ -407,6 +410,10 @@ def parse_stream(lines) -> dict:
                         "text": _text(block.get("content")),
                     }
     obs["denial_ids"] |= set(obs["denied"])
+    # A local command's output arrives as an assistant message too; the result
+    # reporting no turns says no model answered it.
+    if obs.pop("no_turns", False):
+        obs["model_turn"] = False
     return obs
 
 
@@ -685,7 +692,6 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
     target = case["target"]
     if case["outcome"] == PRINTS:
         printed = target["example"]
-        wrapped = f"<local-command-stdout>{printed}</local-command-stdout>"
         return [
             json.dumps(event)
             for event in (
@@ -694,11 +700,18 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
                     "subtype": "init",
                     "claude_code_version": DRY_RUN_VERSION,
                 },
-                {"type": "user", "message": {"content": wrapped}},
+                {
+                    "type": "assistant",
+                    "message": {
+                        "model": "<synthetic>",
+                        "content": [{"type": "text", "text": printed}],
+                    },
+                },
                 {
                     "type": "result",
                     "subtype": "success",
                     "result": printed,
+                    "num_turns": 0,
                     "total_cost_usd": 0.0,
                     DENIALS: [],
                 },

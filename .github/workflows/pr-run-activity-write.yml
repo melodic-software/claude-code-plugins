@@ -1933,6 +1933,9 @@ jobs:
           export ACTIVITY_ARGS
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
+          # publish-feedback's listed review bots (review-threads.reviewer-ids).
+          REVIEWER_IDS=$(jq -r '.["review-threads"]["reviewer-ids"] // [] | .[]' "$RESOLVED")
+          export REVIEWER_IDS
           unset GH_TOKEN GITHUB_TOKEN
           if [ -n "$LANE_TOKEN" ]; then
             export GH_TOKEN="$LANE_TOKEN"

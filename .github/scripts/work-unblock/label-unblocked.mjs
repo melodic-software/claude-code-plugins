@@ -47,7 +47,9 @@
 // issue alone, never re-runs it. The sweep does: an agent-ready issue a
 // blocker still blocks is never re-fired, stranded or handed to a person, and
 // a run the blocker gate skipped is re-fired like a run that did no work once
-// none blocks. A run the gate stopped on untrusted provenance, or an issue
+// none blocks. An umbrella, an issue with an open sub-issue, is skipped and
+// waits the same way until none is open; the listing's sub_issues_summary
+// answers for one with none open at no extra call. A run the gate stopped on untrusted provenance, or an issue
 // whose untrusted-provenance label someone unlisted removed, is never
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
@@ -202,7 +204,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -1112,7 +1114,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -1141,6 +1143,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
   );
   if (pending.length > 0) {
     return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
+  }
+  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs).
+  const subs = await openSubIssues(github, `/repos/${repo}/issues/${number}`, issue);
+  if (subs.length > 0) {
+    return { reason: `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
@@ -1295,6 +1302,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
       jobLog,
       repo,
       number: issue.number,
+      issue,
       lastAdd,
       addedAt,
       markers,
