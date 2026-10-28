@@ -1216,6 +1216,17 @@ test("a third limit stop since a person added agent-ready fails the issue: a fai
   });
   assert.equal(await sweep({ github: stale.github }), 0);
   assert.equal(writes(stale.calls).length, 2);
+  // A person's agent-ready after the newest marker, a failed one, starts a new
+  // run: the sweep takes it to the re-fire checks, never the fail route, so
+  // it never removes that agent-ready, whether the run is recent or stranded.
+  for (const at of ["2026-10-16T11:00:00Z", "2026-10-16T07:00:00Z"]) {
+    const readded = stopped({
+      comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")],
+      events: [added("2026-10-16T05:00:00Z"), { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T06:30:01Z" }, added(at, OWNER)],
+    });
+    assert.equal(await sweep({ github: readded.github }), 0);
+    assert.deepEqual(writes(readded.calls), [], at);
+  }
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [note(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);
