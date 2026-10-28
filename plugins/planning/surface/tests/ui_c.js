@@ -25,10 +25,10 @@ async page => {
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
   // Runs act, then waits until the server has recorded a new event: a save is a network round trip.
   const saved = async act => { const n = (await events()).length; await act(); await until(async () => (await events()).length > n, 10000); };
-  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
   // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
   const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
   const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
+  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
   const card = (id, re, yes = true) => page.waitForFunction(([q, r, y]) => { const el = document.querySelector('.rail-list .qbtn[data-q="' + q + '"]'); return !!el && new RegExp(r).test(el.textContent) === y; }, [id, re, yes], {timeout: 10000}).then(() => true).catch(() => false);
   const armed = async () => (await page.textContent(".choice.armed").catch(() => "")) || "";
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
@@ -526,7 +526,7 @@ async page => {
   }
   if (PHASE === 2) {
     // SSE brings the external revise of A2 and the emoji switch
-    await page.waitForFunction(m => !document.querySelector("#dscroll .dhead h3").textContent.includes(m) && !document.getElementById("conflict").hidden, Q_MARK, {timeout: 15000}).catch(() => {});
+    await page.waitForFunction(m => { const h = document.querySelector("#dscroll .dhead h3"), c = document.getElementById("conflict"); return !!h && !!c && !h.textContent.includes(m) && !c.hidden; }, Q_MARK, {timeout: 15000}).catch(() => {});
     // Accept all reports in a toast once its posts and the refresh are done; each run below reads a different one.
     const accepted = async () => { const t0 = await page.textContent("#toast"); await page.click("#dlgOk"); await page.waitForFunction(t => { const x = document.getElementById("toast").textContent; return x !== t && /Accepted|Not accepted/.test(x); }, t0, {timeout: 10000}).catch(() => {}); };
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
