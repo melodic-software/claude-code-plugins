@@ -148,7 +148,7 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   owner.author = { databaseId: 153232337 };
   owner.updatedAt = idle;
   owner.commits.nodes[0].commit.committedDate = idle;
-  assert.equal(parse(LIVE).adoption["idle-hours"], 24, "the live config adopts a trusted person after 24 hours");
+  assert.equal(parse(LIVE).adoption["idle-hours"], 2, "the live config adopts a trusted person after 2 hours");
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
   // Every trusted-actors.json entry is adoptable: the release App, a Bot, at once.
   const release = ciFixPull(65);
@@ -168,7 +168,7 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
   // A section without idle-hours adopts nothing, as in pr-merge.
-  const noIdle = LIVE.replace(/^ {2}idle-hours: 24\n/m, "");
+  const noIdle = LIVE.replace(/^ {2}idle-hours: 2\n/m, "");
   assert.match(noIdle, /^adoption:\n {2}#/m);
   assert.deepEqual(await run(noIdle, [owner, release]), { code: 0, dispatched: ["40"] });
 });

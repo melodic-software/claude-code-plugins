@@ -272,6 +272,56 @@ mkdir -p "$SKILL/cli/node_modules/pkg"
 printf '[a](./docs/a.md)\n' >"$SKILL/cli/node_modules/pkg/README.md"
 assert_equals "link: node_modules is skipped" "$(run_check)" ""
 
+# Size budget: the hub 16000 characters, a feature file 4000, newlines included.
+repeat() { # <character> <count>: the character <count> times, then a newline
+  local s
+  printf -v s '%*s' "$2" ''
+  printf '%s\n' "${s// /$1}"
+}
+# Pad the ASCII hub with a fenced line so the file holds <total> characters.
+pad_hub() {
+  local have
+  have="$(wc -c <"$SKILL/SKILL.md" | tr -d ' ')"
+  # shellcheck disable=SC2016 # the backticks are a Markdown fence, not a substitution
+  printf '```text\n%s\n```\n' "$(repeat x $(($1 - have - 13)))" >>"$SKILL/SKILL.md"
+}
+new_case
+pad_hub 16000
+assert_equals "size-budget: hub at its budget" "$(run_check)" ""
+new_case
+pad_hub 16001
+assert_equals "size-budget: hub one over" "$(run_check)" "size-budget | SKILL.md | 16001 characters, budget 16000"
+
+new_case
+mkdir -p "$SKILL/features/cart/notes"
+repeat x 3999 >"$SKILL/features/cart/notes/README.md"
+assert_equals "size-budget: nested README at its budget" "$(run_check)" ""
+repeat x 4000 >"$SKILL/features/cart/notes/README.md"
+assert_equals "size-budget: nested README one over" "$(run_check)" \
+  "size-budget | features/cart/notes/README.md | 4001 characters, budget 4000"
+repeat é 3999 >"$SKILL/features/cart/notes/README.md"
+assert_equals "size-budget: counts characters, not bytes" "$(run_check)" ""
+# A host with no UTF-8 locale: its `wc -m` counts bytes. The count must not depend on it.
+mkdir -p "$TEST_TMPDIR/no-utf8-bin"
+cat >"$TEST_TMPDIR/no-utf8-bin/wc" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == -m ]]; then shift; exec $(command -v wc) -c "\$@"; fi
+exec $(command -v wc) "\$@"
+EOF
+chmod +x "$TEST_TMPDIR/no-utf8-bin/wc"
+assert_equals "size-budget: no UTF-8 locale, at its budget" \
+  "$(PATH="$TEST_TMPDIR/no-utf8-bin:$PATH" LC_ALL=C LANG=C bash "$CHECK" "$SKILL" --root "$ROOT")" ""
+repeat é 4000 >"$SKILL/features/cart/notes/README.md"
+assert_equals "size-budget: no UTF-8 locale, one over" \
+  "$(PATH="$TEST_TMPDIR/no-utf8-bin:$PATH" LC_ALL=C LANG=C bash "$CHECK" "$SKILL" --root "$ROOT")" \
+  "size-budget | features/cart/notes/README.md | 4001 characters, budget 4000"
+
+new_case
+repeat x 4000 >"$SKILL/features/wishlist.md"
+assert_equals "size-budget: legacy feature file one over" "$(run_check)" \
+  "index-missing | features/wishlist.md | no index line names this feature file
+size-budget | features/wishlist.md | 4001 characters, budget 4000"
+
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"
 bash "$CHECK" "$SKILL" "$SKILL" >/dev/null 2>&1
