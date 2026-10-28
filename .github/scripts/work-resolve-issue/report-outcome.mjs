@@ -704,8 +704,11 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, runner checks missing or not all
-// passed, and on a reused branch a leak scan that is missing or not clean.
+// changed path the merge lane refuses, a runner check that failed, and on a
+// reused branch a leak scan that found something. Runner checks or a leak
+// scan that did not report hold nothing here: enable-auto-merge.mjs arms the
+// PR only on a pr-verify pass and a bound security review with no CRITICAL
+// finding at its head, and it merges only once ci-status passes.
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
@@ -714,9 +717,8 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    !checks ||
-    checkFailures(checks).length > 0 ||
-    (reused && checks.scan !== "clean")
+    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
+    (reused && checks?.scan === "found")
   );
 }
 
@@ -726,7 +728,7 @@ const scanLine = (checks) =>
     ? "The runner's leak scan read everything the branch changes since its merge base with the default branch and found nothing credential-shaped."
     : checks?.scan === "found"
       ? "The runner's leak scan found a credential shape or a password or secret assignment in what the branch changes, so a person merges this."
-      : "The runner's leak scan of the branch did not finish or could not be read, so a person merges this.";
+      : "The runner's leak scan of the branch did not finish or could not be read.";
 
 // The runner's check results as the PR body's Verification section shows them.
 const checkLines = (checks) =>
@@ -817,7 +819,9 @@ export function reusePlan({
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
     "",
-    hold ? `Left out: ${leftOut}; a person reviews the diff before merging.` : `Left out: ${leftOut}.`,
+    hold
+      ? `Left out: ${leftOut}; a person reviews the diff before merging.`
+      : `Left out: ${leftOut}; ci-status, pr-verify and the security review lane check the head before it merges.`,
     "",
     "## Related",
     "",

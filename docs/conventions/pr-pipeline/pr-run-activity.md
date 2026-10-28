@@ -2127,9 +2127,12 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
   unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
-  three of its own: the compare failed, the runner's checks for that tip are missing or any did
-  not pass, or the leak scan `run-checks` ran on the branch (its `scan` word in the checks
-  record) is missing or not `clean`. The summary never decides the hold or reaches a status:
+  two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
+  `scan` word in the checks record) is `found`. A runner check that failed holds it too. Runner
+  checks or a leak scan that did not report (missing, another tip, `failed`, no word) add no
+  hold line: `enable-auto-merge` arms the PR only on a pr-verify pass and a bound security
+  review with no CRITICAL finding at its head, and it merges only once `ci-status` passes, so
+  those check what the runner did not, and the body says so. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in

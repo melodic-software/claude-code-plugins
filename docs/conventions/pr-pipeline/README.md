@@ -1607,6 +1607,13 @@ the pull request opened, while it waits to be armed or sits in the queue, stops 
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
 not read.
 
+report-outcome writes no `Hold:` line for a check the issue lane's runner did not report (its
+checks missing or for another tip, or a reuse leak scan that did not finish): that line would also
+fail `ci-status`, so pr-verify would never run. Such a pull request is armed only on the gates
+every lanes App pull request passes, a pr-verify pass and a bound security review with no CRITICAL
+finding at its head, and merges only once `ci-status` passes. A failed runner check, a leak scan
+that found something and every trust reason still write the line.
+
 A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
 issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
 label still holds. The way out is a new issue a person files for the work, and a new pull request
