@@ -133,11 +133,14 @@ For each PR needing attention (oldest first):
 
 Before monitoring work on each PR, arm event delivery, in order:
 
-1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → arm no PR-event route (the decision, pointer and
-   recheck trigger are in [pull-request monitor.md](../../pull-request/reference/monitor.md)
-   §3.0.0); poll CI (REST
+1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → poll CI (REST
    check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
-   the comment fetch on a fixed 60-90s cadence. Skip remaining steps
+   the comment fetch on a fixed 60-90s cadence. Where the session offers it, also subscribe to
+   the PR's activity once per PR per session; on an event wake, run the §5.0.3 per-PR rescan
+   flow for the PR the event names, and unsubscribe when its terminal check reads MERGED or
+   CLOSED (the call, the decision, pointer and recheck trigger are in
+   [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.0). Skip remaining
+   steps
 2. **Push-channel gate:** when your environment ships a GitHub-events push channel (an MCP
    server delivering webhook events into the session), verify it is healthy and arm its PR
    filter for `<N>` (health checks + arming per
