@@ -93,7 +93,7 @@ comes from the glob.
 Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
-read that finds no file fires it. Delegation therefore resets the trigger instead of removing it, and what is left is that nothing tells an agent a rule exists until its trigger happens to
+read that finds no file fires it. Delegation therefore resets the trigger instead of removing it. Nothing tells an agent a rule exists until its trigger happens to
 match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
@@ -213,7 +213,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 |---|---|
 | Claude Code announces deferred surfaces, so an agent learns a rule exists without reading a covered path | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
 | Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check` once it ships (#4281); when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
-| A measurement shows a `Write`-triggered path-scoped rule arrives before the file is written (the trigger itself shipped in Claude Code 2.1.288) | Drop the structural deny on creation-governing content |
+| A measurement shows a `Write`-triggered path-scoped rule arrives before the file is written. Record MS-5 in [`context/mechanics-sources.tsv`](context/mechanics-sources.tsv) documents the trigger, which shipped in Claude Code 2.1.288; MS-2 documents it for a nested `CLAUDE.md`. Whether the rule arrives before the write is unmeasured: see `context/verified-mechanics.md`, "The write-trigger gap" | Drop the structural deny on creation-governing content, and stamp the measurement in that gap |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin interface **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
