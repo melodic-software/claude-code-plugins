@@ -106,8 +106,9 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
-// `queuedIssues` are the numbers the open agent-ready issue search lists, and
-// `deferred` what the open admission-deferred listing answers.
+// `queuedIssues` are the numbers the open agent-ready issue search lists,
+// `deferred` what the open admission-deferred listing answers, and `ready`
+// what the open `status: ready` listing answers.
 // `blobs` maps a path to its blob SHA on main.
 // `timeline` and `closing` are per issue, `pulls` per pull request number.
 function world({
@@ -130,6 +131,7 @@ function world({
   pulls = {},
   queuedIssues = [],
   deferred = [],
+  ready = [],
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
@@ -153,6 +155,11 @@ function world({
       if (params.get("labels") === "admission-deferred") {
         assert.equal(params.get("state"), "open");
         return listed(deferred);
+      }
+      if (params.get("labels") === "status: ready") {
+        assert.equal(params.get("state"), "open");
+        assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
+        return listed(ready);
       }
       return listed(params.get("state") === "open" ? openReady : closedList);
     }
@@ -3849,4 +3856,170 @@ test("the ACTIONS_TOKEN clients' readings land under github-token, the App clien
       else process.env[key] = value;
     }
   }
+});
+
+// An open `status: ready` issue with neither agent-ready nor admission-deferred
+// sits in no queue: a deferral whose label was lost, or a `status: ready` set
+// by hand. Each sweep runs intake's admission (admit.mjs decide) on at most
+// limits.readmit-per-run (default 20) of them, oldest updated first, and
+// writes as intake does: agent-ready within the room, admission-deferred past
+// it, a refusal parked at status: confirmed, or at status: needs-decision when
+// it holds for a person.
+const READY_LABELS = ["status: ready", "work-class: mechanical"];
+const readyIssue = (number, { labels = READY_LABELS, updated = "2026-10-16T06:00:00Z", user = OWNER, ...rest } = {}) => ({
+  ...issue(number, { labels }),
+  user,
+  type: { name: "Task" },
+  body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.",
+  created_at: "2026-10-10T00:00:00Z",
+  updated_at: updated,
+  ...rest,
+});
+const readyWorld = ({ items = [readyIssue(26)], events = {}, fields = SMALL_LOW_KNOWN, queuedIssues = [], deferred = [], extra = {} } = {}) =>
+  world({
+    ready: items,
+    deferred,
+    issues: Object.fromEntries(items.map((item) => [item.number, item])),
+    comments: Object.fromEntries(items.map((item) => [item.number, [note()]])),
+    events: Object.fromEntries(items.map((item) => [item.number, events[item.number] ?? [labelAdd("status: ready", LANES_BOT)]])),
+    fieldValues: Object.fromEntries(items.map((item) => [item.number, fields])),
+    queuedIssues,
+    ...extra,
+  });
+const fieldReadsOf = (calls, n) => calls.filter((call) => call === `GET /repos/${REPO}/issues/${n}/issue-field-values`).length;
+const eventReads = (calls, n) => calls.filter((call) => call.startsWith(`GET /repos/${REPO}/issues/${n}/events`)).length;
+
+test("an admissible status: ready issue in no queue is labeled agent-ready within the room", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const by of [LANES_BOT, OWNER]) {
+    const { github, calls } = readyWorld({ events: { 26: [labelAdd("status: ready", by)] } });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), [labeled(26)], by.login);
+  }
+});
+
+test("an admissible status: ready issue in no queue with no room gets admission-deferred", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ queuedIssues: queuedN(24) });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [deferredLabel(26)]);
+});
+
+test("a status: ready issue whose agent-ready a person removed is left alone until status: ready is added again", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T08:00:00Z" };
+  const stands = readyWorld({ events: { 26: [labelAdd("status: ready", LANES_BOT), removed] } });
+  assert.equal(await sweep({ github: stands.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(stands.calls), []);
+  assert.equal(fieldReadsOf(stands.calls, 26), 0);
+  const marked = readyWorld({ events: { 26: [labelAdd("status: ready", LANES_BOT), removed, labelAdd("status: ready", OWNER, "2026-10-16T09:00:00Z")] } });
+  assert.equal(await sweep({ github: marked.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(marked.calls), [labeled(26)]);
+});
+
+test("a status: ready issue added by neither a listed human nor the lanes App is left alone", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({
+    items: [readyIssue(27), readyIssue(26)],
+    events: { 27: [labelAdd("status: ready", { id: 4242, login: "drive-by" })] },
+  });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  // #26, the App's status: ready, is admitted in the same sweep.
+  assert.deepEqual(writes(calls), [labeled(26)]);
+  assert.equal(fieldReadsOf(calls, 27), 0);
+});
+
+test("a status: ready issue with a hold or refuse label, an open blocker or an open sub-issue is not read", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const skipped = [
+    ...["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance", "host-run", "duplicate", "wontfix", "do-not-merge"].map((hold, i) =>
+      readyIssue(40 + i, { labels: [...READY_LABELS, hold] }),
+    ),
+    readyIssue(60, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } }),
+    readyIssue(61, { sub_issues_summary: { total: 2, completed: 1 } }),
+  ];
+  const { github, calls } = readyWorld({ items: [...skipped, readyIssue(26)] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(26)]);
+  for (const item of skipped) {
+    assert.equal(eventReads(calls, item.number), 0, String(item.number));
+    assert.ok(!calls.includes(`GET /repos/${REPO}/issues/${item.number}`), String(item.number));
+  }
+});
+
+test("a sweep decides at most limits.readmit-per-run status: ready issues, oldest updated first, and skipped ones do not count", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T08:00:00Z" };
+  // #29 is held and #33's agent-ready removal stands: neither is decided, and
+  // each skip writes nothing, so it stays oldest updated on every sweep.
+  const items = [
+    readyIssue(29, { labels: [...READY_LABELS, "needs-human"], updated: "2026-10-16T05:00:00Z" }),
+    readyIssue(33, { updated: "2026-10-16T05:30:00Z" }),
+    readyIssue(27, { updated: "2026-10-16T06:00:00Z" }),
+    readyIssue(28, { updated: "2026-10-16T07:00:00Z" }),
+    readyIssue(26, { updated: "2026-10-16T08:00:00Z" }),
+  ];
+  const { github, calls } = readyWorld({ items, events: { 33: [labelAdd("status: ready", LANES_BOT), removed] } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 2 } })), 0);
+  assert.deepEqual(writes(calls), [labeled(27), labeled(28)]);
+  assert.equal(fieldReadsOf(calls, 33), 0);
+  assert.equal(eventReads(calls, 26), 0);
+});
+
+test("a wait that writes nothing durable (a Size large split pending) does not use up readmit-per-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  // #30 is oldest and waits on its split; with the cap at 1 it must not stop
+  // #26 from being admitted, or the same wait would take the cap every sweep.
+  const items = [readyIssue(30, { updated: "2026-10-16T05:00:00Z" }), readyIssue(26, { updated: "2026-10-16T06:00:00Z" })];
+  const { github, calls } = readyWorld({ items, extra: { fieldValues: { 30: LARGE_LOW_KNOWN, 26: SMALL_LOW_KNOWN } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 1 } })), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: Size large: the split into sub-issues at intake is pending (owner Q93).` })}`,
+    labeled(26),
+  ]);
+});
+
+test("a status: ready issue already agent-ready or deferred is not run through admission a second time", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const queued = readyIssue(31, { labels: [...READY_LABELS, "agent-ready"] });
+  const waiting = readyIssue(32, { labels: [...READY_LABELS, "admission-deferred"] });
+  const { github, calls } = readyWorld({
+    items: [queued, waiting, readyIssue(26)],
+    deferred: [waiting],
+    events: { 32: [labelAdd("status: ready", LANES_BOT), deferredAdd(LANES_BOT)] },
+    extra: { blockedBy: { 32: [] } },
+  });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  // The deferred path alone admits #32, once; #31 is left as it is, and #26,
+  // in no queue, is admitted.
+  assert.deepEqual(writes(calls), [labeled(32), undeferred(32), labeled(26)]);
+  assert.equal(eventReads(calls, 31), 0);
+  assert.equal(fieldReadsOf(calls, 32), 0);
+});
+
+test("a status: ready issue in no queue that admission refuses parks at status: confirmed, or at status: needs-decision for a person", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const refused = (n, status, reasons) => [
+    `POST /repos/${REPO}/issues/${n}/labels {"labels":["${status}"]}`,
+    `DELETE /repos/${REPO}/issues/${n}/labels/status%3A%20ready`,
+    `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
+  ];
+  // Field values no listed human or App set are unset: a mechanical refusal.
+  const unset = readyWorld();
+  assert.equal(await sweep({ github: unset.github, admission: admissionFor(4242) }, PAUSING), 0);
+  assert.deepEqual(writes(unset.calls), refused(26, "status: confirmed", ["Size unset is not one of small, medium", "Uncertainty unset is not one of known, knowable"]));
+  // An author who is not listed is a refusal a person settles.
+  const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
+  assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+test("a status: ready issue in no queue an open pull request is for gets admission-deferred and the wait comment", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ extra: { timeline: { 26: [{ ...namingPull("open"), source: { issue: { ...namingPull("open").source.issue, body: "Refs: #26" } } }] } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    deferredLabel(26),
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`,
+  ]);
 });

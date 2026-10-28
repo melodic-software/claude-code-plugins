@@ -375,6 +375,127 @@ test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", (
     assert.equal(out.stdout, "::notice title=api-calls::github-token=1 not-modified=1\n");
   }));
 
+// A gh that plays $RUNNER_TEMP/script, one `<where> <text>` line each: `o`
+// stdout, `e` stderr, `n` stderr with no newline, `d` stderr only under
+// GH_DEBUG=1, `x` its exit status. The `d` lines are gh 2.103.3's GH_DEBUG=1
+// output, recorded from `gh api --paginate repos/<this repo>/labels?per_page=20`
+// (three pages), `gh run list --limit 1` (two git lines, two requests) and a
+// refused proxy connect.
+function scriptedGh(dir, lines) {
+  writeFileSync(
+    join(dir, "gh"),
+    `#!/usr/bin/env bash
+echo "$*" >>"$RUNNER_TEMP/calls"
+rc=0
+while IFS= read -r line; do
+  text=\${line:2}
+  case \${line:0:1} in
+    o) printf '%s\\n' "$text" ;;
+    e) printf '%s\\n' "$text" >&2 ;;
+    n) printf '%s' "$text" >&2 ;;
+    d) [[ \${GH_DEBUG:-} != 1 ]] || printf '%s\\n' "$text" >&2 ;;
+    x) rc=$text ;;
+  esac
+done <"$RUNNER_TEMP/script"
+exit "$rc"
+`,
+  );
+  chmodSync(join(dir, "gh"), 0o755);
+  writeFileSync(join(dir, "script"), lines.map((line) => `${line}\n`).join(""));
+  writeFileSync(join(dir, "calls"), "");
+}
+
+const request = (url) => [
+  "d * Request at 2026-10-28 17:14:16.342958108 +0000 UTC m=+0.118696845",
+  `d * Request to ${url}`,
+  "d * Request took 353.479902ms",
+];
+const LABELS = "https://api.github.com/repositories/1277265216/labels?per_page=20";
+
+// stdout, stderr and status from the same scripted gh, wrapped and bare.
+function wrappedAndBare(dir, lines, args) {
+  scriptedGh(dir, lines);
+  const path = `${dir}:${process.env.PATH}`;
+  const wrapped = bash(dir, `api_budget_wrap_gh github-token\ngh ${args}\necho "rc=$?"\napi_budget_emit_calls github-token`, { path });
+  rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+  const bare = bash(dir, `command gh ${args}\necho "rc=$?"`, { path });
+  return { wrapped, bare };
+}
+
+test("gh guard: a paginated call of three pages counts three requests, with stdout and stderr as gh wrote them", () =>
+  withDir((dir) => {
+    const { wrapped, bare } = wrappedAndBare(
+      dir,
+      [...request("https://api.github.com/repos/o/r/labels?per_page=20"), "o 20", ...request(`${LABELS}&page=2`), "o 20", ...request(`${LABELS}&page=3`), "o 9"],
+      "api --paginate repos/o/r/labels --jq length",
+    );
+    assert.equal(wrapped.stdout, "20\n20\n9\nrc=0\n::notice title=api-calls::github-token=3 not-modified=0\n");
+    assert.equal(bare.stdout, "20\n20\n9\nrc=0\n");
+    assert.equal(wrapped.stderr, "");
+    // A page line is a request, never a reading: no api-budget notice.
+    assert.equal(bash(dir, "api_budget_emit github-token").stdout, "");
+  }));
+
+test("gh guard: a call that is not gh api counts its requests and drops the git lines debug adds", () =>
+  withDir((dir) => {
+    const { wrapped, bare } = wrappedAndBare(
+      dir,
+      [
+        "d [git remote -v]",
+        "d [git config --get-regexp ^remote\\..*\\.gh-resolved$]",
+        ...request("https://api.github.com/repos/o/r/actions/runs?exclude_pull_requests=true&per_page=1"),
+        ...request("https://api.github.com/repos/o/r/actions/workflows?page=1&per_page=100"),
+        "o []",
+      ],
+      "run list --limit 1 --json databaseId",
+    );
+    assert.equal(wrapped.stdout, "[]\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0\n");
+    assert.equal(wrapped.stderr, bare.stderr);
+  }));
+
+test("gh guard: a failing call keeps gh's stderr byte for byte and its status", () =>
+  withDir((dir) => {
+    const { wrapped, bare } = wrappedAndBare(
+      dir,
+      [
+        "d * Request at 2026-10-28 17:23:22.386063392 +0000 UTC m=+0.074866727",
+        "d * Request to https://api.github.com/rate_limit",
+        "d * proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused",
+        "d * Request took 293.912µs",
+        'e Get "https://api.github.com/rate_limit": proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused',
+        "e error connecting to api.github.com",
+        "d lookup api.github.com: no such host",
+        "e check your internet connection or https://githubstatus.com",
+        "e * a line of gh's own, outside any request",
+        "e ",
+        "n gh: Not Found (HTTP 404)",
+        "x 1",
+      ],
+      "pr view 7",
+    );
+    assert.equal(bare.stderr.endsWith("gh: Not Found (HTTP 404)"), true);
+    assert.equal(wrapped.stderr, bare.stderr);
+    assert.equal(wrapped.stdout, "rc=1\n::notice title=api-calls::github-token=1 not-modified=0\n");
+  }));
+
+test("gh guard: a header-read call counts each request once, a 304 still as not-modified, and a download host not at all", () =>
+  withDir((dir) => {
+    const head304 = "o HTTP/2.0 304 Not Modified";
+    // One request, read from its header block: one call, not two.
+    let out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/r"), head304, "o ", "x 1"], 'api -i -H "If-None-Match: x" repos/o/r').wrapped;
+    assert.equal(out.stdout.split("\n").at(-2), "::notice title=api-calls::github-token=0 not-modified=1");
+    // A redirect the header block does not show is a second request.
+    out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/old"), ...request("https://api.github.com/repositories/1"), "o HTTP/2.0 200 OK", "o ", "o {}"], "api repos/o/old").wrapped;
+    assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0\n");
+    // A download redirect leaves GitHub's API, so it spends nothing there.
+    out = wrappedAndBare(
+      dir,
+      [...request("https://api.github.com/repos/o/r/actions/runs/1/logs"), ...request("https://results-receiver.actions.githubusercontent.com/x")],
+      "run view 1 --log",
+    ).wrapped;
+    assert.equal(out.stdout, "rc=0\n::notice title=api-calls::github-token=1 not-modified=0\n");
+  }));
+
 test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
   withDir((dir) => {
     mkdirSync(join(dir, "api-budget"), { recursive: true });

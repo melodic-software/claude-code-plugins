@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Commit on control-skill-upkeep/control-shop from main, push it, then switch back to feat/cart-tax.",
+      "answer": "Commit on control-skill-upkeep/control-shop from main, then git switch --detach 4f2a9c1.",
       "why": "names the upkeep branch"
     },
     {
@@ -15,8 +15,12 @@
       "why": "wrong branch name"
     },
     {
-      "answer": "Commit the README fix on feat/cart-tax.",
-      "why": "the ticket branch"
+      "answer": "Commit on a new branch app-control/map-cart-total from 4f2a9c1.",
+      "why": "a branch of its own naming (the without-arm shape)"
+    },
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop-v2.",
+      "why": "a longer name; exercises the lookahead"
     }
   ]
 }

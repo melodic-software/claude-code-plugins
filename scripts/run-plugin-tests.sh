@@ -53,7 +53,8 @@
 # scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
 # but does not fail the run. CI sets the variable only for runs on main, so a
 # pull request or merge group still fails on it. Without the variable the list
-# changes nothing. Its entries get the serial list's stale guard.
+# changes nothing. Its entries get the serial list's stale guard. The warning
+# carries a per-run nonce printed before any suite block (`Advisory nonce:`).
 #
 # --list prints the discovered corpus, one repo-relative path per line, and
 # runs nothing. scripts/selection-audit.sh reads it to learn which suites the
@@ -328,6 +329,14 @@ else
   echo "Runner git: unavailable"
 fi
 echo "Suites: ${#tests[@]} (${#serial_suites[@]} serial, ${#parallel_suites[@]} across up to $jobs job(s))"
+# A fresh nonce, printed before any suite runs and repeated in each advisory
+# warning, so babysit_postmerge.py credits only the runner's own warnings. It
+# is never exported: no suite can print it.
+advisory_nonce=''
+if ((${#is_advisory[@]} > 0)); then
+  advisory_nonce="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+  echo "Advisory nonce: $advisory_nonce"
+fi
 
 for t in ${serial_suites[@]+"${serial_suites[@]}"}; do
   bash "$runner" --worker "$t"
@@ -371,7 +380,7 @@ for i in "${!tests[@]}"; do
   fi
   rc="$(<"$log.rc")"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
-    suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (nonce $advisory_nonce; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
     advisory_failed=$((advisory_failed + 1))
   elif ((rc != 0)); then
     suite_annotate error "$t" "$t failed (exit $rc)"

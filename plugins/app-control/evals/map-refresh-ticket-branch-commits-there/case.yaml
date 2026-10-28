@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-refresh-ticket-branch-commits-there
+description: A one-feature refresh started on a ticket branch commits its correction on that branch and opens no upkeep pull request, even when an upkeep pull request is already open, so the docs merge with the code they describe
+tags: [map, refresh, branch, unattended, invented]
+expected_outcome: "The reply commits the cart/total correction on feat/cart-tax, the ticket branch the pass started on, staging only the control skill file. It switches to no other branch, does not commit on or push the existing control-skill-upkeep/control-shop branch, pushes nothing and opens or updates no pull request, leaving the ticket's own pull request to carry the commit when the caller pushes. It ends on feat/cart-tax."
+execution:
+  prompt: "/app-control:map refresh cart/total --unattended. Describe what the pass would do; take no actions: do not read the repository, drive the app, switch branches, write or commit anything, and treat these as facts. The pass starts on feat/cart-tax, a ticket branch with a clean working tree; main is the default branch. /testing:run-e2e called this refresh for a feature its change touched. The repository control skill .claude/skills/control-shop/ holds features/cart/total/README.md. The branch control-skill-upkeep/control-shop exists and has an open upkeep pull request. The source wave and live pass already ran: the cart total's handle is now labeled `Total with tax` (src/cart/total.ts:7) and works; the README still says `Total`. Nothing else differs. In order, name each branch the pass is on, where its commit goes, whether it pushes or opens or updates a pull request, and which branch it ends on, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: commits-on-ticket-branch
+    type: regex
+    pattern: '(?<!\bnot )(?<!never )(?<!n''t )(?<!\bno )commit\w*[*`:]*(?:[^\S\n]+(?!\S*upkeep|main\b|switch|back\b|return|nothing\b|no\b|not\b|never\b|\S*\.(?:\s|$))[\w./`*:-]+){0,8}?[^\S\n:]*[\s:]+[`*]*feat/cart-tax(?![\w-])'
+    flags: i
+    arm: both
+  - name: no-upkeep-pull-request
+    type: llm
+    criteria: "Judge what the reply says the refresh pass itself does. PASS only if the reply says the pass (1) commits the cart/total README correction on feat/cart-tax; (2) never switches to, creates, commits on or pushes control-skill-upkeep/control-shop or main; (3) itself pushes nothing and opens or updates no pull request, the existing upkeep pull request included, with the commit reaching the ticket's own pull request when the caller pushes feat/cart-tax; and (4) ends on feat/cart-tax. None of these is a failure: naming the upkeep branch, its pull request or main only to say it is not used; a return-to-start step that is a no-op because the pass never left feat/cart-tax; saying the caller (/testing:run-e2e) will later push the commit into the ticket's pull request. FAIL if the commit lands anywhere but feat/cart-tax, the pass pushes, opens or updates a pull request, ends on another branch, or asks a question, or if the reply leaves publishing to a new pull request or to an unnamed someone instead of the ticket's own pull request."

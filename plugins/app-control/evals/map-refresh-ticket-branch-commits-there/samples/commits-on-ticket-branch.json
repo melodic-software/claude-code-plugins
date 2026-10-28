@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "Stay on feat/cart-tax and commit the README fix on feat/cart-tax; push nothing.",
+      "why": "names the ticket branch as the commit target"
+    },
+    {
+      "answer": "Commit: `feat/cart-tax`, staging only features/cart/total/README.md.",
+      "why": "backticked"
+    },
+    {
+      "answer": "Commit the correction to .claude/skills/control-shop/features/cart/total/README.md on `feat/cart-tax`.",
+      "why": "a path between the verb and the branch"
+    },
+    {
+      "answer": "Where the commit goes: feat/cart-tax (the ticket branch).",
+      "why": "label form"
+    },
+    {
+      "answer": "2. **Where the commit goes:** to `feat/cart-tax`. The only difference is doc drift",
+      "why": "bold label with a colon before the preposition (eval run with[2])"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop from main, then switch back to feat/cart-tax.",
+      "why": "the commit goes to the upkeep branch"
+    },
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop then return to feat/cart-tax",
+      "why": "upkeep commit, return named without a comma"
+    },
+    {
+      "answer": "Commit on main then switch back to feat/cart-tax",
+      "why": "the default branch"
+    },
+    {
+      "answer": "Commit on feat/cart-tax-docs.",
+      "why": "another branch"
+    },
+    {
+      "answer": "It commits nothing. Branch at the end: feat/cart-tax.",
+      "why": "no commit; the branch is in the next sentence"
+    },
+    {
+      "answer": "Nothing to commit\n4. **Branch at end:** `feat/cart-tax`",
+      "why": "match must not cross a line"
+    },
+    {
+      "answer": "I will not commit on feat/cart-tax.",
+      "why": "negated"
+    },
+    {
+      "answer": "We won't commit on feat/cart-tax; it goes on main.",
+      "why": "negated contraction"
+    },
+    {
+      "answer": "Commit: `control-skill-upkeep/control-shop`, then back on feat/cart-tax.",
+      "why": "label form naming the upkeep branch"
+    }
+  ]
+}

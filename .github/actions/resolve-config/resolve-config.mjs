@@ -209,7 +209,7 @@ async function gatherFacts(
 
 // A model run's step outputs, or empty ones for a script. The args are
 // checked against their only shape, so no output can carry a second line.
-const MODEL_ARGS = /^(?:--model [a-z]+ )?--max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
+const MODEL_ARGS = /^--model [a-z]+ --max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
 function modelOutputs(models) {
   if (models === null) {
     return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "", model: "", effort: "" };
@@ -223,9 +223,8 @@ function modelOutputs(models) {
     "claude-args": args,
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
-    // run-claude-cli inputs: `default` has no --model to pass, so it is empty
-    // and the caller fails on it. A role profile always resolves an alias.
-    model: models.model === "default" ? "" : models.model,
+    // run-claude-cli inputs. Every profile resolves a routed alias.
+    model: models.model,
     effort: models.effort ?? "",
   };
 }

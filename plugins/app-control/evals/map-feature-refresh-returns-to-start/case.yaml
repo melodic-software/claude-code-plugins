@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: map-feature-refresh-returns-to-start
-description: A one-feature refresh started on a ticket branch commits its correction on the upkeep branch, then switches back to the ticket branch before it reports, so the caller resumes where it started
+description: A one-feature refresh started on a detached checkout of the default branch's tip commits its correction on the upkeep branch, then switches back to the starting commit before it reports, so the caller resumes where it started
 tags: [map, refresh, branch, unattended, invented]
-expected_outcome: "The reply commits the cart/total correction on control-skill-upkeep/control-shop, created from main, and opens or updates that skill's pull request. After that, before the pass reports, it switches back to feat/cart-tax, the branch the pass started on, and ends there, never on the upkeep branch. Nothing is switched, written or committed in this session."
+expected_outcome: "The reply commits the cart/total correction on control-skill-upkeep/control-shop, created from main, and opens or updates that skill's pull request. After that, before the pass reports, it switches back to the detached commit 4f2a9c1, where the pass started, and ends there, never on the upkeep branch. Nothing is switched, written or committed in this session."
 execution:
-  prompt: "/app-control:map refresh cart/total --unattended. Do not read the repository, drive the app, switch branches, write or commit anything in this session; treat these as facts. The pass starts on feat/cart-tax, a ticket branch with a clean working tree, and /testing:run-e2e called this refresh for a feature its change touched. The repository control skill .claude/skills/control-shop/ holds features/cart/total/README.md. The source wave and live pass already ran: the cart total's handle is now labeled `Total with tax` (src/cart/total.ts:7) and works; the README still says `Total`. Nothing else differs. In order, name each branch you are on, where the commit goes, which pull request it goes in, and which branch you are on when the pass ends, then stop."
+  prompt: "/app-control:map refresh cart/total --unattended. Do not read the repository, drive the app, switch branches, write or commit anything in this session; treat these as facts. A scheduled upkeep job checked out the tip of main, the default branch, as a detached HEAD at 4f2a9c1 with a clean working tree. The repository control skill .claude/skills/control-shop/ holds features/cart/total/README.md. The source wave and live pass already ran: the cart total's handle is now labeled `Total with tax` (src/cart/total.ts:7) and works; the README still says `Total`. Nothing else differs. In order, name each branch or commit you are on, where the commit goes, which pull request it goes in, and where you are when the pass ends, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 8
   timeout_seconds: 300
@@ -13,6 +13,6 @@ graders:
     type: regex
     pattern: 'control-skill-upkeep/control-shop(?![\w-])'
     arm: both
-  - name: returns-to-ticket-branch
+  - name: returns-to-start
     type: llm
-    criteria: "PASS only if the reply (1) commits the cart/total correction on control-skill-upkeep/control-shop, created or updated from main, and sends it through that skill's one upkeep pull request, and (2) switches back to feat/cart-tax after that step and ends the pass on feat/cart-tax. FAIL if it ends the pass on control-skill-upkeep/control-shop or main, commits the correction to feat/cart-tax, or asks anything."
+    criteria: "PASS only if the reply (1) commits the cart/total correction on control-skill-upkeep/control-shop, created from main or with main merged into it, and sends it through that skill's one upkeep pull request, and (2) after that step switches back to the detached commit 4f2a9c1 (for example `git switch --detach 4f2a9c1`) and ends the pass there. 4f2a9c1 is main's tip: ending detached at 4f2a9c1 is the required end, and calling it the tip of main or the default branch's commit does not make it \"on main\". Describing the pull request step conditionally (update the open one, else open one, blocked on a fork or foreign head) is fine. FAIL if the pass ends on control-skill-upkeep/control-shop or switches to the main branch by name (`git switch main`, `git checkout main`), commits the correction anywhere but control-skill-upkeep/control-shop (main, the detached HEAD, or a new branch of its own naming), commits nothing because HEAD is detached, opens a second or different pull request, or asks anything."
