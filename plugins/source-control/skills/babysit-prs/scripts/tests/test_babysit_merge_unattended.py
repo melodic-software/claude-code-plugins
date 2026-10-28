@@ -787,6 +787,8 @@ class Unattended(unittest.TestCase):
         self.trusted_refs: list[str] = []
         # The repository's default branch as `repository_default_branch` reads it.
         self.repo_default: str | None = "main"
+        # Each branch's tip as `base_tip` resolves it; one absent here fails.
+        self.tips: dict[str, str] = {"main": "e" * 40, "trunk": "f" * 40}
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -858,6 +860,11 @@ class Unattended(unittest.TestCase):
             if len(self.dependabot_reads) > 1
             else self.dependabot_reads[0]
         )
+
+    def _base_tip(self, owner: str, name: str, base: str) -> str:
+        if base not in self.tips:
+            raise policy.PolicyReadError(f"the base branch {base} did not resolve")
+        return self.tips[base]
 
     def _lane_evidence(self, *args: Any) -> Any:
         self.lane_args = args
@@ -1098,6 +1105,7 @@ class Unattended(unittest.TestCase):
                 "repository_default_branch",
                 side_effect=lambda repo: self.repo_default,
             ),
+            mock.patch.object(policy, "base_tip", side_effect=self._base_tip),
             mock.patch.object(merge, "read_merge_queue", return_value=self.queue),
             mock.patch.object(merge, "async_merge", self.async_merge),
             mock.patch.object(merge, "rerun_rate_limited_reviews", self.rerun),
@@ -1492,7 +1500,26 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+        # No `labels-absent` list in the config: the human-gated label holds.
+        self.assertEqual(
+            self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
+        )
+
+    def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
+        # #7783: a hold the issue gained since eligibility stops the enqueue.
+        self.closing_issue_now(["needs-human"])
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:closing-issue-held:needs-human",
+            out["blockers"],
+        )
+
+    def test_the_configured_hold_list_reaches_the_enqueue_recheck(self) -> None:
+        holds = ("needs-human", "status: needs-info")
+        self.config = dataclasses.replace(self.config, issue_holds=holds)
+        self.lane()
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41, "holds": holds})
 
     def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
@@ -3629,8 +3656,8 @@ class ReasonsComment(Unattended):
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "lifted", "comment": "unchanged"},
         )
-        # The trusted list is read at the default branch, never the head.
-        self.assertEqual(self.trusted_refs, ["main"])
+        # The trusted list is read at the default branch's tip, never the head.
+        self.assertEqual(self.trusted_refs, [self.tips["main"]])
 
     def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
         # The pull request's base is main; a retarget cannot pick the list.
@@ -3640,9 +3667,25 @@ class ReasonsComment(Unattended):
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
         _, out = self.run_main()
-        self.assertEqual(self.trusted_refs, ["trunk"])
+        self.assertEqual(self.trusted_refs, [self.tips["trunk"]])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"]["label"], "lifted"
+        )
+
+    def test_an_unresolved_default_branch_tip_is_no_lift(self) -> None:
+        # The list is never read by the branch's name, which a tag of the
+        # same name could answer.
+        self.escalated_earlier()
+        del self.tips["main"]
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.trusted_refs, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["liftUnread"],
+            "PolicyReadError: the base branch main did not resolve",
         )
 
     def test_an_unread_default_branch_is_no_lift(self) -> None:
@@ -5478,6 +5521,7 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
+        stack.enter_context(mock.patch.object(policy, "base_tip", return_value="e" * 40))
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:
@@ -5650,6 +5694,19 @@ class AdoptionHoldLabel(unittest.TestCase):
         label = mock.Mock(side_effect=AssertionError)
         assess = self.run_assess(policy.LOCAL_BABYSIT, label)
         self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+    def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
+        self,
+    ) -> None:
+        # A shared answer past the unverified age is kept only on the
+        # post-merge check's own verifying-run proof, for this repository.
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
+        runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
+        with mock.patch.object(
+            postmerge, "pending_runs_unchanged", return_value=True
+        ) as proof:
+            self.assertTrue(runs_unchanged(mock.sentinel.answer, "main"))
+        proof.assert_called_once_with("o/r", mock.sentinel.answer, "main")
 
 
 if __name__ == "__main__":

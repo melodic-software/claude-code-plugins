@@ -22,6 +22,7 @@ import { parse } from "yaml";
 import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
+import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -328,6 +329,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-issue": { contents: "read" },
+    "refine-issue-subscription": { contents: "read" },
     "apply-refinement": { contents: "read", "id-token": "write" },
     "redispatch-refined": { actions: "write" },
     "triage-split-children": { actions: "write" },
@@ -420,26 +422,78 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
+// The refine-issue legs as the parity check compares them: every step, in
+// order, with every field, except the four places the legs may differ: the
+// credential check's env and run (which secret it tests, and whether an empty
+// one warns or fails), the launcher's credential input, the key leg's handoff
+// report (the subscription leg never hands off), and the last step's `if`.
+function refineLegShape(job) {
+  return job.steps
+    .filter((step) => step.id !== "handoff")
+    .map((step) => {
+      const shape = structuredClone(step);
+      if (step.id === "credential") {
+        delete shape.env;
+        delete shape.run;
+      }
+      if (step.id === "run") {
+        delete shape.with["api-key"];
+        delete shape.with["subscription-token"];
+      }
+      if (step.name === "Fail without a refinement") delete shape.if;
+      return shape;
+    });
+}
+
+test("intake-triage.yml: the refine legs' parity check fails on any other difference, step order included", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const key = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
+  assert.deepEqual(refineLegShape(key), refineLegShape(sub));
+  const differs = (mutate) => {
+    const copy = structuredClone(sub);
+    mutate(copy);
+    assert.notDeepEqual(refineLegShape(key), refineLegShape(copy));
+  };
+  const step = (job, name) => job.steps.find((s) => s.name === name);
+  differs((job) => delete step(job, "Refine the issue")["continue-on-error"]);
+  differs((job) => (step(job, "Refine the issue")["timeout-minutes"] = 30));
+  differs((job) => (step(job, "Refine the issue").env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "0"));
+  differs((job) => {
+    const settings = job.steps.findIndex((s) => s.name === "Apply the Claude managed settings");
+    const isolate = job.steps.findIndex((s) => s.name === "Isolate the runner");
+    [job.steps[settings], job.steps[isolate]] = [job.steps[isolate], job.steps[settings]];
+  });
+  differs((job) => (step(job, "Collect the refinement").run += "\ntrue"));
+  differs((job) => (step(job, "Upload the refinement").with["retention-days"] = 2));
+  differs((job) => (step(job, "Check the credential").if = "always()"));
+  differs((job) => (step(job, "Check the context").run = "true"));
+  differs((job) => job.steps.pop());
+});
+
 test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
   const { jobs } = workflow("intake-triage.yml");
   const select = jobs["refine-select"];
   const model = jobs["refine-issue"];
+  const sub = jobs["refine-issue-subscription"];
   const apply = jobs["apply-refinement"];
   const again = jobs["redispatch-refined"];
   assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
+  assert.deepEqual(sub.permissions, { contents: "read" }, "the subscription leg holds no write grant");
   assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
   assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
   assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
   assert.deepEqual(model.needs, ["refine-select"]);
-  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue"]);
+  assert.deepEqual(sub.needs, ["refine-select", "refine-issue"]);
+  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue", "refine-issue-subscription"]);
   assert.deepEqual(again.needs, ["apply-refinement"]);
 
   const groups = Object.values(jobs)
     .map((job) => job.concurrency?.group)
     .filter(Boolean);
   assert.equal(new Set(groups).size, groups.length, "each job has its own concurrency group");
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
@@ -447,30 +501,69 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "success" }), true);
-  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "skipped" }), false);
+  // The subscription leg runs only after the key leg handed off or found no key.
+  const leg = (refine, handoff, present) => ({
+    "needs.refine-select.outputs.refine": refine,
+    "needs.refine-issue.outputs.handoff": handoff,
+    "needs.refine-issue.outputs.credential-present": present,
+  });
+  assert.equal(evaluate(sub.if, leg("true", "true", "true")), true);
+  assert.equal(evaluate(sub.if, leg("true", "", "false")), true);
+  assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
+  assert.equal(evaluate(sub.if, leg("true", "", "")), false);
+  assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
+  // apply-refinement reads whichever leg uploaded the refinement.
+  const refined = (key, subscription) => ({
+    "needs.refine-issue.outputs.refined": key,
+    "needs.refine-issue-subscription.outputs.refined": subscription,
+  });
+  assert.equal(evaluate(apply.if, refined("true", "")), true);
+  assert.equal(evaluate(apply.if, refined("false", "true")), true);
+  assert.equal(evaluate(apply.if, refined("false", "")), false);
+  assert.equal(evaluate(apply.if, refined("", "false")), false);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
   // Every checkout is the default branch without credentials.
-  for (const job of [select, model, apply]) {
+  for (const job of [select, model, sub, apply]) {
     const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
     assert.equal(checkout.with.ref, "refs/heads/main");
     assert.equal(checkout.with["persist-credentials"], false);
   }
 
-  // The model step: no project settings, an explicit permission mode, and
-  // no tool that writes or runs code.
-  const run = model.steps.find((s) => s.uses?.startsWith("anthropics/claude-code-action@"));
-  const args = run.with.claude_args;
-  assert.match(args, /--setting-sources user/);
-  assert.match(args, /--permission-mode dontAsk/);
-  assert.doesNotMatch(JSON.stringify(model), /bypassPermissions|dangerously/);
+  // The model step, in each leg: run-claude-cli (--restricted, so no user,
+  // project or local settings), an explicit dontAsk, Read, Grep, Glob and
+  // WebFetch on the hosts the prompt names, and no tool that writes or runs
+  // code. The legs differ only in the credential.
   const prompt = model.steps.find((s) => s.id === "prompt").run;
-  assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
-  assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
-  assert.match(prompt, /WebFetch\(domain:\$domain\)/);
-  assert.deepEqual(stepSecrets(model), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
+  const domains = prompt.match(/domains="([^"]+)"/)[1].split(" ");
+  const launcher = (job) => job.steps.find((s) => s.id === "run");
+  for (const job of [model, sub]) {
+    const run = launcher(job);
+    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
+    assert.equal(run.with.role, "intake");
+    assert.equal(run.with["permission-mode"], "dontAsk");
+    assert.deepEqual(run.with.tools.trim().split("\n"), ["Read", "Grep", "Glob", "WebFetch"]);
+    assert.deepEqual(run.with["allowed-tools"].trim().split("\n"), ["Read(./refine-data/**)", ...domains.map((d) => `WebFetch(domain:${d})`)]);
+    assert.deepEqual(run.with["disallowed-tools"].trim().split("\n"), ["Bash", "Edit", "Write", "NotebookEdit", "WebSearch", "Agent", "Skill", "mcp__*"]);
+    assert.equal(run.with["prompt-file"], "${{ runner.temp }}/refine-prompt.md");
+    assert.equal(run.with["json-schema-file"], "${{ runner.temp }}/refine-schema.json");
+    assert.doesNotMatch(JSON.stringify(job), /bypassPermissions|dangerously|--bare|setting-sources/);
+    assert.ok(!job.steps.some((s) => s.uses?.startsWith("anthropics/claude-code-action@")));
+    assert.equal(job.steps.find((s) => s.id === "prompt").run, prompt, "both legs build the same prompt");
+    const collect = job.steps.find((s) => s.id === "collect");
+    assert.equal(collect.env.MODE, "dontAsk");
+    assert.match(collect.run, /check-permission-mode\.sh/);
+  }
+  assert.deepEqual(refineLegShape(model), refineLegShape(sub), "the legs differ only where refineLegShape allows");
+  const { "api-key": keyLegKey, "subscription-token": keyLegToken } = launcher(model).with;
+  const { "api-key": subLegKey, "subscription-token": subLegToken } = launcher(sub).with;
+  assert.equal(keyLegKey, "${{ secrets.INTAKE_CLAUDE_API_KEY }}");
+  assert.equal(subLegToken, "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}");
+  assert.equal(keyLegToken, undefined);
+  assert.equal(subLegKey, undefined);
+  assert.deepEqual(stepSecrets(launcher(model)), ["INTAKE_CLAUDE_API_KEY"]);
+  assert.deepEqual(stepSecrets(launcher(sub)), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -511,30 +604,116 @@ test("intake-triage.yml: the model may apply duplicate, which admission refuses,
   assert.match(text, /apply no `status: needs-decision`/);
 });
 
-test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
+test("pr-unblock.yml: report-stop-status runs when report-escalation does, or after an attempt that did not stop, with a gated head and never on a cancelled run", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
-  const job = jobs["report-conflict-status"];
-  const context = (select, apply, headSha, refused = "") => ({
-    "needs.resolve-conflicts-select.outputs.escalation-reason": select,
-    "needs.apply-conflict-patch.outputs.escalation-reason": apply,
-    "needs.conflict-scan-refusal.outputs.escalation-reason": refused,
-    "needs.resolve-conflicts-select.outputs.head-sha": headSha,
+  const job = jobs["report-stop-status"];
+  const escalation = jobs["report-escalation"];
+  assert.deepEqual(job.needs, escalation.needs);
+  const SOURCES = [
+    "resolve-conflicts-select",
+    "apply-conflict-patch",
+    "conflict-scan-refusal",
+    "address-feedback-select",
+    "publish-feedback",
+    "review-dependency-select",
+    "apply-dependency-verdict",
+    "fix-ci-context",
+    "apply-patch",
+  ];
+  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch"];
+  const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
+  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
+    ...Object.fromEntries(SOURCES.map((id) => [`needs.${id}.outputs.escalation-reason`, id === from ? reason : ""])),
+    ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.result`, id === resolved ? resolvedResult : "skipped"])),
+    ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.outputs.stop-resolved`, id === resolved ? "true" : ""])),
+    ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
+    ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
+    ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
+    "needs.apply-patch.outputs.rung-up": rungUp,
+    "needs.apply-patch-rung-up.result": rungUpResult,
+    "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
+    "needs.apply-patch-rung-up.outputs.patch-skip-reason": rungUpSkip,
   });
-  assert.deepEqual(job.needs, ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal"]);
-  assert.equal(evaluate(job.if, context("unresolved-conflict", "", head)), true, "before any model turn");
-  assert.equal(evaluate(job.if, context("", "unresolved-conflict", head)), true, "a conflict the patch left");
-  assert.equal(evaluate(job.if, context("", "", head, "unresolved-conflict")), true, "a scan that refused the model's output");
-  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", "conflict-patch-invalid", ""]) {
-    assert.equal(evaluate(job.if, context(reason, "", head)), false, reason);
-    assert.equal(evaluate(job.if, context("", reason, head)), false, reason);
+  for (const from of SOURCES) {
+    assert.equal(evaluate(job.if, context({ from, reason: "x" })), true, from);
   }
-  assert.equal(evaluate(job.if, context("", "", "", "unresolved-conflict")), false, "no gated head to post on");
-  assert.equal(evaluate(job.if, context("unresolved-conflict", "", "")), false, "no gated head to post on");
-  // The head is the select job's, never a model call's.
-  const post = job.steps.find((step) => step.name === "Post the conflict status");
-  assert.equal(post.env.HEAD_SHA, "${{ needs.resolve-conflicts-select.outputs.head-sha }}");
-  assert.equal(post.env.ESCALATION_REASON, "unresolved-conflict");
+  for (const headFrom of HEADS) {
+    assert.equal(evaluate(job.if, context({ from: "publish-feedback", reason: "x", headFrom })), true, headFrom);
+  }
+  assert.equal(evaluate(job.if, context()), false, "no reason");
+  assert.equal(evaluate(job.if, context({ from: "apply-patch", reason: "x", sha: "" })), false, "no gated head to post on");
+  assert.match(job.if, /^\$\{\{ !cancelled\(\) && /, "a cancelled run posts nothing");
+  assert.doesNotMatch(job.if, /always\(\)/);
+  // The rung-up retry: a stop unless its patch applied cleanly.
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "failure" })), true);
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "success", rungUpReason: "ci-fix-invalid" })), true);
+  // An attempt that did not stop runs it too, for report-escalation.sh clear.
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "success" })), true, "the retry's patch applied: clear");
+  for (const landed of EMITTERS) {
+    assert.equal(evaluate(job.if, context({ landed })), true, `${landed} ended with no stop: clear`);
+    // Review finding on #10252: a retry that succeeded on a skip (a reply
+    // job with no model turn) landed nothing, so it must not clear the
+    // failure an earlier stop left on the head.
+    for (const skip of ["no-model-turn", "superseded-sha", "rung-up"]) {
+      assert.equal(evaluate(job.if, context({ landed, skip })), false, `${landed} skipped ${skip}: no clear`);
+    }
+  }
+  assert.equal(evaluate(job.if, context({ landed: "apply-patch-rung-up", rungUpResult: "success", skip: "no-model-turn" })), false, "the rung-up push job's skip: no clear");
+  // Review finding on #10252: a select job that finds its stop gone on the
+  // head (every thread resolved by hand, or no failing check) clears the
+  // status with no push, reply or verdict job; a failed select clears nothing.
+  const postStep = job.steps.find((step) => step.name === "Post the stop status");
+  for (const resolved of RESOLVERS) {
+    const headFrom = resolved;
+    assert.equal(evaluate(job.if, context({ resolved, headFrom })), true, `${resolved} resolved: clear`);
+    assert.equal(evaluate(postStep.env.ESCALATION_REASON, context({ resolved, headFrom })), "", `${resolved} resolved: clear mode`);
+    assert.equal(evaluate(job.if, context({ resolved, headFrom, resolvedResult: "failure" })), false, `${resolved} failed: no clear`);
+    assert.equal(evaluate(job.if, context({ headFrom })), false, `${resolved} not resolved: no clear`);
+  }
+  assert.match(postStep.run, /echo status \|\| echo clear/);
+  // The write runner hands its skip up: the reply script's no-model-turn, or a gate stop.
+  const write = workflow("pr-run-activity-write.yml");
+  assert.equal(write.on.workflow_call.outputs["skip-reason"].value, "${{ jobs.run.outputs.skip-reason }}");
+  const steps = (extra = {}) => ({
+    "steps.kill.outputs.proceed": "true",
+    "steps.kill.outputs.reason": "",
+    "steps.gate.outputs.proceed": "true",
+    "steps.gate.outputs.reason": "",
+    ...Object.fromEntries(["config", "head-recheck", "lane-token", "prepare", "promote", "act-script", "patch-select"].map((id) => [`steps.${id}.outputs.skip-reason`, ""])),
+    ...extra,
+  });
+  const skipOf = (extra) => evaluate(write.jobs.run.outputs["skip-reason"], steps(extra));
+  assert.equal(skipOf(), "");
+  assert.equal(skipOf({ "steps.act-script.outputs.skip-reason": "no-model-turn" }), "no-model-turn");
+  assert.equal(skipOf({ "steps.gate.outputs.proceed": "false", "steps.gate.outputs.reason": "untrusted-trigger" }), "untrusted-trigger");
+  // #10092's 20:57 run: the reply job failed at its lane token with no
+  // escalation reason, so no stop was posted. The caller derives
+  // feedback-publish-failed from the failed result, and report-stop-status
+  // and report-escalation then run on it; a recorded reason still wins.
+  const failed = (extra = {}) => ({ ...context({ headFrom: "address-feedback-select", ...extra }), "needs.publish-feedback.result": "failure" });
+  assert.equal(evaluate(job.if, failed()), true, "a failed reply job posts a stop");
+  assert.equal(evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, failed()), "feedback-publish-failed");
+  assert.equal(
+    evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, failed({ from: "publish-feedback", reason: "feedback-partial" })),
+    "feedback-partial",
+  );
+  assert.equal(evaluate(escalation.if, failed()), true);
+  assert.equal(evaluate(escalation.with["escalation-reason"], failed()), "feedback-publish-failed");
+  assert.equal(stopSkip("feedback-publish-failed"), "lane-stopped", "routed to a failing status");
+  // The head is a select job's, never a model call's; the reason is the one
+  // report-escalation reads.
+  const post = job.steps.find((step) => step.name === "Post the stop status");
+  assert.equal(post.env.HEAD_SHA.trim(), HEADS.map((id) => `needs.${id}.outputs.head-sha`).join(" || ").replace(/^/, "${{ ").replace(/$/, " }}"));
+  // report-escalation's reason, except that a rung-up retry whose patch
+  // applied is no stop.
+  const reason = (extra) => evaluate(post.env.ESCALATION_REASON, context(extra));
+  assert.equal(reason({ from: "publish-feedback", reason: "feedback-not-landed" }), "feedback-not-landed");
+  assert.equal(reason({ rungUp: "true", rungUpResult: "failure" }), "ci-fix-escalated");
+  assert.equal(reason({ rungUp: "true", rungUpResult: "success" }), "");
+  assert.equal(post.env.ACTIVITY, "${{ inputs.activity }}");
+  assert.match(post.run, /report-escalation\.sh "\$\(\[ -n "\$ESCALATION_REASON" \] && echo status \|\| echo clear\)"$/);
   assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
@@ -622,6 +801,7 @@ const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", s
   "needs.apply-patch-rung-up.result": result,
   "needs.apply-patch-rung-up.outputs.escalation-reason": escalation,
   "needs.apply-patch-rung-up.outputs.patch-skip-reason": skip,
+  "needs.publish-feedback.result": "skipped",
 });
 
 test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-rung 1 in the same run", () => {
@@ -636,9 +816,20 @@ test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-
   assert.equal(up.with["model-rung"], "1");
   assert.equal(upSubscription.with["model-rung"], "1");
   assert.equal(apply.with["patch-model-rung"], "1");
-  // The first pass runs at rung 0: no rung input, so a dispatch cannot skip it.
-  assert.equal(jobs["fix-ci"].with["model-rung"], undefined);
-  assert.equal(jobs["apply-patch"].with["patch-model-rung"], undefined);
+  // The first pass runs at the rung fix-ci-context read from the head's own
+  // trusted stop record (escalation-routes.mjs retryRung): no dispatch input
+  // sets it, so a dispatch cannot skip rung 0 or climb.
+  assert.equal(jobs["fix-ci"].with["model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  assert.equal(jobs["fix-ci-subscription"].with["model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  assert.equal(jobs["apply-patch"].with["patch-model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  for (const id of ["address-feedback", "address-feedback-subscription"]) {
+    assert.equal(jobs[id].with["model-rung"], "${{ needs.address-feedback-select.outputs.model-rung }}", id);
+  }
+  // review-dependency's profile names no rung above it, and resolve-conflicts
+  // retries as a fresh session at its own rung.
+  for (const id of ["review-dependency", "review-dependency-subscription", "resolve-conflicts", "resolve-conflicts-subscription"]) {
+    assert.equal(jobs[id].with["model-rung"], undefined, id);
+  }
   assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["model-rung"], undefined);
 });
 
@@ -697,7 +888,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   assert.equal(evaluate(fixCi.if, context("true", "", head)), true);
   assert.equal(evaluate(notRun.if, context("true", "", head)), false);
   assert.equal(evaluate(notRun.if, context("false", "", head)), true);
-  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), false, "report-escalation owns it");
+  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), true, "a stop posts its own skip, so the head's fix-ci runs record it");
   assert.equal(evaluate(notRun.if, context("", "", "")), false, "a kill-switch stop names no head");
   assert.equal(evaluate(notRun.if, context("", "", "", "resolve-conflicts")), false);
 
@@ -710,6 +901,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   // A human-gated hold fix-ci-context read posts awaiting-human instead.
   const held = await postNotRunCheck(notRun, context("false", "", head, "fix-ci", "awaiting-human"));
   assert.equal(held[0].output.title, "Skipped: awaiting-human");
+  // The round cap, routed to a failing status: lane-stopped ends the head.
+  const capped = await postNotRunCheck(notRun, context("false", "ci-fix-round-cap", head, "fix-ci", "lane-stopped"));
+  assert.equal(capped[0].output.title, "Skipped: lane-stopped");
 
   // fix-ci-dispatch.mjs dispatches a head with no fix-ci check run; the
   // posted one, as the listing returns it, means the head was handled.
@@ -2739,12 +2933,14 @@ test("leak scan: a dependency verdict is scanned and hashed, and only a known ve
 // address-feedback: whether the scanned replies hold an INCORRECT one, the
 // only reply adjudicate-feedback has work for. A line that is not JSON reads
 // as disputed, so the adjudicator's own checks decide it.
-test("leak scan: replies-disputed is true only for scanned replies holding an INCORRECT reply or an unreadable line", async (t) => {
+test("leak scan: replies-disputed is true only for scanned replies holding a reply that leaves its thread open or an unreadable line", async (t) => {
   const plantReplies = (text) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "replies.jsonl"), text);
   const row = (disposition) => JSON.stringify({ thread: "PRRT_a", disposition, evidence: [], fix_sha: "", note: "n" });
   for (const [text, want] of [
     [`${row("VALID")}\n${row("INCORRECT")}\n`, "true"],
-    [`${row("VALID")}\n${row("UNCERTAIN")}\n`, ""],
+    [`${row("VALID")}\n${row("UNCERTAIN")}\n`, "true"],
+    [`${row("VALID-defer")}\n`, "true"],
+    [`${row("VALID")}\n`, ""],
     [`${row("VALID")}\n{not json\n`, "true"],
     [`${JSON.stringify({ disposition: "incorrect" })}\n`, ""],
   ]) {
@@ -3092,10 +3288,10 @@ test("leak scan: a credential-format file name blocks, and a PEM header alone bl
 });
 
 test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
-  const gate = [
-    'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);',
-    "export const findSecret = (text) => (SECRET_PATTERNS[0][1].test(text) ? [SECRET_PATTERNS[0][0], 1] : null);",
-  ].join("\n");
+  // The main gate, its scan included, with a pattern list that has no warning label.
+  const main = read("../../../lib/publish-gate.mjs");
+  const gate = main.replace(/export const SECRET_PATTERNS = Object\.freeze\(\[[\s\S]*?\n\]\);/, 'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);');
+  assert.notEqual(gate, main, "the main gate's pattern list was replaced");
   assert.deepEqual((await scanWith(t, () => {}, gate)).clean, "true");
   const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
   assert.equal(hit.clean, "false");
@@ -3861,7 +4057,7 @@ test("work-resolve-issue.yml: every resolve-issue output a job reads is the read
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   // The subscription call's are the same outputs, read in the same picks.
   assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
@@ -4420,12 +4616,8 @@ test("leak scan: clean multi-line and clean UTF-16LE text stay clean in the repl
 });
 
 test("leak scan: the split-line pass joins patch hunk lines without their prefixes, and counts only a match across the join", async () => {
-  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
-  const body = script.slice(script.indexOf("const straddles"), script.indexOf("// Each source has a kind"));
-  const { findSecret, SECRET_PATTERNS } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
-  const WARN_ONLY = "password or secret assignment";
-  const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-  const deeper = new Function("blocking", "findSecret", "WARN_ONLY", `${body}; return deeper;`)(blocking, findSecret, WARN_ONLY);
+  // The leak scan's deeper passes, from the gate the scan job loads.
+  const { deeperLeak: deeper } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
   const hunk = `diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1,2 @@\n+the token is ${GHS.slice(0, 2)}\n+${GHS.slice(2)}\n`;
   assert.equal(deeper(hunk, true), "GitHub token", "an added-hunk split joins without the + prefixes");
   assert.equal(deeper(hunk, false), null, "kept, the + prefix breaks the token");
@@ -5382,7 +5574,9 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
   const head = "d".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["resolve-conflicts-not-run"];
-  const context = (proceed, headSha, { skip = "", state = "", activity = "resolve-conflicts" } = {}) => ({
+  // The "Read the stop's skip reason" step runs escalation-routes.mjs skip.
+  const context = (proceed, headSha, { skip = "", state = "", activity = "resolve-conflicts", escalation = "" } = {}) => ({
+    "steps.stop.outputs.skip": stopSkip(escalation),
     "inputs.activity": activity,
     "needs.resolve-conflicts-select.outputs.proceed": proceed,
     "needs.resolve-conflicts-select.outputs.head-sha": headSha,
@@ -5399,7 +5593,9 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
     [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
     [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
     [{ state: "clean" }, "Skip reason: clean-merge"],
-    [{ state: "escalate" }, "Skip reason: awaiting-human"],
+    [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: awaiting-human"],
+    [{ state: "escalate", escalation: "repeat-cap" }, "Skip reason: lane-stopped"],
+    [{ state: "escalate", escalation: "unresolved-conflict" }, "Skip reason: lane-stopped"],
   ]) {
     const calls = await postNotRunChecks(notRun, context("false", head, given));
     assert.deepEqual(
@@ -6124,7 +6320,7 @@ test("pr-unblock.yml: a refused fix-ci collection runs apply-patch, whose select
   // select, with the empty patch-state a refused collection passes, escalates.
   const row = rowFor(loadRules(fileURLToPath(new URL("../../../", import.meta.url))), { prepare: "ci-context" });
   const decision = selectPatch({ row, patchState: "", patchSha256: "", patchHeadSha: TRUSTED, headSha: TRUSTED, patchDir: "/nonexistent", reportDir: "/nonexistent" });
-  assert.deepEqual(decision, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" });
+  assert.deepEqual(decision, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-invalid" });
   // report-escalation runs on that reason, and on nothing else here.
   const escalation = jobs["report-escalation"];
   const quiet = Object.fromEntries([...escalation.if.matchAll(/needs\.[\w-]+\.(?:outputs\.[\w-]+|result)/g)].map(([ref]) => [ref, ""]));
@@ -6559,7 +6755,10 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
       const steps = job.steps ?? [];
       const first = steps.findIndex(installs);
       if (first < 0) continue;
-      const checkout = steps.slice(0, first).findLast((step) => /^actions\/checkout@/.test(step.uses ?? ""));
+      // A pull request head checkout is never the source: its npmrc would let the PR set npm's config.
+      const checkout = steps
+        .slice(0, first)
+        .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\./.test(step.with?.ref ?? ""));
       assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
       assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
       const dir = checkout.with?.path ? `${checkout.with.path}/` : "";

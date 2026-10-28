@@ -9,8 +9,12 @@ plugin". A guardrails hook cites **this** doc, never `plugins/source-control/ref
 
 ## Two reads of one file
 
-The convention lives in the consumer's tracked `.claude/source-control.md` (H2-per-key markdown),
-resolved across three layers by the model per
+The convention's team values live in the consumer's tracked `docs/conventions/source-control.yaml`,
+the source-control plugin's team file ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)),
+validated by
+[`plugins/source-control/schemas/source-control.schema.json`](../../../plugins/source-control/schemas/source-control.schema.json).
+For one release, a key that file lacks is read from the legacy surfaces: the neutral file below,
+then the `## <key>` H2 of `.claude/source-control.md`. The model resolves them across the layers in
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 That document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title. This seam owns the **enforcement** resolution: how a
@@ -20,24 +24,42 @@ The two reads are deliberately not identical:
 
 | | Drafting (config-resolution.md) | Enforcement (this seam) |
 |---|---|---|
-| Reader | the model | a bash hook (`[[ =~ ]]` / `grep -E`) |
-| Layers read | all three (user-global, team, local), per-key merge | **team-tracked only** (`${REPO_ROOT}/.claude/source-control.md`) |
+| Reader | the model | a POSIX sh hook (`[[ =~ ]]` / `grep -E`) |
+| Layers read | user-global, team, local, per-key merge | **team-tracked only**: `docs/conventions/source-control.yaml`, then for one release the neutral file and `.claude/source-control.md` |
 | Fallthrough | CLAUDE.md/rules/hook, then bundled CC default | **none**, so unresolved means no enforcement |
 | Dialect | any (the model interprets PCRE) | POSIX ERE only (normalized/rejected) |
 
 ## The parse contract
 
 `lib/resolve-convention-pattern.sh` is the single source of truth. Given a repo root and a key
-(`subject_pattern` or `pr_title_pattern`) it emits an ERE regex on stdout, or nothing.
+(`subject_pattern` or `pr_title_pattern`) it emits an ERE regex on stdout, or nothing. With
+`--layer` it prints instead the repo-relative file that supplied the key's own value, so a hook can
+name the file to change.
 
-1. **Value grammar.** The value is the **first non-empty body line** under the `## <key>` H2 in the
-   team-tracked file. (The surface already constrains machine-relevant keys to exactly one value,
-   never a list.)
+1. **Where the value comes from**, per key, first match wins:
+   1. `docs/conventions/source-control.yaml`, when git tracks it and it carries the key as a root
+      scalar. The resolver reads it with `lib/yaml-subset.awk`, the shared YAML-subset parser, which
+      sits beside every copy of the resolver; `lib/parse-concern-value.sh` needs bash, which a
+      commit-msg hook never starts, and strips a trailing slash, which would change a regex. The
+      file fails closed (no enforcement, a one-line diagnostic) when the parser rejects it (a
+      duplicate key included), when it carries the key with an empty value (`subject_pattern: ''`
+      or a bare `subject_pattern:`), when its `dialect` is not `posix-ere`, when it is a symlink or
+      sits under a symlinked directory that leaves the repository, or when the parser is missing.
+      An untracked file at that path is not a layer.
+   2. For one release, the neutral file ([below](#the-neutral-convention-ssot-convention_source)),
+      when it carries the key.
+   3. For one release, the **first non-empty body line** under the `## <key>` H2 in
+      `.claude/source-control.md`.
+
+   The legacy surfaces, and their fail-closed checks, are read only for a key the YAML lacks: a
+   broken `convention_source` pointer never disables a key the YAML supplies. Each key holds exactly
+   one value, never a list.
 2. **`Conventional Commits` keyword** expands to the one canonical ERE the resolver owns,
    `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+`, so the model's
    interpretation and every hook's regex cannot drift.
 3. **`pr_title_pattern` deferral**: the literal `` Same as `subject_pattern`. `` resolves the
-   effective subject pattern instead.
+   effective subject pattern instead, itself resolved per key, so a YAML deferral may enforce a
+   legacy `subject_pattern` while the YAML lacks one.
 4. **Regex dialect = POSIX ERE: accepted or rejected, never translated.** The enforcement value
    must already be POSIX ERE (write `[0-9]`, not `\d`). Translating PCRE→ERE by string rewriting is
    unsound, because bracket expressions, POSIX classes, and escaped backslashes all break naive
@@ -50,6 +72,9 @@ The two reads are deliberately not identical:
    writes it in ERE.
 
 ## The neutral convention SSOT (`convention_source`)
+
+A legacy surface: enforcement reads it for one release, and only for a key
+`docs/conventions/source-control.yaml` lacks.
 
 Reopen of #913's "no YAML / no path rename" decision, author-directed (#1141 carries the four
 reopen grounds: author directive, an observed three-copy drift surface on a real consuming machine,
@@ -88,8 +113,8 @@ Contract points:
      repo-owned, so a repo that keeps its convention elsewhere is unaffected;
   2. absent a pointer, the **well-known default path**
      `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked**, the
-     marketplace's own dogfooded `docs/conventions/<concern>/` layout, so the common case reads ONE
-     tool-agnostic file with no markdown pointer-parse and no pointer to sever;
+     path the org standards sync writes, so the common case reads ONE tool-agnostic file with no
+     markdown pointer-parse and no pointer to sever;
   3. absent both, the **team markdown-H2** sections (legacy).
 
   **Rung 2 requires the file to be git-TRACKED, a policy floor both surfaces enforce identically.**
@@ -165,8 +190,9 @@ purposes without it.
 ## Consumers
 
 - `guardrails` CC-layer content gate (#914) and opt-in `commit-msg` hook (#919) source the vendored
-  copy of the resolver; each registers its path in `scripts/shared-copies.txt` and
-  bumps the guardrails manifest so consumers receive the change.
+  copy of the resolver, with the vendored `yaml-subset.awk` beside it; each copy is registered in
+  `scripts/shared-copies.txt`, the commit-msg entry installs both as assets, and a change to either
+  canonical carries a guardrails release so consumers receive it.
 
 Naming coincidence recorded per the seam rules: the convention file is `.claude/source-control.md`
 after the concern (delivery workflow), not the plugin. The plugin-name collision is incidental; the

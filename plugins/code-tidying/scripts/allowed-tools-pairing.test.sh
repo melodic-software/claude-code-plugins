@@ -37,7 +37,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments)
+SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments tidy-diff)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a

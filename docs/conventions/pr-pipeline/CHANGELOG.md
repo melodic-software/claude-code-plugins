@@ -1,5 +1,127 @@
 # Changelog for the PR pipeline convention
 
+## [6.4.0] - 2026-10-28
+
+### Changed
+
+- A reuse PR from `work-resolve-issue` no longer carries `Hold: a human merges this` on every PR. It holds on the same conditions as a `done` run's PR, through one `mustHold` check in `report-outcome.mjs` that both paths call, and now reads `merge: human` on a reuse too. It also holds when the compare failed, when the runner's checks for the tip are missing or did not all pass, or when the new reuse leak scan is missing or not clean. This supersedes the fixed hold from [#7831](https://github.com/melodic-software/claude-code-plugins/pull/7831).
+- `run-checks` scans a reused branch before its checks run. It uses the read runner's own leak scan on the diff from the branch's merge base with the default branch tip and on every file that diff makes. The result goes into the checks record as `scan`.
+- The read runner's leak-scan passes now live in `lib/publish-gate.mjs` (`scanLeak`, `deeperLeak`, `changedBytes`): per-line classification, the UTF-16LE pass, the split-line pass and the scan of the files a patch makes. The scan job calls them from the gate it already loads at the default branch tip, so both scans run one copy of the code. Behavior is unchanged.
+
+- A `pr-unblock` run that stops now ends on the route its reason has in [`escalation-routes.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-unblock/escalation-routes.json), the one routing table that `report-escalation.sh`, `gate-source.mjs` and `clear-escalations.mjs` read. Only a reason a person must settle keeps the `needs-human` label: a path the lane token may not push or a supply-chain refusal, an intent, design or security question, a person's own thread or hold, a finding no adjudicator may judge (security-review or CRITICAL), or any `review-dependency` stop, since a failing status is per head and the head-bound merge marker comes from the lane's own re-run, so only the label holds it for a person. Every other reason (for example `ci-fix-escalated`, `feedback-not-landed`, the resolve-conflicts, address-feedback and fix-ci round and repeat caps) ends with no label, a failing commit status on the head the activity gated (`pr-unblock/conflict` for `resolve-conflicts`, `pr-unblock/<activity>` otherwise, posted by the `report-stop-status` job that replaces `report-conflict-status`), and one lanes App comment per activity that the next stop edits in place. A new head carries no status. ci-status, the one required check, fails while the newest `pr-unblock/*` status on the head by `github-actions[bot]` is `failure` or `error`, naming each such context, on pull request runs and in the merge queue (the queued pull request's head); a later `success` on the same head supersedes it.
+- An `UNCERTAIN` or `VALID-defer` reply on a non-CRITICAL `claude-review` finding now goes to the adjudicator as an `INCORRECT` one does, instead of to a person; a security-review, CRITICAL or unknown-lane finding still holds for a person (`feedback-uncertain`). A `lane` verdict (the finding does not hold) resolves only an `INCORRECT` thread, where the lane disputed the finding with evidence: on an `UNCERTAIN` or `VALID-defer` thread it posts nothing, the thread stays open (the ruleset's thread resolution still holds the merge) and the round ends `feedback-unadjudicated`. A `reviewer` verdict hands the finding to the next round to fix, and a `human` verdict holds for a person. A pr-verify note left open ends `feedback-verifier-open`, and a finding that stood at adjudication and was left open again ends `feedback-stood-open`; both route to a failing status. A round's reason held for a person now outranks any reason routed to a failing status.
+- `clear-escalations` takes off a `needs-human` an older run set for a reason now routed to a failing status: a `ci-fix-*` reason once a lane check of a `pr-require-checks.yml` run on the current head reads failed. Any other fail-routed reason keeps the label for a person: a new head carries no `pr-unblock/*` status that shows the cause gone or fails that head in the label's place.
+- A pr-unblock stop routed to a failing status now skips `lane-stopped` (a new `skip-reason`) instead of `awaiting-human`. On a select job's own check (a cap, or a conflict no model can resolve) it ends the head, so the dispatchers stop re-running a deterministic stop. On the push, reply or verdict job's check, the dispatcher retries the same head under the cap it already keeps:
+  - `limit-stops-per-head` for resolve-conflicts
+  - `fix-ci-restarts` and the per-head cap for fix-ci
+  - `SWEEP_HEAD_CAP` for address-feedback
+
+  The fix-ci dispatcher reads a fix-ci run and its in-run rung-up, which both post a `pr-unblock / fix-ci` check, as one attempt: a stop in either one's push job makes the attempt a failed one, and the pair counts once toward the caps.
+
+  The fix-ci and address-feedback retries run one model rung up, read in the run from the head's own stop record. A retry that acts and does not stop posts success over the failing status; one that ends on a skip (a reply job with no model turn) leaves it. fix-ci's model escalations `protected-path` and `weaken-required` stay with a person, as `ci-fix-protected-path` and the new `ci-fix-weaken-required`.
+- `fix-ci-context` and the fix-ci dispatcher read every check run on the head (`filter=all`) instead of the latest per name, so a contract-only run's later skip of a lane no longer hides that lane's failure, and a head with a hidden failure is not read as resolved.
+- An address-feedback round that keeps no thread while a review thread is still unresolved (a reviewer the lane does not act on, such as Codex, a review of an older head, a thread it already answered) now ends `feedback-untaken-threads`, routed to a failing status, instead of a silent `not-applicable` skip. The dispatcher now dispatches an ungated head once for any unresolved thread, so that stop is reached; the select job's lane-stopped check ends the head, and the next tick does not dispatch it again. A reply job that fails with no escalation reason (a lane token it could not get) ends `feedback-publish-failed`, also routed to a failing status, instead of posting no stop.
+- The monitoring lane gains signal 10, `stalled lane stop`. Each open pull request whose pr-unblock stop has had no new attempt on its head for over 2 hours is listed in one rolling issue. A skip is not an attempt, but a `not-applicable` skip after the stop ends it: for address-feedback on a non-draft pull request, and for fix-ci once a whole listing of the head's checks is settled with none failing. A stop includes a `needs-human` that `clear-escalations` took off for a reason now routed to a failing status. It reads the 40 most recently updated open pull requests and their newest comments in one GraphQL query, reading up to 200 older comments only for a pull request whose newest name no stop on its head; past 40 pull requests, or past those comments, it names what it left unread in the run's gaps.
+- The merge path floor's `enforcement` class (`babysit_risk.REVIEW_FLOOR` and `merge-holds.mjs` `REVIEW_FLOOR`, from `FLOOR_CLASSES` and `HOLD_PATH_CLASSES`, and the review lanes' and ci-status's hold lists) also covers `.github/scripts/pr-unblock/escalation-routes.mjs`, which `clear-escalations.mjs` and `gate-source.mjs` now import, and `escalation-routes.json`, the routing table it reads, and the scripts that act on a route: `report-escalation.sh`, which labels a held reason, `adjudicate-feedback.mjs` and `publish-feedback.mjs`, which decide and resolve review threads, and `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations, with every module they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs`, `protected-paths.mjs` and `retry-fetch.mjs` in `apply-patch/`). So a change to any of them, such as one that moves a reason from `hold` to `fail`, stops a held reason from labeling or lets a model verdict resolve a thread a person must, does not merge until a clean security review binds to its head (`review-path:`); it does not hold for a person, which only the `trust` and `gate` classes (`HIGH_FLOOR`, `HOLD_PATH_FLOOR`) do. `test_merge_holds_sync.py` now also follows a module-relative file a floored module reads (`new URL("./…", import.meta.url)`), so the next such data file fails there until it is on the floor.
+- A select job that finds a stop gone on its head clears that activity's failing status (`stop-resolved`): `address-feedback` once no hold and no unresolved review thread is left, `fix-ci` once a whole listing of the head's checks, every one completed, has none failing. fix-ci now reads the head's checks before its round cap, so a head re-run green after the cap clears too. A select that fails to read clears nothing.
+
+### Fixed
+
+- A pr-verify note left open past the address-feedback round cap no longer hands the pull request to a person as `feedback-round-cap` with `needs-human`. It gets the fresh fixer's round as a code-review finding does, and once that round has run the head fails: `feedback-verifier-open` when only pr-verify notes are open, `feedback-not-converging` when a code-review finding is open beside them. A pr-verify note a trusted person directed, a security-review finding, a `claude[bot]` finding and a person's `needs-human` hold still escalate `feedback-round-cap`.
+
+## [6.3.5] - 2026-10-28
+
+### Fixed
+
+- A pr-verify pass now clears the fail-note threads from earlier heads on a PR a human on the trusted-actor list opened, not only on a lanes App PR. `verify-notes.mjs` posts fail notes on such an adopted PR, but `feedback-dispatch.mjs` skipped the pass-only round there (`#<n> was not opened by the lanes App`), so the threads stayed open and required thread resolution blocked a passing PR. The pass-only round alone takes that author; every other address-feedback round still goes only to lanes App PRs.
+
+## [6.3.4] - 2026-10-28
+
+### Changed
+
+- A trusted person's approving review of a head that changes a hold path or widens the trusted-actor list carries over a later merge of the base when the merge changes nothing of its own, so the merge no longer sends the pull request back to them. Only an approving review lifts these holds: removing the human-gated label does not, and a dismissed approval never counts. The approval carries only when every commit since is a merge of commits the base branch holds and the whole net change against the base's tip commit is the same at both heads; the base is read once by its full ref. The owner's cost decision carries by the same rule. A carried approval does not lift the verifier, issue-link or pr-verify FAIL holds.
+
+## [6.3.3] - 2026-10-28
+
+### Changed
+
+- pr-verify's resolver looks up only the verdict names `write-verdict.mjs` writes, so it no longer looks up the head-ref digest names no writer produces: an unjudged head whose pull request links an issue takes 7 API calls instead of 11 (one with no linked issue, 3 fewer), and each other pull request at the head one lookup instead of two. The change that moves the writer to digest names adds those lookups back.
+- The lost-run reconciler's spec pre-filter looks up a candidate's pass by the same written names, 2 lookups instead of 4.
+
+## [6.3.2] - 2026-10-28
+
+### Fixed
+
+- The pr-unblock verdict job's merge path checks who pushed each commit before it posts a merge marker ([#9006](https://github.com/melodic-software/claude-code-plugins/issues/9006)). `pushRefusal` in `dependency-classify.mjs` (the twin of pr-merge's `push_refusal`, with one-for-one `PUSH_VECTORS` in both test suites) reads the head branch's repository activity back to Dependabot's newest branch creation or force push. Each commit a push brought must be its pusher's own: Dependabot's in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, a lanes App commit in a lanes App push. Anything else escalates `dependency-fix-refused`, so a Dependabot-authored commit under a lanes App tip no longer gets a merge marker. The README's **Pushes** check states the rule for both lanes.
+
+## [6.3.1] - 2026-10-28
+
+### Changed
+
+- The pr-merge lane's eligibility section documents the linked-issue hold ([#7783](https://github.com/melodic-software/claude-code-plugins/issues/7783)): at eligibility and again before the enqueue, a linked issue carrying a label from `activities.resolve-issue.applies-when.labels-absent` refuses with `closing-issue-held:<label>`, the tracker's human-gated role label holds when that list is absent, and an unreadable label set refuses. An edit to the issue after admission is the verifier's `verify:spec-changed`.
+
+- pr-merge's gate keeps the run's shared post-merge answer for each candidate past the two-minute unverified age, up to 30 minutes, on the same evidence the lane room keeps it on (main's head, its config commit, the demotion records and the verifying runs of every lane merge it judged unchanged), and reads it again only when one of those moved or cannot be read (`postMergeShared: kept:unverified-stale`).
+
+### Fixed
+
+- `check-signed-commits`' escalation comment opens with `<!-- check-signed-commits hold -->` (`SIGNED_COMMITS_HOLD` in `gate-source.mjs`). A `github-actions[bot]` comment carrying it, written or edited since the human-gated label was last removed, now holds the PR: `gateSource` reads it as `signed-commits-hold`, so fix-ci, fix-docs and resolve-conflicts no longer work past the label when a lane escalation put it on first, address-feedback works only threads a trusted person asked it to fix, and `clear-escalations.mjs` keeps the label. The marker from any other account is not read, and an unmarked bot comment still holds nothing (#9578).
+
+## [6.3.0] - 2026-10-28
+
+### Added
+
+- `clear-escalations.mjs` lifts more pr-unblock stops once their cause is gone: `workflow-staged` also clears once a trusted move took the head off the resume key and the head contains main as it was at the escalation; the `ci-fix-*` stops other than `ci-fix-protected-path` clear once a trusted move took the head off the resume key and, at the new head, no check but `ci-status` fails, runs or was cancelled and each check's latest run ended `success`, `neutral` or `skipped`. A trusted move is read with the job token from the branch's activity, never from comment text: every push since the label is by a `human` of the base `trusted-actors.json`, matched by id, never the lanes App. Security, intent, decision, protected-path and own-patch stops still wait for a person.
+
+## [6.2.1] - 2026-10-28
+
+### Changed
+
+- `scripts/run-test-file.sh` runs a test with git reading a fixed test config (a test identity, commit and tag signing off, no system config) in place of the host's, so a host that signs every commit cannot fail a fixture commit.
+
+## [6.2.0] - 2026-10-28
+
+### Added
+
+- A skill leaf's optional `tidy`: `entry` (the diff-scoped tidy skill), `passes` (the other quality skills it may call), `turn-share` (the percent of the run's turn cap tidy may spend) and `cutoffs` (`max-files`, `max-lines`, `max-areas`, `shared-paths`), the one value that decides whether a change is small and single-area enough to tidy in the run. The schema takes it only on a `read` skill whose `applied-by` sets `patch` with no `prepare`. `resolve-config` carries it on the selected activity. On the launcher, `collect-base-activity` stages the entry's and each pass's plugin read-only under `.lane/plugins`, allows `Skill(<plugin>:<skill>)` for each and no other skill, allows `code-tidying:tidy-diff`'s `change-shape.sh` and the `ai-slop:audit` script rules `fix-docs` already had, and names the cutoffs, the skills and the tidy turn budget in the preamble. `tidy` anywhere but an issue lane's patch skill with no prepare mode on the launcher fails the stage red.
+- `resolve-issue` tidies its own change before its last check run and before its review, with `code-tidying:tidy-diff` as the entry and `docs-hygiene:write-for-agents`, `docs-hygiene:write-for-humans` and `ai-slop:audit` as the passes, 25% of its turns, and cutoffs of 10 files, 300 changed lines, one area and no change under `.github/`, `.claude/`, `.claude-plugin/`, `scripts/`, `lib/`, `docs/conventions/`, `docs/standards/`, `AGENTS.md` or `CLAUDE.md`. The PR then reaches review tidied with no extra push, review run or token mint; pr-refine's skip for lane PRs stays.
+
+## [6.1.2] - 2026-10-28
+
+### Fixed
+
+- `resolve-conflicts`, `fix-ci` and `fix-docs` no longer work past another lane's escalation after a person replies inside an existing review thread. GitHub's timeline shows no event for such a reply, so the gate (`gate-source.mjs` `prHold`) now also reads the PR's review comments and reviews, and holds the PR when either read fails.
+
+## [6.1.1] - 2026-10-28
+
+### Fixed
+
+- pr-unblock's `feedback-incomplete` escalation names each kept review thread with no recorded disposition, where it named none and the log gave only counts (#8257). `publish-feedback.mjs` logs each one's id and names at most 20, with their root comments and then how many more, in the round marker it posts; `report-escalation.sh` lists them with each root comment's URL from the newest lanes App round marker on the head it stops on. With no such marker it says so and points at the run's publish-feedback log. No reply is posted, as before.
+
+## [6.1.0] - 2026-10-28
+
+### Added
+
+- `limits.stop-retries` in `pr-pipeline.yaml`: restarts after a retry-routed stop since a listed human last added `agent-ready`, 0 to 5.
+
+### Changed
+
+- The issue lane routes each stop by one table, `.github/scripts/work-resolve-issue/stop-routes.json`, instead of adding `needs-human` on every stop. `hold` (the human-gated label and escalation marker) is kept for a pushback, a run's `intent-change`, `design-change`, `security-risk` or `cost-risk` code, a stop with no code, an issue edited after `agent-ready`, a patch or output refusal that may be a credential shape, and a run whose patch collector refused a file left at a stub name such as `.npmrc` or `.env` (the new `collect-refused` input of the write file carries the read file's `scan-collect-refused` to report-outcome). A protected path or a run's `host-only` code adds `host-run` and removes `agent-ready`. A crash, an apply fault, a moved PR head and an unfinished or failed check keep `agent-ready` with an `outcome=retry` marker naming the branch, and work-unblock restarts the issue. A retry past the new `limits.stop-retries` (default 2), or a spent turn cap, removes `agent-ready` with no label and an `outcome=failed` marker, which the maintenance monitor reports as signal 9.
+
+## [6.0.5] - 2026-10-28
+
+### Changed
+
+- check-wip-cap takes `reads: pause`, which makes only the open lane PR listing and the merged count, the two searches `capped` depends on, and leaves the admission fields unread (`admission_basis` `not-read`, `admission-open` `true`). work-resolve-issue's pick-slot and work-unblock's hourly state save pass it: neither reads anything but the pause, and each used to spend the admitted count, the queued listing, a pull request read per lane PR whose first body line names no issue, and up to 30 blocker reads (26 GITHUB_TOKEN calls in one pick-slot run with 19 issues queued; 5 now, whatever the queue: the two searches and resolve-config's three issue reads). Every other caller still reads all.
+- pr-verify's resolve-pr looks up the FAIL names at a head before this pull request's pass names, and weighs a pass against the spec before looking up the FAIL named with the pull request's issues. Each path whose reads succeed resolves as before, and the new order makes a subset of the old lookups, so a failed lookup the old order would have reached can now be skipped; a FAIL named without issues now costs 5 calls instead of 9, and a pass whose spec is unchanged 11 instead of 13.
+
+- The hold-path floor documentation lists `pr-merge.yml` and `pr-require-checks.yml` under `enforcement`, cleared by a clean head-bound security review, instead of `gate` (owner direction 2026-10-27).
+
+- `pr-merge.yml`'s `merge` and `enable-auto-merge` jobs set up the repository's pinned Python and install only the hash-pinned PyYAML entry of `.github/requirements-ci.txt`, which the review-evidence binding needs to clear a read-only workflow-file change. A failed install warns and the job goes on, since the binding then holds every workflow change for a person. The hold-path floor documentation also states that a lane comment edited by anyone but its author unbinds the review as `comment-edited`.
+
+- The hold-path floor documentation states which workflow files are lane sources: a changed workflow whose head copy cannot post as `github-actions[bot]` with a write token nor reach a secret no longer stops the security review from binding, while the review callers, `pr-merge.yml` and `pr-require-checks.yml` still do (owner direction 2026-10-27).
+
+- The cost hold stops a pull request only for a real new charge. Subscription or prepaid spend, including a `pr-pipeline.yaml` spend line, is reported as the non-holding `cost-finding`. A new secrets reference or model leg in a workflow holds for a person as `secret-exposure-review` or `agent-surface-review`.
+
 ## [6.0.4] - 2026-10-28
 
 ### Changed

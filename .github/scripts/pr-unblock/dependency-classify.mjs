@@ -2,7 +2,8 @@
 // the rules the pr-merge lane applies: a line-for-line port of
 // plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
 // (`classify`, `parse_metadata`, `parse_title`, `is_major`, `commit_refusal`,
-// `commits_refusal`, `parse_config`, `glob_regex`, `content_refusal`, and the
+// `commits_refusal`, `parse_config`, `glob_regex`, `content_refusal`,
+// `push_refusal`, and the
 // fix rule `in_fix_scope`, `is_fix_file`, `is_semver_range`,
 // `fix_content_refusal` and `fix_refusal`) and its
 // caller's commit and content steps (`dependabot_eligibility` and
@@ -344,6 +345,67 @@ export const isDependabotSigned = (item) =>
   item?.committer?.id === WEB_FLOW_ID &&
   item?.commit?.verification?.verified === true &&
   item.commit.verification.reason === "valid";
+
+const PUSH_TYPES = Object.freeze(["push", "force_push", "branch_creation"]);
+
+// `sha` and its ancestors among the pull request's commits `bySha`.
+function ancestry(sha, bySha) {
+  const found = new Set();
+  const todo = [String(sha)];
+  while (todo.length) {
+    const current = todo.pop();
+    if (found.has(current) || !bySha.has(current)) continue;
+    found.add(current);
+    const parents = bySha.get(current)?.parents;
+    if (Array.isArray(parents)) todo.push(...parents.map((parent) => String(parent?.sha)));
+  }
+  return found;
+}
+
+// Whose push must bring a pull-request commit: Dependabot's, the lanes App's
+// (author id `appId`) or github-actions[bot]'s; null for any other commit.
+const commitPusher = (item, appId) =>
+  isDependabotCommit(item) ? "dependabot" : Number.isInteger(appId) && item?.author?.id === appId ? "lane" : isActionsCommit(item) ? "actions" : null;
+
+// Why the head branch's push history does not bind it to Dependabot, or null.
+// `activities` is the repository activity API for the branch, newest first.
+// Reading back to Dependabot's newest branch creation or force push (which
+// rewrites the branch), every push must be by dependabot[bot], or by
+// github-actions[bot] or the lanes App (actor id `appId`) when it pushed a
+// commit of the pull request. Every commit a push brought (its `after` and the
+// ancestors its `before` lacks) must be its pusher's own (commitPusher), every
+// commit of the pull request must arrive in one of those pushes, and the newest
+// push must have pushed `head`. The pr-merge lane's twin is `push_refusal` in
+// babysit_dependabot.py.
+export function pushRefusal(activities, head, commits, appId) {
+  const pushes = (Array.isArray(activities) ? activities : []).filter((activity) => PUSH_TYPES.includes(activity?.activity_type));
+  if (pushes.length === 0 || pushes[0].after !== head) return "push-history-incomplete";
+  const bySha = new Map((Array.isArray(commits) ? commits : []).map((item) => [String(item?.sha), item]));
+  const unattributed = new Set(bySha.keys());
+  for (const push of pushes) {
+    const login = String(push.actor?.login ?? "").toLowerCase();
+    const after = String(push.after);
+    const before = ancestry(push.before, bySha);
+    const brought = [...ancestry(after, bySha)].filter((sha) => !before.has(sha));
+    for (const sha of brought) unattributed.delete(sha);
+    const pusher =
+      login === DEPENDABOT_LOGIN && push.actor?.type === "Bot"
+        ? "dependabot"
+        : login === ACTIONS_AUTHOR[0]
+          ? "actions"
+          : Number.isInteger(appId) && push.actor?.id === appId
+            ? "lane"
+            : null;
+    if (pusher === null || (pusher !== "dependabot" && !bySha.has(after)) || brought.some((sha) => commitPusher(bySha.get(sha), appId) !== pusher)) {
+      return `pushed-by:${login || "unknown"}`;
+    }
+    if (pusher === "dependabot" && ["force_push", "branch_creation"].includes(push.activity_type)) {
+      return unattributed.size ? "push-history-incomplete" : null;
+    }
+  }
+  // No Dependabot branch creation or force push in reach: the history is cut.
+  return "push-history-incomplete";
+}
 
 // A fix changes only regular, non-executable files: no symbolic link
 // (120000), submodule (160000) or executable (100755). `entry` is the GraphQL

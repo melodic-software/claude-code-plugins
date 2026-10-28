@@ -1182,6 +1182,60 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
 
 
+class TestChangedRowsRecap(SessionCase):
+    """confirmation_recap with `since` lists only the rows changed since that recap, plus a
+    count per status for the rest; with no data dir it reads the ledger text alone."""
+
+    LEDGER = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
+        "- Q2 | open | round 1 | Which runner image? |\n"
+        "- Q3 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+    )
+
+    def test_the_ledger_alone_gives_one_line_per_row(self):
+        recap, fits = exporters.confirmation_recap(None, 20000, self.LEDGER)
+        self.assertTrue(fits)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Withdrawn (1): Q3",
+            ],
+        )
+
+    def test_only_changed_rows_are_listed_and_the_rest_counted(self):
+        since = exporters.recap_state(exporters.recap_rows(None, self.LEDGER))
+        changed = self.LEDGER.replace(
+            "Which runner image? |", "Which runner image? | the slim image"
+        ).replace("- Q2 | open", "- Q2 | answered")
+        recap, _ = exporters.confirmation_recap(None, 20000, changed, since)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Unchanged since the last recap (2): 1 answered, 1 withdrawn",
+            ],
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, since)
+        self.assertEqual(
+            recap, "Unchanged since the last recap (3): 1 answered, 1 open, 1 withdrawn\n"
+        )
+
+    def test_a_page_answer_since_the_last_recap_is_the_changed_row(self):
+        qs = [question(f"Q{i}") for i in (1, 2, 3)]
+        self.session(qs, [event(1, "Q1", "accept")])
+        since = exporters.recap_state(exporters.recap_rows(self.dir))
+        self.session(qs, [event(1, "Q1", "accept"), event(2, "Q2", "alt", alt="a")])
+        recap, fits = exporters.confirmation_recap(self.dir, 20000, since=since)
+        self.assertTrue(fits)
+        lines = recap.splitlines()
+        self.assertEqual(len(lines), 2, lines)
+        self.assertTrue(lines[0].startswith("Q2 answered: "), lines)
+        self.assertEqual(lines[1], "Unchanged since the last recap (2): 1 answered, 1 open")
+
+
 class TestSupersededCommitments(SessionCase):
     """A commitment list a later revise replaced never reaches the Brief."""
 

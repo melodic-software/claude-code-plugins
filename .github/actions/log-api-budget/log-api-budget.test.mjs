@@ -189,6 +189,25 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
+test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
+  withDir((dir) => {
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
+    assert.ok(block, "ci-status emits its notices in one block");
+    const out = execFileSync("bash", ["-c", block[1]], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+    });
+    assert.equal(
+      out,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "::notice title=api-calls::github-token=2 not-modified=1\n",
+    );
+    // With no reading, no line, as the action skips a token with none.
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    assert.equal(execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }), "");
+  }));
+
 // The shell port of the rate guard decides every shared vector as
 // rate-guard.mjs does.
 test("api_budget_classify decides every rate-guard vector", () => {
@@ -335,6 +354,20 @@ test("gh guard: a refused answer still returns 1 on both paths", () =>
       assert.equal(out.stdout, "rc=1\n", flag);
       assert.match(out.stderr, /; the call returns 1$/m, flag);
     }
+  }));
+
+// A caller that reads the headers itself (-i) is still counted, and a
+// conditional GET answered 304 counts as not-modified, which GitHub does not
+// charge.
+test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", () =>
+  withDir((dir) => {
+    const out = guarded(
+      dir,
+      ["200 4000 - {}", "304 4000 - "],
+      'gh api -i repos/o/r >/dev/null\ngh api -i -H "If-None-Match: x" repos/o/r >/dev/null || true\napi_budget_emit_calls github-token',
+    );
+    assert.equal(out.calls.length, 2);
+    assert.equal(out.stdout, "::notice title=api-calls::github-token=1 not-modified=1\n");
   }));
 
 test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
@@ -615,6 +648,11 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
+    "pr-merge.yml": { "post-merge-dispatch": "github-token" },
+    "intake-reenter.yml": { reenter: "github-token" },
+    "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
+    "post-merge-test-mutation.yml": { report: "github-token" },
+    "pr-refine.yml": { "fix-docs-head": "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -672,13 +710,15 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
   assert.equal(carried, readFileSync(LIB, "utf8"));
 });
 
+test("ci-status emits the api-calls notice beside its api-budget notice", () => {
+  assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
+});
+
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
 // no other notice, so without these lines their calls go unattributed.
-// post-verify-notes' notice covers only its artifact listing, the one call
-// that leaves a reading: `gh run download` goes through the gh wrapper but is
-// not `gh api`, so it leaves none, and verify-notes.mjs calls through
-// address-feedback's createGitHubApi, a plain fetch that keeps no reading.
-// That notice understates the job's spend.
+// post-verify-notes' notice covers its artifact listing and verify-notes.mjs's
+// calls, which go through the rate guard; `gh run download` goes through the
+// gh wrapper but is not `gh api`, so it leaves none.
 const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
 
 // The job's steps, from `  <job>:` to the next job.

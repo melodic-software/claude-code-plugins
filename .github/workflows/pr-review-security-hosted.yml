@@ -228,12 +228,31 @@ jobs:
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
         .github/scripts/pr-unblock/address-feedback.mjs
+        .github/scripts/pr-unblock/escalation-routes.mjs
+        .github/scripts/pr-unblock/escalation-routes.json
         .github/scripts/pr-unblock/gate-source.mjs
         .github/scripts/pr-unblock/thread-scope.mjs
         .github/scripts/pr-unblock/retry-fetch.mjs
         .github/scripts/work-resolve-issue/report-outcome.mjs
         .github/scripts/work-resolve-issue/limits.mjs
         .github/scripts/work-resolve-issue/retry-fetch.mjs
+        .github/scripts/pr-unblock/report-escalation.sh
+        .github/scripts/pr-unblock/adjudicate-feedback.mjs
+        .github/scripts/pr-unblock/publish-feedback.mjs
+        .github/scripts/pr-unblock/request-budget.mjs
+        .github/scripts/pr-unblock/dependency-classify.mjs
+        .github/scripts/apply-patch/apply-patch.mjs
+        .github/scripts/apply-patch/predicates.mjs
+        .github/scripts/apply-patch/protected-paths.mjs
+        .github/scripts/apply-patch/retry-fetch.mjs
+        .github/scripts/pr-unblock/fix-ci-context.mjs
+        .github/scripts/pr-unblock/feedback-dispatch.mjs
+        .github/scripts/pr-unblock/limit-stop.mjs
+        .github/scripts/pr-unblock/dispatch-record.mjs
+        .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
+        .github/workflows/pr-unblock.yml
+        .github/scripts/work-resolve-issue/stop-routes.json
+        .github/scripts/work-resolve-issue/stop-routes.mjs
         .github/workflows/pr-require-checks.yml
         .github/workflows/pr-merge.yml
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py

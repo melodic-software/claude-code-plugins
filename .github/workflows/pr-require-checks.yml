@@ -148,10 +148,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# and check-catalog, split from one job whose wall was 99 to 125 s over the
-# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
-# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
-# checkout included) in the 125 s run, 3 each;
+# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
+# composite schema steps it then ran plus 3 s for their pip-installed
+# replacement (those steps alone reached 121 s on a stalled uv download), 2,
+# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
+# and checkout included) in the 125 s run of the job it was split from, 3;
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
@@ -1184,6 +1185,17 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
+      # Every upload-artifact step keeps its artifact for the days its family's
+      # row in .github/artifact-retention.json names. Parses workflows with the
+      # yaml package the runner-policy install above provides, so it gates on
+      # the workflows filter group, which holds the table.
+      - name: Check every artifact upload matches the retention table
+        id: artifact_retention
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
+        run: scripts/check-artifact-retention.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1220,6 +1232,7 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
+            artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -1543,11 +1556,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     # pull-requests: read lets "Resolve the queued pull request" read the
-    # queued pull request in a merge group; checks: read lets the aggregator
-    # quote a composite gate's annotations.
+    # queued pull request in a merge group.
     permissions:
       contents: read
-      checks: read
       pull-requests: read
     steps:
       - name: Check out
@@ -1560,7 +1571,8 @@ jobs:
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
       # if the module is missing rather than clearing files they never parsed,
-      # so this install is load-bearing, not convenience.
+      # so this install is load-bearing, not convenience. It also installs the
+      # check-jsonschema the manifest schema steps run.
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -1917,22 +1929,22 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
 
+      # check-jsonschema comes from the hash-locked requirements install above,
+      # not the ci-workflows action: its setup-uv download from
+      # releases.astral.sh stalled 116 s in merge group run 40676402542 and the
+      # job hit its cap, and its uvx then fetched a second CPython.
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-marketplace.json
-          files: .claude-plugin/marketplace.json
+        shell: bash scripts/run-hygiene-gate.sh marketplace-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-marketplace.json .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
-          files: plugins/*/.claude-plugin/plugin.json
+        shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
       # JSON Schema validates the ALREADY-PARSED document, so it structurally
       # cannot see a duplicate object key -- by the time a schema runs, the
@@ -2020,13 +2032,6 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
@@ -2726,7 +2731,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
@@ -3246,13 +3252,13 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's six and the lanes-hold step's eight (in the merge
+    # review-lane step's six, the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to 1,520 under
     # the listing's caps; its wall time is unmeasured, and a cold one can reach
-    # the cap, which fails red), about four
-    # minutes, plus the cost-hold step's reads: one for most pull requests,
-    # which stop at the label events; for a lane-labeled one whose body cites a
+    # the cap, which fails red) and the pr-unblock status step's one (two in the
+    # merge queue), about four and a half minutes, plus the cost-hold step's
+    # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
     # run since the window opened, plus the base-config checkout's fetch
     # (seconds; its retries replace the contents reads' 15 s each).
@@ -3359,6 +3365,11 @@ jobs:
         #                               with the same reset and resource, else na
         #   api_budget_emit_content     the notice for the job's content-creating
         #                               writes: count and most in any 60 s
+        #   api_budget_emit_calls <token>...
+        #                               the hub's api-calls notice for each token with
+        #                               a reading, `<token>=N not-modified=M`: N is
+        #                               the job's own calls, M its 304 answers, which
+        #                               GitHub does not count
         #
         # pr-require-checks.yml's ci-status job carries this file verbatim in its
         # API_BUDGET_SH env (it has no checkout of this directory);
@@ -3423,6 +3434,7 @@ jobs:
                   out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
                   command gh "$@" >"$out" || rc=$?
                   api_budget_observe "$out" "$pool" "gh $*" || rc=1
+                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
                   cat "$out"
                   rm -f "$out"
                   return "$rc"
@@ -3653,6 +3665,16 @@ jobs:
           where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
           sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
             END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
+          return 0
+        }
+
+        api_budget_emit_calls() {
+          local token file
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ && -s $file ]] || continue
+            awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
+          done
           return 0
         }
 
@@ -3988,10 +4010,11 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   and a later head only when the pull request's net change against its
-      #   base branch is the same at both, so every change since is a base
-      #   merge (the base's merge-holds.mjs sameNetChange; owner decisions
-      #   Q17 c and Q18 d on #9436). The decided head is the `sha=` of the
+      #   and a later head only when every commit since is a merge and the
+      #   pull request's net change against its base branch is the same at
+      #   both, so every change since is a base merge (the base's
+      #   merge-holds.mjs baseMergeCarry; owner decisions Q17 c and Q18 d on
+      #   #9436). The decided head is the `sha=` of the
       #   newest cost hold notice a review lane's status job recorded before
       #   the decision, read with the holds below from runs vetted the same
       #   way and only where it names its own run's head; never a hold
@@ -4126,18 +4149,37 @@ jobs:
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
           # carries <decided>: whether a decision whose decided head is
-          # <decided> covers HEAD_SHA: it is HEAD_SHA, or the net change
-          # against the base branch is the same at both. No decided head, an
+          # <decided> covers HEAD_SHA: it is HEAD_SHA, or every commit since
+          # is a merge whose other parents the base branch holds (their
+          # compare against it is ahead or identical, the base's
+          # mergedParents and baseParents) and the net change is the same at
+          # both (the base's baseMergeCarry). Every compare is against the
+          # base branch's tip, read once by its full ref (refs/heads/), so no
+          # tag of the same name stands in for it. No decided head, an
           # unusable base branch name or any read that fails carries nothing.
           carries() {
-            local decided=$1 base_ref
+            local decided=$1 base_ref tip parents sha diff in_base='[]'
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
-            read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
-            read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
-            [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
+            tip=$(read_api "repos/$repo/git/ref/heads/$base_ref") || return 1
+            tip=$(jq -r '.object.sha // ""' <<<"$tip") || return 1
+            [[ $tip =~ ^[0-9a-f]{40}$ ]] || return 1
+            read_api "repos/$repo/compare/$tip...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$tip...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
+            parents=$(holds_js mergedParents "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json") || return 1
+            for sha in $(jq -r '.[]?' <<<"$parents"); do
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || return 1
+              diff=$(read_api "repos/$repo/compare/$sha...$tip") || return 1
+              case $(jq -r '.status // ""' <<<"$diff") in
+              ahead | identical) in_base=$(jq -c --arg s "$sha" '. + [$s]' <<<"$in_base") || return 1 ;;
+              esac
+            done
+            jq -n --argjson b "$in_base" '$b' >"$RUNNER_TEMP/cost-hold-in-base.json" || return 1
+            [ "$(holds_js baseMergeCarry "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json" "$RUNNER_TEMP/cost-hold-decided.json" \
+              "$RUNNER_TEMP/cost-hold-in-base.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
           decisions='[]' refs_read=
@@ -4278,10 +4320,13 @@ jobs:
       # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
       # read live, not from the event payload, which a later label event
-      # outdates. The reason is the newest review-lane hold comment's text: a
-      # `<!-- claude-lane-hold lane=` comment by claude[bot], or by
+      # outdates. The reason is the newest hold comment's text: a review
+      # lane's `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
-      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed.
+      # `claude-lane: <lane>` footer, or pr-merge's refusal, a
+      # merge.agent-identity comment with `<!-- babysit-merge-risk -->` on its
+      # first or second line, whose fenced reasons it names, so the error
+      # names the hold that set the label. Without one the error names none. An unreadable tracker config or label list fails closed.
       # It outputs the label's name, and `held=false` once the live labels
       # read without it, for the hold-lift step below. Pinned
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
@@ -4326,15 +4371,24 @@ jobs:
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
+          # The lanes App's login, best effort: unread, only the review lanes'
+          # hold comments name a reason.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
+          [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
           # gh-read-exempt: the reason is best effort; the step fails either way.
           reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-            --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+            --jq '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                   | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
+              or (.user.login == "'"$identity"'"
+                and ([.body | splits("\r?\n")][0:2] | map(gsub("^\\s+|\\s+$"; "")) | index("<!-- babysit-merge-risk -->") != null
+                  and index("<!-- work-items:escalation lane=pr-merge kind=escalated -->") != null))))
               | .body | @json' | tail -n 1 |
-            jq -r '[splits("[\r\n]+") | gsub("^\\s+|\\s+$"; "")
-              | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
+            jq -r '[splits("\r?\n") | gsub("^\\s+|\\s+$"; "")] as $lines | ($lines | index("\u0060\u0060\u0060text")) as $open
+              | if $open != null and ($lines[0:2] | index("<!-- babysit-merge-risk -->")) != null
+                then $lines[$open + 1:] | .[0:(index("\u0060\u0060\u0060") // length)] else $lines end
+              | [.[] | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
           why=
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
@@ -4507,7 +4561,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4859,7 +4913,10 @@ jobs:
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
       # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
       # arming is held on its own pull request event; a person on the
-      # trusted-actor list (as main has it) lifts it by approving the head,
+      # trusted-actor list (as main has it) lifts it by approving the head, and
+      # the approval carries to a later head whose every change since is a
+      # merge of the base changing no hold path or other file beyond it
+      # (merge-holds.mjs liftersOf, which reads with this step's GH_TOKEN),
       # then re-runs ci-status. A trusted-actor list
       # change that adds or widens an entry (merge-holds.mjs actorsHold, both
       # sides read at BASE_SHA and the head) holds too, lifted the same way.
@@ -4938,6 +4995,65 @@ jobs:
       # reader holds it (verify:spec-changed). A record or link that does not
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      # A HEAD A PR-UNBLOCK LANE STOPPED IS HELD. A lane stop that
+      # escalation-routes.json routes `fail` ends in a failing
+      # `pr-unblock/<activity>` commit status on the head (pr-unblock.yml
+      # report-stop-status), and only ci-status is required, so this step
+      # fails while the newest status of any `pr-unblock/*` context on the
+      # head is `failure` or `error`, naming each. Newest per context, by
+      # github-actions[bot] only, as report-escalation.sh `clear` reads it:
+      # its later `success` on the same head supersedes the failure, and
+      # another account's status neither holds nor clears. On a pull request
+      # event the head is the event's; in the merge queue it is the head of
+      # the pull request named in the group's ref, read live (the ref's SHA is
+      # the group's base). A status event re-runs nothing, so a stop posted
+      # after this step passed holds at the merge queue's run. An unparsable
+      # ref, a head that is not a commit SHA, or an unreadable pull request or
+      # status list fails closed.
+      # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
+      - name: Fail a head a pr-unblock lane stopped
+        id: pr_unblock_status
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "${@:2}" && return 0
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          head=$HEAD_SHA
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+            pull=$(read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+            head=$(jq -r '.head.sha // ""' <<<"$pull") || head=
+          fi
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head '$head' is not a commit SHA."
+            exit 1
+          fi
+          # Newest first across pages, so the first row of a context is its newest.
+          rows=$(read3 "the statuses of $head" "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate \
+            --jq '.[] | select((.context | startswith("pr-unblock/")) and .creator.login == "github-actions[bot]")
+              | [.context, .state, (.description // "" | gsub("[\t\r\n]"; " "))] | @tsv') || exit 1
+          failing=$(awk -F'\t' '!seen[$1]++ && ($2 == "failure" || $2 == "error")' <<<"$rows")
+          if [ -z "$failing" ]; then
+            echo "No pr-unblock/* status fails on $head."
+            exit 0
+          fi
+          while IFS=$'\t' read -r context state description; do
+            echo "::error::'$context' is $state on $head: ${description//%/%25}. The lane that stopped clears it by running again on this head, or a new head carries none."
+          done <<<"$failing"
+          exit 1
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
@@ -5249,7 +5365,7 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_content; }
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries

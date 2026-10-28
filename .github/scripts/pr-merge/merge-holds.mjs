@@ -18,25 +18,30 @@
 // - A hold path: a changed file, or a renamed file's old path, matching the
 //   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
 //   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
-//   which a clean security review clears). A person on
-//   the trusted-actor list lifts it by approving the head: their newest
-//   review of the head that approves, requests changes or was dismissed must
-//   approve. No other path is held for being trusted alone: the review lanes
-//   judge it.
+//   which a clean security review clears). A person on the trusted-actor
+//   list lifts it by approving the head (their newest review of the head
+//   that approves, requests changes or was dismissed must approve), or by
+//   approving an earlier head that carries to it (liftersOf): their newest
+//   review approves that head, and every change since is a merge of the base
+//   that leaves the net change against the base's tip the same over every
+//   file (baseMergeCarry). No other path is held for being trusted alone: the
+//   review lanes judge it.
 // - A trusted-actor list widening (actorsHold, the rule of
 //   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
 //   (BASE_SHA) and the head and compared; only removing entries passes. The
-//   approval of the head that lifts a hold path lifts it.
+//   approval that lifts a hold path lifts it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
 //   on its linked issue naming it, for the head it decided or a later one
-//   whose every change since is a base merge.
+//   whose every change since is a base merge with the same net change
+//   (baseMergeCarry).
 // - No verifier pass, when a verdicts file is given (ci-status gives one in
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
 //   (verdictHold). The same approval of the head lifts it, the human merge
-//   path for a pull request pr-merge's gate sends to a person.
+//   path for a pull request pr-merge's gate sends to a person; an approval
+//   carried from an earlier head does not.
 // - A FAIL the gate's reader counts, when an evidence file is given with the
 //   verdicts: babysit_verify_evidence.py `evidence`'s report for the head,
 //   which ci-status runs from main's checkout in the merge queue
@@ -66,8 +71,10 @@
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
 // trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. Who wrote a body that holds, a changed trusted-actor list, and a
-// cost path with a decision link in the body, are read with GH_TOKEN.
+// exits 0. Who wrote a body that holds, a changed trusted-actor list, a
+// cost path with a decision link in the body, and the approvals of earlier
+// heads when no approval of the head lifts a hold path, are read with
+// GH_TOKEN.
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -244,7 +251,10 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // the config the token broker loads (resolve-config, effect-grants.json
 // included, and the pipeline config); `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
-// (test_merge_holds_sync.py derives both closures and requires them here).
+// (test_merge_holds_sync.py derives both closures and requires them here),
+// and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
+// adjudicate-feedback.mjs, publish-feedback.mjs, apply-patch.mjs) with every
+// module they import and the routing table they read.
 // babysit_risk.FLOOR_CLASSES, which test_merge_holds_sync.py checks this
 // equals. A constant of the module ci-status and enable-auto-merge run from
 // the base commit, so a pull request cannot rewrite it.
@@ -296,12 +306,31 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-merge.yml", "enforcement"],
   ["docs/conventions/pr-pipeline.yaml", "gate"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/escalation-routes.json", "enforcement"],
   [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
   [".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"],
   [".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/limits.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/report-escalation.sh", "enforcement"],
+  [".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/request-budget.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"],
+  [".github/scripts/apply-patch/apply-patch.mjs", "enforcement"],
+  [".github/scripts/apply-patch/predicates.mjs", "enforcement"],
+  [".github/scripts/apply-patch/protected-paths.mjs", "enforcement"],
+  [".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
+  [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
+  [".github/workflows/pr-unblock.yml", "enforcement"],
+  [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
+  [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
 // person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge
@@ -632,7 +661,7 @@ async function listed(read, path, key) {
 // the head `branch` of `repo` started before `at` (a run from another
 // repository's same-named branch speaks for another pull request), each
 // run's head vetted against
-// `base` (laneChange), its status job's cost notices (costNotices) from jobs
+// `base`, the base branch's tip commit (laneChange), its status job's cost notices (costNotices) from jobs
 // done before `at`, then decidedHead, kept only while the branch's push
 // history shows no lane run missing since the decided head (unranHead). A
 // run on a head that fails the vet, or a read that fails, decides nothing.
@@ -687,6 +716,9 @@ const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastE
 // previous_filename and patch. A list of 300 files or more (the compare
 // API's cap), a file with no patch, a filename listed twice, or an answer
 // with no file list is not the same (babysit_merge_policy.same_net_change).
+// The compare API reports no file mode, so a change that only flips a
+// file's mode (such as making it executable) reads as the same: a known
+// residual a merge can carry.
 export function sameNetChange(decided, current) {
   const net = (compare) => {
     const files = compare?.files;
@@ -700,6 +732,132 @@ export function sameNetChange(decided, current) {
   };
   const [then, now] = [net(decided), net(current)];
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
+}
+
+// The commits a compare answer `now` (base...H') lists beyond `then`
+// (base...H), or null when either list is not read whole (shorter than
+// total_commits, the compare API's 250).
+function newCommits(then, now) {
+  const listed = (compare) =>
+    Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length
+      ? compare.commits
+      : null;
+  const [before, after] = [listed(then), listed(now)];
+  if (before === null || after === null) return null;
+  const old = new Set(before.map((c) => c?.sha));
+  return after.filter((c) => !old.has(c?.sha));
+}
+
+// The parents other than the first of each commit `now` lists beyond `then`
+// (newCommits), the ones a base merge must take from the base; a parent
+// that is not a 40-hex sha is left out, so it is never in the base.
+export function mergedParents(then, now) {
+  const parents = (newCommits(then, now) ?? []).flatMap((c) => (Array.isArray(c?.parents) ? c.parents.slice(1).map((p) => p?.sha) : []));
+  return [...new Set(parents.filter((sha) => /^[0-9a-f]{40}$/.test(String(sha))))];
+}
+
+// Whether every commit `now` (base...H') lists beyond `then` (base...H) is a
+// merge whose every parent but the first is in `inBase` (the parents the
+// base holds, read by baseParents), with `from` (H) among `now`'s commits, so
+// H' descends from H by merges of the base alone
+// (babysit_merge_policy.base_merges_only). A non-merge commit, a merge of
+// another branch, a force push that drops H, or a list not read whole
+// carries nothing.
+export function baseMergesOnly(then, now, from, inBase = new Set()) {
+  const added = newCommits(then, now);
+  return (
+    added !== null &&
+    now.commits.some((c) => c?.sha === from) &&
+    added.every((c) => Array.isArray(c?.parents) && c.parents.length >= 2 && c.parents.slice(1).every((p) => inBase.has(p?.sha)))
+  );
+}
+
+// The one base-merge carry: whether what a person or the owner decided at
+// head `from` covers the head `now` was read at, from the compares
+// base...from (`then`) and base...head (`now`) against the base's tip commit
+// and the merged parents the base holds (`inBase`, from baseParents; an
+// array, as ci-status's cost step passes it as JSON, or a Set): every commit
+// since is a merge of the base (baseMergesOnly) and the net change is the
+// same over every file (sameNetChange), so a merge that writes any change of
+// its own carries nothing (babysit_merge_policy.base_merge_carry).
+export function baseMergeCarry(then, now, from, inBase = []) {
+  return baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now);
+}
+
+// The merged parents (mergedParents) the base holds, through `compare` (a
+// GET of /repos/<repo>/compare/<range>) against `tip`, the base branch's
+// tip commit (baseTip): those whose compare is `ahead` or `identical`. A
+// read that fails throws, which carries nothing.
+export async function baseParents(compare, tip, then, now) {
+  const inBase = new Set();
+  for (const sha of mergedParents(then, now)) {
+    if (["ahead", "identical"].includes((await compare(`${sha}...${tip}`))?.status)) inBase.add(sha);
+  }
+  return inBase;
+}
+
+// The tip commit of the base branch `base`, read once by its full ref so no
+// tag or other ref of the same name stands in for it; a throw when it does
+// not read as a commit SHA.
+export async function baseTip(github, repo, base) {
+  const sha = (await github("GET", `/repos/${repo}/git/ref/heads/${base}`))?.object?.sha;
+  if (!/^[0-9a-f]{40}$/.test(String(sha))) throw new Error(`the base branch ${base} did not resolve`);
+  return sha;
+}
+
+// Each trusted person's standing approval, as { login, sha }: their newest
+// review (REST, fromRest shape) that approves, requests changes or was
+// dismissed, when it approves a commit (babysit_merge_policy.lifts_of).
+// Only ids in `humans` count; a dismissed approval never does.
+export function liftsOf(reviews, humans) {
+  const newest = new Map();
+  for (const r of reviews ?? []) {
+    if (!r?.isUser || !humans.has(r.userId) || !["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) continue;
+    const made = Date.parse(r.at);
+    if (Number.isFinite(made) && (!newest.has(r.userId) || made >= newest.get(r.userId).made)) newest.set(r.userId, { ...r, made });
+  }
+  return [...newest.values()].filter((r) => r.state === "APPROVED" && /^[0-9a-f]{40}$/.test(String(r.commitId))).map((r) => ({ login: r.login, sha: r.commitId }));
+}
+
+// The trusted people whose approval (liftsOf) of pull request `number`'s
+// `head`, or of an earlier head that carries to it over merges of its base
+// branch (baseMergeCarry against the base's tip, baseTip, with
+// baseParents), lifts its hold paths, as { lifters }, sorted. It lifts the
+// hold path and the trusted-actor list widening only, never the holds an
+// approving review of the head itself lifts. Reads: the pull request (a
+// head that is no longer `head`, or is in a fork, lifts nothing), the base's
+// tip, the reviews, and the compares per approved head. A read that fails
+// lifts nothing: the caller keeps the exact-head approvals it read
+// (pathLifters).
+export async function liftersOf(github, repo, number, head, humans) {
+  try {
+    const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
+    const base = pull?.base?.ref;
+    if (pull?.head?.sha !== head || pull?.head?.repo?.full_name !== repo || !BRANCH.test(String(base))) return { lifters: [] };
+    const reviews = (await pages(github, `/repos/${repo}/pulls/${number}/reviews`)).map(fromRest);
+    const lifts = liftsOf(reviews, humans);
+    const tip = lifts.some(({ sha }) => sha !== head) ? await baseTip(github, repo, base) : null;
+    const compares = new Map();
+    const compare = async (range) => {
+      if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));
+      return compares.get(range);
+    };
+    const lifters = new Set();
+    for (const { login, sha } of lifts) {
+      if (sha === head) {
+        lifters.add(login);
+      } else {
+        const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
+        // A compare listing fewer files than the pull request changes is
+        // cut short, so it carries nothing.
+        if (!Array.isArray(now?.files) || now.files.length !== pull.changed_files) continue;
+        if (baseMergeCarry(then, now, sha, await baseParents(compare, tip, then, now))) lifters.add(login);
+      }
+    }
+    return { lifters: [...lifters].sort() };
+  } catch {
+    return { lifters: [] };
+  }
 }
 
 // Every page of the REST list at `path`.
@@ -719,26 +877,29 @@ async function pages(github, path) {
 
 // Whether the decision `comment` covers the pull request at `head` (owner
 // decisions Q17 c and Q18 d on #9436): its decided head (noticedHead, read
-// with `actions` from the head branch `branch`'s lane runs) is `head`, with
-// no compare read, or every change since is a merge of the base branch
-// `base`, so the net change against it is the same at both (sameNetChange).
-// No decided head, an unusable base name or a read that fails carries
-// nothing.
+// with `actions` from the head branch `branch`'s lane runs) is `head`, or
+// every change since is a merge of the base branch `base`, so the net change
+// against it is the same at both (baseMergeCarry). The base is resolved once
+// to its tip commit (baseTip), which the lane-change vet and every compare
+// name, so no tag of the same name stands in for it. No decided head, an
+// unusable base name or a read that fails carries nothing.
 async function carries(github, actions, repo, comment, head, base, branch) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
     }
-    const decided = await noticedHead(actions, repo, branch, base, comment.created_at);
+    const tip = await baseTip(github, repo, base);
+    const decided = await noticedHead(actions, repo, branch, tip, comment.created_at);
     if (decided === null) {
       return false;
     }
     if (decided === head) {
       return true;
     }
-    const then = await github("GET", `/repos/${repo}/compare/${base}...${decided}`);
-    const now = await github("GET", `/repos/${repo}/compare/${base}...${head}`);
-    return sameNetChange(then, now);
+    const compare = (range) => github("GET", `/repos/${repo}/compare/${range}`);
+    const then = await compare(`${tip}...${decided}`);
+    const now = await compare(`${tip}...${head}`);
+    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now));
   } catch {
     return false;
   }
@@ -875,7 +1036,8 @@ export function pathLifters(items, humans, head) {
 }
 
 // Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does. `lifters` approved the head, which lifts a
+// it; empty when nothing does. `lifters` approved the head (pathLifters, or
+// liftersOf over base merges), which lifts a
 // hold path but not an unreadable file list or hold-path list, nor a cost
 // path, which only the owner's `decision` lifts. It lifts `widened`
 // (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
@@ -883,14 +1045,14 @@ export function pathLifters(items, humans, head) {
 export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
   const reasons = [];
   if (widened && !lifters.length) {
-    reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`);
+    reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status`);
   }
   const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
       readable
-        ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`
+        ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status`
         : pathReason,
     );
   }
@@ -1053,7 +1215,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       throw new Error("the trusted-actor list has no actors");
     }
     const humans = humansOf(actors);
-    const lifters = pathLifters(items, humans, head);
+    // Exact-head approvals lift every hold an approval lifts; an approval
+    // carried over base merges lifts only the hold path and the trusted-actor
+    // list widening.
+    const approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
     const decision =
@@ -1066,26 +1231,32 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }
     const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
     const held = pathHold(files, holdPaths);
+    let lifted = { lifters: [] };
+    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+      lifted = await liftersOf(github, repo, Number(number), head, humans);
+    }
+    const lifters = approved.length ? approved : lifted.lifters;
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
+    const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
     }
     if (widened && lifters.length) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its trusted-actor list hold (${escape(widened)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
       // An approval lifts the verifier hold whole, the link with it.
-      const relinked = unverified || lifters.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
+      const relinked = unverified || approved.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
       if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
-      } else if (!unverified && lifters.length === 0) {
+      } else if (!unverified && approved.length === 0) {
         // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
         // so only a new head or an approval recovers it.
         reasons.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
-      } else if (lifters.length) {
-        console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
+      } else if (approved.length) {
+        console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
         reasons.push(
           `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
@@ -1095,8 +1266,8 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       if (!failed) {
         const refusal = JSON.parse(readFileSync(evidenceFile, "utf8")).refusal;
         console.log(`#${number}: no pr-verify FAIL hold: ${refusal ? `the reader refuses this head only on its pass (${refusal})` : "the reader allows this head"}.`);
-      } else if (lifters.length) {
-        console.log(`#${number}: no pr-verify FAIL hold: ${lifters.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
+      } else if (approved.length) {
+        console.log(`#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
       } else {
         reasons.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }

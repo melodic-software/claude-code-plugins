@@ -3364,7 +3364,9 @@ def score_unattended(
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
         )
-        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        # Provisional: an allow is judged again on a listing of this gate
+        # run's own below, once nothing else refuses.
+        verdict = reader.evidence(number, str(details["headSha"]), pr, provisional=True)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:
@@ -3537,6 +3539,9 @@ def assess_unattended(
         shared=shared,
         share=share,
         stop_when_closed=stop_when_closed,
+        runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+            repo, answer, branch
+        ),
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3854,6 +3859,10 @@ def _lifted_by_person(
         default = repository_default_branch(repo)
         if not default:
             return False, "default branch unread"
+        # At its tip SHA, so no tag of the same name stands in for it; one
+        # that does not resolve raises, which is no lift.
+        owner, _, name = repo.partition("/")
+        tip = merge_policy.base_tip(owner, name, default)
         # The newest removal decides; a tie keeps the later timeline item.
         at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
         actor = json_object(event.get("actor"))
@@ -3861,7 +3870,7 @@ def _lifted_by_person(
             at > escalated
             and event.get("performed_via_github_app") is None
             and actor.get("type") == "User"
-            and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
+            and actor.get("id") in merge_policy.trusted_actors(repo, tip)[1]
             and merge_policy.is_human(
                 {"__typename": "User", "login": actor.get("login")},
                 repo=repo,
@@ -4458,7 +4467,8 @@ def unattended_enqueue(
         return hold(f"kill-switch:{kill.reason}")
     # The opt-in, like the kill switch, is read again here: for the local
     # lane a removal (or a removal and a non-human re-add) since the
-    # eligibility read refuses; for the pr-merge lane a changed closing issue.
+    # eligibility read refuses; for the pr-merge lane a changed closing issue,
+    # or a hold label on it.
     eligible = inputs.get("eligibility")
     eligible_dependabot = getattr(eligible, "dependabot", None)
     if eligible_dependabot is not None:
@@ -4480,7 +4490,10 @@ def unattended_enqueue(
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(
-            repo, number, issue=getattr(eligible, "issue", None)
+            repo,
+            number,
+            issue=getattr(eligible, "issue", None),
+            holds=inputs.get("issue_holds") or (),
         )
     else:
         opt_in = merge_policy.recheck_opt_in(

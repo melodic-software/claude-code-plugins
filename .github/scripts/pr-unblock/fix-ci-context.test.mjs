@@ -42,7 +42,14 @@ function fakeApi(overrides = {}) {
   return {
     getPull: async () => overrides.pull ?? { state: "open", head: { sha: HEAD } },
     listPullCommits: async () => overrides.commits ?? [],
-    listCommitCheckRuns: async () => overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")],
+    listCommitCheckRuns: async () => {
+      if (overrides.checkRunsError) {
+        throw overrides.checkRunsError;
+      }
+      return Object.assign([...(overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
+    },
+    // The head's pr-unblock / apply-patch checks: a lane stop runs the retry a rung up.
+    listCheckRuns: async () => overrides.stopRuns ?? [],
     listAnnotations: async (id) =>
       overrides.annotations?.[id] ?? [
         { path: "scripts/x.sh", start_line: 12, annotation_level: "failure", message: "SC2034: foo appears unused" },
@@ -294,6 +301,49 @@ test("a commit apply-patch writes for fix-ci counts as a round", () => {
   assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
+// Review finding on #10252: a failing pr-unblock/fix-ci status must come off
+// a head whose CI went green with no new commit (fixed by hand, or a flaky
+// lane re-run green), including after the round cap; only a whole, settled
+// check listing with nothing failing says so.
+test("a head with no failing check resolves the fix-ci stop, at the round cap too", async () => {
+  const green = [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(13, "ci-status", "failure")];
+  for (const commits of [[], [fixCommit(), fixCommit(), fixCommit()]]) {
+    const result = await selectWith(fakeApi({ checkRuns: green, commits }));
+    assert.deepEqual([result.decision, result.skipReason, result.resolved, result.headSha], ["skip", "not-applicable", true, HEAD]);
+  }
+});
+
+test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a closed PR resolves nothing", async () => {
+  const cases = {
+    failing: fakeApi(),
+    "failing at the round cap": fakeApi({ commits: [fixCommit(), fixCommit(), fixCommit()] }),
+    "cancelled with no time-limit note": fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled")], annotations: { 12: CANCEL_ONLY } }),
+    "a re-run still in progress": fakeApi({ checkRuns: [run(11, "lint-shell", null, { status: "in_progress" })] }),
+    "a cut-short listing": fakeApi({ checkRuns: [run(14, "lint-shell", "success")], complete: false }),
+    closed: fakeApi({ pull: { state: "closed", head: { sha: HEAD } }, checkRuns: [] }),
+    held: gatedApi({ login: "kyle-sexton", id: HUMAN, type: "User" }, "feedback-disputed"),
+  };
+  for (const [name, api] of Object.entries(cases)) {
+    const result = await selectWith(api);
+    assert.notEqual(result.resolved, true, name);
+  }
+});
+
+test("a check listing that fails to read throws, so main writes no outputs and resolves nothing", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS, GITHUB_OUTPUT: join(dir, "out") };
+    await assert.rejects(main(env, { api: fakeApi({ checkRunsError: new Error("GET check-runs returned 502") }), log: () => {} }), /502/);
+    assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "lint-shell", "success")] }), log: () => {} });
+    assert.match(readFileSync(join(dir, "green"), "utf8"), /^stop-resolved=true$/m);
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "red") }, { api: fakeApi(), log: () => {} });
+    assert.match(readFileSync(join(dir, "red"), "utf8"), /^stop-resolved=false$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a closed pull request is skipped", async () => {
   const result = await selectWith(fakeApi({ pull: { state: "closed", head: { sha: HEAD } } }));
   assert.equal(result.decision, "skip");
@@ -331,6 +381,16 @@ test("needs-human from another lane's escalation proceeds and says so; fix-ci's 
   assert.deepEqual([person.decision, person.skipReason], ["skip", "awaiting-human"]);
   const plain = await selectWith(fakeApi());
   assert.equal(plain.laneEscalated, false);
+});
+
+test("a person's inline review-thread reply since another lane's escalation skips awaiting-human", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const api = gatedApi(APP_USER, "feedback-disputed");
+  api.listReviewComments = async () => [
+    { id: 2, in_reply_to_id: 1, user: { login: "kyle-sexton", id: HUMAN, type: "User" }, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" },
+  ];
+  const result = await selectWith(api);
+  assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-human"]);
 });
 
 test("main writes the hold's skip reason and lane-escalated", async () => {
@@ -427,4 +487,13 @@ test("main escalates the round cap with no context file", async () => {
 test("main refuses a malformed round cap", async () => {
   const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: "/dev/null", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: "/dev/null", TRUSTED_ACTORS };
   await assert.rejects(main({ ...env, FIX_CI_ROUNDS: "0" }, { api: fakeApi() }), /FIX_CI_ROUNDS/);
+});
+
+// A retry after the push job stopped on this head runs one model rung up, so
+// apply-patch takes no second in-run rung-up.
+test("a head whose push job stopped proceeds at model rung 1; any other at its own", async () => {
+  const stop = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
+  assert.equal((await selectWith(fakeApi({ stopRuns: [stop] }))).modelRung, "1");
+  assert.equal((await selectWith(fakeApi())).modelRung, "");
+  assert.equal((await selectWith(fakeApi({ stopRuns: [{ ...stop, app: { id: 2 } }] }))).modelRung, "");
 });

@@ -2,20 +2,26 @@
 // from its timeline. clear-escalations.mjs (pr-merge) uses the pieces to decide
 // whether the label may come off; feedback-dispatch.mjs and address-feedback.mjs
 // (pr-unblock) use gateSource to decide whether address-feedback works the PR
-// while the label stays on.
+// while the label stays on, and prHold, which also reads the PR's review
+// comments and reviews, whether resolve-conflicts, fix-ci and fix-docs do.
 //
-// Two writers put the label on:
+// Three writers put the label on:
 // - a lane escalation: the lanes App's report-escalation.sh (pr-unblock,
 //   fix-ci) adds the label, then posts a comment whose first line is
 //   ESCALATION and whose second is the resume-key line;
 // - a review-lane hold: a review lane's status job adds the label and posts a
 //   `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->` comment,
-//   as claude[bot], or as github-actions[bot] ending in the lane's footer.
+//   as claude[bot], or as github-actions[bot] ending in the lane's footer;
+// - a signed-commits hold: check-signed-commits adds the label and posts a
+//   comment whose first line is SIGNED_COMMITS_HOLD, as github-actions[bot].
+//   The label may already be on, so it adds no `labeled` event then.
 //
 // Timeline items take the REST timeline shape: `event` ("commented",
 // "labeled", "unlabeled"), `user` or `actor` ({ login, id, type }), `body`,
 // `label`, `created_at`, `updated_at`. Text written by anyone but those
 // authors is never read.
+
+import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
 export const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$/;
@@ -27,10 +33,16 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
 const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
 export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
+// report-escalation.sh's comment for a fail-routed stop, one per activity,
+// edited in place; it adds no label.
+export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
 // A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
+// check-signed-commits' escalation comment opens with this line; its report
+// job posts it with GITHUB_TOKEN, as github-actions[bot].
+export const SIGNED_COMMITS_HOLD = "<!-- check-signed-commits hold -->";
 // report-escalation.sh writes the label, then the comment, retrying the
 // comment for up to 15 seconds; a minute covers that (judgment).
 export const PAIRED_MS = 60_000;
@@ -78,6 +90,20 @@ export function openReviewHold(timeline, lifted) {
   );
 }
 
+// check-signed-commits' escalation comment written or edited since the label
+// was last removed (ever, when it never was): its first line is
+// SIGNED_COMMITS_HOLD and github-actions[bot] wrote it. The marker in anyone
+// else's comment is never read; a person removing the label lifts it.
+export function openSignedCommitsHold(timeline, lifted) {
+  return timeline.find(
+    (item) =>
+      item.event === "commented" &&
+      isApp(item.user, "github-actions[bot]") &&
+      lines(item.body)[0] === SIGNED_COMMITS_HOLD &&
+      !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
+  );
+}
+
 // The lanes App's escalation comments written at or after `since`.
 export function escalationsSince(appComments, since) {
   return appComments
@@ -96,6 +122,7 @@ export function foreignMarker(appComments, since, known) {
 
 // Where the human-gated `label` on a PR at `head` came from:
 // - "review-hold" when a review lane's hold names `head`, or one is open;
+// - "signed-commits-hold" when check-signed-commits' hold is open;
 // - "lane-escalation" when the lanes App (`isLanesApp`) added the label last,
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
 //   marker on its comments since is that escalation's or an address-feedback
@@ -118,6 +145,9 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   if (open !== undefined) {
     return result("review-hold", `a review lane's hold is open: ${laneHold(open).slice(0, 120)}`);
   }
+  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
+    return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
+  }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);
   }
@@ -129,7 +159,7 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   // A whole escalation's two marker lines and address-feedback's own round
   // record are known; any other marker, another lane's escalation or an
   // escalation line out of place included, is not.
-  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line);
+  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line) || LANE_STOPPED.test(line);
   const malformed = appComments
     .filter((item) => writtenSince(item, since))
     .map((item) => lines(item.body))
@@ -144,52 +174,89 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
 // The Reason line report-escalation.sh writes into its escalation comment.
 const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
-// resolve-conflicts's reasons, which report-escalation.sh maps by default.
-const CONFLICT_REASONS = new Set(["protected-path-conflict", "workflow-staged", "unexpected-path-staged", "repeat-cap", "unresolved-conflict"]);
+export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
-// The activity a reason resumes, as report-escalation.sh maps it, or null for
-// a reason it does not list, which holds every activity.
-export const escalationActivity = (reason) =>
-  reason.startsWith("feedback-")
-    ? "address-feedback"
-    : reason.startsWith("dependency-")
-      ? "review-dependency"
-      : reason.startsWith("ci-fix-")
-        ? "fix-ci"
-        : CONFLICT_REASONS.has(reason) || reason.startsWith("conflict-patch-")
-          ? "resolve-conflicts"
-          : null;
+const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
+// The aggregate of the others: fixing them fixes it. It also fails on a hold
+// label, so it never stands for the head's CI.
+const AGGREGATE = "ci-status";
+// A contract-only run skips every lane, and ci-status then carries the last
+// full run's recorded verdict forward, so a skip says nothing about a check.
+const SILENT = new Set(["skipped", "neutral"]);
+const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
+
+// The latest run of each check name that is not a skip, when it failed or was
+// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
+// dispatcher reads a cancelled head through it too, so the two agree, and
+// clear-escalations reads a fix-ci stop's head through it.
+export function failingChecks(checkRuns) {
+  const latest = new Map();
+  for (const run of checkRuns) {
+    const kept = latest.get(run.name);
+    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
+      latest.set(run.name, run);
+    }
+  }
+  return [...latest.values()]
+    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
+    .sort((a, b) => a.id - b.id);
+}
+
+
+// A comment's last write: its creation or its last edit, so an old comment
+// edited to say "wait" counts at the edit. A time that does not parse is NaN.
+const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
 
 // When a timeline item was written, and by whom, for a comment or a review
 // (clear-escalations.mjs reads people speaking the same way).
 export function spoken(item) {
   if (item.event === "commented") {
-    return [{ user: item.user ?? item.actor, at: Date.parse(item.created_at) }];
+    return [{ user: item.user ?? item.actor, at: lastWrite(item) }];
   }
   if (item.event === "reviewed") {
     return [{ user: item.user, at: Date.parse(item.submitted_at) }];
   }
   if (item.event === "line-commented" || item.event === "commit-commented") {
-    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: Date.parse(comment.created_at) }));
+    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: lastWrite(comment) }));
   }
   return [];
 }
 
+// The first of `entries` ({ user, at }) a person wrote at or after `since`
+// (the label's own second included, as GitHub's `since` filter reads it): an
+// account GitHub marks Bot is not a person; an unknown author, or a time that
+// does not parse, counts as one. The one rule for "a person spoke since the
+// label", whatever source the entries come from.
+export const personSince = (entries, since) => entries.find(({ user, at }) => !(at < since) && user?.type !== "Bot");
+
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
-// when gateSource reads a lane escalation, no person has commented since the
-// label went on, and no escalation since then is `activity`'s own, so one
-// lane's escalation does not stop the others. `why` is a fixed phrase, safe to
-// log.
-export function laneEscalationAllows({ timeline, label, head, isLanesApp, activity }) {
+// when gateSource reads a lane escalation, no person has commented, reviewed or
+// replied in a review thread since the label went on, and no escalation since
+// then is `activity`'s own, so one lane's escalation does not stop the others.
+// `reviewComments` and `reviews` are the PR's REST pulls/<n>/comments and
+// pulls/<n>/reviews; either not an array (unread) disallows. `why` is a fixed
+// phrase, safe to log.
+export function laneEscalationAllows({ timeline, reviewComments, reviews, label, head, isLanesApp, activity }) {
   const gate = gateSource({ timeline, label, head, isLanesApp });
   if (gate.source !== "lane-escalation") {
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
+  if (!Array.isArray(reviewComments) || !Array.isArray(reviews)) {
+    return { allowed: false, why: "its review comments or reviews were not read" };
+  }
   const { since } = labelHistory(timeline, label);
-  // As clear-escalations.mjs keeps the label: a person who commented or
-  // reviewed since it went on may want the lanes to wait. An unknown author
-  // counts as a person.
-  if (timeline.flatMap(spoken).some(({ user, at }) => !(at <= since) && user?.type !== "Bot")) {
+  // A person who commented or reviewed since the label went on may want the
+  // lanes to wait. An unknown author counts as a person. GitHub's timeline
+  // shows no event for a reply inside an existing review thread, so the review
+  // comments (at their last write) and reviews are read too. Known limit: a
+  // review body edited after the label is not seen (a REST review carries no
+  // update time).
+  const entries = [
+    ...timeline.flatMap(spoken),
+    ...reviewComments.map((comment) => ({ user: comment.user, at: lastWrite(comment) })),
+    ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
+  ];
+  if (personSince(entries, since) !== undefined) {
     return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
@@ -205,10 +272,14 @@ export function laneEscalationAllows({ timeline, label, head, isLanesApp, activi
 
 // Whether a PR carrying `labels` is held for `activity`: any of `holdLabels`
 // but the human-gated `gateLabel` holds it; `gateLabel` holds it unless
-// laneEscalationAllows reads `readTimeline()` (called only then) as another
-// lane's escalation. A null gateLabel (unreadable) or no lanes App id holds.
-// laneEscalated is true when the label is on and this activity works past it.
-export async function prHold({ labels, holdLabels, gateLabel, head, activity, appId, readTimeline }) {
+// laneEscalationAllows reads `readTimeline()` (called only then) and
+// `readReviews()` ({ comments, reviews }: reviewReader's, called only when the
+// timeline alone does not hold it) as another lane's escalation. A
+// readReviews that throws, or whose comments or reviews is not an array,
+// holds with a fixed why. A null gateLabel
+// (unreadable) or no lanes App id holds. laneEscalated is true when the label
+// is on and this activity works past it.
+export async function prHold({ labels, holdLabels, gateLabel, head, activity, appId, readTimeline, readReviews }) {
   const hard = labels.find((name) => holdLabels.includes(name) && name !== gateLabel);
   if (hard !== undefined) {
     return { held: true, laneEscalated: false, why: `held by ${hard}` };
@@ -220,9 +291,30 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
     return { held: true, laneEscalated: false, why: `held by ${gateLabel}` };
   }
   const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
-  const { allowed, why } = laneEscalationAllows({ timeline: await readTimeline(), label: gateLabel, head, isLanesApp, activity });
+  const timeline = await readTimeline();
+  const allows = (reviewComments, reviews) => laneEscalationAllows({ timeline, reviewComments, reviews, label: gateLabel, head, isLanesApp, activity });
+  // More entries can only hold it, so the timeline is judged alone first and
+  // the review reads are spent only on a PR it does not hold.
+  let { allowed, why } = allows([], []);
+  if (allowed) {
+    let read;
+    try {
+      read = await readReviews();
+    } catch {
+      read = undefined;
+    }
+    ({ allowed, why } = allows(read?.comments, read?.reviews));
+  }
   return allowed ? { held: false, laneEscalated: true, why: "" } : { held: true, laneEscalated: false, why: `held by ${gateLabel}: ${why}` };
 }
+
+// prHold's readReviews for PR `number`: its review comments and reviews
+// through `api`'s listReviewComments and listReviews (REST pulls/<n>/comments
+// and pulls/<n>/reviews, which a pull-requests: read token may list).
+export const reviewReader = (api, number) => async () => {
+  const [comments, reviews] = await Promise.all([api.listReviewComments(number), api.listReviews(number)]);
+  return { comments, reviews };
+};
 
 const LABEL_EVENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {

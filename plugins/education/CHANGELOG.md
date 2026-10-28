@@ -639,12 +639,12 @@ All notable changes to the `education` plugin are documented here. Format follow
   degenerating into a reference dump.** Two rules absorbed from an upstream cursor/plugins skill
   (`docs/upstream/cursor-pstack.md`, the `teach` section) into the lesson contract.
 
-  For anything with three or more moving parts, the lesson draws a short series where each picture
-  redraws the last and adds exactly one part, so the learner watches the system assemble. To teach
-  A→B→C, draw A→B, then redraw and add C, then redraw and add the return edge. Three small growing
-  diagrams beat one crowded one, and the series is the opposite of a wall: each step is small and
-  carries one idea. A single all-at-once diagram, especially one saved for the end, is a reference.
-  Verified absent fleet-wide before landing.
+  When a system has three parts or more, the lesson grows its picture in steps: every new diagram
+  repeats the one before it plus one added part. A lesson on a PreToolUse hook first shows the tool
+  call reaching the tool, next puts the hook between them, and last adds the deny result going back
+  to the model. Each step stays small and holds one idea, so a few growing diagrams teach more than
+  one busy one. A figure that shows every part at once, most of all when it closes the lesson, works
+  as reference material. A fleet-wide check found this rule missing before it landed.
 
   The second rule names the failure the first one prevents in prose: enumerating the functions,
   constants, or fields a thing has produces something shaped like a lesson that teaches nothing. Say

@@ -11,8 +11,9 @@
 // FAIL judged, and only the comments not on it yet: a verifier note at that
 // head on the same file is that comment, so a re-run after a partial post
 // posts the rest and nothing twice. On a pull request the lanes App did not open (an
-// adopted one, `merge.verify-authors: lane-or-owner`) no round starts, and the
-// notes tell its author why the pr-merge lane refuses it. Each note that starts with a path the pull
+// adopted one, `merge.verify-authors: lane-or-owner`) no round starts on a FAIL, and the
+// notes tell its author why the pr-merge lane refuses it; a later pass still
+// resolves them through a pass-only round. Each note that starts with a path the pull
 // request changes (`path` or `path:line`, backticks allowed) goes on that
 // file; the summary and every other note go on the first such file, or on the
 // pull request's first changed file when no note names one. Model text is
@@ -36,6 +37,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
 import { createGitHubApi, MARKER_AUTHOR_ID, need, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
@@ -173,6 +175,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      // Each answer's rate-limit reading, for the job-end api-budget notice.
+      fetch: rateLimitLatch.guard(globalThis.fetch),
     });
   if (verdict.verdict !== "fail") {
     if (await findStaleNotes({ api: client, verdict, log })) {

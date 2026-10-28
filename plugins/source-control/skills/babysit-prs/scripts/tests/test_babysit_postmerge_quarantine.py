@@ -677,6 +677,13 @@ class AffectedSuites(unittest.TestCase):
         return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
+        # The machine's global config signs commits (commit.gpgsign) through a
+        # key the fixture cannot reach, which fails `git commit` under load.
+        env = mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        )
+        env.start()
+        self.addCleanup(env.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = pathlib.Path(tmp.name) / "clone"
@@ -684,6 +691,9 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
+        # Repo-local, as in test_prune_babysit_worktrees.py: a global
+        # commit.gpgsign would sign every fixture commit with the machine's key.
+        self.git(self.root, "config", "commit.gpgsign", "false")
         self.green = self.commit(
             {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
         )
