@@ -761,7 +761,9 @@ function fakeFetch(routes) {
     const method = init.method ?? "GET";
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
-    const route = routes.find(([m, p]) => m === method && p.test(path));
+    // An issue no open PR closes, unless a route says otherwise.
+    const none = path === "/graphql" ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }] : null;
+    const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
   };
@@ -1114,7 +1116,7 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
         ["POST", /\/pulls$/, 201, { number: 90 }],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
-      const writes = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path}`);
+      const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
@@ -3252,13 +3254,15 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "the runner checks are missing": { checks: null },
   "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
+// A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
+// does not cover what scanLeak flags, so a missing scan holds like a finding.
 const SCAN_CASES = {
   "the leak scan found something": { checks: { ...CLEAN_CHECKS, scan: "found" } },
   "the leak scan failed": { checks: { ...CLEAN_CHECKS, scan: "failed" } },
   "the leak scan never ran": { checks: { tip: TIP, results: CLEAN_CHECKS.results } },
+  "the runner checks and their scan are missing": { checks: null },
 };
 
 for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })) {
@@ -3267,6 +3271,13 @@ for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })
     assert.equal(reuseHeld(overrides), true, name);
   });
 }
+
+test("a reuse PR with a clean scan does not hold only because no runner check reported, and says what checks its head", () => {
+  const { body } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
+  assert.ok(!body.split("\n").includes(HOLD_LINE), body);
+  assert.ok(body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), body);
+  assert.ok(!body.includes("a person reviews the diff"), body);
+});
 
 test("a clean reuse PR names the clean leak scan and leaves the person's review out", () => {
   const { body } = reusePlan(CLEAN_REUSE);
@@ -3280,6 +3291,19 @@ test("a clean reuse PR names the clean leak scan and leaves the person's review 
 test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED, holdPaths: [] }), false);
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
+});
+
+test("mustHold: a reuse holds on any scan word but clean and on a failed check; runner checks that did not report hold nothing", () => {
+  const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
+  assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS }), false, "clean reuse");
+  assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), true, "scan missing");
+  assert.equal(mustHold({ ...facts, checks: null }), true, "checks and scan missing");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "failed" } }), true, "scan failed");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [] } }), false, "reuse, clean scan, no runner check reported");
+  assert.equal(mustHold({ ...facts, reused: false, checks: null }), false, "no reuse, runner checks missing");
+  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "no reuse, a failed check");
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
@@ -3421,4 +3445,96 @@ test("scan-reuse.mjs prints failed when the scan cannot finish, and refuses argu
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// #10698 (run 40732936415): the earlier-work check read no closing PR at
+// 17:11, a listed human's open #10686 gained a closing keyword at 17:13, and the
+// lane still opened a second PR at 17:19. report-outcome reads the closers
+// again before the open.
+async function openWithClosers(nodes, { own = [] } = {}) {
+  return withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: BRANCH }),
+      "runner-checks": checksFile(),
+      "trusted.json": TRUSTED_LIST,
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, own],
+        ["POST", /^\/graphql$/, 200, graphql(nodes)],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+        ...HISTORY,
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      const lines = [];
+      const log = console.log;
+      console.log = (line) => lines.push(line);
+      try {
+        const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch });
+        return { code, calls, lines };
+      } finally {
+        console.log = log;
+      }
+    },
+  );
+}
+const opened = (calls) => calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls");
+
+test("main on done opens no PR when a listed human's open PR already closes the issue, and keeps agent-ready", async () => {
+  const { code, calls, lines } = await openWithClosers([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }]);
+  assert.equal(code, 0);
+  assert.ok(!opened(calls), JSON.stringify(calls));
+  assert.ok(lines.some((line) => line.includes("#10686")), lines.join("\n"));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry run=123 -->"), comment);
+  assert.match(comment, /`closed-by-open-pr`/);
+  // Quoted as the stop's words, so its `#` is neutralized like any run text.
+  assert.match(comment, /PR .10686 already closes this issue/);
+  assert.ok(comment.includes(BRANCH), comment);
+});
+
+test("main on done still opens the PR when no open PR closes the issue, or only an outsider's does", async () => {
+  for (const nodes of [[], [closer("User", "stranger", 42)], [closer("User", "kyle-sexton", OWNER_ID, "fork/r")]]) {
+    const { code, calls } = await openWithClosers(nodes);
+    assert.equal(code, 0, JSON.stringify(nodes));
+    assert.ok(opened(calls), JSON.stringify(nodes));
+    assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")), JSON.stringify(nodes));
+  }
+});
+
+// A rerun of the report finds the lanes App's own PR from this branch, which
+// closes the issue itself, so it is never read as a second PR.
+test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {
+  const { code, calls } = await openWithClosers([closer("Bot", BOT)], { own: [{ number: 90, user: { login: BOT }, head: { sha: CHECKED_TIP } }] });
+  assert.equal(code, 0);
+  assert.ok(!calls.some((c) => c.path === "/graphql"));
+  assert.ok(!opened(calls));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")));
+});
+
+test("main opens no PR when the closing PRs cannot be read", async () => {
+  await withAsyncDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /^\/graphql$/, 200, { errors: [{ message: "boom" }] }],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 1);
+      assert.ok(!opened(calls));
+    },
+  );
 });
