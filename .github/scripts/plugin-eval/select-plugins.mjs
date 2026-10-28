@@ -20,8 +20,9 @@
 //   and --head in the git repository --repo, every frontmatter key outside
 //   SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a frontmatter
 //   shape frontmatter() can read and with no YAML alias in those keys, and
-//   adds or changes no `!` shell-preprocessing line or ```! block. Without --repo it cannot be read, so it
-//   is refused;
+//   adds or changes no `!` shell-preprocessing line or ```! block, and
+//   changes no body text of a file that already has one. Without --repo it
+//   cannot be read, so it is refused;
 // - every changed path under evals/ is a case file: prompt.md, case.yaml,
 //   graders/<name>.md or samples/**/<name>.json in a case directory. A
 //   scaffold script, a fixture (scaffold scripts run fixtures/ seed scripts
@@ -177,6 +178,17 @@ const preprocessUnits = (text) => {
   return units;
 };
 
+// The text after a leading frontmatter block, or the whole text.
+const body = (text) => {
+  const raw = String(text ?? "").replace(/^\uFEFF/, "");
+  const lines = raw.split("\n");
+  if (!FENCE.test(lines[0].replace(/\r$/, ""))) {
+    return raw;
+  }
+  const end = lines.findIndex((line, i) => i > 0 && FENCE.test(line.replace(/\r$/, "")));
+  return end === -1 ? raw : lines.slice(end + 1).join("\n");
+};
+
 // Why a changed markdown file is refused, or null. `head` is null when the
 // file is deleted; `base` is null when it is new.
 export function proseRefusal(base, head) {
@@ -200,6 +212,11 @@ export function proseRefusal(base, head) {
   const known = preprocessUnits(base);
   if ([...preprocessUnits(head)].some((unit) => !known.has(unit))) {
     return "adds or changes a ! shell-preprocessing line";
+  }
+  // A kept ! line can start running when the text around it changes (an
+  // enclosing fence removed), so a file that already has one keeps its body.
+  if (known.size && body(base) !== body(head)) {
+    return "changes the body of a file that has a ! shell-preprocessing line";
   }
   return null;
 }
