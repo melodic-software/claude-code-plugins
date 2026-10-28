@@ -482,8 +482,8 @@ printf '# fixture\nplugins/planning/shared/tests/ui.test.sh\n' >"$advisory_list"
 
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 0 "on main, a failing advisory suite does not fail the run" --root "$r"
-assert_output_has "on main, the advisory failure is a warning" \
-  "::warning::plugins/planning/shared/tests/ui.test.sh failed (exit 1)"
+assert_output_has "on main, the advisory failure is a warning titled by its suite" \
+  "::warning title=plugins/planning/shared/tests/ui.test.sh::plugins/planning/shared/tests/ui.test.sh failed (exit 1) but is advisory on this run"
 assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui.test.sh"
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
@@ -491,7 +491,7 @@ assert_output_lacks "on main, the advisory failure gets no error annotation" "::
 
 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on a pull request, the same advisory-listed failure fails the run" --root "$r"
-assert_output_lacks "on a pull request, no advisory warning is printed" "::warning::"
+assert_output_lacks "on a pull request, no advisory warning is printed" "::warning"
 assert_output_has "on a pull request, the failure summary line" "One or more plugin tests failed."
 
 r="$(make_root advisory-other)"
@@ -499,7 +499,7 @@ write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "ok: ui"'
 write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
-assert_output_lacks "on main, a non-advisory failure gets no warning" "::warning::"
+assert_output_lacks "on main, a non-advisory failure gets no warning" "::warning"
 
 # One annotation per failing suite, so a log reader can group by suite.
 assert_output_has "a failing suite gets its own error annotation" \

@@ -337,12 +337,12 @@ if [[ ${#parallel_suites[@]} -gt 0 ]]; then
   printf '%s\0' "${parallel_suites[@]}" | xargs -0 -n 1 -P "$jobs" bash "$runner" --worker
 fi
 
-# suite_error <suite> <message>: one ::error annotation titled by the suite, so
-# a log reader can group failures by suite. Escapes follow actions/toolkit
+# suite_annotate <error|warning> <suite> <message>: one annotation titled by the
+# suite, so a log reader can group results by suite. Escapes follow actions/toolkit
 # packages/core/src/command.ts (escapeProperty, escapeData): % \r \n in both,
 # and : , in the title property, since a suite path may contain either.
-suite_error() {
-  local title="$1" msg="$2"
+suite_annotate() {
+  local level="$1" title="$2" msg="$3"
   title="${title//%/%25}"
   title="${title//$'\r'/%0D}"
   title="${title//$'\n'/%0A}"
@@ -351,7 +351,7 @@ suite_error() {
   msg="${msg//%/%25}"
   msg="${msg//$'\r'/%0D}"
   msg="${msg//$'\n'/%0A}"
-  echo "::error title=$title::$msg"
+  echo "::$level title=$title::$msg"
 }
 
 failed=0
@@ -365,16 +365,16 @@ for i in "${!tests[@]}"; do
   log="$log_dir/${suite_keys[$i]}"
   if [[ ! -f "$log.rc" ]]; then
     echo "FAIL: $t (no result recorded; the worker never reported)" >&2
-    suite_error "$t" "$t failed (no result recorded; the worker never reported)"
+    suite_annotate error "$t" "$t failed (no result recorded; the worker never reported)"
     failed=1
     continue
   fi
   rc="$(<"$log.rc")"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
-    echo "::warning::$t failed (exit $rc) but is advisory on this run (PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
     advisory_failed=$((advisory_failed + 1))
   elif ((rc != 0)); then
-    suite_error "$t" "$t failed (exit $rc)"
+    suite_annotate error "$t" "$t failed (exit $rc)"
     failed=1
   fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"
