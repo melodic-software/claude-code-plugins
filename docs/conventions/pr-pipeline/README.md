@@ -682,6 +682,7 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
 | `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
+| `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default), `invalid` (`ci-context`, as the producer said it wrote a change) or `conflict` (`merge-base`: its `unresolved-conflict` reason, since the conflicts stay as git left them). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` and `docs` set `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
@@ -1593,8 +1594,9 @@ head-branch digest, taken by exact name and uploaded by a completed, successful
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
-successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read.
+`pull_request` run of `pr-require-checks` that succeeded or failed only on holds an approving
+review of the head lifts, so a `ci-status` red for anything else there would never get a verdict,
+and a pull request event makes no verdict read.
 
 The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
 from a checkout of main for the queued pull request at its live head, on a listing of its own, and
@@ -1871,7 +1873,11 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+same-repository, non-draft pull request into main, and after each one whose only failure is
+`ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
+widening; resolve-pr's `heldOnly` reads the run's jobs and the `ci-status` log). The person then
+approves a head pr-verify has judged; `ci-status` stays red until that approval, which no
+verdict replaces. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue

@@ -4973,9 +4973,10 @@ jobs:
       # exact name from the reader's listing (below), with and without the
       # head-branch digest, stopping at the first name that holds such a run:
       # one run read per artifact taken. The same approval of the head lifts
-      # it. Only in the queue: pr-verify runs only after a successful
-      # pull_request run of this workflow, so a red ci-status there would
-      # never get a verdict, and a pull request event reads nothing for it.
+      # it. Only in the queue: pr-verify runs only after a pull_request run of
+      # this workflow that succeeded or failed only on holds an approving
+      # review of the head lifts, so a ci-status red for anything else there
+      # would never get a verdict, and a pull request event reads nothing for it.
       # A push to an armed lanes App pull request turns its auto-merge off
       # (one mutation, no read), so enable-auto-merge's reader judges each
       # new head before it is armed again; the queue still checks the head

@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/billing/export/README.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/cart.md"
+          }
+        }
+      ],
+      "why": "README only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/billing/export/README.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/billing/export.md"
+          }
+        }
+      ],
+      "why": "opened the legacy file after the README"
+    }
+  ]
+}

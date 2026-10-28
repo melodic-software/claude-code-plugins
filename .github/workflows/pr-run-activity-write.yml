@@ -347,6 +347,21 @@ on:
         required: false
         type: string
         default: ""
+      patch-replies-attempt:
+        description: >-
+          apply-patch with patch-prepare review-threads: the read runner's
+          feedback-attempt output, the attempt whose
+          feedback-replies-<lane>-<patch-activity>-<attempt> artifact holds
+          the scanned replies; the commit's Lane-Thread lines name the kept
+          threads their VALID replies name.
+        required: false
+        type: string
+        default: ""
+      patch-replies-sha256:
+        description: With patch-replies-attempt, the replies' SHA-256 from the scan job.
+        required: false
+        type: string
+        default: ""
       patch-verdict-attempt:
         description: >-
           apply-patch with patch-prepare dependency-review: the read runner's
@@ -871,6 +886,40 @@ jobs:
             exit 1
           fi
           echo "file=$THREADS_FILE" >>"$GITHUB_OUTPUT"
+
+      # apply-patch under the review-threads row, before the mint: the scan
+      # job's replies, by the model call's attempt, and their SHA-256; the
+      # commit names in Lane-Thread lines the kept threads their VALID replies
+      # name. A missing or altered file fails the job, so nothing is minted.
+      - name: Download the scanned replies for the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'review-threads'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: feedback-replies-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-replies-attempt }}
+          path: ${{ runner.temp }}/lane-patch-replies
+
+      - name: Check the scanned replies for the patch
+        id: patch-replies
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'review-threads'
+        env:
+          REPLIES_FILE: ${{ runner.temp }}/lane-patch-replies/replies.jsonl
+          REPLIES_SHA256: ${{ inputs.patch-replies-sha256 }}
+        run: |
+          if [ -L "$REPLIES_FILE" ] || [ ! -f "$REPLIES_FILE" ] || [ "$(stat -c %s "$REPLIES_FILE")" -gt 49152 ]; then
+            echo "::error::the feedback-replies artifact holds no replies.jsonl of at most 49152 bytes"
+            exit 1
+          fi
+          sum=$(sha256sum <"$REPLIES_FILE")
+          if ! [[ $REPLIES_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$REPLIES_SHA256" ]; then
+            echo "::error::the replies do not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+          echo "file=$REPLIES_FILE" >>"$GITHUB_OUTPUT"
 
       # apply-patch under the dependency-review row, before the mint: the
       # verdict the read runner's scan job uploaded, by its attempt, and its
@@ -1920,6 +1969,9 @@ jobs:
           # Under the review-threads row: the thread file the check step
           # matched to the select job's SHA-256; empty otherwise.
           KEPT_THREADS_FILE: ${{ steps.patch-threads.outputs.file }}
+          # Under the review-threads row: the scanned replies the check step
+          # matched to the scan job's SHA-256; empty otherwise.
+          PATCH_REPLIES_FILE: ${{ steps.patch-replies.outputs.file }}
           # Under the dependency-review row: the verdict field of the scanned
           # verdict the check step matched to the scan job's SHA-256.
           DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}

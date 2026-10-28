@@ -7483,7 +7483,7 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
 class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
     """Past `SHARED_UNVERIFIED_MAX_AGE`, a passing answer with lane merge
     #8040 unverified is kept up to `SHARED_MAX_AGE` when nothing it was read
-    from moved (`_still_current`) and no verifying run of #8040 reached a
+    from moved (`_moved`) and no verifying run of #8040 reached a
     conclusion since its `computedAt` (the real
     `babysit_postmerge.pending_runs_unchanged`, its listing faked at `_read`).
     The expected decisions are a recompute's: with no run concluded, the
@@ -7501,7 +7501,7 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
 
     def aged(self, minutes: float) -> GhFake:
         """Bound, with the answer computed `minutes` ago and main's head
-        on the answer's config commit, as `_still_current` reads it."""
+        on the answer's config commit, as `_moved` reads it."""
         gh = AStaleSharedAnswerIsRefreshed.aged(self, minutes)
         gh.rest[NEWEST_CONFIG.replace(SHA, MAIN_SHA)] = [{"sha": CONFIG_SHA}]
         return gh
@@ -7638,7 +7638,7 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
                 self.assertEqual(len(checks), 1)
 
     def test_a_moved_head_reads_the_answer_again(self) -> None:
-        # `_still_current` binds the keep to main's head: a newer head reads
+        # `_moved` binds the keep to main's head: a newer head reads
         # the check afresh even with no run concluded.
         self.aged(5)
         self.judged_flight()
