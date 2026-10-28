@@ -581,10 +581,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
   assert.equal(step(apply, "apply").run, 'node ".base/$SCRIPT" --apply');
   // Select and apply read the admission rules and web hosts the split uses
-  // from the default branch, and the model must return the split field.
+  // from the default branch, and the model must return the split and
+  // external fields (the attended classes come from the base config too).
   assert.equal(step(select, "select").env.BASE_PATH, ".base");
   assert.equal(step(apply, "apply").env.BASE_PATH, ".base");
-  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split"\]/);
+  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split","external"\]/);
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {

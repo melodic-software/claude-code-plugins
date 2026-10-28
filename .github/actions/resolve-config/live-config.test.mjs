@@ -482,6 +482,8 @@ test("live config: apply-issue-patch runs apply-patch.mjs and holds on the issue
   const holds = activities["resolve-issue"]["applies-when"]["labels-absent"];
   const applyHolds = new Set(activities["apply-issue-patch"]["applies-when"]["labels-absent"]);
   assert.ok(holds.length > 0);
+  // Owner decision 2026-10-28: attended work waits for the owner, so the lane never starts it.
+  assert.ok(holds.includes("attended"), "resolve-issue holds on attended");
   assert.deepEqual(holds.filter((hold) => !applyHolds.has(hold)), [], "apply-issue-patch's labels-absent covers resolve-issue's");
   assert.deepEqual(activities["apply-issue-patch"]["applies-when"].labels, activities["resolve-issue"]["applies-when"].labels);
   for (const hold of applyHolds) {

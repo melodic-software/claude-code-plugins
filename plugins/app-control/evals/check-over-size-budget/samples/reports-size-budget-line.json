@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "size-budget | features/cart/README.md | 8224 characters, budget 4000\n\nCount: 1",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    },
+    {
+      "answer": "```\nsize-budget | features/cart/README.md | 8,224 characters, budget 4,000\n```",
+      "why": "the same line with thousands separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "features/cart/README.md is about twice its size budget.",
+      "why": "names the finding in prose, without the line form only the check action defines"
+    },
+    {
+      "answer": "size-budget | SKILL.md | 8224 characters, budget 16000",
+      "why": "wrong path and budget"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

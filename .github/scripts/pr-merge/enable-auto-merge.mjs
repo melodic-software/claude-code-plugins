@@ -598,7 +598,7 @@ export function ejectionHold(evidence) {
 // The refusal comment on a lanes App pull request the run leaves unarmed:
 // pr-merge's reasons-comment marker and shape (babysit_merge.py
 // risk_comment_body), its second line naming the head, and for a person's
-// refusal the interactive queue's escalation marker first (work-items
+// refusal the attended queue's escalation marker first (work-items
 // escalation-marker.md), as the gate's Dependabot escalation carries it. A
 // function of the class, the reason and the head only, so an unchanged
 // refusal renders the same body.

@@ -23,6 +23,7 @@
 - [Adoption](#adoption)
 - [Review threads](#review-threads)
 - [Red main](#red-main)
+- [Attended work](#attended-work)
 - [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
@@ -2574,8 +2575,8 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all twelve
-with defaults.
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits every key
+with its default.
 
 | Key | Default | What it sets |
 |---|---|---|
@@ -2583,6 +2584,7 @@ with defaults.
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
+| `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
@@ -2675,7 +2677,10 @@ ready issue `admission-deferred` instead, and each hourly sweep revisits the ope
 whose newest `admission-deferred` was added by the lanes App or a listed human (by id) is
 revisited; any other is left as is with a warning annotation, since re-admitting it adds the App's
 `agent-ready`. Of those, one still ready gets `agent-ready` within the room and loses
-`admission-deferred`, a held one stays deferred, and any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
+`admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
+the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
+`agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 
@@ -2933,6 +2938,37 @@ re-decides there instead of dropping. The log is the oldest `github-actions[bot]
 the dedupe. Any workflow's `GITHUB_TOKEN` posts as that account, so a comment there can still use
 up the cap, which only sends a culprit to a person. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
+
+## Attended work
+
+Work that needs the owner present gets the `attended` label (owner decision 2026-10-28): a manual
+step on external state an agent cannot safely run or test, of a class `attended.classes` lists. It is
+separate from `host-run`, an unattended agent run on a host, and from the human-gated role label
+(`needs-human`), an owner decision.
+
+- **Refinement.** An exact refinement
+  ([`refine.mjs`](../../../.github/scripts/intake-triage/refine.mjs)) ends its criteria with one
+  plain line, never a task-list line: `External state: none`, `External state: iac (<owner/repo>)`
+  or `External state: manual (<class>: <what>)`. The model reads the classes from its context,
+  which `--select` fills from `attended.classes`, and `--apply` refuses a `manual` class not
+  listed there. No keyword in the issue text sets the line.
+- **Admission.** `attended` is a `refuse-labels` entry, parked at `status: confirmed`, never
+  `status: needs-decision`. An issue whose counted refinement records `manual (...)` is refused
+  the same way, and admission adds `attended` and says why. `iac (<repo>)` routes nothing: that
+  repository's preview and deploy flow is the gate.
+- **Holds downstream.** work-unblock counts `attended` among its holds, so no sweep adds
+  `agent-ready` to an issue carrying it, or to an admission-deferred one whose newest `attended`
+  event is a removal by anyone but a listed human. Its re-admission paths park an attended refusal
+  at `status: confirmed` with `attended`, as admission does. resolve-issue and apply-issue-patch
+  list `attended` in `labels-absent`, so a run neither starts nor commits on it.
+- **Removal.** Only a listed human lifts it. While the newest `attended` event is a removal by
+  anyone else, the lanes App included, admission refuses as if the label were on. Once a listed
+  human removed it after the refinement, the refinement's `manual (...)` line no longer refuses. To
+  resume a parked issue once the step is done, a listed human removes `attended` and posts a
+  `**Decision recorded.**` comment, which sends it back through intake (`intake-reenter`).
+- **Mid-run.** A resolve-issue run that reaches such a step stops with the `manual-external` code,
+  whose `attended` route adds the label and removes `agent-ready`
+  ([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)).
 
 ## Branch cleanup
 
