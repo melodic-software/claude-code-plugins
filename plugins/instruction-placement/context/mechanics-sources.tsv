@@ -1,0 +1,35 @@
+id	url	quote	as_of
+MS-1	https://code.claude.com/docs/en/memory#how-claude-md-files-load	Claude Code loads `CLAUDE.md` and `CLAUDE.local.md` from your current working directory and every directory above it.	2026-10-27
+MS-2	https://code.claude.com/docs/en/memory#how-claude-md-files-load	Instead of loading them at launch, Claude Code loads each one once Claude reads, writes, or edits another file in that subdirectory.	2026-10-27
+MS-3	https://code.claude.com/docs/en/memory#import-additional-files	Imported files are expanded and loaded into context alongside the CLAUDE.md that references them.	2026-10-27
+MS-4	https://code.claude.com/docs/en/memory#set-up-rules	Rules without `paths` frontmatter are loaded at launch with the same priority as `.claude/CLAUDE.md`.	2026-10-27
+MS-5	https://code.claude.com/docs/en/memory#path-specific-rules	A path-scoped rule loads when Claude uses the Read, Write, or Edit tool on a matching file.	2026-10-27
+MS-6	https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact	Project-root CLAUDE.md survives compaction: after `/compact`, Claude re-reads it from disk and re-injects it into the session.	2026-10-27
+MS-7	https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact	Nested CLAUDE.md files in subdirectories and rules with `paths:` frontmatter load again on demand.	2026-10-27
+MS-8	https://code.claude.com/docs/en/context-window#what-survives-compaction	Project-root CLAUDE.md and unscoped rules | Re-injected from disk	2026-10-27
+MS-9	https://code.claude.com/docs/en/context-window#what-survives-compaction	Path-scoped rules and nested CLAUDE.md files load into message history when Claude reads, writes, or edits their trigger file, so compaction summarizes them away with everything else.	2026-10-27
+MS-10	https://code.claude.com/docs/en/context-window#what-survives-compaction	Invoked skill bodies | Re-injected, capped at 5,000 tokens per skill and 25,000 tokens total; oldest dropped first	2026-10-27
+MS-11	https://code.claude.com/docs/en/skills#skill-content-lifecycle	When you or Claude invoke a skill, the rendered `SKILL.md` content enters the conversation as a single message and stays there across later turns.	2026-10-27
+MS-12	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	every level of the CLAUDE.md hierarchy the main conversation loads, including `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, managed policy files, and any `AGENTS.md` files loaded as project instructions.	2026-10-27
+MS-13	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	The built-in Explore and Plan agents skip this. A subagent whose definition sets `omitClaudeMd` loads only the managed policy files, or none at all when the definition comes from managed settings.	2026-10-27
+MS-14	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	The exception is a fork, which inherits the parent conversation instead of starting fresh.	2026-10-27
+MS-15	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	It doesn't see your conversation history, the skills you've already invoked, or the files Claude has already read.	2026-10-27
+MS-16	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	For Explore, Plan, and subagents with `omitClaudeMd`, a subdirectory's `CLAUDE.md` and matching path-scoped rules still load when the subagent works with files there.	2026-10-27
+MS-17	https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md	By default, Claude reads `AGENTS.md` only when you have no `CLAUDE.md` in your working directory or above it.	2026-10-27
+MS-18	https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md	a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any directory above it	2026-10-27
+MS-19	https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md	a subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its own	2026-10-27
+MS-20	https://code.claude.com/docs/en/memory#agents-md	Reading `AGENTS.md` directly requires Claude Code v2.1.277 or later.	2026-10-27
+MS-21	https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable	In these sessions Claude reads `CLAUDE.md` files only	2026-10-27
+MS-22	https://code.claude.com/docs/en/memory#path-specific-rules	To keep expansion bounded, a rule's whole `paths` list shares one budget of 1,000 expanded patterns and 4 MiB, and patterns without braces don't count against it.	2026-10-27
+MS-23	https://code.claude.com/docs/en/memory#path-specific-rules	Claude Code uses any pattern that would exceed the budget unexpanded, and its literal braces match no files.	2026-10-27
+MS-24	https://code.claude.com/docs/en/memory#path-specific-rules	A pattern with a `[` that can't be read as a bracket expression, such as `photos [2024/**`, is invalid: it matches nothing, and the rule's other patterns keep working.	2026-10-27
+MS-25	https://code.claude.com/docs/en/memory#set-up-rules	All `.md` files are discovered recursively, so you can organize rules into subdirectories like `frontend/` or `backend/`	2026-10-27
+MS-26	https://code.claude.com/docs/en/memory#user-level-rules	Claude Code loads user-level rules before project rules, so a project rule appears later in Claude's context than a user rule.	2026-10-27
+MS-27	https://code.claude.com/docs/en/skills#frontmatter-reference	the combined `description` and `when_to_use` text is truncated at 1,536 characters in the skill listing to reduce context usage.	2026-10-27
+MS-28	https://code.claude.com/docs/en/skills#frontmatter-reference	When set, Claude loads the skill automatically only when working with files matching the patterns.	2026-10-27
+MS-29	https://code.claude.com/docs/en/memory#how-it-works	Claude gets the whole of each CLAUDE.md file that loads at launch, as long as the file is 4 MiB or smaller.	2026-10-27
+MS-30	https://code.claude.com/docs/en/context-window#what-survives-compaction	Skill descriptions | Rebuilt from your current skills and re-injected. Requires Claude Code v2.1.304 or later	2026-10-27
+MS-31	https://code.claude.com/docs/en/sub-agents#what-loads-at-startup	full content of any skill named in the agent's `skills` field	2026-10-27
+MS-32	https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents	without it, the subagent can still discover and invoke project, user, and plugin skills through the Skill tool during execution.	2026-10-27
+MS-33	https://code.claude.com/docs/en/skills#frontmatter-reference	Uses the same glob format as path-specific rules.	2026-10-27
+MS-34	https://code.claude.com/docs/en/memory#path-specific-rules	Each pattern is relative to the rule's base directory	2026-10-27
