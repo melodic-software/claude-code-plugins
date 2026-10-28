@@ -175,7 +175,20 @@ import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trust
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, liftersOf, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
+import {
+  BODY_HOLD,
+  costDecision,
+  costHold,
+  humansOf,
+  LANE_HOLD,
+  liftersOf,
+  pathHoldKind,
+  pathLifters,
+  personWrote,
+  readStatuses,
+  unblockStops,
+  vetoers,
+} from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -984,6 +997,15 @@ export function rotated(pulls, runNumber) {
   return [...pulls.slice(start), ...pulls.slice(0, start)];
 }
 
+// Why a head's pr-unblock statuses hold it (merge-holds.unblockStops), or
+// null: anything but a read list of stops holds it.
+export function unblockHold(stops) {
+  if (!Array.isArray(stops)) {
+    return "its head's pr-unblock statuses could not be read";
+  }
+  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which ci-status fails in the merge queue`;
+}
+
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
 // `detail` is its discussion; undefined means not read yet, and an arm or a
 // keep then waits on it (action `read`). Its `verify` is the gate's verifier
@@ -1022,6 +1044,12 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   }
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
+  }
+  // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
+  // is never queued; a status list that did not read holds it too.
+  const stopped = unblockHold(detail.unblockStops);
+  if (stopped !== null) {
+    return { action: armed ? "disarm" : "none", reason: stopped, clears: "lane" };
   }
   // A hold path a person clears, lifted by a trusted person's approval of the
   // head or of an earlier head carried over base merges (`lifters`) as
@@ -1193,6 +1221,8 @@ export async function main({ env = process.env, github, actions, verify, room, s
     let networkArms = 0;
     let unexplainedArms = 0;
     const skippedArms = [];
+    // Each pull request a pr-unblock stop on its head kept out of the queue, for the summary.
+    const unblockSkips = [];
     if (holdPaths === null) {
       console.log("::warning title=enable-auto-merge::the resolved config's hold paths did not read, so nothing is armed this run; the next run reads them again");
     }
@@ -1316,7 +1346,13 @@ export async function main({ env = process.env, github, actions, verify, room, s
             if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
               lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans)).lifters;
             }
-            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters };
+            let stops = null;
+            try {
+              stops = unblockStops(await readStatuses(github, `${repo[1]}/${repo[2]}`, pull.headRefOid));
+            } catch (error) {
+              console.log(`enable-auto-merge: #${pull.number} head statuses did not read: ${describe(error)}`);
+            }
+            detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters, unblockStops: stops };
           }
         } catch (error) {
           // A read that fails decides nothing and writes nothing.
@@ -1327,6 +1363,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
           widen && (detail === null || unmarked)
             ? { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null }
             : decide(judged, { bot: slug, humanGated, holdPaths }, detail));
+        if (detail && reason === unblockHold(detail.unblockStops)) {
+          unblockSkips.push(`#${pull.number} ${action === "disarm" ? "disarmed" : "not queued"}: ${escapeCommand(reason)}`);
+        }
       }
       // Past the budget, under serve with an answers file, an unarmed pull
       // request is answered only from a kept refusal, which reads no more
@@ -1549,7 +1588,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
       console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
-    const summary = [...lines.map(([, text]) => text), ...(verify.costs ?? []).map(costLine)];
+    const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine)];
     if (summary.length > 0 && env.GITHUB_STEP_SUMMARY) {
       try {
         appendFileSync(env.GITHUB_STEP_SUMMARY, summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));

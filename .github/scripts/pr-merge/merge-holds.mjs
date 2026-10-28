@@ -1309,6 +1309,49 @@ export function changeOf(line) {
   return { path: line.filename, previous: typeof previous === "string" && previous ? previous : null, status: typeof line.status === "string" ? line.status : null };
 }
 
+// A HEAD A PR-UNBLOCK LANE STOPPED: each `pr-unblock/*` context whose newest
+// status by github-actions[bot] is `failure` or `error`, as
+// { context, state, description }. `statuses` are a commit's REST statuses,
+// newest first as GitHub lists them, so a later `success` on the head
+// supersedes a failure, and another account's status neither holds nor
+// clears. ci-status's pr-unblock step and enable-auto-merge both judge a head
+// by this; a list that is not an array throws.
+export function unblockStops(statuses) {
+  if (!Array.isArray(statuses)) {
+    throw new Error("the head's statuses are not a list");
+  }
+  const seen = new Set();
+  const stops = [];
+  for (const status of statuses) {
+    const context = status?.context;
+    if (typeof context !== "string" || !context.startsWith("pr-unblock/") || status?.creator?.login !== "github-actions[bot]" || seen.has(context)) {
+      continue;
+    }
+    seen.add(context);
+    if (status.state === "failure" || status.state === "error") {
+      stops.push({ context, state: status.state, description: String(status.description ?? "").replaceAll(/[\t\r\n]/g, " ") });
+    }
+  }
+  return stops;
+}
+
+// Every REST status of `head`, 100 a page, newest first. A page that is not a
+// list, or more than 10 pages, throws.
+export async function readStatuses(github, repo, head) {
+  const statuses = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const rows = await github("GET", `/repos/${repo}/commits/${head}/statuses?per_page=100&page=${page}`);
+    if (!Array.isArray(rows)) {
+      throw new Error("the head's statuses did not read");
+    }
+    statuses.push(...rows);
+    if (rows.length < 100) {
+      return statuses;
+    }
+  }
+  throw new Error("more than 1000 statuses on the head");
+}
+
 // Whether a person wrote the body of pull request `number` (personWrote); a
 // read that fails counts as a person.
 async function bodyByPerson(github, repo, number) {

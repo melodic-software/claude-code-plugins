@@ -27,6 +27,7 @@ import {
   UNLABELED_QUERY,
   decide,
   describe,
+  unblockHold,
   liftedByPerson,
   READER_EVENTS,
   personReason,
@@ -54,7 +55,7 @@ import {
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -94,6 +95,8 @@ function detail({ comments = [], reviews = [], inline = [], disabledBy = null } 
     reviews: page(reviews),
     reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
     timelineItems: { nodes: disabledBy ? [{ actor: disabledBy }] : [] },
+    // The head's pr-unblock stops (merge-holds.unblockStops): none.
+    unblockStops: [],
   };
 }
 const said = (login, body, at, association = "OWNER", typename = "User") => ({
@@ -142,6 +145,16 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && listing) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
+    }
+    // The head's commit statuses: a pull request's `statuses`, none by
+    // default; `statuses: "error"` fails the read.
+    const statusPage = /^\/repos\/melodic-software\/claude-code-plugins\/commits\/([0-9a-f]{40})\/statuses\?per_page=100&page=1$/.exec(path);
+    if (method === "GET" && statusPage) {
+      const statuses = pulls.find((candidate) => candidate.headRefOid === statusPage[1])?.statuses ?? [];
+      if (statuses === "error") {
+        throw new Error("GET statuses failed with status 502");
+      }
+      return statuses;
     }
     // The cost decision reads (merge-holds.costDecision): the owner's comment
     // 7 on pull request 40's closing issue, and each pull request closes its own
@@ -2946,4 +2959,52 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned.map((args) => args.includes("--answers-only")), [false, false, false, true]);
   assert.deepEqual(timeouts, [VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, CACHE_ONLY_TIMEOUT_MS]);
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
+});
+
+// ci-status's merge-queue run fails a head whose newest pr-unblock/* status by
+// github-actions[bot] is failure or error (pr-require-checks.yml "Fail a head a
+// pr-unblock lane stopped"), so enable-auto-merge never queues one.
+const BOT = { login: "github-actions[bot]" };
+const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
+
+test("unblockStops keeps each pr-unblock context's newest github-actions status that fails", () => {
+  assert.deepEqual(
+    unblockStops([
+      unblock("pr-unblock/fix-ci", "failure", BOT, "fix-ci\tstopped"),
+      unblock("pr-unblock/fix-ci", "success"),
+      unblock("pr-unblock/address-feedback", "success"),
+      unblock("pr-unblock/address-feedback", "failure"),
+      unblock("pr-unblock/resolve-conflicts", "error"),
+      unblock("pr-unblock/fix-docs", "failure", { login: "someone" }),
+      unblock("ci-lanes", "failure"),
+    ]),
+    [
+      { context: "pr-unblock/fix-ci", state: "failure", description: "fix-ci stopped" },
+      { context: "pr-unblock/resolve-conflicts", state: "error", description: "stopped" },
+    ],
+  );
+  assert.throws(() => unblockStops(null), /not a list/);
+});
+
+test("a head a pr-unblock lane stopped is not queued and is named in the summary; an unheld one still arms", async () => {
+  const summary = join(tempDir("enable-auto-merge-unblock-"), "summary.md");
+  writeFileSync(summary, "");
+  const stopped = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "failure")] });
+  const { writes, lines } = await run([stopped], { GITHUB_STEP_SUMMARY: summary });
+  assert.deepEqual(writes, []);
+  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which ci-status fails in the merge queue";
+  assert.ok(lines.some((line) => String(line).includes(reason)), lines.join("\n"));
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: #1 not queued: ${reason}\n`);
+
+  const cleared = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "success"), unblock("pr-unblock/fix-ci", "failure")] });
+  assert.equal((await run([cleared])).writes[0]?.mutation, "arm");
+  assert.equal((await run([pull(1, { verdict: PASSED })])).writes[0]?.mutation, "arm");
+});
+
+test("a head whose statuses do not read is not queued, and an armed one is disarmed", async () => {
+  assert.deepEqual((await run([pull(1, { verdict: PASSED, statuses: "error" })])).writes, []);
+  const armed = pull(1, { verdict: PASSED, statuses: "error", autoMergeRequest: { enabledAt: NOW } });
+  assert.equal((await run([armed])).writes[0]?.mutation, "disarm");
+  assert.equal(unblockHold(null), "its head's pr-unblock statuses could not be read");
+  assert.equal(unblockHold([]), null);
 });

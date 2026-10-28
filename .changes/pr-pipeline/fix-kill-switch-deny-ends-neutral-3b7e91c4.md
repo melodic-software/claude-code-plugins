@@ -14,3 +14,10 @@ bump: patch
   intake-triage's `refine-select` now skips on apply-verdict's new `stopped` output. Any other
   denial, and every caller without the input, stays red; work-resolve-issue stays red because
   work-unblock re-fires its issue from the failed mint step. `version` stays 2.
+
+- pr-merge's `enable-auto-merge` no longer queues a lanes App pull request whose head a pr-unblock
+  lane stopped. ci-status's merge-queue run fails a head whose newest `pr-unblock/*` status by
+  github-actions[bot] is `failure` or `error`, but only after every lane leg ran, and the queue then
+  ejected it. The rule now lives in `merge-holds.mjs` (`unblockStops`, `readStatuses`): a stopped
+  head, or one whose statuses do not read, is left unarmed (an armed one is disarmed), and each
+  such skip gets a line in the run summary.
