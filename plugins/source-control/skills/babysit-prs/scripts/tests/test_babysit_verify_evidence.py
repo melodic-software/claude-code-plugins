@@ -3492,21 +3492,24 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
 class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     """ci-status holds a cold reader unless GITHUB_TOKEN's pool has one cold
     read's worst case per queue entry (pr-require-checks.yml). That figure
-    must cover the reader's listing caps, so raising `LISTING_READS` or
-    `LISTING_WAITS` without it fails here. The other terms are the figures
-    the workflow comment derives: 793 per-FAIL reads (860 measured
-    2026-10-25 less its 67-page listing), an incremental try of at most 13
-    pages, 77 pages a whole listing and a top-up of at most 7."""
+    must cover the reader's listing caps, so raising `INCREMENTAL_READS`,
+    `LISTING_READS` or `LISTING_WAITS` without it fails here. The other terms
+    are the figures the workflow comment derives: 793 per-FAIL reads (860
+    measured 2026-10-25 less its 67-page listing), at most 13 pages an
+    incremental read, 77 pages a whole listing and a top-up of at most 7."""
 
     def test_the_workflow_constant_is_the_capped_worst_case(self) -> None:
         workflow = (
             pathlib.Path(__file__).resolve().parents[6]
             / ".github/workflows/pr-require-checks.yml"
         ).read_text(encoding="utf-8")
-        found = re.findall(r'printf "%d\\n", (\d+) \* entries', workflow)
+        found = re.findall(r"^ *cold_cost=(\d+)$", workflow, re.MULTILINE)
         self.assertEqual(len(found), 1, found)
+        self.assertEqual(
+            len(re.findall(r'printf "%d\\n", cost \* entries', workflow)), 1
+        )
         attempts = 1 + len(ve.LISTING_WAITS)
-        worst = 793 + 13 + ve.LISTING_READS * (attempts * 77 + 7)
+        worst = 793 + ve.INCREMENTAL_READS * 13 + ve.LISTING_READS * (attempts * 77 + 7)
         self.assertEqual(int(found[0]), worst)
 
 
