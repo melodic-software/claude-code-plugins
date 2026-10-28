@@ -133,6 +133,11 @@ jobs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget). The full-run dispatch's own
+    # `gh api -i` POST leaves none.
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -692,8 +697,16 @@ jobs:
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
           path: ${{ runner.temp }}/alerted.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   merge:
     # On the schedule and a hand-started run it waits for post-merge-dispatch
