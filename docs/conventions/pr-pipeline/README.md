@@ -923,8 +923,8 @@ the rules that only tighten in
     `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own
-    commits touched clears as an `enforcement` path does (owner direction 2026-10-27: "I DON'T
-    WANT TO HAVE TO REVIEW THIS SHIT - IT SHOULD AUTO MERGE"), on a head pr-verify passed
+    commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
+    requests merge without a person's review), on a head pr-verify passed
     (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
