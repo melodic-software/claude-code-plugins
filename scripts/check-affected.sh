@@ -204,6 +204,10 @@ if [[ "$(pwd -P)" != "$tools" ]]; then
   export CHECK_DATA_ROOT="$PWD"
   # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
   export UV_NO_CONFIG=1
+else
+  # It names this tree, so it says nothing; the test suites build fixture
+  # repositories, and an inherited one would point them back here.
+  unset CHECK_DATA_ROOT
 fi
 
 gates_file="$tools/scripts/check-affected-gates.txt"
