@@ -906,6 +906,18 @@ test("an armed pull request that now holds is disarmed", async () => {
   ]);
 });
 
+test("a pr-verify-failed pull request is not armed, and an armed one is disarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  for (const EVENT_NAME of ["schedule", "pull_request_target"]) {
+    const { code, writes } = await run(
+      [pull(1, { labels: labels("pr-verify-failed") }), pull(2, { autoMergeRequest: armed, labels: labels("PR-Verify-Failed") })],
+      { EVENT_NAME },
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], EVENT_NAME);
+  }
+});
+
 test("only the lanes App's ready pull requests from this repository are armed", async () => {
   const { writes } = await run([
     pull(1, { author: { __typename: "User", login: "kyle-sexton" } }),
