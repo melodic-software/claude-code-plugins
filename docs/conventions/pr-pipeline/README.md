@@ -1558,8 +1558,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
   branch and hands the pull request to a person. The verdict job posts no merge marker unless
-  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
-  (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
+  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule,
+  each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
+  ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
@@ -1572,8 +1573,13 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by
-    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
-    newest push is the head.
+    `github-actions[bot]` (or, after a review, the lanes App) pushing a commit of the pull
+    request, and the newest push is the head. Each commit a push brought (its `after` and the
+    ancestors its `before` lacks) is its pusher's own: a commit with Dependabot's author arrives
+    in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, and a
+    lanes App commit in a lanes App push, else the reason is `pushed-by:<login>`. A commit no
+    push in reach brought is `push-history-incomplete`. The pr-unblock verdict job runs the same
+    check before it posts a merge marker.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
     ecosystem and directory `.github/dependabot.yml` lists at both the base and the default branch
     head, matched literally (a pair only one side lists covers nothing, so neither side widens the
