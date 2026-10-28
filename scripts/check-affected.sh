@@ -74,8 +74,9 @@
 # another tree. The pre-push hook runs a merge-base copy of this script with
 # CHECK_DATA_ROOT naming the branch tree, so the two differ: then every check
 # script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
-# reads only the copy's configs (a branch config can load a custom rule, which
-# is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
+# reads the copy's configs plus each branch config the copy proves is data (a
+# branch config can load a custom rule, which is code, so any other is refused),
+# and checks that run the branch's own code skip: --tests, changed-skills, and the
 # validate-plugins steps that report `SKIP` themselves. plugin-options-docs
 # skips when the branch changes its generator, whose output the copy's older
 # generator would reject.
@@ -324,13 +325,35 @@ if ((${#md[@]} == 0)); then
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
 elif ((foreign)); then
-  # Lint HEAD's copy of each file beside only the tooling tree's configs.
+  # Lint HEAD's copy of each file beside the tooling tree's configs, overlaid
+  # with each markdownlint config the branch changed that the tooling tree's
+  # scripts/lib/markdownlint-config-data.mjs proves is data. Any other changed
+  # config is refused with a SKIP line saying why, leaving the tooling tree's.
   markdown_staged() {
-    local stage f rc=0
+    local stage f kind mode data rc=0
     stage="$(mktemp -d)" || return 2
     while IFS= read -r f; do
       mkdir -p "$stage/${f%/*}" && cp "$tools/$f" "$stage/$f" || rc=2
     done < <(cd "$tools" && find . -name node_modules -prune -o -name .git -prune -o -name '.markdownlint*' -type f -print)
+    for f in ${changed[@]+"${changed[@]}"}; do
+      case "${f##*/}" in
+      .markdownlint-cli2.jsonc) kind=options ;;
+      .markdownlint.jsonc | .markdownlint.json) kind=config ;;
+      .markdownlint*)
+        echo "SKIP config $f (refused: only .markdownlint-cli2.jsonc, .markdownlint.jsonc and .markdownlint.json are read as data)"
+        continue
+        ;;
+      *) continue ;;
+      esac
+      mode="$(git ls-tree HEAD -- "$f" | cut -d' ' -f1)"
+      if [[ "$mode" != 100644 && "$mode" != 100755 ]]; then
+        echo "SKIP config $f (refused: not a regular file)"
+      elif data="$(git show "HEAD:$f" | node "$tools/scripts/lib/markdownlint-config-data.mjs" "$kind")"; then
+        mkdir -p "$stage/$(dirname "$f")" && printf '%s\n' "$data" >"$stage/$f" || rc=2
+      else
+        echo "SKIP config $f (refused: ${data:-the data check could not run})"
+      fi
+    done
     for f in "${md[@]}"; do
       mkdir -p "$stage/$(dirname "$f")" && git show "HEAD:$f" >"$stage/$f" || rc=2
     done
@@ -397,18 +420,35 @@ else
   run_check ruff "scripts/run-ruff.sh check ${py[*]}" "$tools/scripts/run-ruff.sh" check "${py[@]}"
 fi
 
-# typos: the exclusions mirror the `exclude:` input of the workflow's typos step
-# (scripts/check-affected-gates.test.sh holds them to it). Any non-zero exit is
-# a finding, never run_check's "could not run" 2; a missing binary was skipped
-# above. The config is the copy's, else the checked tree's (a copy made by the
-# pre-push hook carries none).
+# typos: the exclusions are the `exclude:` input of the checked tree's
+# workflow typos step, read as data, so a branch that exempts files is judged
+# by its own exemption; no workflow or no globs fails closed. Any non-zero exit
+# is a finding, never run_check's "could not run" 2; a missing binary was
+# skipped above. The config is the copy's, else the checked tree's (a copy made
+# by the pre-push hook carries none).
 typos_check() {
-  typos --config "$1" --force-exclude \
-    --exclude 'plugins/*/skills/*/vendor/**' \
-    --exclude 'plugins/*/tools/*/vendor/**' \
-    --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
-    --exclude 'plugins/developer-experience/evals/sources/labels/**' \
-    -- "${changed[@]}" || return 1
+  local workflow=.github/workflows/pr-require-checks.yml g
+  local -a excludes=()
+  if [[ ! -f "$workflow" ]]; then
+    echo "typos: $workflow is missing, so its typos step's exclude globs cannot be read"
+    return 1
+  fi
+  # The scan covers only the typos step: its keys sit at the indent of its
+  # `id: typos` line, and the first non-blank line indented less ends the step.
+  while IFS= read -r g; do excludes+=(--exclude "$g"); done < <(
+    awk 'ind { match($0, /^ */); if (NF && RLENGTH < ind) exit }
+      /^ *(- )?id: typos$/ { match($0, /^ *(- )?/); ind = RLENGTH; next }
+      ind && /^ *exclude: / { sub(/^ *exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$workflow"
+  )
+  if [[ "${excludes[1]-}" == ['>|']* ]]; then
+    echo "typos: $workflow writes its typos step's exclude as a YAML block scalar (${excludes[1]}); write the globs on the exclude: line itself"
+    return 1
+  fi
+  if ((${#excludes[@]} == 0)); then
+    echo "typos: $workflow has no exclude globs on its typos step (id: typos)"
+    return 1
+  fi
+  typos --config "$1" --force-exclude "${excludes[@]}" -- "${changed[@]}" || return 1
 }
 typos_config="$tools/_typos.toml"
 [[ -f "$typos_config" ]] || typos_config="$PWD/_typos.toml"
