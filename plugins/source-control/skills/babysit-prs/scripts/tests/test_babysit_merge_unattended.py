@@ -5670,6 +5670,19 @@ class AdoptionHoldLabel(unittest.TestCase):
         assess = self.run_assess(policy.LOCAL_BABYSIT, label)
         self.assertIsNone(assess.call_args.kwargs["human_gated"])
 
+    def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
+        self,
+    ) -> None:
+        # A shared answer past the unverified age is kept only on the
+        # post-merge check's own verifying-run proof, for this repository.
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
+        runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
+        with mock.patch.object(
+            postmerge, "pending_runs_unchanged", return_value=True
+        ) as proof:
+            self.assertTrue(runs_unchanged(mock.sentinel.answer, "main"))
+        proof.assert_called_once_with("o/r", mock.sentinel.answer, "main")
+
 
 if __name__ == "__main__":
     unittest.main()
