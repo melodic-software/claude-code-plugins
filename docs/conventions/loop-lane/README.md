@@ -345,7 +345,7 @@ The owner's standing direction on cost and other stops (the owner's section 3), 
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
-review lane's verdict) on its own concern. It routes the concern to that lane's owner as an issue,
+review lane's verdict), or ask the owner about it, on its own concern. It routes the concern to that lane's owner as an issue,
 and labels the pull request only for a HIGH or CRITICAL risk it can evidence (a published advisory
 or malicious-package report, a leaked secret, a compromised publisher). A held Dependabot update
 went to the owner on 2026-10-28 although its tier was `auto`.
