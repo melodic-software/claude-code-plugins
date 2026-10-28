@@ -50,7 +50,10 @@ outside the system temp directory.
   2026-10-13 (569 directories after about an hour of runs, issue #7431), and match the sandbox
   paths in `plugins/testing/evals/sandbox-probe-plain/samples/echo-printed.json`. The mode-000
   `sealed/` that refused `chmod -R u+w` and yielded to the per-sandbox loop above comes from a
-  WSL2 host on Claude Code 2.1.309 on 2026-10-23 (issue #9414).
+  WSL2 host on Claude Code 2.1.309 on 2026-10-23 (issue #9414). A kept run's `tracePath` lies
+  inside its `claude-eval-*` sandbox, as the `read` action's removal assumes; the validity gate
+  reads it as the sandbox's `out/trace.jsonl` (`scripts/run-validity.py`).
 - **As of:** 2026-10-23.
-- **Recheck when:** a `--keep-temp` run prints a sandbox path outside `<tmp>/claude-eval-*`, the
-  docs name the sandbox directory, or a release note says runs remove their sandboxes.
+- **Recheck when:** a `--keep-temp` run prints a sandbox path outside `<tmp>/claude-eval-*` or a
+  `tracePath` with no `claude-eval-*` directory on it, the docs name the sandbox directory, or a
+  release note says runs remove their sandboxes.

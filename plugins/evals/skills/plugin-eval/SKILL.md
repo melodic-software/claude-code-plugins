@@ -22,7 +22,7 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `preflight <target>` | Print the report below and stop. No CLI invocation, no spend |
 | `validate [<eval-dir>]` | Run the static case validator only. No model call |
 | `run <target>` (default) | Preflight, validate, print the estimate, then invoke the CLI |
-| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest |
+| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest, then remove the sandboxes its run kept |
 | `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
@@ -362,6 +362,32 @@ End the reading with one line on the change under test: `promote` only when the 
 noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read
 found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those
 conditions that failed.
+
+### Removing the run's sandboxes
+
+After the promote line, or wherever the reading stopped, remove the sandboxes the run in this file
+kept. First finish everything the traces are needed for: the spot-read, the trace evidence an
+INVALID cause needs for its fix, and whether a without-arm trace loads a large skill (the Cost
+anchor). A relative `tracePath` resolves against the JSON file's directory. Its sandbox is the
+nearest directory named `claude-eval-*`, the path itself or an ancestor
+([sandboxes.md, Record](reference/sandboxes.md#record)). Collect the distinct sandboxes that still
+exist and remove exactly those by literal path, each quoted:
+
+```bash
+for d in '<sandbox>' '<sandbox>'; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
+```
+
+Then check each path: one that still exists was refused, since the loop's exit status is only the
+last `rm`'s. Remove nothing else: never a glob over `<tmp>/claude-eval-*`, which also holds other
+runs' sandboxes, and nothing for a `tracePath` with no `claude-eval-*` directory on it. A run
+without `--keep-temp` has none left to remove; say so. When the removal is refused (a declined
+prompt, a denied command, a path left behind), print that command with the remaining paths for
+the user to run, and note that a directory `chmod` cannot enter still needs `sudo rm -rf`.
+Preflight's `leftover_sandboxes` count stays the backstop for a run that never reached a read.
+
+A later read of the same file finds its traces gone: the gate's unresolved-trace INVALID then comes
+from this removal, not the run. Say so and report the earlier read's verdict if it is known; do not
+prescribe a rerun for that reason alone.
 
 ## Iterating
 
