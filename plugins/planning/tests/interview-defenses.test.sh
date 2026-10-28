@@ -651,7 +651,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "661b74163de8a4f962989eac8104002abb6da47d9822eb01cc7379dbc733900d"
+  "c2e292aa0239134d379cf4b9d4c881497a58179db611bcbbc2a57d17b1109116"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
