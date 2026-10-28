@@ -916,8 +916,9 @@ jobs:
           # drift. The managed config cannot carry a consumer-local
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
-          # histories, so a correction would change what the judge is measured on.
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
+          # histories, so a correction would change what the judge is measured on;
+          # the developer-experience labeled samples are judge inputs for the same reason.
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned
@@ -3254,9 +3255,9 @@ jobs:
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six, the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25, up to 1,520 under
-    # the listing's caps; its wall time is unmeasured, and a cold one can reach
-    # the cap, which fails red) and the pr-unblock status step's one (two in the
+    # reads and about 860 without them, measured 2026-10-25, up to the cold-read
+    # headroom check's cold_cost under the listing's caps; its wall time is
+    # unmeasured, and a cold one can reach the cap, which fails red) and the pr-unblock status step's one (two in the
     # merge queue), about four and a half minutes, plus the cost-hold step's
     # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
@@ -3366,10 +3367,10 @@ jobs:
         #   api_budget_emit_content     the notice for the job's content-creating
         #                               writes: count and most in any 60 s
         #   api_budget_emit_calls <token>...
-        #                               the hub's api-calls notice for each token with
-        #                               a reading, `<token>=N not-modified=M`: N is
-        #                               the job's own calls, M its 304 answers, which
-        #                               GitHub does not count
+        #                               the hub's api-calls notice for each token,
+        #                               `<token>=N not-modified=M`: N is the job's own
+        #                               calls, M its 304 answers, which GitHub does not
+        #                               count; 0 for a token with no reading
         #
         # pr-require-checks.yml's ci-status job carries this file verbatim in its
         # API_BUDGET_SH env (it has no checkout of this directory);
@@ -3672,7 +3673,8 @@ jobs:
           local token file
           for token; do
             file=${RUNNER_TEMP:-}/api-budget/$token
-            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ && -s $file ]] || continue
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+            [[ -s $file ]] || file=/dev/null
             awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
           done
           return 0
@@ -4890,8 +4892,8 @@ jobs:
       # requests for a lanes App pull request where a cold reader makes about
       # 860 (one run read and compare per FAIL and a download per untied
       # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
-      # most 1,520 under the listing's caps (the cold-read headroom check
-      # below states the derivation). They
+      # most the cold-read headroom check's cold_cost under the listing's
+      # caps (that check states the derivation). They
       # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
       # finds it (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
@@ -5232,18 +5234,19 @@ jobs:
             # carry) are all empty, the reader reads every FAIL: 860
             # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
             # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
-            # listing is capped by babysit_verify_evidence.py: an incremental
-            # try on a carried listing (at most 13 pages, LISTING_CARRY_MAX_AGE),
-            # then LISTING_READS (3) whole listings, each up to
+            # listing is capped by babysit_verify_evidence.py: INCREMENTAL_READS
+            # (3) incremental reads on a carried listing (at most 13 pages each,
+            # LISTING_CARRY_MAX_AGE), then LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
             # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
             # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
             # pages a whole listing (76 at the 7,522-artifact peak of
             # 2026-10-27, plus one) a cold read costs at most
-            # 793 + 13 + 3 x (3 x 77 + 7) = 1,520; test_babysit_verify_evidence
-            # pins this figure to those caps. It covers this path only: an
+            # 793 + 3 x 13 + 3 x (3 x 77 + 7) = 1,546, cold_cost below;
+            # test_babysit_verify_evidence derives it from those caps and fails
+            # when cold_cost differs. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
-            # listing's part (up to 727) unguarded. A missing cache is shared,
+            # listing's part (up to 753) unguarded. A missing cache is shared,
             # so every entry the queue builds at once goes cold together: the
             # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
@@ -5270,16 +5273,17 @@ jobs:
                 echo "::error::$cold, and the merge queue's max_entries_to_build could not be read, so the headroom for cold reads cannot be judged. Re-queue it."
                 exit 1
               fi
+              cold_cost=1546
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
-                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" \
-                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 1520 * entries + int(floor * cap + 0.999999) }'); then
-                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to 1,520 requests) is not started. Re-queue it."
+                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" -v cost="$cold_cost" \
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", cost * entries + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to $cold_cost requests) is not started. Re-queue it."
                 exit 1
               fi
               if [ "$remaining" -lt "$need" ]; then
-                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (1,520 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs ($cold_cost for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
                 exit 1
               fi
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."

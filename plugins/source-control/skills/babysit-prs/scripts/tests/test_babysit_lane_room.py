@@ -175,7 +175,9 @@ class LaneRoom(unittest.TestCase):
             mock.patch.object(
                 policy, "newest_config_commit", return_value=config_commit
             ),
-            mock.patch.object(policy, "_get", return_value=(200, {"sha": MAIN})),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"object": {"sha": MAIN}})
+            ),
             # The recompute's reads at the default branch head: a newer head,
             # no demotion record, and a later floor than the old answer's.
             mock.patch.object(
@@ -839,7 +841,9 @@ class SettleShared(unittest.TestCase):
         self.runs = mock.Mock(return_value=runs)
         with (
             mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
-            mock.patch.object(policy, "_get", return_value=(200, {"sha": head})),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"object": {"sha": head}})
+            ),
             mock.patch.object(
                 policy, "_default_branch_head", return_value=("main", head)
             ),

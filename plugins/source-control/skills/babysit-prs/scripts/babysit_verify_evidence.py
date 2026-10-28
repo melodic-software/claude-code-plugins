@@ -133,8 +133,11 @@ incremental listings that day each held exactly that count and every artifact
 a full listing taken just after held, plus 0, 1 and 3 that the full listing
 skipped at its page boundaries though they still existed. An artifact that
 expires during the read can only make the counts differ. Pages that read
-whole but hold any other count are read again on the same base, up to
-`INCREMENTAL_READS` reads; after those, on any failed read (a timeout, a 429
+whole but hold any other count print one `LISTING_MISS_PREFIX` line on stderr
+(the counts, the pages read, the base's age) and are read again on the same
+base after each of `INCREMENTAL_WAITS`, up to `INCREMENTAL_READS` reads inside
+one `LISTING_TIMEOUT_SECONDS`; no wait or miss loosens the check, and after
+those reads, on any failed read (a timeout, a 429
 or a rate-limit 403 included, which are never read again), or with a base
 that is missing, older or of another shape, it lists every page, checked the
 same way. A carry forged to drop a FAIL must therefore
@@ -305,14 +308,19 @@ LISTING_OVERLAP = timedelta(hours=2)
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
-# The incremental reads on one base before a whole listing. The first
-# pr-merge tick on a carried base (run 40600822658, 2026-10-27 23:19Z) read
-# 4 pages that did not hold the live count and then paged all 71; the same
-# base read again at 23:24Z held it in 4 pages. A page boundary that moves
-# while the pages are read, as a whole listing's does (#10486), would do
-# that. A second read costs about 4 pages against 71 (judgment on that
-# data).
-INCREMENTAL_READS = 2
+# The waits between incremental reads on one base. A count that misses the
+# live total can stay off for longer than an immediate re-read takes, while a
+# page boundary settles; bounded waits let it settle before the reader pages
+# every artifact. Together they stay well under the time of one whole listing
+# and inside `LISTING_TIMEOUT_SECONDS`, and each `babysit-listing-miss` line
+# shows whether they outlast the miss (judgment).
+INCREMENTAL_WAITS = (15.0, 30.0)
+# The incremental reads on one base before a whole listing: the first, then
+# one after each wait.
+INCREMENTAL_READS = 1 + len(INCREMENTAL_WAITS)
+# The prefix of the stderr line `Reader._incremental` prints for each read
+# that missed the live count, like babysit_gh's `babysit-gh-calls`.
+LISTING_MISS_PREFIX = "babysit-listing-miss"
 
 
 class _CountMissed:
@@ -955,12 +963,20 @@ class Reader:
         fetched_at = _wall_clock()
         base = self._incremental_base()
         listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
-        # Only pages that read whole but missed the live count are read again;
+        # Only pages that read whole but missed the live count are read again,
+        # after a wait, every read and wait inside one `LISTING_TIMEOUT_SECONDS`;
         # a failed read lists every page at once, as `_read_listing` decides.
-        for _ in range(INCREMENTAL_READS if base is not None else 0):
-            listing = self._incremental(base)
-            if listing is not COUNT_MISSED:
-                break
+        if base is not None:
+            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+            for wait in (*INCREMENTAL_WAITS, None):
+                listing = self._incremental(base, deadline, "incremental")
+                if (
+                    listing is not COUNT_MISSED
+                    or wait is None
+                    or deadline - _listing_clock() - wait <= 0
+                ):
+                    break
+                _listing_sleep(wait)
         self.listing_mode = "incremental"
         if not isinstance(listing, list):
             self.listing_mode = "full"
@@ -1055,7 +1071,9 @@ class Reader:
                     union[item["id"]] = item
                 else:
                     raise _Unreadable("repository artifacts: an entry with no id")
-            listing = self._incremental((read_at, list(union.values())), deadline)
+            listing = self._incremental(
+                (read_at, list(union.values())), deadline, "top-up"
+            )
             if isinstance(listing, list):
                 return listing
         raise _Unreadable(
@@ -1067,6 +1085,7 @@ class Reader:
         self,
         base: tuple[datetime, list[dict[str, Any]]] | None = None,
         deadline: float | None = None,
+        stage: str = "incremental",
     ) -> list[dict[str, Any]] | _CountMissed | None:
         """Every repository artifact, as the base (`_incremental_base`) and
         the newest pages read now show them; `COUNT_MISSED` when the pages
@@ -1083,9 +1102,10 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
-        GitHub's live count: any other count gives `COUNT_MISSED`. No base,
-        an entry or page of another shape, a missing `Date`, or any failed
-        read gives None.
+        GitHub's live count: any other count gives `COUNT_MISSED`, and one
+        `LISTING_MISS_PREFIX` line on stderr names `stage`, the counts and
+        the pages read. No base, an entry or page of another shape, a missing
+        `Date`, or any failed read gives None.
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
         if base is not None and not all(_listed_entry(a) for a in base[1]):
@@ -1158,7 +1178,25 @@ class Reader:
             and (a["expires_at"] is None or _when(a["expires_at"]) > server_now)
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
-        return listing if len(listing) == total else COUNT_MISSED
+        if len(listing) == total:
+            return listing
+        # Fewer than the live count: the pages skipped an artifact. More: the
+        # base holds one GitHub no longer lists below the pages read.
+        miss = {
+            "stage": stage,
+            "listed": len(listing),
+            "total_count": total,
+            "fresh": len(fresh),
+            "kept": len(kept),
+            "pages": page,
+            "base_age_seconds": round((server_now - base_at).total_seconds()),
+        }
+        print(
+            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return COUNT_MISSED
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""

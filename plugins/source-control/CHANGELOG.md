@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.18.2] - 2026-10-28
+
+### Changed
+
+- `babysit_verify_evidence.py` reads an incremental artifact listing that missed GitHub's live `total_count` up to three times on the same base, waiting 15 s and then 30 s between reads (`INCREMENTAL_WAITS`), inside one `LISTING_TIMEOUT_SECONDS`, before it pages the whole listing. Scheduled pr-merge run 40726697038 (2026-10-28) read two incremental listings back to back, both missed, and its skip step then made 218 GITHUB_TOKEN requests over 2.5 minutes (207 whole-listing pages at about 0.7 s a page), against 4 in the next run. In run 40600822658 (2026-10-27), a base whose first read missed held the count when read again five minutes later. Of 239 merge runs that week, 60 made over 150 GITHUB_TOKEN requests (median 80). A listing is still kept only when it holds exactly the live count, a persistent miss still pages the whole listing, and a failed read still pages it at once.
+- Each read that misses the live count prints one `babysit-listing-miss` JSON line on stderr: the stage (`incremental`, or a whole listing's `top-up`), the listed and live counts, the fresh and carried entries, the pages read, and the base's age. Stdout and every decision are unchanged.
+
+### Fixed
+
+- The `/source-control:pull-request` ready and create references name `config-root.sh` by its `<plugin-root>/lib/` path, so an agent no longer runs a nonexistent `scripts/config-root.sh` (exit 127).
+
+## [3.18.1] - 2026-10-28
+
+### Fixed
+
+- The pr-merge gate (`babysit_verify_evidence`) no longer refuses a head `verify:fail` for ever after a relink: a FAIL at a head is superseded when every counted FAIL there is the pull request's own, every counted pass there was created after them and records other linked issues, and from the FAIL's creation to each pass run's completion the pull request has at least one body edit or issue connect or disconnect, every one by a trusted human. The lanes App or any other Bot, an unnamed actor, a failed or cut read, or the same linked issues keep the FAIL. A superseded FAIL still counts toward the FAIL cap, and a merge-only head carries a FAIL forward unless it was superseded at its own head.
+
+- The merge-risk hold floor now covers `.github/scripts/pr-unblock/verify-notes.mjs` as an enforcement path, since it adds and removes the `pr-verify-failed` merge hold. An edit to it is held like the other pr-unblock enforcement scripts.
+
 ## [3.18.0] - 2026-10-28
 
 ### Added
