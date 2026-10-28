@@ -886,6 +886,7 @@ function resolveSlot(
     ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity.tidy === undefined ? {} : { tidy: activity.tidy }),
     ...(activity["permission-mode"] === undefined ? {} : { "permission-mode": activity["permission-mode"] }),
     ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
     effect: activity.effect,
