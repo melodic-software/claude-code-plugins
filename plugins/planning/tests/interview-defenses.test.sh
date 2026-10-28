@@ -586,11 +586,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
 # The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
 # gate reads only the Restatement stamp (#9912); no defense weakened
+# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "9beea2e4efe382b0d4d2bd5c3be72cc06dd2122a7c35eea2207ad0324b96d0ca"
+  "8d7ccf3b8a4b1467db520c8d068bc1716da6f7147104c3159f4e042002e0df23"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -688,11 +689,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
 # The section's pointers now name context/lane-page.md and context/question-shape.md; a pointer changes no rule.
+# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "ac4456c25873fde66592daa3202789a242c15b7bea34b50cde9076a6864bbed2"
+  "b754a64f96cc21f66a5a6088c3e3eb293167b4bf74656d01fc4a629e719da67b"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
