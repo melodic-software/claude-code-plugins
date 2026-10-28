@@ -1237,7 +1237,8 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
 // workflow run (the run id in each check's details_url). When the rung-up's
 // push job stops, the pair
 // is one stopped attempt: the first check's "Passed: no changes" does not
-// leave the head handled, and the pair spends one restart, not two.
+// leave the head handled. The pair still spends two of the head's
+// maxRunsPerHead places, one per model run.
 test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried on the same head", async () => {
   const head = "7".padStart(40, "a");
   const at = (time) => `2026-10-22T${time}:00Z`;
@@ -1249,13 +1250,18 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   // A stop in another workflow run marks only that run.
   const other = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 2)]]]) });
   assert.ok(other.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), other.lines.join("\n"));
-  // A second stopped attempt is past the one restart.
+  // A stopped pair and one failed run are three model runs, the per-head cap.
+  const failed = { ...fixCi("11:00", 3, null), conclusion: "failure" };
+  const capped = await run({ pages: [[pr(7)]], history: new Map([[head, [...pair, failed]]]), stops: new Map([[head, [stop("10:15", 1)]]]) });
+  assert.ok(capped.lines.includes(`::warning::#7: head ${head}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), capped.lines.join("\n"));
+  assert.deepEqual(capped.api.calls.dispatch, []);
+  // Two stopped pairs are four model runs, past the cap.
   const twice = await run({
     pages: [[pr(7)]],
     history: new Map([[head, [...pair, fixCi("11:00", 3, "Passed: no changes"), fixCi("11:10", 3, "Fixed")]]]),
     stops: new Map([[head, [stop("10:15", 1), stop("11:15", 3)]]]),
   });
-  assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
+  assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
 });
 
 // A head whose fix-ci stop still fails after its checks went green (a flaky

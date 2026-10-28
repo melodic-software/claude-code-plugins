@@ -222,7 +222,7 @@ The pr-unblock lane stopped \`$activity\` on this pull request: $why. The lane s
 - Reason: \`$ESCALATION_REASON\`
 - Head: \`$HEAD_SHA\`
 $run_line$details
-When a retry on this head can change the outcome, the lane runs one on its own, up to its per-head cap, and edits this comment if it stops again; a run that does not stop clears the status. When no retry can (a review thread the lane does not take or settle, or a failing check after the retries are spent), a person resolves the threads or gets the checks green, then dispatches the workflow below: that run finds the cause gone and clears the status, which no dispatcher does on its own. A new commit to the branch starts clean.$more
+When a retry on this head can change the outcome, the lane runs one on its own, up to its per-head cap, and edits this comment if it stops again; a run that does not stop clears the status. When no retry can (a review thread the lane does not take or settle, or a failing check after the retries are spent), a person resolves the threads or gets the checks green, then dispatches the workflow below: that run finds the cause gone and clears the status. On a pull request the lanes App opened, the dispatchers start that run once per stop; on any other, a person does. A new commit to the branch starts clean.$more
 
 To run it again on this head now, dispatch the \`pr-unblock\` workflow:
 

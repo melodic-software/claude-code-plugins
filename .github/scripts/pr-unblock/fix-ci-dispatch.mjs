@@ -161,7 +161,8 @@ const fromRest = (run) => ({
 
 // The head's fix-ci runs (REST) in the rollup's shape, one per workflow run:
 // fix-ci and the in-run fix-ci-rung-up both post a fix-ci check, and the pair
-// is one attempt, read from its last check. An attempt a lane-stopped push job
+// is one attempt, read from its last check, that spends one place under the
+// per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
 // check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
 // the head may be retried under the same caps a failed run is. A check's
 // workflow run is the id in its details_url (report-check-run sets it to the
@@ -187,14 +188,15 @@ export function withStops(runs, stopRuns) {
   const attempts = new Map();
   for (const run of runs) {
     const key = runOf(run) ?? Symbol();
-    const attempt = attempts.get(key) ?? { last: run, stopped: false };
+    const attempt = attempts.get(key) ?? { last: run, stopped: false, spent: 0 };
     if (startOf(run) >= startOf(attempt.last)) {
       attempt.last = run;
     }
+    attempt.spent += 1;
     attempt.stopped ||= stoppedAt(run);
     attempts.set(key, attempt);
   }
-  return [...attempts.values()].map(({ last, stopped }) => (stopped ? { ...fromRest(last), conclusion: "FAILURE" } : fromRest(last)));
+  return [...attempts.values()].map(({ last, stopped, spent }) => ({ ...fromRest(last), ...(stopped ? { conclusion: "FAILURE" } : {}), spent }));
 }
 
 // The fix-ci runs that count: an untrusted-trigger skip ran nothing.
@@ -206,11 +208,14 @@ const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" &&
 const heldSkip = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
 const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || heldSkip(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
 
-// The number of counted fix-ci runs when every one may be retried and they
-// reach maxRunsPerHead, the head's hard end; else 0.
+// The number of counted fix-ci model runs when every attempt may be retried
+// and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
+// spends one place for each fix-ci check it posted, so a rung-up pair spends
+// two.
 export function capCount(runs, maxRunsPerHead = DEFAULTS.maxRunsPerHead) {
   const kept = counted(runs);
-  return kept.length >= maxRunsPerHead && kept.every(retryable) ? kept.length : 0;
+  const spent = kept.reduce((sum, run) => sum + (run.spent ?? 1), 0);
+  return spent >= maxRunsPerHead && kept.every(retryable) ? spent : 0;
 }
 
 // An owner PR is idle when neither it nor its head commit changed in the last
@@ -421,8 +426,9 @@ export function skipReason(
   }
   // The cap counts the REST runs alone, so the dispatcher that read them warns
   // and records the head.
-  if (node.fixCiRuns !== undefined && capCount(runs, maxRunsPerHead) > 0) {
-    return `head's ${checkName} ran ${runs.length} time(s), the most one head gets`;
+  const capped = node.fixCiRuns === undefined ? 0 : capCount(runs, maxRunsPerHead);
+  if (capped > 0) {
+    return `head's ${checkName} ran ${capped} time(s), the most one head gets`;
   }
   // Only a run on the current base tip counts: one that ended before the tip
   // was committed ran against an older base (an unreadable time counts).

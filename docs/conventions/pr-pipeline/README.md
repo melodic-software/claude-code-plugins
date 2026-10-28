@@ -162,7 +162,11 @@ conflicts are resolved. A push that resolves them is a new head, which the statu
 A conflict that clears with the head unchanged (main moved again) leaves the failing status on it
 until a push or a person replaces it. An `address-feedback` or `fix-ci` failing status stays too
 when a person resolves the threads or gets the checks green on that head: a `pr-unblock` dispatch
-of that activity then finds the cause gone and clears it, and no dispatcher starts that run.
+of that activity then finds the cause gone and clears it. On a lanes App pull request the
+dispatchers start that run themselves, once per stop: `pr-feedback-dispatch.yml`'s sweep for an
+`address-feedback` stop with no unresolved thread left (`sweepStale`), and `pr-unblock-dispatch.yml`
+for a `fix-ci` stop whose head's checks all pass (`staleStop`). On any other pull request a person
+dispatches it.
 
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
@@ -573,8 +577,8 @@ model turn, leaves it. A select job that finds the stop gone on its head also po
 (`stop-resolved`): `address-feedback` once no hold and no unresolved review thread is left,
 `fix-ci` once a whole listing of the head's checks, every one completed, has none failing (round
 cap included). So a thread resolved by hand, or CI fixed by hand or re-run green, frees the same
-head at the next dispatch of that activity (the one the lane-stopped comment gives); nothing
-dispatches it on its own, and a `ci-status` that already failed stays failed until something
+head at the next dispatch of that activity (the one the lane-stopped comment gives); on a lanes App
+pull request the dispatchers above start it once per stop, on any other a person does, and a `ci-status` that already failed stays failed until something
 re-runs it (the next review lane's `rerun-ci-status`, or a person). Once the retries are spent, the monitoring lane's
 `stalled lane stop` signal names the PR. A new head carries no status, so the lane's next run
 there starts clean.
