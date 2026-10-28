@@ -439,12 +439,28 @@ mkdir -p "$REAL_ROOT"
 ln -s "$REAL_ROOT" "$LINK_ROOT"
 # Git Bash without native symlinks makes `ln -s` copy the directory; there is no symlink to test.
 if [[ -L "$LINK_ROOT" ]]; then
+  OTHER_ROOT="$TEST_TMPDIR/other-root"
+  mkdir -p "$OTHER_ROOT"
   git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-a" -b feat/sib-a
   git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-b" -b feat/sib-b
+  git -C "$LINK_REPO" worktree add -q "$OTHER_ROOT/sib-c" -b feat/sib-c
+  # A sibling under the same parent that is itself a symlink, to another directory.
+  ln -s "$OTHER_ROOT/sib-c" "$REAL_ROOT/sib-c-link"
+  # git records the resolved path, so porcelain would never show the symlinked spelling. Point
+  # each admin gitdir at the logical path, so parse_worktrees canonicalizes all three in one run:
+  # sib-a resolves its parent, sib-b reuses it, sib-c-link must not.
+  admin="$(git -C "$LINK_REPO" rev-parse --path-format=absolute --git-common-dir)/worktrees"
+  printf '%s\n' "$LINK_ROOT/sib-a/.git" >"$admin/sib-a/gitdir"
+  printf '%s\n' "$LINK_ROOT/sib-b/.git" >"$admin/sib-b/gitdir"
+  printf '%s\n' "$LINK_ROOT/sib-c-link/.git" >"$admin/sib-c/gitdir"
   REAL_PHYS="$(physical_dir "$REAL_ROOT")"
+  OTHER_PHYS="$(physical_dir "$OTHER_ROOT")"
   run_claim report --repo-dir "$LINK_REPO"
+  assert_contains "porcelain carries the symlinked spelling" "$(git -C "$LINK_REPO" worktree list --porcelain)" "$LINK_ROOT/sib-b"
   assert_contains "first sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-a"
-  assert_contains "second sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-b"
+  assert_contains "second sibling, from the cached parent, reports its physical path" "$OUT" "$REAL_PHYS/sib-b"
+  assert_contains "a sibling that is itself a symlink resolves to its target" "$OUT" "$OTHER_PHYS/sib-c"
+  assert_not_contains "the symlinked sibling is not reused from the parent cache" "$OUT" "$REAL_PHYS/sib-c-link"
   run_claim claim "$LINK_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
   assert_exit "claim through the symlinked spelling finds the sibling" 0 "$?"
   run_claim check-enter "$REAL_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
