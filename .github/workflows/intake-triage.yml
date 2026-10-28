@@ -420,6 +420,9 @@ jobs:
     permissions:
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
+    outputs:
+      # `kill-switch` when the broker refused the token for a kill switch.
+      stopped: ${{ steps.lane-token.outputs.skip-reason }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -476,6 +479,9 @@ jobs:
       # Swaps this job's GitHub identity proof for a short-lived lanes App
       # token for this repository only, with the resolved grant (issues:
       # write, contents: read, pull-requests: read).
+      # A kill switch turned on after this run read its variables is refused
+      # `kill-switch`: the step ends green with a notice and no token, the
+      # write below skips, and refine-select skips on the `stopped` output.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
@@ -490,6 +496,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
 
       - name: Write the verdict
         if: steps.lane-token.outputs.token != ''
@@ -546,7 +553,7 @@ jobs:
   # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
     needs: [born-triaged, apply-verdict]
-    if: ${{ !cancelled() && needs.apply-verdict.result == 'success' }}
+    if: ${{ !cancelled() && needs.apply-verdict.result == 'success' && needs.apply-verdict.outputs.stopped == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -1322,6 +1329,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
 
       - name: Post the refinement
         id: apply

@@ -936,7 +936,9 @@ jobs:
       # run that a change to this file on main superseded is refused
       # `workflow-modified`; it ends green with a warning and no token, so the
       # steps below skip and no stale failed `merge` check lands on a PR. The
-      # newer run checks every PR.
+      # newer run checks every PR. A kill switch turned on after this run read
+      # its variables is refused `kill-switch`; it ends green with a notice and
+      # no token the same way, and the next scheduled run checks every PR.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success'
@@ -952,6 +954,7 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
@@ -2012,6 +2015,7 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # The verdict reader of a scheduled or hand-started run ties untied
       # FAILs as the gate job does: the head-ref map and the carried run
