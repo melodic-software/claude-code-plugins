@@ -97,6 +97,8 @@ done
 SRC="$EVALS_DIR/fixtures/$FIXTURE/$STATE"
 [[ -d "$SRC" ]] || die 4 "fixture state missing: $SRC (run build-fixtures.py)"
 RUNS_ROOT="${EVAL_RUNS_DIR:?set EVAL_RUNS_DIR to a scratch directory outside the repository}"
+# The parent walk below and the worktree check need an absolute path; a relative one never reaches /.
+[[ "$RUNS_ROOT" == /* ]] || die 2 "EVAL_RUNS_DIR must be an absolute path: $RUNS_ROOT"
 RUN_DIR="$RUNS_ROOT/$SCENARIO/$ARM/$MODEL/run-$RUN"
 WS="$RUN_DIR/ws"
 OUT="${EVAL_RESULTS_DIR:-$EVALS_DIR/results}/$SCENARIO/$ARM/$MODEL/run-$RUN"
