@@ -1251,7 +1251,7 @@ jobs:
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
       - name: Record a failed lane merge
-        if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -1285,7 +1285,7 @@ jobs:
       # request at its current head is marked ready here: one comments read
       # per such draft.
       - name: Re-ready a draft a whole-review request left
-        if: steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1308,7 +1308,7 @@ jobs:
       # saved for the gate's first candidate. Any error gates every
       # candidate. Rules: babysit_merge_skip.py.
       - name: Skip refusals whose inputs have not changed
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1357,7 +1357,7 @@ jobs:
       # back to the capped rotation, never deferred again.
       - name: Run the merge gate on each candidate
         id: gate
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The verdict reader's Actions calls, the review-evidence reads
