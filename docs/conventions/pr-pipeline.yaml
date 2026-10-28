@@ -651,15 +651,14 @@ lanes:
         needs: [apply-verdict]
 
 # The model, effort and turn budget of every model run (README.md, Models).
-# Aliases only, never full model IDs. `default` passes no --model, so the
-# account's default model runs. A profile with no effort keeps its model's
-# default effort. A role profile names a multi-agent role in place of a model.
+# Aliases only, never full model IDs. A profile with no effort keeps its
+# model's default effort. A role profile names a multi-agent role in place of a model.
 # A skill activity with no route takes default-profile; pr-verify.yml's
 # judgment routes as verify-pr.
 models:
   profiles:
     standard:
-      model: default
+      model: opus
       max-turns: 75
     review:
       model: opus
@@ -847,7 +846,9 @@ wip:
   # Over the WIP cap or the held cap runs pause from this date, and over the
   # queued cap new admissions do (intake admission also defers while paused).
   # Set with intake admitting issues itself (owner decision Q51, 2026-10-22).
-  # Empty: over a cap the lane alerts and keeps starting runs.
+  # Empty: over a cap the lane alerts and keeps starting runs, and intake
+  # admission has no queued cap (an incomplete or failed queued read still
+  # defers it).
   pause-from: "2026-10-22T00:00:00Z"
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
@@ -885,8 +886,11 @@ red-main:
 # update). fix-ci fixes its failed ci-status; pr-merge merges it under its
 # usual gates. Without this section nothing is adopted.
 adoption:
-  # 24: a day with no push, comment or label change means the person left it.
-  idle-hours: 24
+  # 2: a session waiting in the GITHUB_TOKEN gate can be idle up to 2 h during a
+  # breaker trip, so 2 h with no trusted-actor push, comment or label change
+  # means the session left the PR. PRs open ready here, so non-draft alone does
+  # not show a PR is finished.
+  idle-hours: 2
   # Apps whose PR bodies a script writes: such a PR closing no issue is judged
   # against its title and body, as a person's is. Any other App (a model
   # writes its body, the lanes App's included) needs a closing issue, since

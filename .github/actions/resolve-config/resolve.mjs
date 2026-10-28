@@ -19,7 +19,7 @@ const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
 // The profile every run takes in a config with no `models` block.
 const BUILTIN_MODELS = Object.freeze({
-  profiles: { standard: { model: "default", "max-turns": 75 } },
+  profiles: { standard: { model: "opus", "max-turns": 75 } },
   "default-profile": "standard",
 });
 
@@ -678,13 +678,15 @@ function grantFor(effectGrants, effect, extra = {}) {
   return Object.freeze({ ...row, ...extra });
 }
 
-// The owner's model for a role route that resolves to no alias: CI has no
-// session, so `inherit`, a missing role map or role, and any value that is not
-// an alias (`default`, a model ID) all run on it. The frontier tier (`fable`,
-// and `best`, which may resolve to it) never routes automatically, so it runs
-// on it too.
+// The owner's model for any profile whose model resolves to no alias: CI has
+// no session, so `inherit`, a missing role map or role, and any value that is
+// not an alias (`default`, a model ID) all run on it. The frontier tier
+// (`fable`, and `best`, which may resolve to it) never routes automatically,
+// so it runs on it too. The schema refuses those values on a model profile;
+// this holds when a config reaches the resolver without that check.
 const FALLBACK_MODEL = "opus";
 const ROUTED_ALIASES = new Set(["haiku", "opus", "sonnet"]);
+const routedModel = (model) => (ROUTED_ALIASES.has(model) ? model : FALLBACK_MODEL);
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 // The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
@@ -725,7 +727,7 @@ function roleModels(values, roleMapText) {
   return {
     role: values.role,
     ...(values.workload === undefined ? {} : { workload: values.workload }),
-    model: ROUTED_ALIASES.has(model) ? model : FALLBACK_MODEL,
+    model: routedModel(model),
     effort: EFFORTS.has(effort) ? effort : null,
   };
 }
@@ -740,7 +742,8 @@ const routeProfile = (models, route) => {
 // A profile's resolved values, at `rung` 1 its escalate-to profile's: one
 // rung at most, never the escalate-to's own, and a profile with no rung above
 // is refused, so a retry never reruns the same model. A role profile takes
-// its model and effort from the role map.
+// its model and effort from the role map. Every model and subagent model but
+// `inherit` resolves to a routed alias, as a role profile's does.
 function profileModels(models, start, roleMapText, rung = 0) {
   const climbed = rung === 1 ? models.profiles[start]["escalate-to"] : undefined;
   if (rung === 1 && climbed === undefined) {
@@ -748,22 +751,24 @@ function profileModels(models, start, roleMapText, rung = 0) {
   }
   const profile = climbed ?? start;
   const values = models.profiles[profile];
+  const subagentModel = values["subagent-model"] ?? "inherit";
   return {
     profile,
     ...(values.role === undefined
-      ? { model: values.model, effort: values.effort ?? null }
+      ? { model: routedModel(values.model), effort: values.effort ?? null }
       : roleModels(values, roleMapText)),
-    "subagent-model": values["subagent-model"] ?? "inherit",
+    "subagent-model": subagentModel === "inherit" ? subagentModel : routedModel(subagentModel),
     "max-turns": values["max-turns"],
   };
 }
 
-// The Claude Code arguments a resolved profile sets: `--model` unless the
-// model is `default`, `--max-turns`, and `--effort` only when the profile sets
-// one. Every value is a schema enum or integer, never free text.
+// The Claude Code arguments a resolved profile sets: `--model`, `--max-turns`,
+// and `--effort` only when the profile sets one. Every value is a routed
+// alias, a schema enum or an integer, never free text.
 export function modelArgs(models) {
   return [
-    ...(models.model === "default" ? [] : ["--model", models.model]),
+    "--model",
+    models.model,
     "--max-turns",
     String(models["max-turns"]),
     ...(models.effort === null ? [] : ["--effort", models.effort]),
