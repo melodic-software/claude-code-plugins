@@ -67,6 +67,22 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
+# A base commit a merge of the base names as its second parent.
+MAIN = "5" * 40
+
+
+def _history(sha: str, answer: Any) -> Any:
+    """`answer` (a compare of base...sha) with the commits a history of base
+    merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+    HEAD of the base for HEAD, the head alone for any other."""
+    if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
+        return answer
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [MAIN]}]
+    if sha == HEAD:
+        commits.append({"sha": HEAD, "parents": [OLD, MAIN]})
+    return answer | {"commits": commits, "total_commits": len(commits)}
+
+
 def _push(after: str, timestamp: str) -> dict[str, Any]:
     """A push of `after` to the head branch, as the repository activity API
     lists it."""
@@ -135,7 +151,7 @@ class Lanes:
             )
         sha = endpoint.rsplit("...", 1)[1]
         if sha in self.compares and self.unreadable != f"compare {sha}":
-            return 200, self.compares[sha]
+            return 200, _history(sha, self.compares[sha])
         return 404, None
 
     def paginated(
@@ -415,7 +431,10 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         def many(n: int) -> dict[str, Any]:
             return _net(
-                *({"filename": f"f{i}", "status": "added", "patch": "+x"} for i in range(n))
+                *(
+                    {"filename": f"f{i}", "status": "added", "patch": "+x"}
+                    for i in range(n)
+                )
             )
 
         self.assertEqual(self.later({OLD: many(299), HEAD: many(299)}), LINK)
@@ -442,40 +461,64 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         added = {"filename": "b.tf", "status": "added", "patch": "+b"}
         changed = {OLD: _net(TF), HEAD: _net(TF, added)}
-        older_head = [_run(HEAD, "2026-10-22T10:40:00Z"), _run(OLD, "2026-10-22T11:30:00Z")]
+        older_head = [
+            _run(HEAD, "2026-10-22T10:40:00Z"),
+            _run(OLD, "2026-10-22T11:30:00Z"),
+        ]
         self.assertIsNone(self.decide(runs=older_head, compares=changed))
         late = "2026-10-22T11:30:00Z"
         for name, extra in {
             "a later notice at the head": _run(HEAD, late),
-            "from the security lane": _run(HEAD, late, lane="pr-review-security-hosted.yml"),
-            "with cost among its criteria": _run(HEAD, late, criteria="cost,trust-gate"),
+            "from the security lane": _run(
+                HEAD, late, lane="pr-review-security-hosted.yml"
+            ),
+            "with cost among its criteria": _run(
+                HEAD, late, criteria="cost,trust-gate"
+            ),
         }.items():
             with self.subTest(name):
-                self.assertEqual(self.decide(runs=[_run(OLD), extra], compares=changed), LINK)
+                self.assertEqual(
+                    self.decide(runs=[_run(OLD), extra], compares=changed), LINK
+                )
         for name, extra in {
             "a job done after it": _run(HEAD, "2026-10-22T12:30:00Z"),
             "a run started after it": _run(HEAD, late, created="2026-10-22T12:10:00Z"),
-            "a job other than the status job": _run(HEAD, late, job="pr-review / review-key"),
+            "a job other than the status job": _run(
+                HEAD, late, job="pr-review / review-key"
+            ),
             "the other lane's status job name": _run(
                 HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]
             ),
             "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
             "a notice without cost": _run(HEAD, late, criteria="trust-gate"),
-            "a run whose head is in another repository": _run(HEAD, late, repo="fork/repo"),
+            "a run whose head is in another repository": _run(
+                HEAD, late, repo="fork/repo"
+            ),
             "a run with no head repository": _run(HEAD, late, repo=None),
             "two heads at the newest time": _run(
                 HEAD, lane="pr-review-security-hosted.yml"
             ),
         }.items():
             with self.subTest(name):
-                self.assertIsNone(self.decide(runs=[_run(OLD), extra], compares=changed))
+                self.assertIsNone(
+                    self.decide(runs=[_run(OLD), extra], compares=changed)
+                )
         # A run that started after the decision is not read at all.
-        self.decide(runs=[_run(HEAD), _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z")])
-        self.assertNotIn("repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads)
+        self.decide(
+            runs=[
+                _run(HEAD),
+                _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z"),
+            ]
+        )
+        self.assertNotIn(
+            "repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads
+        )
 
     def test_a_lane_run_on_a_head_it_cannot_vet_decides_nothing(self) -> None:
         for name, answer in {
-            "the code lane's workflow": _net(TF, {"filename": ".github/workflows/pr-review-hosted.yml"}),
+            "the code lane's workflow": _net(
+                TF, {"filename": ".github/workflows/pr-review-hosted.yml"}
+            ),
             "the security lane's workflow": _net(
                 {"filename": ".github/workflows/pr-review-security-hosted.yml"}
             ),
@@ -660,7 +703,10 @@ class CostDecision(unittest.TestCase):
                 created_at="2026-10-22T11:30:00Z",
             ),
         }
-        changed = {OLD: _net(TF), HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"})}
+        changed = {
+            OLD: _net(TF),
+            HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"}),
+        }
 
         def pick(body: str, runs: list[dict[str, Any]]) -> str | None:
             lanes = Lanes(runs, changed)

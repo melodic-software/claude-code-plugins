@@ -63,8 +63,16 @@ PLUGIN_BASE = (
 
 def manifest(after: str) -> ChangedFile:
     return ChangedFile(
-        PLUGIN, None, "modified", 1, 1, True, "100644", "100644",
-        patch="@@ -1 +1 @@\n-a\n+b", contents=(PLUGIN_BASE, after),
+        PLUGIN,
+        None,
+        "modified",
+        1,
+        1,
+        True,
+        "100644",
+        "100644",
+        patch="@@ -1 +1 @@\n-a\n+b",
+        contents=(PLUGIN_BASE, after),
     )
 
 
@@ -190,6 +198,125 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         self.assertNotIn("high-path", str(cost))
 
 
+# A lift of an earlier head carried over base merges (#10224): Kyle (id 5)
+# removed the human-gated label while OLD was the head, then a lane merged
+# the base into it, so the head is a merge whose resolve-config change is the
+# one OLD made.
+OLD = "c" * 40
+MAIN = "5" * 40
+CARRIED_PR = PR | {
+    "head": {"sha": HEAD, "ref": "feat/x"},
+    "base": {"sha": BASE, "ref": "main", "repo": {"private": False}},
+}
+HELD_PATCH = {
+    "filename": FLOORED.path,
+    "status": "modified",
+    "patch": "@@ -1 +1 @@\n-a\n+b",
+}
+
+
+def carried(
+    head_files: list[dict[str, object]],
+    *,
+    activity: object = None,
+    tracker: object = '{"config": {"role_labels": {"human-gated": "needs-human"}}}',
+) -> list[str]:
+    activity = (
+        [
+            {"after": HEAD, "timestamp": "2026-10-27T23:32:00Z"},
+            {"after": OLD, "timestamp": "2026-10-27T23:00:00Z"},
+        ]
+        if activity is None
+        else activity
+    )
+    compares = {
+        OLD: {
+            "files": [HELD_PATCH],
+            "commits": [{"sha": OLD, "parents": [MAIN]}],
+            "total_commits": 1,
+        },
+        HEAD: {
+            "files": head_files,
+            "commits": [
+                {"sha": OLD, "parents": [MAIN]},
+                {"sha": HEAD, "parents": [OLD, MAIN]},
+            ],
+            "total_commits": 2,
+        },
+    }
+    events = [
+        {
+            "event": "unlabeled",
+            "label": {"name": "needs-human"},
+            "actor": {"id": 5, "login": "user5"},
+            "performed_via_github_app": None,
+            "created_at": "2026-10-27T23:26:14Z",
+        }
+    ]
+
+    def get(endpoint: str, env: object = None) -> tuple[int | None, object]:
+        if "/activity?" in endpoint:
+            assert endpoint == (
+                f"repos/{REPO}/activity?ref=refs%2Fheads%2Ffeat%2Fx"
+                "&direction=desc&per_page=100"
+            ), endpoint
+            return (200, activity) if activity != "unreadable" else (502, None)
+        sha = endpoint.rsplit("...", 1)[1]
+        assert endpoint == f"repos/{REPO}/compare/main...{sha}", endpoint
+        return 200, compares[sha]
+
+    def file_at(owner: str, name: str, path: str, sha: str) -> object:
+        assert (path, sha) == (".work-item-tracker.json", BASE)
+        if isinstance(tracker, Exception):
+            raise tracker
+        return tracker
+
+    with (
+        mock.patch.object(policy, "_get", side_effect=get),
+        mock.patch.object(policy, "_paginated", return_value=events),
+        mock.patch.object(policy, "_file_at", side_effect=file_at),
+    ):
+        return policy.carried_lifters(
+            REPO, CARRIED_PR, [], TRUSTED, (".github/actions/resolve-config/**",)
+        )
+
+
+class ALiftCarriesOverABaseMerge(unittest.TestCase):
+    def test_a_label_removal_before_a_base_merge_lifts_the_head(self) -> None:
+        self.assertEqual(carried([HELD_PATCH]), ["user5"])
+
+    def test_no_untrusted_shape_or_unread_input_carries(self) -> None:
+        cases = {
+            "an evil merge": {"head_files": [HELD_PATCH | {"patch": "+evil"}]},
+            "a push within a minute of the removal": {
+                "head_files": [HELD_PATCH],
+                "activity": [{"after": OLD, "timestamp": "2026-10-27T23:25:50Z"}],
+            },
+            "an unreadable push history": {
+                "head_files": [HELD_PATCH],
+                "activity": "unreadable",
+            },
+            "an unreadable tracker config": {
+                "head_files": [HELD_PATCH],
+                "tracker": policy.PolicyReadError("contents: HTTP 502"),
+            },
+            "no tracker config": {"head_files": [HELD_PATCH], "tracker": None},
+        }
+        for name, case in cases.items():
+            with self.subTest(name):
+                self.assertEqual(carried(**case), [])
+
+    def test_the_risk_hold_reads_the_carried_lift_on_its_high_paths(self) -> None:
+        with mock.patch.object(
+            policy, "carried_lifters", return_value=["user5"]
+        ) as lift:
+            self.assertIsNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
+        keep = lift.call_args.args[4]
+        self.assertIn(".github/actions/resolve-config/**", keep)
+        with mock.patch.object(policy, "carried_lifters", return_value=[]):
+            self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
+
+
 class LaneRiskRefusal(unittest.TestCase):
     def test_a_plain_doc_change_holds_nothing(self) -> None:
         self.assertIsNone(refusal())
@@ -215,7 +342,11 @@ class LaneRiskRefusal(unittest.TestCase):
         )
 
     def test_a_manifest_change_the_gate_reviews_holds(self) -> None:
-        for key in ('"hooks": {}', '"mcpServers": {}', '"experimental": {"monitors": []}'):
+        for key in (
+            '"hooks": {}',
+            '"mcpServers": {}',
+            '"experimental": {"monitors": []}',
+        ):
             after = PLUGIN_BASE.replace('"name": "foo",', f'"name": "foo", {key},')
             with self.subTest(key):
                 held = refusal((DOC, manifest(after)), config=FLOOR_ON)

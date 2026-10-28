@@ -18,25 +18,32 @@
 // - A hold path: a changed file, or a renamed file's old path, matching the
 //   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
 //   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
-//   which a clean security review clears). A person on
-//   the trusted-actor list lifts it by approving the head: their newest
-//   review of the head that approves, requests changes or was dismissed must
-//   approve. No other path is held for being trusted alone: the review lanes
-//   judge it.
+//   which a clean security review clears). A person on the trusted-actor
+//   list lifts it by approving the head (their newest review of the head
+//   that approves, requests changes or was dismissed must approve), or by a
+//   lift of an earlier head that carries to it (liftersOf): their newest
+//   approving review, or their own removal of the human-gated label bound to
+//   the head the branch held then (headAt), of a head whose every change
+//   since is a base merge changing no hold path beyond it (baseMergeCarry
+//   with the hold paths). No other path is held for being trusted alone: the
+//   review lanes judge it.
 // - A trusted-actor list widening (actorsHold, the rule of
 //   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
 //   (BASE_SHA) and the head and compared; only removing entries passes. The
-//   approval of the head that lifts a hold path lifts it.
+//   lift that lifts a hold path lifts it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
 //   on its linked issue naming it, for the head it decided or a later one
-//   whose every change since is a base merge.
+//   whose every change since is a base merge with the same net change
+//   (baseMergeCarry).
 // - No verifier pass, when a verdicts file is given (ci-status gives one in
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
-//   (verdictHold). The same approval of the head lifts it, the human merge
-//   path for a pull request pr-merge's gate sends to a person.
+//   (verdictHold). The same approval of the head, or a label removal while
+//   it was the head, lifts it, the human merge path for a pull request
+//   pr-merge's gate sends to a person; a lift carried from an earlier head
+//   does not, since pr-verify has not judged the merge.
 // - A FAIL the gate's reader counts, when an evidence file is given with the
 //   verdicts: babysit_verify_evidence.py `evidence`'s report for the head,
 //   which ci-status runs from main's checkout in the merge queue
@@ -66,8 +73,9 @@
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
 // trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. Who wrote a body that holds, a changed trusted-actor list, and a
-// cost path with a decision link in the body, are read with GH_TOKEN.
+// exits 0. Who wrote a body that holds, a changed trusted-actor list, a
+// cost path with a decision link in the body, and the lifts of a hold path
+// no approval of the head lifts, are read with GH_TOKEN.
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -483,16 +491,33 @@ export function actorsHold(changes) {
 // `changes` with the trusted-actor list's [base text at `base`, head text at
 // `head`] on a change that modifies it in place; a read that fails, or a base
 // that is not a commit SHA, leaves its contents out, so it holds.
+// The text of `path` at `ref` of `repo`, or a throw. Strict, as the gate's
+// decode("utf-8"): invalid UTF-8 throws, and a BOM stays, so a JSON parse
+// refuses it as json.loads does.
+async function textAt(github, repo, path, ref) {
+  const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+  if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
+    throw new Error(`${path} at ${ref} did not read`);
+  }
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
+}
+
+// The human-gated role label of .work-item-tracker.json at the base commit
+// `base` (`needs-human` when it names none), as ci-status's human-gated step
+// resolves it, read at the base so a pull request cannot rename its own
+// lift; null when it does not read, which lets no label removal lift.
+export async function humanGatedAt(github, repo, base) {
+  try {
+    if (!/^[0-9a-f]{40}$/.test(String(base))) return null;
+    const label = JSON.parse(await textAt(github, repo, ".work-item-tracker.json", base))?.config?.role_labels?.["human-gated"];
+    return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
+  } catch {
+    return null;
+  }
+}
+
 export async function withActorContents(github, repo, changes, base, head) {
-  const text = async (path, ref) => {
-    const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
-    if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
-      throw new Error(`${path} at ${ref} did not read`);
-    }
-    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
-    // holds, and a BOM stays, so the parse refuses it as json.loads does.
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
-  };
+  const text = (path, ref) => textAt(github, repo, path, ref);
   return Promise.all(
     changes.map(async (change) => {
       if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !/^[0-9a-f]{40}$/.test(String(base))) {
@@ -589,16 +614,9 @@ export function unranHead(activity, ran, decided, at) {
   if (!Array.isArray(ran) || ran.length !== REVIEW_LANES.length || !ran.every(Array.isArray)) {
     return "the lane runs do not cover every review lane";
   }
-  const moves = [];
-  for (const move of activity) {
-    const after = String(move?.after ?? "");
-    if (/^[0-9a-f]{40}$/.test(after) && !/^0{40}$/.test(after)) {
-      const made = Date.parse(move.timestamp);
-      if (!Number.isFinite(made)) {
-        return "the branch's push history is unreadable";
-      }
-      moves.push({ after, made });
-    }
+  const moves = pushMoves(activity);
+  if (moves === null) {
+    return "the branch's push history is unreadable";
   }
   const cutoff = Date.parse(at);
   const before = moves.filter((m) => m.made < cutoff);
@@ -702,6 +720,166 @@ export function sameNetChange(decided, current) {
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
 }
 
+// Whether every commit a compare answer `now` (base...H') lists beyond `then`
+// (base...H) is a merge, with `from` (H) among them, so H' descends from H
+// (babysit_merge_policy.base_merges_only). Commits the
+// base holds are not listed, so a merge of the base adds only itself; a
+// non-merge commit, a merge of another branch (its own commits are listed
+// and are not merges) or a force push that drops H keeps nothing carried. A
+// list shorter than total_commits (the compare API's 250) is not read whole.
+export function baseMergesOnly(then, now, from) {
+  const listed = (compare) =>
+    Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length
+      ? compare.commits
+      : null;
+  const [before, after] = [listed(then), listed(now)];
+  if (before === null || after === null) return false;
+  const old = new Set(before.map((c) => c?.sha));
+  return after.some((c) => c?.sha === from) && after.every((c) => old.has(c?.sha) || (Array.isArray(c?.parents) && c.parents.length >= 2));
+}
+
+// Whether the hold-path part of the net change at H' (`now`, base...H') is
+// within H's (`then`): every file `keep` names (by its path or renamed-from
+// path) in `now` is in `then` with the same status, previous_filename and
+// patch. A file H changed that H' no longer changes now matches the base,
+// which added it. Unreadable as sameNetChange reads it, or a kept file with
+// no patch, is not within.
+export function netChangeWithin(then, now, keep) {
+  const net = (compare) => {
+    const files = compare?.files;
+    if (!Array.isArray(files) || files.length >= 300) return null;
+    const byName = new Map();
+    for (const f of files) {
+      if (typeof f?.filename !== "string" || byName.has(f.filename)) return null;
+      if (!keep(f.filename) && !(typeof f.previous_filename === "string" && keep(f.previous_filename))) continue;
+      if (typeof f.patch !== "string") return null;
+      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch]));
+    }
+    return byName;
+  };
+  const [before, after] = [net(then), net(now)];
+  return before !== null && after !== null && [...after].every(([name, value]) => before.get(name) === value);
+}
+
+// The one base-merge carry: whether what a person or the owner decided at
+// head `from` covers the head `now` was read at, from the compares
+// base...from (`then`) and base...head (`now`): every commit since is a merge
+// (baseMergesOnly) and the net change is the same (sameNetChange), or, with
+// `keep` (hold paths, as an array of globs), the same on the paths it names
+// (netChangeWithin). The cost decision carries with no `keep`, a hold-path
+// or trusted-actor list lift with the hold paths.
+export function baseMergeCarry(then, now, from, keep = null) {
+  if (!baseMergesOnly(then, now, from)) return false;
+  return keep === null ? sameNetChange(then, now) : Array.isArray(keep) && netChangeWithin(then, now, (path) => keep.some((glob) => matchesHoldPath(path, glob)));
+}
+
+// Seconds before a lift in which a push makes the head it lifted uncertain.
+export const LIFT_RACE_MS = 60_000;
+
+// The pushes of one page of the repository activity API for a branch,
+// newest first, as { after, made }: each entry moving the branch to a
+// commit; one that deletes it is not a push. Null when the page is not a
+// list, fills a page (which may not reach the push sought), or a push's time
+// does not parse (unranHead and headAt read it alike).
+export function pushMoves(activity) {
+  if (!Array.isArray(activity) || activity.length >= 100) return null;
+  const moves = [];
+  for (const move of activity) {
+    const after = String(move?.after ?? "");
+    if (/^[0-9a-f]{40}$/.test(after) && !/^0{40}$/.test(after)) {
+      const made = Date.parse(move.timestamp);
+      if (!Number.isFinite(made)) return null;
+      moves.push({ after, made });
+    }
+  }
+  return moves;
+}
+
+// The head the branch held at `at`, from its push history (pushMoves): the
+// newest push before `at`. Null when there is none, the branch was deleted,
+// the history does not read, or a push landed within LIFT_RACE_MS before
+// `at`, since the person may have lifted a head they did not see.
+export function headAt(activity, at) {
+  const moves = pushMoves(activity);
+  const when = Date.parse(at);
+  if (moves === null || !Number.isFinite(when)) return null;
+  const before = moves.filter((m) => m.made <= when);
+  if (before.some((m) => m.made > when - LIFT_RACE_MS)) return null;
+  const last = before.reduce((best, m) => (best === null || m.made > best.made ? m : best), null);
+  return last === null ? null : last.after;
+}
+
+// Each trusted person's lift standing now, as { login, sha, at }: their
+// newest deciding act (babysit_merge_policy has no reader of it). A review
+// (REST, fromRest shape) that approves, requests changes or was dismissed
+// decides, an APPROVED one lifting its commit; a `labeled` or `unlabeled`
+// event (REST issue events) of `label`, made directly and not through an
+// App, decides, an `unlabeled` one lifting the head at its time (sha null,
+// headAt binds it). Only ids in `humans` count, and an unlabel through an App
+// counts for nothing, as ci-status's review-lane lift step reads it.
+export function liftsOf(reviews, events, humans, label) {
+  const acts = [];
+  for (const r of reviews ?? []) {
+    if (r?.isUser && humans.has(r.userId) && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) {
+      acts.push({ id: r.userId, login: r.login, at: r.at, lift: r.state === "APPROVED", sha: /^[0-9a-f]{40}$/.test(String(r.commitId)) ? r.commitId : null });
+    }
+  }
+  for (const e of typeof label === "string" && label ? (events ?? []) : []) {
+    if (
+      ["labeled", "unlabeled"].includes(e?.event) &&
+      e?.label?.name === label &&
+      e?.performed_via_github_app == null &&
+      humans.has(e?.actor?.id)
+    ) {
+      acts.push({ id: e.actor.id, login: String(e.actor.login ?? ""), at: String(e.created_at ?? ""), lift: e.event === "unlabeled", sha: null, unlabel: true });
+    }
+  }
+  const newest = new Map();
+  for (const act of acts) {
+    const made = Date.parse(act.at);
+    if (Number.isFinite(made) && (!newest.has(act.id) || made >= Date.parse(newest.get(act.id).at))) newest.set(act.id, act);
+  }
+  return [...newest.values()].filter((a) => a.lift && (a.sha !== null || a.unlabel)).map(({ login, sha, at }) => ({ login, sha, at }));
+}
+
+// The trusted people whose lift covers pull request `number`'s `head`, as
+// { lifters, exact }, each sorted: `exact` lifted `head` itself, `lifters`
+// adds those whose lift (liftsOf) is of a head that carries to it
+// over base merges on the hold paths `keep` (baseMergeCarry against the base
+// branch `base`). An unlabel binds to the head branch `branch`'s head at its
+// time (headAt). Reads: the reviews, the issue events, one page of the
+// branch's push history when an unlabel lifts, and two compares per carried
+// head. A read that fails lifts nothing: the caller keeps the exact-head
+// approvals it read (pathLifters).
+export async function liftersOf(github, repo, { number, head, base, branch }, humans, label, keep) {
+  try {
+    if (!BRANCH.test(String(base)) || !BRANCH.test(String(branch))) return { lifters: [], exact: [] };
+    const reviews = (await pages(github, `/repos/${repo}/pulls/${number}/reviews`)).map(fromRest);
+    const events = typeof label === "string" && label ? await pages(github, `/repos/${repo}/issues/${number}/events`) : [];
+    const lifts = liftsOf(reviews, events, humans, label);
+    let activity;
+    const compares = new Map();
+    const compare = async (sha) => {
+      if (!compares.has(sha)) compares.set(sha, await github("GET", `/repos/${repo}/compare/${base}...${sha}`));
+      return compares.get(sha);
+    };
+    const lifters = new Set();
+    const exact = new Set();
+    for (const lift of lifts) {
+      let sha = lift.sha;
+      if (sha === null) {
+        activity ??= await github("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
+        sha = headAt(activity, lift.at);
+      }
+      if (sha === head) exact.add(lift.login);
+      if (sha !== null && (sha === head || baseMergeCarry(await compare(sha), await compare(head), sha, keep))) lifters.add(lift.login);
+    }
+    return { lifters: [...lifters].sort(), exact: [...exact].sort() };
+  } catch {
+    return { lifters: [], exact: [] };
+  }
+}
+
 // Every page of the REST list at `path`.
 async function pages(github, path) {
   const rows = [];
@@ -738,7 +916,7 @@ async function carries(github, actions, repo, comment, head, base, branch) {
     }
     const then = await github("GET", `/repos/${repo}/compare/${base}...${decided}`);
     const now = await github("GET", `/repos/${repo}/compare/${base}...${head}`);
-    return sameNetChange(then, now);
+    return baseMergeCarry(then, now, decided);
   } catch {
     return false;
   }
@@ -875,7 +1053,8 @@ export function pathLifters(items, humans, head) {
 }
 
 // Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does. `lifters` approved the head, which lifts a
+// it; empty when nothing does. `lifters` lifted the head (pathLifters, or
+// liftersOf over base merges), which lifts a
 // hold path but not an unreadable file list or hold-path list, nor a cost
 // path, which only the owner's `decision` lifts. It lifts `widened`
 // (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
@@ -883,14 +1062,14 @@ export function pathLifters(items, humans, head) {
 export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
   const reasons = [];
   if (widened && !lifters.length) {
-    reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`);
+    reasons.push(`${widened}; a person on the trusted-actor list lifts it by approving this head or by removing the human-gated label while it is the head, and the lift carries over later merges of the base that change no hold path beyond it; then re-run ci-status`);
   }
   const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
       readable
-        ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`
+        ? `${pathReason}; a person on the trusted-actor list lifts it by approving this head or by removing the human-gated label while it is the head, and the lift carries over later merges of the base that change no hold path beyond it; then re-run ci-status`
         : pathReason,
     );
   }
@@ -1053,7 +1232,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       throw new Error("the trusted-actor list has no actors");
     }
     const humans = humansOf(actors);
-    const lifters = pathLifters(items, humans, head);
+    // Exact-head approvals lift every hold an approval lifts; a lift carried
+    // over base merges or bound by a label removal lifts only the hold path
+    // and the trusted-actor list widening.
+    let approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
     const decision =
@@ -1066,26 +1248,44 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }
     const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
     const held = pathHold(files, holdPaths);
+    let lifted = { lifters: [], exact: [] };
+    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+      let pull = null;
+      try {
+        pull = await github("GET", `/repos/${repo}/pulls/${number}`);
+      } catch {
+        // An unreadable pull request lifts nothing.
+      }
+      if (pull?.head?.sha === head && pull?.head?.repo?.full_name === repo) {
+        const keep = [...(holdPaths ?? []), ...HOLD_PATH_FLOOR, TRUSTED_ACTORS_PATH];
+        const label = await humanGatedAt(github, repo, env.BASE_SHA);
+        lifted = await liftersOf(github, repo, { number: Number(number), head, base: pull.base?.ref, branch: pull.head.ref }, humans, label, keep);
+      }
+    }
+    // A label removal while this was the head approves it as a review does.
+    approved = approved.length ? approved : lifted.exact;
+    const lifters = approved.length ? approved : lifted.lifters;
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
+    const how = approved.length ? "approved this head" : "lifted an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
     }
     if (widened && lifters.length) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its trusted-actor list hold (${escape(widened)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
       // An approval lifts the verifier hold whole, the link with it.
-      const relinked = unverified || lifters.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
+      const relinked = unverified || approved.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
       if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
-      } else if (!unverified && lifters.length === 0) {
+      } else if (!unverified && approved.length === 0) {
         // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
         // so only a new head or an approval recovers it.
         reasons.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
-      } else if (lifters.length) {
-        console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
+      } else if (approved.length) {
+        console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
         reasons.push(
           `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
@@ -1095,8 +1295,8 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       if (!failed) {
         const refusal = JSON.parse(readFileSync(evidenceFile, "utf8")).refusal;
         console.log(`#${number}: no pr-verify FAIL hold: ${refusal ? `the reader refuses this head only on its pass (${refusal})` : "the reader allows this head"}.`);
-      } else if (lifters.length) {
-        console.log(`#${number}: no pr-verify FAIL hold: ${lifters.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
+      } else if (approved.length) {
+        console.log(`#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
       } else {
         reasons.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }

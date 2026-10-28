@@ -19,7 +19,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergesOnly, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, headAt, laneChange, linkHold, main, netChangeWithin, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -57,6 +57,16 @@ const pushesOf = (runs) =>
 // A compare answer: the pull request's files against the base.
 const TF = { filename: "infra/main.tf", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const net = (...files) => ({ files });
+// A base commit a merge of the base names as its second parent.
+const MAIN = "5".repeat(40);
+// `answer` (a compare of base...sha) with the commits a history of base
+// merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+// HEAD of the base for HEAD, the head alone for any other.
+const history = (sha, answer) => {
+  if (answer === null || typeof answer !== "object" || "commits" in answer || !("files" in answer)) return answer;
+  const commits = [{ sha: sha === HEAD ? OLD : sha, parents: [MAIN] }, ...(sha === HEAD ? [{ sha: HEAD, parents: [OLD, MAIN] }] : [])];
+  return { ...answer, commits, total_commits: commits.length };
+};
 
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
@@ -133,7 +143,7 @@ function world({
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
-      return answers[compare[2]];
+      return history(compare[2], answers[compare[2]]);
     }
     if (read === "pull") {
       assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
@@ -455,7 +465,7 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
   const widened = await ci(modified, { list });
   assert.equal(widened.code, 1, widened.out);
-  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head/);
+  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); a person on the trusted-actor list lifts it by approving this head or by removing the human-gated label/);
   const approved = await ci(modified, { list, reviews: [approve] });
   assert.equal(approved.code, 0, approved.out);
   assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
@@ -526,11 +536,17 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.deepEqual(commit.reads.slice(-3), ["activity", `compare ${OLD}`, `compare ${HEAD}`]);
 });
 
-test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
+test("a base merge with the same net change carries whatever order the files list in, and a rebase or a non-merge commit does not", async () => {
   const doc = { filename: "docs/a.md", status: "added", patch: "@@ -0,0 +1 @@\n+a" };
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(doc, TF) })).link, LINK);
-  // A rebase that drops one of its files is a change of its own.
+  // A merge that drops one of its files is a change of its own.
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(TF) })).link, null);
+  // A rebase or force push rewrites OLD away, even with the same net change.
+  const rebased = { ...net(TF), commits: [{ sha: "6".repeat(40), parents: [MAIN] }, { sha: HEAD, parents: ["6".repeat(40)] }], total_commits: 2 };
+  assert.equal((await later({ [OLD]: net(TF), [HEAD]: rebased })).link, null);
+  // A commit of its own that leaves the net change the same is still not a merge.
+  const plain = { ...net(TF), commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD] }], total_commits: 2 };
+  assert.equal((await later({ [OLD]: net(TF), [HEAD]: plain })).link, null);
 });
 
 test("a conflict resolution, a rename or a status change that alters the net change re-holds", async () => {
@@ -882,4 +898,174 @@ test("in the merge queue, a missing or unreadable reader report holds", async ()
     assert.equal(code, 1, `${evidence}: ${out}`);
     assert.match(out, /::error::#99: its pr-verify FAILs could not be read/, String(evidence));
   }
+});
+
+// A hold path's lift survives a base merge (the churn measured on #10224):
+// a trusted person's approving review of a head, or their removal of the
+// human-gated label while it was the head (bound by the branch's push
+// history), lifts a later head only when every commit since is a merge
+// (baseMergesOnly) and the hold-path part of the net change is within the
+// lifted head's (netChangeWithin). Every adversarial shape keeps the hold.
+const HELD = ".github/actions/resolve-config/live-config.test.mjs";
+const HELD_PATCH = { filename: HELD, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
+const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs", status: "modified", patch: "@@ -1 +1 @@\n-c\n+d" };
+const ON_OLD = "2026-10-27T23:00:00Z";
+const LIFTED_AT = "2026-10-27T23:26:14Z";
+const review = (state, commit, at, id = 5, type = "User") => ({ user: { login: id === 5 ? "owner-person" : "someone", id, type }, state, commit_id: commit, submitted_at: at });
+const unlabel = (at, { id = 5, app = null, event = "unlabeled", label = "needs-human" } = {}) => ({
+  event,
+  label: { name: label },
+  actor: { id, login: id === 5 ? "owner-person" : "someone" },
+  performed_via_github_app: app,
+  created_at: at,
+});
+const merged = (files) => ({ files, commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD, MAIN] }], total_commits: 2 });
+const liftWorld = ({
+  reviews = [],
+  events = [],
+  activity = [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, ON_OLD)],
+  compares = { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: merged([HELD_PATCH]) },
+  tracker = { config: { role_labels: { "human-gated": "needs-human" } } },
+  fail = "",
+} = {}) => {
+  const reads = [];
+  const github = async (method, path) => {
+    reads.push(path);
+    assert.equal(method, "GET");
+    const page = (rows) => (path.endsWith("page=1") ? rows : []);
+    if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
+    if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: REPO } }, base: { ref: "main" } };
+    if (path === `/repos/owner/repo/contents/.work-item-tracker.json?ref=${BASE}`) {
+      if (tracker === null) throw new Error("not found");
+      return { type: "file", encoding: "base64", content: Buffer.from(JSON.stringify(tracker)).toString("base64") };
+    }
+    if (path.startsWith("/repos/owner/repo/pulls/99/reviews?")) return page(reviews);
+    if (path.startsWith("/repos/owner/repo/issues/99/events?")) return page(events);
+    if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") return activity;
+    const compare = /^\/repos\/owner\/repo\/compare\/main\.\.\.([0-9a-f]{40})$/.exec(path);
+    if (compare && compare[1] in compares) return compares[compare[1]];
+    throw new Error(`unexpected read ${path}`);
+  };
+  return { github, reads };
+};
+// main over `files` with liftWorld's reads; `reviews` also go in the
+// discussion file, as ci-status writes it.
+async function lifting(world, { files = [HELD], reviews = [], queue = false } = {}) {
+  const dir = tempDir("merge-holds-lift-");
+  writeFileSync(join(dir, "body"), "Closes #40");
+  writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
+  writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
+  writeFileSync(join(dir, "files"), files.map((path) => JSON.stringify([path])).join("\n"));
+  writeFileSync(join(dir, "denied"), "[]");
+  const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), HEAD];
+  if (queue) {
+    writeFileSync(join(dir, "verdicts"), "");
+    writeFileSync(join(dir, "link"), "null");
+    argv.push(join(dir, "verdicts"), join(dir, "link"));
+  }
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE }, github: world.github });
+    return { code, out: lines.join("\n") };
+  } finally {
+    console.log = log;
+  }
+}
+
+test("a label removal or an approval of an earlier head lifts a hold path over a later base merge", async () => {
+  for (const [name, world] of Object.entries({
+    "an unlabel on the earlier head": liftWorld({ events: [unlabel(LIFTED_AT)] }),
+    "an approval of the earlier head": liftWorld({ reviews: [review("APPROVED", OLD, LIFTED_AT)] }),
+    // #10224: the base brought one hold-path file's change, so H' no longer changes it.
+    "a merge after which the base holds one of its files": liftWorld({
+      events: [unlabel(LIFTED_AT)],
+      compares: { [OLD]: { files: [HELD_PATCH, OTHER_HELD], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: merged([HELD_PATCH]) },
+    }),
+  })) {
+    const run = await lifting(world);
+    assert.equal(run.code, 0, `${name}: ${run.out}`);
+    assert.match(run.out, /owner-person lifted an earlier head whose every change since is a base merge, which lifts its hold path/, name);
+  }
+});
+
+test("a label removal while this was the head lifts it as an approval of the head does", async () => {
+  const run = await lifting(liftWorld({ events: [unlabel(LIFTED_AT)], activity: [push(HEAD, ON_OLD)] }));
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /owner-person approved this head, which lifts its hold path/);
+});
+
+test("no adversarial history, actor or timing carries a lift to the head", async () => {
+  const unlabeled = { events: [unlabel(LIFTED_AT)] };
+  const cases = {
+    "a merge that also edits a hold path (an evil merge)": { ...unlabeled, compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: merged([{ ...HELD_PATCH, patch: "@@ -1 +1 @@\n-a\n+evil" }]) } },
+    "a merge that adds a hold path": { ...unlabeled, compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: merged([HELD_PATCH, OTHER_HELD]) } },
+    "a non-merge commit after the lift": {
+      ...unlabeled,
+      compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD] }], total_commits: 2 } },
+    },
+    "a merge of a branch other than the base": {
+      ...unlabeled,
+      compares: {
+        [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 },
+        [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }, { sha: "7".repeat(40), parents: [MAIN] }, { sha: HEAD, parents: [OLD, "7".repeat(40)] }], total_commits: 3 },
+      },
+    },
+    "a force push that rewrites the lifted head": {
+      ...unlabeled,
+      compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: { files: [HELD_PATCH], commits: [{ sha: "6".repeat(40), parents: [MAIN] }, { sha: HEAD, parents: ["6".repeat(40), MAIN] }], total_commits: 2 } },
+    },
+    "a history longer than the compare lists": {
+      ...unlabeled,
+      compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } },
+    },
+    "an approval later dismissed": { reviews: [review("DISMISSED", OLD, LIFTED_AT)] },
+    "an approval followed by a request for changes on another head": { reviews: [review("APPROVED", OLD, LIFTED_AT), review("CHANGES_REQUESTED", "8".repeat(40), "2026-10-27T23:40:00Z")] },
+    "a label removal followed by the same person adding it back": { events: [unlabel(LIFTED_AT), unlabel("2026-10-27T23:30:00Z", { event: "labeled" })] },
+    "an approval by a person off the trusted-actor list": { reviews: [review("APPROVED", OLD, LIFTED_AT, 77)] },
+    "a label removal by an account off the trusted-actor list": { events: [unlabel(LIFTED_AT, { id: 77 })] },
+    "a label removal through an App": { events: [unlabel(LIFTED_AT, { app: { slug: "some-app" } })] },
+    "the removal of another label": { events: [unlabel(LIFTED_AT, { label: "triage" })] },
+    "a label removal racing a push": { ...unlabeled, activity: [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, "2026-10-27T23:25:50Z")] },
+    "a label removal in the second of a push": { ...unlabeled, activity: [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, LIFTED_AT)] },
+    "a label removal before any push of the branch": { ...unlabeled, activity: [push(HEAD, "2026-10-27T23:32:00Z")] },
+    "a push history that fills a page": { ...unlabeled, activity: Array.from({ length: 100 }, () => push(OLD, ON_OLD)) },
+    "an unreadable push history": { ...unlabeled, fail: "/activity?" },
+    "unreadable events": { ...unlabeled, fail: "/events?" },
+    "an unreadable tracker config": { ...unlabeled, tracker: null },
+    "an unreadable compare": { ...unlabeled, fail: "/compare/" },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const run = await lifting(liftWorld(options));
+    assert.equal(run.code, 1, `${name}: ${run.out}`);
+    assert.match(run.out, /it changes \.github\/actions\/resolve-config\/live-config\.test\.mjs, a hold path; a person on the trusted-actor list lifts it/, name);
+  }
+});
+
+test("a lift carried over a base merge lifts no verifier hold, and an exact-head approval in the discussion needs no reads", async () => {
+  const carried = await lifting(liftWorld({ events: [unlabel(LIFTED_AT)] }), { queue: true });
+  assert.equal(carried.code, 1, carried.out);
+  assert.match(carried.out, /lifts its hold path/);
+  assert.match(carried.out, /pr-verify has not passed this head/);
+  const world = liftWorld();
+  const exact = await lifting(world, { reviews: [review("APPROVED", HEAD, LIFTED_AT)] });
+  assert.equal(exact.code, 0, exact.out);
+  assert.deepEqual(world.reads, []);
+});
+
+test("baseMergesOnly, netChangeWithin and headAt read their inputs strictly", () => {
+  const then = { commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 };
+  assert.equal(baseMergesOnly(then, merged([]), OLD), true);
+  assert.equal(baseMergesOnly(then, { commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD, MAIN] }] }, OLD), false);
+  assert.equal(baseMergesOnly(then, merged([]), "9".repeat(40)), false);
+  const keep = (path) => path.startsWith(".github/actions/");
+  const doc = { filename: "docs/a.md", status: "modified", patch: "+x" };
+  assert.equal(netChangeWithin({ files: [HELD_PATCH, doc] }, { files: [HELD_PATCH, { ...doc, patch: "+y" }] }, keep), true);
+  assert.equal(netChangeWithin({ files: [HELD_PATCH] }, { files: [{ ...HELD_PATCH, patch: undefined }] }, keep), false);
+  assert.equal(netChangeWithin({ files: [doc] }, { files: [{ filename: "docs/b.md", status: "renamed", previous_filename: HELD, patch: "" }] }, keep), false);
+  assert.equal(headAt([push(OLD, ON_OLD)], LIFTED_AT), OLD);
+  assert.equal(headAt([push(HEAD, "2026-10-27T23:26:00Z"), push(OLD, ON_OLD)], LIFTED_AT), null);
+  assert.equal(headAt([{ after: OLD, timestamp: "not a time" }], LIFTED_AT), null);
+  assert.equal(headAt("unreadable", LIFTED_AT), null);
 });

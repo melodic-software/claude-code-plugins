@@ -3975,10 +3975,11 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   and a later head only when the pull request's net change against its
-      #   base branch is the same at both, so every change since is a base
-      #   merge (the base's merge-holds.mjs sameNetChange; owner decisions
-      #   Q17 c and Q18 d on #9436). The decided head is the `sha=` of the
+      #   and a later head only when every commit since is a merge and the
+      #   pull request's net change against its base branch is the same at
+      #   both, so every change since is a base merge (the base's
+      #   merge-holds.mjs baseMergeCarry; owner decisions Q17 c and Q18 d on
+      #   #9436). The decided head is the `sha=` of the
       #   newest cost hold notice a review lane's status job recorded before
       #   the decision, read with the holds below from runs vetted the same
       #   way and only where it names its own run's head; never a hold
@@ -4113,8 +4114,9 @@ jobs:
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
           # carries <decided>: whether a decision whose decided head is
-          # <decided> covers HEAD_SHA: it is HEAD_SHA, or the net change
-          # against the base branch is the same at both. No decided head, an
+          # <decided> covers HEAD_SHA: it is HEAD_SHA, or every commit since
+          # is a merge and the net change against the base branch is the same
+          # at both (the base's baseMergeCarry). No decided head, an
           # unusable base branch name or any read that fails carries nothing.
           carries() {
             local decided=$1 base_ref
@@ -4124,7 +4126,8 @@ jobs:
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
             read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
             read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
-            [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
+            [ "$(holds_js baseMergeCarry "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json" "$RUNNER_TEMP/cost-hold-decided.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
           decisions='[]' refs_read=
@@ -4846,8 +4849,11 @@ jobs:
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
       # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
       # arming is held on its own pull request event; a person on the
-      # trusted-actor list (as main has it) lifts it by approving the head,
-      # then re-runs ci-status. A trusted-actor list
+      # trusted-actor list (as main has it) lifts it by approving the head or
+      # by removing the human-gated label while it is the head, and the lift
+      # carries to a later head whose every change since is a base merge
+      # changing no hold path beyond it (merge-holds.mjs liftersOf, which
+      # reads with this step's GH_TOKEN), then re-runs ci-status. A trusted-actor list
       # change that adds or widens an entry (merge-holds.mjs actorsHold, both
       # sides read at BASE_SHA and the head) holds too, lifted the same way.
       # A changed cost path (merge-holds.mjs COST_PATHS) also holds,

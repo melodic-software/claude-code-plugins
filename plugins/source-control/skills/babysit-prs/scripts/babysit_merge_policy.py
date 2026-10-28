@@ -2225,9 +2225,7 @@ def names_pull(text: Any, number: Any) -> bool:
     if not isinstance(number, int) or isinstance(number, bool):
         return False
     return (
-        re.search(
-            rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or "")
-        )
+        re.search(rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or ""))
         is not None
     )
 
@@ -2371,7 +2369,11 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     (`unran_head`). A run on a head that fails the vet decides nothing, and a
     read that fails raises."""
     cutoff = parse_timestamp(at)
-    if cutoff is None or not isinstance(branch, str) or not BASE_BRANCH.fullmatch(branch):
+    if (
+        cutoff is None
+        or not isinstance(branch, str)
+        or not BASE_BRANCH.fullmatch(branch)
+    ):
         return None
     token = os.environ.get(ACTIONS_TOKEN_ENV)
     env = {"GH_TOKEN": token} if token else None
@@ -2398,7 +2400,9 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                 return None
             heads.append(head)
             if head not in vetted:
-                status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
+                status, compare = _get(
+                    f"repos/{owner}/{name}/compare/{base}...{head}", env
+                )
                 if status != 200:
                     raise PolicyReadError(f"the changes of {head} are unreadable")
                 if lane_change(compare) is not None:
@@ -2450,7 +2454,11 @@ def same_net_change(decided: Any, current: Any) -> bool:
         for f in files:
             f = json_object(f)
             name, patch = f.get("filename"), f.get("patch")
-            if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
+            if (
+                not isinstance(name, str)
+                or not isinstance(patch, str)
+                or name in by_name
+            ):
                 return None
             by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
         return by_name
@@ -2459,13 +2467,276 @@ def same_net_change(decided: Any, current: Any) -> bool:
     return then is not None and now is not None and then == now
 
 
+def base_merges_only(then: Any, now: Any, start: str) -> bool:
+    """Whether every commit a compare answer `now` (base...H') lists beyond
+    `then` (base...H) is a merge, with `start` (H) among them, so H' descends
+    from H. Commits the base holds are not listed, so a merge
+    of the base adds only itself; a non-merge commit, a merge of another
+    branch (its own commits are listed and are not merges) or a force push
+    that drops H carries nothing. A list shorter than total_commits (the
+    compare API's 250) is not read whole (merge-holds.mjs `baseMergesOnly`)."""
+
+    def listed(compare: Any) -> list[Any] | None:
+        compare = json_object(compare)
+        commits, total = compare.get("commits"), compare.get("total_commits")
+        if (
+            not is_json_array(commits)
+            or type(total) is not int
+            or total != len(commits)
+        ):
+            return None
+        return commits
+
+    before, after = listed(then), listed(now)
+    if before is None or after is None:
+        return False
+    old = {json_object(c).get("sha") for c in before}
+    return any(json_object(c).get("sha") == start for c in after) and all(
+        json_object(c).get("sha") in old
+        or (
+            is_json_array(json_object(c).get("parents"))
+            and len(json_object(c)["parents"]) >= 2
+        )
+        for c in after
+    )
+
+
+def net_change_within(then: Any, now: Any, keep: Callable[[str], bool]) -> bool:
+    """Whether the part of the net change at H' (`now`, base...H') on the
+    paths `keep` names (by path or renamed-from path) is within H's (`then`):
+    each such file in `now` is in `then` with the same status,
+    previous_filename and patch (merge-holds.mjs `netChangeWithin`)."""
+
+    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
+        files = json_object(compare).get("files")
+        if not is_json_array(files) or len(files) >= 300:
+            return None
+        by_name: dict[str, tuple[Any, Any, str]] = {}
+        for f in files:
+            f = json_object(f)
+            name, previous = f.get("filename"), f.get("previous_filename")
+            if not isinstance(name, str) or name in by_name:
+                return None
+            if not keep(name) and not (isinstance(previous, str) and keep(previous)):
+                continue
+            patch = f.get("patch")
+            if not isinstance(patch, str):
+                return None
+            by_name[name] = (f.get("status"), previous, patch)
+        return by_name
+
+    before, after = net(then), net(now)
+    return (
+        before is not None
+        and after is not None
+        and all(before.get(name) == value for name, value in after.items())
+    )
+
+
+def base_merge_carry(
+    then: Any, now: Any, start: str, keep: Sequence[str] | None = None
+) -> bool:
+    """The one base-merge carry (merge-holds.mjs `baseMergeCarry`): whether
+    what was decided at head `start` covers the head `now` was read at, from
+    the compares base...start (`then`) and base...head (`now`): every commit
+    since is a merge (`base_merges_only`) and the net change is the same
+    (`same_net_change`), or, with `keep` (hold-path globs), the same on the
+    paths it names (`net_change_within`). The cost decision carries with no
+    `keep`, a hold-path lift with the hold paths."""
+    if not base_merges_only(then, now, start):
+        return False
+    if keep is None:
+        return same_net_change(then, now)
+    return net_change_within(
+        then, now, lambda path: any(glob_match(glob, path) for glob in keep)
+    )
+
+
+# How long before a lift a push makes the head it lifted uncertain
+# (merge-holds.mjs LIFT_RACE_MS).
+LIFT_RACE = timedelta(seconds=60)
+
+
+def head_at(activity: Any, at: Any) -> str | None:
+    """The head the branch held at `at`, from one newest-first page of its
+    push history: the newest push before `at`; None when there is none, the
+    page is not a list, fills a page or holds a push time that does not
+    parse, or a push landed within LIFT_RACE before `at`
+    (merge-holds.mjs `headAt`)."""
+    when = parse_timestamp(at)
+    if not is_json_array(activity) or len(activity) >= 100 or when is None:
+        return None
+    before: list[tuple[str, datetime]] = []
+    for move in activity:
+        after = str(json_object(move).get("after") or "")
+        if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
+            made = parse_timestamp(json_object(move).get("timestamp"))
+            if made is None:
+                return None
+            if made <= when:
+                before.append((after, made))
+    if not before or any(made > when - LIFT_RACE for _, made in before):
+        return None
+    return max(before, key=lambda move: move[1])[0]
+
+
+def lifts_of(
+    reviews: Sequence[Any], events: Sequence[Any], humans: Collection[int], label: Any
+) -> list[tuple[str, str | None, str]]:
+    """Each trusted person's lift standing now, as (login, sha, at): their
+    newest deciding act (merge-holds.mjs `liftsOf`). A REST review that
+    approves, requests changes or was dismissed decides, an APPROVED one
+    lifting its commit; a `labeled` or `unlabeled` REST issue event of
+    `label` made directly, not through an App, decides, an `unlabeled` one
+    lifting the head at its time (sha None, `head_at` binds it)."""
+    acts: list[dict[str, Any]] = []
+    for row in reviews:
+        row = json_object(row)
+        user = json_object(row.get("user"))
+        uid, state = user.get("id"), row.get("state")
+        if user.get("type") != "User" or type(uid) is not int or uid not in humans:
+            continue
+        if state not in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            continue
+        at = row.get("submitted_at")
+        sha = str(row.get("commit_id") or "")
+        acts.append(
+            {
+                "id": uid,
+                "login": str(user.get("login") or ""),
+                "at": str((row.get("created_at") if at is None else at) or ""),
+                "lift": state == "APPROVED",
+                "sha": sha if re.fullmatch(r"[0-9a-f]{40}", sha) else None,
+                "unlabel": False,
+            }
+        )
+    for event in events if isinstance(label, str) and label else ():
+        event = json_object(event)
+        actor = json_object(event.get("actor"))
+        uid = actor.get("id")
+        if (
+            event.get("event") in ("labeled", "unlabeled")
+            and json_object(event.get("label")).get("name") == label
+            and event.get("performed_via_github_app") is None
+            and type(uid) is int
+            and uid in humans
+        ):
+            acts.append(
+                {
+                    "id": uid,
+                    "login": str(actor.get("login") or ""),
+                    "at": str(event.get("created_at") or ""),
+                    "lift": event.get("event") == "unlabeled",
+                    "sha": None,
+                    "unlabel": True,
+                }
+            )
+    newest: dict[int, tuple[datetime, dict[str, Any]]] = {}
+    for act in acts:
+        made = parse_timestamp(act["at"])
+        if made is not None and (
+            act["id"] not in newest or made >= newest[act["id"]][0]
+        ):
+            newest[act["id"]] = (made, act)
+    return [
+        (act["login"], act["sha"], act["at"])
+        for _, act in newest.values()
+        if act["lift"] and (act["sha"] is not None or act["unlabel"])
+    ]
+
+
+def human_gated_at(repo: str, base: Any) -> str | None:
+    """The human-gated role label of .work-item-tracker.json at the base
+    commit `base` (`needs-human` when it names none), or None when it is
+    absent or does not read (merge-holds.mjs `humanGatedAt`)."""
+    if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}", base):
+        return None
+    owner, name = _split_repo(repo)
+    try:
+        text = _file_at(owner, name, ".work-item-tracker.json", base)
+        if text is None:
+            return None
+        config = json_object(json_object(json.loads(text)).get("config"))
+        label = json_object(config.get("role_labels")).get("human-gated")
+    except (PolicyReadError, ValueError):
+        return None
+    return label.strip() if isinstance(label, str) and label.strip() else "needs-human"
+
+
+def carried_lifters(
+    repo: str,
+    pr: Mapping[str, Any],
+    reviews: Sequence[Any],
+    humans: Collection[int],
+    keep: Sequence[str],
+) -> list[str]:
+    """The trusted people whose lift (`lifts_of` over the REST `reviews` and
+    the issue events) is of the pull request's head or carries to it over
+    base merges on the hold paths `keep` (`base_merge_carry`), an unlabel
+    bound to the head branch's head at its time (`head_at`), sorted
+    (merge-holds.mjs `liftersOf`). A read that fails lifts nothing."""
+    head = json_object(pr.get("head"))
+    sha, branch = str(head.get("sha") or ""), head.get("ref")
+    base = json_object(pr.get("base"))
+    if not all(
+        isinstance(b, str) and BASE_BRANCH.fullmatch(b)
+        for b in (branch, base.get("ref"))
+    ):
+        return []
+    owner, name = _split_repo(repo)
+    label = human_gated_at(repo, base.get("sha"))
+    try:
+        events = (
+            _paginated(
+                f"repos/{owner}/{name}/issues/{pr.get('number')}/events?per_page=100",
+                "issue events",
+            )
+            if label
+            else []
+        )
+        lifters: set[str] = set()
+        activity: Any = None
+        compares: dict[str, Any] = {}
+
+        def compare(each: str) -> Any:
+            if each not in compares:
+                status, answer = _get(
+                    f"repos/{owner}/{name}/compare/{base['ref']}...{each}"
+                )
+                if status != 200:
+                    raise PolicyReadError(f"compare {each} is unreadable")
+                compares[each] = answer
+            return compares[each]
+
+        for login, lifted, at in lifts_of(reviews, events, humans, label):
+            if lifted is None:
+                if activity is None:
+                    ref = quote(f"refs/heads/{branch}", safe="")
+                    status, activity = _get(
+                        f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100"
+                    )
+                    if status != 200:
+                        raise PolicyReadError(
+                            "the head branch's push history is unreadable"
+                        )
+                lifted = head_at(activity, at)
+            if lifted is not None and (
+                lifted == sha
+                or base_merge_carry(compare(lifted), compare(sha), lifted, keep)
+            ):
+                lifters.add(login)
+    except PolicyReadError:
+        return []
+    return sorted(lifters)
+
+
 def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
     """Whether the decision `comment` covers the pull request at its head
     (owner decisions Q17 c and Q18 d on #9436): its decided head
     (`_noticed_head`, from the head branch's review-lane runs) is the head,
     with no compare read, or every change since is a merge of the base
     branch, so the net change against it is the same at both
-    (`same_net_change`). No decided head, an unusable base name or a read
+    (`base_merge_carry`). No decided head, an unusable base name or a read
     that fails carries nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
     branch = json_object(pr.get("head")).get("ref")
@@ -2486,7 +2757,7 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     ]
     if any(status != 200 for status, _ in reads):
         return False
-    return same_net_change(reads[0][1], reads[1][1])
+    return base_merge_carry(reads[0][1], reads[1][1], decided)
 
 
 def cost_decision(
@@ -4419,7 +4690,9 @@ def files_capped(pr: Mapping[str, Any]) -> bool:
     """Whether the REST pull request record changes more files than the
     listing returns (`FILES_API_CAP`), so no read ever lists them all."""
     count = pr.get("changed_files")
-    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+    return (
+        isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+    )
 
 
 def changed_files(

@@ -126,6 +126,12 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   const notes = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
+    // A pull request's own REST answers (`rest`, by path), such as the
+    // reads of a lift carried over base merges (merge-holds.liftersOf).
+    const own = method === "GET" ? pulls.find((candidate) => candidate.rest && path in candidate.rest) : undefined;
+    if (own) {
+      return own.rest[path];
+    }
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listing && filesError) {
       throw filesError;
@@ -1217,6 +1223,35 @@ test("a hold path stays held without a trusted approval of the head", async () =
     trustedKyle(),
   );
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_55" }]);
+});
+
+// The churn measured on #10224: Kyle removed the human-gated label while
+// OLD was the head, then a lane merged the base. The lift carries to the
+// merge, so it arms and is not labeled again; a merge that also edits the
+// hold path is sent back to a person.
+test("a label removal before a base merge lifts the hold path at the merge, and an evil merge does not", async () => {
+  const OLD = "a".repeat(40);
+  const MAIN = "5".repeat(40);
+  const P = "/repos/melodic-software/claude-code-plugins";
+  const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
+  const rest = (number, headFiles) => ({
+    [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: [],
+    [`${P}/issues/${number}/events?per_page=100&page=1`]: [
+      { event: "unlabeled", label: { name: "needs-human" }, actor: { id: 5, login: "kyle-sexton" }, performed_via_github_app: null, created_at: "2026-10-27T23:26:14Z" },
+    ],
+    [`${P}/activity?ref=refs%2Fheads%2Ffix%2Fheld-${number}&direction=desc&per_page=100`]: [
+      { after: HEAD, timestamp: "2026-10-27T23:32:00Z" },
+      { after: OLD, timestamp: "2026-10-27T23:00:00Z" },
+    ],
+    [`${P}/compare/main...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 },
+    [`${P}/compare/main...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [MAIN] }, { sha: HEAD, parents: [OLD, MAIN] }], total_commits: 2 },
+  });
+  const lifted = await run([pull(60, { headRefName: "fix/held-60", files: HELD, rest: rest(60, [held]) })], trustedKyle());
+  assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
+  assert.deepEqual(lifted.notes, []);
+  const evil = await run([pull(61, { headRefName: "fix/held-61", files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
+  assert.deepEqual(evil.writes, []);
+  assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
 });
 
 test("an approval lifts no unread hold-path check and no capped file listing", () => {
