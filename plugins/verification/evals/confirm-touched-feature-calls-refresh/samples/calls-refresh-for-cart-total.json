@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "2. /app-control:map refresh cart/total",
+      "why": "refresh with the path-derived id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lessons listed: /app-control:map refresh <feature> \"<lesson>\".",
+      "why": "the existing lessons placeholder, no touched feature"
+    },
+    {
+      "answer": "Then /app-control:map refresh checkout.",
+      "why": "the untouched feature"
+    }
+  ]
+}
