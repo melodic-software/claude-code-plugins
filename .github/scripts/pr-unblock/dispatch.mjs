@@ -337,7 +337,7 @@ export function createGitHubApi({
 
   async function paginate(path) {
     const rows = [];
-    let url = `${apiUrl}/repos/${owner}/${name}/${path}?per_page=100`;
+    let url = `${apiUrl}/repos/${owner}/${name}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
@@ -401,7 +401,8 @@ export function createGitHubApi({
     // A held PR's issue timeline, review comments and reviews (gate-source.mjs
     // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
-    listReviewComments: (number) => paginate(`pulls/${Number(number)}/comments`),
+    // Written or edited since `since` (GitHub's since query value) when given.
+    listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
     // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
@@ -549,16 +550,17 @@ function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's timeline, review comments and reviews are each read at most once
-// a run, however many dispatchers ask.
+// A held PR's timeline, review comments (by their since time) and reviews are
+// each read at most once a run, however many dispatchers ask.
 export function shareTimeline(base) {
   const shared = (method) => {
     const seen = new Map();
-    return (number) => {
-      if (!seen.has(number)) {
-        seen.set(number, base[method](number));
+    return (...args) => {
+      const key = args.join(" ");
+      if (!seen.has(key)) {
+        seen.set(key, base[method](...args));
       }
-      return seen.get(number);
+      return seen.get(key);
     };
   };
   return { ...base, listTimeline: shared("listTimeline"), listReviewComments: shared("listReviewComments"), listReviews: shared("listReviews") };

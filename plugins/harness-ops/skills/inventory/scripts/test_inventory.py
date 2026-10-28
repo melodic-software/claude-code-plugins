@@ -2973,6 +2973,45 @@ class TestBuiltinPlugins(unittest.TestCase):
         )
         self.assertIn("gate_flags", rec["partial"])
 
+    _FACTORY = "{return{...r,name:w[e],async"
+
+    def test_a_conditional_spread_in_a_skill_factory_keeps_earlier_keys(self) -> None:
+        # Claude Code 2.1.296: `...e==="run"&&{onUserTypedArgs:Lt}`.
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{onUserTypedArgs:L},async',
+        )
+        skills = {s["name"]: s for s in rec["skills"]}
+        self.assertEqual(
+            skills["claude-test"]["description"], "Check that the web app still works"
+        )
+        self.assertIs(skills["claude-test-draft"]["user_invocable"], False)
+        self.assertNotIn("skills", rec["partial"])
+
+    def test_a_conditional_spread_key_is_unresolved(self) -> None:
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{description:"x"},async',
+        )
+        skills = {s["name"]: s for s in rec["skills"]}
+        self.assertEqual(skills["claude-test"]["description_source"], "unresolved")
+        self.assertIn("skills", rec["partial"])
+        # `a||b&&{...}` spreads `a` when it is truthy: not a conditional literal.
+        rec = self._test_module(
+            self._FACTORY, "{return{...r,name:w[e],...q||e&&{a:1},async"
+        )
+        self.assertIn("skills", rec["partial"])
+
+    def test_a_conditional_spread_name_leaves_the_factory_name_unresolved(
+        self,
+    ) -> None:
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{name:"override"},async',
+        )
+        self.assertNotIn("claude-test", {s["name"] for s in rec["skills"]})
+        self.assertIn("skills", rec["partial"])
+
     def test_a_present_but_unresolved_description_is_partial(self) -> None:
         rec = self._test_module('description:"Claude Test",', "description:qq(),")
         self.assertEqual(rec["description_source"], "unresolved")
