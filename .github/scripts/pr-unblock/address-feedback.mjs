@@ -847,6 +847,15 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
     },
+    async updateIssueComment(id, body) {
+      await request(`${repo}/issues/comments/${id}`, "PATCH", { body }, true);
+    },
+    async addLabels(pr, labels) {
+      await request(`${repo}/issues/${pr}/labels`, "POST", { labels }, true);
+    },
+    async removeLabel(pr, label) {
+      await request(`${repo}/issues/${pr}/labels/${encodeURIComponent(label)}`, "DELETE");
+    },
     // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
       const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);

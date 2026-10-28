@@ -10,19 +10,30 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const APP = 337595936;
 const ACTIONS_BOT = 41898282;
 const HEAD = "a".repeat(40);
+const OLD_HEAD = "c".repeat(40);
 const NAME = `pr-verify-42-${HEAD}-fail`;
 const FILES = ["plugins/x/a.py", "plugins/x/b.md"];
 const verdictText = (extra = {}) =>
   JSON.stringify({ verdict: "fail", pr: 42, head_sha: HEAD, summary: "Spec item 2 is unmet.", notes: ["`plugins/x/a.py:12` returns early.", "No test covers it."], ...extra });
 
-function fakeApi({ pull = {}, reviewComments = [] } = {}) {
+// Each write lands in `created` (review comments) or `writes` (the PR's own
+// comments and labels), so a test sees every change a run makes.
+function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = [] } = {}) {
   const created = [];
+  const writes = [];
   return {
     created,
+    writes,
     getPull: async () => ({ state: "open", head: { sha: HEAD }, user: { id: APP }, ...pull }),
     listReviewComments: async () => reviewComments,
     listPullFiles: async () => FILES.map((filename) => ({ filename })),
     createReviewComment: async (pr, fields) => created.push({ pr, ...fields }),
+    listIssueComments: async () => issueComments,
+    createIssueComment: async (pr, body) => writes.push({ op: "comment", pr, body }),
+    updateIssueComment: async (id, body) => writes.push({ op: "update", id, body }),
+    listLabels: async () => labels.map((name) => ({ name })),
+    addLabels: async (pr, names) => writes.push({ op: "label", pr, names }),
+    removeLabel: async (pr, name) => writes.push({ op: "unlabel", pr, name }),
   };
 }
 
@@ -120,21 +131,21 @@ test("a name that carries issue numbers must carry the ones the verdict records"
 test("the notes are posted as file comments on the judged head, once", async () => {
   const api = fakeApi();
   const verdict = readVerdict(NAME, verdictText());
-  assert.equal(await postNotes({ api, verdict, log: () => {} }), true);
+  assert.equal(await postNotes({ api, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(
     api.created.map(({ pr, path, commit_id, subject_type }) => ({ pr, path, commit_id, subject_type })),
     [{ pr: 42, path: "plugins/x/a.py", commit_id: HEAD, subject_type: "file" }],
   );
   // A re-run finds its own note at that head and posts nothing.
   const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: api.created[0].path, body: api.created[0].body }] });
-  assert.equal(await postNotes({ api: again, verdict, log: () => {} }), true);
+  assert.equal(await postNotes({ api: again, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(again.created, []);
 });
 
 test("a retry after a partial post posts only the comments still missing", async () => {
   const verdict = readVerdict(NAME, verdictText({ notes: ["plugins/x/a.py: one", "plugins/x/b.md: two"] }));
   const full = fakeApi();
-  await postNotes({ api: full, verdict, log: () => {} });
+  await postNotes({ api: full, verdict, appId: APP, log: () => {} });
   assert.deepEqual(
     full.created.map((c) => c.path),
     FILES,
@@ -142,7 +153,7 @@ test("a retry after a partial post posts only the comments still missing", async
   // The second POST failed: only the first file's comment is on the PR.
   const [first] = full.created;
   const retry = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: first.path, body: first.body }] });
-  assert.equal(await postNotes({ api: retry, verdict, log: () => {} }), true);
+  assert.equal(await postNotes({ api: retry, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(
     retry.created.map((c) => c.path),
     ["plugins/x/b.md"],
@@ -151,7 +162,7 @@ test("a retry after a partial post posts only the comments still missing", async
 
 test("a posted note opens a thread address-feedback keeps", async () => {
   const api = fakeApi();
-  await postNotes({ api, verdict: readVerdict(NAME, verdictText()), log: () => {} });
+  await postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: () => {} });
   const row = { id: 100, user: { id: ACTIONS_BOT }, pull_request_review_id: 10, path: api.created[0].path, line: null, body: api.created[0].body };
   assert.deepEqual(threadAuthors([{ authorId: ACTIONS_BOT, body: row.body }], { reviewerId: 209825114, appId: APP }), [{ author: "verifier" }]);
   const kept = keepThreads({
@@ -169,15 +180,69 @@ test("nothing is posted on a moved head or a closed PR", async () => {
   const verdict = readVerdict(NAME, verdictText());
   for (const pull of [{ head: { sha: "b".repeat(40) } }, { state: "closed" }]) {
     const api = fakeApi({ pull });
-    assert.equal(await postNotes({ api, verdict, log: () => {} }), false);
+    assert.equal(await postNotes({ api, verdict, appId: APP, log: () => {} }), false);
     assert.deepEqual(api.created, []);
   }
 });
 
-test("an adopted PR the lanes App did not open gets the notes too, so its author sees why it is refused", async () => {
-  const api = fakeApi({ pull: { user: { id: 153232337 } } });
-  assert.equal(await postNotes({ api, verdict: readVerdict(NAME, verdictText()), log: () => {} }), true);
+test("a lanes App PR's fail opens review threads, adds no label and posts no PR comment", async () => {
+  const api = fakeApi();
+  assert.equal(await postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: () => {} }), true);
   assert.equal(api.created.length, 1);
+  assert.deepEqual(api.writes, []);
+});
+
+// A person's PR: GitHub lets only its author or a writer resolve a thread, and
+// the lanes App is neither, so the fail is one PR comment and a label that
+// ci-status holds in the merge queue, never a review thread.
+const PERSON = 153232337;
+const personBody = (head) =>
+  [
+    VERIFY_NOTE_MARKER,
+    `The pr-verify verifier failed head \`${head}\`. What it wrote, as data:`,
+    "",
+    "```text",
+    "Summary: Spec item 2 is unmet.",
+    "- `plugins/x/a.py:12` returns early.",
+    "- No test covers it.",
+    "```",
+    "",
+    "ci-status holds this pull request in the merge queue while it carries `pr-verify-failed`. A pr-verify pass at a new commit removes the label.",
+  ].join("\n");
+
+test("a fail on a PR a person opened posts one PR comment and the pr-verify-failed label, and no review thread", async () => {
+  const api = fakeApi({ pull: { user: { id: PERSON } } });
+  assert.equal(await postNotes({ api, verdict: readVerdict(NAME, verdictText()), appId: APP, log: () => {} }), false);
+  assert.deepEqual(api.created, []);
+  assert.deepEqual(api.writes, [
+    { op: "comment", pr: 42, body: personBody(HEAD) },
+    { op: "label", pr: 42, names: ["pr-verify-failed"] },
+  ]);
+  for (const pull of [{ head: { sha: OLD_HEAD } }, { state: "closed" }]) {
+    const moved = fakeApi({ pull: { user: { id: PERSON }, ...pull } });
+    assert.equal(await postNotes({ api: moved, verdict: readVerdict(NAME, verdictText()), appId: APP, log: () => {} }), false);
+    assert.deepEqual(moved.writes, [], "a moved head or a closed PR changes nothing");
+  }
+});
+
+test("a later fail on a person's PR updates its fail comment in place, and a re-run changes nothing", async () => {
+  const verdict = readVerdict(NAME, verdictText());
+  const old = { id: 9, user: { id: ACTIONS_BOT }, body: personBody(OLD_HEAD) };
+  const strangers = [
+    { id: 7, user: { id: PERSON }, body: personBody(OLD_HEAD) },
+    { id: 8, user: { id: ACTIONS_BOT }, body: "A plain comment." },
+  ];
+  const later = fakeApi({ pull: { user: { id: PERSON } }, issueComments: [...strangers, old], labels: ["pr-verify-failed"] });
+  await postNotes({ api: later, verdict, appId: APP, log: () => {} });
+  assert.deepEqual(later.writes, [{ op: "update", id: 9, body: personBody(HEAD) }]);
+  const rerun = fakeApi({ pull: { user: { id: PERSON } }, issueComments: [{ ...old, body: personBody(HEAD) }], labels: ["pr-verify-failed"] });
+  await postNotes({ api: rerun, verdict, appId: APP, log: () => {} });
+  assert.deepEqual(rerun.writes, []);
+});
+
+test("verify-notes refuses to run without the lanes App's id, rather than treat every PR as a person's", async () => {
+  await assert.rejects(postNotes({ api: fakeApi(), verdict: readVerdict(NAME, verdictText()), log: () => {} }), /lanes App/);
+  await assert.rejects(postNotes({ api: fakeApi(), verdict: readVerdict(NAME, verdictText()), appId: 0, log: () => {} }), /lanes App/);
 });
 
 test("main names the PR and head only once the notes are on the PR", async () => {
@@ -188,6 +253,7 @@ test("main names the PR and head only once the notes are on the PR", async () =>
     GITHUB_OUTPUT: join(dir, "out"),
     ARTIFACT_NAME: NAME,
     VERDICT_FILE: join(dir, "verdict.json"),
+    APP_SENDER_ID: String(APP),
   };
   writeFileSync(env.VERDICT_FILE, verdictText());
   writeFileSync(env.GITHUB_OUTPUT, "");
@@ -195,6 +261,9 @@ test("main names the PR and head only once the notes are on the PR", async () =>
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pr-number=42\nhead-sha=${HEAD}\n`);
   writeFileSync(env.GITHUB_OUTPUT, "");
   await main(env, { api: fakeApi({ pull: { state: "closed" } }), log: () => {} });
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
+  // A person's PR starts no round: the label holds it.
+  await main(env, { api: fakeApi({ pull: { user: { id: PERSON } } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
 });
 
@@ -251,12 +320,13 @@ test("a stale fail-note thread is an open verifier note from another head, and n
 test("a pass names its head only when the PR is open at it and holds a stale fail-note thread", async () => {
   const run = async ({ pull = {}, threads = [thread("PRRT_old")], name = PASS, text = passText() } = {}) => {
     const dir = tempDir("verify-notes-");
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: name, VERDICT_FILE: join(dir, "verdict.json") };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: name, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
     writeFileSync(env.VERDICT_FILE, text);
     writeFileSync(env.GITHUB_OUTPUT, "");
-    const api = { ...fakeApi({ pull }), listThreads: async () => threads, resolveThread: async () => assert.fail("post-verify-notes resolves nothing") };
+    const api = { ...fakeApi({ pull, labels: ["pr-verify-failed"] }), listThreads: async () => threads, resolveThread: async () => assert.fail("post-verify-notes resolves nothing") };
     await main(env, { api, log: () => {} });
     assert.deepEqual(api.created, []);
+    assert.deepEqual(api.writes, [], "a lanes App PR's label is not this job's");
     return readFileSync(env.GITHUB_OUTPUT, "utf8");
   };
   assert.equal(await run(), `pass-head-sha=${HEAD}\n`);
@@ -266,4 +336,22 @@ test("a pass names its head only when the PR is open at it and holds a stale fai
   assert.equal(await run({ threads: [] }), "", "no thread");
   assert.equal(await run({ pull: { head: { sha: OLD } } }), "", "the PR moved past the passing head");
   assert.equal(await run({ pull: { state: "closed" } }), "", "a closed PR");
+});
+
+test("a pass on a person's PR at its head removes pr-verify-failed and names no head", async () => {
+  const run = async ({ pull = {}, labels = ["ci", "pr-verify-failed"], name = PASS, text = passText() } = {}) => {
+    const dir = tempDir("verify-notes-");
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: name, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
+    writeFileSync(env.VERDICT_FILE, text);
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    const api = { ...fakeApi({ pull: { user: { id: PERSON }, ...pull }, labels }), listThreads: async () => [thread("PRRT_old")] };
+    await main(env, { api, log: () => {} });
+    assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "", "no pass-only round");
+    return api.writes;
+  };
+  assert.deepEqual(await run(), [{ op: "unlabel", pr: 42, name: "pr-verify-failed" }]);
+  assert.deepEqual(await run({ name: `${PASS}-notes`, text: passText({ verdict: "pass-notes" }) }), [{ op: "unlabel", pr: 42, name: "pr-verify-failed" }]);
+  assert.deepEqual(await run({ labels: ["ci"] }), [], "no label to remove");
+  assert.deepEqual(await run({ pull: { head: { sha: OLD } } }), [], "the PR moved past the passing head");
+  assert.deepEqual(await run({ pull: { state: "closed" } }), [], "a closed PR");
 });

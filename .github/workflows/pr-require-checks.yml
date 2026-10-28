@@ -62,7 +62,7 @@ on:
   # request number and reports `skipped`, because the title and linkage were
   # already checked on the pull request before it could enter the queue, and a
   # label can land after enqueue, so a step of its own re-reads `do-not-merge`
-  # from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # and the other hold labels from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
   # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
   merge_group:
     types: [checks_requested]
@@ -4682,8 +4682,12 @@ jobs:
       # and a `do-not-merge` or human-gated label applied after enqueue would
       # merge. This step reads the live labels of the pull request the group was
       # built for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
-      # and fails if it carries either; the queue then removes that pull
-      # request. The human-gated label is resolved at the group's base commit,
+      # and fails if it carries either, or `pr-verify-failed`; the queue then
+      # removes that pull request. verify-notes.mjs puts `pr-verify-failed` on a
+      # pull request a person opened when pr-verify fails its head, and removes
+      # it on a pass. It is read here only: a red ci-status on a pull_request
+      # event stops pr-verify from judging the next head (pr-verify.yml), so
+      # the pass that removes the label would never come. The human-gated label is resolved at the group's base commit,
       # as the step above resolves it. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
       # pull request merges only when its own group passes, and a failed group
       # removes the pull request it was built for, never one ahead of it
@@ -4745,6 +4749,10 @@ jobs:
           if grep -qxF -- "$human_gated" <<<"$labels"; then
             held=1
             echo "::error::#$pr carries '$human_gated'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."
+          fi
+          if grep -qxF pr-verify-failed <<<"$labels"; then
+            held=1
+            echo "::error::#$pr carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
