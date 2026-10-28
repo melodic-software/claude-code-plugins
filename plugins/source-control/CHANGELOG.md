@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.16.3] - 2026-10-28
+
+### Fixed
+
+- A trusted person's approving review of a head that changes a hold path now survives a later merge of the base when the merge changes nothing of its own. Each trusted person's newest review that approves, requests changes or was dismissed counts, and lifts only when it approves; a dismissed approval never counts, and removing the human-gated label lifts no hold path. The approval carries to the current head only when every commit since is a merge whose other parents the base branch holds and the net change against the base's tip commit is the same at both heads over every file (`base_merge_carry`, `base_parents`, `base_tip`, `carried_lifters`, and `merge-holds.mjs` `baseMergeCarry`, `baseParents`, `baseTip` and `liftersOf`). The base branch is read once by its full ref, so no tag of the same name stands in for it. A non-merge commit, a merge of another branch or of a commit the base does not hold, a force push that rewrites the approved head, a merge that changes any file differently, an untrusted approver, a head in a fork, and any unreadable input carry nothing. An honest merge after the base changed one of the pull request's files also carries nothing and needs a new approval. A carried approval lifts only the hold path; it never lifts the verifier hold.
+- The owner's cost decision carries to a later head only when every commit since is a merge whose other parents the base branch holds (`base_merges_only`), as well as the same net change against the base's tip commit. A rebase, or a commit of its own that leaves the net change the same, no longer carries it.
+
 ## [3.16.2] - 2026-10-28
 
 ### Fixed
