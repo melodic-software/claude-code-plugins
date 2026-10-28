@@ -21,6 +21,8 @@
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
 #   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
 #                      for a folder, in the file for a file, after an optional comment marker)
+#   size-budget        the hub, a feature README.md at any depth or a legacy features/<f>.md has
+#                      more characters than its budget in the contract's "Size budget" section
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -257,5 +259,20 @@ if [[ -d "$dir/shared" ]]; then
     fi
   done < <(cd "$dir" && find shared -mindepth 1 -maxdepth 1 -not -name '.*' | LC_ALL=C sort)
 fi
+
+# Size budget, in characters (newlines included) under a UTF-8 locale.
+HUB_BUDGET=16000 FEATURE_BUDGET=4000
+over_budget() { # <path relative to the control skill> <budget>
+  local chars
+  chars="$(LC_ALL=C.UTF-8 wc -m <"$dir/$1" | tr -d ' ')"
+  ((chars <= $2)) || finding size-budget "$1" "$chars characters, budget $2"
+}
+over_budget SKILL.md "$HUB_BUDGET"
+while IFS= read -r md; do over_budget "$md" "$FEATURE_BUDGET"; done < <(
+  cd "$dir" && {
+    find features -mindepth 1 -maxdepth 1 -type f -name '*.md'
+    find features \( -name node_modules -o -name '.?*' \) -prune -o -type f -path 'features/*/*' -name README.md -print
+  } 2>/dev/null | LC_ALL=C sort
+)
 
 exit 0
