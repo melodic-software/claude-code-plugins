@@ -371,8 +371,9 @@ activities:
       # The agent-ready label alone admits the issue, whoever added it; the
       # trigger gate checks that a listed human or the lanes App added it.
       # No `work-class:` label admits or refuses it. A person decides an
-      # issue carrying one of these labels, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info"]
+      # issue carrying one of these labels, or, for attended, takes its step
+      # present, so it starts nothing.
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -398,6 +399,7 @@ activities:
         - needs-owner-decision
         - "status: needs-decision"
         - "status: needs-info"
+        - attended
       labels:
         - agent-ready
   report-outcome:

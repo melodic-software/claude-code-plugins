@@ -2956,6 +2956,11 @@ separate from `host-run`, an unattended agent run on a host, and from the human-
   `status: needs-decision`. An issue whose counted refinement records `manual (...)` is refused
   the same way, and admission adds `attended` and says why. `iac (<repo>)` routes nothing: that
   repository's preview and deploy flow is the gate.
+- **Holds downstream.** work-unblock counts `attended` among its holds, so no sweep adds
+  `agent-ready` to an issue carrying it, or to an admission-deferred one whose newest `attended`
+  event is a removal by anyone but a listed human. Its re-admission paths park an attended refusal
+  at `status: confirmed` with `attended`, as admission does. resolve-issue and apply-issue-patch
+  list `attended` in `labels-absent`, so a run neither starts nor commits on it.
 - **Removal.** Only a listed human lifts it. While the newest `attended` event is a removal by
   anyone else, the lanes App included, admission refuses as if the label were on. Once a listed
   human removed it after the refinement, the refinement's `manual (...)` line no longer refuses. To
