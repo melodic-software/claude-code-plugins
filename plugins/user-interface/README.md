@@ -9,7 +9,7 @@ project's existing look, reuses the design tools already installed, and fills on
 | `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it |
 | `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
 | `/user-interface:write-animation` | Decide whether an element should animate at all, then write one interface animation in the project's stack from its motion tokens and the stack's current docs, with reduced motion included; CSS goes through write-css |
-| `/user-interface:audit-animation` | Review interface animation read-only: the diff (default), the whole tree, where animation would help or must not go, or why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
+| `/user-interface:audit` | Review interface code read-only, one concern lane at a time: the diff (default), the whole tree, or every lane before a launch; the motion lane also finds where animation would help or must not go, and why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
 ## How it routes
@@ -26,6 +26,13 @@ The routes live in [`reference/routing.json`](reference/routing.json), validated
 [`reference/routing.schema.json`](reference/routing.schema.json).
 [`scripts/detect.mjs`](scripts/detect.mjs) reports what the project and machine have, and which
 installed routes are reachable.
+
+The interface concerns live in
+[`reference/concerns.json`](reference/concerns.json), validated by
+[`reference/concerns.schema.json`](reference/concerns.schema.json) and
+[`scripts/lib/concerns-validate.mjs`](scripts/lib/concerns-validate.mjs). Each row names the
+reference files (spokes) `/user-interface:design` loads for that concern and that
+`/user-interface:audit` judges against as one lane.
 
 ## Guidance
 
@@ -65,6 +72,7 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.easing.out`, `.in_out`, `.drawer` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
 | `animation.duration_ms.press`, `.small`, `.medium`, `.large` | `160`, `200`, `250`, `500` | milliseconds |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
+| `design.concern_spoke_cap` | `2` | the most concern spokes one design pass loads, an integer of at least 1 |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its

@@ -79,7 +79,7 @@ Write the code, then at most a few lines:
 
 ## Next
 
-/user-interface:audit-animation, to review the animation in the diff before it ships.
+/user-interface:audit, to review the animation in the diff before it ships.
 
 ## Gotchas
 
