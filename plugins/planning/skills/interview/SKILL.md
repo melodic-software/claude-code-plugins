@@ -140,14 +140,12 @@ Q<N>: <one question>
 
 My recommendation: **<answer>** — <2-3 sentences; grounded in the facts below; why it beats the alternatives>.
 Basis: verified
-- <fact> — <its source: file:line / URL fetched this session / session-transcript finding / tool output>
-- <fact> — <its source>
+- <fact> — <its source: file:line / URL fetched this session / session-transcript finding / tool output>, one bullet per fact
 Inference: <one line: why these facts together lead to this answer for this user>
 [Withheld: <the evidence that would settle it>. ONLY in place of the three parts above, for a question research could not settle]
 
 [Commits you to: <ONLY when the recommendation fixes more than one decision; each part of it, numbered>
-- Q<N+1>: <sub-decision>: <recommended value>
-- Q<N+2>: <sub-decision>: <recommended value>]
+- Q<N+1>: <sub-decision>: <recommended value>, one bullet per part, numbered on from Q<N+1>]
 
 Alternatives to consider:
 - (a) <option> — <one-line tradeoff>
@@ -324,11 +322,10 @@ convention docs, so a path citation would make that publisher a runtime dependen
 
 This plugin ships the step-2 resolver at
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout,
-exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines
-in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose
-target directory does not exist). Every non-zero exit is a
-step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create
-the surface.
+exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in
+one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target
+directory does not exist). Every non-zero exit is a step-6 degrade, `free-text`, cause named in one
+clause, never a halt and never a prompt to go create the surface.
 
 ## The interview loop
 
