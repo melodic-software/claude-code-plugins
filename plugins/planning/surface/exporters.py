@@ -811,14 +811,41 @@ def recap_answer(r):
     return readable(r["status"], *named) if named else clean(r["resolution"])
 
 
-def confirmation_recap(d, cap, text=None):
+def recap_rows(d, text=None):
+    """The register rows a recap reads: merged_register's, or with no data dir (d None, the
+    terminal lane) the ledger text's own rows, each with n, status, title and resolution."""
+    if d is not None:
+        return merged_register(d, text)[1]
+    rows = [
+        {"n": f"Q{n}", "status": status, "title": title, "resolution": res}
+        for n, status, _, title, res, _ in parse_register(text or "")
+    ]
+    return sorted(rows, key=lambda r: int(r["n"][1:]))
+
+
+def recap_state(rows):
+    """{Q<N>: `<status>: <question> (<answer>)`, uncut} of recap_rows' rows: what a recap saves
+    beside the ledger, so the next `changed` recap can tell which rows changed since."""
+    return {r["n"]: f"{r['status']}: {r['title']} ({recap_answer(r)})" for r in rows}
+
+
+def confirmation_recap(d, cap, text=None, since=None):
     """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
     live question, with every withdrawn row collapsed into one closing line and each long answer
-    cut. The answer length steps down until the recap fits `cap` characters; (recap, fits) says
-    whether it did."""
-    rows = merged_register(d, text)[1]
-    live = [r for r in rows if r["status"] != "withdrawn"]
-    gone = [r["n"] for r in rows if r["status"] == "withdrawn"]
+    cut. With `since` (the recap_state an earlier recap saved) it lists only the rows whose
+    status, question or answer changed since then, and closes with one `Unchanged since the last
+    recap (N): <count> <status>, ...` line for the rest. The answer length steps down until the
+    recap fits `cap` characters; (recap, fits) says whether it did."""
+    rows = recap_rows(d, text)
+    state = recap_state(rows)
+    kept = {n for n, line in state.items() if since is not None and since.get(n) == line}
+    same = [r for r in rows if r["n"] in kept]
+    shown = [r for r in rows if r["n"] not in kept]
+    live = [r for r in shown if r["status"] != "withdrawn"]
+    gone = [r["n"] for r in shown if r["status"] == "withdrawn"]
+    counts = {}
+    for r in same:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
     out = ""
     for n in RECAP_ANSWER_STEPS:
         lines = [
@@ -828,6 +855,9 @@ def confirmation_recap(d, cap, text=None):
         ]
         if gone:
             lines.append(f"Withdrawn ({len(gone)}): {', '.join(gone)}")
+        if same:
+            tally = ", ".join(f"{c} {s}" for s, c in sorted(counts.items()))
+            lines.append(f"Unchanged since the last recap ({len(same)}): {tally}")
         out = "\n".join(lines) + "\n"
         if len(out) <= cap:
             return out, True

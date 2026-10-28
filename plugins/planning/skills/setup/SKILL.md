@@ -150,7 +150,7 @@ before and after, the diff when one was shown, the written path, and whether the
 
 ## Next
 
-`/planning:plan`
+/planning:plan
 
 ## What this skill does NOT do
 
