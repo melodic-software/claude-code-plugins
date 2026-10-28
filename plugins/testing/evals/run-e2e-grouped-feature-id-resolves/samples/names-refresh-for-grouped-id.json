@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Next\n\n- `/app-control:map refresh billing/export`",
+      "why": "slash form with the grouped id"
+    },
+    {
+      "answer": "billing/export | changed: shop/billing/export/csv.py | control skill not refreshed (app-control not installed). Run app-control:map refresh `billing/export`.",
+      "why": "backticked id"
+    },
+    {
+      "answer": "Run /app-control:map refresh billing/export.",
+      "why": "id at the end of a sentence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then /app-control:map refresh export.",
+      "why": "module dropped from the id"
+    },
+    {
+      "answer": "Then /app-control:map refresh billing/export.md.",
+      "why": "the legacy file name, not the id"
+    },
+    {
+      "answer": "Then /app-control:map refresh billing/export/README.md.",
+      "why": "the path, not the id"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: run-e2e-app-control-absent-reports-drift
+description: Without app-control, run-e2e still maps the changed file to its feature through the control skill index's sources globs, reports that feature's possible drift and names /app-control:map refresh for it in Next, without stopping, failing or editing the control skill
+tags: [run-e2e, app-control, refresh, drift, unattended, invented]
+expected_outcome: The reply takes own driving and finishes the run. It reports that the cart/total feature's control skill may no longer match the app because src/cart/total.ts changed, and its Next section names /app-control:map refresh cart/total for when app-control is installed. It does not stop or fail the run for app-control's absence, does not claim a refresh ran, installs nothing, edits no control skill file, and reports no drift for checkout.
+execution:
+  prompt: "/testing:run-e2e unattended the cart page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is not installed: no app-control skill resolves in this session. The repository has the control skill .claude/skills/control-shop/, whose index has two lines: `- Cart total | features/cart/total/README.md | entry points: 1 | sources: src/cart/**` and `- Checkout | features/checkout/README.md | entry points: 1 | sources: src/checkout/**`. This branch changes only src/cart/total.ts. Nobody is present to answer. Assume the cart page's entry point drives and passes. Write the run's final report, including its Next section, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: names-refresh-for-cart-total
+    type: regex
+    pattern: 'app-control:map refresh[ `"]+cart/total\b'
+    arm: both
+  - name: reports-drift-without-failing
+    type: llm
+    criteria: "PASS only if the reply (1) reports that the cart/total feature (or Cart total) of control-shop may be out of date because src/cart/total.ts changed, (2) names /app-control:map refresh cart/total in its Next section as the step once app-control is installed, and (3) completes the run with the passing entry point reported rather than stopping or failing it. FAIL if it says a refresh ran or was called, installs or enables a plugin, edits or writes a file under .claude/skills/control-shop/, reports drift for checkout, or marks the run failed or blocked because app-control is missing."

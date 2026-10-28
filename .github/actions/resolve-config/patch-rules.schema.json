@@ -91,6 +91,10 @@
             }
           }
         },
+        "thread-trailer": {
+          "const": true,
+          "description": "kept-threads rows: after the trailer, apply-patch adds a Lane-Thread: <thread id> line for each kept thread a VALID reply in the model job's scanned replies names, which publish-feedback.mjs requires before it credits the commit to that thread; with no replies read, nothing is committed."
+        },
         "reads-report": {
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."

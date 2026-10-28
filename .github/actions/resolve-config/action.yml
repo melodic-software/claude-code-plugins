@@ -121,9 +121,9 @@ outputs:
     value: ${{ steps.resolve.outputs.profile }}
   claude-args:
     description: >
-      The profile's Claude Code arguments: `--model <alias>` unless the model
-      is `default`, `--max-turns <n>`, and `--effort <level>` when the profile
-      sets one. Empty for a script.
+      The profile's Claude Code arguments: `--model <alias>`, `--max-turns
+      <n>`, and `--effort <level>` when the profile sets one. Empty for a
+      script.
     value: ${{ steps.resolve.outputs.claude-args }}
   settings-json:
     description: >
@@ -135,12 +135,11 @@ outputs:
     value: ${{ steps.resolve.outputs.max-turns }}
   model:
     description: >
-      The profile's model alias, for run-claude-cli's `model` input. A role
-      profile takes its role's model from the base's
+      The profile's model alias, for run-claude-cli's `model` input: `haiku`,
+      `sonnet` or `opus`, and `opus` for any other value. A role profile
+      takes its role's model from the base's
       plugins/multi-agent/reference/defaults.yaml, and `opus` when that
-      gives `inherit` or no alias. Empty when the model is `default`, which
-      the launcher cannot pass, so a launcher caller must fail on it; empty
-      for a script.
+      gives `inherit` or no alias. Empty for a script.
     value: ${{ steps.resolve.outputs.model }}
   effort:
     description: >

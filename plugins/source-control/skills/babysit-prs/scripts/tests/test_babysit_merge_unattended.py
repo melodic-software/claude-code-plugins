@@ -652,7 +652,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         sha = "a" * 40
         answers = {
             "repos/owner/repo": {"default_branch": "main"},
-            "repos/owner/repo/commits/main": {"sha": sha},
+            "repos/owner/repo/git/ref/heads/main": {"object": {"sha": sha}},
             f"repos/owner/repo/contents?ref={sha}": [],
         }
         calls: list[list[str]] = []
@@ -788,7 +788,9 @@ class Unattended(unittest.TestCase):
         # The repository's default branch as `repository_default_branch` reads it.
         self.repo_default: str | None = "main"
         # Each branch's tip as `base_tip` resolves it; one absent here fails.
-        self.tips: dict[str, str] = {"main": "e" * 40, "trunk": "f" * 40}
+        # The default branch head is `main`'s tip (`main_head`): the base, so
+        # the in-flight cap is `self.config`'s.
+        self.tips: dict[str, str] = {"main": BASE, "trunk": "f" * 40}
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -840,9 +842,6 @@ class Unattended(unittest.TestCase):
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
-        # The default branch head the in-flight cap is read at: the base, so
-        # the cap is `self.config`'s.
-        self.main_head = BASE
         # Reads of the pipeline config at `main_head` when it is not the
         # base, in order (the merge config's, the in-flight cap's, the room
         # check's): a config, or an exception to raise. Empty reads
@@ -860,6 +859,15 @@ class Unattended(unittest.TestCase):
             if len(self.dependabot_reads) > 1
             else self.dependabot_reads[0]
         )
+
+    @property
+    def main_head(self) -> str:
+        """The default branch head, read through `base_tip` like any tip."""
+        return self.tips.get("main", "")
+
+    @main_head.setter
+    def main_head(self, sha: str) -> None:
+        self.tips["main"] = sha
 
     def _base_tip(self, owner: str, name: str, base: str) -> str:
         if base not in self.tips:
@@ -910,8 +918,8 @@ class Unattended(unittest.TestCase):
         return read
 
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
-        if endpoint == "repos/owner/repo/commits/main":
-            return 200, {"sha": self.main_head}
+        if endpoint == "repos/owner/repo/git/ref/heads/main":
+            return 200, {"object": {"sha": self.main_head}}
         # A test's own patch of `policy._get` answers the rest; the real reader
         # would reach GitHub, so a read nothing answers raises instead.
         if self._outer_get is _REAL_GET:
@@ -3707,13 +3715,18 @@ class ReasonsComment(Unattended):
 
     def test_an_unresolved_default_branch_tip_is_no_lift(self) -> None:
         # The list is never read by the branch's name, which a tag of the
-        # same name could answer.
+        # same name could answer. The run's own default branch head read
+        # resolved; only the lift's later tip read does not.
         self.escalated_earlier()
+        head = self.main_head
         del self.tips["main"]
         self.timeline = [
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
-        _, out = self.run_main()
+        with mock.patch.object(
+            policy, "_default_branch_head", return_value=("main", head)
+        ):
+            _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(self.trusted_refs, [])
         self.assertEqual(
