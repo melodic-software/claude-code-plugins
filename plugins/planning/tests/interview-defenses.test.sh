@@ -510,11 +510,12 @@ done
 # The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
 # AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
 # The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
+# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve rule byte-identical. The template's example bullets fold to one each and the resolver paragraph is rewrapped, to stay under the 500-line cap
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "cae25d912208f98eed9d04abf99d186e293a6eacea8fc8fbf212f821da6ac01d"
+  "32ca83a2a8dfeef1db43ba8f85cbdc7582118c9a8a225fa47f78edb56aa79ed3"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -678,11 +679,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
 # PRD seeds the Brief; Variation intent rename
+# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve and constraint-ledger defenses intact
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "106bd557fc1336e3faf59a833f98ed4d6ea5c4461d818df8f600f026bdab2c7c"
+  "2df6c8a7940d5851b889dc10b6a134925556be55c5d3a87277544e5c6ea698aa"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.

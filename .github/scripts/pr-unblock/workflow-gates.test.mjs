@@ -525,7 +525,7 @@ const CONFLICT_JOBS = [
   "resolve-conflicts-subscription-handoff",
   "resolve-conflicts-fallback",
   "apply-conflict-patch",
-  "report-conflict-status",
+  "report-stop-status",
 ];
 
 // As for review-dependency: a job that needs a skipped subscription call and
