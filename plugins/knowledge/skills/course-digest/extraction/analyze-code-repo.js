@@ -16,6 +16,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -78,28 +79,37 @@ function checkRepoSize(parsed) {
   }
 }
 
-async function cloneRepoToTemp(parsed) {
-  const cloneDir = join(tmpdir(), `course-repo-${parsed.repo}-${Date.now()}`);
+/**
+ * Clone into `<tempRoot>/repo`, where `tempRoot` is a fresh owner-only
+ * directory the caller removes.
+ *
+ * @returns {Promise<string | null>} the clone directory, or null when the clone failed
+ */
+async function cloneRepoToTemp(parsed, tempRoot) {
+  const cloneDir = join(tempRoot, "repo");
   const githubUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
   log.info(`  Cloning to temp: ${cloneDir}`);
 
   // A course repository is one the enrolled user may reach only with their own
-  // credentials, so git runs in the user's environment.
+  // credentials, so git runs in the user's environment; LFS objects stay
+  // pointers, since the analysis reads only structure and file names.
   let gitStderr = "";
   const cloned = await shallowCloneGitHubRepo(githubUrl, cloneDir, undefined, {
     inheritGitEnvironment: true,
+    env: { GIT_LFS_SKIP_SMUDGE: "1" },
     onStderr: (text) => {
       gitStderr = text;
     },
   });
   if (!cloned) {
     log.error(`  Clone failed: ${gitStderr.trim()}`);
-    process.exit(1);
+    return null;
   }
   log.info("  Clone complete.");
   return cloneDir;
 }
 
+/** @returns {Promise<{ cloneDir: string, tempRoot: string | null }>} */
 async function resolveCloneDir(parsed, codeOutputDir) {
   if (args["skip-clone"]) {
     if (!existsSync(codeOutputDir)) {
@@ -107,11 +117,21 @@ async function resolveCloneDir(parsed, codeOutputDir) {
       process.exit(1);
     }
     log.info("  Using existing code/ directory (--skip-clone).");
-    return { cloneDir: codeOutputDir, isTemp: false };
+    return { cloneDir: codeOutputDir, tempRoot: null };
   }
 
   checkRepoSize(parsed);
-  return { cloneDir: await cloneRepoToTemp(parsed), isTemp: true };
+  // mkdtemp creates the directory with mode 0700 and an unpredictable name.
+  const tempRoot = await mkdtemp(join(tmpdir(), "course-repo-"));
+  /** @type {string | null} */
+  let cloneDir = null;
+  try {
+    cloneDir = await cloneRepoToTemp(parsed, tempRoot);
+  } finally {
+    if (!cloneDir) rmSync(tempRoot, { recursive: true, force: true });
+  }
+  if (!cloneDir) process.exit(1);
+  return { cloneDir, tempRoot };
 }
 
 function buildReadme(githubUrl, structure, frameworks, fileCounts) {
@@ -168,8 +188,28 @@ async function main() {
     process.exit(1);
   }
 
-  const { cloneDir, isTemp } = await resolveCloneDir(parsed, codeOutputDir);
+  const { cloneDir, tempRoot } = await resolveCloneDir(parsed, codeOutputDir);
+  let analysisPath;
+  try {
+    analysisPath = writeAnalysis({ cloneDir, codeOutputDir, githubUrl, parsed });
+  } finally {
+    if (tempRoot) {
+      log.debug(`  Cleaning up temp clone: ${tempRoot}`);
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  }
 
+  log.info("\n  ────────────────────────────────────────────");
+  log.info(`  Analysis: ${analysisPath}`);
+  log.info(`  README: ${join(codeOutputDir, "README.md")}\n`);
+}
+
+/**
+ * Analyze the clone and write `analysis.json` and `README.md` into `code/`.
+ *
+ * @returns {string} the analysis.json path
+ */
+function writeAnalysis({ cloneDir, codeOutputDir, githubUrl, parsed }) {
   log.info("  Analyzing structure...");
   const structure = detectRepoStructure(cloneDir);
   log.info(
@@ -219,15 +259,7 @@ async function main() {
     buildReadme(githubUrl, structure, frameworks, fileCounts),
     "utf-8",
   );
-
-  if (isTemp && cloneDir.startsWith(tmpdir())) {
-    log.debug(`  Cleaning up temp clone: ${cloneDir}`);
-    rmSync(cloneDir, { recursive: true, force: true });
-  }
-
-  log.info("\n  ────────────────────────────────────────────");
-  log.info(`  Analysis: ${analysisPath}`);
-  log.info(`  README: ${join(codeOutputDir, "README.md")}\n`);
+  return analysisPath;
 }
 
 if (isMainModule(import.meta.url)) {

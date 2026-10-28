@@ -11,7 +11,11 @@ import { progressKey, workRoot } from "./work-root.mjs";
 const CLI = path.join(import.meta.dirname, "work-root.mjs");
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "work-root-test-")));
 const gitConfig = path.join(base, "gitconfig");
-const { GIT_DIR: _d, GIT_WORK_TREE: _w, GIT_INDEX_FILE: _i, ...inherited } = process.env;
+const inherited = Object.fromEntries(
+  Object.entries(process.env).filter(
+    ([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"].includes(name) && !name.startsWith("GIT_CONFIG"),
+  ),
+);
 const env = {
   ...inherited,
   GIT_CONFIG_GLOBAL: gitConfig,

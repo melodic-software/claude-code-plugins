@@ -35,7 +35,7 @@ Repo → Validate → THEN Synthesize.
 
 **Steps:**
 
-1. Open the course URL in the browser tool the `/testing:run-e2e` browser-tool rubric picks: the Playwright CLI through `/playwright:playwright` by default
+1. Open the course URL in the browser tool (SKILL.md Prerequisites)
 2. Read page to identify modules and lessons (use platform adapter for selectors)
 3. For each module, extract:
    - Module title and position
@@ -290,6 +290,7 @@ Runs throughout all phases, not a separate step. See [storage-schema.md](storage
 - Write artifacts as they're produced, don't buffer
 - Update `course.json` status after each lesson/module
 - All paths relative to the course directory, `<work-root>/courses/<platform>/<slug>/`; the phase checklist lives at `<work-root>/.work/<slug>/course-digest-checklist.md`
+- Nothing is written under `<work-root>` until its visibility check in SKILL.md ("Paid content stays private") reads `private`, `internal` or `local`
 
 ## Resuming
 
@@ -329,7 +330,7 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 - 45-lesson course: ~90 min for transcripts, ~30+ min for frames
 - Use `nohup` pattern for unattended runs (see SKILL.md)
-- Monitor via `tail -20 extraction.log` and `run-report.json`
+- Monitor via `tail -20 <work-root>/.work/<slug>/extraction.log` and `run-report.json`
 
 ## Freshness verification (Phase 5 prerequisite)
 
