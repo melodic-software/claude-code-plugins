@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Route: drive. The subagent invokes `/app-control:drive timer start-a-timer --unattended --out <run dir>`.",
+      "why": "drive with the flag on one line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Route: drive. The subagent invokes `/app-control:drive timer start-a-timer --out <run dir>`.",
+      "why": "no unattended flag"
+    },
+    {
+      "answer": "Route: fallback (unattended). The run drives the page with playwright-cli --unattended.",
+      "why": "own driving"
+    }
+  ]
+}

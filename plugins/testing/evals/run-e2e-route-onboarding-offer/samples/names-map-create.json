@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "There is no control skill yet. Want me to set one up with /app-control:map create? Or say \"just use what you have\" and I will drive it myself.",
+      "why": "offers map create"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will start npm run dev and drive the signup form with playwright-cli.",
+      "why": "no onboarding offer"
+    },
+    {
+      "answer": "Install the app-control plugin, then run /app-control:map refresh.",
+      "why": "names refresh, not create"
+    }
+  ]
+}
