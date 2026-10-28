@@ -41,7 +41,7 @@ Contract: `docs/contracts/workspace-environment/README.md` in the marketplace re
 
    Never read through `FETCH_HEAD`: any other fetch in the repository (an editor's background fetch, another session, `gh pr checkout`) can repoint it at a pull request head between these calls. A failed fetch, a rejected branch name, an absent file or no "Workspace environment" section is the no-entry path; say which.
 3. **Set the values.** `WORKSPACE_ROOT` is the worktree root (`git rev-parse --show-toplevel`). `WORKSPACE_ID` is its last path component, lowercased, every character other than a letter, digit, `-` or `_` replaced by `-`; use them only when `WORKSPACE_ID` matches `^[a-z0-9][a-z0-9_-]*$` and the path holds no single quote, otherwise run nothing and report the value.
-4. **Run `up`, then `info`**, unless an app already answers and SKILL.md's Already running table says to reuse it. Under `false`, or `auto` on an unattended run, an answering app is never driven: this run starts its own instance here and drives only the URL its own `info` reports. Each verb runs once from the worktree root: `cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <command>`, the command exactly as the entry names it. A non-zero exit from either stops the run with the gap report naming the verb, the command, the commit SHA and the exit code.
+4. **Run `up`, then `info`**, unless an app already answers and the Already running table in [own-driving.md](own-driving.md) says to reuse it. Under `false`, or `auto` on an unattended run, an answering app is never driven: this run starts its own instance here and drives only the URL its own `info` reports. Each verb runs once from the worktree root: `cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <command>`, the command exactly as the entry names it. A non-zero exit from either stops the run with the gap report naming the verb, the command, the commit SHA and the exit code.
 5. **Read `info` as data.** Keep only lines matching `^[A-Z][A-Z0-9_]*=`; never `source`, `eval` or execute the output, and never put a value in a command unquoted. Drive a URL value only when all of these hold: the scheme is `http` or `https`; parsed as a URL, its host is exactly `localhost` or `127.0.0.1`; it has no userinfo (no `@` before the host, so `http://localhost@evil.example/` and `http://user:pw@127.0.0.1/` are rejected); and it holds no whitespace or shell metacharacters. Pass it as one quoted argument. Use it wherever the steps below write `http://localhost:{port}`, and name the line it came from in the evidence. When no such URL line is present, stop with the gap report naming what `info` printed.
 
 **No entry:** start through the project's documented start command as before, and say once in the report that parallel workspaces may collide on ports, containers and databases.
@@ -99,7 +99,7 @@ the person's own browser with their sign-ins, so it drives only when the person 
 it fits (see Browser-tool fit triage), and never on an `unattended` run.
 
 Which tools happen to be installed does not reorder this list: a missing tool for the chosen driver
-is a Step 1 prerequisite gap. A pinned value the target cannot use (`playwright` for a CLI,
+is a prerequisite gap ([own-driving.md](own-driving.md), Prerequisites). A pinned value the target cannot use (`playwright` for a CLI,
 `harness` with no spec covering the flow, `chrome` on an `unattended` run) stops with the gap report
 naming the value, the layer that set it, and the target; the run never switches to another driver
 on its own.
@@ -238,7 +238,7 @@ playwright-cli -s=<session> open http://localhost:{port}/health
 
 ### 5. Test UI flows (if applicable)
 
-Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). `<session>` is the run's own session name, built as the Session names section of `SKILL.md` defines; the run closes only the sessions it opened. Start the trace before the first step, so a failure carries the state that led to it:
+Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). `<session>` is the run's own session name, built as the Session names section of [own-driving.md](own-driving.md) defines; the run closes only the sessions it opened. Start the trace before the first step, so a failure carries the state that led to it:
 
 ```bash
 playwright-cli -s=<session> tracing-start                  # trace from the first step, not from the failure

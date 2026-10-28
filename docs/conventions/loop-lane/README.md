@@ -27,6 +27,10 @@ Moved to [this section](../../contracts/loop-lane/README.md#2-escalation-contrac
 
 Moved to [this section](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner).
 
+### The owner's standing direction
+
+Moved to [this section](../../contracts/loop-lane/README.md#the-owners-standing-direction).
+
 ### Cross-lane PR hold
 
 Moved to [this section](../../contracts/loop-lane/README.md#cross-lane-pr-hold).
