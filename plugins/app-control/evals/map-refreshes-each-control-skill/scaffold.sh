@@ -10,6 +10,10 @@ if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; 
 fi
 git config user.name eval
 git config user.email eval@example.invalid
+# Keep a .gitconfig in the workspace out of git status, so the clean status the prompt states holds.
+exclude="$(git rev-parse --git-path info/exclude)"
+mkdir -p "$(dirname "$exclude")"
+printf '%s\n' .gitconfig >>"$exclude"
 
 # seed <slug> <app> <feature> <entry point>
 seed() {
