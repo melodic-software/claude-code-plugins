@@ -659,6 +659,8 @@ test("a relink that cannot be read whole keeps the FAIL", async () => {
     ["edits cut short", relinked(cut)],
     ["events cut short", relinked(filtered)],
     ["an event with no time", relinked(timeless)],
+    // Only the original text, before the FAIL: no visible cause for the link.
+    ["nothing since the FAIL", relinked(relinkAnswer())],
     ["a FAIL run with no creation time", relinked(relinkAnswer(), { runs: { 77: verifyRun(77, { created_at: null }) } })],
   ]) {
     assert.equal(await reason(setup), "already-judged", label);

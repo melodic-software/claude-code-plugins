@@ -33,9 +33,9 @@
 // The head SHA is the run's, never the PR's live head.
 // This PR's own plain-named FAIL at the head (written when it linked no issue,
 // or more than a name carries) stops a new judgment unless the PR now links
-// issues a FAIL name can carry and every body edit and issue connect or
-// disconnect since that FAIL's run was created was a trusted person's
-// (relinkedByPeople): reason `relinked`. The gate weighs the pass that
+// issues a FAIL name can carry and, since that FAIL's run was created, only
+// trusted people edited its body or connected or disconnected an issue, at
+// least once (relinkedByPeople): reason `relinked`. The gate weighs the pass that
 // judgment writes by the same rule (babysit_verify_evidence `_superseded`).
 
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -121,10 +121,11 @@ export const RELINK_QUERY =
 // A User on the trusted list's humans: never the lanes App or another Bot.
 const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.has(actor.databaseId);
 
-// Whether every body edit and issue connect or disconnect on the pull request
-// from `since` on was a trusted person's (babysit_verify_evidence
-// `_relinked_by_people`, which ends the window at a pass's start). A failed
-// read, a list cut short, or an act with no readable time is false.
+// Whether at least one body edit or issue connect or disconnect on the pull
+// request falls from `since` on, and every one there was a trusted person's
+// (babysit_verify_evidence `_relinked_by_people`, which ends the window at a
+// pass's start). None there means the link changed some way this read cannot
+// see. A failed read, a list cut short, or an act with no readable time is false.
 export async function relinkedByPeople(github, repository, number, humans, since) {
   const start = Date.parse(since ?? "");
   if (Number.isNaN(start)) {
@@ -143,10 +144,12 @@ export async function relinkedByPeople(github, repository, number, humans, since
   if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
     return false;
   }
-  return [...edits.nodes.map((node) => [node?.editedAt, node?.editor]), ...events.nodes.map((node) => [node?.createdAt, node?.actor])].every(([at, actor]) => {
-    const time = Date.parse(at ?? "");
-    return !Number.isNaN(time) && (time < start || trustedHuman(actor, humans));
-  });
+  const acts = [...edits.nodes.map((node) => [node?.editedAt, node?.editor]), ...events.nodes.map((node) => [node?.createdAt, node?.actor])];
+  if (acts.some(([at]) => Number.isNaN(Date.parse(at ?? "")))) {
+    return false;
+  }
+  const inside = acts.filter(([at]) => Date.parse(at) >= start);
+  return inside.length > 0 && inside.every(([, actor]) => trustedHuman(actor, humans));
 }
 
 // babysit_merge_policy.names_nothing: whether a GraphQL answer says only that

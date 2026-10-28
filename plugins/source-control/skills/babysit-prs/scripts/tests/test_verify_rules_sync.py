@@ -135,6 +135,7 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             gate.relink_answer([(at, human)], edits_total=101),
             gate.relink_answer([], [(at, human)], events_filtered=2),
             gate.relink_answer([], [(None, human)]),
+            gate.relink_answer(),
             {},
         ]
         script = (

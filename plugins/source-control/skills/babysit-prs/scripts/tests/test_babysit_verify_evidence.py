@@ -1121,6 +1121,9 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 relink_answer([], [(RELINK_AT, HUMAN)], events_filtered=2),
             ),
             ("timeless event", relink_answer([], [(None, HUMAN)])),
+            # Only the original text, before the FAIL: the link changed some
+            # way the read cannot see (an issue deleted or moved).
+            ("nothing in the window", relink_answer()),
         ):
             with self.subTest(label):
                 fake = self.relinked()
