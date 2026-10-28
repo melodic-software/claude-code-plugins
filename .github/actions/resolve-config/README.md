@@ -106,7 +106,8 @@ the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#l
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
-block, the built-in `standard` profile (model `default`, 75 turns); at input `model-rung` 1 the
+block, the built-in `standard` profile (model `opus`, 75 turns); a model outside `haiku`,
+`sonnet` and `opus` resolves to `opus`; at input `model-rung` 1 the
 profile's `escalate-to` replaces it, one rung at most; a script slot carries `models`
 null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, also carries
 `issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap; its
@@ -154,12 +155,11 @@ Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, als
 only when the leaf sets it, and `issue-dimensions` and `timeout-minutes` only when the slot reads
 issue dimensions. `args` is free text and stays in the file.
 
-`claude-args` is `--model <alias>` unless the model is `default`, then `--max-turns <n>`, then
+`claude-args` is `--model <alias>`, then `--max-turns <n>`, then
 `--effort <level>` when the profile sets one; `settings-json` is
 `{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"<alias>"}}`, or empty for `inherit`. Both are built only
 from schema enums and an integer, and the step fails on any other `claude-args` shape. `model` and
-`effort` are the same values for a caller on ci-workflows' `run-claude-cli`: `model` is the alias,
-or empty for `default`, which that action cannot pass, so such a caller fails on an empty `model`;
+`effort` are the same values for a caller on ci-workflows' `run-claude-cli`: `model` is the alias;
 `effort` is empty when the profile sets none. A script gets all six model outputs empty.
 
 With `model-route` the step resolves no lane: the file holds `version`, `source`, `route` and

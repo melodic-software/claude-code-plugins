@@ -139,6 +139,26 @@ case "$endpoint" in
     ;;
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
+  */git/ref/heads/main)
+    # main's tip, unambiguous where a tag shares the name.
+    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref ]] || exit 1
+    fixture="$STUB_DIR/main-ref.json"
+    echo '{"object": {"sha": "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}' >"$fixture"
+    ;;
+  */compare/*...abcdefabcdefabcdefabcdefabcdefabcdefabcd)
+    # Whether the newer green run's head is on main: STUB_ON_MAIN is the
+    # compare status (default ahead), or fail.
+    [[ "${STUB_ON_MAIN:-ahead}" != fail ]] || exit 1
+    fixture="$STUB_DIR/on-main.json"
+    jq -n --arg s "${STUB_ON_MAIN:-ahead}" '{status: $s}' >"$fixture"
+    ;;
+  */compare/"$STUB_RUN_SHA"...*)
+    # The newer green run's ancestry: STUB_ANCESTRY is the compare status
+    # (default ahead), or fail.
+    [[ "${STUB_ANCESTRY:-ahead}" != fail ]] || exit 1
+    fixture="$STUB_DIR/ancestry.json"
+    jq -n --arg s "${STUB_ANCESTRY:-ahead}" '{status: $s}' >"$fixture"
+    ;;
   */compare/*) fixture="$STUB_DIR/compare.json" ;;
   */contents/*) exec cat "$STUB_DIR/pipeline.yaml" ;;
   graphql)
@@ -233,7 +253,10 @@ open("$TMP_ROOT/stub/judge", "w").write(" ".join(args))
 shutil.copy(args[args.index("--checks-file") + 1], "$TMP_ROOT/stub/judge.checks")
 if "--baseline-checks-file" in args:
     shutil.copy(args[args.index("--baseline-checks-file") + 1], "$TMP_ROOT/stub/judge.baseline")
-print(json.dumps({"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}))
+verdict = {"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}
+if """${JUDGE_ERROR:-}""":
+    verdict["error"] = """${JUDGE_ERROR:-}"""
+print(json.dumps(verdict))
 sys.exit($JUDGE)
 PY
   fi
@@ -257,7 +280,7 @@ PY
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -912,6 +935,41 @@ for code in 1 3; do
   fi
 done
 
+# A judge that fails (exit 2 to 4) files as before and says why.
+for code in 2 3 4; do
+  JUDGE=$code JUDGE_ERROR="unreadable: run 4242: HTTP 502" RUNS="$(baseline_run 4141 success)" \
+    run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 &&
+    "$OUT" == *"::warning::the suite judge exited $code, so every newly failing check demotes: unreadable: run 4242: HTTP 502"* ]]; then
+    ok "a judge exit $code warns with the judge's error"
+  else
+    fail "judge exit $code warning: rc=$RC out='$OUT'"
+  fi
+done
+JUDGE=3 JUDGE_ERROR="line one
+::error::forged" RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$OUT" == *"::warning::the suite judge exited 3, so every newly failing check demotes: line one%0A::error::forged"* ]] &&
+  ! grep -q '^::error::forged' <<<"$OUT"; then
+  ok "a multi-line judge error stays inside the one warning"
+else
+  fail "multi-line judge error: out='$OUT'"
+fi
+JUDGE=4 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$OUT" == *"::warning::the suite judge exited 4, so every newly failing check demotes: no error in its output"* ]]; then
+  ok "a judge exit with no error in its output still warns"
+else
+  fail "judge exit 4 without an error: out='$OUT'"
+fi
+for code in 0 1; do
+  JUDGE=$code JUDGE_ERROR="not a failure" RUNS="$(baseline_run 4141 success)" \
+    run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+  if [[ "$OUT" != *"the suite judge exited"* ]]; then
+    ok "a judge exit $code names no judge failure"
+  else
+    fail "judge exit $code warned: out='$OUT'"
+  fi
+done
+
 JUDGE=0 run_step "$CANARY" push failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/judge" ]]; then
   ok "a canary failure is never judged by suite"
@@ -1277,6 +1335,53 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"at atte
   ok "a dispatched run whose re-run also failed files nothing when a newer run on main passed"
 else
   fail "dispatched run, re-run failed, main recovered: rc=$RC posts=$(posts) fixes=$(fixes) log='$LOG' out='$OUT'"
+fi
+
+# A newer green run shows main recovered only when its head descends from the
+# red SHA (compare RUN_SHA...newer is ahead or identical).
+NEWER=fedcba9876543210fedcba9876543210fedcba98
+for status in ahead identical; do
+  GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ANCESTRY=$status VIA=workflow_dispatch \
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
+    grep -qx "GET repos/o/r/compare/$SHA...$NEWER" <<<"$LOG" && grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+    ok "a newer green run whose head is $status of the red SHA suppresses the alert"
+  else
+    fail "newer green run, ancestry $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fi
+done
+for status in diverged behind fail; do
+  GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ANCESTRY=$status VIA=workflow_dispatch \
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 && "$OUT" != *"already recovered"* ]] &&
+    grep -qx "GET repos/o/r/compare/$SHA...$NEWER" <<<"$LOG" && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+    ok "a newer green run whose head does not descend from the red SHA (compare $status) files"
+  else
+    fail "newer green run, ancestry $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fi
+done
+
+# A newer green run that descends from the red SHA but is not on main (a tag
+# named main on a side commit) files: main's tip must be ahead of or identical
+# to its head.
+MAIN_TIP=abcdefabcdefabcdefabcdefabcdefabcdefabcd
+for status in diverged behind fail fail-ref; do
+  GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=$status VIA=workflow_dispatch \
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] &&
+    grep -qx 'GET repos/o/r/git/ref/heads/main' <<<"$LOG" && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+    ok "a newer green run off main's history (main tip compare $status) files"
+  else
+    fail "newer green run off main, $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fi
+done
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical VIA=workflow_dispatch \
+  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
+  grep -qx "GET repos/o/r/compare/$NEWER...$MAIN_TIP" <<<"$LOG"; then
+  ok "a newer green run at main's tip suppresses the alert"
+else
+  fail "newer green run at main's tip: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
