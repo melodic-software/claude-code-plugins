@@ -915,8 +915,9 @@ jobs:
           # drift. The managed config cannot carry a consumer-local
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
-          # histories, so a correction would change what the judge is measured on.
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
+          # histories, so a correction would change what the judge is measured on;
+          # the developer-experience labeled samples are judge inputs for the same reason.
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned

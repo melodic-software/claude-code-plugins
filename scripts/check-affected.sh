@@ -385,6 +385,7 @@ typos_check() {
     --exclude 'plugins/*/skills/*/vendor/**' \
     --exclude 'plugins/*/tools/*/vendor/**' \
     --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
+    --exclude 'plugins/developer-experience/evals/sources/labels/**' \
     -- "${changed[@]}" || return 1
 }
 typos_config="$tools/_typos.toml"
