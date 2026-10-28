@@ -5,6 +5,7 @@
 - [1. Three-session topology](#1-three-session-topology)
 - [2. Escalation contract](#2-escalation-contract)
 - [When work stops for the owner](#when-work-stops-for-the-owner)
+- [The owner's standing direction](#the-owners-standing-direction)
 - [3. Capability tiers](#3-capability-tiers)
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
@@ -314,10 +315,10 @@ second channel: the tracker item remains the single escalation of record.
 
 ### When work stops for the owner
 
-The owner's rule, 2026-10-27, verbatim:
+The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it on 2026-10-28:
 
 <!-- spellchecker:off -->
-> "I (the human) should only ever be in the loop or involved via signals like needs-human / needs-decision labels if there is 1. A change in original intent/vision 2. Something comes up during implementation (things don't always go to plan, new findings while doing the actual work) that alters intent/vision or the primary design 3. If there is a HIGH/CRITICAL security issue. Everything else needs to move through the factory floor, the conveyer belt autonomously once work has been deemed agent ready and intent/vision have been translated, expressed and codified in the work item contract. Any changes from that intent/vision are what require my intervention."
+> "I (the human) should only ever be in the loop or involved via signals like needs-human / needs-decision labels if there is 1. A change in original intent/vision 2. Something comes up during implementation (things don't always go to plan, new findings while doing the actual work) that alters intent/vision or the primary design 3. A real HIGH/CRITICAL security or cost risk, as defined in section 3. Everything else needs to move through the factory floor, the conveyer belt autonomously once work has been deemed agent ready and intent/vision have been translated, expressed and codified in the work item contract. Any changes from that intent/vision are what require my intervention."
 >
 > "Any actual security risks, like tokens/secrets being leaked, things that would compromise my accounts, $$$, etc. particularly if the repository is public."
 <!-- spellchecker:on -->
@@ -329,7 +330,7 @@ The owner's rule, 2026-10-27, verbatim:
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
-The owner's standing direction on cost and other stops, 2026-10-27, verbatim:
+The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 
 <!-- spellchecker:off -->
 > "Cost, which comes to me: anything that can bill me. That means Azure, GitHub (larger runners, Actions minutes or storage on private repositories, paid storage or artifact retention beyond the free quota, plan or seat changes) and any other billing account."
@@ -342,6 +343,35 @@ The owner's standing direction on cost and other stops, 2026-10-27, verbatim:
 <!-- spellchecker:on -->
 
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
+
+### The owner's standing direction
+
+The owner's standing direction for every session and lane, 2026-10-28, verbatim. Sections 2 and 3
+are quoted in [When work stops for the owner](#when-work-stops-for-the-owner); section 6 is
+[design-for-change](../../standards/design-for-change.md).
+
+<!-- spellchecker:off -->
+> **1. Decide from evidence**
+>
+> - Decide on facts, data and metrics; use /discovery:research when a question needs outside sources. State the basis of each decision.
+> - When the evidence settles a question, act on it. Do not ask me.
+>
+> **4. Throughput**
+>
+> - Aim for the highest throughput with the least friction that is safe, within GitHub, infrastructure and Claude rate limits.
+> - Find and remove overhead and churn: redundant runs, repeated work, needless holds and manual steps.
+>
+> **5. Efficiency**
+>
+> - Trigger work only when needed. Prefer events (the Hollywood principle: "don't call us, we'll call you") to polling, and batch where possible.
+> - No redundant runs or duplicate work across sessions.
+> - Respect GitHub API rate limits and Claude API/OAuth subscription limits; spend time, orchestration and execution carefully.
+> - Store only what is needed. Give every artifact, log, cache and stored file a retention policy so nothing grows unbounded, above all where it could cost money.
+>
+> **7. Use of Time**
+>
+> If you're waiting on a PR, another session, an eval, or anything that you report as "YOU" waiting on: Make sure you have proper monitoring so you don't waste time and can immediately do your work as soon as it is unblocked/ready.
+<!-- spellchecker:on -->
 
 ### Cross-lane PR hold
 
