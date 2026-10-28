@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-10-28
+
+### Fixed
+
+- `/user-interface:design` reads an `account_tools_enabled` value that arrives as its unexpanded `${user_config.account_tools_enabled}` token as the key's default `true`, so account-bound tools stay enabled instead of being read as off.
+
 ## [0.8.7] - 2026-10-28
 
 ### Fixed

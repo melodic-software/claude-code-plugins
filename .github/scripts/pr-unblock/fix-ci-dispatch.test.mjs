@@ -1267,7 +1267,8 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
 });
 
 // fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
-// workflow run (the run id in each check's details_url). When the rung-up's
+// workflow run (the run id in each check's external_id; the API returns each
+// check's details_url as the check run's own page). When the rung-up's
 // push job stops, the pair
 // is one stopped attempt: the first check's "Passed: no changes" does not
 // leave the head handled. The pair still spends two of the head's
@@ -1275,8 +1276,9 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
 test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried on the same head", async () => {
   const head = "7".padStart(40, "a");
   const at = (time) => `2026-10-22T${time}:00Z`;
-  const fixCi = (time, suite, title) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title }, started_at: at(time), completed_at: at(time), details_url: `https://github.com/o/r/actions/runs/${suite}` });
-  const stop = (time, suite) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), details_url: `https://github.com/o/r/actions/runs/${suite}` });
+  const checkPage = (time) => `https://github.com/o/r/runs/9${time.replace(":", "")}`;
+  const fixCi = (time, suite, title) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title }, started_at: at(time), completed_at: at(time), details_url: checkPage(time), external_id: `pr-unblock:fix-ci:${suite}:1` });
+  const stop = (time, suite) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), details_url: checkPage(time), external_id: `pr-unblock:apply-patch:${suite}:1` });
   const pair = [fixCi("10:00", 1, "Passed: no changes"), fixCi("10:10", 1, "Fixed")];
   const once = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 1)]]]) });
   assert.ok(once.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), once.lines.join("\n"));
@@ -1295,6 +1297,22 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
     stops: new Map([[head, [stop("10:15", 1), stop("11:15", 3)]]]),
   });
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
+});
+
+// A re-run is the same run id at its next attempt (external_id
+// `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
+// attempt it followed.
+test("a stop in a run's first attempt leaves the head handled when the re-run fixed it", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time, attempt) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at(time), completed_at: at(time), external_id: `pr-unblock:fix-ci:40700900804:${attempt}` });
+  const stop = (time, attempt) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), external_id: `pr-unblock:apply-patch:40700900804:${attempt}` });
+  const rerun = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1), fixCi("10:30", 2)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
+  assert.ok(rerun.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), rerun.lines.join("\n"));
+  assert.deepEqual(rerun.api.calls.dispatch, []);
+  // A stop in the same attempt still marks it.
+  const same = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
+  assert.ok(same.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), same.lines.join("\n"));
 });
 
 // A head whose fix-ci stop still fails after its checks went green (a flaky

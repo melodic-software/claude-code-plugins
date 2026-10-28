@@ -100,6 +100,21 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
   });
 });
 
+// Each review lane edits its one marker in place, so the reply job reads the
+// heads the threads were kept on from run.json, not from the markers then.
+test("select returns every lane's marker-confirmed head, sorted, for run.json; the thread file does not carry them", async () => {
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    { id: 2, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", OLD_HEAD) },
+    { id: 3, user: { id: STRANGER }, body: marker("claude-review", "c".repeat(40)) },
+  ];
+  const result = await run(fakeApi({ issueComments }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.reviewedHeads, [HEAD, OLD_HEAD]);
+  assert.equal(Object.hasOwn(result.file, "reviewed_heads"), false);
+  assert.equal(JSON.parse(runRecord(result.file, result.reviewedHeads)).reviewed_heads.join(), `${HEAD},${OLD_HEAD}`);
+});
+
 // A finding on a doc whose fix lives in a script the PR also changes: the
 // thread file lists every file the PR changes, rename sources included, but
 // none a fix may never change.
@@ -945,7 +960,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // run.json's bytes, in the shape the write runner's collect step wrote.
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
@@ -1011,8 +1026,8 @@ test("run.json carries each kept thread's named_paths and no comment body", () =
     ],
   };
   assert.equal(
-    runRecord(file),
-    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}]}\n`,
+    runRecord(file, [HEAD]),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 });
 
