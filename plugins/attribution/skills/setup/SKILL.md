@@ -23,7 +23,7 @@ invocation:
   that list is a layer still on its fallback. The list does not decide absence: a YAML layer that
   does not parse is left out of it, named on stderr, and shadows its JSON fallback, which is left
   out too. A team layer or overlay is absent only when `test -f "<root>/<home>/attribution.yaml"`
-  (or `attribution.local.yaml`) fails. A YAML layer that exists but is not listed is unparseable:
+  (or `attribution.local.yaml`) fails. A YAML layer that exists but is not listed is unparsable:
   report it, and never overwrite it or carry its JSON fallback over it without the operator's choice.
 
 Substitute the literal root and home the previous calls returned for `<root>` and `<home>`; when
