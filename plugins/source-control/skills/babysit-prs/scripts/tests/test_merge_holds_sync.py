@@ -1001,11 +1001,16 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
 
 
 NODE_CARRY = """
-import { baseMergeCarry, fromRest, liftsOf } from %s;
+import { approvalCarry, autoDismissed, baseMergeCarry, fromRest, liftsOf } from %s;
 const [lifts, carries, from] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify([
-  lifts.map((reviews) => liftsOf(reviews.map(fromRest), new Set([1, 3])).map(({ login, sha }) => [login, sha])),
-  carries.map(([then, now, inBase]) => baseMergeCarry(then, now, from, inBase)),
+  lifts.map(([reviews, events]) =>
+    liftsOf(reviews.map(fromRest), new Set([1, 3]), autoDismissed(events)).map(({ login, sha, dismissal }) => [login, sha, dismissal]),
+  ),
+  carries.map(([then, now, inBase, merges, based, dismissal]) => [
+    baseMergeCarry(then, now, from, inBase),
+    approvalCarry(then, now, from, inBase, merges, based, dismissal),
+  ]),
 ]));
 """
 _OLD = "c" * 40
@@ -1014,6 +1019,9 @@ _HELD = ".github/actions/resolve-config/live-config.test.mjs"
 _PATCH = {"filename": _HELD, "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 _DOC = {"filename": "docs/a.md", "status": "modified", "patch": "+x"}
 _LIFTED = "2026-10-27T23:26:14Z"
+# The merge bases of the approved head and of the head with the base's tip.
+_MB_OLD = "1" * 40
+_MB_HEAD = "2" * 40
 
 
 def _moved(*commits: tuple[str, list[str]]) -> dict[str, Any]:
@@ -1026,51 +1034,138 @@ def _moved(*commits: tuple[str, list[str]]) -> dict[str, Any]:
     }
 
 
-_THEN = {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]))}
-_MERGED = _moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD, _BASE_SHA]))
+_THEN = {"files": [_PATCH], "merge_base_commit": {"sha": _MB_OLD}, **_moved((_OLD, [_BASE_SHA]))}
+_MERGED = {"merge_base_commit": {"sha": _MB_HEAD}, **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD, _BASE_SHA]))}
 _OTHER = "e" * 40
 _REWRITTEN = "f" * 40
-# REST reviews: whose approval stands, as (login, sha).
+
+
+def _dismissal(review: int = 41, **change: Any) -> dict[str, Any]:
+    """GitHub's stale-review dismissal on the base merge's push, as #10224's
+    timeline shows it, with `change` applied to it or to its actor."""
+    actor = {"login": "lanes[bot]", "type": "Bot"} | change.pop("actor", {})
+    return {
+        "event": "review_dismissed",
+        "actor": actor,
+        "dismissed_review": {
+            "review_id": review,
+            "state": "approved",
+            "dismissal_message": None,
+            "dismissal_commit_id": _HEAD,
+        }
+        | change,
+    }
+
+
+def _dismissed(sha: str = _OLD, user: int = 1, review: int = 41) -> dict[str, Any]:
+    return _review("DISMISSED", user, sha, _LIFTED) | {"id": review}
+
+
+# (REST reviews, timeline events): whose approval stands, as (login, sha,
+# dismissal commit or None).
 LIFT_CASES = {
-    "an approval of an earlier head": [_review("APPROVED", sha=_OLD, at=_LIFTED)],
-    "an approval by an untrusted account": [_review("APPROVED", 2, _OLD, _LIFTED)],
-    "an approval by a bot": [_review("APPROVED", 1, _OLD, _LIFTED, "Bot")],
-    "an approval then changes requested on another head": [
+    "an approval of an earlier head": ([_review("APPROVED", sha=_OLD, at=_LIFTED)], []),
+    "an approval by an untrusted account": ([_review("APPROVED", 2, _OLD, _LIFTED)], []),
+    "an approval by a bot": ([_review("APPROVED", 1, _OLD, _LIFTED, "Bot")], []),
+    "an approval then changes requested on another head": ([
         _review("APPROVED", sha=_OLD, at=_LIFTED),
         _review("CHANGES_REQUESTED", sha="d" * 40, at="2026-10-27T23:40:00Z"),
-    ],
-    "a dismissed approval": [_review("DISMISSED", sha=_OLD, at=_LIFTED)],
-    "an approval dismissed after a newer approval": [
+    ], []),
+    "a dismissed approval": ([_dismissed()], []),
+    "an approval dismissed after a newer approval": ([
         _review("APPROVED", sha=_OLD, at=_LIFTED),
         _review("DISMISSED", sha=_HEAD, at="2026-10-27T23:40:00Z"),
-    ],
-    "a comment after an approval": [_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")],
-    "two people": [_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)],
+    ], []),
+    "a comment after an approval": ([_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")], []),
+    "two people": ([_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)], []),
+    # The owner's decision of 2026-10-28 (part a).
+    "an approval GitHub dismissed as stale": ([_dismissed()], [_dismissal()]),
+    "a review id read as a string": ([_dismissed()], [_dismissal("41")]),
+    "a dismissal with a message": ([_dismissed()], [_dismissal(dismissal_message="stale")]),
+    "a dismissal with an empty message": ([_dismissed()], [_dismissal(dismissal_message="")]),
+    "a dismissal with no message field": ([_dismissed()], [{"event": "review_dismissed", "actor": {"type": "Bot"}, "dismissed_review": {"review_id": 41, "state": "approved", "dismissal_commit_id": _HEAD}}]),
+    "a dismissal by a person": ([_dismissed()], [_dismissal(actor={"type": "User"})]),
+    "a dismissal with no actor": ([_dismissed()], [_dismissal() | {"actor": None}]),
+    "a dismissed request for changes": ([_dismissed()], [_dismissal(state="changes_requested")]),
+    "a dismissal of another review": ([_dismissed()], [_dismissal(42)]),
+    "a second dismissal event with a message": ([_dismissed()], [_dismissal(), _dismissal(dismissal_message="no")]),
+    "a dismissal commit that is no sha": ([_dismissed()], [_dismissal(dismissal_commit_id=None)]),
+    "a stale dismissal by an untrusted account": ([_dismissed(user=2)], [_dismissal()]),
+    "changes requested after a stale dismissal": ([_dismissed(), _review("CHANGES_REQUESTED", sha=_HEAD, at="2026-10-27T23:40:00Z")], [_dismissal()]),
 }  # fmt: skip
 _IN_BASE = [_BASE_SHA]
 _HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "@@ -1 +1 @@\n-x\n+y"}
-# (then, now, in_base): whether the approval at _OLD carries to _HEAD, given
-# the merged parents the base holds.
+# What the merges brought into the approved head (compare _OLD..._HEAD) and
+# what the base changed between the merge bases (_MB_OLD..._MB_HEAD).
+_BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "@@ -1 +1 @@\n-p\n+q"}
+# #10224's shape: the base changed a file the pull request also changes, so
+# its net change moved by hunk headers, while the base's hunk applies the same.
+_SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
+_SHARED_OLD = {"filename": _SHARED, "status": "modified", "patch": "@@ -93,6 +93,13 @@ let root;\n context\n+mine"}
+_SHARED_HEAD = _SHARED_OLD | {"patch": "@@ -98,6 +98,13 @@ let root;\n context\n+mine"}
+_SHARED_BASE = {"filename": _SHARED, "status": "modified", "patch": "@@ -10,6 +10,11 @@ import\n+theirs"}
+
+
+def _brought(files: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
+    return {"status": "ahead", "behind_by": 0, "files": files, **_moved((_BASE_SHA, []), (_HEAD, []))} | extra
+
+
+def _based(files: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
+    return {"status": "ahead", "behind_by": 0, "files": files, **_moved((_MB_HEAD, []))} | extra
+
+
+_CLEAN = (_brought([_BASE_DOC]), _based([_BASE_DOC]))
+_REPLAY_THEN = _THEN | {"files": [_PATCH, _SHARED_OLD]}
+_REPLAY_NOW = {"files": [_PATCH, _SHARED_HEAD], **_MERGED}
+_REPLAY_BASE = _based([_SHARED_BASE, _BASE_DOC])
+_MANY = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i in range(300)]
+# (then, now, in_base, merges, based, dismissal): whether the approval at _OLD
+# carries to _HEAD, by base_merge_carry (the cost carry) and approval_carry.
 CARRY_CASES = {
-    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE),
-    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE),
-    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
-    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE),
+    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None),
+    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None),
+    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _HELPER | {"patch": "+evil"}]), _based([_BASE_DOC]), None),
+    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC]), _based([_BASE_DOC]), None),
     "a base merge after which the base holds a hold path's change": (
         {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}], **_moved((_OLD, [_BASE_SHA]))},
         {"files": [_PATCH], **_MERGED},
         _IN_BASE,
+        _brought([_BASE_DOC]),
+        _based([_BASE_DOC, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}]),
+        None,
     ),
-    "a merge of a parent the base does not hold": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
-    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, []),
-    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
-    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE),
-    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE),
-    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE),
-    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
-    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE),
-    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE),
-    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE),
+    "a merge of a parent the base does not hold": (_REPLAY_THEN, {"files": [_PATCH, _SHARED_HEAD], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
+    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, [], *_CLEAN, None),
+    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"patch": "+evil"}]), _based([_BASE_DOC]), None),
+    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}]), _based([_BASE_DOC]), None),
+    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}]), _based([_BASE_DOC]), None),
+    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE, *_CLEAN, None),
+    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE, *_CLEAN, None),
+    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE, *_CLEAN, None),
+    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE, *_CLEAN, None),
+    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, {"filename": _HELD, "status": "modified"}]), _based([_BASE_DOC]), None),
+    # The owner's decision of 2026-10-28 (part b): the exact carry.
+    "#10224's shape": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
+    "#10224's shape, dismissed as stale on the merge's push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _HEAD),
+    "#10224's shape, dismissed by a commit the merges did not push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OTHER),
+    "#10224's shape, dismissed at the approved head": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OLD),
+    "#10224's shape with no range read": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, None, None, None),
+    "a merge that also edits a hold path": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _PATCH | {"patch": "+evil"}]), _REPLAY_BASE, None),
+    "a merge that also edits a non-hold file": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE, _HELPER]), _REPLAY_BASE, None),
+    "a merge that changes the base's hunk": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE | {"patch": "+evil"}]), _REPLAY_BASE, None),
+    "a base change reverted inside the merge": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_SHARED_BASE]), _REPLAY_BASE, None),
+    "300 files brought": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought(_MANY), _based(_MANY), None),
+    "a base range of 300 files": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _based(_MANY), None),
+    "a brought commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], total_commits=251), _REPLAY_BASE, None),
+    "a base range commit list cut short": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"total_commits": 251}, None),
+    "a head range that is not ahead": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE], status="diverged", behind_by=1), _REPLAY_BASE, None),
+    "a base range that goes backwards": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"status": "behind", "behind_by": 1}, None),
+    "a base range listed ahead and behind": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"behind_by": 1}, None),
+    "a base range with no behind count": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), {k: v for k, v in _REPLAY_BASE.items() if k != "behind_by"}, None),
+    "a base that did not move": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, _brought([]), {"status": "identical", "behind_by": 0, "files": [], "commits": [], "total_commits": 0}, None),
+    # The compare API reports no file mode, so a merge that also flips a
+    # file's mode lists as the base's changes alone: the documented residual.
+    "a merge that also flips a file's mode": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None),
 }  # fmt: skip
 
 
@@ -1092,33 +1187,66 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
             check=True,
         )
         lifts, carries = json.loads(proc.stdout)
-        for (name, reviews), js in zip(LIFT_CASES.items(), lifts, strict=True):
+        for (name, (reviews, events)), js in zip(LIFT_CASES.items(), lifts, strict=True):
             with self.subTest(name):
                 self.assertEqual(
-                    [list(x) for x in policy.lifts_of(reviews, {1, 3})], js
+                    [
+                        list(x)
+                        for x in policy.lifts_of(
+                            reviews, {1, 3}, policy.auto_dismissed(events)
+                        )
+                    ],
+                    js,
                 )
-        for (name, (then, now, in_base)), js in zip(
+        for (name, (then, now, in_base, merges, based, dismissal)), js in zip(
             CARRY_CASES.items(), carries, strict=True
         ):
             with self.subTest(name):
                 self.assertEqual(
-                    policy.base_merge_carry(then, now, _OLD, set(in_base)), js
+                    [
+                        policy.base_merge_carry(then, now, _OLD, set(in_base)),
+                        policy.approval_carry(
+                            then, now, _OLD, set(in_base), merges, based, dismissal
+                        ),
+                    ],
+                    js,
                 )
         # The rule's answers: a trusted person's newest review approves a
-        # commit (a dismissed approval never counts); it carries over merges of
-        # base commits alone that leave the whole net change the same.
+        # commit, or is an approval GitHub dismissed as stale (with its
+        # dismissal commit); it carries over merges of base commits alone that
+        # leave the whole net change the same (both carries), or that brought
+        # exactly the base's changes (the approval carry alone), and a stale
+        # dismissal must be by a commit the merges pushed.
         self.assertEqual(
             dict(zip(LIFT_CASES, lifts, strict=True)),
             dict.fromkeys(LIFT_CASES, [])
             | {
-                "an approval of an earlier head": [["u1", _OLD]],
-                "a comment after an approval": [["u1", _OLD]],
-                "two people": [["u1", _OLD], ["u3", _HEAD]],
+                "an approval of an earlier head": [["u1", _OLD, None]],
+                "a comment after an approval": [["u1", _OLD, None]],
+                "two people": [["u1", _OLD, None], ["u3", _HEAD, None]],
+                "an approval GitHub dismissed as stale": [["u1", _OLD, _HEAD]],
+                "a review id read as a string": [["u1", _OLD, _HEAD]],
+            },
+        )
+        answers = dict(zip(CARRY_CASES, carries, strict=True))
+        self.assertEqual(
+            {name for name, (cost, _) in answers.items() if cost},
+            {
+                "a base merge",
+                "a base merge with a non-hold file unchanged",
+                "a base that did not move",
             },
         )
         self.assertEqual(
-            {name for name, js in zip(CARRY_CASES, carries, strict=True) if js},
-            {"a base merge", "a base merge with a non-hold file unchanged"},
+            {name for name, (_, approval) in answers.items() if approval},
+            {
+                "a base merge",
+                "a base merge with a non-hold file unchanged",
+                "a base that did not move",
+                "#10224's shape",
+                "#10224's shape, dismissed as stale on the merge's push",
+                "a merge that also flips a file's mode",
+            },
         )
 
 
