@@ -12,6 +12,12 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "dialect": {
+      "type": "string",
+      "minLength": 1,
+      "default": "posix-ere",
+      "description": "The regex dialect subject_pattern and pr_title_pattern are written in, for a reader that needs to know it. The guardrails convention gate enforces posix-ere only: any other value turns its enforcement off with a diagnostic. Unset means posix-ere."
+    },
     "subject_pattern": {
       "type": "string",
       "minLength": 1,

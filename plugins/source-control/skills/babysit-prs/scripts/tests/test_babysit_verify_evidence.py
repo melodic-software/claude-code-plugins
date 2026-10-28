@@ -46,6 +46,7 @@ import babysit_gh as gh
 import babysit_merge as merge
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 import babysit_verify_evidence as ve
 import test_babysit_merge_unattended as unattended
 
@@ -2258,6 +2259,53 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
             self.assertEqual(evidence.refusal, "verify:fail")
             self.assertEqual(listings(fake), 1)
 
+    def provisional(self, fake: FakeGitHub) -> tuple[ve.Reader, ve.Evidence]:
+        """The gate's own candidate (babysit_merge.py): judged provisional."""
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            return reader, reader.evidence(PR, HEAD, pull(), provisional=True)
+
+    def saved_then(
+        self, before: FakeGitHub, later: FakeGitHub
+    ) -> tuple[ve.Reader, ve.Evidence]:
+        """`before` saves the run's listing; ten minutes on, past the bound,
+        a provisional judgment while GitHub holds `later`."""
+        clock = [datetime(2026, 10, 16, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]):
+            self.gate(before)
+            clock[0] += timedelta(minutes=10)
+            return self.provisional(later)
+
+    def test_a_fail_on_an_older_saved_listing_refuses_a_provisional_judgment(
+        self,
+    ) -> None:
+        # An upload since cannot clear a FAIL at the head: no listing.
+        failed = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
+        fake.artifacts.append(artifact(named(HEAD, "pass"), 2))
+        fake.runs[2] = run(2)
+        _, evidence = self.saved_then(failed, fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(listings(fake), 0)
+
+    def test_a_provisional_allow_stands_on_an_older_saved_listing(self) -> None:
+        # babysit_merge.py lists again before the gate allows (`saved`).
+        fake = passing()
+        reader, evidence = self.saved_then(passing(), fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertTrue(reader.saved)
+        self.assertEqual(listings(fake), 0)
+
+    def test_a_clearable_refusal_on_an_older_saved_listing_is_judged_again(
+        self,
+    ) -> None:
+        # The saved listing has no verdict; a pass uploaded since allows, so
+        # a missing verdict there would dequeue the candidate's entry wrongly.
+        reader, evidence = self.saved_then(FakeGitHub([], {}), fake := passing())
+        self.assertIsNone(evidence.refusal)
+        self.assertFalse(reader.saved)
+        self.assertEqual(listings(fake), 1)
+
     def test_a_listing_in_memory_past_the_bound_is_read_again(self) -> None:
         clock = [datetime(2026, 10, 16, 12, 0, tzinfo=UTC)]
         fake = passing()
@@ -3032,8 +3080,71 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(reader.listing_mode, "full")
-        # The incremental first page, then the whole listing's own check.
-        self.assertEqual((fake.pages(), fake.full_listings()), (2, 1))
+        # The incremental first page, read `INCREMENTAL_READS` times, then
+        # the whole listing's own check.
+        self.assertEqual(
+            (fake.pages(), fake.full_listings()), (ve.INCREMENTAL_READS + 1, 1)
+        )
+
+    def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
+        # A 429, a rate-limit 403 or a timeout on the first incremental page
+        # is never read again (`_read_listing`'s rule): the whole listing
+        # follows at once, as before the count-miss retry.
+        failures: dict[str, Any] = {
+            "429": subprocess.CompletedProcess(
+                [], 1, "", "gh: API rate limit exceeded (HTTP 429)"
+            ),
+            "rate-limit 403": subprocess.CompletedProcess(
+                [], 1, "", "gh: API rate limit exceeded for installation (HTTP 403)"
+            ),
+            "timeout": timed_out(),
+        }
+        for label, failure in failures.items():
+            with self.subTest(label):
+                self.saved.unlink(missing_ok=True)
+                self.write_carry(self.base)
+                fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+                first = [True]
+
+                def page(args: list[str], **kwargs: Any) -> Any:
+                    if first[0] and args[1].endswith("&page=1"):
+                        first[0] = False
+                        fake.calls.append(args)
+                        if isinstance(failure, BaseException):
+                            raise failure
+                        return failure, {}
+                    return fake(args, **kwargs), {"date": DATE}
+
+                with (
+                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                    mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+                ):
+                    reader = ve.Reader(REPO, "main", now=NOW)
+                    evidence = reader.evidence(PR, HEAD, pull())
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertEqual(reader.listing_mode, "full")
+                # The failed page, then the whole listing and its top-up, two
+                # pages down to 900; no second read on the carried base.
+                self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
+
+    def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
+        # The first read's live count is one more than its pages hold, as
+        # when a page boundary moves during the read; the next read holds it
+        # and no page is listed whole.
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        rest, off = fake.rest, [len(self.base) + 2]
+
+        def first_read_off(args: list[str], *rest_args: Any) -> Any:
+            first = any(a.endswith("&page=1") for a in args)
+            fake.live_total = off.pop() if first and off else None
+            return rest(args, *rest_args)
+
+        fake.rest = first_read_off  # type: ignore[method-assign]
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual((fake.pages(), fake.full_listings()), (4, 0))
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
         for delta in (-1, 1):
@@ -3340,6 +3451,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.verdicts: dict[int, ve.Evidence] = {}
+        # Each judgment's pull request and whether it was provisional.
+        self.provisional: list[tuple[int, bool]] = []
         self.read = mock.Mock(
             side_effect=lambda number, head: self.verdicts.get(number, evidence(None))
         )
@@ -3355,7 +3468,10 @@ class LaneRequiresAVerdict(unattended.Unattended):
         # Writes whose argv holds one of these fail (HTTP 502).
         self.failing: set[str] = set()
 
-    def _evidence(self, number: int, head: str, pr: Any = None) -> ve.Evidence:
+    def _evidence(
+        self, number: int, head: str, pr: Any = None, *, provisional: bool = False
+    ) -> ve.Evidence:
+        self.provisional.append((number, provisional))
         return self.read(number, head)
 
     def _capture(self, args: list[str]) -> Any:
@@ -3571,6 +3687,14 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertTrue(out["unattended"]["reason"].startswith("risk:"))
         refresh.assert_not_called()
         self.read.assert_called_once_with(unattended.PR, unattended.HEAD)
+
+    def test_only_the_candidate_is_judged_provisional(self) -> None:
+        # Its allow is judged again on its own listing before the gate allows
+        # it; a queued entry kept on the judgment has no such second read.
+        other = unattended.PR + 1
+        self.queued = [other]
+        self.lane()
+        self.assertEqual(self.provisional, [(unattended.PR, True), (other, False)])
 
     def test_a_refusal_on_the_saved_listing_stands_without_a_listing(self) -> None:
         refresh = self.saved_listing()
@@ -3874,7 +3998,7 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
             mock.patch.object(
                 ve.Reader,
                 "evidence",
-                side_effect=lambda n, head, pr=None: (
+                side_effect=lambda n, head, pr=None, **_: (
                     self.reads.append(n) or ve.run_cache.note(listed) or evidence(None)
                 ),
             ),
@@ -4598,6 +4722,264 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         ):
             after = self.sweep(fake)
         self.assertEqual(after[ZIP_KIND], 6)
+
+
+class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
+    """Artifact listings and requests per pr-merge tick, each job's printed as
+    a `babysit-gh-calls` line, in a repository shaped like 2026-10-27's: 6,240
+    artifacts uploaded four a minute, and the listing the last tick saved 15
+    minutes before as the carried base. The merge job's skip filter lists
+    first; then 17 gate candidates 20 seconds apart while uploads go on:
+    eight refused by a FAIL at their head, seven whose verdict allows and
+    whose risk score then refuses, two allowed; with one queued entry that
+    each gate judges again once its keep is over `run_cache.MAX_AGE` old, or
+    none. enable-auto-merge judges five pull requests on its own saved
+    listing (`evidence --shared-listing`)."""
+
+    START = LISTED_AT
+    UPLOAD_EVERY = timedelta(seconds=15)
+    FILLER = 6240
+    # Each candidate in turn: refused by a FAIL ("fail"), its verdict allows
+    # and the risk score refuses ("risk"), or allowed ("allow"); the last two
+    # judge PR 41 at its head.
+    KINDS = "fail risk fail risk fail risk fail risk allow fail risk fail risk fail risk allow fail".split()
+    GATE_EVERY = timedelta(seconds=20)
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        self.clock = [self.START]
+        self.next_id = 100_000
+        fake = FakeGitHub([], {1: run(1)}, {named(HEAD, "pass"): record()})
+        first = self.START - self.UPLOAD_EVERY * self.FILLER
+        for k in range(self.FILLER):
+            self.upload(fake, "pr-merge-run-cache", 3, first + self.UPLOAD_EVERY * k)
+        # The verdicts: a pass at PR 41's head, a FAIL at each other
+        # candidate's head, all uploaded within the last hour.
+        self.upload(fake, named(HEAD, "pass"), 1, self.START - timedelta(minutes=50))
+        for n in self.refused():
+            sha, run_id = self.head(n), 1000 + n
+            fail = f"{named(sha, 'fail', n)}-{ve.head_ref_digest(f'b{n}')}"
+            fake.runs[run_id] = run(run_id)
+            fake.records[fail] = record(n, sha, verdict="fail", head_ref=f"b{n}")
+            self.upload(fake, fail, run_id, self.START - timedelta(minutes=40))
+        self.fake = fake
+        # The last tick's listing, read 15 minutes before this one.
+        carried_at = self.START - timedelta(minutes=15)
+        self.carry = self.dir / "carry.json"
+        self.carry.write_text(
+            json.dumps(
+                {
+                    "fetchedAt": carried_at.isoformat(),
+                    "artifacts": [
+                        a
+                        for a in fake.artifacts
+                        if ve._when(a["created_at"]) <= carried_at
+                    ],
+                }
+            )
+        )
+        for patcher in (
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: self.clock[0]),
+            mock.patch.object(run_cache, "now", side_effect=lambda: self.clock[0]),
+            mock.patch.object(policy, "pull_request", side_effect=self.pull),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def refused(self) -> list[int]:
+        return [42 + i for i in range(self.KINDS.count("fail"))]
+
+    @staticmethod
+    def head(number: int) -> str:
+        return HEAD if number == PR else format(number, "040x")
+
+    def pull(self, repo: str, number: int) -> dict[str, Any]:
+        return pull(
+            number=number,
+            head={
+                "ref": "feat/x" if number == PR else f"b{number}",
+                "sha": self.head(number),
+            },
+        )
+
+    def upload(self, fake: FakeGitHub, name: str, run_id: int, at: datetime) -> None:
+        fake.artifacts.append(
+            dated(name, run_id, self.next_id, at, expires=at + timedelta(days=7))
+        )
+        self.next_id += 1
+
+    def tick(self, until: datetime) -> None:
+        """Move the clock, uploading four artifacts a minute on the way."""
+        while self.clock[0] + self.UPLOAD_EVERY <= until:
+            self.clock[0] += self.UPLOAD_EVERY
+            self.upload(self.fake, "pr-review-cli-handoff", 3, self.clock[0])
+        self.clock[0] = until
+
+    def answer(self, cmd: list[str], **kwargs: Any) -> Any:
+        """gh as GitHub answers it: `-i` adds the status, `Date` and `Link`;
+        listing pages are 100 artifacts, newest id first."""
+        headers = "-i" in cmd
+        args = [a for a in cmd[1:] if a != "-i"]
+        path = args[1] if args[:1] == ["api"] else ""
+        date = self.clock[0].strftime("%a, %d %b %Y %H:%M:%S GMT")
+        link = ""
+        listing = f"repos/{REPO}/actions/artifacts?per_page=100"
+        if path.startswith(listing):
+            page = int(path.partition("&page=")[2] or 1)
+            self.listings += page == 1
+            ordered = sorted(self.fake.artifacts, key=lambda a: -a["id"])
+            body = {
+                "total_count": len(ordered),
+                "artifacts": ordered[(page - 1) * 100 : page * 100],
+            }
+            if page * 100 < len(ordered):
+                link = f'Link: <https://api.github.com/{listing}&page={page + 1}>; rel="next"\r\n'
+            proc = subprocess.CompletedProcess(cmd, 0, json.dumps(body), "")
+        elif re.fullmatch(rf"repos/{REPO}/pulls/[0-9]+/commits\?per_page=100", path):
+            number = int(path.split("/")[4])
+            proc = subprocess.CompletedProcess(
+                cmd, 0, json.dumps([{"sha": self.head(number)}]), ""
+            )
+        else:
+            proc = self.fake(
+                args,
+                env_overrides=kwargs.get("env_overrides"),
+                binary=kwargs.get("binary"),
+            )
+        if not headers or proc.returncode != 0:
+            return proc
+        return subprocess.CompletedProcess(
+            cmd, 0, f"HTTP/2.0 200 OK\r\nDate: {date}\r\n{link}\r\n{proc.stdout}", ""
+        )
+
+    def environ(self, job: str) -> Any:
+        return mock.patch.dict(
+            "os.environ",
+            {
+                "BABYSIT_RUN_CACHE": str(self.dir / f"{job}-run.json"),
+                ve.LISTING_ENV: str(self.dir / f"{job}-listing.json"),
+                ve.LISTING_CARRY_ENV: str(self.carry),
+                ve.TOKEN_ENV: "job-token",
+            },
+        )
+
+    def merge_job(
+        self,
+        queued: bool,
+        kinds: list[str] | None = None,
+        every: timedelta | None = None,
+    ) -> tuple[dict[str, int], list[Any]]:
+        kinds, every = kinds or self.KINDS, every or self.GATE_EVERY
+        refusals: list[Any] = []
+        gh.reset_gh_call_counts()
+        self.listings = 0
+        kept_at: datetime | None = None
+        with (
+            self.environ("merge"),
+            mock.patch.object(gh, "run_command", side_effect=self.answer),
+        ):
+            # The skip filter (babysit_merge_skip.py filter) lists first, on
+            # the carried listing, and saves it for the gate.
+            skip = ve.Reader(REPO, "main")
+            skip.listing()
+            self.assertEqual(skip.listing_mode, "incremental")
+            self.skip_calls = gh.gh_call_counts()
+            refused = iter(self.refused())
+            for i, kind in enumerate(kinds):
+                self.tick(self.START + every * (i + 1))
+                number = next(refused) if kind == "fail" else PR
+                head, pr = self.head(number), self.pull(REPO, number)
+                # babysit_merge.py `_evaluate`: a fresh Reader per candidate,
+                # and its own listing before an allow.
+                reader = ve.Reader(REPO, "main", now=NOW)
+                evidence = reader.evidence(number, head, pr, provisional=True)
+                if evidence.refusal is None and kind == "allow" and reader.saved:
+                    reader.refresh()
+                    evidence = reader.evidence(number, head, pr)
+                refusals.append(evidence.refusal)
+                # `unattended_writes`: a queued entry judged again once its
+                # keep is past `run_cache.MAX_AGE` (`_kept_recently`).
+                if queued and (
+                    kept_at is None or self.clock[0] - kept_at > run_cache.MAX_AGE
+                ):
+                    self.assertIsNone(reader.queued_hold(PR))
+                    kept_at = self.clock[0]
+        return gh.gh_call_counts(), refusals
+
+    def arm_job(self) -> tuple[dict[str, int], list[Any]]:
+        refusals: list[Any] = []
+        gh.reset_gh_call_counts()
+        self.listings = 0
+        self.clock[0] = self.START
+        with (
+            self.environ("arm"),
+            mock.patch.object(gh, "run_command", side_effect=self.answer),
+        ):
+            for number in [PR, *self.refused()[:4]]:
+                # enable-auto-merge.mjs: one `evidence --shared-listing`
+                # process per pull request.
+                reader = ve.Reader(REPO, "main", now=NOW, listing_max_age=None)
+                refusals.append(
+                    reader.evidence(
+                        number, self.head(number), self.pull(REPO, number)
+                    ).refusal
+                )
+                self.tick(self.clock[0] + timedelta(seconds=30))
+        return gh.gh_call_counts(), refusals
+
+    def report(self, label: str, counts: dict[str, int]) -> None:
+        payload = {
+            "fixture": label,
+            "skip-filter": getattr(self, "skip_calls", None),
+            "listings": self.listings,
+            "total": sum(counts.values()),
+            "calls": dict(sorted(counts.items())),
+        }
+        print(
+            f"babysit-gh-calls {json.dumps(payload, sort_keys=True)}", file=sys.stderr
+        )
+
+    def test_the_merge_job_with_an_empty_queue(self) -> None:
+        counts, refusals = self.merge_job(queued=False)
+        self.report("merge-job queue=0", counts)
+        self.assertEqual(
+            refusals.count(None), len(self.KINDS) - self.KINDS.count("fail")
+        )
+        # The skip filter's listing and each allowed candidate's own: no
+        # refused candidate lists, whatever the saved listing's age.
+        self.assertEqual(self.listings, 1 + self.KINDS.count("allow"))
+
+    def test_the_merge_job_with_a_queued_entry(self) -> None:
+        counts, refusals = self.merge_job(queued=True)
+        self.report("merge-job queue=1", counts)
+        self.assertEqual(
+            refusals.count(None), len(self.KINDS) - self.KINDS.count("fail")
+        )
+
+    def slow_merge_job(self, queued: bool) -> int:
+        # As run 40594967390's merge job: a candidate about every two minutes.
+        kinds = "risk fail risk fail risk allow".split()
+        counts, refusals = self.merge_job(queued, kinds, timedelta(minutes=2))
+        self.report(f"merge-job slow queue={int(queued)}", counts)
+        self.assertEqual(refusals.count(None), 4)
+        return self.listings
+
+    def test_a_slow_merge_job_with_an_empty_queue(self) -> None:
+        # The skip filter's listing, and the allowed candidate's own.
+        self.assertEqual(self.slow_merge_job(False), 2)
+
+    def test_a_slow_merge_job_with_a_queued_entry(self) -> None:
+        # The queued keeps at 6 and 10 minutes find the listing past the
+        # bound and list again; the allow at 12 lists on its own.
+        self.assertEqual(self.slow_merge_job(True), 4)
+
+    def test_enable_auto_merge(self) -> None:
+        counts, refusals = self.arm_job()
+        self.report("enable-auto-merge", counts)
+        self.assertEqual(refusals, [None, *["verify:fail"] * 4])
+        self.assertEqual(self.listings, 1)
 
 
 class EvidenceCommandTest(unittest.TestCase):

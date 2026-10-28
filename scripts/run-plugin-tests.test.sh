@@ -3,8 +3,8 @@
 # allowlist, the print lock, the skip accounting, and the exit contract.
 #
 # Fixtures are throwaway suites under a mktemp root handed to the runner with
-# --root, so the repository's own corpus is never discovered here. No git state
-# is created.
+# --root, so the repository's own corpus is never discovered here. The only git
+# state is one fixture suite's repository under that root.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -161,6 +161,25 @@ if ((plugin_data_was_set)); then
 else
   unset CLAUDE_PLUGIN_DATA
 fi
+
+# A host whose global git config signs every commit, through a signing program
+# that fails, and names its own identity. Each suite reads a fixed test config
+# in place of it, so a plain fixture commit succeeds and never carries the
+# host's identity, and a `git config --global` write stays in its own suite.
+r="$(make_root git-config)"
+hostile="$scratch/hostile.gitconfig"
+printf '[user]\n\tname = host\n\temail = host@example.invalid\n[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /bin/false\n' >"$hostile"
+# The suite bodies are written literally: the $ must survive into the spawned scripts.
+# shellcheck disable=SC2016
+write_suite "$r" plugins/a/commits.test.sh \
+  'd="$(dirname "$0")/repo" && git init -q "$d" && git -C "$d" commit -q --allow-empty -m x && echo "ok: committed as $(git -C "$d" log -1 --format=%ae)" && git config --global fixture.leak a'
+# shellcheck disable=SC2016
+write_suite "$r" plugins/b/reads.test.sh \
+  'if v=$(git config --global fixture.leak); then echo "FAIL: fixture.leak=$v" >&2; exit 1; fi; echo "ok: no leaked global setting"'
+GIT_CONFIG_GLOBAL="$hostile" PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a suite commits under a host config that signs every commit" --root "$r"
+assert_output_has "the fixture commit carries the test identity" "ok: committed as t@t.test"
+assert_output_lacks "the host signing program never ran" "failed to sign"
+assert_output_has "a global setting one suite writes does not reach the next" "ok: no leaked global setting"
 
 # --- parallelism and the serial allowlist -------------------------------------
 #

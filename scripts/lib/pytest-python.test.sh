@@ -37,7 +37,7 @@ venv_python() {
 c="$TMP_ROOT/checkout"
 mkdir -p "$c/scripts/lib" "$c/tests" "$c/.github"
 cp "$SCRIPTS_DIR/run-test-file.sh" "$c/scripts/"
-cp "$SCRIPTS_DIR/lib/checkout-path.sh" "$SCRIPTS_DIR/lib/pytest-python.sh" "$c/scripts/lib/"
+cp "$SCRIPTS_DIR/lib/checkout-path.sh" "$SCRIPTS_DIR/lib/pytest-python.sh" "$SCRIPTS_DIR/lib/test-git-env.sh" "$c/scripts/lib/"
 cat >"$c/scripts/setup-env.sh" <<EOF
 #!/usr/bin/env bash
 echo "setup-env \$* SETUP_ENV_VENV=\$SETUP_ENV_VENV" >>"$log"
