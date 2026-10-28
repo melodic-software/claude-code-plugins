@@ -425,7 +425,8 @@ def block($d):
     (if $d.mode == "audit" then "Audit (read-only): every call sync would make is a prediction, prefixed would run:" else empty end),
     ($d.marketplaces[] | block($d)),
     # A marketplace whose block could not be assembled did resolve; its error
-    # under Action needed names it.
+    # under Action needed names it. The text matched is the run_error wording in
+    # sync-run.sh's emit_marketplace_block: change both together.
     (if ($d.marketplaces | length) == 0
         and ([$d.errors[] | select(test("its report block could not be assembled"))] | length) == 0
      then "Marketplace: none resolved for this run" else empty end),

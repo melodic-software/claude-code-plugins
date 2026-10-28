@@ -2533,6 +2533,8 @@ emit_marketplace_block() {
   fi
   # The steps above already ran and only the report block is missing, so the
   # run names the failure instead of reading as if no marketplace resolved.
+  # render-report.jq matches this wording to tell the two apart: change both
+  # together.
   [[ -f "$err_file" ]] && IFS= read -r jq_err <"$err_file"
   jq_err="${jq_err//$'\r'/}"
   run_error "marketplace $mp: its report block could not be assembled (jq exit $block_rc: ${jq_err:-no error output})"
