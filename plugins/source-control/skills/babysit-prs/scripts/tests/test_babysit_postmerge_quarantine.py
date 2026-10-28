@@ -843,6 +843,12 @@ class SuiteFailures(unittest.TestCase):
         log += "\n" + STAMP + advisory(TOUCHED, "e" * 16)
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY, TOUCHED}))
 
+    def test_bash_drops_an_advisory_suite_from_a_titled_warning(self) -> None:
+        # run-plugin-tests.sh's suite_annotate titles each warning by its suite.
+        titled = advisory(TOUCHED).replace("::warning::", f"::warning title={TOUCHED}::", 1)
+        log = bash_log((FLAKY, False), (TOUCHED, False), (GATE, True), tail=titled)
+        self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
+
     def test_a_real_leg_log_names_only_runner_suites(self) -> None:
         # Job 119563204870: the ui suite's own output prints `FAIL: <file>`
         # lines, and the runner's stderr `FAIL: <suite>` lands inside them.
