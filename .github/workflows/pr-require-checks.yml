@@ -1184,6 +1184,17 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
+      # Every upload-artifact step keeps its artifact for the days its family's
+      # row in .github/artifact-retention.json names. Parses workflows with the
+      # yaml package the runner-policy install above provides, so it gates on
+      # the workflows filter group, which holds the table.
+      - name: Check every artifact upload matches the retention table
+        id: artifact_retention
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
+        run: scripts/check-artifact-retention.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1220,6 +1231,7 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
+            artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -2726,7 +2738,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then

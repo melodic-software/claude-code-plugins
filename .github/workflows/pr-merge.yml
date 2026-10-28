@@ -692,7 +692,7 @@ jobs:
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
           path: ${{ runner.temp }}/alerted.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
 
   merge:
