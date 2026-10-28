@@ -76,8 +76,10 @@ testing feature map.
 
 A control skill whose feature files are any flat `features/<id>.md` is due a flat-to-folder
 conversion; a legacy map is due a format conversion. Both follow Converting a legacy map. Started
-on a ticket branch (§ Ticket branch), a pass due either conversion is **blocked**: a conversion
-runs from the default branch, where it rides the upkeep pull request.
+on a ticket branch (§ Ticket branch), a flat-to-folder conversion is **blocked**, since it is
+written after the passes read the ticket's code; a pass from the default branch clears it. A legacy
+conversion goes ahead: it switches to the upkeep branch, cut from the default branch, before step
+4, so that pass reads the default branch's code and every edit rides the upkeep pull request.
 
 ## 2. Decide whether to run
 
@@ -217,7 +219,8 @@ Then the outcome:
   pass still ship as **changed** describes, and the outcome still reads blocked.
 - Something to ship: **changed**. An attended pass shows the proposed edits and asks before writing,
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
-  goes on. Started on a ticket branch, follow § Ticket branch instead of these four steps. Then:
+  goes on. Started on a ticket branch with no legacy conversion, follow § Ticket branch instead of
+  these four steps. Then:
   1. **Branch.** A legacy conversion did this before step 4 and stays on that branch. The branch
      is `control-skill-upkeep/control-<slug>`, the control skill's full directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
      `control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local
@@ -284,10 +287,12 @@ the drift reaches the caller's report.
 
 Every pass records its starting point before step 1: `git branch --show-current`, or, when that
 prints nothing (a detached HEAD, as a CI checkout of a pull request commit usually is),
-`git rev-parse HEAD`. It then fetches the default branch from its remote and records the start's
-type: the default branch, a detached HEAD at the fetched tip (both take the upkeep branch), a
-ticket branch (§ Ticket branch), or a detached HEAD off that tip (report only). The remote commit
-is the tip, never a local branch that may be stale. After each control skill's step 6, whatever its outcome, it switches back to
+`git rev-parse HEAD`. It then reads the default branch's name and tip with
+`git ls-remote --symref <remote> HEAD`, `<remote>` being `origin`, else the only remote, never a
+local branch that may be stale, and records the start's type: the default branch, the control
+skill's upkeep branch, or a detached HEAD at that tip (all three take the upkeep branch), a ticket
+branch (§ Ticket branch), or a detached HEAD off the tip (report only). When the read fails or
+names no branch, the outcome is **blocked** with git's stderr line, before step 1. After each control skill's step 6, whatever its outcome, it switches back to
 that point: `git switch <branch>`, or `git switch --detach <sha>` for a detached start. It does so
 before the next skill's step 1, so no skill is refreshed on another skill's upkeep branch, and
 before the pass reports, so a caller such as `/testing:run-e2e` resumes on the commit it is
