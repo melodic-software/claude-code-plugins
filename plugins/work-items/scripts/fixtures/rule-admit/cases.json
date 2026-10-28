@@ -301,6 +301,19 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runners;" }
     },
     {
+      "name": "larger GitHub-hosted runners in prose refuse on a public repository",
+      "source": "https://docs.github.com/en/billing/concepts/product-billing/github-actions: larger runners are always charged for, even when used by public repositories",
+      "visibility": "public",
+      "issue": { "body": "Move the slow leg to larger GitHub-hosted runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger github-hosted runners;" }
+    },
+    {
+      "name": "a paid subscription between two fenced blocks refuses when the first holds a ``` mid-line",
+      "source": "CommonMark fenced code blocks: a fence is a whole line, so ``` inside a line neither opens nor closes one",
+      "issue": { "body": "Two rows in the install table read awkwardly.\n\n```yaml\nmessage: \"```\"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
       "name": "a hosted runner admits on a public repository",
       "source": "https://docs.github.com/en/billing/concepts/product-billing/github-actions: Actions usage is free for public repositories that use standard GitHub-hosted runners",
       "visibility": "public",

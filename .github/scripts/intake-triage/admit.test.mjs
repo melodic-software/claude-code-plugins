@@ -465,6 +465,10 @@ describe("decide", () => {
       assert.equal(hits("Fix the step:\n\n```yaml\n- uses: actions/upload-artifact@v4\n  with:\n    retention-days: 5\n```"), undefined);
       assert.equal(hits("The `fix-ci-subscription` job needs a paid subscription."), "subscription");
       assert.equal(hits("Move the `lint` leg to larger runners.", { public: true }), "larger runners");
+      assert.equal(hits("Move the `lint` leg to larger GitHub-hosted runners.", { public: true }), "larger github-hosted runners");
+      // A fence is a whole line: ``` inside a line neither opens nor closes one.
+      assert.equal(hits('```yaml\nmessage: "```"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```'), "subscription");
+      assert.equal(hits("````\n```\nretention-days: 5\n````\n\n~~~\nretention-days: 5\n~~~~"), undefined);
       // A bare identifier still refuses: excluding words joined by - _ / . would
       // also drop prose such as per-seat billing or data-retention.
       assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
