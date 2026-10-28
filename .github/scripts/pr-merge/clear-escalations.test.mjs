@@ -790,7 +790,7 @@ test("labels past the read cap are read on a later run", async () => {
 });
 
 // A trusted move: the head left every resume key through pushes the base
-// trusted-actors.json trusts (a `human` entry, or the lanes App's own entry),
+// trusted-actors.json lists as a `human` (never the lanes App's own entry),
 // read with the job token (`reader`). Expected values come from the owner rule
 // of 2026-10-26: a person is needed only for intent, design or a HIGH/CRITICAL
 // security finding, so a mechanical stop comes off once trusted evidence shows

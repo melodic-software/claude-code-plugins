@@ -34,13 +34,14 @@
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/
-//     ci-fix-*                 a trusted move, and at the new head no check
-//                              but ci-status (the label fails it) fails, runs
-//                              or was cancelled, and one passed
+//     ci-fix-* but             a trusted move, and at the new head no check
+//     ci-fix-protected-path    but ci-status (the label fails it) fails, runs
+//                              or was cancelled, each latest run ended
+//                              success, neutral or skipped, and one passed
 //   A trusted move: the head is this repository's and none of the recorded
 //   resume keys, and every activity on its branch since the label (the
 //   activity API, read with the job token) is by an id trusted-actors.json
-//   lists as a `human`, or the lanes App's entry, the newest landing the head.
+//   lists as a `human`, never the lanes App, the newest landing the head.
 //   Comment text never counts. Removing the label approves nothing: ci-status
 //   fails a review-lane hold an App lifted, and a hold path needs a trusted
 //   person's approving review.
