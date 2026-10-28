@@ -2,4 +2,6 @@
 bump: patch
 ---
 
-Reader contract: the dated `/autocompact` window-precedence observation now points at the `/harness-ops:behavior-probes` `autocompact` cases, which passed on Claude Code 2.1.312.
+### Changed
+
+- **The reader contract's `/autocompact` precedence observation points at its probe cases.** The `/harness-ops:behavior-probes` `autocompact` cases rerun it and passed on Claude Code 2.1.312.
