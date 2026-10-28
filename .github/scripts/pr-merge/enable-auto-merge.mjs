@@ -171,7 +171,7 @@ import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trust
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, HOLD_PATH_FLOOR, humansOf, LANE_HOLD, liftersOf, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, liftersOf, pathHoldKind, pathLifters, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -1230,8 +1230,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
             // it, so a base merge after a person's approval does not send the
             // pull request back to them.
             if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
-              const pr = { number: pull.number, head: pull.headRefOid, base: "main" };
-              lifters = (await liftersOf(github, repo[0], pr, humans, [...holdPaths, ...HOLD_PATH_FLOOR])).lifters;
+              lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans)).lifters;
             }
             detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters };
           }

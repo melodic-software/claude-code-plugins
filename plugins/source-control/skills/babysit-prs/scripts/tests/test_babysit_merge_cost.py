@@ -7,7 +7,6 @@ every change since is a base merge (owner decisions Q17 c and Q18 d on
 from __future__ import annotations
 
 import pathlib
-import re
 import sys
 import unittest
 from datetime import datetime, timedelta
@@ -70,6 +69,8 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
 
 # A base commit a merge of the base names as its second parent.
 MAIN = "5" * 40
+# The base branch's tip commit, which its full ref resolves to.
+TIP = "3" * 40
 
 
 def _history(sha: str, answer: Any) -> Any:
@@ -150,11 +151,11 @@ class Lanes:
             return (
                 (404, None) if self.unreadable == "activity" else (200, self.activity)
             )
-        if "/compare/" in endpoint and not re.fullmatch(
-            r"[0-9a-f]{40}", endpoint.rsplit("...", 1)[1]
-        ):
+        if "/git/ref/heads/" in endpoint:
+            return (404, None) if self.unreadable == "ref" else (200, {"object": {"sha": TIP}})
+        if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.split("/compare/", 1)[1].split("...")[0]
-            return 200, {"status": "identical" if parent == MAIN else "diverged"}
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
         sha = endpoint.rsplit("...", 1)[1]
         if sha in self.compares and self.unreadable != f"compare {sha}":
             return 200, _history(sha, self.compares[sha])
@@ -232,7 +233,7 @@ class CostDecision(unittest.TestCase):
         self.reads = lanes.reads
 
         def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-            if "/compare/" in endpoint or "/activity?" in endpoint:
+            if "/compare/" in endpoint or "/activity?" in endpoint or "/git/ref/" in endpoint:
                 return lanes.get(endpoint, env)
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
@@ -406,11 +407,12 @@ class CostDecision(unittest.TestCase):
         script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
         self.assertEqual(
-            self.reads[-3:],
+            self.reads[-4:],
             [
-                f"repos/owner/repo/compare/{BASE}...{OLD}",
-                f"repos/owner/repo/compare/{BASE}...{HEAD}",
-                f"repos/owner/repo/compare/{MAIN}...{BASE}",
+                f"repos/owner/repo/git/ref/heads/{BASE}",
+                f"repos/owner/repo/compare/{TIP}...{OLD}",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
+                f"repos/owner/repo/compare/{MAIN}...{TIP}",
             ],
         )
 
@@ -709,7 +711,11 @@ class CostDecision(unittest.TestCase):
                 self.assertFalse(any("/compare/" in r for r in self.reads))
         pull = PULL | {"base": {"ref": "release/2.x"}}
         self.assertEqual(self.later(same, pull=pull), LINK)
-        self.assertIn(f"repos/owner/repo/compare/release/2.x...{OLD}", self.reads)
+        self.assertIn("repos/owner/repo/git/ref/heads/release/2.x", self.reads)
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{OLD}", self.reads)
+        # The carry names the base by its tip commit.
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{HEAD}", self.reads)
+        self.assertIsNone(self.later(same, unreadable="ref"))
 
     def test_the_decision_is_the_newest_on_the_pull_request_else_the_issue(
         self,
@@ -737,7 +743,7 @@ class CostDecision(unittest.TestCase):
             lanes = Lanes(runs, changed)
 
             def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-                if "/compare/" in endpoint or "/activity?" in endpoint:
+                if any(k in endpoint for k in ("/compare/", "/activity?", "/git/ref/")):
                     return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 

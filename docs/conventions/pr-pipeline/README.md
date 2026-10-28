@@ -1440,16 +1440,16 @@ person's approval does not send the pull request back to them:
 
 - Each trusted person's newest review that approves, requests changes or was dismissed counts
   (`liftsOf`); it lifts only when it approves, and then its commit.
-- The carry (`baseMergeCarry`, from the compares of the base branch with the approved head and
-  with the current head): every commit the current head adds is a merge whose parents other than
-  the first the base branch holds (`baseMergesOnly` over `mergedParents`; `baseFacts` reads each
-  parent's compare against the base, `ahead` or `identical`), and the approved head is among its
-  commits, so a non-merge commit, a merge of another branch or of a crafted merge commit, or a
-  force push that rewrites the approved head carries nothing. Each hold-path file the current head
-  changes against the base is changed identically at the approved head, and the current head
-  changes no file the approved head did not unless the base changed it between the two merge bases
-  (`netChangeWithin`, `newFiles`), so a merge that edits a hold path or any other file carries
-  nothing. A hold-path file the base has since taken in drops out. A commit list the compare cuts
+- The carry (`baseMergeCarry`): the base branch is read once by its full ref (`baseTip`,
+  `refs/heads/<base>`), and every compare names its tip commit, so no tag of the same name stands
+  in for it. Every commit the current head adds is a merge whose parents other than the first the
+  base holds (`baseMergesOnly` over `mergedParents`; `baseParents` reads each parent's compare
+  against the tip, `ahead` or `identical`), and the approved head is among its commits, so a
+  non-merge commit, a merge of another branch or of a crafted merge commit, or a force push that
+  rewrites the approved head carries nothing. The net change against the tip is the same at both
+  heads over every file (`sameNetChange`), so a merge that writes any change of its own, to a hold
+  path or any other file, carries nothing; an honest merge after the base changed one of the
+  pull request's files fails closed too and needs a new approval. A commit list the compare cuts
   at 250 carries nothing, and so does a head in a fork.
 - An approval of the current head lifts the verifier and issue-link holds too; an approval of an
   earlier head does not, since the merge result is new to pr-verify.

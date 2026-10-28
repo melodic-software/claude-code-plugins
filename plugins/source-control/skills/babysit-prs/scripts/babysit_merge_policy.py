@@ -2552,7 +2552,7 @@ def base_merges_only(
 ) -> bool:
     """Whether every commit a compare answer `now` (base...H') lists beyond
     `then` (base...H) is a merge whose every parent but the first is in
-    `in_base` (the parents the base holds, read by `base_facts`), with
+    `in_base` (the parents the base holds, read by `base_parents`), with
     `start` (H) among `now`'s commits, so H' descends from H by merges of the
     base alone. A non-merge commit, a merge of another branch, a force push
     that drops H, or a list not read whole carries nothing
@@ -2571,142 +2571,42 @@ def base_merges_only(
     return True
 
 
-def new_files(then: Any, now: Any) -> list[Any] | None:
-    """The files a compare answer `now` (base...H') changes, by name or
-    renamed-from name, that `then` (base...H) does not, or None when either
-    file list does not read (merge-holds.mjs `newFiles`)."""
-
-    def named(compare: Any) -> list[Any] | None:
-        files = json_object(compare).get("files")
-        return files if is_json_array(files) and len(files) < 300 else None
-
-    before, after = named(then), named(now)
-    if before is None or after is None:
-        return None
-    old = {
-        name
-        for f in before
-        for name in (
-            json_object(f).get("filename"),
-            json_object(f).get("previous_filename"),
-        )
-        if isinstance(name, str)
-    }
-    return [
-        json_object(f).get("filename")
-        for f in after
-        if json_object(f).get("filename") not in old
-        and not (
-            isinstance(json_object(f).get("previous_filename"), str)
-            and json_object(f)["previous_filename"] in old
-        )
-    ]
-
-
-def net_change_within(
-    then: Any,
-    now: Any,
-    keep: Callable[[str], bool],
-    base_changed: Collection[str] = frozenset(),
-) -> bool:
-    """Whether the part of the net change at H' (`now`, base...H') on the
-    paths `keep` names (by path or renamed-from path) is within H's (`then`):
-    each such file in `now` is in `then` with the same status,
-    previous_filename and patch, and every file `now` changes that `then`
-    does not (`new_files`) is one the base changed between their merge bases
-    (`base_changed`, read by `base_facts`) (merge-holds.mjs
-    `netChangeWithin`)."""
-
-    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
-        files = json_object(compare).get("files")
-        if not is_json_array(files) or len(files) >= 300:
-            return None
-        by_name: dict[str, tuple[Any, Any, str]] = {}
-        for f in files:
-            f = json_object(f)
-            name, previous = f.get("filename"), f.get("previous_filename")
-            if not isinstance(name, str) or name in by_name:
-                return None
-            if not keep(name) and not (isinstance(previous, str) and keep(previous)):
-                continue
-            patch = f.get("patch")
-            if not isinstance(patch, str):
-                return None
-            by_name[name] = (f.get("status"), previous, patch)
-        return by_name
-
-    before, after, added = net(then), net(now), new_files(then, now)
-    return (
-        before is not None
-        and after is not None
-        and added is not None
-        and all(name in base_changed for name in added)
-        and all(before.get(name) == value for name, value in after.items())
-    )
-
-
 def base_merge_carry(
-    then: Any,
-    now: Any,
-    start: str,
-    keep: Sequence[str] | None = None,
-    in_base: Collection[str] = frozenset(),
-    base_changed: Collection[str] = frozenset(),
+    then: Any, now: Any, start: str, in_base: Collection[str] = frozenset()
 ) -> bool:
     """The one base-merge carry (merge-holds.mjs `baseMergeCarry`): whether
     what was decided at head `start` covers the head `now` was read at, from
-    the compares base...start (`then`) and base...head (`now`) and the reads
-    `base_facts` makes (`in_base`, `base_changed`): every commit since is a
-    merge of the base (`base_merges_only`) and the net change is the same
-    (`same_net_change`), or, with `keep` (hold-path globs), the same on the
-    paths it names and no wider than the base's own change
-    (`net_change_within`). The cost decision carries with no `keep`, a
-    hold-path lift with the hold paths."""
-    if not base_merges_only(then, now, start, in_base):
-        return False
-    if keep is None:
-        return same_net_change(then, now)
-    return net_change_within(
-        then,
-        now,
-        lambda path: any(glob_match(glob, path) for glob in keep),
-        base_changed,
-    )
+    the compares base...start (`then`) and base...head (`now`) against the
+    base's tip commit and the merged parents the base holds (`in_base`, from
+    `base_parents`): every commit since is a merge of the base
+    (`base_merges_only`) and the net change is the same over every file
+    (`same_net_change`), so a merge that writes any change of its own
+    carries nothing."""
+    return base_merges_only(then, now, start, in_base) and same_net_change(then, now)
 
 
-def base_facts(
-    compare: Callable[[str], Any], base: str, then: Any, now: Any
-) -> tuple[set[str], set[str]]:
-    """The reads `base_merge_carry` needs beyond the two compares, through
+def base_parents(compare: Callable[[str], Any], tip: str, then: Any, now: Any) -> set[str]:
+    """The merged parents (`merged_parents`) the base holds, through
     `compare` (a GET of compare/<range> that raises PolicyReadError when
-    unreadable): the merged parents (`merged_parents`) the base branch
-    `base` holds (their compare against it is `ahead` or `identical`), and
-    the files the base changed between the two merge bases, read only when
-    `now` changes a file `then` does not (merge-holds.mjs `baseFacts`)."""
-    in_base = {
+    unreadable) against `tip`, the base branch's tip commit (`base_tip`):
+    those whose compare is `ahead` or `identical` (merge-holds.mjs
+    `baseParents`)."""
+    return {
         sha
         for sha in merged_parents(then, now)
-        if json_object(compare(f"{sha}...{base}")).get("status")
-        in ("ahead", "identical")
+        if json_object(compare(f"{sha}...{tip}")).get("status") in ("ahead", "identical")
     }
-    changed: set[str] = set()
-    ends = [
-        json_object(json_object(c).get("merge_base_commit")).get("sha")
-        for c in (then, now)
-    ]
-    if new_files(then, now) and all(
-        isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) for sha in ends
-    ):
-        files = json_object(compare(f"{ends[0]}...{ends[1]}")).get("files")
-        if is_json_array(files) and len(files) < 300:
-            for f in files:
-                for name in (
-                    json_object(f).get("filename"),
-                    json_object(f).get("previous_filename"),
-                ):
-                    if isinstance(name, str):
-                        changed.add(name)
-    return in_base, changed
+
+
+def base_tip(owner: str, name: str, base: str) -> str:
+    """The tip commit of the base branch `base`, read once by its full ref so
+    no tag or other ref of the same name stands in for it; PolicyReadError
+    when it does not read as a commit SHA (merge-holds.mjs `baseTip`)."""
+    status, answer = _get(f"repos/{owner}/{name}/git/ref/heads/{base}")
+    sha = json_object(json_object(answer).get("object")).get("sha")
+    if status != 200 or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise PolicyReadError(f"the base branch {base} did not resolve")
+    return sha
 
 
 def lifts_of(reviews: Sequence[Any], humans: Collection[int]) -> list[tuple[str, str]]:
@@ -2740,13 +2640,12 @@ def carried_lifters(
     pr: Mapping[str, Any],
     reviews: Sequence[Any],
     humans: Collection[int],
-    keep: Sequence[str],
 ) -> list[str]:
     """The trusted people whose approval (`lifts_of` over the REST `reviews`)
-    is of the pull request's head or carries to it over merges of the base on
-    the hold paths `keep` (`base_merge_carry`, with `base_facts`), sorted
-    (merge-holds.mjs `liftersOf`, which ci-status calls only for a head in the
-    repository). A fork head or a read that fails lifts nothing."""
+    is of the pull request's head or carries to it over merges of its base
+    branch (`base_merge_carry` against the base's tip, `base_tip`, with
+    `base_parents`), sorted (merge-holds.mjs `liftersOf`). A fork head or a
+    read that fails lifts nothing."""
     head = json_object(pr.get("head"))
     if json_object(head.get("repo")).get("full_name") != repo:
         return []
@@ -2765,15 +2664,16 @@ def carried_lifters(
             compares[spec] = answer
         return compares[spec]
 
+    lifts = lifts_of(reviews, humans)
     lifters: set[str] = set()
     try:
-        for login, lifted in lifts_of(reviews, humans):
+        tip = base_tip(owner, name, base) if any(s != sha for _, s in lifts) else ""
+        for login, lifted in lifts:
             if lifted == sha:
                 lifters.add(login)
                 continue
-            then, now = compare(f"{base}...{lifted}"), compare(f"{base}...{sha}")
-            in_base, changed = base_facts(compare, base, then, now)
-            if base_merge_carry(then, now, lifted, keep, in_base, changed):
+            then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
+            if base_merge_carry(then, now, lifted, base_parents(compare, tip, then, now)):
                 lifters.add(login)
     except PolicyReadError:
         return []
@@ -2810,11 +2710,12 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         return answer
 
     try:
-        then, now = compare(f"{base}...{decided}"), compare(f"{base}...{sha}")
-        in_base, _ = base_facts(compare, base, then, now)
+        tip = base_tip(owner, name, base)
+        then, now = compare(f"{tip}...{decided}"), compare(f"{tip}...{sha}")
+        in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:
         return False
-    return base_merge_carry(then, now, decided, None, in_base)
+    return base_merge_carry(then, now, decided, in_base)
 
 
 def cost_decision(

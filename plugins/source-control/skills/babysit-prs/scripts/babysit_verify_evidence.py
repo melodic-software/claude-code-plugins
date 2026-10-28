@@ -2244,15 +2244,9 @@ def lane_risk_refusal(
             )
             trusted = humans()
             # An approval of an earlier head carries over base merges that
-            # change no high path, and no other file, beyond it.
+            # leave its net change the same.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
-                merge_policy.carried_lifters(
-                    repo,
-                    pr,
-                    reviews,
-                    trusted,
-                    (*babysit_risk.HIGH_FLOOR, *config.denied_paths),
-                )
+                merge_policy.carried_lifters(repo, pr, reviews, trusted)
             )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing
             lifted = False

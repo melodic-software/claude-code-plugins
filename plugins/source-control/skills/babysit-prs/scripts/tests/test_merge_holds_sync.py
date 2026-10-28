@@ -609,6 +609,8 @@ LATE = "2026-01-02T18:00:00Z"
 NEW = "1" * 40
 # A base commit a merge of the base names as its second parent.
 MAIN = "5" * 40
+# The base branch's tip commit, which its full ref resolves to.
+_TIP = "3" * 40
 # The decided head OLD, then NEW pushed before the decision; HEAD carries
 # OLD's net change.
 SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
@@ -839,7 +841,9 @@ import { costDecision } from %s;
 const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
-  if (method === "GET" && path.endsWith("...main")) return { status: path.includes(`/compare/${"5".repeat(40)}...`) ? "identical" : "diverged" };
+  const tip = "3".repeat(40);
+  if (method === "GET" && path.startsWith("/repos/o/r/git/ref/heads/")) return { object: { sha: tip } };
+  if (method === "GET" && path.endsWith(`...${tip}`)) return { status: path.includes(`/compare/${"5".repeat(40)}...`) ? "ahead" : "diverged" };
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
     if (!(sha in answers)) throw new Error("no such commit");
@@ -905,11 +909,11 @@ def py_decision(
         return {"node": {"lastEditedAt": comment["edited"]}}
 
     def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-        if "/compare/" in endpoint and not re.fullmatch(
-            r"[0-9a-f]{40}", endpoint.rsplit("...", 1)[1]
-        ):
+        if "/git/ref/heads/" in endpoint:
+            return 200, {"object": {"sha": _TIP}}
+        if endpoint.endswith(f"...{_TIP}"):
             parent = endpoint.split("/compare/", 1)[1].split("...")[0]
-            return 200, {"status": "identical" if parent == MAIN else "diverged"}
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
@@ -1001,7 +1005,7 @@ import { baseMergeCarry, fromRest, liftsOf } from %s;
 const [lifts, carries, from] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify([
   lifts.map((reviews) => liftsOf(reviews.map(fromRest), new Set([1, 3])).map(({ login, sha }) => [login, sha])),
-  carries.map(([then, now, keep, inBase, changed]) => baseMergeCarry(then, now, from, keep, { inBase: new Set(inBase), baseChanged: new Set(changed) })),
+  carries.map(([then, now, inBase]) => baseMergeCarry(then, now, from, inBase)),
 ]));
 """
 _OLD = "c" * 40
@@ -1043,32 +1047,30 @@ LIFT_CASES = {
     "a comment after an approval": [_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")],
     "two people": [_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)],
 }  # fmt: skip
-_KEEP = [".github/actions/resolve-config/**"]
 _IN_BASE = [_BASE_SHA]
-# (then, now, keep, in_base, changed): whether the lift at _OLD carries to
-# _HEAD, given the merged parents the base holds and the files it changed.
+_HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "@@ -1 +1 @@\n-x\n+y"}
+# (then, now, in_base): whether the approval at _OLD carries to _HEAD, given
+# the merged parents the base holds.
 CARRY_CASES = {
-    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE),
+    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE),
+    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
+    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE),
     "a base merge after which the base holds a hold path's change": (
         {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}], **_moved((_OLD, [_BASE_SHA]))},
         {"files": [_PATCH], **_MERGED},
-        _KEEP,
         _IN_BASE,
-        [],
     ),
-    "a conflict resolution outside the hold paths": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _KEEP, _IN_BASE, []),
-    "a file outside H's net change the base changed": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _KEEP, _IN_BASE, [_DOC["filename"]]),
-    "a merge of a parent the base does not hold": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _KEEP, _IN_BASE, []),
-    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, _KEEP, [], []),
-    "the same conflict resolution against the whole net change": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, None, _IN_BASE, []),
-    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _KEEP, _IN_BASE, []),
-    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _KEEP, _IN_BASE, []),
-    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _KEEP, _IN_BASE, []),
-    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _KEEP, _IN_BASE, []),
-    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _KEEP, _IN_BASE, []),
-    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _KEEP, _IN_BASE, []),
-    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _KEEP, _IN_BASE, []),
-    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _KEEP, _IN_BASE, []),
+    "a merge of a parent the base does not hold": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
+    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, []),
+    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
+    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE),
+    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE),
+    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE),
+    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
+    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE),
+    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE),
+    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE),
 }  # fmt: skip
 
 
@@ -1095,20 +1097,16 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                 self.assertEqual(
                     [list(x) for x in policy.lifts_of(reviews, {1, 3})], js
                 )
-        for (name, (then, now, keep, in_base, changed)), js in zip(
+        for (name, (then, now, in_base)), js in zip(
             CARRY_CASES.items(), carries, strict=True
         ):
             with self.subTest(name):
                 self.assertEqual(
-                    policy.base_merge_carry(
-                        then, now, _OLD, keep, set(in_base), set(changed)
-                    ),
-                    js,
+                    policy.base_merge_carry(then, now, _OLD, set(in_base)), js
                 )
         # The rule's answers: a trusted person's newest review approves a
         # commit (a dismissed approval never counts); it carries over merges of
-        # base commits alone, within the hold paths' net change and no wider
-        # than the base's.
+        # base commits alone that leave the whole net change the same.
         self.assertEqual(
             dict(zip(LIFT_CASES, lifts, strict=True)),
             dict.fromkeys(LIFT_CASES, [])
@@ -1120,11 +1118,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
         )
         self.assertEqual(
             {name for name, js in zip(CARRY_CASES, carries, strict=True) if js},
-            {
-                "a base merge",
-                "a base merge after which the base holds a hold path's change",
-                "a file outside H's net change the base changed",
-            },
+            {"a base merge", "a base merge with a non-hold file unchanged"},
         )
 
 

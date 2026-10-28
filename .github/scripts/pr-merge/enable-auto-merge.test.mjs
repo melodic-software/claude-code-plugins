@@ -1238,11 +1238,15 @@ test("an approval before a base merge lifts the hold path at the merge, and an e
   const P = "/repos/melodic-software/claude-code-plugins";
   const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
   const approval = { id: 41, user: { login: "kyle-sexton", id: 5, type: "User" }, state: "APPROVED", commit_id: OLD, submitted_at: "2026-10-27T23:26:14Z" };
+  // main resolves to TIP, its tip commit, which every compare names.
+  const TIP = "3".repeat(40);
   const rest = (number, headFiles, reviews = [approval]) => ({
+    [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" } },
+    [`${P}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: TIP } },
     [`${P}/pulls/${number}/reviews?per_page=100&page=1`]: reviews,
-    [`${P}/compare/main...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
-    [`${P}/compare/${MAIN}...main`]: { status: "identical" },
-    [`${P}/compare/main...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 },
+    [`${P}/compare/${TIP}...${OLD}`]: { files: [held], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 },
+    [`${P}/compare/${MAIN}...${TIP}`]: { status: "ahead" },
+    [`${P}/compare/${TIP}...${HEAD}`]: { files: headFiles, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 },
   });
   const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
   assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
