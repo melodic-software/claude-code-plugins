@@ -600,7 +600,7 @@ test("a head whose only verdict is a FAIL named with issues skips after one link
 });
 
 // A relink: the PR's FAIL at the head was named without issues (it linked
-// none), and the PR now closes issue 7. The FAIL's run was created at
+// none), and the PR now closes ISSUE. The FAIL's run was created at
 // FAILED_AT; the edit shapes follow a live userContentEdits read of an edited
 // pull request (newest first, the original text last, stamped when the pull
 // request opened, by its author), with identifying details changed.
