@@ -100,7 +100,7 @@ let resolved;
 
 // The issue lane's protected-path rules come from the base's apply-patch
 // and patch-rules.json, as committed; every issue-lane base needs them.
-const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/actions/resolve-config/patch-rules.json"];
+const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.json", ".github/actions/resolve-config/patch-rules.json"];
 function copyPatchRules(dir) {
   for (const file of PATCH_RULE_FILES) cpSync(path.join(REPO_ROOT, file), path.join(dir, file), { recursive: true });
 }
