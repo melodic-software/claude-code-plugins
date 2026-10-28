@@ -151,6 +151,25 @@ assert_eq "an owner found by the scan contributes its root" $'root\t'"$ROOT3"$'\
 assert_eq "that root is scanned" $'worktree\t'"$ROOT3/d-wt3"$'\t'"$D" "$(rows worktree "$ROOT3/d-wt3")"
 git -C "$D" worktree remove --force "$ROOT/d-wt" >/dev/null 2>&1
 
+# A worktree below a root but not its direct child (inside another worktree's
+# .work/, or under a plain directory) is listed from its repository's registration.
+git -C "$A" worktree add -q -b wnest "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
+mkdir -p "$ROOT/group"
+git -C "$B" worktree add -q -b wdeep "$ROOT/group/b-deep" >/dev/null 2>&1
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+assert_exit "nested worktrees: exits 0" 0 "$RC"
+assert_eq "a worktree nested in another worktree is listed with its repository" \
+  $'worktree\t'"$ROOT/a-wt/.work/nested"$'\t'"$A" "$(rows worktree "$ROOT/a-wt/.work/nested")"
+assert_eq "a worktree under a plain directory below the root is listed" \
+  $'worktree\t'"$ROOT/group/b-deep"$'\t'"$B" "$(rows worktree "$ROOT/group/b-deep")"
+assert_eq "a direct child the scan found is not listed twice" \
+  $'worktree\t'"$ROOT/a-wt"$'\t'"$A" "$(rows worktree "$ROOT/a-wt")"
+assert_eq "the plain directory itself is no worktree row" "" "$(rows worktree "$ROOT/group")"
+assert_eq "the nested worktree counts toward its repository" $'repo\t'"$A"$'\t2' "$(rows repo "$A")"
+git -C "$A" worktree remove --force "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
+git -C "$B" worktree remove --force "$ROOT/group/b-deep" >/dev/null 2>&1
+rmdir "$ROOT/group" "$ROOT/a-wt/.work"
+
 # A path holding a tab cannot be a TSV field: skipped, with a warning.
 TABBED="$ROOT/tab"$'\t'"wt"
 if git -C "$A" worktree add -q -b wtab "$TABBED" >/dev/null 2>&1; then
