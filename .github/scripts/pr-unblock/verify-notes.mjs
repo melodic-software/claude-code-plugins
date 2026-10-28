@@ -36,6 +36,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
 import { createGitHubApi, MARKER_AUTHOR_ID, need, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
@@ -173,6 +174,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      // Each answer's rate-limit reading, for the job-end api-budget notice.
+      fetch: rateLimitLatch.guard(globalThis.fetch),
     });
   if (verdict.verdict !== "fail") {
     if (await findStaleNotes({ api: client, verdict, log })) {

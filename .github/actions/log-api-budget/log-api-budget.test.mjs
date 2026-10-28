@@ -650,6 +650,9 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "post-merge-dispatch": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
+    "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
+    "post-merge-test-mutation.yml": { report: "github-token" },
+    "pr-refine.yml": { "fix-docs-head": "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -713,11 +716,9 @@ test("ci-status emits the api-calls notice beside its api-budget notice", () => 
 
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
 // no other notice, so without these lines their calls go unattributed.
-// post-verify-notes' notice covers only its artifact listing, the one call
-// that leaves a reading: `gh run download` goes through the gh wrapper but is
-// not `gh api`, so it leaves none, and verify-notes.mjs calls through
-// address-feedback's createGitHubApi, a plain fetch that keeps no reading.
-// That notice understates the job's spend.
+// post-verify-notes' notice covers its artifact listing and verify-notes.mjs's
+// calls, which go through the rate guard; `gh run download` goes through the
+// gh wrapper but is not `gh api`, so it leaves none.
 const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
 
 // The job's steps, from `  <job>:` to the next job.
