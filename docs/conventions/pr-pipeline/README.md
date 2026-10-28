@@ -21,6 +21,7 @@
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
 - [Adoption](#adoption)
+- [Review threads](#review-threads)
 - [Red main](#red-main)
 - [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
@@ -234,9 +235,10 @@ subscription fallback) answers them and hands on a patch and its replies,
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
-The reviewer bot is `claude[bot]`, or `github-actions[bot]` on a comment whose last non-blank
-line is a review lane's `claude-lane: <lane>` footer, as ci-workflows' `pr-review-cli.yml` posts
-its findings; the review holding it must be `github-actions[bot]`'s too.
+The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
+`github-actions[bot]` on a comment whose last non-blank line is a review lane's
+`claude-lane: <lane>` footer, as ci-workflows' `pr-review-cli.yml` posts its findings; the review
+holding the thread's first comment must be that comment's author's own.
 
 A fix request is a reply by a person on the trusted-actor list who holds write or admin
 permission on the repository, never edited, or last edited by a person on that list, with a line that starts with
@@ -2512,7 +2514,7 @@ full review rounds, one more high-severity-only pass runs; if it still has findi
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
 on the requested threads only. With no such request, a security lane finding, a pr-verify note a
-trusted person directed, a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
+trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
 finding, an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
 round: once it has run, no sweep, schedule or dispatch starts another, and the next select fails
@@ -2783,6 +2785,32 @@ without one the tracker file and the trusted-actor list are not read, nothing is
 |---|---|---|
 | `idle-hours` | none | Hours both a person's PR (its activity, as the list above reads it) and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
 | `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
+
+## Review threads
+
+`review-threads.reviewer-ids` lists review bots, besides `claude[bot]` and the review lanes, whose
+review threads `address-feedback` works exactly as the reviewer bot's (owner decision
+2026-10-26): it fixes or explains each finding, `publish-feedback` resolves what it fixed, and
+the trusted-person and human-gated rules above apply unchanged. A disputed listed bot's finding
+is adjudicated as a code-review lane finding is, and Codex's own shields.io severity badge decides
+nothing. The security judgment is the security-review lane's. A dispute is adjudicated only once
+that lane has posted its reviewed-head marker for the head the bot reviewed and holds nothing. A
+`critical-security` hold (its `claude-lane-hold` comment) on that head, or one posted after the
+bot's review, on a later head, sends the dispute to a person as `feedback-question-security`.
+Before the lane has reviewed the head, the dispute waits: the round escalates nothing and skips
+`finding-stands`, so the next review completion or the scheduled sweep runs it again. Past the
+round cap such a finding
+goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
+count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
+account id GitHub records for each comment and its review, never on a login, so another account
+using the same name matches nothing. The comment text stays data in every model prompt, as the
+reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The
+select job and `publish-feedback` read the list from the resolved config; `fix-ci-context.mjs`
+and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `reviewer-ids` | `[]` | Account ids of the extra review bots whose threads `address-feedback` works. |
 
 ## Red main
 
