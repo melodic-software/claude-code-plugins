@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.5] - 2026-10-28
+
+### Fixed
+
+- `work-resolve-issue` no longer writes `Hold: a human merges this` only because the runner's checks did not report (missing or for another tip). That line also failed `ci-status`, so pr-verify never ran and the PR waited on a person for checks `ci-status` reruns anyway. On a reused branch, a leak scan that is anything but `clean` (found, failed or missing) still holds it, since `lint-repo`'s gitleaks scan does not cover what the lane scan flags. A failed runner check, `merge: human`, untrusted provenance and every denied-path or unreadable-listing reason still hold it too (`mustHold` in `report-outcome.mjs`).
+
+- A pass-only `address-feedback` round (sent with `verify-pass-head`) that finds no stale pr-verify fail-note thread now runs the full thread select and reports `stop-resolved`, so `report-stop-status` can clear a failing `pr-unblock/address-feedback` status an earlier attempt of the round left on the head, as on a rerun after the notes were resolved by hand. It still starts no model or reply job.
+
+- `work-resolve-issue` no longer opens a second PR for an issue that another open PR already closes. A PR can gain its closing keyword while the model runs, after the `issue-prior` check read none, as happened with [#10698](https://github.com/melodic-software/claude-code-plugins/pull/10698) and [#10686](https://github.com/melodic-software/claude-code-plugins/pull/10686). `report-outcome` now reads the issue's open closing PRs again just before it opens a PR, applying the same trust rule as `issue-prior` (opened by the lanes App or a listed human). When one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, a new `retry` route in `stop-routes.json`.
+
+- The address-feedback lane no longer stops on `feedback-untaken-threads` when the only unresolved threads are pr-verify fail notes from an older head. It clears its status instead, so ci-status can pass, pr-verify can run, and its pass resolves those notes. Before, the failing status kept pr-verify from ever running, so no pass could arrive to resolve the notes. The notes still hold the merge until they are resolved.
+
+- An `address-feedback` fix commit now names the review threads it fixes. `apply-patch.mjs` adds a `Lane-Thread: <thread id>` line after the `Lane-Activity` trailer for each kept thread that a `VALID` reply in the scanned replies names, under the `review-threads` row's new `thread-trailer` key. A reply that names a thread the select job did not keep adds no line. The push job downloads those replies before the mint (the write workflow's new `patch-replies-attempt` and `patch-replies-sha256` inputs) and fails red unless their SHA-256 is the scan job's. `publish-feedback` credits a fix commit to a thread only when the commit's `Lane-Thread` lines name it, in the same round and on a retry's earlier fix alike. A `VALID` thread that no trailer names ends the round `feedback-not-landed`. Before this change, a sibling commit that fixed another finding in the same file could be credited, and the thread resolved, while its own finding stood. Lane fix commits made before this change carry no `Lane-Thread` lines, so a retry no longer credits them.
+
 ## [6.5.4] - 2026-10-28
 
 ### Changed

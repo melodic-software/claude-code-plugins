@@ -1,7 +1,9 @@
 name: pr-verify
 
 # The verifier: a model that did not write the pull request judges each head
-# that passes pr-require-checks against its linked issue, and the run uploads
+# that passes pr-require-checks, or fails it only on holds an approving review
+# of the head lifts (resolve-pr.mjs heldOnly, so the person approves a judged
+# head), against its linked issue, and the run uploads
 # its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
 # FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
 # accept the -<ref-digest> before that (write-verdict.mjs headRefDigest).
@@ -9,8 +11,8 @@ name: pr-verify
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
 # The verdict is not a check run. ci-status reads a pass by exact name only in
-# the merge queue, for a lanes App pull request, since a red ci-status on a
-# pull request event would stop this workflow from running
+# the merge queue, for a lanes App pull request, since a ci-status on a pull
+# request event red for anything but such a hold stops this workflow from running
 # (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
 # No pull request code runs here. The diff, the trusted PR text and the linked
@@ -71,7 +73,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -417,7 +419,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && ((needs.check-intent.outputs.handoff == 'true'
       && needs.check-intent.outputs.key-leg-clean == 'true')
@@ -773,7 +775,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.check-intent-subscription.outputs.handoff == 'true'
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
