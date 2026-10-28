@@ -5918,9 +5918,9 @@ class AuthorReviewedPaths(unittest.TestCase):
         self.assertEqual(self.reviewed(verified=False), frozenset())
 
     def test_token_scope_paths_are_never_lifted(self) -> None:
-        # Owner decision on PR #10708's security thread: what the token
-        # broker loads to scope a lane token waits for a person even on a
-        # trusted person's own pull request with a pr-verify pass.
+        # Owner decision 2026-10-28: what the token broker loads to scope a
+        # lane token waits for a person even on a trusted person's own pull
+        # request with a pr-verify pass.
         token_scope = {
             ".github/actions/resolve-config/resolve.mjs",
             ".github/actions/resolve-config/effect-grants.json",

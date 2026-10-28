@@ -1911,9 +1911,9 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         self.assertFalse(holds(result))
 
     def test_a_token_scope_path_holds_for_a_person_after_a_clean_review(self):
-        # Owner decision on PR #10708's security thread: an agent commits as
-        # the trusted owner, so a PR that widens a lane token's scope must
-        # still wait for a person, whatever author_reviewed says.
+        # Owner decision 2026-10-28: an agent commits as the trusted owner,
+        # so a PR that widens a lane token's scope must still wait for a
+        # person, whatever author_reviewed says.
         paths = (self.GATE, *self.TOKEN_SCOPE)
         result = score(
             _input(
