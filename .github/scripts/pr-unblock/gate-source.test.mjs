@@ -134,6 +134,8 @@ test("a person's inline reply in a review thread, seen only in the review commen
   assert.equal(allows(timeline, "fix-ci", unknown), false, "an unknown author counts as a person");
   const before = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z")] };
   assert.equal(allows(timeline, "fix-ci", before), true, "a reply before the label");
+  const noUpdate = { reviewComments: [reply(OWNER, "2026-10-18T09:00:00Z", { updated_at: undefined })] };
+  assert.equal(allows(timeline, "fix-ci", noUpdate), false, "a reply with no updated_at counts as written since the label, as clear-escalations reads it");
   const bot = { reviewComments: [reply(APP, "2026-10-18T11:00:00Z"), reply(ACTIONS, "2026-10-18T11:05:00Z")] };
   assert.equal(allows(timeline, "fix-ci", bot), true, "a bot's inline reply is no one asking to wait");
 });
@@ -202,6 +204,21 @@ test("prHold holds on a person's inline reply its review reader returns", async 
   };
   const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
   assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: a person commented or reviewed since needs-human went on" });
+});
+
+test("prHold's review reader asks for the review comments since the label, to the second, and every review", async () => {
+  const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00.250Z"), escalated("feedback-disputed")];
+  const asked = [];
+  const api = {
+    listReviewComments: async (...args) => (asked.push(["comments", ...args]), []),
+    listReviews: async (...args) => (asked.push(["reviews", ...args]), []),
+  };
+  const result = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
+  assert.equal(result.held, false);
+  assert.deepEqual(asked, [
+    ["comments", 7, "2026-10-18T10:00:00Z"],
+    ["reviews", 7],
+  ]);
 });
 
 test("prHold holds when the review comments or the reviews read fails, or reads no array", async () => {

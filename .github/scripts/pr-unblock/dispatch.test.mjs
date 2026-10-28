@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, main, shareTimeline } from "./dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1426,4 +1426,21 @@ test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns o
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("the dispatcher lists review comments since a time when given one, and shares each read by PR and time", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => [], headers: { get: () => "" } };
+  };
+  const base = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const api = shareTimeline(base);
+  await Promise.all([api.listReviewComments(5, "2026-10-18T10:00:00Z"), api.listReviewComments(5, "2026-10-18T10:00:00Z"), api.listReviewComments(5, "2026-10-18T11:00:00Z")]);
+  await base.listReviewComments(5);
+  assert.deepEqual(urls, [
+    "https://api.example/repos/o/r/pulls/5/comments?since=2026-10-18T10%3A00%3A00Z&per_page=100",
+    "https://api.example/repos/o/r/pulls/5/comments?since=2026-10-18T11%3A00%3A00Z&per_page=100",
+    "https://api.example/repos/o/r/pulls/5/comments?per_page=100",
+  ]);
 });

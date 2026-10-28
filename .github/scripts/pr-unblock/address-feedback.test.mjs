@@ -983,6 +983,21 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
   );
 });
 
+test("createGitHubApi lists review comments since a time when given one, and all of them otherwise", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => [], headers: { get: () => "" } };
+  };
+  const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch });
+  await api.listReviewComments(42, "2026-10-18T10:00:00Z");
+  await api.listReviewComments(42);
+  assert.deepEqual(urls, [
+    "https://api/repos/o/r/pulls/42/comments?since=2026-10-18T10%3A00%3A00Z&per_page=100",
+    "https://api/repos/o/r/pulls/42/comments?per_page=100",
+  ]);
+});
+
 // A read, a GraphQL query and a write that repeats to the same state survive
 // one dropped socket; an issue and a mutation are sent once.
 test("createGitHubApi sends reads, GraphQL queries and repeatable writes again after a dropped socket, and an issue or a mutation once", async () => {
