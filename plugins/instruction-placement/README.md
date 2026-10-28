@@ -93,7 +93,7 @@ comes from the glob.
 Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
-read that finds no file fires it. Delegation therefore resets the trigger instead of removing it, and what is left is that nothing tells an agent a rule exists until its trigger happens to
+read that finds no file fires it. Delegation therefore resets the trigger instead of removing it. Nothing tells an agent a rule exists until its trigger happens to
 match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
