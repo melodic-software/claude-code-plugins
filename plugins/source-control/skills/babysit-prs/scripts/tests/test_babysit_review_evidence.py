@@ -1010,8 +1010,6 @@ class MainRunReviewTests(Base):
             {"repository": {"full_name": "fork/repo"}},
             {"head_repository": {"full_name": "fork/repo"}},
             {"head_sha": "not-a-sha"},
-            {"status": "in_progress"},
-            {"conclusion": "failure"},
         ):
             with self.subTest(fields):
                 result = self.main_bind([main_review("claude-review", **fields)])
@@ -1062,6 +1060,34 @@ class MainRunReviewTests(Base):
                 result = self.main_bind(reviews, context=context)
                 for lane in LANES:
                     self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_clean_verdict_from_a_run_that_did_not_succeed_does_not_bind(
+        self,
+    ) -> None:
+        for fields in ({"status": "in_progress"}, {"conclusion": "failure"}):
+            with self.subTest(fields):
+                result = self.main_bind([main_review("claude-review", **fields)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_a_finding_from_a_failed_run_still_counts(self) -> None:
+        # A run fails as a whole when either lane's job fails, after the
+        # other lane uploaded; its findings still count, as pr-verify's FAIL
+        # does, so failing one lane and re-running cannot clear the other's.
+        result = self.main_bind(
+            [
+                main_review("claude-review"),
+                main_review(
+                    "claude-security-review",
+                    findings=1,
+                    critical=1,
+                    conclusion="failure",
+                ),
+                main_review("claude-security-review"),
+            ]
+        )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (1, 1))
 
     def test_findings_count_the_most_any_review_of_the_tree_reported(self) -> None:
         # A re-run, or an empty commit with the same tree, never clears one.

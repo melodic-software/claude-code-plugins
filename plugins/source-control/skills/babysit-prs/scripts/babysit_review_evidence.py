@@ -427,19 +427,24 @@ def _main_bound(
 ) -> tuple[int, int] | None:
     """(findings, CRITICAL findings) for `lane` at `head` from main-run
     reviews, or None when none binds. A record counts only when
-    `_main_review_counted` proves its origin; the lane binds when a counted
-    one names `head`, and then counts the most findings, and the most
-    CRITICAL ones, any counted review of the head's tree reported, so a
-    re-run, or an empty commit with the same tree, never clears one."""
+    `_main_review_counted` proves its origin. As for pr-verify's FAIL, a
+    finding counts from a run of that origin whatever its status or
+    conclusion, since the upload comes before the run's later steps and the
+    other lane's job; the lane binds only when a counted verdict from a
+    completed, successful run names `head`. It then counts the most findings,
+    and the most CRITICAL ones, any counted review of the head's tree
+    reported, so a re-run, a failed run, or an empty commit with the same
+    tree never clears one."""
     if not isinstance(records, list | tuple) or not isinstance(context, Mapping):
         return None
-    counted = [
-        verdict
+    found = [
+        each
         for record in records
-        if (verdict := _main_review_counted(lane, record, context)) is not None
+        if (each := _main_review_counted(lane, record, context)) is not None
     ]
-    if not any(verdict["head_sha"] == head for verdict in counted):
+    if not any(done and verdict["head_sha"] == head for verdict, done in found):
         return None
+    counted = [verdict for verdict, _ in found]
     return (
         max(verdict["findings"] for verdict in counted),
         max(verdict["critical"] for verdict in counted),
@@ -454,15 +459,16 @@ def _count(value: Any) -> bool:
 
 def _main_review_counted(
     lane: str, record: Any, context: Mapping[str, Any]
-) -> Mapping[str, Any] | None:
+) -> tuple[Mapping[str, Any], bool] | None:
     """A main-run review's verdict, when its record proves it: the artifact
     is the one `main_review_name` names for this lane, pull request and
     tree, uploaded by its listed run; that run is `MAIN_REVIEW_WORKFLOW`,
     event `workflow_run`, on the default branch of this repository with a
     head in this repository that the branch holds (the caller's
-    `on_branch`), completed with success; and `verdict.json` names this
-    lane, pull request and tree, a full head SHA and well-formed counts.
-    Anything else, a head's forged artifact included, is None."""
+    `on_branch`); and `verdict.json` names this lane, pull request and
+    tree, a full head SHA and well-formed counts. With it, whether the run
+    completed with success, the one kind that binds. Anything else, a
+    head's forged artifact included, is None."""
     repo, pr, tree, branch = (context.get(k) for k in ("repo", "pr", "tree", "branch"))
     if not (
         isinstance(repo, str)
@@ -501,10 +507,9 @@ def _main_review_counted(
         and isinstance(head_sha, str)
         and SHA_RE.match(head_sha)
         and record.get("on_branch") is True
-        and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
     ):
         return None
+    done = run.get("status") == "completed" and run.get("conclusion") == "success"
     findings, critical = verdict.get("findings"), verdict.get("critical")
     reviewed = verdict.get("head_sha")
     if not (
@@ -519,7 +524,7 @@ def _main_review_counted(
         and critical <= findings
     ):
         return None
-    return verdict
+    return verdict, done
 
 
 def _full_name(repository: Any) -> Any:

@@ -977,10 +977,11 @@ the rules that only tighten in
   `verdict.json` as `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model.
   The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
   file, event `workflow_run`, on the default branch of this repository with a head the branch
-  holds, completed with success, and the verdict names that lane, pull request and tree; the lane
-  binds when a counted verdict names the pinned head, with the most findings, and the most
-  CRITICAL ones, that any counted review of that tree reported, so a re-run or an empty commit
-  never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
+  holds, and the verdict names that lane, pull request and tree. As with pr-verify's FAIL, a
+  finding counts whatever the run's conclusion; the lane binds only when a counted verdict from a
+  completed, successful run names the pinned head, with the most findings, and the most CRITICAL
+  ones, that any counted review of that tree reported, so a re-run, a failed run or an empty
+  commit never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
   open. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
   floor `enforcement` path beside it waits for that review. Each lane runs one leg on the reviews
   role's API key; a run that leaves no verdict leaves the lanes unbound until the next push.
