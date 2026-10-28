@@ -339,6 +339,18 @@ test("a case file change to env, context or another unsafe key is refused; a saf
   assert.match(caseRefusal("plugins/x/evals/c/prompt.md", prompt(""), prompt("growthbook_overrides: {}\n")), /changes growthbook_overrides/);
 });
 
+test("a case file that adds or edits allowed_tools is refused, so a changed case cannot ask for Bash", () => {
+  const prompt = (keys) => `---\ndescription: d\nruns: 1\n${keys}---\nDo it.\n`;
+  assert.match(caseRefusal("plugins/x/evals/c/prompt.md", prompt("allowed_tools: [Read]\n"), prompt("allowed_tools: [Read, Bash]\n")), /changes allowed_tools/);
+  assert.match(caseRefusal("plugins/x/evals/c/prompt.md", null, prompt("allowed_tools: [Bash]\n")), /changes allowed_tools/);
+  assert.equal(caseRefusal("plugins/x/evals/c/prompt.md", prompt("allowed_tools: [Read]\n"), prompt("allowed_tools: [Read]\nmax_turns: 3\n")), null);
+  const base = CASE("");
+  const bash = base.replace("  max_turns: 5", "  max_turns: 5\n  allowed_tools: [Read, Bash]");
+  assert.match(caseRefusal("plugins/x/evals/c/case.yaml", base, bash), /changes execution\.allowed_tools/);
+  assert.match(caseRefusal("plugins/x/evals/c/case.yaml", base.replace("  max_turns: 5", "  max_turns: 5\n  allowed_tools: [Read]"), bash), /changes execution\.allowed_tools/);
+  assert.match(caseRefusal("plugins/x/evals/c/case.yaml", base, `${base}allowed_tools: [Bash]\n`), /changes allowed_tools/);
+});
+
 test("a plugins key is read only as a one-line list of plain double-quoted strings", () => {
   assert.deepEqual(casePlugins(undefined), []);
   assert.deepEqual(casePlugins('plugins: ["../..", "gh-forge-path"]'), ["../..", "gh-forge-path"]);

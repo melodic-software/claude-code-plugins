@@ -1281,7 +1281,7 @@ PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or N
 verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin
 is refused when it changes anything but its eval case files (`prompt.md`, `case.yaml`,
 `graders/*.md`, `samples/**/*.json`) and the markdown in its `skills/` or `agents/`, changes a
-case's `env`, `context` or other run keys, has a case that loads another plugin or a directory the
+case's `allowed_tools`, `env`, `context` or other run keys, has a case that loads another plugin or a directory the
 PR changes, changes a skill's or agent's tool, hook or shell settings, or holds a symlink or
 submodule. It is
 advisory: no required check reads it. Add the label again to run the current head.

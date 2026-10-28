@@ -28,8 +28,8 @@
 //   scaffold script, a fixture (scaffold scripts run fixtures/ seed scripts
 //   outside the sandbox) or a stub plugin is refused;
 // - a changed prompt.md or case.yaml keeps every key outside CASE_SAFE_KEYS
-//   (env, context and its scaffold_script, growthbook_overrides and the
-//   rest), and in case.yaml every execution key outside
+//   (allowed_tools, env, context and its scaffold_script,
+//   growthbook_overrides and the rest), and in case.yaml every execution key outside
 //   CASE_SAFE_EXECUTION_KEYS, in a shape frontmatter() can read;
 // - every case in a selected plugin's tree at --head loads, through its
 //   `plugins:` key, only the plugin's own root or a directory inside the
@@ -60,10 +60,9 @@ const CASE_DEFINITION = /(?:^|\/)(?:prompt\.md|case\.yaml)$/;
 
 // prompt.md and case.yaml keys that only describe, grade or bound a case, and
 // plugins, whose every entry caseLoadRefusals checks. A change to any other
-// key (env, context, growthbook_overrides, artifact_publish, an unknown key)
-// is refused.
+// key (allowed_tools, env, context, growthbook_overrides, artifact_publish, an
+// unknown key) is refused.
 export const CASE_SAFE_KEYS = new Set([
-  "allowed_tools",
   "append_system_prompt",
   "description",
   "expected_outcome",
@@ -77,8 +76,12 @@ export const CASE_SAFE_KEYS = new Set([
   "tags",
   "timeout_seconds",
 ]);
-// case.yaml's execution block: every key but env.
-export const CASE_SAFE_EXECUTION_KEYS = new Set(["allowed_tools", "max_turns", "prompt", "timeout_seconds"]);
+// case.yaml's execution block: every key but env and allowed_tools. A pull
+// request run passes no --allow-tools, so a gated tool such as Bash is not
+// granted whatever a case lists (plugins/evals/skills/plugin-eval/SKILL.md,
+// the read-only suites paragraph); keeping allowed_tools unchanged keeps a
+// changed case from asking for one at all.
+export const CASE_SAFE_EXECUTION_KEYS = new Set(["max_turns", "prompt", "timeout_seconds"]);
 
 // Frontmatter keys that only describe or route a skill or agent. A change to
 // any other key is refused.

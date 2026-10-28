@@ -30,11 +30,11 @@ name: eval-browser-dispatch
 # changed paths come from the checked-out head's own git diff, and
 # select-plugins.mjs lets a selected plugin through only when every change is
 # allowlisted: an eval case file (prompt.md, case.yaml, graders/*.md,
-# samples/**/*.json) that keeps env, context and the other run keys, or
-# markdown under skills/ or agents/ that keeps its non-descriptive frontmatter
-# and adds no shell preprocessing, in a plugin whose tree holds no symlink or
-# submodule and whose cases load only the plugin itself or an unchanged
-# directory inside it. Anything else is refused.
+# samples/**/*.json) that keeps allowed_tools, env, context and the other
+# run keys, or markdown under skills/ or agents/ that keeps its
+# non-descriptive frontmatter and adds no shell preprocessing, in a plugin
+# whose tree holds no symlink or submodule and whose cases load only the
+# plugin itself or an unchanged directory inside it. Anything else is refused.
 #
 # The credential is the maintenance role's subscription token. When the secret
 # is empty the job ends with a notice and runs nothing.
@@ -449,7 +449,10 @@ jobs:
       # Chromium comes from the playwright that the locked playwright-cli
       # uses. Without sudo there is no --with-deps: the hosted image already
       # carries a browser's system libraries. A pull request run grants no
-      # Bash, so it needs no browser.
+      # Bash, so it needs no browser: it passes no --allow-tools, a case
+      # cannot widen that grant (plugins/evals/skills/plugin-eval/SKILL.md,
+      # the read-only suites paragraph), and select-plugins.mjs refuses a
+      # changed case's allowed_tools.
       - name: Install Chromium
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
         env:
