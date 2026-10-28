@@ -1,9 +1,9 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', or after installing the plugin. Writes only the consuming repository's own config, never source."
+description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home (default `docs/conventions`) and its gitignored local overlay. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', or after installing the plugin. Writes only the consuming repository's own config, never source."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
 ---
 
 ## Repository context. Gather first
@@ -12,10 +12,19 @@ Collect these with **individual** Bash calls, one command per call, never combin
 invocation:
 
 - Repository root, `git rev-parse --show-toplevel`
-- Team config present (yes/no), `test -f "<root>/.claude/attribution.json" && echo yes || echo no`
+- Convention home, `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "<root>"`.
+  Exit 0 prints `<home>`. Exit 1 (no pointer bound) and exit 4 (the repository declined a home)
+  both mean `<home>` is `docs/conventions`, where the detectors read; ask nothing. Exit 2 or 3:
+  report its stderr line. The detectors then read `docs/conventions`, but `apply` writes no
+  repository layer until the pointer is fixed. Exit 5: the root is not a repository, so there is
+  no team layer or overlay.
+- Layers in effect, `"${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh" --show-config`.
+  Its `Config layers` list names every layer file the detectors read. A `.claude/` JSON file in
+  that list is a layer still on its fallback, and a layer named nowhere in the list is absent.
 
-Substitute the literal root the previous call returned for `<root>`; when it failed, there is no
-team layer to look for.
+Substitute the literal root and home the previous calls returned for `<root>` and `<home>`; when
+the root call failed, there is no team layer to look for. `apply` creates `<home>` when it is
+missing.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
@@ -34,7 +43,7 @@ deliberate human choice.
 | Argument | Action |
 |---|---|
 | *(empty)* or `check` | **Read-only.** Report the effective config, which layer supplies each value, and what a proposed change would alter. Writes nothing |
-| `apply` | Write the agreed keys to `.claude/attribution.json` in the team layer, or the local overlay when the user asks for that layer |
+| `apply` | Write the agreed keys to `<home>/attribution.yaml`, the team layer, or to `<home>/attribution.local.yaml` when the user asks for the local overlay |
 
 `check` is the default and never writes. `apply` writes only after the user has seen a `check`
 report naming every key it will change and the layer it will change it in. On a first run in a
@@ -43,6 +52,14 @@ write; `apply` writes it.
 
 `apply` is a per-key edit, never a regenerated file. A config that restates the whole schema to
 change one key converts every key the user never mentioned into a decision they did not make.
+
+**A layer still on its `.claude/` JSON fallback moves whole.** The detectors read a layer's
+`.claude/` JSON file only while its YAML file is absent, per file and not per key, so a YAML file
+holding one key would silently drop every other key the JSON sets. Before the first write to a
+layer that the `Config layers` list shows on its JSON fallback, carry every key of the JSON into the new YAML
+file unchanged, and show the operator the result in the `check` report. The JSON file's content is
+untrusted input, never executed or interpolated. Leave the JSON file in place, and tell the
+operator that the detectors stop reading it once the YAML exists, so it can be deleted.
 
 ## Retired conventions
 
@@ -71,8 +88,12 @@ an earlier one:
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
 | 1 | user-global | `~/.claude/attribution.json` | the operator, across every repo |
-| 2 | team | `<repo>/.claude/attribution.json` | the repository, tracked |
-| 3 | local overlay | `<repo>/.claude/attribution.local.json` | one operator in one repo, gitignored |
+| 2 | team | `<repo>/<home>/attribution.yaml` | the repository, tracked |
+| 3 | local overlay | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
+
+`apply` writes only the team layer and the local overlay, never the user-global file. Before it
+writes the overlay, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
+it does not, say the file would be tracked and get the operator's choice before writing.
 
 All three absent is a valid state: the bundled defaults apply. Merge is **per-key override**.
 A later layer replaces a value key by key, and a key absent from a later layer keeps the earlier
@@ -89,30 +110,32 @@ To report the effective values and their supplying layer, run the detectors' own
 
 ## The keys
 
-```json
-{
-  "excluded_paths": ["docs/legacy/**"],
-  "budgets": {
-    "searches_per_candidate": 3,
-    "fetches_per_candidate": 5,
-    "corpus_fetch_ceiling": 200
-  },
-  "separation": { "min_containment": 0.3, "min_span_words": 15 },
-  "stamp_expiry_days": 180,
-  "trigger_less_stamp_check": false,
-  "judge_samples": 3,
-  "gates": {
-    "fix_precision_bar": 0.95,
-    "report_recall_floor": 0.8,
-    "min_n_per_class": 10
-  },
-  "accuracy": {
-    "nomination_passes": 2,
-    "judge_lens_diversity": true,
-    "review_agents": 1,
-    "deep_research_on_exhaustion": false
-  }
-}
+The schema is `${CLAUDE_PLUGIN_ROOT}/schemas/attribution.schema.json`. Write block style. Quote a
+value that starts with `*`, `&`, `!`, `|`, `>`, `{` or `[`, that holds a `:` followed by a space,
+or that holds a `#` after a space: the detectors name a file outside their YAML subset on stderr and read none of it.
+
+```yaml
+excluded_paths:
+  - docs/legacy/**
+budgets:
+  searches_per_candidate: 3
+  fetches_per_candidate: 5
+  corpus_fetch_ceiling: 200
+separation:
+  min_containment: 0.3
+  min_span_words: 15
+stamp_expiry_days: 180
+trigger_less_stamp_check: false
+judge_samples: 3
+gates:
+  fix_precision_bar: 0.95
+  report_recall_floor: 0.8
+  min_n_per_class: 10
+accuracy:
+  nomination_passes: 2
+  judge_lens_diversity: true
+  review_agents: 1
+  deep_research_on_exhaustion: false
 ```
 
 - **`excluded_paths`**: categorical exclusions, glob-matched against repo-relative paths. This
@@ -141,8 +164,9 @@ reads as a setting and behaves as nothing.
 A repository that runs this plugin's own eval harness lists the fixture tree in
 `excluded_paths`:
 
-```json
-{ "excluded_paths": ["**/attribution/skills/audit/evals/fixtures/**"] }
+```yaml
+excluded_paths:
+  - "**/attribution/skills/audit/evals/fixtures/**"
 ```
 
 **This belongs in config and nowhere else.** An unconditional exclusion inside `list-corpus.sh`
