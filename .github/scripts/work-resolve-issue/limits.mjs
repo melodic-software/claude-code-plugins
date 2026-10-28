@@ -15,9 +15,10 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
   "turn-cap-restarts": 0,
+  "stop-retries": 2,
 });
 // The leaves 0 is a valid value of; every other leaf is at least 1.
-const ZERO_ALLOWED = new Set(["turn-cap-restarts"]);
+const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries"]);
 
 // Every leaf, each set integer within its range over its default.
 export const resolveLimits = (limits) =>

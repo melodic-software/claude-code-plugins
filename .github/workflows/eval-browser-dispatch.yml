@@ -318,4 +318,4 @@ jobs:
           name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7

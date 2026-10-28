@@ -160,20 +160,31 @@ export const escalationActivity = (reason) =>
           ? "resolve-conflicts"
           : null;
 
+// A comment's last write: its creation or its last edit, so an old comment
+// edited to say "wait" counts at the edit. A time that does not parse is NaN.
+const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+
 // When a timeline item was written, and by whom, for a comment or a review
 // (clear-escalations.mjs reads people speaking the same way).
 export function spoken(item) {
   if (item.event === "commented") {
-    return [{ user: item.user ?? item.actor, at: Date.parse(item.created_at) }];
+    return [{ user: item.user ?? item.actor, at: lastWrite(item) }];
   }
   if (item.event === "reviewed") {
     return [{ user: item.user, at: Date.parse(item.submitted_at) }];
   }
   if (item.event === "line-commented" || item.event === "commit-commented") {
-    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: Date.parse(comment.created_at) }));
+    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: lastWrite(comment) }));
   }
   return [];
 }
+
+// The first of `entries` ({ user, at }) a person wrote at or after `since`
+// (the label's own second included, as GitHub's `since` filter reads it): an
+// account GitHub marks Bot is not a person; an unknown author, or a time that
+// does not parse, counts as one. The one rule for "a person spoke since the
+// label", whatever source the entries come from.
+export const personSince = (entries, since) => entries.find(({ user, at }) => !(at < since) && user?.type !== "Bot");
 
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
 // when gateSource reads a lane escalation, no person has commented since the
@@ -186,10 +197,12 @@ export function laneEscalationAllows({ timeline, label, head, isLanesApp, activi
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
   const { since } = labelHistory(timeline, label);
-  // As clear-escalations.mjs keeps the label: a person who commented or
-  // reviewed since it went on may want the lanes to wait. An unknown author
-  // counts as a person.
-  if (timeline.flatMap(spoken).some(({ user, at }) => !(at <= since) && user?.type !== "Bot")) {
+  // A person who commented or reviewed since the label went on may want the
+  // lanes to wait. An unknown author counts as a person. This reads the
+  // timeline only, which shows no reply inside an existing review thread;
+  // clear-escalations.mjs also reads the review threads. That gap is open:
+  // #10564.
+  if (personSince(timeline.flatMap(spoken), since) !== undefined) {
     return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));

@@ -133,6 +133,11 @@ jobs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget). The full-run dispatch's own
+    # `gh api -i` POST leaves none.
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -692,8 +697,16 @@ jobs:
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
           path: ${{ runner.temp }}/alerted.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   merge:
     # On the schedule and a hand-started run it waits for post-merge-dispatch
@@ -790,6 +803,27 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
 
       # The off switch, checked before anything else.
       - name: Check the kill switch
@@ -1864,6 +1898,27 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
 
       - name: Check the kill switch
         id: kill

@@ -999,3 +999,68 @@ test("with no task-list marker, even the trusted split child is not spec", async
     assert.deepEqual(await specBody(childNode(vector), parentNode(vector), { laneAppId: VECTORS.app_id, taskList }), [[8, null]], JSON.stringify(taskList));
   }
 });
+
+// Every API call resolvePull makes, for the call-count pins below. The counts
+// follow the lookup order: FAIL names first, since a counted FAIL alone
+// decides already-judged, then this PR's passes; a pass whose spec is
+// unchanged decides already-judged before the issue-named FAIL lookups.
+async function calls(setup) {
+  const github = fake(setup);
+  const paths = [];
+  const recording = async (method, apiPath, body) => {
+    paths.push(apiPath === "/graphql" ? `graphql ${body.query.includes("closingIssuesReferences") ? "spec" : "other"}` : apiPath);
+    return github(method, apiPath, body);
+  };
+  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  return { reason, paths };
+}
+
+test("each path through the resolver makes a pinned number of API calls", async () => {
+  const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  const cases = [
+    // run, commit pulls, six names without issues, the spec, two FAIL names with issues.
+    ["an unjudged head", {}, "ok", 11],
+    // run, commit pulls, the FAIL name, its run and compare.
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 5],
+    // run, commit pulls, six names, the FAIL's run and compare, the spec, the -i7 name.
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 12],
+    // run, commit pulls, six names, the pass's run and compare, the spec.
+    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 11],
+    // As above, then the two FAIL names with issues.
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 13],
+  ];
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  for (const [label, setup, expected, count] of cases) {
+    const { reason: got, paths } = await calls({ issues: [edited], ...setup });
+    assert.equal(got, expected, label);
+    assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
+  }
+});
+
+test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {
+  // The old order looked up this PR's passes, then the FAILs, and always the
+  // issue-named FAILs before weighing a pass; each combination resolves the same.
+  const fail = (name, id) => [artifact(name, id), verifyRun(id)];
+  const pass = (id, start) => [artifact(`pr-verify-41-${HEAD}-pass`, id), verifyRun(id, { run_started_at: start })];
+  const verdicts = {
+    plainFail: fail(`pr-verify-41-${HEAD}-fail`, 80),
+    otherFail: fail(`pr-verify-99-${HEAD}-fail`, 81),
+    issueFail: fail(`pr-verify-41-${HEAD}-fail-i7`, 82),
+    stalePass: pass(83, "2026-10-19T00:00:00Z"),
+    freshPass: pass(84, JUDGED_AT),
+  };
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  const keys = Object.keys(verdicts);
+  for (let mask = 0; mask < 1 << keys.length; mask += 1) {
+    const chosen = keys.filter((_, i) => mask & (1 << i));
+    const setup = {
+      issues: [edited],
+      pulls: [pull(), pull({ number: 99, state: "closed" })],
+      artifacts: chosen.map((key) => verdicts[key][0]),
+      runs: Object.fromEntries(chosen.map((key) => [verdicts[key][1].id, verdicts[key][1]])),
+    };
+    const anyFail = chosen.some((key) => key.endsWith("Fail"));
+    const expected = anyFail || chosen.includes("freshPass") ? "already-judged" : chosen.includes("stalePass") ? "spec-changed" : "ok";
+    assert.equal(await reason(setup), expected, chosen.join("+") || "none");
+  }
+});
