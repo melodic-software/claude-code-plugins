@@ -252,20 +252,22 @@ step judges the threads as above.
 
 A lane escalation's human-gated label does not stop the other fixers that could clear its cause.
 `resolve-conflicts`, `fix-ci` and `fix-docs` work a PR carrying the label when `gate-source.mjs`
-reads it as a lane escalation (the conditions below), no person has commented since the label went
-on (they may want the lanes to wait, as `clear-escalations.mjs` reads it), and no escalation since
-then names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
-writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency-*`
-`review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
-(`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
-`fix-ci-context`) read it; anything else, a person's label included, holds the PR as
-`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. `check-signed-commits`'
-escalation holds the PR too, even under a lane escalation: a `github-actions[bot]` comment whose
-first line is `<!-- check-signed-commits hold -->`, written or edited since the label was last
-removed, holds `resolve-conflicts`, `fix-ci` and `fix-docs`, leaves `address-feedback` to the
-fix-request rule above, and keeps `clear-escalations.mjs` from removing the label; the same marker
-from any other account is not read. When they work past the
-label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
+reads it as a lane escalation (the conditions below), no person has commented, reviewed or replied
+in a review thread since the label went on (they may want the lanes to wait; GitHub's timeline
+shows no reply inside an existing review thread, so the PR's review comments and reviews are read
+too, and a failed read holds it), and no escalation since then names a reason of the activity's
+own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
+`feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
+`resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
+`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
+their `labels-absent`. `check-signed-commits`' escalation holds the PR too, even under a lane
+escalation: a `github-actions[bot]` comment whose first line is `<!-- check-signed-commits hold -->`,
+written or edited since the label was last removed, holds `resolve-conflicts`, `fix-ci` and
+`fix-docs`, leaves `address-feedback` to the fix-request rule above, and keeps
+`clear-escalations.mjs` from removing the label; the same marker from any other account is not
+read. When they work past the label, the write runner lifts only the human-gated hold for that
+push. That verdict is read once,
 before the model turn: a person who comments, or a hold that lands, while the run works does not
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
@@ -509,6 +511,16 @@ Each leaf declares:
   those domains, and run the research skills, wherever the runner gives it its edit tools
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true`.
+- `tidy` (optional, `skill` only, off when absent): the run tidies its own change before its last
+  check run. `entry` is the diff-scoped tidy skill, `passes` the other quality skills it may call,
+  `turn-share` the percent of the run's turn cap tidy may spend (at the cap the passes left are
+  skipped and the change is handed on; tidy never fails the run), and `cutoffs` the one named
+  value that decides whether a change is small and single-area enough to tidy in the run:
+  `max-files`, `max-lines` (added plus removed), `max-areas` (`plugins/<name>` with its
+  `.changes/<name>`, `docs/<dir>`, else the top-level segment) and `shared-paths` (a directory
+  ends in `/`). The runner allows the entry and the passes and no other skill. The schema takes
+  it only on a `read` skill whose `applied-by` sets `patch` with no `prepare`, and the launcher
+  stage only for an issue lane ([`pr-run-activity.md`](pr-run-activity.md#issue-mode)).
 - `permission-mode` (optional, `skill` only): `dontAsk` (the default) or `auto`, the Claude Code
   permission mode of a PR-mode skill on the read runner's launcher; other runners run `dontAsk`.
   The run job fails red unless the CLI reports the mode asked for
