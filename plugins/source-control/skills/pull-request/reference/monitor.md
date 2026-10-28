@@ -90,7 +90,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
 
    A single-prompt `-p` run uses the same arming call and re-arms on the deadline notice as above.
 
-   - **Pointer**: the `-p` probe recorded on [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877), observed on Claude Code 2.1.312.
+   - **Pointer**: the `-p` probe result (Claude Code 2.1.312), in [Claude Code releases, Probes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code.md#probes); the run is on [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877).
    - **As of**: 2026-10-28
    - **Recheck trigger**: the Monitor tool section changes the non-interactive cap, or a release note names the Monitor deadline.
 

@@ -138,6 +138,12 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 No change for 280-030: a 2.1.296 probe showed PreToolUse and PostToolUse hooks receive a Write sent with alias keys as the normalized `file_path` and `content`, so guards keyed on `.tool_input.file_path` see those writes.
 
+## Probes
+
+| Question | Result | Claude Code | Owner surface | Record |
+|---|---|---|---|---|
+| Does a single-prompt `-p` run clamp or reject a Monitor `timeout_ms` above its cap? | Clamped to the run's cap, not rejected; the run stays up to deliver the deadline notice. No guidance change: the same arming call and re-arm rule hold in `-p` | 2.1.312 | source-control pull-request `monitor.md` §3.0.1 | [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877) |
+
 ## Docs lag
 
 The read also found upstream pages whose text contradicted the changelog. Those pages are not
