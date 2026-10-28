@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "3. /app-control:map refresh cart/total --unattended, after drive's cleanup.",
+      "why": "refresh with the path-derived id"
+    },
+    {
+      "answer": "Then `app-control:map refresh` `cart/total` with --unattended.",
+      "why": "backticked id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Finally /app-control:map refresh --unattended over every control skill.",
+      "why": "no feature named"
+    },
+    {
+      "answer": "The legacy map would need /app-control:map refresh .claude/skills/feature-map.",
+      "why": "the existing legacy-map pointer, not the touched feature"
+    },
+    {
+      "answer": "Then /app-control:map refresh checkout --unattended.",
+      "why": "the untouched feature"
+    }
+  ]
+}
