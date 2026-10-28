@@ -12,6 +12,8 @@
 //      text, before shingling, and covers inline quotation marks as well as
 //      blockquotes and code fences. A properly quoted and cited excerpt must
 //      not read as a copy, and a rubric-layer carve-out would arrive too late.
+//      A local JSON object or array is stripped per string value, not as raw
+//      text, where every string would read as a quotation.
 //   2. Verdicts are matched SPANS with local line offsets. Whole-file
 //      containment dilutes a real 27-word match to noise on a real-sized file,
 //      so the separation rule fires on either measure and the spans are what
@@ -182,6 +184,42 @@ export function tokenize(text) {
 }
 
 /**
+ * Tokens of a JSON document's string values, or null when the text is not a
+ * JSON object or array.
+ *
+ * Every JSON string is a paired `"` span, so quote-stripping the raw file would
+ * blank all of it. The values are what the file says; keys are its schema
+ * vocabulary and are skipped. Each value is decoded and quote-stripped on its
+ * own, so a fence a value opens cannot blank the values after it, and its
+ * tokens carry the file line its literal sits on (a JSON string cannot hold a
+ * raw newline).
+ */
+function jsonValueTokens(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object") return null;
+
+  // In a valid document a `"` outside a string cannot occur, so a left-to-right
+  // scan finds exactly the string literals.
+  const tokens = [];
+  const literal = /"(?:[^"\\]|\\.)*"/g;
+  const keyColon = /\s*:/y;
+  let line = 1;
+  let scanned = 0;
+  for (let m = literal.exec(text); m !== null; m = literal.exec(text)) {
+    keyColon.lastIndex = literal.lastIndex;
+    if (keyColon.test(text)) continue;
+    for (; scanned < m.index; scanned += 1) if (text[scanned] === "\n") line += 1;
+    for (const { word } of tokenize(stripQuoted(JSON.parse(m[0])))) tokens.push({ word, line });
+  }
+  return tokens;
+}
+
+/**
  * The k-word shingle starting at token `i`.
  *
  * One spelling for both readers below: the set `shingles()` builds is what
@@ -267,14 +305,16 @@ export function matchedSpans(localTokens, sourceSet, k = DEFAULTS.k) {
  * Compare a local passage against a source text.
  *
  * The local text is quote-stripped first; the source is not, because the
- * question is what the LOCAL surface reproduces.
+ * question is what the LOCAL surface reproduces. A local JSON object or array
+ * is measured by its string values (see jsonValueTokens).
  */
 export function compare(localText, sourceText, options = {}) {
   const k = options.k ?? DEFAULTS.k;
   const minContainment = options.min_containment ?? DEFAULTS.min_containment;
   const minSpanWords = options.min_span_words ?? DEFAULTS.min_span_words;
 
-  const localTokens = tokenize(stripQuoted(localText));
+  const jsonTokens = jsonValueTokens(localText);
+  const localTokens = jsonTokens ?? tokenize(stripQuoted(localText));
   const sourceTokens = tokenize(sourceText);
 
   const localSet = shingles(localTokens, k);
@@ -286,6 +326,7 @@ export function compare(localText, sourceText, options = {}) {
 
   return {
     k,
+    local_format: jsonTokens ? "json" : "text",
     local_shingles: localSet.size,
     containment: containmentValue,
     jaccard: jaccard(localSet, sourceSet),
@@ -308,7 +349,8 @@ const USAGE = `Usage: fingerprint.mjs compare --local FILE --source FILE [--json
 
 Reports lexical overlap between a local passage and a fetched source. Local
 text is quote-stripped (fences, blockquotes, inline quotations) before
-shingling. Exits 0 on a clean comparison whether or not the separation rule
+shingling; a local JSON object or array is measured by its string values,
+each stripped the same way. Exits 0 on a clean comparison whether or not the separation rule
 fires; non-zero only on operational failure.
 
 Options:

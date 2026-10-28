@@ -456,6 +456,122 @@ const SOURCE_TEXT = [
   );
 }
 
+// --- case: json_string_values_are_measured -----------------------------------
+// Every JSON string is a paired "..." span, so quote-stripping the raw file
+// blanked all of it and a JSON copy could never fire. The string values are
+// what a JSON file says, and they must shingle like prose.
+{
+  const local = JSON.stringify(
+    { evals: [{ id: 1, prompt: "Set up Flowlite.", expected_output: UPSTREAM_SENTENCE }] },
+    null,
+    2,
+  );
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_string_values_are_measured: a verbatim copy in a JSON value fires",
+    r.separation.fired && r.longest_span_words >= DEFAULTS.min_span_words,
+    JSON.stringify(r),
+  );
+  const copyLine = local.split("\n").findIndex((l) => l.includes("expected_output")) + 1;
+  check(
+    "json_string_values_are_measured: spans report the JSON file's own line",
+    r.matched_spans.length > 0 &&
+      r.matched_spans.every((s) => s.local_lines[0] === copyLine && s.local_lines[1] === copyLine),
+    `line ${copyLine}: ${JSON.stringify(r.matched_spans)}`,
+  );
+  check("json_string_values_are_measured: reports the json path", r.local_format === "json");
+}
+
+// --- case: json_unrelated_values_do_not_fire ---------------------------------
+{
+  const local = JSON.stringify(
+    {
+      evals: [
+        {
+          prompt: "Mock up three layouts for the billing dashboard so the team can compare them.",
+          expected_output:
+            "Three structurally different variants behind a floating switcher, each rendering the same invoice data.",
+        },
+      ],
+    },
+    null,
+    2,
+  );
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_unrelated_values_do_not_fire: unrelated strings stay below both limbs",
+    !r.separation.fired && r.local_shingles > 0,
+    JSON.stringify(r),
+  );
+}
+
+// --- case: json_keys_are_not_measured ----------------------------------------
+// Keys are the file's schema vocabulary, not content; only values shingle.
+{
+  const key = UPSTREAM_SENTENCE;
+  const r = compare(JSON.stringify({ [key]: 1 }), SOURCE_TEXT);
+  check(
+    "json_keys_are_not_measured: a key holding source text does not fire",
+    !r.separation.fired && r.local_shingles === 0,
+    JSON.stringify(r),
+  );
+}
+
+// --- case: json_value_fence_cannot_blank_later_values ------------------------
+// Each value is quote-stripped on its own, so a value that opens a code fence
+// and never closes it cannot blank every value after it.
+{
+  const local = JSON.stringify(
+    [{ note: "Example:\n```bash\nflowlite run" }, { copy: UPSTREAM_SENTENCE }],
+    null,
+    2,
+  );
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_value_fence_cannot_blank_later_values: copy after an unclosed fence fires",
+    r.separation.fired,
+    JSON.stringify(r),
+  );
+}
+
+// --- case: json_quoted_excerpt_is_still_stripped -----------------------------
+// The text path's normalization applies inside each value: a quoted, cited
+// excerpt in a JSON string is not a copy.
+{
+  const local = JSON.stringify({
+    note: `The Flowlite docs say "${UPSTREAM_SENTENCE}" (Flowlite configuration reference).`,
+  });
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "json_quoted_excerpt_is_still_stripped: an inline quotation inside a value does not fire",
+    !r.separation.fired,
+    JSON.stringify(r),
+  );
+}
+
+// --- case: non_json_input_takes_the_text_path --------------------------------
+// Markdown, a bare JSON scalar, and malformed JSON all keep the text path.
+{
+  const md = compare(UPSTREAM_SENTENCE, SOURCE_TEXT);
+  check(
+    "non_json_input_takes_the_text_path: markdown is measured as text, unchanged",
+    md.local_format === "text" && md.separation.fired && md.matched_spans.length === 1,
+    JSON.stringify(md),
+  );
+  const scalar = compare(JSON.stringify(UPSTREAM_SENTENCE), SOURCE_TEXT);
+  check(
+    "non_json_input_takes_the_text_path: a bare JSON string stays text and strips as a quotation",
+    scalar.local_format === "text" && !scalar.separation.fired,
+    JSON.stringify(scalar),
+  );
+  const broken = compare(`{"a": "${UPSTREAM_SENTENCE}",}`, SOURCE_TEXT);
+  check(
+    "non_json_input_takes_the_text_path: unparseable JSON falls back to text",
+    broken.local_format === "text",
+    JSON.stringify(broken),
+  );
+}
+
 // --- case: cli_json ----------------------------------------------------------
 {
   const dir = mkdtempSync(join(tmpdir(), "attribution-fp-"));
