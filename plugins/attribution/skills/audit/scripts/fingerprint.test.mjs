@@ -566,7 +566,7 @@ const SOURCE_TEXT = [
   );
   const broken = compare(`{"a": "${UPSTREAM_SENTENCE}",}`, SOURCE_TEXT);
   check(
-    "non_json_input_takes_the_text_path: unparseable JSON falls back to text",
+    "non_json_input_takes_the_text_path: malformed JSON falls back to text",
     broken.local_format === "text",
     JSON.stringify(broken),
   );
