@@ -218,7 +218,9 @@ sends a pass-only round (input `verify-pass-head`), needing no workable thread, 
 check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
-`pass-only`, which the dispatcher's release reads pass over. Resolving a thread
+`pass-only`, which the dispatcher's release reads pass over. A pass-only round also goes to a PR
+a human on the trusted-actor list opened, since fail notes are posted there too; every other
+address-feedback round goes only to lanes App PRs. Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
