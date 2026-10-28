@@ -64,6 +64,7 @@ permissions, and passes no App key.
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the select job's `run-sha256` output |
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, the head the select job read, passed to the gate and the broker (step 3) |
+| `pushed-commit` | `''` | Write file only: with `expected-upstream-head`, the push job's `pushed-commit` output, the one other head the gate accepts (step 3); empty when the push job pushed nothing |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the select job's `context-attempt` output, which names its `feedback-context-<attempt>` artifact so a re-run of the reply job alone still finds it |
 | `review-replies-attempt` | `''` | Write file only: with `review-replies`, the read file's `feedback-attempt` output, which names the scanned replies artifact |
 | `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and, with the scan refusal marker, decide whether missing replies are a `no-model-turn` skip |
@@ -85,7 +86,8 @@ permissions, and passes no App key.
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
 In the write file's `workflow_call` outputs, `head-sha` is the PR head the gate passed, before
-any push of the run, and `escalation-reason` is empty, or why a reply, verdict or apply-patch
+any push of the run, `pushed-commit` is the commit `apply-patch.mjs` pushed, empty when it
+pushed none, and `escalation-reason` is empty, or why a reply, verdict or apply-patch
 script handed the PR to a person (under the `merge-base` row, the
 [`prepare: merge-base`](#prepare-merge-base) push job's reasons).
 
@@ -223,9 +225,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
    artifact names a `pull_request` run of one of those workflows in this repository, started by
    the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
-   passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
-   and every commit from it to the PR's current head one GitHub signed for the lanes App (author
-   the App, committer `web-flow`, signature `valid`) after this run was created. The
+   passes that job's `head-sha` as `expected-upstream-head`, and apply-feedback-patch's
+   `pushed-commit` output as `pushed-commit`: the review must then be of that head, and the PR
+   must be at it or at that pushed commit. Any other head stops the run, a lanes App commit of
+   another job or run included. The broker still accepts every commit GitHub signed for the
+   lanes App during the run after that head, until it takes the pushed commit too. The
    gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
@@ -2129,11 +2133,19 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
   unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
-  three of its own: the compare failed, the runner's checks for that tip are missing or any did
-  not pass, or the leak scan `run-checks` ran on the branch (its `scan` word in the checks
-  record) is missing or not `clean`. The summary never decides the hold or reaches a status:
+  two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
+  `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
+  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
+  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
+  them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
+- Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none
+  open from the branch, `report-outcome` reads the issue's open closing PRs again, with the same
+  trust rule as `issue-prior`: a closing keyword can land on another PR while the model runs. When
+  one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
+  routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
+  fails the job and opens no PR.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

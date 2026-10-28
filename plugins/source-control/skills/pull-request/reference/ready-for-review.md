@@ -50,7 +50,7 @@ such as a stacked layer, is a branch the PR's author may have pushed without rev
 there could switch off the reviews of the author's own PR. The read goes through
 `scripts/read-pre-ready.sh`, given the base and the default branch. It prints a `source` line
 (`default`, `config`, or `fail-closed` with a reason) and one `<step> enabled|disabled` line per
-step. When `config-root.sh classify` does not print `repo`, skip the read: every step runs.
+step. When `<plugin-root>/lib/config-root.sh classify` does not print `repo`, skip the read: every step runs.
 
 Every step runs when the file or the key is missing, and when the reader fails closed:
 `base <name> is not the default branch <default>`, a base or default branch that could not be

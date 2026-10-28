@@ -495,7 +495,7 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
    requested early look`, `Draft: multi-session container`, or `Draft: <reason>` for the flag.
    That line tells unattended flippers the draft is a person's choice; only a person removes it
    or flips the PR.
-1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
+1. **Repository level.** When §2.4.1's `<plugin-root>/lib/config-root.sh classify` printed `repo`, read
    `docs/conventions/source-control.yaml` at the PR's base branch in the base repository, never
    from the working tree or the branch being opened, the same way the review-bot rubric is read
    ([config-resolution.md](../../../reference/config-resolution.md#review-bot-triage-rubric-docsconventionssource-controlmd);
