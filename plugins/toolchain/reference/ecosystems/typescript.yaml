@@ -1,6 +1,6 @@
 # Bundled portable default — typescript. Rung-4 fallback ONLY (consumer
 # .claude/ecosystems/typescript.yaml overrides key-by-key). Contract + schema:
-# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
 #
 # fix-cmd is format-only (biome format). biome check --write applies lint
 # autofixes and lives in code-fix-cmd behind /toolchain:lint --code-fix.

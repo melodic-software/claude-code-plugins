@@ -1,6 +1,6 @@
 # Bundled portable default — cross-cutting (repo-wide text checks). Rung-4
 # fallback ONLY (consumer .claude/ecosystems/cross-cutting.yaml overrides key-by-key). Contract + schema:
-# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
 # Lint-only surface: /toolchain:lint runs it (alongside detected ecosystems when any text
 # file changed AND the repo opts into its tools); /toolchain:check does not run it — its
 # `**` glob would otherwise match every change in build detection.
