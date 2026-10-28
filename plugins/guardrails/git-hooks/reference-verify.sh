@@ -9,7 +9,8 @@
 #
 # Runs the three verifiers that used to report after every Claude Code edit
 # (cli-flag-verify, skill-reference-verify, stale-path-verify) once per changed
-# .md, .sh, .bash, .ps1 or .psm1 file, through the plugin's run-guards.sh
+# .md, .sh, .bash, .ps1 or .psm1 file outside an evals/**/samples/ folder
+# (recorded model output), through the plugin's run-guards.sh
 # dispatcher, all installed beside this script as entry assets. Each file is
 # handed over the way the edit row handed it: a file new to the range as a
 # Write of its whole content, a changed file as an Edit whose new text is the
@@ -162,10 +163,13 @@ first_line() {
     "$CHECKS_TMP/ranges"
 }
 
-# verified_type <path>: an extension the verifiers read.
+# verified_type <path>: an extension the verifiers read, outside an eval
+# suite's samples/ folder. A sample is recorded model output: a flag, skill
+# reference or path in it is data, not a claim the repository makes.
 verified_type() {
   local f="$1"
   case "$f" in
+    evals/samples/* | evals/*/samples/* | */evals/samples/* | */evals/*/samples/*) return 1 ;;
     *.md | *.sh | *.bash | *.ps1 | *.psm1) return 0 ;;
     *) return 1 ;;
   esac
