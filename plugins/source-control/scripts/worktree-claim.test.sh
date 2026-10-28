@@ -437,15 +437,20 @@ REAL_ROOT="$TEST_TMPDIR/real-root"
 LINK_ROOT="$TEST_TMPDIR/link-root"
 mkdir -p "$REAL_ROOT"
 ln -s "$REAL_ROOT" "$LINK_ROOT"
-git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-a" -b feat/sib-a
-git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-b" -b feat/sib-b
-REAL_PHYS="$(physical_dir "$REAL_ROOT")"
-run_claim report --repo-dir "$LINK_REPO"
-assert_contains "first sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-a"
-assert_contains "second sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-b"
-run_claim claim "$LINK_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
-assert_exit "claim through the symlinked spelling finds the sibling" 0 "$?"
-run_claim check-enter "$REAL_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
-assert_exit "check-enter through the physical spelling sees this session's claim" 0 "$?"
+# Git Bash without native symlinks makes `ln -s` copy the directory; there is no symlink to test.
+if [[ -L "$LINK_ROOT" ]]; then
+  git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-a" -b feat/sib-a
+  git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-b" -b feat/sib-b
+  REAL_PHYS="$(physical_dir "$REAL_ROOT")"
+  run_claim report --repo-dir "$LINK_REPO"
+  assert_contains "first sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-a"
+  assert_contains "second sibling reports its physical path" "$OUT" "$REAL_PHYS/sib-b"
+  run_claim claim "$LINK_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
+  assert_exit "claim through the symlinked spelling finds the sibling" 0 "$?"
+  run_claim check-enter "$REAL_ROOT/sib-b" --repo-dir "$LINK_REPO" --session-id link-session
+  assert_exit "check-enter through the physical spelling sees this session's claim" 0 "$?"
+else
+  echo "SKIP: ln -s made no symlink on this platform; symlinked-root sibling checks not run"
+fi
 
 [[ $FAILED -eq 0 ]] || exit 1
