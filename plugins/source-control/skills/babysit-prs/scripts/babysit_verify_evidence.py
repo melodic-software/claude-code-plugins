@@ -129,7 +129,9 @@ that is missing, older or of another shape, it lists every page, checked the
 same way. A carry forged to drop a FAIL must therefore
 also hold a fabricated entry in its place to match the live count, and forging it already needs code
 running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
-job holds the lanes App token.
+job holds the lanes App token. The completed review-lane runs the gates bind
+lanes on are a second exception, outside this reader, under the same bar and
+a live listing check (`babysit_gh.collect_lane_runs`).
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
 `LISTING_ENV`: a successful listing is saved there, and later candidates of
 the run read it instead of paging again. A listing taken earlier in the run
