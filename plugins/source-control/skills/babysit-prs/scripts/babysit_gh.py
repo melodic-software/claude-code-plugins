@@ -2476,7 +2476,7 @@ def collect_main_reviews(
 MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
 
 
-def collect_main_review_criticals(
+def collect_main_review_critical(
     repo: str,
     shas: Iterable[str],
     names: Mapping[str, str],

@@ -1278,7 +1278,7 @@ class CollectMainReviewsTests(unittest.TestCase):
                 )
 
 
-class CollectMainReviewCriticalsTests(unittest.TestCase):
+class CollectMainReviewCriticalTests(unittest.TestCase):
     """The counts pr-review-main's record job left as check runs on each head:
     the most CRITICAL findings per lane, a title that does not read counting
     one."""
@@ -1294,7 +1294,7 @@ class CollectMainReviewCriticalsTests(unittest.TestCase):
             return [{"check_runs": by_sha.get(sha, [])}]
 
         with mock.patch.object(gh, "gh_json", side_effect=fake):
-            return gh.collect_main_review_criticals(
+            return gh.collect_main_review_critical(
                 "owner/repo", list(by_sha), self.NAMES
             )
 

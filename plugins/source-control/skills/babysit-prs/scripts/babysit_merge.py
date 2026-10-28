@@ -185,7 +185,7 @@ from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
     collect_lane_runs,
-    collect_main_review_criticals,
+    collect_main_review_critical,
     collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
@@ -3254,7 +3254,7 @@ def _main_reviews(
     reviews = collect_main_reviews(
         repo, names, review_evidence.MAIN_REVIEW_WORKFLOW, branch, read_env
     )
-    carried = collect_main_review_criticals(
+    carried = collect_main_review_critical(
         repo,
         [*pull_request_heads, *_force_pushed_heads(repo, number)],
         {lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES},

@@ -2486,9 +2486,9 @@ class MainReviewInputTests(unittest.TestCase):
             mock.patch.object(merge, "_force_pushed_heads", return_value=["b" * 40]),
             mock.patch.object(
                 merge,
-                "collect_main_review_criticals",
+                "collect_main_review_critical",
                 side_effect=lambda repo, shas, names, env: (
-                    calls.append(("criticals", list(shas), names))
+                    calls.append(("critical-counts", list(shas), names))
                     or {"claude-review": 0, "claude-security-review": 1}
                 ),
             ),
@@ -2520,7 +2520,7 @@ class MainReviewInputTests(unittest.TestCase):
         self.assertEqual(
             calls[1],
             (
-                "criticals",
+                "critical-counts",
                 [HEAD, "b" * 40],
                 {
                     "claude-review": "pr-review-main: claude-review",
