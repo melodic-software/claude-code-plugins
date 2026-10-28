@@ -620,6 +620,14 @@ test("a person's hold whose verifier read did not come is noted with what it has
   const failed = await run([pull(1, { files, verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(failed.verified, [1]);
   assert.deepEqual(failed.notes, []);
+  // A verdict the lanes clear, which the gate never scores past: the risk
+  // score is not in it, so the standing comment stands too.
+  const unscored = await run([pull(1, { files, verdict: MISSING, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(unscored.notes, []);
+  // A kept verifier answer puts the label back on a path hold's standing
+  // comment that no person lifted, as a path hold always has.
+  const kept2 = await run([pull(1, { files, verdict: { ...RISK_HELD, cached: true }, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
+  assert.deepEqual(kept2.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
   // An armed one is disarmed at once, with no verifier read.
   const armed = await run([pull(2, { files, verdict: RISK_HELD, autoMergeRequest: {} })]);
   assert.deepEqual(armed.verified, []);

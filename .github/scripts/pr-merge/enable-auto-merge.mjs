@@ -1001,8 +1001,10 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
     const read = "verify" in detail;
     const clears = read ? verifyClears(detail.verify, pull.headRefOid) : null;
     const held = { action: armed ? "disarm" : "none", reason: personReason(clears === "person" ? [...reasons, verifyHold(detail.verify, pull.headRefOid)] : reasons), clears: "person" };
-    // `partial`: the verifier's answer is not in it.
-    const partial = clears === null && !(read && verifyHold(detail.verify, pull.headRefOid) === null) ? { partial: true } : {};
+    // `partial`: the risk score is not in it, since the gate scores it only
+    // once the verdict and link allow (babysit_verify_evidence.py evidence).
+    const scored = read && detail.verify?.head === pull.headRefOid && detail.verify.refusal === null && detail.verify.ineligible === null;
+    const partial = scored && (detail.verify.reviews === null || (typeof detail.verify.reviews === "string" && !detail.verify.reviews.startsWith("unreadable"))) ? {} : { partial: true };
     return !read && !armed ? { action: "verify", reason: "its verifier verdict is not read yet", fold: { ...held, partial: true } } : { ...held, ...partial };
   }
   // A hold a person set, read whole: `withdraw` marks a decided outcome,
@@ -1315,7 +1317,8 @@ export async function main({ env = process.env, github, actions, verify, room, s
             }
           }
         }
-        cached = evidence?.cached === true;
+        // A path or cost hold is no kept answer's: its label goes back on as before.
+        cached = fold === null && evidence?.cached === true;
       }
       // A person's hold whose verifier read did not come (no time left, not
       // a reader run, a cache-only miss) stands with the reasons it has.
