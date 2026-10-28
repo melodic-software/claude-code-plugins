@@ -289,3 +289,34 @@ this case.
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
 | `subagent/preloaded-skill-placeholder-reflects-session-effort` | ran, `effort=medium` | `echo effort=medium` | pass |
+
+## Basis for record 14
+
+A live run of the `autocompact` area, `probe.py run --live --area autocompact --max-runs 4
+--max-cost-usd 1.0`, each case at `max_budget_usd` 0.25, with the launch above plus each case's
+`cli_args` and `env`. Linux (WSL2), Claude Code **2.1.312**, 2026-10-28: 4 runs, no retry. Each
+session printed its window with no model turn: the stream held a `<synthetic>` assistant message
+with the text and a result with `num_turns` 0 and no cost. The runner then read any assistant
+message as a model turn, so all four first reported `inconclusive`; the verdict now trusts a result
+reporting `num_turns` 0, and the saved streams were re-read with `probe.py rejudge` (no new run).
+The streams were not committed. The recheck trigger and expiry above apply.
+
+## 14. `/autocompact` window precedence within project scope, the flag and the environment variable
+
+**Claim.** `/autocompact` with no argument reports the effective window. A project settings file's
+top-level `autoCompactWindow` sets it; that file's `modelSettings.<model id>.autoCompactWindow`
+beats its top-level key; `--autocompact` beats the project file; `CLAUDE_CODE_AUTO_COMPACT_WINDOW`
+beats the flag. The printed line names its source as `(from settings)` for both the file and the
+flag, and `(from CLAUDE_CODE_AUTO_COMPACT_WINDOW)` for the variable, so a case matches the window,
+not the source label. User-scope precedence is not probed here.
+
+**Recheck trigger.** A release note naming `/autocompact`, `--autocompact`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` or `modelSettings`, or `claude -p` starting a model turn for a
+local slash command.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `autocompact/project-top-level-window-applies` | 250k | `Auto-compact window for Sonnet 5.5: 250k tokens (from settings)` | pass |
+| `autocompact/project-per-model-beats-top-level` | 400k | `... 400k tokens (from settings)` | pass |
+| `autocompact/flag-beats-project-settings` | 200k | `... 200k tokens (from settings)` | pass |
+| `autocompact/env-beats-flag` | 150k | `... 150k tokens (from CLAUDE_CODE_AUTO_COMPACT_WINDOW)` | pass |
