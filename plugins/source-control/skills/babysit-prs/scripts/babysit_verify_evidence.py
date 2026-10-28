@@ -297,18 +297,12 @@ LISTING_OVERLAP = timedelta(hours=2)
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
-# The waits between incremental reads on one base, which miss the live count
-# for a while rather than for one read. The first pr-merge tick on a carried
-# base (run 40600822658, 2026-10-27 23:19Z) read 4 pages that did not hold
-# the live count and then paged all 71; the same base read again at 23:24Z
-# held it in 4 pages. Run 40726697038 (2026-10-28 16:37Z) read two
-# incremental listings back to back (10 pages), both missed, and its whole
-# listings then made 207 page requests over 2.5 minutes (0.7 s a page, about
-# 83 pages a listing of 8,201 artifacts) where the next run's 3 pages held the
-# count; 60 of 239 merge runs that week made over 150 GITHUB_TOKEN requests
-# (median 80). The waits together, 45 s, stay under one whole listing's
-# minute, and each `babysit-listing-miss` line shows whether they outlast the
-# miss (judgment on that data).
+# The waits between incremental reads on one base. A count that misses the
+# live total can stay off for longer than an immediate re-read takes, while a
+# page boundary settles; bounded waits let it settle before the reader pages
+# every artifact. Together they stay well under the time of one whole listing
+# and inside `LISTING_TIMEOUT_SECONDS`, and each `babysit-listing-miss` line
+# shows whether they outlast the miss (judgment).
 INCREMENTAL_WAITS = (15.0, 30.0)
 # The incremental reads on one base before a whole listing: the first, then
 # one after each wait.
