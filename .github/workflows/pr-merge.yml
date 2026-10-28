@@ -134,8 +134,7 @@ jobs:
       # if one did: the merge and enable-auto-merge jobs then send nothing.
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget). The full-run dispatch's own
-    # `gh api -i` POST leaves none.
+    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -370,6 +369,10 @@ jobs:
           else
             what="main (this run started at $GITHUB_SHA)"
           fi
+          # Each POST's rate-limit reading, for the job-end api-calls notice;
+          # recorded only, never guarded, so the POST goes as it would
+          # without the library, and without it nothing is recorded.
+          . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null || true
           # A header of the last response, by case-insensitive name.
           header() { awk -F': *' -v n="$1" 'tolower($1) == n { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr"; }
           id='' why='' waited=0
@@ -377,6 +380,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
@@ -2234,6 +2238,8 @@ jobs:
     permissions:
       contents: read # check out main
       statuses: write # post pr-merge/unarmed on lanes App pull request heads
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2255,6 +2261,14 @@ jobs:
           STATUSES: ${{ needs.enable-auto-merge.outputs.unarmed-statuses }}
         run: node .base/.github/scripts/pr-merge/post-unarmed-status.mjs
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   dispatch-full-run:
     needs: [merge]
     if: >-
@@ -2270,7 +2284,26 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: write # read main's full runs and start pr-require-checks.yml on main
+      contents: read # check out the api-budget library
+    # Each API call's rate-limit reading, for the job-end api-calls notice
+    # (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
+      # The api-budget library only, from the default branch. A failed
+      # checkout leaves no library: the steps below call GitHub as they would
+      # without it, and no reading is logged.
+      - name: Check out the api-budget library
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+          sparse-checkout-cone-mode: false
+
       # At most one full run of main per CAP_MINUTES, each of main's tip,
       # covering every merge since the last. The step reads the newest
       # pr-require-checks.yml dispatches on main that github-actions[bot]
@@ -2279,11 +2312,12 @@ jobs:
       # within CAP_MINUTES, uncovered=true when none is at TIP. A failed read
       # sets neither, so the run dispatches as it would with no cap, except a
       # read refused for a rate limit, which stops the step red with
-      # rate-limited=true and sends nothing more. This job has no checkout of
-      # the shared guard, so the match is the pattern rate-stop.bash's
-      # rate_stop_from reads; post-merge-dispatch's copy of this step sources
-      # that guard. A merge the cap skips is covered by the next push after
-      # the window or, while the lane is live, by post-merge-dispatch on the
+      # rate-limited=true and sends nothing more. This job checks out only
+      # the api-budget library, not rate-stop.bash, so the match is the
+      # pattern rate-stop.bash's rate_stop_from reads; post-merge-dispatch's
+      # copy of this step sources that guard. A merge the cap skips is
+      # covered by the next push after the window or, while the lane is
+      # live, by post-merge-dispatch on the
       # next scheduled run, whose dispatch starts main's tip once nothing
       # covers it, whoever merged. CAP_MINUTES: the efficiency plan of 2026-10-26
       # (item 5, owner decision): 116 runs a day at a median 84.1 runner-min
@@ -2297,6 +2331,9 @@ jobs:
           CAP_MINUTES: 30
         run: |
           set -euo pipefail
+          # The read keeps its rate-limit reading for the job-end api-calls
+          # notice; none when the checkout of the library failed.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
             --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
             cat "$RUNNER_TEMP/cover-stderr" >&2
@@ -2351,6 +2388,10 @@ jobs:
           else
             what="main (this run started at $GITHUB_SHA)"
           fi
+          # Each POST's rate-limit reading, for the job-end api-calls notice;
+          # recorded only, never guarded, so the POST goes as it would
+          # without the library, and without it nothing is recorded.
+          . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null || true
           # A header of the last response, by case-insensitive name.
           header() { awk -F': *' -v n="$1" 'tolower($1) == n { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr"; }
           id='' why='' waited=0
@@ -2358,6 +2399,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
@@ -2441,6 +2483,14 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # Each candidate the gate judged shows its verdict on its head as one
   # `pr-merge / gate` check run: neutral, titled with the top refusal, or
   # success over a refusal once enqueued or merged. Not `ci-status`, so never
@@ -2465,6 +2515,8 @@ jobs:
       contents: read # check out main
       checks: write
       pull-requests: read # write only at each candidate's current head
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2496,3 +2548,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SUMMARY_PATH: ${{ runner.temp }}/rows/pr-merge-summary.json
         run: node .base/.github/scripts/pr-merge/gate-check.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

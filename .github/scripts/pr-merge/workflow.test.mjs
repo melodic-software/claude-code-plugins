@@ -54,7 +54,7 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
   const dispatch = job("dispatch-full-run");
   assert.deepEqual(
     [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]),
-    ["Read main's full-run cover", "Start the full CI run on main", "Record the dispatched run"],
+    ["Check out the api-budget library", "Read main's full-run cover", "Start the full CI run on main", "Record the dispatched run", "Log the API budget at the end"],
   );
   assert.doesNotMatch(dispatch, /sleep 180|actions\/runs\/\$RUN_ID|post-merge-demotion-alert\.yml\/dispatches/);
   const timeout = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(dispatch)[1]);
@@ -262,12 +262,51 @@ test("post-merge-dispatch reads the cover only while the lane is live", () => {
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
-test("the dispatch job's token is actions: write and nothing else", () => {
-  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(job("dispatch-full-run"))[1];
+// contents: read only checks out the api-budget library, sparse, from main.
+test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
+  const dispatch = job("dispatch-full-run");
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["actions: write"],
+    ["actions: write", "contents: read"],
   );
+  const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
+  assert.match(checkout, /^ {8}continue-on-error: true\n/);
+  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
+});
+
+// The cover read and each dispatch POST leave a rate-limit reading, so the
+// job-end api-calls notice counts them; the POST is recorded, never guarded.
+test("dispatch-full-run's cover read and dispatch POST each leave one reading", () => {
+  const dir = tempDir("pr-merge-reading-");
+  mkdirSync(join(dir, "bin"));
+  symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+  const headers = "X-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Used: 1000\r\nX-Ratelimit-Reset: 9999999999\r\nX-Ratelimit-Resource: core\r\n\r\n";
+  writeFileSync(
+    join(dir, "bin", "gh"),
+    `#!/usr/bin/env bash
+if [[ " $* " == *" -X POST "* ]]; then printf 'HTTP/2.0 200 OK\\r\\n${headers.replaceAll("\r\n", "\\r\\n")}{"workflow_run_id":4242}'; exit 0; fi
+printf 'HTTP/2.0 200 OK\\r\\n${headers.replaceAll("\r\n", "\\r\\n")}'
+while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi; shift; done
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(dir, "cover.sh"), coverBody("dispatch-full-run").body);
+  writeFileSync(join(dir, "dispatch.sh"), dispatchStep("dispatch-full-run").body);
+  writeFileSync(join(dir, "output"), "");
+  const env = { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", TIP: HEAD, CAP_MINUTES: "30", WAIT_CAP: "180", GITHUB_EVENT_NAME: "push", GITHUB_SHA: HEAD, GITHUB_RUN_ID: "77", GITHUB_OUTPUT: join(dir, "output"), RUNNER_TEMP: dir };
+  try {
+    for (const body of ["cover.sh", "dispatch.sh"]) {
+      const r = spawnSync("bash", ["-e", join(dir, body)], { cwd: dir, env, encoding: "utf8" });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+    }
+    assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
+    const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // pr-require-checks.yml's concurrency, evaluated per event. Main's dispatches
@@ -454,6 +493,28 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Log the API budget at job end"));
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
+});
+
+// The hub ranks GITHUB_TOKEN spend by each job's `api-calls` notice, so a
+// job that calls GitHub with the job token and logs nothing is spend no one
+// sees. Every such job carries the log-api-budget step, run whatever failed
+// before it, naming github-token.
+test("every job that calls GitHub with the job token logs its api-calls", () => {
+  const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
+  const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
+  for (const id of ["post-merge-dispatch", "merge", "enable-auto-merge", "unarmed-status", "dispatch-full-run", "gate-check"]) {
+    assert.ok(callers.includes(id), `${id} calls GitHub with the job token`);
+  }
+  const unlogged = callers.filter((id) => {
+    const step = `\n${/- name: Log the API budget[^\n]*\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(job(id))?.[1] ?? ""}`;
+    return !(
+      /\n {8}if: always\(\)/.test(step) &&
+      /\n {8}continue-on-error: true\n/.test(step) &&
+      /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /.test(step) &&
+      /\n {10}tokens: (?:[a-z-]+ )*github-token\b/.test(step)
+    );
+  });
+  assert.deepEqual(unlogged, []);
 });
 
 // The lane's room (lane-room) reads this run's post-merge report, which

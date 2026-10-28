@@ -3441,6 +3441,7 @@ jobs:
                   out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
                   command gh "$@" >"$out" || rc=$?
                   api_budget_observe "$out" "$pool" "gh $*" || rc=1
+                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
                   cat "$out"
                   rm -f "$out"
                   return "$rc"

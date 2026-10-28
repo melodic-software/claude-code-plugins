@@ -356,6 +356,20 @@ test("gh guard: a refused answer still returns 1 on both paths", () =>
     }
   }));
 
+// A caller that reads the headers itself (-i) is still counted, and a
+// conditional GET answered 304 counts as not-modified, which GitHub does not
+// charge.
+test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", () =>
+  withDir((dir) => {
+    const out = guarded(
+      dir,
+      ["200 4000 - {}", "304 4000 - "],
+      'gh api -i repos/o/r >/dev/null\ngh api -i -H "If-None-Match: x" repos/o/r >/dev/null || true\napi_budget_emit_calls github-token',
+    );
+    assert.equal(out.calls.length, 2);
+    assert.equal(out.stdout, "::notice title=api-calls::github-token=1 not-modified=1\n");
+  }));
+
 test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
   withDir((dir) => {
     mkdirSync(join(dir, "api-budget"), { recursive: true });

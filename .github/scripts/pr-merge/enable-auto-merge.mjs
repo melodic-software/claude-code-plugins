@@ -762,20 +762,28 @@ export class ReaderRateLimited extends Error {
 // the Actions token (`override`, the job's GITHUB_TOKEN), and those paginated,
 // each of which made one request per page. Null when there is no such line.
 export const GH_CALLS_PREFIX = "babysit-gh-calls ";
-export function ghCalls(stderr) {
+function ghCallsPayload(stderr) {
   const line = String(stderr ?? "")
     .split("\n")
     .map((text) => text.replace(/\r$/, ""))
     .findLast((text) => text.startsWith(GH_CALLS_PREFIX));
-  if (line === undefined) {
-    return null;
-  }
-  let payload;
   try {
-    payload = JSON.parse(line.slice(GH_CALLS_PREFIX.length));
+    return line === undefined ? null : JSON.parse(line.slice(GH_CALLS_PREFIX.length));
   } catch {
     return null;
   }
+}
+
+// That line as the log carries it, as the merge job's tee does, so one grep
+// sums the calls per endpoint across both jobs: re-serialized from the parsed
+// JSON, so it is one line whatever the reader printed. Null without one.
+export function ghCallsLine(stderr) {
+  const payload = ghCallsPayload(stderr);
+  return payload === null || typeof payload !== "object" ? null : `${GH_CALLS_PREFIX}${JSON.stringify(payload)}`;
+}
+
+export function ghCalls(stderr) {
+  const payload = ghCallsPayload(stderr);
   const calls = payload?.calls;
   if (!Number.isSafeInteger(payload?.total) || calls === null || typeof calls !== "object") {
     return null;
@@ -862,6 +870,10 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
     }
     verify.costs.push(cost);
     console.log(`enable-auto-merge: ${costLine(cost)}`);
+    const calls = ghCallsLine(done.stderr);
+    if (calls !== null) {
+      console.log(calls);
+    }
     const line = cacheLine(number, evidence?.cache);
     if (line !== null) {
       console.log(`enable-auto-merge: ${line}`);
