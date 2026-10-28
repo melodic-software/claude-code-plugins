@@ -123,6 +123,7 @@ from server import (  # noqa: E402
     NAME,
     SCHEMA_VERSION,
     Settings,
+    chain_end,
     check_alt,
     derive_states,
     is_handled,
@@ -994,6 +995,16 @@ def require_accepted(d, q, what):
         )
 
 
+def require_on_path(doc, q):
+    """Refuse an answer on a question off the path, as the server's check_retired answers 409:
+    superseded, naming the end of its supersededBy chain (chain_end), wins over archived."""
+    if q.get("supersededBy"):
+        qs = {x["id"]: x for x in doc["questions"]}
+        sys.exit(f"refused: {q['id']} is superseded; answer {chain_end(qs, q)} instead")
+    if q.get("archived"):
+        sys.exit(f"refused: {q['id']} is archived")
+
+
 def checked_round_restate(restate):
     """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
     `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
@@ -1497,6 +1508,7 @@ def op_note_reply(d, doc, a):
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
     require_accepted(d, q, "an answer")
+    require_on_path(doc, q)
     capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "hedged":
         if not (a.text or "").strip():

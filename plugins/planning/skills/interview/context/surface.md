@@ -187,6 +187,8 @@ An archived question (the `archive` op, or a declined proposal) and a superseded
 
 The server answers a decision (`accept`, `alt`, `own`, `defer`, `hedged`, `reopen`) on a superseded question 409 `{"error": "superseded", "by": "<id>"}`, with `by` the same chain end, and on an archived one with no `supersededBy` 409 `{"error": "archived"}`; a decision on a declined proposal stays the 400 it was. Accept-all and accept-audit leave a superseded question out. An `undo`, `ask`, `rephrase`, `research` or `cancel-research` on one still saves.
 
+`record-terminal` refuses every decision on such a question and writes nothing: it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the same chain end, or `refused: <id> is archived`. Record a superseded question's answer on its chain end.
+
 The page meter, `round.sh status` and `export-ledger` all read `supersededBy` before the decision: an answer recorded before the question was superseded counts nowhere, so the question is neither live nor answered and its register row exports `withdrawn` (`superseded by <id>`, or `archived: <why>` when it is archived too).
 
 ### Auto-handled events

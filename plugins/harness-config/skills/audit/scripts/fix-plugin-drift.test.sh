@@ -678,6 +678,20 @@ signal_shim() {
   chmod +x "$dir/jq"
 }
 
+# A suite started as a background job (check-changed-skills.sh runs checkers with
+# `&`) inherits SIGINT ignored, and bash cannot trap a signal ignored on entry, so
+# the script under test would never see the INT. env --default-signal restores it;
+# where env lacks the flag (BSD env), case 16 is skipped instead of failing.
+SIGINT_RESET=()
+SIGINT_UNTESTABLE=""
+if [[ "$(trap -p INT)" == "trap -- '' SIGINT" ]]; then
+  if env --default-signal=INT true 2>/dev/null; then
+    SIGINT_RESET=(env --default-signal=INT)
+  else
+    SIGINT_UNTESTABLE="SIGINT was ignored when the suite started and env cannot reset it"
+  fi
+fi
+
 # run_signalled <case-dir> <signal> - an apply interrupted at that point.  # identifier, not prose # spellchecker:disable-line
 run_signalled() {  # identifier, not prose # spellchecker:disable-line
   local case_dir="$1" sig="$2"
@@ -687,7 +701,7 @@ run_signalled() {  # identifier, not prose # spellchecker:disable-line
     SHIM_MARKER="$case_dir/fired" \
     NO_COLOR=1 \
     CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
-    bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
+    ${SIGINT_RESET[@]+"${SIGINT_RESET[@]}"} bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
 }
 
 for sig_case in "15 TERM 143" "16 INT 130"; do
@@ -695,6 +709,11 @@ for sig_case in "15 TERM 143" "16 INT 130"; do
   set -- $sig_case
   sig_name="$2"
   sig_rc="$3"
+
+  if [[ "$sig_name" == INT && -n "$SIGINT_UNTESTABLE" ]]; then
+    skip "case-$1: SIG$sig_name during the apply" "$SIGINT_UNTESTABLE"
+    continue
+  fi
 
   CASE_NUM=$((CASE_NUM + 1))
   case_dir=$(make_case)
