@@ -274,16 +274,20 @@ starting branch) other than the default branch and the control skill's upkeep br
    the ticket's pull request. The report names the commit, so the caller knows HEAD moved by a
    commit that touches only the control skill directory.
 
-The default branch's tip is its commit on the remote, fetched when the pass starts, never a local
-branch that may be stale. A pass started on a detached HEAD whose commit is not that tip commits nothing: the
-outcome is **blocked**, the edits go in the report unwritten, and a pass on the ticket's branch or
-on the default branch clears it.
+A pass started on a detached HEAD whose commit is not the default branch's tip (§ Return to the
+starting branch decides this before step 1) commits nothing: the outcome is **blocked**, the edits
+go in the report unwritten, and a pass on the ticket's branch or on the default branch clears it.
+That is the expected outcome for a CI checkout of a pull request commit: the passes still run, and
+the drift reaches the caller's report.
 
 ### Return to the starting branch
 
 Every pass records its starting point before step 1: `git branch --show-current`, or, when that
 prints nothing (a detached HEAD, as a CI checkout of a pull request commit usually is),
-`git rev-parse HEAD`. After each control skill's step 6, whatever its outcome, it switches back to
+`git rev-parse HEAD`. It then fetches the default branch from its remote and records the start's
+type: the default branch, a detached HEAD at the fetched tip (both take the upkeep branch), a
+ticket branch (§ Ticket branch), or a detached HEAD off that tip (report only). The remote commit
+is the tip, never a local branch that may be stale. After each control skill's step 6, whatever its outcome, it switches back to
 that point: `git switch <branch>`, or `git switch --detach <sha>` for a detached start. It does so
 before the next skill's step 1, so no skill is refreshed on another skill's upkeep branch, and
 before the pass reports, so a caller such as `/testing:run-e2e` resumes on the commit it is
