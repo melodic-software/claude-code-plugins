@@ -9,4 +9,4 @@ bump: minor
 
 ### Changed
 
-- Every workflow whose token can write, that names a secret other than `GITHUB_TOKEN`, or that mints a lane token, and the review workflows, is a `gate` floor path, held for a person: `pr-merge.yml`, `pr-require-checks.yml` and `pr-unblock.yml` move from `enforcement`. `review-path-unbindable` is gone: an enforcement path beside a lane source waits for the main-run security review.
+- Every workflow whose token can write, that names a secret other than `GITHUB_TOKEN`, or that mints a lane token, and the review workflows with the main-run review's scripts, is a `gate` floor path, held for a person: `pr-merge.yml`, `pr-require-checks.yml` and `pr-unblock.yml` move from `enforcement`. `review-path-unbindable` is gone: an enforcement path beside a lane source waits for the main-run security review.

@@ -928,7 +928,8 @@ the rules that only tighten in
     `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition. And every
     workflow a review cannot be trusted to judge (owner direction 2026-10-28): the review callers
-    and `pr-review-main.yml`, which run the review itself, and each workflow whose token can write,
+    and `pr-review-main.yml` with `.github/scripts/pr-review-main/**`, which run the review itself and
+    set the counts the gate reads, and each workflow whose token can write,
     that names a secret other than `GITHUB_TOKEN`, or that mints a lane token, `pr-merge.yml`,
     `pr-require-checks.yml` and `pr-unblock.yml` among them. `test_babysit_risk.py` reads every
     workflow and requires each that holds one of those on this list.
