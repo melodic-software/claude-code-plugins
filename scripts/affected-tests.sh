@@ -229,6 +229,8 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/pytest-python.sh
 . "$SCRIPT_DIR/lib/pytest-python.sh" || exit 2
+# shellcheck source=lib/test-git-env.sh
+. "$SCRIPT_DIR/lib/test-git-env.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
@@ -1630,9 +1632,11 @@ if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
   bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
 elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
+  n=0
   for s in "${runnable[@]}"; do
+    n=$((n + 1))
     echo "=== $s ==="
-    if bash "$s"; then
+    if (test_git_env::isolate "$WORK_DIR/gitconfig.$n" && bash "$s"); then
       echo "PASS: $s"
     else
       echo "FAIL: $s" >&2

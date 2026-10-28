@@ -107,18 +107,17 @@ const setupSkills = pluginFiles.filter((path) =>
 // surface, not a claim it may assert: "A plugin with even one writable owned
 // artifact takes the narrow-write shape instead." Tracked consumer config is
 // the writable artifact class this repo already registers, in the Implementers
-// table of docs/conventions/config-cascade/README.md, a signal that lives
+// table of docs/contracts/config-cascade/README.md, a signal that lives
 // OUTSIDE the setup skill whose claim is being checked, which is the whole
 // point. Reading ownership out of the declaring skill's own prose would let a
 // plugin certify itself, and would misread the carve-out's own second surface,
 // whose conforming `check` prints the exact settings edit it may not write.
-const configCascadeRegistry = join(
-  root,
-  "docs",
-  "conventions",
-  "config-cascade",
-  "README.md",
-);
+// The contract moved from docs/conventions/, which keeps a stub; the old path
+// is read only when the new one is absent.
+const configCascadeRegistry = [
+  join(root, "docs", "contracts", "config-cascade", "README.md"),
+  join(root, "docs", "conventions", "config-cascade", "README.md"),
+].find((path) => existsSync(path)) ?? join(root, "docs", "contracts", "config-cascade", "README.md");
 
 // The plugin names in that table's first column, or null when the table cannot
 // be read. Null is a recorded failure, never a quiet pass: a check that
@@ -1363,6 +1362,32 @@ if (existsSync(marketplacePath)) {
         `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
       );
     }
+  }
+}
+
+// The `core` bundle installs the catalog's default-on set through its manifest
+// `dependencies`. It stays off by default itself, so taking the default-on set
+// never installs it, and its list must equal that set (every other entry whose
+// defaultEnabled is absent or true), or installing it adds or omits a plugin
+// the catalog does not enable by default.
+const coreManifestPath = join(pluginRoot, "core", ".claude-plugin", "plugin.json");
+if (existsSync(marketplacePath) && existsSync(coreManifestPath)) {
+  const entries = [JSON.parse(read(marketplacePath)).plugins ?? []].flat().filter((e) => e && typeof e === "object");
+  const coreEntry = entries.find((e) => e.name === "core");
+  if (coreEntry && coreEntry.defaultEnabled !== false) {
+    fail(marketplacePath, 'plugin entry "core" must set "defaultEnabled": false');
+  }
+  const defaultOn = new Set(entries.filter((e) => e.name !== "core" && e.defaultEnabled !== false).map((e) => e.name));
+  const deps = new Set(
+    [JSON.parse(read(coreManifestPath)).dependencies ?? []].flat().map((d) => (typeof d === "string" ? d : d?.name)),
+  );
+  const missing = [...defaultOn].filter((n) => !deps.has(n)).sort();
+  const extra = [...deps].filter((n) => !defaultOn.has(n)).sort();
+  if (missing.length || extra.length) {
+    fail(
+      coreManifestPath,
+      `dependencies must equal the catalog's default-on plugins (missing: ${missing.join(", ") || "none"}; not default-on: ${extra.join(", ") || "none"})`,
+    );
   }
 }
 

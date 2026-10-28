@@ -12,6 +12,11 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "sync_stale_base": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, push-branch.sh merges the pull request's base into a branch that is behind it on overlapping paths just before it pushes, using the repository's scripts/check-stale-base-overlap.sh as the overlap rule when the checkout has one. A merge, never a rebase; a conflict aborts it and pushes nothing (exit 4). --sync-stale-base and --no-sync-stale-base override it for one push."
+    },
     "dialect": {
       "type": "string",
       "minLength": 1,

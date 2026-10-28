@@ -204,6 +204,10 @@ if [[ "$(pwd -P)" != "$tools" ]]; then
   export CHECK_DATA_ROOT="$PWD"
   # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
   export UV_NO_CONFIG=1
+else
+  # It names this tree, so it says nothing; the test suites build fixture
+  # repositories, and an inherited one would point them back here.
+  unset CHECK_DATA_ROOT
 fi
 
 gates_file="$tools/scripts/check-affected-gates.txt"
@@ -600,7 +604,9 @@ elif ((run_tests)); then
   affected() {
     local rc=0 s pkg ex t n=0 missing=
     local -a pkgs=() exclusions=() node=() unrun=()
-    "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
+    # that inherits it points its checkers at the real tree instead of its fixtures.
+    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&
