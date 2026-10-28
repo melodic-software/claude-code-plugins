@@ -28,7 +28,7 @@
 // and leaves the list once it is done, as a run that is gone does.
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -262,6 +262,7 @@ export async function dispatchDocsFixes({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       if (held) {
         log(`skip fix-docs #${node.number}: ${why}`);
