@@ -72,6 +72,8 @@ source "$SCRIPT_DIR/worktree-root-resolve.sh"
 source "$SCRIPT_DIR/scope-resolve.sh"
 # shellcheck source=fleet-discovery.sh
 source "$SCRIPT_DIR/fleet-discovery.sh"
+# shellcheck source=lib/worktree-facts.sh
+source "$SCRIPT_DIR/lib/worktree-facts.sh"
 
 usage() {
   printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH] [--project-dir DIR] [--remove-input-files]\n' "$PROG" >&2
@@ -312,19 +314,17 @@ under_root() {
 
 repo_rows=""
 for r in ${repos[@]+"${repos[@]}"}; do
-  linked=-1
-  while IFS= read -r line; do
-    line="${line%$'\r'}"
-    [[ "$line" == "worktree "* ]] || continue
-    linked=$((linked + 1))
-    # The first record is the main checkout or the bare hub.
-    ((linked > 0)) || continue
-    under_root "${line#worktree }" || continue
+  worktree_facts_parse_z <(git -C "$r" worktree list --porcelain -z 2>/dev/null)
+  linked=$((${#WT_FACT_PATH[@]} - 1))
+  # The first record is the main checkout or the bare hub.
+  for i in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do
+    ((i > 0)) || continue
+    under_root "${WT_FACT_PATH[$i]}" || continue
     [[ -d "$UNDER" && "$wt_seen" != *$'\n'"$UNDER"$'\n'* ]] || continue
     tsv_safe "$UNDER" || continue
     wt_rows+="worktree"$'\t'"$UNDER"$'\t'"$r"$'\n'
     wt_seen+="$UNDER"$'\n'
-  done < <(git -C "$r" worktree list --porcelain 2>/dev/null)
+  done
   repo_rows+="repo"$'\t'"$r"$'\t'"$((linked > 0 ? linked : 0))"$'\n'
 done
 
