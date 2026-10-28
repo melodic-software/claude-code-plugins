@@ -115,6 +115,14 @@ on:
         required: false
         type: string
         default: ""
+      collect-refused:
+        description: >-
+          In issue mode, for report-outcome: the model run's scan-collect-refused
+          output, `true` when collect-patch.sh refused a stub name holding
+          content. Exported to the script as COLLECT_REFUSED; only `true` counts.
+        required: false
+        type: string
+        default: ""
       review-replies:
         description: >-
           For the reply script of an address-feedback round: download the
@@ -402,17 +410,21 @@ on:
     outputs:
       escalation-reason:
         description: >-
-          Why the activity handed the PR to a person: for the
+          Why the activity stopped (report-escalation routes it to a person
+          or to a failing status, escalation-routes.json): for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete,
-          feedback-disputed, feedback-unadjudicated, feedback-question-intent,
+          (feedback-publish-failed is the caller's, for a reply job that failed),
+          feedback-disputed, feedback-stood-open, feedback-verifier-open,
+          feedback-unadjudicated, feedback-question-intent,
           feedback-question-design or feedback-question-security; for the
           dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-unpinned, dependency-fix-refused,
           dependency-security-close or dependency-escalate; for apply-patch, before the mint,
-          ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
+          ci-fix-empty, ci-fix-invalid, ci-fix-escalated, ci-fix-protected-path
+          or ci-fix-weaken-required, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           for issue-mode apply-patch, patch-empty, patch-invalid,
           patch-not-applied or patch-protected-path; for apply-patch under
@@ -432,6 +444,13 @@ on:
           apply-patch: the skip reason the patch's select gave, empty when it
           proceeded.
         value: ${{ jobs.run.outputs.patch-skip-reason }}
+      skip-reason:
+        description: >-
+          Why the run did no work: the kill switch's or trigger gate's reason,
+          or the skip reason its check run posts (a script's own, such as the
+          reply script's no-model-turn); empty when it acted. A caller that
+          reads a success result as a landed attempt checks this is empty.
+        value: ${{ jobs.run.outputs.skip-reason }}
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
@@ -483,6 +502,15 @@ jobs:
         ${{ steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
+      # The verdict step's skip reason, after the gate's reason.
+      skip-reason: >-
+        ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason
+        || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
+        || steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
+        || steps.lane-token.outputs.skip-reason
+        || steps.prepare.outputs.skip-reason || steps.promote.outputs.skip-reason
+        || steps.act-script.outputs.skip-reason
+        || steps.patch-select.outputs.skip-reason }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
@@ -586,14 +614,15 @@ jobs:
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
+            feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
-            feedback-question-security) ;;
+            feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
-            ci-fix-protected-path | ci-fix-not-applied) ;;
+            ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
             patch-empty | patch-invalid | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
@@ -1205,10 +1234,10 @@ jobs:
           echo "required=$required" >>"$GITHUB_OUTPUT"
 
       # apply-patch: the head checkout replaces .base, so the script's sibling
-      # imports (thread-scope.mjs, dependency-classify.mjs and merge-holds.mjs,
-      # beside the script's base-script copy), the patch-rules.json it reads,
-      # and the dependabot.yml whose pairs the dependency-manifests rule reads
-      # are copied out of the base first.
+      # imports (thread-scope.mjs, dependency-classify.mjs, merge-holds.mjs and
+      # escalation-routes.mjs with its table, beside the script's base-script
+      # copy), the patch-rules.json it reads, and the dependabot.yml whose pairs
+      # the dependency-manifests rule reads are copied out of the base first.
       - name: Copy the apply-patch base files
         id: apply-base
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
@@ -1219,6 +1248,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$DEST/$(dirname "$RULES")"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
+          cp .base/.github/scripts/pr-unblock/escalation-routes.mjs "$RUNNER_TEMP/pr-unblock/"
+          cp .base/.github/scripts/pr-unblock/escalation-routes.json "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-merge/merge-holds.mjs "$RUNNER_TEMP/pr-merge/"
           cp ".base/$RULES" "$DEST/$RULES"
           # A base without one leaves the rule's pairs unreadable: a row that
@@ -1385,7 +1416,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1.0.263
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1819,6 +1850,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the four reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Issue mode only; report-outcome counts only `true`.
+          COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
@@ -1900,6 +1933,9 @@ jobs:
           export ACTIVITY_ARGS
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
+          # publish-feedback's listed review bots (review-threads.reviewer-ids).
+          REVIEWER_IDS=$(jq -r '.["review-threads"]["reviewer-ids"] // [] | .[]' "$RESOLVED")
+          export REVIEWER_IDS
           unset GH_TOKEN GITHUB_TOKEN
           if [ -n "$LANE_TOKEN" ]; then
             export GH_TOKEN="$LANE_TOKEN"
@@ -1935,7 +1971,7 @@ jobs:
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
-              ?*:feedback-question-security) ;;
+              ?*:feedback-question-security | ?*:feedback-stood-open | ?*:feedback-verifier-open) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-protected-path | :patch-not-applied | :patch-empty)
                 [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
                 ;;

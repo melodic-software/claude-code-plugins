@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [1.7.1] - 2026-10-28
+
+### Changed
+
+- `/session-flow:audit-sessions` drift canaries are now validated against Claude Code 2.1.312. A collect and sweep over 2,387 sessions (2.1.280 through 2.1.312) found no `invariant:usage_regress`, `invariant:active_over_wall` or `invariant:stop_wait_over_sum` count, and `tokens.main` and `tokens.sub` report values on 2.1.296 transcripts.
+
+## [1.7.0] - 2026-10-28
+
+### Added
+
+- `/session-flow:audit-sessions now` audits the current session against the sweep's rules, so you can change course before the session ends. It collects only this session, by the id from `${CLAUDE_SESSION_ID}`, and stops without collecting when that id does not expand. It reports the per-session metrics, with each finding over its threshold.
+- `sweep.py --session <id>...` limits metrics and findings to the named sessions. Each row's store p90 still covers every interactive session in scope, and the drift check still reads every record. The machine-wide cache ratio and per-PR churn are reported as not applicable, and `--write-report` is refused.
+
 ## [1.6.2] - 2026-10-27
 
 ### Changed

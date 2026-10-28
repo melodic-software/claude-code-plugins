@@ -18,6 +18,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,7 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
+from urllib.parse import unquote
 
 # An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
 # fixtures' identity writes into the caller's repository
@@ -724,6 +726,8 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
         return {"repository": {"issues": page}}
 
     gh.graphql["PolicyIssuesByAuthor"] = by_author
+    # Before the single read's name, which the batch query's name extends.
+    gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
     return gh
 
@@ -997,6 +1001,138 @@ class ReadDemotion(unittest.TestCase):
         result = read_demotion()
         self.assertTrue(result.active)
         self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
+
+
+class RecordsFake:
+    """`read_demotion`'s reads over many records: the identity's listing names
+    each of `records`; the batch query answers each alias it asks for, less
+    `dropped`, or fails when it asks for any of `failing`; a single read
+    answers its record, or nothing for a number with none."""
+
+    ALIAS = re.compile(r"i(\d+):issue\(number:(\d+)\)")
+
+    def __init__(self, records: dict[int, dict[str, Any]]) -> None:
+        self.records = records
+        self.dropped: set[int] = set()
+        self.failing: set[int] = set()
+        self.queries: list[str] = []
+
+    def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        query = next(a for a in args if a.startswith("query="))
+        variables = dict(a.split("=", 1) for a in args if "=" in a and a[0] != "q")
+        self.queries.append(query.split("(", 1)[0].removeprefix("query=query "))
+        if "PolicyIssuesByAuthor" in query:
+            nodes = [
+                {"number": n, "body": DEMOTION_BODY, "lastEditedAt": None}
+                for n in self.records
+                if variables["a"] == IDENTITY
+            ]
+            page = {"pageInfo": {"hasNextPage": False, "endCursor": None}}
+            return ok({"data": {"repository": {"issues": page | {"nodes": nodes}}}})
+        if "PolicyDemotionRecords" in query:
+            asked = [int(n) for _, n in self.ALIAS.findall(query)]
+            if self.failing & set(asked):
+                return ok({"errors": [{"type": "NOT_FOUND"}], "data": None})
+            repository = {
+                f"i{n}": self.records.get(n) for n in asked if n not in self.dropped
+            }
+            return ok({"data": {"repository": repository}})
+        number = int(variables["n"])
+        return ok({"data": {"repository": {"issue": self.records.get(number)}}})
+
+
+def demotion_record(number: int, **issue: Any) -> dict[str, Any]:
+    return {
+        "number": number,
+        "state": "CLOSED",
+        "body": DEMOTION_BODY,
+        "createdAt": f"2026-10-12T10:{number:02d}:00Z",
+        "author": bot("agent-lanes"),
+        "userContentEdits": {"totalCount": 0, "nodes": []},
+        "timelineItems": {
+            "nodes": [
+                {
+                    "createdAt": f"2026-10-12T12:{number:02d}:00Z",
+                    "actor": user(OPERATOR),
+                    "closer": None,
+                }
+            ]
+        },
+    } | issue
+
+
+class ReadDemotionBatched(unittest.TestCase):
+    """`read_demotion` reads records `DEMOTION_BATCH` to a query and answers
+    exactly as reading each one on its own does."""
+
+    def read(self, fake: RecordsFake, *, per_issue: bool = False) -> Any:
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(policy, "gh_capture", fake))
+            if per_issue:
+                # The reference: every record read on its own.
+                stack.enter_context(
+                    mock.patch.object(policy, "_demotion_records", lambda *a: {})
+                )
+            return read_demotion()
+
+    def test_45_records_take_two_listings_and_three_batches(self) -> None:
+        fake = RecordsFake({n: demotion_record(n) for n in range(1, 46)})
+        result = self.read(fake)
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(result.records, tuple(range(1, 46)))
+        self.assertEqual(
+            fake.queries,
+            ["PolicyIssuesByAuthor"] * 2 + ["PolicyDemotionRecords"] * 3,
+        )
+
+    def test_batched_reads_equal_per_issue_reads(self) -> None:
+        open_hold = {"state": "OPEN", "timelineItems": {"nodes": []}}
+        edit = {"editedAt": "2026-10-12T11:00:00Z", "deletedAt": None}
+        edit |= {"editor": bot("agent-lanes"), "diff": "scrubbed"}
+        truncated = {
+            "body": "scrubbed",
+            "userContentEdits": {"totalCount": 150, "nodes": [edit] * 100},
+        }
+        cases: dict[str, tuple[dict[int, dict[str, Any]], set[int], set[int]]] = {
+            "all clear": ({}, set(), set()),
+            "a hold before an unreadable record": ({5: open_hold}, set(), set()),
+            "a truncated edit history": ({12: truncated}, set(), set()),
+            "a batch error falls back": ({3: open_hold}, {7}, set()),
+            "an issue missing from the batch answer": ({}, set(), {24}),
+            "a missing issue with no single read either": ({}, set(), {30}),
+        }
+        for name, (overrides, failing, dropped) in cases.items():
+            with self.subTest(name):
+                records = {n: demotion_record(n) for n in range(1, 31)}
+                for n, issue in overrides.items():
+                    records[n] |= issue
+                if name.startswith("a missing issue"):
+                    records[30] = None  # type: ignore[assignment]
+                if name.startswith("a hold before"):
+                    records[22] = None  # type: ignore[assignment]
+                batched_fake = RecordsFake(records)
+                batched_fake.failing, batched_fake.dropped = failing, dropped
+                batched = self.read(batched_fake)
+                expected = self.read(RecordsFake(records), per_issue=True)
+                self.assertEqual(batched, expected)
+                singles = batched_fake.queries.count("PolicyDemotionRecord")
+                if failing:
+                    # The failed chunk's records, each read on its own up to the hold.
+                    self.assertEqual(singles, 3)
+                if dropped:
+                    self.assertEqual(singles, len(dropped))
+
+    def test_the_cases_reach_their_answers(self) -> None:
+        # The equality cases above are not all one answer.
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[12] |= {"userContentEdits": {"totalCount": 101, "nodes": []}}
+        self.assertEqual(
+            self.read(RecordsFake(records)).reason, "#12 edit-history-incomplete"
+        )
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[30] = None  # type: ignore[assignment]
+        reason = self.read(RecordsFake(records)).reason
+        self.assertEqual(reason, "demotion-unreadable: issue #30 returned nothing")
 
 
 class ResolveIdentity(unittest.TestCase):
@@ -2161,6 +2297,11 @@ class EntryHold(unittest.TestCase):
     def test_the_do_not_merge_label(self) -> None:
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
+
+    def test_the_pr_verify_failed_label(self) -> None:
+        # A queued entry whose pr-verify FAIL labels it leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "PR-Verify-Failed"}]})
+        self.assertEqual(self.hold(), "pr-verify-failed")
 
     def test_the_needs_human_label(self) -> None:
         # A queued entry that gains the human-gated label leaves the queue.
@@ -3591,6 +3732,13 @@ LANE_DENIED = (
     "plugins/*/skills/**",
     "plugins/*/agents/**",
 )
+# resolve-issue's `labels-absent` in docs/conventions/pr-pipeline.yaml.
+ISSUE_HOLDS = (
+    "needs-human",
+    "needs-owner-decision",
+    "status: needs-decision",
+    "status: needs-info",
+)
 
 
 class LaneConfig(unittest.TestCase):
@@ -3742,7 +3890,9 @@ class LaneEligibility(unittest.TestCase):
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
         return gh
 
-    def eligibility(self, changed: int | None = None) -> Any:
+    def eligibility(
+        self, changed: int | None = None, holds: tuple[str, ...] = ISSUE_HOLDS
+    ) -> Any:
         pr = {
             "number": 7,
             "base": {"sha": SHA},
@@ -3755,6 +3905,7 @@ class LaneEligibility(unittest.TestCase):
             denied_paths=LANE_DENIED,
             agent_identity=IDENTITY,
             permission=HUMANS,
+            issue_holds=holds,
         )
 
     def test_a_lane_pr_whose_issue_has_no_class_label_is_eligible_as_c2(self) -> None:
@@ -3903,6 +4054,7 @@ class LaneEligibility(unittest.TestCase):
                     pr={"number": 7, "base": {"sha": SHA}, "changed_files": 2},
                     denied_paths=denied,
                     agent_identity=IDENTITY,
+                    issue_holds=ISSUE_HOLDS,
                 )
                 self.assertTrue(result.eligible, result.reason)
                 self.assertEqual(result.work_class, "C2")
@@ -3929,6 +4081,7 @@ class LaneEligibility(unittest.TestCase):
             pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=(),
             agent_identity=IDENTITY,
+            issue_holds=ISSUE_HOLDS,
         )
         self.assertTrue(result.eligible, result.reason)
 
@@ -3947,19 +4100,20 @@ class LaneEligibility(unittest.TestCase):
         self.fake(base_ref="release")
         self.assertEqual(self.eligibility().reason, "base-not-default:release")
         self.assertEqual(
-            policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+            "base-not-default:release",
         )
 
     def test_an_unreadable_default_branch_refuses(self) -> None:
         gh = self.fake()
         gh.rest[f"repos/{REPO}"] = 502
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        reason = policy.recheck_lane_issue(REPO, 7, issue=41)
+        reason = policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
         self.assertTrue(str(reason).startswith("unreadable:"))
 
     def test_the_enqueue_recheck_reads_the_closing_issue_again(self) -> None:
         def recheck(issue: int | None = 41) -> str | None:
-            return policy.recheck_lane_issue(REPO, 7, issue=issue)
+            return policy.recheck_lane_issue(REPO, 7, issue=issue, holds=ISSUE_HOLDS)
 
         self.fake()
         self.assertIsNone(recheck())
@@ -3975,6 +4129,93 @@ class LaneEligibility(unittest.TestCase):
         # No issue from the eligibility read: nothing to hold the recheck to.
         self.fake()
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
+
+    def test_each_configured_hold_on_the_issue_refuses_at_both_reads(self) -> None:
+        # #7783: a hold added to the issue after admission stops the merge.
+        for label in ISSUE_HOLDS:
+            with self.subTest(label=label):
+                self.fake(labels=["agent-ready", label.upper()])
+                self.assertEqual(
+                    self.eligibility().reason, f"closing-issue-held:{label}"
+                )
+                self.assertEqual(
+                    policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+                    f"closing-issue-held:{label}",
+                )
+
+    def test_an_unheld_issue_passes_both_reads(self) -> None:
+        self.fake(labels=["agent-ready", "priority: low"])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertIsNone(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
+        )
+
+    def test_a_hold_on_a_refs_issue_refuses(self) -> None:
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            self.issue_node(labels=["needs-owner-decision"])
+        )
+        self.assertEqual(
+            self.eligibility().reason, "closing-issue-held:needs-owner-decision"
+        )
+
+    def test_no_resolved_hold_label_refuses_at_both_reads(self) -> None:
+        self.fake()
+        self.assertEqual(
+            self.eligibility(holds=()).reason, "closing-issue-holds-unresolved"
+        )
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41),
+            "closing-issue-holds-unresolved",
+        )
+
+    def test_issue_labels_read_short_refuse_at_the_recheck(self) -> None:
+        node = self.issue_node(labels=["agent-ready"])
+        node["labels"]["totalCount"] = 101
+        self.fake(closing=[node])
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS),
+            "issue-labels-unreadable",
+        )
+
+
+class IssueHoldLabels(unittest.TestCase):
+    """#7783: the labels a lane pull request's linked issue holds it on are
+    resolve-issue's `labels-absent`, read through the merge config reader,
+    else the tracker's human-gated role label."""
+
+    def test_the_configured_list_is_the_hold_set(self) -> None:
+        text = (
+            LANE_PIPELINE
+            + "activities:\n  resolve-issue:\n    applies-when:\n"
+            + '      labels-absent: [needs-human, needs-owner-decision, "status: '
+            + 'needs-decision", "status: needs-info"]\n'
+        )
+        config_fake(self, text)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(config.issue_holds, ISSUE_HOLDS)
+        self.assertEqual(policy.issue_hold_labels(config, "awaiting"), ISSUE_HOLDS)
+
+    def test_without_the_list_the_human_gated_label_holds(self) -> None:
+        config_fake(self, LANE_PIPELINE)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(config.issue_holds, ())
+        self.assertEqual(policy.issue_hold_labels(config, "awaiting"), ("awaiting",))
+        self.assertEqual(policy.issue_hold_labels(config, None), ())
+        issue = LaneEligibility.issue_node(self, labels=["Awaiting"])
+        self.assertEqual(
+            policy.issue_hold_refusal(issue, ("awaiting",)),
+            "closing-issue-held:awaiting",
+        )
+        self.assertIsNone(policy.issue_hold_refusal(issue, ("needs-human",)))
+
+    def test_the_stricter_config_holds_on_both_sides_lists(self) -> None:
+        base = policy.PipelineConfig(
+            SHA, "C2", "pr-merge", IDENTITY, None, (), None, issue_holds=("a",)
+        )
+        main = dataclasses.replace(base, base_sha="b" * 40, issue_holds=("b", "a"))
+        self.assertEqual(policy.stricter_config(base, main).issue_holds, ("a", "b"))
 
 
 def refs_answer(*issues: dict[str, Any], pulls: tuple[int, ...] = ()) -> Any:
@@ -4025,7 +4266,9 @@ class RefsIssueEligibility(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
         # The issue the cost-decision lookup and the enqueue recheck bind to.
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=41))
+        self.assertIsNone(
+            policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
+        )
 
     def test_hidden_refs_lines_name_nothing(self) -> None:
         for body in (
@@ -4371,6 +4614,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         pr = owner_pr(labels=[{"name": "Do-Not-Merge"}])
         self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
 
+    def test_the_pr_verify_failed_label_holds(self) -> None:
+        pr = owner_pr(labels=[{"name": "pr-verify-failed"}])
+        self.assertEqual(self.refusal(pr), "hold-label:pr-verify-failed")
+
     def test_the_resolved_human_gated_label_holds(self) -> None:
         pr = owner_pr(labels=[{"name": "awaiting-owner"}])
         self.assertEqual(
@@ -4680,6 +4927,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "spec_from_body_ids": (OWNER_ID,),
             "human_gated": "needs-human",
             "now": ADOPT_NOW,
+            "issue_holds": ISSUE_HOLDS,
         }
         args.update(kwargs)
         return policy.lane_eligibility(REPO, 7, pr=pr, **args)
@@ -4746,7 +4994,9 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(owner_pr(body=body))
                 self.assertEqual((result.reason, result.issue), (None, issue))
                 self.assertEqual(result.body_is_intent, True)
-                self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=issue))
+                self.assertIsNone(
+                    policy.recheck_lane_issue(REPO, 7, issue=issue, holds=ISSUE_HOLDS)
+                )
 
     def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
         # A model-written App body (claude[bot]) would grade the diff against
@@ -7198,6 +7448,238 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         share.assert_not_called()
 
 
+class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
+    """Past `SHARED_UNVERIFIED_MAX_AGE`, a passing answer with lane merge
+    #8040 unverified is kept up to `SHARED_MAX_AGE` when nothing it was read
+    from moved (`_still_current`) and no verifying run of #8040 reached a
+    conclusion since its `computedAt` (the real
+    `babysit_postmerge.pending_runs_unchanged`, its listing faked at `_read`).
+    The expected decisions are a recompute's: with no run concluded, the
+    check answers what the kept answer says; any concluded run, failed read
+    or moved input reads it again."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    bound = SharedPostMergeAnswer.bound
+    issues_since = SharedPostMergeAnswer.issues_since
+    shared = SharedPostMergeAnswer.shared
+    judged_flight = AStaleSharedAnswerIsRefreshed.judged_flight
+
+    def aged(self, minutes: float) -> GhFake:
+        """Bound, with the answer computed `minutes` ago and main's head
+        on the answer's config commit, as `_still_current` reads it."""
+        gh = AStaleSharedAnswerIsRefreshed.aged(self, minutes)
+        gh.rest[NEWEST_CONFIG.replace(SHA, MAIN_SHA)] = [{"sha": CONFIG_SHA}]
+        return gh
+
+    def pending(self) -> policy.PostMergeGate:
+        """The check's answer with #8040's verifying run still running, in
+        the shape the check writes (`mergedAt`, `excusesExpireAt`,
+        `outstandingSince`)."""
+        merged = policy.datetime.now(policy.UTC) - timedelta(minutes=20)
+        return babysit_postmerge.gate_from_report(
+            {
+                "ok": True,
+                "readable": True,
+                "autoMerges": [
+                    {
+                        "number": 8040,
+                        "verified": False,
+                        "mergedAt": merged.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    }
+                ],
+                "failures": [],
+                "excusesExpireAt": None,
+                "outstandingSince": None,
+            }
+        )
+
+    def run_row(self, workflow: str, status: str, updated: datetime) -> dict[str, Any]:
+        return {
+            "path": f".github/workflows/{workflow}",
+            "status": status,
+            "updated_at": updated.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
+    def gate_with(
+        self,
+        rows: list[dict[str, Any]] | Exception,
+        *,
+        fresh: policy.PostMergeGate | None = None,
+        minutes: float = 5,
+    ) -> tuple[policy.UnattendedPolicy, list[Any], mock.Mock, list[list[str]]]:
+        """The candidate's decision with the answer `minutes` old and the
+        verifying-run listings answering `rows` (or raising it)."""
+        self.aged(minutes)
+        self.judged_flight()
+        listed: list[list[str]] = []
+
+        def read(args: list[str], label: str) -> dict[str, Any]:
+            listed.append(args)
+            if isinstance(rows, Exception):
+                raise rows
+            return {"total_count": len(rows), "workflow_runs": rows}
+
+        checks: list[Any] = []
+        share = mock.Mock()
+        with mock.patch.object(babysit_postmerge, "_read", side_effect=read):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: (
+                    checks.append(floor) or (fresh or self.pending())
+                ),
+                shared=self.shared(self.pending()),
+                share=share,
+                runs_unchanged=lambda answer, branch: (
+                    babysit_postmerge.pending_runs_unchanged(REPO, answer, branch)
+                ),
+            )
+        return result, checks, share, listed
+
+    def test_an_answer_no_run_concluded_since_is_kept_without_a_check(self) -> None:
+        result, checks, share, listed = self.gate_with([])
+        self.assertEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(checks, [], "no post-merge check")
+        share.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:unverified-auto-merge:#8040")
+        # One listing per verifying workflow on the default branch.
+        self.assertEqual(len(listed), 2)
+        for args in listed:
+            self.assertIn("branch=trunk", args[1])
+
+    def test_a_run_still_going_or_concluded_before_the_answer_keeps_it(self) -> None:
+        now = policy.datetime.now(policy.UTC)
+        before = now - timedelta(minutes=5) - policy.SINCE_CLOCK_MARGIN
+        rows = [
+            self.run_row(babysit_postmerge.FULL_RUN_WORKFLOW, "in_progress", now),
+            self.run_row(
+                babysit_postmerge.CANARY_WORKFLOW,
+                "completed",
+                before - timedelta(seconds=5),
+            ),
+        ]
+        result, checks, _, _ = self.gate_with(rows)
+        self.assertEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(checks, [])
+
+    def test_a_verifying_run_that_concluded_since_reads_the_answer_again(
+        self,
+    ) -> None:
+        # The post-merge safety case: #8040's full run went red (or green)
+        # after the answer was read; a kept passing answer would hide the red.
+        now = policy.datetime.now(policy.UTC)
+        for workflow, fresh, expected in (
+            (
+                babysit_postmerge.FULL_RUN_WORKFLOW,
+                lane_gate(False, failed=True),
+                "post-merge:failure:full-run#8040",
+            ),
+            (
+                babysit_postmerge.CANARY_WORKFLOW,
+                lane_gate(False, failed=True),
+                "post-merge:failure:full-run#8040",
+            ),
+            (babysit_postmerge.FULL_RUN_WORKFLOW, lane_gate(True), None),
+        ):
+            with self.subTest(workflow=workflow, expected=expected):
+                result, checks, _, _ = self.gate_with(
+                    [self.run_row(workflow, "completed", now - timedelta(seconds=30))],
+                    fresh=fresh,
+                )
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(len(checks), 1, "one post-merge check")
+                self.assertEqual(result.reason, expected)
+
+    def test_a_failed_or_partial_run_read_reads_the_answer_again(self) -> None:
+        for rows in (
+            babysit_postmerge.PostMergeReadError("runs 502"),
+            RuntimeError("gh failed"),
+        ):
+            with self.subTest(rows=rows):
+                result, checks, _, _ = self.gate_with(rows)
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(len(checks), 1)
+
+    def test_a_moved_head_reads_the_answer_again(self) -> None:
+        # `_still_current` binds the keep to main's head: a newer head reads
+        # the check afresh even with no run concluded.
+        self.aged(5)
+        self.judged_flight()
+        checks: list[Any] = []
+        with mock.patch.object(
+            babysit_postmerge,
+            "_read",
+            return_value={"total_count": 0, "workflow_runs": []},
+        ):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: checks.append(floor) or self.pending(),
+                shared=self.shared(self.pending(), main_sha="f" * 40),
+                share=mock.Mock(),
+                runs_unchanged=lambda answer, branch: (
+                    babysit_postmerge.pending_runs_unchanged(REPO, answer, branch)
+                ),
+            )
+        self.assertNotEqual(result.details["postMergeShared"], "kept:unverified-stale")
+        self.assertEqual(len(checks), 1)
+
+    def test_a_rerun_in_an_older_verified_merges_window_reads_it_again(
+        self,
+    ) -> None:
+        # `_judge` judges a verified merge's runs created from its `mergedAt`,
+        # and a re-run keeps its `created_at`: the listing reaches back to the
+        # earliest merge in the answer, not the earliest unverified one.
+        now = policy.datetime.now(policy.UTC)
+        stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+        report = {
+            "autoMerges": [
+                {
+                    "number": 8039,
+                    "verified": True,
+                    "mergedAt": stamp(now - timedelta(minutes=25)),
+                },
+                {
+                    "number": 8040,
+                    "verified": False,
+                    "mergedAt": stamp(now - timedelta(minutes=10)),
+                },
+            ],
+            "excusesExpireAt": None,
+            "outstandingSince": None,
+        }
+        answer = mock.Mock(
+            gate=mock.Mock(report=report), computed_at=now - timedelta(minutes=5)
+        )
+        rerun = {
+            "path": f".github/workflows/{babysit_postmerge.FULL_RUN_WORKFLOW}",
+            "status": "completed",
+            "created_at": stamp(now - timedelta(minutes=24)),
+            "updated_at": stamp(now - timedelta(seconds=30)),
+        }
+
+        def read(args: list[str], label: str) -> dict[str, Any]:
+            # The API's `created=>=` filter.
+            floor = unquote(args[1].split("created=")[1].split("&")[0])
+            runs = [r for r in [rerun] if r["created_at"] >= floor[2:]]
+            return {"total_count": len(runs), "workflow_runs": runs}
+
+        with mock.patch.object(babysit_postmerge, "_read", side_effect=read):
+            self.assertFalse(
+                babysit_postmerge.pending_runs_unchanged(REPO, answer, "trunk", now=now)
+            )
+
+    def test_an_answer_past_the_shared_age_is_stale_with_no_run_read(self) -> None:
+        minutes = policy.SHARED_MAX_AGE.total_seconds() / 60 + 1
+        result, checks, _, listed = self.gate_with([], minutes=minutes)
+        self.assertEqual(result.details["postMergeShared"], "unused:stale")
+        self.assertEqual(listed, [])
+        self.assertEqual(len(checks), 1)
+
+
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config
@@ -7414,14 +7896,24 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
         gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
         gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
-        # Dependabot pushed the head; the diff is a covered lock file.
+        # Dependabot created the branch at its first commit and pushed the
+        # head; the diff is a covered lock file.
+        first = str(self.commits[0].get("sha")) if self.commits else self.HEAD
+        dependabot = {"login": "dependabot[bot]", "type": "Bot"}
         gh.rest[self.ACTIVITY] = (
             [
                 {
-                    "activity_type": "branch_creation",
+                    "activity_type": "push",
+                    "before": first,
                     "after": self.HEAD,
-                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
-                }
+                    "actor": dependabot,
+                },
+                {
+                    "activity_type": "branch_creation",
+                    "before": "0" * 40,
+                    "after": first,
+                    "actor": dependabot,
+                },
             ]
             if pushes is None
             else pushes

@@ -13,8 +13,13 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
                  Decisions section from its decisions recap, the Deferred questions entries
                  from its deferred and planningOwned bullets and the TLDR's opening scope
-                 bullets from its tldr. Captured assumptions holds each unconfirmed commitment
-                 as a named risk and a Notes question the user left unanswered; a confirmed
+                 bullets from its tldr. Intent, above Goal, holds its intent paragraph (else
+                 `none stated`), then the user's own words: each live ask, note and own event's
+                 text, in event order, under its Q<N>. An answered row that took the
+                 recommendation adds its question basis as a `why:` line to its Constraints
+                 entry. Captured assumptions holds each
+                 unconfirmed commitment as a named risk and a Notes question the user left
+                 unanswered; a confirmed
                  commitment stays on its decision's line, or on a TLDR `confirmed so far` line
                  for a row the Brief lists nowhere else. The TLDR's `Restatement:` line
                  stamps it confirmed or UNCONFIRMED (`UNCONFIRMED (no restatement posted)` with
@@ -639,6 +644,7 @@ def register(doc, resp, extra=()):
                 # Accept, hedged and own carry the recommendation's commitments; an alternative
                 # withdraws them and a defer's open row covers them.
                 "carries": decided.get("decision") in ("accept", "hedged", "own"),
+                "decision": decided.get("decision"),
             }
         )
     return rows
@@ -811,14 +817,41 @@ def recap_answer(r):
     return readable(r["status"], *named) if named else clean(r["resolution"])
 
 
-def confirmation_recap(d, cap, text=None):
+def recap_rows(d, text=None):
+    """The register rows a recap reads: merged_register's, or with no data dir (d None, the
+    terminal lane) the ledger text's own rows, each with n, status, title and resolution."""
+    if d is not None:
+        return merged_register(d, text)[1]
+    rows = [
+        {"n": f"Q{n}", "status": status, "title": title, "resolution": res}
+        for n, status, _, title, res, _ in parse_register(text or "")
+    ]
+    return sorted(rows, key=lambda r: int(r["n"][1:]))
+
+
+def recap_state(rows):
+    """{Q<N>: `<status>: <question> (<answer>)`, uncut} of recap_rows' rows: what a recap saves
+    beside the ledger, so the next `changed` recap can tell which rows changed since."""
+    return {r["n"]: f"{r['status']}: {r['title']} ({recap_answer(r)})" for r in rows}
+
+
+def confirmation_recap(d, cap, text=None, since=None):
     """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
     live question, with every withdrawn row collapsed into one closing line and each long answer
-    cut. The answer length steps down until the recap fits `cap` characters; (recap, fits) says
-    whether it did."""
-    rows = merged_register(d, text)[1]
-    live = [r for r in rows if r["status"] != "withdrawn"]
-    gone = [r["n"] for r in rows if r["status"] == "withdrawn"]
+    cut. With `since` (the recap_state an earlier recap saved) it lists only the rows whose
+    status, question or answer changed since then, and closes with one `Unchanged since the last
+    recap (N): <count> <status>, ...` line for the rest. The answer length steps down until the
+    recap fits `cap` characters; (recap, fits) says whether it did."""
+    rows = recap_rows(d, text)
+    state = recap_state(rows)
+    kept = {n for n, line in state.items() if since is not None and since.get(n) == line}
+    same = [r for r in rows if r["n"] in kept]
+    shown = [r for r in rows if r["n"] not in kept]
+    live = [r for r in shown if r["status"] != "withdrawn"]
+    gone = [r["n"] for r in shown if r["status"] == "withdrawn"]
+    counts = {}
+    for r in same:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
     out = ""
     for n in RECAP_ANSWER_STEPS:
         lines = [
@@ -828,6 +861,9 @@ def confirmation_recap(d, cap, text=None):
         ]
         if gone:
             lines.append(f"Withdrawn ({len(gone)}): {', '.join(gone)}")
+        if same:
+            tally = ", ".join(f"{c} {s}" for s, c in sorted(counts.items()))
+            lines.append(f"Unchanged since the last recap ({len(same)}): {tally}")
         out = "\n".join(lines) + "\n"
         if len(out) <= cap:
             return out, True
@@ -1068,6 +1104,43 @@ def brief_label(r):
     return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
 
 
+# The events whose text is the user's own words, and how the Brief's Intent labels each.
+USER_WORDS = {"ask": "asked", "note": "note", "own": "own answer"}
+
+
+def user_words(rows, events, intent):
+    """One Intent bullet per live ask, note and own event, in event order: its question's Q<N>
+    (a note names none) and its text as typed, whitespace runs one space. An undone or
+    withdrawn event is left out, and so is the note that gave the intent paragraph."""
+    labels = {r["q"]["id"]: brief_label(r) for r in rows}
+    undone = {e.get("undoSeq") for e in events if e.get("kind") == "undo"}
+    said = " ".join(str(intent or "").split())
+    out = []
+    for e in sorted(events, key=lambda e: e.get("seq") or 0):
+        kind, text = e.get("kind"), " ".join(str(e.get("text") or "").split())
+        if kind not in USER_WORDS or not text:
+            continue
+        if e.get("withdrawn") or e.get("seq") in undone:
+            continue
+        if kind == "note" and text == said:
+            continue
+        qid = e.get("id")
+        where = f"{labels.get(qid) or clean(qid)} " if qid else ""
+        out.append(f"- {where}{USER_WORDS[kind]}: {text}")
+    return out
+
+
+def constraint_lines(r, carried):
+    """An answered row's Constraints line, unless a restated line carries it, then, when the
+    row took the recommendation, its `why:` line from the question's basis."""
+    took = r.get("decision") in ("accept", "hedged")
+    basis = clean(r["q"].get("basis")) if took else ""
+    if r["n"] in carried:
+        return [f"- {brief_label(r)} why: {basis}"] if basis else []
+    line = f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
+    return [line, f"  - why: {basis}"] if basis else [line]
+
+
 def export_brief(d, text=None):
     """The Brief. With a ledger's text it numbers the questions as that ledger's register does
     and carries the rows only the ledger has, so each Q<N> is the one the gate reads there."""
@@ -1133,6 +1206,9 @@ def export_brief(d, text=None):
     out.append(f"- Page title: {para(title)}")
     unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
     out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
+    out += ["", "### Intent", "", para(sections.get("intent")) or "none stated"]
+    words = user_words(rows, resp.get("events") or [], sections.get("intent"))
+    out += ["", *words] if words else []
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
     out += [
         "### Work size",
@@ -1156,11 +1232,7 @@ def export_brief(d, text=None):
     out += [
         *bullets(sections.get("constraints")),
         *recorded,
-        *(
-            f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
-            for r in answered
-            if r["n"] not in carried
-        ),
+        *(line for r in answered for line in constraint_lines(r, carried)),
     ] or ["- none recorded"]
     decisions = marked_decisions(sections, replaced)
     if decisions:

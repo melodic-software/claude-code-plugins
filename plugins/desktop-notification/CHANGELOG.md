@@ -3,6 +3,15 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-28
+
+### Added
+
+- A hooks module forwards each toast a mod shows as a native notification through the plugin's
+  bell, OSC 9 and OS toast channels, and the toast still shows (#9703). The new
+  `desktop_notification_forward_toasts_enabled` option turns it off. Needs Claude Code 2.1.295 or
+  later with mods on.
+
 ## [0.9.3] - 2026-10-27
 
 ### Changed

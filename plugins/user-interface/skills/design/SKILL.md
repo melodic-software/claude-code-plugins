@@ -32,8 +32,8 @@ It prints JSON:
   applied in full (unreadable file, unresolved convention home, a row that fails the row schema);
   tell the user once that built-in routes were used for that part, and suggest
   `/user-interface:setup check`.
-- `config`: the resolved settings; this skill reads only the routing from it.
-
+- `config`: the resolved settings. This skill does not read the routing from it: `routes` already
+  carries it.
 - `project`: the project's design signals (`tokens`, `packages`, `components_json`, `storybook`,
   `docs`, `mcp_servers`).
 - `installed`: the routing ids present here, or `null` with a `reason` when the `claude` CLI could
@@ -79,7 +79,8 @@ these hold:
 - It has no `style`, or the project is in that style (for example pixel art).
 - Its `reachable` is not `false`: a server that is listed but not connected is skipped.
 - Its `account` is `none`, or account-bound tools are enabled (now:
-  `${user_config.account_tools_enabled}`). A `paid` row is suggested only when no free row covers
+  `${user_config.account_tools_enabled}`; a token that arrives unexpanded means the key's default,
+  `true`, so account-bound tools are enabled). A `paid` row is suggested only when no free row covers
   the concern. When an account-bound row's `reachable` is `null`, route to it and tell the user
   they may need to sign in.
 

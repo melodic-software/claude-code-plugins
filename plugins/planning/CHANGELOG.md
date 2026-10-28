@@ -3,6 +3,81 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.121.0] - 2026-10-28
+
+### Added
+
+- **The interview assumption sweep reports coined names.** A new `coined-term` category catches a name, label or abbreviation the session coined in a recommendation, a `Commits you to:` part or a composed artifact (one the user did not introduce, nothing existing uses, and the session-shorthand glossary lacks), even after the user accepted the answer that carried it. Each becomes a register row asking the user to accept or rename the term, recommending the closest name the user already uses; a rename carries into the draft and the rows that hold the term. The sweep sub-agent is now handed the glossary, the project's domain-vocabulary file and the user's own names for things ([#8314](https://github.com/melodic-software/claude-code-plugins/issues/8314)).
+- **A question that coins a name records it at ask-time.** Its glossary line is written in the same step as its register row, and the name is defined in the question (`context/loop.md` "Session-shorthand glossary").
+- Eval case `sweep-flags-coined-term-after-accept-all`: a recommendation coins a role name that overlaps the user's existing role, the user answers "accept all", and the sweep must still return a `coined-term` item.
+
+### Fixed
+
+- `/planning:interview` reads a `userConfig` value that arrives as its unexpanded `${user_config.KEY}` token as that key's own default, never as off. A shared session with `shared_session_open_browser` never saved now opens the owner's page in the browser, as the default `true` says.
+
+## [0.120.0] - 2026-10-28
+
+### Added
+
+- `export-brief` writes an `### Intent` section above the Brief's `### Goal`. It opens with the user's goal paragraph from the restatement's new `intent` section, or `none stated`. It then lists the text of each `ask`, `note` and `own` event word for word, in event order and under its `Q<N>`, and leaves out undone and withdrawn events and the note that gave the goal paragraph. An answered row that took the recommendation gets a `why:` line from its question's `basis` under its Constraints entry.
+- The interview asks for the goal in the user's own words before the confirmation restate and sends it as `intent`, which the restatement box shows. The terminal Brief template carries the same `### Intent` section, and `/planning:plan` reads it first.
+
+## [0.119.1] - 2026-10-28
+
+### Fixed
+
+- `/planning:interview` continuation wording: the `me`-mode persistence lines now recommend routing the next step rather than routing it, name Step 5's fallback when session-flow is absent, drop a stale cross-reference to a removed handoff-and-clear step, and give the context-window docs link in `context/loop.md` a Pointer / As of / Recheck trigger record.
+
+## [0.119.0] - 2026-10-28
+
+### Changed
+
+- `/planning:interview` no longer accepts a bare `judgment` basis for a recommendation. Every recommendation now lists each fact it rests on with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output) and one `Inference:` line on why those facts lead to this answer for this user. A question with no fact to cite is researched first, or asked with a `Withheld:` line naming the evidence that would settle it. The page surface's `basis` field carries the same evidence list. The shared `context/recommendation-basis.md` contract is unchanged.
+
+## [0.118.3] - 2026-10-28
+
+### Fixed
+
+- The surface-ui-c browser suite no longer flakes on loaded runners: its checks wait on what the
+  page or the page server shows instead of fixed pauses. Picking a question retries until the card
+  holds the selection, even when a re-render collapses its group mid-click; saves wait until the
+  server records the event; phases 1 and 2 wait for the page to show an external answer, revise or
+  Accept all result before checking it; and phase 6 checks Live only once the server counts the
+  waiter, and the released state only once the server reports reading with no lease and no waiter.
+  A server test covers the state frame a waiter arriving or leaving pushes while the lease is held.
+
+## [0.118.2] - 2026-10-28
+
+### Fixed
+
+- **`round.sh record-terminal` refuses a decision on a superseded or archived question** ([#10472](https://github.com/melodic-software/claude-code-plugins/issues/10472)). On a superseded question it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the end of the `supersededBy` chain as the page server's 409 does. On an archived question it exits with `refused: <id> is archived`. Before, the decision was written and then counted nowhere, because `status` and `export-ledger` read the question as withdrawn. The interview skill's surface contract documents the refusal beside the server's 409.
+
+## [0.118.1] - 2026-10-28
+
+### Fixed
+
+- A browser merged into the owner no longer joins again as a new person when one of its requests was already in flight when the merge happened. That request now gets 401 `merged-into-owner` as well, instead of `unknown-session`, so the page shows the open-your-owner-link notice. Before, the race failed `ui_merge.js` on main now and then.
+
+## [0.118.0] - 2026-10-28
+
+### Added
+
+- `round.sh add`, `add-round` (and its `--check`), `apply` and `revise` warn, naming the question, on a `facts` field that holds more than its `Checked against:` line yet carries no link, `file:line` or `judgment` label, so a claim a question rests on cannot reach the user unchecked. It warns and never refuses, beside the existing basis-label and bare-file warnings.
+- `export-ledger --recap --changed --ledger L` lists only the rows whose status, question or answer changed since the last saved recap, then one `Unchanged since the last recap (N): <count> <status>, ...` line for the rest. It lists every row when no recap has been saved yet.
+
+### Changed
+
+- `round.sh export-ledger --recap --ledger L` reads the ledger alone when `--dir` is absent or names no directory, so the terminal lane, which has no page data, runs the same recap command; read alone, a ledger without exactly one open-question register is refused. Each recap that fits the restate cap saves its rows beside the ledger in `<L stem>.last-recap.json`, which every later recap overwrites.
+- `interview` Step 3 generates the confirmation recap with that command and pastes it verbatim, with no paraphrase and no HTML or collapsible block, and adds `--changed` after the first confirmation. The page lane's `restate` keeps the full recap, because the Brief's Decisions section is read from it.
+
+## [0.117.3] - 2026-10-28
+
+### Changed
+
+- `/planning:draft-goal-condition` gains a `## Next` section: `/implementation:implement` when an approved plan runs in this session under the armed goal, `/session-flow:continue-in-background` when the run goes on while the person is away, `/work-items:decompose` when the lever routed to multi-window work, and `/planning:interview` when the intent was too vague to draft.
+- The planning skills' `## Next` sections name only the next step. `/planning:questionnaire` leaves `/planning:interview`'s and `/planning:prd`'s `## Next`, since it runs beside the next step; prd's hand-off now says so, in the interview's words. `/naming:name-it-better` and `/architecture:record-decision` leave `/planning:design`'s `## Next` for its relationship table, marked **During.** `/architecture:record-decision` also leaves `/planning:design-handoff`'s `## Next`: its hand-off already offers the ADR and now says the offer runs beside the next step.
+- Each `## Next` bullet names one skill: `/planning:prd`'s splits its combined bullet, `/planning:wayfind`'s gives each map destination its own bullet and drops the general `/session-flow:workflow` fallback to stay within four, and `/planning:setup`'s line drops its backticks to match its siblings. `/planning:brainstorm` routes to `/planning:design` only once the contract is locked, in line with `/session-flow:workflow`'s stage order.
+
 ## [0.117.2] - 2026-10-27
 
 ### Fixed

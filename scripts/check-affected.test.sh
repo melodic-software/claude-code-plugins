@@ -36,6 +36,10 @@ done
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
+[[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
+# The real selector diffs its own tree's work tree, so the stub logs that.
+[[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
+[[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
 while (($#)); do
   [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
   shift
@@ -47,7 +51,7 @@ printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
 # The real Node package runner, over one registered fixture package.
 mkdir -p "$repo/scripts/lib"
-cp "$SELF_DIR/lib/read-list.sh" "$repo/scripts/lib/"
+cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
@@ -124,6 +128,15 @@ run_from() {
 run_from "$other" --base base --tests
 check "run from another checkout, it lists the script's own branch's change" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $ERR != *"SKIP tests"* ]]'
+# The ready step names the script's own tree in CHECK_DATA_ROOT from another
+# checkout. The suites build fixture repositories of their own, so the variable
+# must not reach them, or each one reads this tree in place of its fixture.
+RC=0
+OUT="$(cd "$other" && CHECK_DATA_ROOT="$repo" STUB_ENV_LOG="$tmp/env.log" \
+  bash "$repo/scripts/check-affected.sh" --base base --tests 2>"$tmp/err")" || RC=$?
+ERR="$(cat "$tmp/err")"
+check "CHECK_DATA_ROOT naming the script's own tree checks that tree and is not passed to the suites" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $(cat "$tmp/env.log") == unset ]]'
 git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
 run_from "$other" --base origin/main --no-fetch
 check "an explicit --base run from another checkout still lists the change" \
@@ -212,6 +225,8 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+run CHECK_DATA_ROOT="$repo" -- --base base --tests
+check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
 check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
   '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
@@ -475,6 +490,15 @@ chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
+# The snapshot is this tree's own work tree, so --tests selects from that work
+# tree, uncommitted edits included, as a committed run selects from its diff.
+run STUB_STATUS_LOG="$tmp/status.log" -- --uncommitted --tests
+check "--uncommitted --tests runs the suites over the uncommitted change" \
+  '[[ $RC == 0 && $ERR != *"SKIP tests"* && $(cat "$tmp/status.log" 2>/dev/null) == *"?? new-tool"* ]]'
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --uncommitted --tests 2>&1)" || RC=$?
+check "a copy's --uncommitted --tests run still skips the checked tree's tests" \
+  '[[ $ERR == *"SKIP tests (runs the checked tree"* && $ERR != *"copy of affected-tests"* ]]'
 mkdir -p "$repo/plugins/demo"
 printf 'x\n' >"$repo/plugins/demo/new.md"
 printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit 1\n' >"$repo/scripts/validate-plugins.sh"

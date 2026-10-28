@@ -91,11 +91,12 @@ activities:
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
     # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
-    # ran, a person gated it or a kept thread is a security or intent
-    # finding (a write-access fix
+    # ran, a person gated it or a kept thread is a security finding or one
+    # a person directed (a write-access fix
     # request newer than the last round still runs one more round on its
-    # threads; other findings get one fresh fixer round, then go to a person
-    # as feedback-not-converging), and
+    # threads; other findings, pr-verify notes included, get one fresh fixer
+    # round, then fail the head as feedback-verifier-open or
+    # feedback-not-converging), and
     # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
@@ -328,6 +329,32 @@ activities:
     web-access:
       enabled: true
       domains: any
+    # Tidies the run's own change before its last check run, so the PR reaches
+    # review already tidied, with no extra push or review round (#8485). Only
+    # a change within the cutoffs is tidied in the run; the cutoffs are a
+    # starting value for the lane baseline to retune. The runner allows the
+    # entry and the passes and no other skill.
+    tidy:
+      entry: code-tidying:tidy-diff
+      passes:
+        - docs-hygiene:write-for-agents
+        - docs-hygiene:write-for-humans
+        - ai-slop:audit
+      turn-share: 25
+      cutoffs:
+        max-files: 10
+        max-lines: 300
+        max-areas: 1
+        shared-paths:
+          - .github/
+          - .claude/
+          - .claude-plugin/
+          - scripts/
+          - lib/
+          - docs/conventions/
+          - docs/standards/
+          - AGENTS.md
+          - CLAUDE.md
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
@@ -384,7 +411,10 @@ activities:
     reads-untrusted: false
     inputs: [issue]
   report-escalation:
-    # Labels the PR needs-human and posts the reason with a resume key.
+    # Ends a stopped run on its reason's route (escalation-routes.json):
+    # hold labels the PR needs-human and posts the reason with a resume key;
+    # fail posts or edits one lane-stopped comment, and report-stop-status a
+    # failing status on the head.
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory
@@ -863,6 +893,15 @@ adoption:
   # the run that wrote the diff would also write its spec. Ids from
   # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
+
+# Review bots, besides claude[bot] and the review lanes, whose review threads
+# pr-unblock's address-feedback works as the reviewer bot's: fix or explain,
+# adjudication and resolution, under the same trusted-person rules. Matched on
+# the account id GitHub records for a comment, never a login; their comment
+# text stays data. Owner decision 2026-10-26. 199175422 is
+# chatgpt-codex-connector[bot] (its threads on #10092).
+review-threads:
+  reviewer-ids: [199175422]
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml

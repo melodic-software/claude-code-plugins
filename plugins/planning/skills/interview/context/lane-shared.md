@@ -63,7 +63,8 @@ designer session and a product owner session), each with its own data dir and li
    bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
    ```
 
-   Drop `--open` when `shared_session_open_browser` resolves false. Pass the `tunnel_hostname`
+   Drop `--open` only when `shared_session_open_browser` is `false`; an unexpanded token means
+   the default `true`, so keep `--open`. Pass the `tunnel_hostname`
    and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
    the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
    tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the

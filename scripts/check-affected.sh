@@ -21,7 +21,9 @@
 # the checks there. Nothing is written under .git, so the checkout's HEAD,
 # index and worktree list stay as they are. With CHECK_AFFECTED_SCRIPT_EXEC_BIT=1
 # (the issue lane's patch run) that commit makes each new or changed .sh or #!
-# file executable, as apply-patch will.
+# file executable, as apply-patch will. --tests runs the suites from this tree,
+# whose work tree holds the same edits, not the scratch one, which has no
+# node_modules.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic
 # but machine-specific-paths, whose entry script is in ci-workflows, not here:
@@ -193,17 +195,28 @@ if ((uncommitted)); then
   git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
   args=(--base "$base" --no-fetch --jobs "$jobs")
   ((run_tests)) && args+=(--tests)
+  # A snapshot of this tree's own work tree is no foreign code, so the inner
+  # run's tests run here, where the selector reads the same uncommitted edits.
+  own=
+  [[ "$(pwd -P)" != "$tools" ]] || own="$tools"
   rc=0
-  CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
+  CHECK_AFFECTED_SNAPSHOT_OF="$own" CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
   exit "$rc"
 fi
 base="${base:-origin/main}"
+snapshot=0
+[[ -z "${CHECK_AFFECTED_SNAPSHOT_OF-}" || "$CHECK_AFFECTED_SNAPSHOT_OF" != "$tools" ]] || snapshot=1
+unset CHECK_AFFECTED_SNAPSHOT_OF
 foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
   export CHECK_DATA_ROOT="$PWD"
   # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
   export UV_NO_CONFIG=1
+else
+  # It names this tree, so it says nothing; the test suites build fixture
+  # repositories, and an inherited one would point them back here.
+  unset CHECK_DATA_ROOT
 fi
 
 gates_file="$tools/scripts/check-affected-gates.txt"
@@ -566,7 +579,7 @@ else
     "$tools/scripts/check-changed-skills.sh" "$base"
 fi
 
-if ((run_tests && foreign)); then
+if ((run_tests && foreign && !snapshot)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
   # Suites load the locked npm packages, which a fresh worktree lacks or a
@@ -575,7 +588,7 @@ elif ((run_tests)); then
   # could not run (npm or nice missing) is a SKIP, and the suites still run.
   npm_failed=0
   rc=0
-  bash "$tools/scripts/setup-env.sh" --node >"$out" 2>&1 || rc=$?
+  bash "$tools/scripts/setup-env.sh" --node --root "$tools" >"$out" 2>&1 || rc=$?
   if ((rc == 0)); then
     grep '^setup-env: installed' "$out" >&2
   elif ((rc == 2 || rc == 127)); then
@@ -600,7 +613,9 @@ elif ((run_tests)); then
   affected() {
     local rc=0 s pkg ex t n=0 missing=
     local -a pkgs=() exclusions=() node=() unrun=()
-    "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
+    # that inherits it points its checkers at the real tree instead of its fixtures.
+    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&

@@ -54,7 +54,8 @@ import {
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
+import { laneStop } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -62,6 +63,10 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
+  // The push job's check: a lane-stopped skip there (a stop routed to a
+  // failing status after the model turn) counts the fix-ci run before it as
+  // a failed one, which the per-head cap and the restarts retry.
+  stopCheckName: "pr-unblock / apply-patch",
   // The run whose failure counts: pr-require-checks when its lanes failed,
   // else the advisory pr-test-windows, which ci-status does not aggregate but
   // the merge gate holds on.
@@ -119,7 +124,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                   nodes {
                     __typename
                     ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
-                    ... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }
+                    ... on StatusContext { context state createdAt creator { __typename ... on Bot { databaseId } } }
                   }
                   pageInfo { hasNextPage }
                 }
@@ -154,6 +159,46 @@ const fromRest = (run) => ({
   completedAt: run.completed_at ?? null,
 });
 
+// The head's fix-ci runs (REST) in the rollup's shape, one per workflow run:
+// fix-ci and the in-run fix-ci-rung-up both post a fix-ci check, and the pair
+// is one attempt, read from its last check, that spends one place under the
+// per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
+// check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
+// the head may be retried under the same caps a failed run is. A check's
+// workflow run is the id in its details_url (report-check-run sets it to the
+// posting run's page); not its check suite, which GitHub picks for a check
+// created over the API. A stop marks the attempt of its own run; a check with
+// no run id falls back to timing, a stop after it and before the next fix-ci
+// check started.
+const RUN_PAGE = /\/actions\/runs\/([1-9][0-9]{0,19})$/;
+export function withStops(runs, stopRuns) {
+  const startOf = (run) => Date.parse(run.started_at ?? "");
+  const runOf = (run) => RUN_PAGE.exec(String(run.details_url ?? ""))?.[1] ?? null;
+  const stops = stopRuns.filter(laneStop);
+  const starts = runs.map(startOf).sort((a, b) => a - b);
+  const stoppedAt = (run) => {
+    const from = startOf(run);
+    const until = starts.find((start) => start > from) ?? Infinity;
+    return stops.some((stop) =>
+      runOf(stop) !== null && runOf(run) !== null
+        ? runOf(stop) === runOf(run)
+        : startOf(stop) > from && startOf(stop) < until,
+    );
+  };
+  const attempts = new Map();
+  for (const run of runs) {
+    const key = runOf(run) ?? Symbol();
+    const attempt = attempts.get(key) ?? { last: run, stopped: false, spent: 0 };
+    if (startOf(run) >= startOf(attempt.last)) {
+      attempt.last = run;
+    }
+    attempt.spent += 1;
+    attempt.stopped ||= stoppedAt(run);
+    attempts.set(key, attempt);
+  }
+  return [...attempts.values()].map(({ last, stopped, spent }) => ({ ...fromRest(last), ...(stopped ? { conclusion: "FAILURE" } : {}), spent }));
+}
+
 // The fix-ci runs that count: an untrusted-trigger skip ran nothing.
 const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
 
@@ -163,11 +208,14 @@ const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" &&
 const heldSkip = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
 const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || heldSkip(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
 
-// The number of counted fix-ci runs when every one may be retried and they
-// reach maxRunsPerHead, the head's hard end; else 0.
+// The number of counted fix-ci model runs when every attempt may be retried
+// and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
+// spends one place for each fix-ci check it posted, so a rung-up pair spends
+// two.
 export function capCount(runs, maxRunsPerHead = DEFAULTS.maxRunsPerHead) {
   const kept = counted(runs);
-  return kept.length >= maxRunsPerHead && kept.every(retryable) ? kept.length : 0;
+  const spent = kept.reduce((sum, run) => sum + (run.spent ?? 1), 0);
+  return spent >= maxRunsPerHead && kept.every(retryable) ? spent : 0;
 }
 
 // An owner PR is idle when neither it nor its head commit changed in the last
@@ -195,6 +243,41 @@ function lanesStatus(node) {
 // The ci-lanes state when the GitHub Actions bot set it, else null: the
 // lanes' verdict alone. ci-status itself also fails on a hold label, a
 // pending or missing review and the PR contract, none of which a CI fix mends.
+// The pr-unblock/fix-ci status that still fails on a head with nothing left to
+// fix, else null: a lanes App PR, not a draft, held by no label, whose ci-lanes
+// passed and whose whole rollup lists every check run completed and none
+// failing but ci-status, which that status itself fails. A flaky check re-run
+// green past ci-fix-escalated or ci-fix-round-cap leaves such a status; a
+// fix-ci run there finds nothing failing (fix-ci-context.mjs `resolved`) and
+// report-stop-status clears it.
+const PASSING = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+export function staleStop(node, { base, appSenderId, holdLabels, gateLabel }) {
+  const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts;
+  if (
+    node.isDraft !== false ||
+    node.isCrossRepository !== false ||
+    node.baseRefName !== base ||
+    node.author?.databaseId !== appSenderId ||
+    contexts?.pageInfo?.hasNextPage !== false ||
+    (node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name) || label?.name === gateLabel) ||
+    lanesState(node) !== "SUCCESS"
+  ) {
+    return null;
+  }
+  const checks = (contexts.nodes ?? []).filter((context) => context?.__typename === "CheckRun" && context.name !== "ci-status");
+  if (checks.some((run) => run.status !== "COMPLETED" || !PASSING.has(run.conclusion))) {
+    return null;
+  }
+  const stop = (contexts.nodes ?? []).find(
+    (context) =>
+      context?.__typename === "StatusContext" &&
+      context.context === "pr-unblock/fix-ci" &&
+      context.creator?.__typename === "Bot" &&
+      context.creator.databaseId === ACTIONS_BOT_ID,
+  );
+  return stop?.state === "FAILURE" || stop?.state === "ERROR" ? stop : null;
+}
+
 function lanesState(node) {
   const status = lanesStatus(node);
   return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
@@ -343,8 +426,9 @@ export function skipReason(
   }
   // The cap counts the REST runs alone, so the dispatcher that read them warns
   // and records the head.
-  if (node.fixCiRuns !== undefined && capCount(runs, maxRunsPerHead) > 0) {
-    return `head's ${checkName} ran ${runs.length} time(s), the most one head gets`;
+  const capped = node.fixCiRuns === undefined ? 0 : capCount(runs, maxRunsPerHead);
+  if (capped > 0) {
+    return `head's ${checkName} ran ${capped} time(s), the most one head gets`;
   }
   // Only a run on the current base tip counts: one that ended before the tip
   // was committed ran against an older base (an unreadable time counts).
@@ -367,6 +451,7 @@ export async function dispatchCiFixes({
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
+  stopCheckName = DEFAULTS.stopCheckName,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
   gateLabel = null,
@@ -378,6 +463,7 @@ export async function dispatchCiFixes({
     throw new Error("the lanes App sender id is not a user id");
   }
   const candidates = [];
+  const stale = [];
   let after;
   // When the base tip was committed, from the first page: a fix-ci run that
   // ended before it ran against an older base.
@@ -397,6 +483,8 @@ export async function dispatchCiFixes({
       const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
       if (reason === "") {
         candidates.push(node);
+      } else if (staleStop(node, { base, appSenderId, holdLabels, gateLabel })) {
+        stale.push(node);
       } else if (failedState(lanesStatus(node)?.state)) {
         // A head whose lanes failed, whoever set the status, is the one a
         // silent skip would hide.
@@ -414,14 +502,17 @@ export async function dispatchCiFixes({
     after = pullRequests.pageInfo.endCursor;
   }
   candidates.sort((a, b) => a.number - b.number);
+  stale.sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && stale.length === 0) {
     return { dispatched, failed };
   }
   let active;
+  let runs;
   try {
-    active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+    runs = await api.listWorkflowRuns(workflow);
+    active = runs.filter((run) => run.status !== "completed");
   } catch (error) {
     if (error.rateLimited) {
       log(`::warning::${workflow} run listing is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
@@ -455,6 +546,7 @@ export async function dispatchCiFixes({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
@@ -470,7 +562,10 @@ export async function dispatchCiFixes({
     // read is not dispatched.
     let fixCiRuns;
     try {
-      fixCiRuns = (await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId })).map(fromRest);
+      fixCiRuns = withStops(
+        await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId }),
+        await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId: actionsAppId }),
+      );
     } catch (error) {
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
@@ -566,6 +661,39 @@ export async function dispatchCiFixes({
       dispatched.push({ number: node.number, workflowRunId: id });
       const limit = timeLimited.length > 0 ? `, time limit in ${timeLimited.join(", ")}` : "";
       log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${failureCause(requiredRun, now)}${limit})`);
+    } catch (error) {
+      failed += 1;
+      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+    }
+  }
+  // Once per stop: a fix-ci run for the PR created after the failing status
+  // holds the head.
+  for (const node of stale) {
+    const stoppedAt = Date.parse(staleStop(node, { base, appSenderId, holdLabels, gateLabel }).createdAt ?? "");
+    const since = runs.find((run) => run.display_title === runTitle(activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
+    if (since) {
+      log(`skip fix-ci #${node.number}: ${workflow} run ${since.id} started after the fix-ci stop on head ${node.headRefOid}`);
+      continue;
+    }
+    if (sent >= maxDispatch) {
+      log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
+      continue;
+    }
+    sent += 1;
+    try {
+      const { workflowRunId } = await api.dispatchWorkflow({
+        workflow,
+        ref: `refs/heads/${base}`,
+        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+      });
+      const id = String(workflowRunId);
+      if (!RUN_ID.test(id)) {
+        failed += 1;
+        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
+        continue;
+      }
+      dispatched.push({ number: node.number, workflowRunId: id });
+      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: a fix-ci stop with nothing left failing)`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);

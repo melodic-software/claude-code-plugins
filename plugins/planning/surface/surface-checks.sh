@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=201 [e]=20 [journey]=235 [live]=18 [page]=118)
+declare -A CHECKS=([ab]=97 [c]=207 [e]=20 [journey]=235 [live]=18 [page]=118)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -122,7 +122,11 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   g="$tmp/g3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
-  pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); } # prereq-ok: test-only, run by the surface-*.test.sh suites
+  # Its temp root is in the scratch dir too: Chromium leaves an org.chromium.Chromium.* folder and
+  # playwright-cli a pw-* socket folder in TMPDIR, which finish removes with the rest. The name is
+  # short because Chromium's socket path inside it must fit in 107 bytes.
+  mkdir "$tmp/b"
+  pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only, run by the surface-*.test.sh suites
   finish() {
     pw close >/dev/null 2>&1
     bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
@@ -132,6 +136,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
     [[ -z "${pg:-}" ]] || bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     [[ -z "${sd:-}" ]] || bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
+    for xd in "$tmp/x9" "$tmp/x10"; do [[ ! -d "$xd" ]] || bash "$here/round.sh" --dir "$xd" stop >/dev/null 2>&1; done
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -280,7 +285,23 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     sed "s/__PORT__/$sport/; s/__PHASE__/8/; s/__LEDGER__/$ledger/" tests/ui_c.js >"$tmp/ui_c8.js"
     pw run-code --filename "$(script_path "$tmp/ui_c8.js")" >"$tmp/ui_c8.out" 2>&1
     bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
-    for n in 1 2 3 4 5 6 7 8; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+
+    # ui_c phases 9 and 10 (#9692) each run against their own restated server: phase 9 accepts
+    # A1 to A3 and checks the accept tally and the agents check, phase 10 accepts T1 and checks
+    # Tick these and confirm.
+    for n in 9 10; do
+      x="$tmp/x$n"
+      mkdir -p "$x"
+      cp "tests/fixtures/ui_f/questions-$n.json" "$x/questions.json"
+      bash "$here/round.sh" --dir "$x" ensure-running --port 0 >/dev/null
+      printf '%s' '{"ops": [{"op": "restate", "sections": {"goal": "Ship the build step."}}]}' >"$tmp/restate$n.json"
+      bash "$here/round.sh" --dir "$x" apply --file "$tmp/restate$n.json" >/dev/null || bad "ui_c.$n: restate refused"
+      xport=$(sed -n 's/^PORT=//p' "$x/.interview-session.env" | tr -d '\r')
+      sed "s/__PORT__/$xport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
+      pw run-code --filename "$(script_path "$tmp/ui_c$n.js")" >"$tmp/ui_c$n.out" 2>&1
+      bash "$here/round.sh" --dir "$x" stop >/dev/null 2>&1
+    done
+    for n in 1 2 3 4 5 6 7 8 9 10; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   }
 
   group_e() {

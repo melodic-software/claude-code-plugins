@@ -340,6 +340,7 @@ class TestExportBrief(SessionCase):
                 "## Brief",
                 "### TLDR",
                 "### Problem",
+                "### Intent",
                 "### Goal",
                 "### Work size",
                 "### Constraints",
@@ -358,7 +359,7 @@ class TestExportBrief(SessionCase):
         # Field labels from context/problem-framing.md "Problem fields" and "Work size".
         self.assertIn(
             "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
-            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Goal",
+            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Intent",
             text,
         )
         self.assertIn(
@@ -550,11 +551,12 @@ class TestExportBrief(SessionCase):
         text, section = self.acceptance_section("# Sneaky\n```\n~~~")
         headings = [x for x in text.splitlines() if x.startswith("#")]
         self.assertEqual(
-            headings[:7],
+            headings[:8],
             [
                 "## Brief",
                 "### TLDR",
                 "### Problem",
+                "### Intent",
                 "### Goal",
                 "### Work size",
                 "### Constraints",
@@ -902,7 +904,7 @@ class TestBriefRestatements(SessionCase):
             (HERE / "schema" / "questions.schema.json").read_text(encoding="utf-8")
         )
         keys = sorted(schema["$defs"]["sections"]["properties"])
-        self.assertEqual(len(keys), 10, keys)
+        self.assertEqual(len(keys), 11, keys)
         text = self.brief(
             [self.rev(1, **{k: f"- marker {k} text" for k in keys})],
             [self.confirm(2, 1)],
@@ -1024,6 +1026,7 @@ class TestBriefRestatements(SessionCase):
                 self.rev(
                     1,
                     problem="# Sneaky problem",
+                    intent="# Sneaky intent",
                     goal="# Sneaky goal",
                     workSize="```\n### Sneaky size",
                     constraints="# Sneaky\n```\n~~~",
@@ -1033,7 +1036,7 @@ class TestBriefRestatements(SessionCase):
             [self.confirm(2, 1)],
         )
         headings = [x for x in text.splitlines() if x.startswith("#")]
-        self.assertEqual(len(headings), 11, headings)
+        self.assertEqual(len(headings), 12, headings)
         self.assertFalse(
             any(x.startswith(("```", "~~~", "# Sneaky")) for x in text.splitlines())
         )
@@ -1182,6 +1185,60 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
 
 
+class TestChangedRowsRecap(SessionCase):
+    """confirmation_recap with `since` lists only the rows changed since that recap, plus a
+    count per status for the rest; with no data dir it reads the ledger text alone."""
+
+    LEDGER = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
+        "- Q2 | open | round 1 | Which runner image? |\n"
+        "- Q3 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+    )
+
+    def test_the_ledger_alone_gives_one_line_per_row(self):
+        recap, fits = exporters.confirmation_recap(None, 20000, self.LEDGER)
+        self.assertTrue(fits)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Withdrawn (1): Q3",
+            ],
+        )
+
+    def test_only_changed_rows_are_listed_and_the_rest_counted(self):
+        since = exporters.recap_state(exporters.recap_rows(None, self.LEDGER))
+        changed = self.LEDGER.replace(
+            "Which runner image? |", "Which runner image? | the slim image"
+        ).replace("- Q2 | open", "- Q2 | answered")
+        recap, _ = exporters.confirmation_recap(None, 20000, changed, since)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Unchanged since the last recap (2): 1 answered, 1 withdrawn",
+            ],
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, since)
+        self.assertEqual(
+            recap, "Unchanged since the last recap (3): 1 answered, 1 open, 1 withdrawn\n"
+        )
+
+    def test_a_page_answer_since_the_last_recap_is_the_changed_row(self):
+        qs = [question(f"Q{i}") for i in (1, 2, 3)]
+        self.session(qs, [event(1, "Q1", "accept")])
+        since = exporters.recap_state(exporters.recap_rows(self.dir))
+        self.session(qs, [event(1, "Q1", "accept"), event(2, "Q2", "alt", alt="a")])
+        recap, fits = exporters.confirmation_recap(self.dir, 20000, since=since)
+        self.assertTrue(fits)
+        lines = recap.splitlines()
+        self.assertEqual(len(lines), 2, lines)
+        self.assertTrue(lines[0].startswith("Q2 answered: "), lines)
+        self.assertEqual(lines[1], "Unchanged since the last recap (2): 1 answered, 1 open")
+
+
 class TestSupersededCommitments(SessionCase):
     """A commitment list a later revise replaced never reaches the Brief."""
 
@@ -1278,6 +1335,104 @@ class TestResolvedOwnAnswer(SessionCase):
         row = self.row(self.export("ledger"))
         self.assertIn(f"aside:: free-text: {self.TYPED}", row)
         self.assertNotIn(self.READ, row)
+
+
+class TestBriefIntent(SessionCase):
+    """The Brief's Intent, above its Goal: the restated intent paragraph, then the user's own
+    words from each live ask, note and own event; an answered row's basis is its `why:` line."""
+
+    INTENT = "Ship it so I stop babysitting builds."
+
+    def section(self, text, name):
+        return text.split(f"### {name}\n")[1].split("###")[0].strip().splitlines()
+
+    def test_intent_holds_the_live_asks_and_note_verbatim_before_the_goal(self):
+        events = [
+            event(1, "Q1", "ask", text="Does the cache survive a runner restart?"),
+            event(2, None, "note", text="I mostly care about the nightly job | not PRs."),
+            {**event(3, "Q2", "ask", text="Skip the cache entirely?"), "withdrawn": True},
+            event(4, "Q2", "ask", text="Which bucket holds it?"),
+            event(5, "Q3", "own", text="Keep it on local disk."),
+        ]
+        events, revs = confirmed(events, intent=self.INTENT)
+        self.session([question(f"Q{i}") for i in (1, 2, 3)], events, restatements=revs)
+        text = self.export("brief").read_text(encoding="utf-8")
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertLess(headings.index("### Intent"), headings.index("### Goal"))
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                self.INTENT,
+                "",
+                "- Q1 asked: Does the cache survive a runner restart?",
+                "- note: I mostly care about the nightly job | not PRs.",
+                "- Q2 asked: Which bucket holds it?",
+                "- Q3 own answer: Keep it on local disk.",
+            ],
+        )
+        self.assertNotIn("Skip the cache entirely?", text)
+
+    def test_an_undone_own_answer_is_left_out_and_no_intent_reads_none_stated(self):
+        events = [
+            event(1, "Q1", "own", text="First try."),
+            {**event(2, "Q1", "undo"), "undoSeq": 1},
+            event(3, "Q1", "own", text="Second try."),
+        ]
+        self.session([question("Q1")], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            ["none stated", "", "- Q1 own answer: Second try."],
+        )
+        self.assertNotIn("First try.", text)
+
+    def test_the_note_that_gave_the_intent_is_not_repeated(self):
+        events = [
+            event(1, None, "note", text="Ship it  so I stop\nbabysitting builds."),
+            event(2, None, "note", text="Nightly only."),
+        ]
+        events, revs = confirmed(events, intent=self.INTENT)
+        self.session([question("Q1")], events, restatements=revs)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"), [self.INTENT, "", "- note: Nightly only."]
+        )
+
+    def test_an_answered_row_with_a_basis_exports_a_why_line(self):
+        basis = "The runner disk is wiped nightly."
+        events, revs = confirmed(
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q2", "accept"),
+                event(3, "Q3", "accept"),
+                event(4, "Q4", "alt", alt="a"),
+            ],
+            constraints="- Q2 accepted: Recommended answer for Q2.",
+        )
+        self.session(
+            [
+                question("Q1", basis=basis),
+                question("Q2", basis="Shared buckets leak between forks."),
+                question("Q3"),
+                # The basis argues for the recommendation, which an alternative turned down.
+                question("Q4", basis="Why the recommendation wins."),
+            ],
+            events,
+            restatements=revs,
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        constraints = self.section(text, "Constraints")
+        self.assertEqual(
+            constraints,
+            [
+                "- Q2 accepted: Recommended answer for Q2.",
+                "- Q1 Short Q1: accepted: Recommended answer for Q1.",
+                f"  - why: {basis}",
+                "- Q2 why: Shared buckets leak between forks.",
+                "- Q3 Short Q3: accepted: Recommended answer for Q3.",
+                "- Q4 Short Q4: alt a: Alt a of Q4",
+            ],
+        )
 
 
 class TestConfirmsAgainstAnEarlierList(unittest.TestCase):

@@ -47,7 +47,9 @@
 // issue alone, never re-runs it. The sweep does: an agent-ready issue a
 // blocker still blocks is never re-fired, stranded or handed to a person, and
 // a run the blocker gate skipped is re-fired like a run that did no work once
-// none blocks. A run the gate stopped on untrusted provenance, or an issue
+// none blocks. An umbrella, an issue with an open sub-issue, is skipped and
+// waits the same way until none is open; the listing's sub_issues_summary
+// answers for one with none open at no extra call. A run the gate stopped on untrusted provenance, or an issue
 // whose untrusted-provenance label someone unlisted removed, is never
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
@@ -69,12 +71,13 @@
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
 // added again by the App, which starts the lane. An issue whose newest marker
-// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
-// restarted the same way at once, while its turn-cap markers since a person
-// last added agent-ready are within limits.turn-cap-restarts. A funding stop
-// (the lane's Claude capacity: a spend limit, no credit or a disabled key) is
-// restarted like a limit stop, after its regain date or, with none,
-// limits.fallback-reset hours after the stop. At most
+// is `turn-cap` or `retry` (report-outcome kept agent-ready, so a restart is
+// left) is restarted the same way at once, while its markers of that outcome
+// since a person last added agent-ready are within limits.turn-cap-restarts
+// or limits.stop-retries. A funding stop (the lane's Claude capacity: a spend
+// limit, no credit or a disabled key) is restarted like a limit stop, after
+// its regain date or, with none, limits.fallback-reset hours after the stop.
+// At most
 // limits.restarts-per-run issues per run, longest-waiting first.
 //
 // Limit and funding stops past limits.limit-stops-per-issue since a person
@@ -201,7 +204,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -334,10 +337,13 @@ const appMarkers = (comments, bot) =>
     .sort((a, b) => a.at - b.at);
 
 // The App's markers after which its removal of agent-ready is a restart.
-const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry"]);
+
+// The outcomes restarted at once, each bounded by its `limits` leaf.
+const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries" };
 
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap`, `retry` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
@@ -1108,7 +1114,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -1137,6 +1143,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
   );
   if (pending.length > 0) {
     return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
+  }
+  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs).
+  const subs = await openSubIssues(github, `/repos/${repo}/issues/${number}`, issue);
+  if (subs.length > 0) {
+    return { reason: `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
@@ -1291,6 +1302,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
       jobLog,
       repo,
       number: issue.number,
+      issue,
       lastAdd,
       addedAt,
       markers,
@@ -1309,25 +1321,27 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
     return { reason: `held by ${HUMAN_LABEL}` };
   }
   // A fail route whose comment went out but whose agent-ready removal did not
-  // land: no agent-ready was added since its marker, so finish it.
+  // land. An agent-ready added after the newest marker (a person's re-add)
+  // returned through refireRefusal above, so none was added since: finish it.
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a turn cap only while a restart is
-  // left, and hands the issue back otherwise; the count here bounds a forged
-  // or stale marker the same way.
-  if (marker?.outcome === "turn-cap") {
-    // Only a listed human's agent-ready resets the turn-cap count, so another
-    // labeler cannot buy restarts.
+  // report-outcome keeps agent-ready after a turn cap or a stop routed to
+  // retry only while a restart is left, and stops the issue otherwise; the
+  // count here bounds a forged or stale marker the same way.
+  const bound = CAPPED_RESTARTS[marker?.outcome];
+  if (bound) {
+    // Only a listed human's agent-ready resets the count, so another labeler
+    // cannot buy restarts.
     const humanSince = events
       .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
       .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
-    return caps > limits["turn-cap-restarts"]
-      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
+    const caps = markers.filter((item) => item.outcome === marker.outcome && item.at > humanSince).length;
+    return caps > limits[bound]
+      ? { reason: `${caps} ${marker.outcome} stops since a person last added ${LABEL}` }
       : { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";

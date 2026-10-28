@@ -77,7 +77,10 @@ value and its unset fallback.
   depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
   worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
   the head assertion holds, push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`
-  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Inside a lane (a
+  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Attended, with
+  `sync_stale_base` on, it may first add one base-merge commit whose first parent is that asserted
+  `HEAD`, or exit 4 on a conflict with nothing pushed, which stops the push like any refusal
+  ([create.md](../../pull-request/reference/create.md) §2.4.1). Inside a lane (a
   `[bot]` login) it hands the push to `lane-push.sh --pr <N>` as the target's
   `merge.agent-identity` (the loop-lane convention's "Lane write identity"), which reads the PR's
   head repository and branch from the forge and pushes to `https://github.com/<owner>/<repo>.git`,
@@ -1108,10 +1111,13 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
    `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
-   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
-   raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
+   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
+   a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring.
+   (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
+   and a new secrets reference or model leg holds as `secret-exposure-review` or
+   `agent-surface-review`, which a person clears.
+   Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
