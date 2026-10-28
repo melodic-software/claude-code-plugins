@@ -682,6 +682,7 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
 | `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
+| `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default), `invalid` (`ci-context`, as the producer said it wrote a change) or `conflict` (`merge-base`: its `unresolved-conflict` reason, since the conflicts stay as git left them). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` and `docs` set `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
@@ -1564,8 +1565,9 @@ head-branch digest, taken by exact name and uploaded by a completed, successful
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
-successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read.
+`pull_request` run of `pr-require-checks` that succeeded or failed only on holds an approving
+review of the head lifts, so a `ci-status` red for anything else there would never get a verdict,
+and a pull request event makes no verdict read.
 
 The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
 from a checkout of main for the queued pull request at its live head, on a listing of its own, and
@@ -1842,7 +1844,11 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+same-repository, non-draft pull request into main, and after each one whose only failure is
+`ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
+widening; resolve-pr's `heldOnly` reads the run's jobs and the `ci-status` log). The person then
+approves a head pr-verify has judged; `ci-status` stays red until that approval, which no
+verdict replaces. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue
@@ -2432,13 +2438,14 @@ at the start and end of each run, not the broker's own quota record, which this 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
 Each profile under `models.profiles` names:
 
-- `model`: an alias (`default`, `opus` or `sonnet`), never a full model ID, passed
-  as `--model`. `default` passes no `--model`, so the account's default model runs.
+- `model`: an alias (`opus` or `sonnet`), never a full model ID, passed as `--model`.
+  `resolve-config` resolves any value outside `haiku`, `sonnet` and `opus` to `opus`, so a
+  config that skipped the schema check still never runs `default` or the frontier tier.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
   passes none, so the model's default effort applies.
 - `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
-  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
-  definition's still win.
+  `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing, and any
+  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
@@ -2446,8 +2453,8 @@ Each profile under `models.profiles` names:
   (`no-rung-up`). Only the selected slot climbs, and only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
-and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
-`default` nor a model ID. `resolve-config` reads its model and effort from the role map,
+and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name no model
+ID. `resolve-config` reads its model and effort from the role map,
 `plugins/multi-agent/reference/defaults.yaml` in the base checkout. The model is `opus` when the
 role map gives `inherit`, no alias, or an alias other than `haiku`, `sonnet` or `opus`, and when
 the role map is absent or unreadable, so a route never resolves to an empty model, `default`, a
@@ -2462,11 +2469,10 @@ activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `r
 pr-unblock's read-only judge of a review finding address-feedback disputed
 ([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
-profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
+profile: model `opus` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
 `claude_args` and `settings`, and into `model`, `effort` and `max-turns`, which a run on
-`run-claude-cli` ([Funding](#funding)) passes as those inputs; `model` is empty for `default`,
-which that action cannot pass, so such a run fails. The values come only from this file on the
+`run-claude-cli` ([Funding](#funding)) passes as those inputs. The values come only from this file on the
 base, never from text the run reads.
 
 This repository's profiles, and the route each run takes, are set in
@@ -2620,7 +2626,7 @@ label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status:
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the queued cap. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap; on or after `pause-from` the lane pauses there. This repository sets 10. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses. This repository sets 2026-10-22. |
+| `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses, so intake admission has no queued cap. This repository sets 2026-10-22. |
 
 A held lane PR carries `needs-human` or `do-not-merge` in any case, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open

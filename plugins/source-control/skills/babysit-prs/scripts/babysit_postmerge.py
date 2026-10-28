@@ -164,7 +164,9 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # picks nothing, has no set. A suite inside the set always
 # demotes, quarantined or not. A suite outside it demotes nothing and is
 # quarantined: with no open quarantine issue it gets one (`file_quarantines`);
-# an open one older than `merge.quarantine-days` makes it demote again. The
+# an open one older than `merge.quarantine-days` (the smaller of its value at
+# that green SHA and at the red run's, `_Context._quarantine_days`) makes it
+# demote again. The
 # merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
@@ -848,8 +850,13 @@ _BASH_FAIL = re.compile(r"FAIL: (\S+\.test\.sh)")
 _BASH_NO_RESULT = re.compile(
     r"FAIL: (\S+\.test\.sh) \(no result recorded; the worker never reported\)"
 )
+# The runner prints a fresh nonce before any suite runs, in a variable no
+# suite inherits, and repeats it in each advisory warning: a warning a suite's
+# own output prints cannot carry it, so it excuses nothing.
+_BASH_NONCE = re.compile(r"Advisory nonce: ([0-9a-f]{16})")
 _BASH_ADVISORY = re.compile(
     r"(?:::warning::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
+    r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
 _PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")
 _PYTEST_SUMMARY = re.compile(
@@ -869,10 +876,13 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
         started: set[str] = set()
         passed: set[str] = set()
         advisory: set[str] = set()
+        nonce: str | None = None
         for line in lines:
             if line.startswith("DISCRIMINATING SKIP"):
                 return None
-            if m := _BASH_START.fullmatch(line):
+            if not started and nonce is None and (m := _BASH_NONCE.fullmatch(line)):
+                nonce = m[1]
+            elif m := _BASH_START.fullmatch(line):
                 started.add(m[1])
             elif m := _BASH_PASS.fullmatch(line):
                 passed.add(m[1])
@@ -880,7 +890,7 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
                 failed.add(m[1])
                 if _BASH_NO_RESULT.fullmatch(line):
                     started.add(m[1])
-            elif m := _BASH_ADVISORY.match(line):
+            elif (m := _BASH_ADVISORY.match(line)) and m[2] == nonce:
                 advisory.add(m[1])
         if started - passed - failed:
             return None
@@ -1085,9 +1095,11 @@ class _Context:
         default_factory=dict
     )
     # When quarantine issues are judged, and `merge.quarantine-days` (None:
-    # read at the red run's head the first time it is needed).
+    # read per red run, `_quarantine_days`).
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
     quarantine_days: int | None = None
+    quarantine_days_cache: dict[int, int] = field(default_factory=dict)
+    green_cache: dict[int, Run | None] = field(default_factory=dict)
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
     # the branch tip the first time it is needed).
     lane_rerun_window: timedelta | None = None
@@ -1201,7 +1213,7 @@ class _Context:
         if not named:
             return frozenset()
         issues = self._quarantine_issues()
-        days = self._quarantine_days(run.head_sha)
+        days = self._quarantine_days(run)
         expired: set[str] = set()
         for check, suites in named.items():
             for suite in suites:
@@ -1234,7 +1246,7 @@ class _Context:
         excused: list[Quarantine] = []
         if judged:
             issues = self._quarantine_issues()
-            days = self._quarantine_days(run.head_sha)
+            days = self._quarantine_days(run)
             for check, suites in judged.items():
                 for suite in sorted(suites):
                     if (
@@ -1312,6 +1324,15 @@ class _Context:
         full run before `run` and `run` itself (`affected_suites`), or None
         when there is no such run or the set cannot be computed."""
         if run.id not in self.affected_cache:
+            green = self._last_green(run)
+            self.affected_cache[run.id] = (
+                None if green is None else affected_suites(green.head_sha, run.head_sha)
+            )
+        return self.affected_cache[run.id]
+
+    def _last_green(self, run: Run) -> Run | None:
+        """The branch's newest green full run before `run`, on another commit."""
+        if run.id not in self.green_cache:
             created = quote(
                 f"<{run.created_at.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
                 safe="",
@@ -1338,11 +1359,8 @@ class _Context:
                     and r.created_at < run.created_at
                     and r.head_sha != run.head_sha
                 ]
-            green = self._newest_on_branch(greens)
-            self.affected_cache[run.id] = (
-                None if green is None else affected_suites(green.head_sha, run.head_sha)
-            )
-        return self.affected_cache[run.id]
+            self.green_cache[run.id] = self._newest_on_branch(greens)
+        return self.green_cache[run.id]
 
     def on_branch(self, run: Run) -> bool:
         """Whether `run`'s head commit is on the branch as `refs/heads/`
@@ -1393,12 +1411,24 @@ class _Context:
             None,
         )
 
-    def _quarantine_days(self, sha: str) -> int:
-        if self.quarantine_days is None:
-            self.quarantine_days = policy.read_config_at(
-                f"{self.owner}/{self.name}", sha
-            ).quarantine_days
-        return self.quarantine_days
+    def _quarantine_days(self, run: Run) -> int:
+        """`merge.quarantine-days` for `run`: the smaller of the value at its
+        head and at the last green full run's commit before it (the default
+        when there is none), so no merge in the window lengthens its own
+        quarantine, and never above `MAX_QUARANTINE_DAYS`."""
+        if self.quarantine_days is not None:
+            return self.quarantine_days
+        if run.id not in self.quarantine_days_cache:
+            repo = f"{self.owner}/{self.name}"
+            green = self._last_green(run)
+            self.quarantine_days_cache[run.id] = min(
+                policy.read_config_at(repo, run.head_sha).quarantine_days,
+                policy.QUARANTINE_DAYS
+                if green is None
+                else policy.read_config_at(repo, green.head_sha).quarantine_days,
+                policy.MAX_QUARANTINE_DAYS,
+            )
+        return self.quarantine_days_cache[run.id]
 
     def lane_rerun_lookback(self) -> timedelta:
         if self.lane_rerun_window is None:
@@ -3817,7 +3847,7 @@ def _judge_run(args: argparse.Namespace) -> int:
                         quarantines,
                         agent_identity=identity,
                         branch=ctx.branch,
-                        days=ctx._quarantine_days(run.head_sha),
+                        days=ctx._quarantine_days(run),
                         report=report["quarantine"],
                     )
                 except (PostMergeReadError, PostMergeWriteError) as exc:

@@ -49,7 +49,9 @@
 // PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
 // ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (the select
 // job's threads.json, whose threads' path and named_paths the kept-threads
-// predicate reads), DEPENDENCY_VERDICT (the scanned verdict the
+// predicate reads), PATCH_REPLIES_FILE (a thread-trailer row's scanned
+// replies.jsonl, whose VALID replies name the kept threads the commit's
+// Lane-Thread lines name), DEPENDENCY_VERDICT (the scanned verdict the
 // dependency-verdict requirement reads) and GITHUB_OUTPUT (gets commit=<sha>
 // and branch=<ref>). A row that allows dependency-manifests reads the
 // [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml. A merge
@@ -69,6 +71,7 @@ import { pathToFileURL } from "node:url";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
+import { THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
@@ -352,6 +355,10 @@ export function checkRow(row) {
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
   }
+  // Lane-Thread lines name kept threads, so only a kept-threads row writes them.
+  if (row["thread-trailer"] !== undefined && (row["thread-trailer"] !== true || !row.allow.includes("kept-threads"))) {
+    fail("sets thread-trailer but does not allow kept-threads");
+  }
   return row;
 }
 
@@ -367,9 +374,9 @@ export const reasonFor = (row, kind) =>
 // invalid, since the producer said it wrote a change), else its empty reason.
 export const pushReason = (row, kind) => reasonFor(row, kind === "empty" ? (row["empty-at-push"] ?? "empty") : kind);
 
-// The commit message with the row's placeholders filled; a placeholder with no
-// value throws.
-export function commitMessage(row, values) {
+// The commit message with the row's placeholders filled, then a Lane-Thread
+// line for each of `threads`; a placeholder with no value throws.
+export function commitMessage(row, values, threads = []) {
   const fill = (text) =>
     text.replace(/\{(ref|base|lane|activity|issue)\}/g, (_, key) => {
       if (!values[key]) {
@@ -377,7 +384,7 @@ export function commitMessage(row, values) {
       }
       return values[key];
     });
-  return `${fill(row.commit.message)}\n\n${fill(row.commit.trailer)}\n`;
+  return [fill(row.commit.message), "", fill(row.commit.trailer), ...threadTrailerLines(threads), ""].join("\n");
 }
 
 const sha256Of = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -768,6 +775,11 @@ export async function push({
   const target = TARGETS[row.target];
   // A merge row builds its predicates once the conflict tree is checked.
   const allow = isMerge(row) ? [] : row.allow.map((name) => PREDICATES[name](context));
+  // A commit naming no thread would land no reply, so a thread-trailer row
+  // writes nothing without the threads the replies fix.
+  if (row["thread-trailer"] === true && !Array.isArray(context.fixedThreads)) {
+    throw new Error("the thread-trailer row needs the model job's scanned replies");
+  }
   if (!NAME.test(String(lane)) || !NAME.test(String(activity))) {
     throw new Error("LANE and PATCH_ACTIVITY must be lane and activity names");
   }
@@ -779,7 +791,7 @@ export async function push({
   if (badRef) {
     throw new Error(badRef);
   }
-  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) });
+  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) }, context.fixedThreads);
   const escalate = (kind, why) => {
     log(why);
     return { outcome: "escalate", escalationReason: pushReason(row, kind) };
@@ -979,8 +991,8 @@ function need(env, keys) {
 }
 
 // The kept threads of a threads.json: each a path and, when a fix request
-// named files, its named_paths; and the files the PR already changes, its
-// pr_paths.
+// named files, its named_paths; the files the PR already changes, its
+// pr_paths; and the thread ids of the select job's shape, in its order.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
@@ -1002,7 +1014,37 @@ export function keptThreadsFrom(file) {
     paths: new Set(threads.map((thread) => thread.path)),
     threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
     prPaths: new Set(prPaths),
+    ids: threads.map((thread) => thread.id).filter((id) => typeof id === "string" && THREAD_ID.test(id)),
   };
+}
+
+// replies.jsonl's cap, as publish-feedback.mjs reads it.
+const MAX_REPLIES_BYTES = 49152;
+
+// The kept threads (keptThreadsFrom's ids, in their order) that a VALID reply
+// in the scanned replies.jsonl names: only those ids, never text copied from a
+// reply, reach the commit message. A line that is not a reply names nothing;
+// publish-feedback.mjs judges the whole file.
+export function fixedThreadsFrom(file, kept) {
+  if (!file) {
+    return undefined;
+  }
+  const stat = lstatSync(file);
+  if (!stat.isFile() || stat.size > MAX_REPLIES_BYTES) {
+    throw new Error(`PATCH_REPLIES_FILE is not a regular file of at most ${MAX_REPLIES_BYTES} bytes`);
+  }
+  const valid = new Set();
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    try {
+      const reply = JSON.parse(line);
+      if (reply?.disposition === "VALID") {
+        valid.add(reply.thread);
+      }
+    } catch {
+      // Not a reply.
+    }
+  }
+  return (kept?.ids ?? []).filter((id) => valid.has(id));
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
@@ -1097,13 +1139,15 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     throw new Error(`${numberKey} is not a positive integer`);
   }
   const merge = isMerge(row) ? mergeFrom(env, { cwd, gitBin }) : undefined;
+  const keptThreads = keptThreadsFrom(env.KEPT_THREADS_FILE);
   const result = await push({
     api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com" }),
     cwd,
     gitBin,
     row,
     context: {
-      keptThreads: keptThreadsFrom(env.KEPT_THREADS_FILE),
+      keptThreads,
+      fixedThreads: row["thread-trailer"] === true ? fixedThreadsFrom(env.PATCH_REPLIES_FILE, keptThreads) : undefined,
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,

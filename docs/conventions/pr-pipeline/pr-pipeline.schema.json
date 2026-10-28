@@ -902,7 +902,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["max-turns"],
-      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name no model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
       "oneOf": [
         {
           "required": ["model"],
@@ -915,8 +915,8 @@
       ],
       "properties": {
         "model": {
-          "enum": ["default", "opus", "sonnet"],
-          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
+          "enum": ["opus", "sonnet"],
+          "description": "A model alias, never a full model ID, passed as --model. best and fable stay out until the owner sets a Fable allowance for the lanes, and default stays out because run-claude-cli cannot pass it; the config reader resolves any value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
@@ -937,7 +937,7 @@
         "subagent-model": {
           "enum": ["inherit", "opus", "sonnet"],
           "default": "inherit",
-          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
+          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes; the config reader resolves any other value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "max-turns": {
           "type": "integer",
