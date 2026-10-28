@@ -166,6 +166,12 @@
 //                        which reads in full and logs how a kept answer
 //                        compares (VERIFY_CACHE_PREFIX)
 //   GITHUB_API_URL
+//
+// A reader run takes the human-gated label off a pull request whose newest
+// refusal at its head names only hold paths once a trusted person approved
+// that head (approvalLift), which re-runs ci-status there; every other
+// person's refusal keeps waiting for a person to remove the label.
+
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
@@ -614,6 +620,32 @@ function personReasons(body, head, label) {
   const open = lines.indexOf("```text");
   const reasons = open < 0 ? [] : lines.slice(open + 1, partial ? -2 : -1);
   return open >= 0 && refusalBody(true, reasons.join("\n"), head, label, null, partial) === body ? reasons : null;
+}
+
+// A person's refusal at `head` whose every reason is a hold path
+// (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
+// escalation a trusted person's approval of the head lifts, so the lane may
+// take its label off. A cost, risk or verifier reason, a label a person set
+// with no refusal, or a comment at another head is not one.
+const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
+export function holdPathOnly(body, head, label) {
+  const reasons = personReasons(body, head, label);
+  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line));
+}
+
+// Whether the lane lifts `label` off `pull`: its newest refusal at the head
+// names only hold paths, the changed files still hold on nothing but a hold
+// path (no cost hold, a listing read whole), and `detail.lifters` holds a
+// trusted person whose approval binds the head (merge-holds pathLifters, or
+// liftersOf over base merges).
+export function approvalLift(pull, detail, { bot, label, holdPaths }) {
+  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label)) {
+    return false;
+  }
+  if (!Array.isArray(holdPaths) || detail.filesCapped === true || pathHoldKind(detail.files, holdPaths)?.kind !== "hold-path") {
+    return false;
+  }
+  return costHold(detail.files, detail.costDecision) === null && Array.isArray(detail.lifters) && detail.lifters.length > 0;
 }
 
 // A reason as the comment's fenced block carries it.
@@ -1317,7 +1349,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
       // verifier's answer (isPartial): a reader run with time left reads it
       // once, judged as if unlabeled, to widen the comment. It never arms.
       const labelHold = reason;
-      const widen = reads && stopped === null && held === null && pull.autoMergeRequest == null && reason === `it carries ${humanGated}` && now() <= deadline && roomHold(pull) === null;
+      let widen = reads && stopped === null && held === null && pull.autoMergeRequest == null && reason === `it carries ${humanGated}` && now() <= deadline && roomHold(pull) === null;
       // A widening read finding no partial comment reads nothing past the discussion.
       let unmarked = false;
       const judged = widen ? { ...pull, labels: unlabeledAs(pull.labels, humanGated) } : pull;
@@ -1332,7 +1364,11 @@ export async function main({ env = process.env, github, actions, verify, room, s
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
             detail = await wholeDiscussion(github, variables, detail);
-            unmarked = widen && !isPartial(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid);
+            const standing = priorRefusal(detail?.comments?.nodes, slug)?.body;
+            // A hold-path refusal with a trusted person's approval in the
+            // discussion reads on, for approvalLift below.
+            const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && trustedHumans(env).has(item.userId) && item.state === "APPROVED");
+            unmarked = widen && !isPartial(standing, pull.headRefOid) && !(approvedBy && holdPathOnly(standing, pull.headRefOid, humanGated));
           }
           if (detail !== null && !unmarked) {
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
@@ -1353,6 +1389,20 @@ export async function main({ env = process.env, github, actions, verify, room, s
               console.log(`enable-auto-merge: #${pull.number} head statuses did not read: ${describe(error)}`);
             }
             detail = { ...detail, files, filesCapped: capped, costDecision: decision, lifters, unblockStops: stops };
+            // A hold-path escalation a trusted person's approval of the head
+            // lifts: the lane takes its label off, which re-runs ci-status at
+            // the head (pr-require-checks.yml runs on unlabeled), and judges
+            // it as unlabeled from here.
+            if (widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths })) {
+              if (write) {
+                await github("DELETE", `/repos/${repo[0]}/issues/${pull.number}/labels/${encodeURIComponent(humanGated)}`);
+              }
+              console.log(`enable-auto-merge: #${pull.number} ${write ? "lifted" : "would lift (report-only)"} ${escapeCommand(humanGated)}: ${detail.lifters.join(", ")} approved its head, which lifts its hold path`);
+              widen = false;
+              // Off in this run's view too, so a person's reason the verifier
+              // read adds puts the label back (refusalWrites).
+              pull.labels = unlabeledAs(pull.labels, humanGated);
+            }
           }
         } catch (error) {
           // A read that fails decides nothing and writes nothing.

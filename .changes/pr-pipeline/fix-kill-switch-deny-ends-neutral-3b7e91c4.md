@@ -21,3 +21,10 @@ bump: patch
   ejected it. The rule now lives in `merge-holds.mjs` (`unblockStops`, `readStatuses`): a stopped
   head, or one whose statuses do not read, is left unarmed (an armed one is disarmed), and each
   such skip gets a line in the run summary.
+
+- pr-merge's `enable-auto-merge` takes `needs-human` off a lanes App pull request itself when the
+  lane's newest refusal at the head names only hold paths and a person on the trusted-actor list
+  approved that head (merge-holds `pathLifters`, or `liftersOf` over base merges), the release the
+  refusal and ci-status already name. Removing the label re-runs ci-status at the head. A cost,
+  risk or verifier reason, a refusal at another head, an approval of another head, a dismissed
+  approval, an untrusted reviewer or a report-only run lifts nothing.

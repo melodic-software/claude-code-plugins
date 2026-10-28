@@ -212,6 +212,11 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
       }
       return {};
     }
+    // The lane lifting the human-gated label (approvalLift).
+    if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
+      notes.push({ method, path });
+      return [];
+    }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
       const nodes = [{ number: body.variables.number + 1000, repository: { nameWithOwner: REPO } }];
@@ -687,19 +692,17 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   const after = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
   assert.deepEqual(after.verified, []);
   assert.deepEqual(after.notes, []);
-  // A verdict that would arm it, with the hold path lifted, never arms a labeled one.
-  // Its answer came and names no person's reason: the mark comes off in
-  // place, so the next run reads no verdict.
+  // A hold-path-only refusal a trusted person's approval of the head lifts:
+  // the lane takes the label off and judges it unlabeled, so a passing
+  // verdict arms it (approvalLift; the label tests below cover each refusal).
   const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
   assert.deepEqual(lifted.verified, [2]);
-  assert.deepEqual(lifted.writes, []);
-  assert.deepEqual(lifted.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
-  const laneVerdict = await run([held({ verdict: MISSING, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
-  assert.deepEqual(laneVerdict.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
-  const next = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
+  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  assert.equal(lifted.writes.at(-1)?.mutation, "arm");
+  // With no partial comment and no approval, only the discussion is read: no file listing.
+  const next = await run([held({ verdict: PASSED, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
   assert.deepEqual(next.verified, []);
   assert.deepEqual(next.notes, []);
-  // With no partial comment, only the discussion is read: no file listing.
   const listed = (calls) => calls.filter(({ path }) => /\/pulls\/2\/files\?/.test(path)).length;
   assert.equal(listed(next.calls), 0);
   // A held lane spends no read on it, partial or not.
@@ -3007,4 +3010,35 @@ test("a head whose statuses do not read is not queued, and an armed one is disar
   assert.equal((await run([armed])).writes[0]?.mutation, "disarm");
   assert.equal(unblockHold(null), "its head's pr-unblock statuses could not be read");
   assert.equal(unblockHold([]), null);
+});
+
+// The owner's approval of the head is the documented release of a hold-path
+// escalation, so the lane takes its needs-human label off itself; nothing
+// else does, and the approval control is the one ci-status applies.
+test("a hold-path escalation lifts its label only on a trusted person's approval of the head", async () => {
+  const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
+  const held = (discussion, files = HELD, overrides = {}) => pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion, ...overrides });
+  const escalated = [lanesSaid(personNote(HOLD_PATH_REASON))];
+  const lifted = await run([held({ reviews: [reviewed("APPROVED")], comments: escalated })], trustedKyle());
+  assert.deepEqual(lifted.notes, [LIFT]);
+  assert.equal(lifted.writes.at(-1)?.mutation, "arm");
+
+  const refused = {
+    "an approval of another head": held({ reviews: [reviewed("APPROVED", { oid: "e".repeat(40) })], comments: escalated }),
+    "an approval later dismissed": held({ reviews: [reviewed("APPROVED"), reviewed("DISMISSED", { at: "2026-10-26T17:00:00Z" })], comments: escalated }),
+    "an approval by an account off the trusted-actor list": held({ reviews: [reviewed("APPROVED", { id: 9, login: "someone" })], comments: escalated }),
+    "a cost escalation": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(COST_REASON))] }, COST_FILES),
+    "a hold path beside a risk hold": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(BOTH))] }),
+    "a label with no lane escalation": held({ reviews: [reviewed("APPROVED")], comments: [] }),
+    "an escalation at an earlier head": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON).replaceAll(HEAD, "e".repeat(40)))] }),
+  };
+  for (const [why, pr] of Object.entries(refused)) {
+    const result = await run([pr], trustedKyle());
+    assert.ok(!result.notes.some(({ method }) => method === "DELETE"), `${why} lifts nothing`);
+    assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), `${why} arms nothing`);
+  }
+
+  const reportOnly = await run([held({ reviews: [reviewed("APPROVED")], comments: escalated })], { ...trustedKyle(), REPORT_ONLY: "true" });
+  assert.deepEqual(reportOnly.notes.filter(({ method }) => method === "DELETE"), []);
+  assert.ok(reportOnly.lines.some((line) => String(line).includes("would lift (report-only) needs-human")), reportOnly.lines.join("\n"));
 });
