@@ -25,7 +25,16 @@ from a completed, successful one. Any other artifact is ignored.
   heads, and so does every FAIL whose name carries one of those issues, a
   `Refs:` pull request's FAILs among them (a FAIL among them whose run cannot
   be read is `verify:unreadable`);
-- a counted FAIL at the head, under any pull request number: `verify:fail`;
+- a counted FAIL at the head, under any pull request number: `verify:fail`,
+  unless it is superseded (`_superseded`): every counted FAIL there is this
+  pull request's, every counted pass there was created after them and records
+  other linked issues than each FAIL does, and from the first FAIL's creation
+  to each pass's run's completion (`updated_at`, which a run's later activity
+  only moves later) the pull request has at least one body edit or issue
+  connect or disconnect, every one a trusted person's (one GraphQL read,
+  RELINK_QUERY).
+  A superseded FAIL still counts toward `max_fails`, and the passes then
+  decide as below. Any record, time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json):
@@ -44,7 +53,9 @@ from a completed, successful one. Any other artifact is ignored.
   against the whole spec, which the `refs` slice that failed is part of. The
   reverse, a key that is missing or holds anything else, linked issues that
   differ or cannot be read, and a FAIL record that cannot be read or records
-  another pull request, head or verdict keep `verify:earlier-fail`. Any
+  another pull request, head or verdict keep `verify:earlier-fail`. So does
+  a FAILed head of the same change, a merge-only head's included, unless its
+  FAIL is superseded at its own head by the passes there (the rule above). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -400,6 +411,18 @@ SPLIT_CHILD_QUERY = (
     "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
+# The pull request's body edits and its issue connect and disconnect events,
+# the ways its linked issues change at one head, read whole in one query
+# (`_relinked_by_people`); resolve-pr.mjs RELINK_QUERY is the same text.
+RELINK_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){userContentEdits(first:100){totalCount "
+    "nodes{editedAt editor{...actor}}} "
+    "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT]){"
+    "filteredCount nodes{... on ConnectedEvent{createdAt actor{...actor}} "
+    "... on DisconnectedEvent{createdAt actor{...actor}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
 # Admission's rules, whose `task-list` is the prefix a split copies by.
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
 # admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
@@ -752,17 +775,27 @@ def head_ref_digest(ref: str) -> str:
     return hashlib.sha256(ref.encode("utf-8")).hexdigest()[:HEAD_REF_DIGEST_HEX]
 
 
-def _issue_numbers(record: dict[str, Any]) -> frozenset[int]:
-    """The issue numbers a verdict's `linked_issues` records; raises
-    `_Unreadable` for a list that is missing or empty, or for an entry with
-    no integer number."""
+def _linked_numbers(record: dict[str, Any]) -> frozenset[int]:
+    """The issue numbers a verdict's `linked_issues` records, none included;
+    raises `_Unreadable` for a list that is missing or an entry with no
+    integer number."""
     issues = record.get("linked_issues")
-    if not is_json_array(issues) or not issues:
+    if not is_json_array(issues):
         raise _Unreadable("verdict records no linked issues")
     numbers = [json_object(i).get("number") for i in issues]
     if not all(isinstance(n, int) and not isinstance(n, bool) for n in numbers):
         raise _Unreadable("verdict records a linked issue with no number")
     return frozenset(numbers)
+
+
+def _issue_numbers(record: dict[str, Any]) -> frozenset[int]:
+    """The issue numbers a verdict's `linked_issues` records; raises
+    `_Unreadable` for a list that is missing or empty, or for an entry with
+    no integer number."""
+    numbers = _linked_numbers(record)
+    if not numbers:
+        raise _Unreadable("verdict records no linked issues")
+    return numbers
 
 
 def _is_id(value: Any, run_id: int) -> bool:
@@ -872,6 +905,8 @@ class Reader:
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
+    # A pass run's `updated_at`, its completion (`_superseded`).
+    _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
@@ -893,6 +928,8 @@ class Reader:
     _split_children: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
+    # Each pull request's RELINK_QUERY answer, or {} for a failed read.
+    _relinks: dict[int, dict[str, Any]] = field(default_factory=dict)
     # The pull requests `link_refusal` read, each taken by the next
     # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -1301,6 +1338,7 @@ class Reader:
             self._shared_runs.discard(run_id)
         if not cached:
             self._started[run_id] = record.get("run_started_at")
+            self._updated[run_id] = record.get("updated_at")
             self._created[run_id] = record.get("created_at")
             run_cache.put(RUN_SECTION, key, _run_fields(record))
         done = (
@@ -1821,6 +1859,9 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str, Any]] = []
+        # This pull request's passes at its other heads, uncounted, read only
+        # to judge whether one superseded a FAIL there (`_superseded`).
+        other_passes: dict[str, list[tuple[int, str, Any]]] = {}
         # Counted FAILs by head: run id, artifact name and id (`_wider_pass`).
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
@@ -1861,6 +1902,10 @@ class Reader:
                 continue
             tied = pr_n == number or sha in commits
             if verdict in PASSES:
+                if pr_n == number and sha != head:
+                    other_passes.setdefault(sha, []).append(
+                        (run_id, name, item.get("id"))
+                    )
                 if pr_n != number or sha != head:
                     continue
                 if self._run_state(run_id) == COUNTED:
@@ -1901,12 +1946,25 @@ class Reader:
             fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
         fails = [v for v in verdicts if v.verdict == "fail"]
         failed = {v.sha for v in fails}
+
+        def superseded(sha: str) -> bool:
+            at = (
+                passes
+                if sha == head
+                else [
+                    p
+                    for p in other_passes.get(sha, [])
+                    if self._run_state(p[0]) == COUNTED
+                ]
+            )
+            return self._superseded(number, sha, fail_artifacts, at)
+
         refusal: str | None
         detail = unreadable
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
-        elif head in failed:
+        elif head in failed and not superseded(head):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             _, elsewhere = self._elsewhere(
@@ -1924,7 +1982,10 @@ class Reader:
             or not self._change_differs(
                 head,
                 failed,
-                lambda sha: self._wider_pass(number, sha, fail_artifacts, passes),
+                lambda sha: (
+                    self._wider_pass(number, sha, fail_artifacts, passes)
+                    or superseded(sha)
+                ),
             )
         ):
             refusal = EARLIER_FAIL
@@ -2143,6 +2204,117 @@ class Reader:
         except _Unreadable:
             return False
         return True
+
+    def _superseded(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """The pull request's linked issues changed at `sha` after its FAIL
+        there, by trusted people only, and it passed there since: every
+        counted FAIL at `sha` records this pull request, head and verdict,
+        every counted pass at `sha` was created after them (`_passes_follow`)
+        and records linked issues that differ from each FAIL's, and from the
+        first FAIL's creation to each pass's run's completion (`updated_at`:
+        the run read the linked issues after it started) only trusted people edited
+        the body or connected or disconnected an issue, at least once
+        (`_relinked_by_people`).
+        A superseded FAIL still counts toward `max_fails`. A record, time or
+        read that fails is False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+        try:
+            # The records first, then the run times and the edits: a FAIL at a
+            # head that also passed is most often a spec change, not a relink.
+            judged: set[frozenset[int]] = set()
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                ):
+                    return False
+                judged.add(_linked_numbers(record))
+            for run_id, name, artifact in passes:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or _linked_numbers(record) in judged
+                ):
+                    return False
+            if not self._passes_follow(
+                [Verdict(sha, "fail", r) for r, _, _ in fails], passes
+            ):
+                return False
+            created = [self._fresh_created(r) for r, _, _ in fails]
+            if None in created:
+                return False
+            since = min(c for c in created if c)
+            if not all(
+                self._relinked_by_people(
+                    number, since, postmerge._time(self._updated.get(run_id))
+                )
+                for run_id, _, _ in passes
+            ):
+                return False
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
+        return True
+
+    def _relinked_by_people(
+        self, number: int, since: datetime, until: datetime
+    ) -> bool:
+        """At least one body edit or issue connect or disconnect on the pull
+        request falls from `since` to `until`, ends included, and every one
+        there was a trusted person's (`_trusted_actor`): never the lanes App
+        or another Bot, nor an actor GitHub cannot name. None there means the
+        link changed some way this read cannot see. RELINK_QUERY is read once
+        per pull request; a failed read, a list cut short or an act with no
+        readable time is False."""
+        if number not in self._relinks:
+            try:
+                self._relinks[number] = json_object(
+                    self._graphql(RELINK_QUERY, number, "relink events").get(
+                        "pullRequest"
+                    )
+                )
+            except _Unreadable:
+                self._relinks[number] = {}
+        pull = self._relinks[number]
+        edits = json_object(pull.get("userContentEdits"))
+        events = json_object(pull.get("timelineItems"))
+        if not (
+            is_json_array(edits.get("nodes"))
+            and edits.get("totalCount") == len(edits["nodes"])
+            and is_json_array(events.get("nodes"))
+            # totalCount counts every timeline item; filteredCount the kinds asked.
+            and events.get("filteredCount") == len(events["nodes"])
+        ):
+            return False
+        acts = [
+            (node.get("editedAt"), node.get("editor"))
+            for node in map(json_object, edits["nodes"])
+        ] + [
+            (node.get("createdAt"), node.get("actor"))
+            for node in map(json_object, events["nodes"])
+        ]
+        try:
+            inside = [
+                json_object(actor)
+                for at, actor in acts
+                if since <= postmerge._time(at) <= until
+            ]
+            return bool(inside) and all(
+                self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
+                for actor in inside
+            )
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
 
     def _pass_refusal(
         self,
