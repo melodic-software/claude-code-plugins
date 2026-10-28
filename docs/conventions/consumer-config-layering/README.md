@@ -1,5 +1,4 @@
-# Moved → `config-cascade` (moved)
+# Moved → config-cascade
 
-This contract now lives at
-[`docs/contracts/consumer-config-layering/`](../../contracts/consumer-config-layering/README.md).
-This page stays so links from installed plugin versions keep resolving; cite the new path.
+This contract moved to [`docs/contracts/consumer-config-layering/`](../../contracts/consumer-config-layering/README.md). This page keeps its
+headings so links from installed plugin versions still reach each section.
