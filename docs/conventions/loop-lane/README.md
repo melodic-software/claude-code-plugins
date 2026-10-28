@@ -1274,6 +1274,22 @@ gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
 `babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
 that lane's own invocation overrides it. Remove the label to release the PR.
 
+**Run a PR's plugin evals.** The `eval: run` label runs
+[`eval-browser-dispatch.yml`](../../../.github/workflows/eval-browser-dispatch.yml) on a
+same-repository, non-draft PR: the suite of each plugin whose `skills/`, `agents/` or `evals/` the
+PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or NOT COMPARABLE
+verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin
+is refused when it changes anything but its eval case files (`prompt.md`, `case.yaml`,
+`graders/*.md`, `samples/**/*.json`) and the markdown in its `skills/` or `agents/`, changes a
+case's `allowed_tools`, `env`, `context` or other run keys, has a case that loads another plugin or a directory the
+PR changes, changes a skill's or agent's tool, hook or shell settings, or holds a symlink or
+submodule. It is
+advisory: no required check reads it. Add the label again to run the current head.
+
+```bash
+gh pr edit <n> -R "$R" --add-label "eval: run"
+```
+
 **Pause a lane: no GitHub control exists.** `paused_until` is written by the lane itself before a
 rate-limit pause and means "do not read my silence as death"; no lane reads it as an instruction.
 The nearest GitHub-state lever is deliberately leaving the lane no work: park its remaining issues or hold its PRs. A

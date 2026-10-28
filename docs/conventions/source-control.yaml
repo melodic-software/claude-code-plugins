@@ -24,6 +24,10 @@
 # grace window. Landing them here is the lane's tracked adoption. .claude/source-control.md keeps
 # the same four values until the cleanup slice deletes it; change both while it exists.
 pr_open_state: ready
+# sync_stale_base: push-branch.sh merges the base into a branch behind it on paths
+# scripts/check-stale-base-overlap.sh calls overlapping, just before the push, so a push that
+# waited in the rate gate while main moved is not refused by the pre-push stale-base check.
+sync_stale_base: true
 pr_body_required_sections:
   - Summary
   - Fix
