@@ -203,11 +203,14 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
-`pull-requests: write`) posts the verdict's summary and notes on the PR as file-level review
+`pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file; on an adopted PR the lanes App did not open, no round starts and
-the notes tell its author why the lane refuses it. A note that starts with a path the PR changes goes on
+that head, and only the comments that head does not hold yet, by file. A PR a person opened gets no
+review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
+neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
+with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
+`ci-status` holds in the merge queue. No round starts there. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The
@@ -216,8 +219,9 @@ upstream it records, except that only `pr-unblock / address-feedback` check runs
 `pr-verify` run was created count, and the head's handled record is not read, since the notes are
 new work at a head an earlier round may have handled; with none yet, the review run dispatches when it completes. The fix round's
 push gives a head the verifier judges again.
-When the run uploaded a `pass` or `pass-notes` verdict instead, `post-verify-notes` posts and
-resolves nothing: on an open PR still at that head it reads the review threads, and when an
+When the run uploaded a `pass` or `pass-notes` verdict instead, on an open PR still at that head
+`post-verify-notes` removes `pr-verify-failed` from a PR a person opened, if it is there, and
+dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads the review threads, and when an
 unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
@@ -226,9 +230,8 @@ job or neutral check runs, and `publish-feedback` resolves each one still open a
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
 `pass-only`, which the dispatcher's release reads pass over. A resolve GitHub refuses is a warning,
 not a lane stop: the lanes App token resolves a thread only on a PR the App opened, and the open
-thread still blocks the merge under required thread resolution. A pass-only round also goes to a PR
-a human on the trusted-actor list opened, since fail notes are posted there too; every other
-address-feedback round goes only to lanes App PRs. Resolving a thread
+thread still blocks the merge under required thread resolution. Every address-feedback round,
+pass-only included, goes only to lanes App PRs. Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
@@ -2212,7 +2215,10 @@ gets one re-run, not one per lane. A ci-status not started yet, or one that star
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
-nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels.
+nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
+fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
+`pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
+the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths

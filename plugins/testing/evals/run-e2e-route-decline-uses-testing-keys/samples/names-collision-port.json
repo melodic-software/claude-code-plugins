@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "reuse_running_instance is false (docs/conventions/testing.yaml) and an app answers at http://localhost:5173 with no Workspace environment entry, so the run stops with the gap report naming the collision.",
+      "why": "names the port"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The run stops with the gap report naming the collision with the running app.",
+      "why": "port not named"
+    }
+  ]
+}

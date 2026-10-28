@@ -289,8 +289,7 @@ function touchesThread(changed, thread, cited) {
 }
 
 // A commit the lanes App authored through the API (the web-flow committer,
-// with a valid signature, as upstreamHeadHolds in check-trusted-trigger.mjs
-// requires) with the fix trailer on a line of its own.
+// with a valid signature) with the fix trailer on a line of its own.
 const isLaneFix = (commit, appId) =>
   commit.author?.id === appId &&
   commit.committer?.id === WEB_FLOW_ID &&
