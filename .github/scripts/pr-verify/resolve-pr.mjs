@@ -124,7 +124,7 @@ const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.h
 // Whether at least one body edit or issue connect or disconnect on the pull
 // request falls from `since` on, and every one there was a trusted person's
 // (babysit_verify_evidence `_relinked_by_people`, which ends the window at a
-// pass's start). None there means the link changed some way this read cannot
+// pass run's completion). None there means the link changed some way this read cannot
 // see. A failed read, a list cut short, or an act with no readable time is false.
 export async function relinkedByPeople(github, repository, number, humans, since) {
   const start = Date.parse(since ?? "");

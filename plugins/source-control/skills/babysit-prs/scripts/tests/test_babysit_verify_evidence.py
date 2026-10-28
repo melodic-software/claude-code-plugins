@@ -138,6 +138,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "run_attempt": 1,
         "created_at": RUN_STARTED,
         "run_started_at": RUN_STARTED,
+        "updated_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
     }
@@ -162,8 +163,8 @@ def record(number: int = PR, sha: str = HEAD, **overrides: Any) -> dict[str, Any
 
 
 def judged(run_id: int, at: Any, **overrides: Any) -> dict[str, Any]:
-    """A run created, and its one attempt started, at `at`."""
-    return run(run_id, created_at=at, run_started_at=at, **overrides)
+    """A run created, and its one attempt started and completed, at `at`."""
+    return run(run_id, created_at=at, run_started_at=at, updated_at=at, **overrides)
 
 
 def named(sha: str, verdict: str, number: int = PR) -> str:
@@ -1016,8 +1017,10 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
 
 
 # Times between the FAIL's creation (OLDER_START) and the pass's start
-# (RUN_STARTED), and after it.
+# (RUN_STARTED), while the pass ran, its completion, and after it.
 RELINK_AT = "2026-10-14T12:00:00Z"
+PASS_RUNNING = "2026-10-15T00:05:00Z"
+PASS_DONE = "2026-10-15T00:10:00Z"
 AFTER_PASS = "2026-10-15T12:00:00Z"
 
 
@@ -1065,7 +1068,7 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         request closes now; a person connected it and edited the body."""
         fake = FakeGitHub(
             [artifact(named(sha, "pass"), 1), artifact(named(sha, "fail"), 2)],
-            {1: run(1), 2: judged(2, OLDER_START)},
+            {1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
             {
                 named(sha, "pass"): record(sha=sha),
                 named(sha, "fail"): record(sha=sha, verdict="fail", linked_issues=[]),
@@ -1099,6 +1102,9 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             ("outsider connect", relink_answer([], [(RELINK_AT, outsider)])),
             ("at the FAIL's creation", relink_answer([(OLDER_START, LANES_ACTOR)])),
             ("at the pass's start", relink_answer([], [(RUN_STARTED, LANES_ACTOR)])),
+            # The pass's run reads the linked issues after it starts.
+            ("while the pass ran", relink_answer([], [(PASS_RUNNING, LANES_ACTOR)])),
+            ("at the pass's completion", relink_answer([], [(PASS_DONE, LANES_ACTOR)])),
         ):
             with self.subTest(label):
                 fake = self.relinked()
@@ -1124,10 +1130,13 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             # Only the original text, before the FAIL: the link changed some
             # way the read cannot see (an issue deleted or moved).
             ("nothing in the window", relink_answer()),
+            ("a pass run with no completion time", relink_answer([(RELINK_AT, HUMAN)])),
         ):
             with self.subTest(label):
                 fake = self.relinked()
                 fake.relink = answer
+                if label == "a pass run with no completion time":
+                    fake.runs[1] = run(1, updated_at=None)
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_fail_or_pass_record_that_cannot_be_read_keeps_the_fail(self) -> None:

@@ -29,7 +29,8 @@ from a completed, successful one. Any other artifact is ignored.
   unless it is superseded (`_superseded`): every counted FAIL there is this
   pull request's, every counted pass there was created after them and records
   other linked issues than each FAIL does, and from the first FAIL's creation
-  to each pass's start the pull request has at least one body edit or issue
+  to each pass's run's completion (`updated_at`, which a run's later activity
+  only moves later) the pull request has at least one body edit or issue
   connect or disconnect, every one a trusted person's (one GraphQL read,
   RELINK_QUERY).
   A superseded FAIL still counts toward `max_fails`, and the passes then
@@ -896,6 +897,8 @@ class Reader:
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
+    # A pass run's `updated_at`, its completion (`_superseded`).
+    _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
@@ -1297,6 +1300,7 @@ class Reader:
             self._shared_runs.discard(run_id)
         if not cached:
             self._started[run_id] = record.get("run_started_at")
+            self._updated[run_id] = record.get("updated_at")
             self._created[run_id] = record.get("created_at")
             run_cache.put(RUN_SECTION, key, _run_fields(record))
         done = (
@@ -2175,7 +2179,8 @@ class Reader:
         counted FAIL at `sha` records this pull request, head and verdict,
         every counted pass at `sha` was created after them (`_passes_follow`)
         and records linked issues that differ from each FAIL's, and from the
-        first FAIL's creation to each pass's start only trusted people edited
+        first FAIL's creation to each pass's run's completion (`updated_at`:
+        the run read the linked issues after it started) only trusted people edited
         the body or connected or disconnected an issue, at least once
         (`_relinked_by_people`).
         A superseded FAIL still counts toward `max_fails`. A record, time or
@@ -2214,7 +2219,7 @@ class Reader:
             since = min(c for c in created if c)
             if not all(
                 self._relinked_by_people(
-                    number, since, postmerge._time(self._started.get(run_id))
+                    number, since, postmerge._time(self._updated.get(run_id))
                 )
                 for run_id, _, _ in passes
             ):
