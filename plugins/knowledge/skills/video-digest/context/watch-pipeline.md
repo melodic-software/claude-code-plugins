@@ -299,13 +299,14 @@ framed against one resolved target, never an implicit "the repo I'm in". Because
 a **local working tree on disk**, not merely a name. Rungs, in order:
 
 1. Explicit `--target <repo>`, resolved to a local checkout of that repo
-2. The consuming project (`CLAUDE_PROJECT_DIR`) when `watch` runs directly inside a repo, with no
-   separate corpus session
+2. The session root `node "<skill-dir>/../../scripts/work-root.mjs"` prints (rule in
+   `<skill-dir>/../../reference/work-root.md`, never `CLAUDE_PROJECT_DIR`) when `watch` runs
+   directly inside a repo, with no separate corpus session
 3. Ask
 
 An explicit `--target <repo>` with no local checkout (e.g. run from a separate corpus session where
 that repo isn't cloned locally) does **not** resolve. Stop and ask for its local checkout path
-rather than falling through to `CLAUDE_PROJECT_DIR`, grepping the current directory, or inventing
+rather than falling through to the session root, grepping the current directory, or inventing
 touchpoint paths.
 
 Whichever rung resolves it, record the target's **portable name** in `README.md`'s `**Target:**`
