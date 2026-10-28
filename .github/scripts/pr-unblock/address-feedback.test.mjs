@@ -1504,17 +1504,50 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
 
-  // None stale, or the PR moved past the passing head: nothing to do, and no
-  // output, so neither a model job nor a neutral check runs.
-  await main(["select"], env("none"), { api: api([note("PRRT_now", HEAD)]), log: () => {} });
-  assert.equal(out("none"), "");
-  assert.equal(existsSync(join(dir, "none.run.json")), false);
+  // The PR moved past the passing head: nothing to do, and no output, so
+  // neither a model job nor a neutral check runs.
   await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
   assert.equal(out("moved"), "");
 
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+// A rerun of a pass-only round after its stale notes were resolved by hand
+// found none and wrote no output, so report-stop-status skipped and
+// the round's own failing status stayed on the head. Now it writes only
+// stop-resolved: no proceed or resolve-only, and no run record.
+async function passOnlyWithoutStale(t, api) {
+  const dir = tempDir("address-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, "t.json"),
+    RUN_FILE: join(dir, "r.json"),
+    TRUSTED_ACTORS: actors,
+    VERIFY_PASS_HEAD: HEAD,
+    DISPATCHER_RUN_ID: "5000",
+  };
+  await main(["select"], env, { api, log: () => {} });
+  assert.equal(existsSync(env.RUN_FILE), false);
+  return existsSync(env.GITHUB_OUTPUT) ? readFileSync(env.GITHUB_OUTPUT, "utf8") : "";
+}
+
+test("a pass-only round with no stale note and no open thread clears its stop", async (t) => {
+  assert.equal(await passOnlyWithoutStale(t, fakeApi({ threads: [thread("PRRT_1", [100], { isResolved: true })] })), "stop-resolved=true\n");
+});
+
+test("a pass-only round with no stale note keeps its stop for an open thread the lane does not take", async (t) => {
+  const untaken = fakeApi({ reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] });
+  assert.equal(await passOnlyWithoutStale(t, untaken), "stop-resolved=false\n");
 });
 
 test("scanRefusal reads a patch and an output marker together as output, in either order", () => {
