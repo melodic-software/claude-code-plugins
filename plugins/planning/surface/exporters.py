@@ -11,8 +11,12 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  restatement rev (without one, each Problem field reads `unknown` and each Work
                  size field `not assessed`; with no confirmed Constraints it lists the page's
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
-                 Decisions section from its decisions recap and the Deferred questions entries
-                 from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
+                 Decisions section from its decisions recap, the Deferred questions entries
+                 from its deferred and planningOwned bullets and the TLDR's opening scope
+                 bullets from its tldr. Captured assumptions holds each unconfirmed commitment
+                 as a named risk and a Notes question the user left unanswered; a confirmed
+                 commitment stays on its decision's line, or on a TLDR `confirmed so far` line
+                 for a row the Brief lists nowhere else. The TLDR's `Restatement:` line
                  stamps it confirmed or UNCONFIRMED (`UNCONFIRMED (no restatement posted)` with
                  no rev) beside a `Page title:` line, the Goal's fallback without a confirmed
                  goal; the --brief gate reads both. An answered row's own Constraints line is
@@ -807,14 +811,41 @@ def recap_answer(r):
     return readable(r["status"], *named) if named else clean(r["resolution"])
 
 
-def confirmation_recap(d, cap, text=None):
+def recap_rows(d, text=None):
+    """The register rows a recap reads: merged_register's, or with no data dir (d None, the
+    terminal lane) the ledger text's own rows, each with n, status, title and resolution."""
+    if d is not None:
+        return merged_register(d, text)[1]
+    rows = [
+        {"n": f"Q{n}", "status": status, "title": title, "resolution": res}
+        for n, status, _, title, res, _ in parse_register(text or "")
+    ]
+    return sorted(rows, key=lambda r: int(r["n"][1:]))
+
+
+def recap_state(rows):
+    """{Q<N>: `<status>: <question> (<answer>)`, uncut} of recap_rows' rows: what a recap saves
+    beside the ledger, so the next `changed` recap can tell which rows changed since."""
+    return {r["n"]: f"{r['status']}: {r['title']} ({recap_answer(r)})" for r in rows}
+
+
+def confirmation_recap(d, cap, text=None, since=None):
     """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
     live question, with every withdrawn row collapsed into one closing line and each long answer
-    cut. The answer length steps down until the recap fits `cap` characters; (recap, fits) says
-    whether it did."""
-    rows = merged_register(d, text)[1]
-    live = [r for r in rows if r["status"] != "withdrawn"]
-    gone = [r["n"] for r in rows if r["status"] == "withdrawn"]
+    cut. With `since` (the recap_state an earlier recap saved) it lists only the rows whose
+    status, question or answer changed since then, and closes with one `Unchanged since the last
+    recap (N): <count> <status>, ...` line for the rest. The answer length steps down until the
+    recap fits `cap` characters; (recap, fits) says whether it did."""
+    rows = recap_rows(d, text)
+    state = recap_state(rows)
+    kept = {n for n, line in state.items() if since is not None and since.get(n) == line}
+    same = [r for r in rows if r["n"] in kept]
+    shown = [r for r in rows if r["n"] not in kept]
+    live = [r for r in shown if r["status"] != "withdrawn"]
+    gone = [r["n"] for r in shown if r["status"] == "withdrawn"]
+    counts = {}
+    for r in same:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
     out = ""
     for n in RECAP_ANSWER_STEPS:
         lines = [
@@ -824,6 +855,9 @@ def confirmation_recap(d, cap, text=None):
         ]
         if gone:
             lines.append(f"Withdrawn ({len(gone)}): {', '.join(gone)}")
+        if same:
+            tally = ", ".join(f"{c} {s}" for s, c in sorted(counts.items()))
+            lines.append(f"Unchanged since the last recap ({len(same)}): {tally}")
         out = "\n".join(lines) + "\n"
         if len(out) <= cap:
             return out, True
@@ -1042,6 +1076,22 @@ def ledger_row(n, qid, status, title, res):
     }
 
 
+def unanswered_asks(doc, events):
+    """Each Notes line Claude posted with needsAnswer that no live note from the user is at or
+    after; the page pins the newest of them as a loose end."""
+    said = [
+        str(e.get("at") or "")
+        for e in events
+        if e.get("kind") == "note" and not e.get("withdrawn")
+    ]
+    last = max(said, default=None)
+    return [
+        n
+        for n in doc.get("notes") or []
+        if n.get("needsAnswer") and (last is None or last < str(n.get("at") or ""))
+    ]
+
+
 def brief_label(r):
     """A row's Q<N>, with its own id beside it when the register numbers it differently."""
     qid = r["q"]["id"]
@@ -1073,7 +1123,8 @@ def export_brief(d, text=None):
     risks = named_risks(rows)
     gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
-    out = ["## Brief", "", "### TLDR", ""]
+    # The confirmed scope bullets lead the TLDR, ahead of the bookkeeping.
+    out = ["## Brief", "", "### TLDR", "", *bullets(sections.get("tldr"))]
     out.append(
         f"- {len(rows)} question{'' if len(rows) == 1 else 's'}: {count['answered']} answered, {count['deferred']} deferred, "
         f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open"
@@ -1086,6 +1137,12 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
+    # A row the Brief writes no line for keeps its ticked commitments here.
+    out += [
+        f"- {brief_label(r)} confirmed so far: {'; '.join(clean(c) for c in r['confirmed'])}"
+        for r in rows
+        if r["confirmed"] and r["status"] not in ("answered", "withdrawn")
+    ]
     # The stamp and page title the --brief gate reads; every page export carries both, so the
     # gate tells it from a hand-written Brief. The gate judges confirmation by the stamp alone, so
     # it cannot see a Brief edited after the Confirm; the skill's rule, not the gate, asks for a
@@ -1145,13 +1202,17 @@ def export_brief(d, text=None):
         if criteria
         else ["- none recorded in the interview surface", ""]
     )
+    # A confirmed commitment is part of its decision's line (readable's `confirmed:`), or the
+    # TLDR's `confirmed so far` line, not an assumption to revisit: this section holds the
+    # unconfirmed ones, as risks, and a Notes
+    # question the user left unanswered (the coverage prompt asked on the page).
     out += ["### Captured assumptions", ""]
     lines = [
-        f"- {clean(c)}: confirmed on {brief_label(r)}; revisit if {r['n']} changes"
-        for r, c in confirmed
+        f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
     ]
     lines += [
-        f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
+        f"- asked in Notes, not answered: {clean(n.get('text'))}"
+        for n in unanswered_asks(doc, resp.get("events") or [])
     ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]

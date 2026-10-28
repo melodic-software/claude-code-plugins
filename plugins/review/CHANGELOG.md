@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.3] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.2] - 2026-10-27
+
+### Fixed
+
+- `/review:security-review` rates a finding CRITICAL (the one severity that holds a pull request for a person) only when it shows who reaches the change, what security impact they get, and that no existing control stops it, each with file and line.
+  - Touching a trust control, a gate file or a hold path no longer counts as a severity by itself.
+  - A widening of who is trusted, of what a token may do, of untrusted reach or of the kill switch still meets the bar by itself, unless a cited control blocks it.
+  - A weakened merge hold, such as one that guards only spend, has to show a security impact like any other finding.
+  - A finding that rests on a configuration value quotes the line it read. A marketplace entry with `"defaultEnabled": false` is therefore read as opt-in (IMPORTANT), not default-on.
+  - Every CRITICAL candidate now gets a refute pass that looks for a blocking control.
+  - A finding the review cannot settle stays CRITICAL.
+
 ## [1.6.1] - 2026-10-27
 
 ### Security

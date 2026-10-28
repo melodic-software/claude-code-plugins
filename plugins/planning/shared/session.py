@@ -780,6 +780,10 @@ def _bad(field, message):
     return DomainError(400, "bad-field", message, field=field)
 
 
+def _merged_error():
+    return DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
+
+
 def _none_label(label):
     """Whether an option label means "none applies": casefolded, ellipsis, full stops and spaces trimmed."""
     return isinstance(label, str) and " ".join(label.casefold().strip(" .…").split()) in NONE_LABELS
@@ -1362,6 +1366,7 @@ class Session:
         self._presence = {}  # pid -> {"at": join time, "device"?, "tabs": tab -> beat, least recent first}; never persisted
         self._presence_rev = 0
         self._merged_into_owner = set()  # sha256 of the secrets a merge into the owner dropped; never persisted
+        self._merged_pids = set()  # the pids a merge into the owner removed, for a request resolved just before it; never persisted
         self._last_write = collections.OrderedDict()  # (pid, route) -> time of the last accepted write, oldest first
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
@@ -1552,7 +1557,7 @@ class Session:
                     self._person(pid)
                     return pid
                 if h in self._merged_into_owner:
-                    raise DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
+                    raise _merged_error()
             raise DomainError(401, "unknown-session", "Join the session again.")
 
     def check(self, pid):
@@ -1565,6 +1570,10 @@ class Session:
     def _person(self, pid):
         person = self.state["people"].get(pid) if isinstance(pid, str) else None
         if person is None:
+            # resolve() and the action take the lock apart: a merge into the owner between them ends this request too,
+            # and the page must hear why, or it joins again as a new person
+            if pid in self._merged_pids:
+                raise _merged_error()
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
@@ -2365,6 +2374,8 @@ class Session:
                     self._merged_into_owner.add(h)
                 else:
                     secrets[h] = dst
+        if dst == HOST:
+            self._merged_pids.add(src)
         self._drop_watcher(src)  # a watcher key never gains another person's requests
         st["people"].pop(src)
         self._presence.pop(src, None)

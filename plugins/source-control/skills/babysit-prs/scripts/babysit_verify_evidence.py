@@ -76,26 +76,74 @@ from a completed, successful one. Any other artifact is ignored.
   for a new head;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a
-human (`NEEDS_HUMAN`), who merges in person; a `verify:repeated-fail`
-escalation quotes the newest head FAIL's summary (`Reader.fail_summary`).
-`verify:spec-changed` holds for the lanes (owner rule 2026-10-26), and
-enable-auto-merge.mjs shows one that stands as a failing `pr-merge/unarmed`
-status. A `verify:fail` or `verify:earlier-fail` only waits:
+Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
+person: the spec's provenance is a trust boundary. Every other refusal holds
+for the lanes (when a person is needed:
+https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
+and enable-auto-merge.mjs shows
+one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
+waits for the lanes to judge the head again. `verify:repeated-fail` and
+`verify:too-old` never clear, so the gate never merges such a pull request
+unattended, and address-feedback's own round cap bounds the fix rounds. A
+`verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
-`Reader`, every page, and filtered on the name here: the API's name filter
-matches whole names only, and a FAIL counts under any number and head.
+`Reader`, every artifact, and filtered on the name here: the API's name filter
+matches whole names only, and a FAIL counts under any number and head. No
+judgment uses a listing whose artifact ids, each counted once, are not
+exactly GitHub's live `total_count` (`Reader._incremental`'s check). A whole
+listing can skip the artifact at a page boundary when an earlier one expires
+while it pages, and return one twice when an upload moves it down a page
+(#10486). So a whole listing is deduplicated by id, added to the whole
+listings read before it, and checked by a top-up read from the first page
+(`Reader._complete_listing`); after `LISTING_READS` whole listings that never
+hold the live count it refuses `verify:unreadable`. The refresh before an
+allow reads the same way.
+
+Carried reads. What an earlier run read is used only where it counts a FAIL
+(a carried record counts the FAIL when it shows origin; any other answer from
+it could turn the FAIL away, so it is read again), with one exception: the
+artifact listing. A listing begun at most `LISTING_CARRY_MAX_AGE` ago (this
+Reader's own, the run's saved one, or the one a scheduled or hand-started run
+of main's pr-merge.yml saved and `LISTING_CARRY_ENV` names, which
+.github/scripts/pr-merge/listing-carry.mjs fetches only from such a run whose
+head is on main) is a base: `Reader._incremental` reads only the newest pages,
+newest id first, down past the base's highest id until an artifact created
+`LISTING_OVERLAP` before the base was read, and keeps the base's entries below
+the lowest id those pages hold, less those expired or past `expires_at` by the
+first page's `Date`. Such a listing could hide a FAIL by leaving it out, so it
+is kept only when it holds exactly the first page's `total_count`, GitHub's
+live count of the repository's artifacts. Across 17 first-page reads on
+2026-10-27 that count moved by exactly the uploads since the last read less
+the artifacts whose `expires_at` had passed by the response's `Date`. Three
+incremental listings that day each held exactly that count and every artifact
+a full listing taken just after held, plus 0, 1 and 3 that the full listing
+skipped at its page boundaries though they still existed. An artifact that
+expires during the read can only make the counts differ. Pages that read
+whole but hold any other count are read again on the same base, up to
+`INCREMENTAL_READS` reads; after those, on any failed read (a timeout, a 429
+or a rate-limit 403 included, which are never read again), or with a base
+that is missing, older or of another shape, it lists every page, checked the
+same way. A carry forged to drop a FAIL must therefore
+also hold a fabricated entry in its place to match the live count, and forging it already needs code
+running in a scheduled or hand-started run of main's pr-merge.yml, whose merge
+job holds the lanes App token.
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
 `LISTING_ENV`: a successful listing is saved there, and later candidates of
-the run read it instead of paging again. No judgment uses a listing, saved
-or in memory, begun more than `LISTING_MAX_AGE` before it: an older one is
-read again and saved. A listing taken earlier in the run
-can only lack later uploads, so a refusal on it stands; before the gate's own
-candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
-again on a listing of its own. A listing that got a 5xx or a fast network
+the run read it instead of paging again. A listing taken earlier in the run
+can only lack later uploads. No judgment uses a listing, saved or in
+memory, begun more than `LISTING_MAX_AGE` before it (an older one is read
+again and saved), except the gate's own candidate's, which babysit_merge.py
+judges `provisional` on the listing at hand at any age: an allow stands on
+it until the gate would allow the candidate, when babysit_merge.py calls
+`refresh()` and judges it again on a listing of its own, and so does a
+refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
+cap, an old pull request). Any other refusal is judged again on a recent
+listing, so none dequeues the candidate's queued entry on an older one. A
+candidate the gate refuses for anything else lists nothing more; queued
+entries are judged on a recent listing. A listing that got a 5xx or a fast network
 error is read again after each of `LISTING_WAITS`, every read inside
 `LISTING_TIMEOUT_SECONDS` in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
@@ -136,6 +184,7 @@ import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -146,6 +195,7 @@ from babysit_classify import is_dependency_author
 from babysit_gh import (
     fetch_paginated_api,
     flatten_paginated_items,
+    gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
 )
@@ -155,6 +205,7 @@ WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
+LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # The head-ref map's version and its keys' shape, an artifact id
 # (head-ref-map.mjs writes both).
@@ -221,9 +272,49 @@ LISTING_WAITS = (2.0, 4.0)
 # reads about 300 pages at 1 s a page, inside every reader's step timeout
 # (judgment).
 LISTING_TIMEOUT_SECONDS = 300.0
-# The oldest listing a judgment uses, saved or in memory (see the bound),
-# unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
+# The oldest listing a judgment uses, saved or in memory, but for a
+# provisional one's allow or `STANDING` refusal (`Reader.evidence`), unless
+# `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
+# The incremental listing (`Reader._incremental`). The listing comes newest id
+# first, but a lower id can be created after a higher one: across 6,835
+# artifacts listed on 2026-10-27 (created 2026-10-16 to 10-27) the largest lead
+# of a lower id's created_at over a higher id's was 58m49s, and each day's
+# largest was 34 to 59 minutes. Paging stops past the base's highest id only
+# at an artifact created `LISTING_OVERLAP` before the base was read, twice that
+# lead (judgment on that data).
+LISTING_OVERLAP = timedelta(hours=2)
+# The oldest base an incremental listing starts from. Scheduled pr-merge runs
+# come four times an hour (pr-merge.yml `cron`), and rotation.mjs asks at most
+# 10 trusted runs (`MAX_RUNS`), about 2.5 hours of them, for the carried
+# listing. At the most uploads seen in an hour on 2026-10-27 (255), a base this
+# old and the overlap page at most about 1,300 artifacts, 13 pages, against 69
+# for the whole listing that day (judgment on that data).
+LISTING_CARRY_MAX_AGE = timedelta(hours=3)
+LISTING_PAGE_SIZE = 100
+# The incremental reads on one base before a whole listing. The first
+# pr-merge tick on a carried base (run 40600822658, 2026-10-27 23:19Z) read
+# 4 pages that did not hold the live count and then paged all 71; the same
+# base read again at 23:24Z held it in 4 pages. A page boundary that moves
+# while the pages are read, as a whole listing's does (#10486), would do
+# that. A second read costs about 4 pages against 71 (judgment on that
+# data).
+INCREMENTAL_READS = 2
+
+
+class _CountMissed:
+    """`Reader._incremental`'s answer when its pages read whole but do not
+    hold the live count, the one case read again on the same base."""
+
+
+COUNT_MISSED = _CountMissed()
+# The whole listings `Reader._complete_listing` reads before it refuses. Of
+# three whole listings read on 2026-10-27, two skipped live artifacts at page
+# boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
+# other whole listing: a second read restores a skip, a third is margin
+# (judgment on that data). The reads and their top-ups share one
+# `LISTING_TIMEOUT_SECONDS`, as one read did: what does not fit refuses.
+LISTING_READS = 3
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -248,14 +339,20 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-# The refusals only a person clears (owner rule 2026-10-26: a person only
-# for an intent or design change or a CRITICAL security issue, with trust
-# holds kept): an untrusted spec (provenance), and the two no lane can clear,
-# the repeated-FAIL cap (terminal: `merge.max-verify-fails`) and an old pull
-# request (judged from its creation, so it never clears). A changed spec
-# holds for the lanes, which judge it again. The one list the merge gate and
-# enable-auto-merge.mjs (`needsHuman`) read.
-NEEDS_HUMAN = (REPEATED_FAIL, TOO_OLD, UNTRUSTED_SPEC)
+# The refusals only a person clears (when a person is needed:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# with trust holds kept): an untrusted spec (provenance). Every other refusal,
+# the repeated-FAIL cap and an old pull request included, holds for the
+# lanes: it still refuses the merge, with no label. The one list the merge
+# gate and enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
+# LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
+NEEDS_HUMAN = (UNTRUSTED_SPEC,)
+# The refusals no upload after the listing clears (`Reader.evidence`): a
+# counted FAIL at the head or the cap's FAILs stay counted whatever is
+# uploaded later, as no pass clears them, and a pull request's age only
+# grows. A pass uploaded later can clear any other refusal, and a read may
+# answer otherwise.
+STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -469,8 +566,9 @@ RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
 # .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted runs'
-# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still used only where it counts a FAIL;
-# any other answer is read from GitHub.
+# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still
+# used only where it counts a FAIL; any other answer is read from GitHub (the
+# module docstring's "Carried reads", which names the listing's exception).
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
@@ -511,11 +609,6 @@ class _Unreadable(Exception):
 
 class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
-
-
-class SummaryUnreadable(Exception):
-    """`Reader.fail_summary` could not read the record, which is not the
-    same as a record with nothing to quote."""
 
 
 def _transient(detail: str) -> bool:
@@ -575,9 +668,6 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
-    # The newest counted FAIL at the head, for `verify:fail` and
-    # `verify:repeated-fail`: its run id and artifact name.
-    head_fail: tuple[int, str] | None = None
 
     @property
     def needs_human(self) -> bool:
@@ -598,11 +688,6 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
-            "headFail": (
-                {"run": self.head_fail[0], "artifact": self.head_fail[1]}
-                if self.head_fail
-                else None
-            ),
         }
 
 
@@ -680,6 +765,23 @@ def _is_artifact_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _listed_entry(item: Any) -> bool:
+    """A listed artifact `Reader._incremental` can place: a positive id, a
+    boolean `expired`, and a `created_at` and `expires_at` each present and
+    null (GitHub's artifact schema marks both nullable) or a time with a
+    zone."""
+    return (
+        is_json_object(item)
+        and _is_artifact_id(item.get("id"))
+        and item["id"] > 0
+        and isinstance(item.get("expired"), bool)
+        and all(
+            key in item and (item[key] is None or _when(item[key]) is not None)
+            for key in ("created_at", "expires_at")
+        )
+    )
+
+
 def load_head_refs(path: str | None, repo: str) -> dict[int, str]:
     """The head-ref map at `path` for `repo`, by artifact id. A missing or
     unreadable file, another version or repository, or any entry of another
@@ -725,6 +827,11 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
+    # The listing a trusted pr-merge run saved (`LISTING_CARRY_ENV`), which
+    # listing-carry.mjs fetched, as a base for `_incremental`.
+    carry_path: str | None = field(
+        default_factory=lambda: os.environ.get(LISTING_CARRY_ENV) or None
+    )
     # The head-ref map (`HEAD_REFS_ENV`), when pr-merge.yml names one.
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
@@ -738,11 +845,20 @@ class Reader:
     # The oldest listing a judgment uses; None (`evidence --shared-listing`)
     # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
+    # `evidence` is judging on the listing at hand at any age.
+    _any_age: bool = False
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
     _own: bool = False  # `refresh()` asked for a listing of this Reader's own
+    # The last listing this Reader held and when it began to be read, kept
+    # past `refresh()` as a base for `_incremental`.
+    _base: tuple[datetime, list[dict[str, Any]]] | None = None
+    # How the last listing was read from the API: "full" or "incremental".
+    listing_mode: str | None = None
     _listing_error: str | None = None
+    # When the whole listings of one `_complete_listing` must end.
+    _read_deadline: float | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -788,24 +904,34 @@ class Reader:
         without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        if self._artifacts is not None and _recent(
-            self._fetched_at, self.listing_max_age
-        ):
+        max_age = None if self._any_age else self.listing_max_age
+        if self._artifacts is not None and _recent(self._fetched_at, max_age):
             return self._artifacts
-        saved = None if self._own else self._load_saved()
+        saved = None if self._own else self._load_saved(self.listing_path, max_age)
         if saved is not None:
             self._fetched_at, self._artifacts = saved
+            self._base = saved
             self._saved = True
             return self._artifacts
         fetched_at = _wall_clock()
-        try:
-            listing = flatten_paginated_items(
-                self._read_listing(), "repository artifacts", items_key="artifacts"
-            )
-        except (_Unreadable, RuntimeError) as exc:
-            self._listing_error = str(exc)
-            raise _Unreadable(self._listing_error) from exc
+        base = self._incremental_base()
+        listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
+        # Only pages that read whole but missed the live count are read again;
+        # a failed read lists every page at once, as `_read_listing` decides.
+        for _ in range(INCREMENTAL_READS if base is not None else 0):
+            listing = self._incremental(base)
+            if listing is not COUNT_MISSED:
+                break
+        self.listing_mode = "incremental"
+        if not isinstance(listing, list):
+            self.listing_mode = "full"
+            try:
+                listing = self._complete_listing()
+            except (_Unreadable, RuntimeError) as exc:
+                self._listing_error = str(exc)
+                raise _Unreadable(self._listing_error) from exc
         self._artifacts, self._fetched_at = listing, fetched_at
+        self._base = (fetched_at, listing)
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
@@ -830,27 +956,170 @@ class Reader:
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
-    def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
-        """The run's saved listing and when it began to be read. A missing or
-        malformed file, or one with no `fetchedAt` within `listing_max_age`,
-        is none, so the listing is read from the API instead."""
-        if not self.listing_path:
+    def _load_saved(
+        self, path: str | None, max_age: timedelta | None
+    ) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The listing saved at `path` and when it began to be read. A
+        missing or malformed file, or one with no `fetchedAt` within
+        `max_age`, is none, so the listing is read from the API instead."""
+        if not path:
             return None
         try:
-            saved = json_object(
-                json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
-            )
+            saved = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
             fetched_at = datetime.fromisoformat(saved["fetchedAt"])
         except (OSError, ValueError, KeyError, TypeError):
             return None
         listing = saved.get("artifacts")
         if (
-            not _recent(fetched_at, self.listing_max_age)
+            not _recent(fetched_at, max_age)
             or not is_json_array(listing)
             or not all(map(is_json_object, listing))
         ):
             return None
         return fetched_at, listing
+
+    def _incremental_base(self) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The newest whole listing begun at most `LISTING_CARRY_MAX_AGE` ago
+        whose every entry `_listed_entry` takes: this Reader's own, the run's
+        saved one, or the one a trusted run carried (`carry_path`)."""
+        bases = [
+            base
+            for base in (
+                self._base,
+                self._load_saved(self.listing_path, LISTING_CARRY_MAX_AGE),
+                self._load_saved(self.carry_path, LISTING_CARRY_MAX_AGE),
+            )
+            if base is not None
+            and _recent(base[0], LISTING_CARRY_MAX_AGE)
+            and all(_listed_entry(a) for a in base[1])
+        ]
+        return max(bases, key=lambda base: base[0], default=None)
+
+    def _complete_listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact from whole listings: each read is added
+        to the ones before it by id, and the union is kept only when the
+        top-up `_incremental` reads on it holds GitHub's live `total_count`.
+        A whole listing can skip an artifact at a page boundary when an
+        earlier one expires while it pages, and the next read returns it.
+        Raises `_Unreadable` when `LISTING_READS` reads never hold the live
+        count, so no judgment allows on a listing that may lack a FAIL."""
+        union: dict[int, dict[str, Any]] = {}
+        deadline: float | None = None
+        for _ in range(LISTING_READS):
+            read_at = _wall_clock()
+            payload = self._read_listing(deadline)
+            deadline = self._read_deadline
+            for item in flatten_paginated_items(
+                payload, "repository artifacts", items_key="artifacts"
+            ):
+                if is_json_object(item) and _is_artifact_id(item.get("id")):
+                    union[item["id"]] = item
+                else:
+                    raise _Unreadable("repository artifacts: an entry with no id")
+            listing = self._incremental((read_at, list(union.values())), deadline)
+            if isinstance(listing, list):
+                return listing
+        raise _Unreadable(
+            f"repository artifacts: {LISTING_READS} whole listings never held "
+            "GitHub's live artifact count"
+        )
+
+    def _incremental(
+        self,
+        base: tuple[datetime, list[dict[str, Any]]] | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, Any]] | _CountMissed | None:
+        """Every repository artifact, as the base (`_incremental_base`) and
+        the newest pages read now show them; `COUNT_MISSED` when the pages
+        read but the result does not hold the live count, else None.
+
+        The listing comes newest id first. Pages are read from the first
+        until one holds an artifact at or below the base's highest id that
+        was created `LISTING_OVERLAP` or more before the base was read (an
+        undated one never stops it): every lower id was created before the
+        base was read, so the base holds it.
+        Those pages decide every id down to the lowest they hold, an id the
+        base holds there and they do not (deleted, or an overwrite's old
+        copy) included; below it the base's entries stand, less each one
+        expired or past its `expires_at` by the first page's `Date` (one with
+        no `expires_at` stands unless expired). The
+        result must hold exactly the first page's `total_count` artifacts,
+        GitHub's live count: any other count gives `COUNT_MISSED`. No base,
+        an entry or page of another shape, a missing `Date`, or any failed
+        read gives None.
+        `base` replaces `_incremental_base` and `deadline` its own
+        `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
+        if base is not None and not all(_listed_entry(a) for a in base[1]):
+            return None
+        base = base or self._incremental_base()
+        if base is None:
+            return None
+        base_at, carried = base
+        high = max((a["id"] for a in carried), default=0)
+        floor = base_at - LISTING_OVERLAP
+        if deadline is None:
+            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+        fresh: dict[int, dict[str, Any]] = {}
+        total: Any = None
+        server_now: datetime | None = None
+        page = 1
+        while True:
+            left = deadline - _listing_clock()
+            if left <= 0:
+                return None
+            try:
+                proc, headers = gh_api_with_headers(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    timeout_seconds=left,
+                    env_overrides=self._env(),
+                )
+                body = json_object(json.loads(proc.stdout))
+            except (RuntimeError, ValueError, OSError):
+                return None
+            items = body.get("artifacts")
+            if (
+                proc.returncode != 0
+                or not is_json_array(items)
+                or not all(_listed_entry(a) for a in items)
+            ):
+                return None
+            if page == 1:
+                total = body.get("total_count")
+                try:
+                    server_now = parsedate_to_datetime(headers.get("date", ""))
+                except (TypeError, ValueError):
+                    return None
+                if server_now.tzinfo is None or not _is_artifact_id(total):
+                    return None
+            for item in items:
+                fresh.setdefault(item["id"], item)
+            # Only a dated entry can show its id was created before the base.
+            reached = any(
+                a["id"] <= high
+                and a["created_at"] is not None
+                and _when(a["created_at"]) < floor
+                for a in items
+            )
+            if reached or len(items) < LISTING_PAGE_SIZE:
+                break
+            page += 1
+        if server_now is None:
+            return None
+        # A short page ends the listing: no id is left below it.
+        lowest = min(fresh) if reached else 0
+        kept = [
+            a
+            for a in carried
+            if a["id"] < lowest
+            and a["expired"] is False
+            and (a["expires_at"] is None or _when(a["expires_at"]) > server_now)
+        ]
+        listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
+        return listing if len(listing) == total else COUNT_MISSED
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
@@ -863,19 +1132,26 @@ class Reader:
             tmp.write_text(json.dumps(payload), encoding="utf-8")
             os.replace(tmp, path)
 
-    def _read_listing(self) -> Any:
+    def _read_listing(self, deadline: float | None = None) -> Any:
         """The listing payload, read again after a 5xx or a fast network
         error while time is left: every page, read and wait fits in
         `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
-        case."""
+        case. A `deadline` set by an earlier read is kept; this read's is
+        saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
             "--paginate",
             "--slurp",
         ]
-        deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
-        timeout = LISTING_TIMEOUT_SECONDS
+        if deadline is None:
+            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+            timeout = LISTING_TIMEOUT_SECONDS
+        else:
+            timeout = deadline - _listing_clock()
+            if timeout <= 0:
+                raise _Unreadable("repository artifacts: no time left to list")
+        self._read_deadline = deadline
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
@@ -956,7 +1232,8 @@ class Reader:
         if shared and not cached:
             # A carried record counts the FAIL when it shows origin; any
             # other answer from it could turn the FAIL away, so the run is
-            # read instead.
+            # read instead ("Carried reads" in the module docstring, which
+            # also states the listing's exception and its guard).
             carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
             if is_json_object(carried):
                 try:
@@ -1440,12 +1717,41 @@ class Reader:
         return {str(c.get("sha")) for c in commits}
 
     def evidence(
-        self, number: int, head: str, pr: dict[str, Any] | None = None
+        self,
+        number: int,
+        head: str,
+        pr: dict[str, Any] | None = None,
+        *,
+        provisional: bool = False,
     ) -> Evidence:
+        """The judgment at `head`, on a listing begun at most
+        `listing_max_age` before it. A `provisional` one, whose allow the
+        caller judges again on a listing of its own before acting on it
+        (babysit_merge.py `refresh()`), takes the listing at hand at any age:
+        an allow or a refusal no later upload clears (`STANDING`) stands on
+        it, and any other refusal on an older listing is judged again on a
+        recent one."""
+        judged = self._judge(number, head, pr, any_age=provisional)
+        if (
+            not provisional
+            or judged.refusal is None
+            or judged.refusal in STANDING
+            or self._fetched_at is None
+            or _recent(self._fetched_at, self.listing_max_age)
+        ):
+            return judged
+        return self._judge(number, head, pr, any_age=False)
+
+    def _judge(
+        self, number: int, head: str, pr: dict[str, Any] | None, *, any_age: bool
+    ) -> Evidence:
+        self._any_age = any_age
         try:
             return self._evidence(number, head, pr)
         except (_Unreadable, postmerge.PostMergeReadError) as exc:
             return Evidence(UNREADABLE, head, (), 0, str(exc))
+        finally:
+            self._any_age = False
 
     def _evidence(self, number: int, head: str, pr: dict[str, Any] | None) -> Evidence:
         if pr is None:
@@ -1463,7 +1769,6 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str, Any]] = []
-        head_fails: list[tuple[int, str]] = []
         # Counted FAILs by head: run id, artifact name and id (`_wider_pass`).
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
@@ -1542,8 +1847,6 @@ class Reader:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
             fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
-            if sha == head and verdict == "fail":
-                head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
         failed = {v.sha for v in fails}
         refusal: str | None
@@ -1599,16 +1902,7 @@ class Reader:
                 )
         else:
             refusal = MISSING
-        return Evidence(
-            refusal,
-            head,
-            tuple(verdicts),
-            ignored,
-            detail,
-            max(head_fails)
-            if head_fails and refusal in (FAIL, REPEATED_FAIL)
-            else None,
-        )
+        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
 
     def _off_grammar(
         self, item: dict[str, Any], name: str, tied: bool
@@ -1797,37 +2091,6 @@ class Reader:
         except _Unreadable:
             return False
         return True
-
-    def _listed_id(self, run_id: int, name: str) -> Any:
-        """The id the listing this Reader judged on gives the artifact named
-        `name` of run `run_id`, or None (it is then fetched by run and name)."""
-        for item in map(json_object, self._artifacts or []):
-            if item.get("name") == name and _is_id(
-                json_object(item.get("workflow_run")).get("id"), run_id
-            ):
-                return item.get("id")
-        return None
-
-    def fail_summary(
-        self, run_id: int, name: str, number: int, head: str
-    ) -> str | None:
-        """The `summary` a FAIL artifact's verdict.json records for pull
-        request `number` at `head`, or None when it records another pull
-        request, head or verdict. Raises `SummaryUnreadable` when it cannot be
-        read. Untrusted model text: the caller frames it as data."""
-        try:
-            record = self._record(run_id, name, self._listed_id(run_id, name))
-        except _Unreadable as exc:
-            raise SummaryUnreadable(str(exc)) from exc
-        summary = record.get("summary")
-        if (
-            record.get("pr") != number
-            or record.get("head_sha") != head
-            or record.get("verdict") != "fail"
-            or not isinstance(summary, str)
-        ):
-            return None
-        return summary
 
     def _pass_refusal(
         self,
@@ -2576,13 +2839,15 @@ def _answered(
         return report | {"cache": failed}
 
 
-def _settle(repo: str, path: str, code_sha: str) -> int:
+def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
     but never read again), as the lane's agent identity in the config there.
-    Changed check code refuses before any read. Prints `{"reuse", "reason"}`;
-    exit 0 when it stands, else 1, and the caller runs the check."""
+    With `idle`, the report is an earlier tick's, and it must also pass
+    `postmerge.idle_refusal`. Changed check code refuses before any read.
+    Prints `{"reuse", "reason"}`; exit 0 when it stands, else 1, and the
+    caller runs the check."""
     shared = postmerge.read_shared(path)
     reason: str | None = "post-merge answer missing or unreadable"
     if not merge_policy.check_code_unchanged(code_sha):
@@ -2605,6 +2870,14 @@ def _settle(repo: str, path: str, code_sha: str) -> int:
                         postmerge.pending_runs_unchanged(repo, answer, branch)
                     ),
                 )
+                if reason is None and idle:
+                    refusal = postmerge.idle_refusal(
+                        repo,
+                        shared,
+                        default,
+                        confirm_wait_minutes=config.confirm_wait_minutes,
+                    )
+                    reason = refusal and f"idle tick {refusal}"
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
     print(json.dumps({"reuse": reason is None, "reason": reason}))
@@ -2665,7 +2938,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
-    again (`_settle`)."""
+    again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
+    earlier tick's report, which must also pass `postmerge.idle_refusal`."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2695,9 +2969,12 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--repo", required=True)
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
+    settle.add_argument("--idle-tick", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "settle":
-        return _settle(args.repo, args.postmerge_result, args.code_sha)
+        return _settle(
+            args.repo, args.postmerge_result, args.code_sha, idle=args.idle_tick
+        )
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(

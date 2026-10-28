@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "macOS is scaffolded only, so this run writes one finding at UNKNOWN severity explaining the gap, links `reference/shared/discovery-guide.md` for porting, and stops."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Disk: OK. OS updates: WARN, 2 pending. Firewall: OK.",
+      "why": "invented results and no UNKNOWN"
+    },
+    {
+      "answer": "The severity is unknown because macOS is not supported yet.",
+      "why": "lower-case word, not the severity level"
+    }
+  ]
+}

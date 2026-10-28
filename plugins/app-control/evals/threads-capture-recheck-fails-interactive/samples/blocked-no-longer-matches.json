@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: launched process no longer matches\"}]}",
+      "why": "threads before the reason"
+    },
+    {
+      "answer": "{\"blocked\": [{\"reason\": \"blocked: launched process no longer matches\", \"capture\": \"threads\", \"detail\": \"builder exit 3\"}]}",
+      "why": "reason before threads"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty report"},
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture threads\", \"reason\": \"blocked: capture needs elevation\"}]}",
+      "why": "the unattended reason"
+    }
+  ]
+}

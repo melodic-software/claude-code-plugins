@@ -88,6 +88,11 @@ condition 1 and the actor and author parts of condition 2).
     earlier than this run's creation: a commit GitHub signed for an App token during this run. A
     human, foreign, unsigned or older commit stops the run. It does not prove which lane made it.
 
+  Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
+  `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler
+  never re-runs one. The half-hourly sweep in `.github/scripts/pr-unblock/feedback-dispatch.mjs`
+  recovers a run an outage lost with a fresh attempt-1 run, which this check already trusts.
+
   The record can land after this run's gate starts, so the gate waits for it. Each read takes the
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not
   refused. While the dispatcher run is not `completed`, an absent record is read again every 5 s,

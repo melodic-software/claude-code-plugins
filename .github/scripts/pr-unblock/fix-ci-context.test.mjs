@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
 import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
 const APP = 337595936;
@@ -333,8 +333,18 @@ test("needs-human from another lane's escalation proceeds and says so; fix-ci's 
   assert.equal(plain.laneEscalated, false);
 });
 
+test("a person's inline review-thread reply since another lane's escalation skips awaiting-human", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const api = gatedApi(APP_USER, "feedback-disputed");
+  api.listReviewComments = async () => [
+    { id: 2, in_reply_to_id: 1, user: { login: "kyle-sexton", id: HUMAN, type: "User" }, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" },
+  ];
+  const result = await selectWith(api);
+  assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-human"]);
+});
+
 test("main writes the hold's skip reason and lane-escalated", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS };
     await main({ ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: gatedApi(APP_USER, "ci-fix-escalated"), log: () => {} });
@@ -377,7 +387,7 @@ test("a log that cannot be read leaves an empty excerpt rather than failing", as
 });
 
 test("main writes the context file and the step outputs", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = {
       GITHUB_TOKEN: "t",
@@ -402,7 +412,7 @@ test("main writes the context file and the step outputs", async () => {
 });
 
 test("main escalates the round cap with no context file", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = {
       GITHUB_TOKEN: "t",

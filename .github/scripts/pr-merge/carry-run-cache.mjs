@@ -67,7 +67,7 @@ export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
 const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
-// GitHub's default artifact retention; pr-verify.yml sets none.
+// A FAIL verdict's artifact retention (write-verdict.mjs retentionDays; .github/artifact-retention.json `pr-verify-*`).
 export const RETENTION_DAYS = 90;
 const WORKFLOW_PATH = ".github/workflows/pr-verify.yml";
 const SHA = /^[0-9a-f]{40}$/;

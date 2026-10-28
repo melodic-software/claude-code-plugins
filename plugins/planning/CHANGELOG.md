@@ -3,6 +3,94 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.118.0] - 2026-10-28
+
+### Added
+
+- `round.sh add`, `add-round` (and its `--check`), `apply` and `revise` warn, naming the question, on a `facts` field that holds more than its `Checked against:` line yet carries no link, `file:line` or `judgment` label, so a claim a question rests on cannot reach the user unchecked. It warns and never refuses, beside the existing basis-label and bare-file warnings.
+- `export-ledger --recap --changed --ledger L` lists only the rows whose status, question or answer changed since the last saved recap, then one `Unchanged since the last recap (N): <count> <status>, ...` line for the rest. It lists every row when no recap has been saved yet.
+
+### Changed
+
+- `round.sh export-ledger --recap --ledger L` reads the ledger alone when `--dir` is absent or names no directory, so the terminal lane, which has no page data, runs the same recap command; read alone, a ledger without exactly one open-question register is refused. Each recap that fits the restate cap saves its rows beside the ledger in `<L stem>.last-recap.json`, which every later recap overwrites.
+- `interview` Step 3 generates the confirmation recap with that command and pastes it verbatim, with no paraphrase and no HTML or collapsible block, and adds `--changed` after the first confirmation. The page lane's `restate` keeps the full recap, because the Brief's Decisions section is read from it.
+
+## [0.117.3] - 2026-10-28
+
+### Changed
+
+- `/planning:draft-goal-condition` gains a `## Next` section: `/implementation:implement` when an approved plan runs in this session under the armed goal, `/session-flow:continue-in-background` when the run goes on while the person is away, `/work-items:decompose` when the lever routed to multi-window work, and `/planning:interview` when the intent was too vague to draft.
+- The planning skills' `## Next` sections name only the next step. `/planning:questionnaire` leaves `/planning:interview`'s and `/planning:prd`'s `## Next`, since it runs beside the next step; prd's hand-off now says so, in the interview's words. `/naming:name-it-better` and `/architecture:record-decision` leave `/planning:design`'s `## Next` for its relationship table, marked **During.** `/architecture:record-decision` also leaves `/planning:design-handoff`'s `## Next`: its hand-off already offers the ADR and now says the offer runs beside the next step.
+- Each `## Next` bullet names one skill: `/planning:prd`'s splits its combined bullet, `/planning:wayfind`'s gives each map destination its own bullet and drops the general `/session-flow:workflow` fallback to stay within four, and `/planning:setup`'s line drops its backticks to match its siblings. `/planning:brainstorm` routes to `/planning:design` only once the contract is locked, in line with `/session-flow:workflow`'s stage order.
+
+## [0.117.2] - 2026-10-27
+
+### Fixed
+
+- Shared interview: `share.sh stop` and `restart` now ask the server to shut down through its control listener before ending it, so the server writes the usage summaries it holds on every OS. On Windows the stop used to end the process at once, losing every held summary; a one-on-one session there recorded no usage counts at all. A server that refuses or does not exit within 15 seconds is still force-ended.
+
+## [0.117.1] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.117.0] - 2026-10-27
+
+### Added
+
+- **Interview page: a re-issued question keeps its history across supersede chains (G6).** The server derives `supersedesChain` on a question that supersedes another, listing every earlier question of the chain, first asked first, with its round and, when set, its stage. It is never written to `questions.json`. The detail pane shows the whole chain, for example `Asked as Q5 in round 2, then Q35 in round 4`, where it used to link only the question it replaced.
+- **`add`, `add-round` and `apply` warn on a one-for-one mass supersede.** A write that supersedes three or more questions one for one names up to five of the pairs and points to `revise`, which keeps a question's id, thread and answer.
+
+### Changed
+
+- **The carried-rounds count starts from the chain's first question.** The `asked N rounds ago, unanswered` chip and the "Still open from earlier rounds" section count from the round the question was first asked in its stage. Before, a question re-issued in round 5 counted as new in round 5.
+- **"Still open from earlier rounds" is pinned in every view, not only Rounds.** Groups and Tree pin a copy at the top of the rail and keep each question in its group or its place in the tree.
+- **`archive` clears any hold on the questions it archives.** It removes `waiting`, `waitsOn`, `waitingBy` and `waitingSince` and adds a `No longer ...` history line, as `wait` with `clear` does. An archived question no longer carries a `waiting` hold.
+
+### Fixed
+
+- In the shared session page's chat on a phone, a reader at the newest message stays there as the on-screen keyboard opens, while typing and when a message arrives, instead of the list falling behind when the keyboard's steps arrive faster than the page draws.
+
+- Interview surface: the header now turns Live as soon as a watcher starts waiting, and leaves Live when the wait ends, even within 10 seconds of the previous wait. Before, the open page heard of a new wait only when some other change came along, so it could read Claude is working while a watcher was waiting.
+
+## [0.116.0] - 2026-10-27
+
+### Added
+
+- **`interview` page surface:** a `tldr` restate section, shown first on the page as `Scope (TLDR)`, so the user confirms scope before the export. `export-brief` writes its bullets at the head of the Brief's `### TLDR`, ahead of the counts and the stamp, and `restate` refuses a `tldr` line opening `Restatement:` or `Page title:`, the labels the `--brief` gate reads. A `tldr` over five lines warns ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+### Fixed
+
+- **`interview` page surface:** `export-brief` no longer lists each confirmed commitment under `### Captured assumptions` as `confirmed on Q<N>; revisit if Q<N> changes`. `/planning:plan` turned each of those lines into an assumption to revisit, but a confirmed commitment is a decision. It already sits on its decision's line, and a decision still open on unticked commitments now lists its ticked ones on a TLDR line, `- Q<N> confirmed so far: <commitments>`. Captured assumptions now holds unconfirmed commitments as named risks, plus each `needsAnswer` Notes line no user note answered, as `- asked in Notes, not answered: <text>`. That line is how an unanswered acceptance-criteria coverage prompt reaches the Brief ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `restate` refuses an `acceptance` line that asks the user something: a question mark, "tell me", "please confirm", or a line opening on say or choose. Before this, a question such as the coverage prompt could be exported and confirmed as a criterion ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `round.py` warns on `add`, `add-round`, `apply` and `revise` when a recommendation with no commitments points at a table, visual, diagram, chart or figure while the file holds a visual or the question's `facts` hold a markdown table. The Brief exports only the recommendation and its commitments, so criteria kept only in a visual never reached the planner ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+## [0.115.1] - 2026-10-27
+
+### Fixed
+
+- `/planning:interview`: the page lane's `user_config` substitution record no longer claims that an unset key with a `default` substitutes that default. The manifest reference does not say so, and our own probe (the `/harness-ops:plugins` record "`userConfig`: an unset key renders the literal placeholder") found the token stays literal. The record now treats a token the lane table shows literal as unset, whatever the key's saved state. It names each key's fallback (`surface` to `terminal`, emoji markers to off), points at that probe, and rechecks when a fresh-session probe records whether a saved boolean substitutes (`skills/interview/context/lane-page.md`).
+
+## [0.115.0] - 2026-10-27
+
+### Changed
+
+- The Brief is the spec, and each planning value has one owner. `/planning:interview`'s Brief template owns the Goal, the acceptance criteria and the deferred questions. `/planning:plan` writes no Goal of its own under `## Plan` and points at the Brief's. A minimal Brief written by plan now includes `### Acceptance criteria`. A plan with no Brief puts a one-line `Goal:` under its `No Brief: <reason>` line instead.
+- `/planning:plan`'s Test strategy is the one place test boundaries are decided. `/planning:design`'s Test-seam posture thread sketches candidates for it and no longer asks the user to confirm them separately.
+- PLAN.md has one `## Execution shape` section. It holds the routing table, the scope-fencing tables and the sequential fallback, so the `### Execution shape` subsection under `## Handoff to implementation` is gone. The `## Open questions` section is also gone: a question the plan raises is a Step 1 Open Decision, and a deferred question stays in the Brief's `### Deferred questions`, and Step 5 asks for a reply to each one still open as `USER-RESERVED`. Step 4.6 tags decisions in `## Execution shape` too. `/planning:design-handoff` sends uncovered dimensions to those Step 1 Open Decisions.
+
+### Fixed
+
+- The interview page no longer takes a decision on an archived or superseded question: its Decide
+  choices, Save and Reopen are disabled, Ask, Rephrase and Research this still work, and a primary
+  `Go to <id>` button opens the end of its `supersededBy` chain. The page server answers such a
+  decision 409 `{"error": "superseded", "by": "<id>"}`, or `{"error": "archived"}`, and
+  accept-audit leaves a superseded question out.
+- An answer recorded before its question was superseded no longer counts as answered and live in
+  the page meter or `round.sh status`: both now read `supersededBy` before the decision, as
+  `export-ledger` already did, so they agree with the exported `withdrawn` row.
+
 ## [0.114.1] - 2026-10-27
 
 ### Fixed

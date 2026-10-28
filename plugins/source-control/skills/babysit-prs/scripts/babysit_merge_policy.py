@@ -381,11 +381,11 @@ def _split_repo(repo: str) -> tuple[str, str]:
     return owner, name
 
 
-def _get(endpoint: str) -> tuple[int | None, Any]:
+def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | None, Any]:
     """(status, payload): 200 and the JSON on success; on failure the status gh
-    reported, or None when it named none."""
+    reported, or None when it named none. `env` overrides gh's environment."""
     try:
-        proc = gh_capture(["api", endpoint])
+        proc = gh_capture(["api", endpoint], **({"env_overrides": env} if env else {}))
     except (RuntimeError, ValueError, OSError):
         return None, None
     if proc.returncode != 0:
@@ -397,10 +397,16 @@ def _get(endpoint: str) -> tuple[int | None, Any]:
 
 
 def _paginated(
-    endpoint: str, label: str, items_key: str | None = None
+    endpoint: str,
+    label: str,
+    items_key: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     try:
-        proc = gh_capture(["api", endpoint, "--paginate", "--slurp"])
+        proc = gh_capture(
+            ["api", endpoint, "--paginate", "--slurp"],
+            **({"env_overrides": env} if env else {}),
+        )
     except (RuntimeError, ValueError, OSError) as exc:
         raise PolicyReadError(f"{label}: {exc}") from exc
     if proc.returncode != 0:
@@ -585,8 +591,8 @@ class PipelineConfig:
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
-    # one pull request at which it holds for a human whatever a later pass
-    # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
+    # one pull request at which it holds, never to merge unattended, whatever
+    # a later pass says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
     # but a whole number of at least 1 is 1, so any earlier FAIL holds.
     max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.check-inputs`: git pathspecs of what the pull request checks
@@ -2208,11 +2214,6 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
-COMMENT_DELETED = (
-    "query PolicyCommentDeleted($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name)"
-    "{pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100)"
-    "{filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}"
-)
 
 
 def names_pull(text: Any, number: Any) -> bool:
@@ -2236,66 +2237,202 @@ def _after(value: Any, opened: datetime | None) -> bool:
     return made is not None and opened is not None and made > opened
 
 
-# A review lane's cost hold marker, as ci-workflows apply-review-hold writes
-# it on the first line of its hold comment: the head it held and its
-# criteria. The base branch name a compare takes, as the hold step reads it.
-COST_MARKER = re.compile(
-    r"<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
-    r"criteria=([a-z,-]+) -->(?:\n|\Z)"
+# The review lanes whose status job records a `claude-lane-hold` notice, as
+# (workflow file, status job name) (merge-holds.mjs `REVIEW_LANES`, and
+# ci-status's cost-hold step). The notice's head and criteria, and the base
+# branch name a compare takes, as the hold step reads it.
+REVIEW_LANES = (
+    ("pr-review-hosted.yml", "pr-review / claude-review-status"),
+    ("pr-review-security-hosted.yml", "pr-review-security / security-review"),
+)
+HOLD_NOTICE = re.compile(
+    r"claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label="
 )
 BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
+# The token the lane-run, job, annotation and vetting reads take when set:
+# pr-merge.yml passes the job's GITHUB_TOKEN (actions: read, checks: read),
+# while the lanes App token it runs gh with holds neither
+# (babysit_verify_evidence.py `TOKEN_ENV`).
+ACTIONS_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 
-def cost_marker(comments: Any, at: Any) -> tuple[str, str, Any] | None:
-    """The newest cost hold marker github-actions[bot] posted among the pull
-    request's `comments` before a decision made at `at`, as (the head it
-    held, its comment's node id, its created_at), else None (merge-holds.mjs
-    `costMarker`; the first of two at one time wins, as in the review lanes'
-    hold step). It decides a head only while never edited and while no
-    comment was deleted since it was posted, which the caller reads."""
-    when = parse_timestamp(at)
-    found: tuple[datetime, str, str] | None = None
-    for row in json_array(comments):
+def lane_change(compare: Any) -> str | None:
+    """Why a compare answer (base...head) shows a head whose lane runs cannot
+    be trusted, else None: it changes a review-lane workflow, which a
+    pull_request run takes from the head and so could write the notice, or it
+    lists 300 files or more (the compare API's cap), or no file list
+    (merge-holds.mjs `laneChange`)."""
+    files = json_object(compare).get("files")
+    if not is_json_array(files):
+        return "no file list"
+    if len(files) >= 300:
+        return "too many files"
+    lanes = {f".github/workflows/{file}" for file, _ in REVIEW_LANES}
+    if any(json_object(f).get("filename") in lanes for f in files):
+        return "a review-lane workflow"
+    return None
+
+
+def cost_notices(annotations: Any, head: str, at: Any) -> list[tuple[str, Any]]:
+    """The cost hold notices among one status job's `annotations`, as (sha,
+    at) with `at` the job's completion: only those naming `head`, the head its
+    run ran on, so a notice can speak for no other commit (merge-holds.mjs
+    `costNotices`)."""
+    found: list[tuple[str, Any]] = []
+    for row in json_array(annotations):
         row = json_object(row)
-        made = parse_timestamp(row.get("created_at"))
-        marker = (
-            COST_MARKER.match(str(row.get("body") or ""))
-            if json_object(row.get("user")).get("login") == "github-actions[bot]"
+        notice = (
+            HOLD_NOTICE.match(str(row.get("message") or ""))
+            if row.get("annotation_level") == "notice"
             else None
         )
-        if (
-            marker
-            and "cost" in marker[2].split(",")
-            and made is not None
-            and when is not None
-            and made < when
-            and (found is None or made > found[0])
-        ):
-            found = (made, marker[1], str(row.get("node_id") or ""), row.get("created_at"))
-    return (found[1], found[2], found[3]) if found else None
+        if notice and notice[1] == head and "cost" in notice[2].split(","):
+            found.append((notice[1], at))
+    return found
 
 
-def deleted_since(answer: Any, at: Any) -> bool:
-    """Whether a `COMMENT_DELETED` answer (its `data`) shows a comment on the
-    pull request deleted at or after `at`, or cannot show that none was: no
-    readable list, more deletions than it lists, or a time that does not
-    parse (merge-holds.mjs `deletedSince`). A deleted newer marker would
-    otherwise make an older one the decided head."""
+def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
+    """The sha of the newest of `notices` before `at`, else None; None too
+    when two heads share that time (merge-holds.mjs `decidedHead`)."""
     when = parse_timestamp(at)
-    items = json_object(
-        json_object(json_object(json_object(answer).get("repository")).get("pullRequest")).get(
-            "timelineItems"
+    if when is None:
+        return None
+    before = [
+        (made, sha)
+        for sha, made in ((sha, parse_timestamp(t)) for sha, t in notices)
+        if made is not None and made < when
+    ]
+    if not before:
+        return None
+    newest = max(made for made, _ in before)
+    heads = {sha for made, sha in before if made == newest}
+    return heads.pop() if len(heads) == 1 else None
+
+
+def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
+    """Why the head branch's push history shows a lane run missing before a
+    decision made at `at`, else None (merge-holds.mjs `unranHead`, and
+    ci-status's cost-hold step). `activity` is one page of the repository
+    activity API for the branch, newest first, which deleting a run leaves;
+    `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
+    `at`. Every head the branch moved to after its last push of `decided`
+    before `at` needs a run of every lane: with one deleted, an older notice
+    would become the decided head (#10437). No push of `decided` before `at`
+    or a full page, which may not reach it, keeps the hold too."""
+    if not is_json_array(activity):
+        return "the branch's push history is unreadable"
+    if len(activity) >= 100:
+        return "the branch's push history fills a page"
+    if (
+        not is_json_array(ran)
+        or len(ran) != len(REVIEW_LANES)
+        or not all(is_json_array(heads) for heads in ran)
+    ):
+        return "the lane runs do not cover every review lane"
+    moves: list[tuple[str, datetime]] = []
+    for move in activity:
+        after = str(json_object(move).get("after") or "")
+        if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
+            made = parse_timestamp(json_object(move).get("timestamp"))
+            if made is None:
+                return "the branch's push history is unreadable"
+            moves.append((after, made))
+    cutoff = parse_timestamp(at)
+    before = [
+        (after, made) for after, made in moves if cutoff is not None and made < cutoff
+    ]
+    pushed = [made for after, made in before if after == decided]
+    if not pushed:
+        return f"the branch shows no push of {decided} before the decision"
+    last = max(pushed)
+    for after, made in before:
+        if (
+            after != decided
+            and made >= last
+            and not all(after in heads for heads in ran)
+        ):
+            return (
+                f"{after} was pushed after the decided head with no run of every"
+                " review lane before the decision"
+            )
+    return None
+
+
+def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str | None:
+    """The head a decision made at `at` decided, from the review lanes'
+    check-run annotations, never a comment (any GITHUB_TOKEN workflow posts as
+    github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
+    the head `branch` of `owner`/`name` started before `at` (a run from
+    another repository's same-named branch speaks for another pull request),
+    each run's head vetted against `base` (`lane_change`), its status job's cost notices (`cost_notices`)
+    from jobs done before `at`, then `decided_head`, kept only while the
+    branch's push history shows no lane run missing since the decided head
+    (`unran_head`). A run on a head that fails the vet decides nothing, and a
+    read that fails raises."""
+    cutoff = parse_timestamp(at)
+    if cutoff is None or not isinstance(branch, str) or not BASE_BRANCH.fullmatch(branch):
+        return None
+    token = os.environ.get(ACTIONS_TOKEN_ENV)
+    env = {"GH_TOKEN": token} if token else None
+    notices: list[tuple[str, Any]] = []
+    vetted: set[str] = set()
+    ran: list[list[str]] = []
+    for file, check in REVIEW_LANES:
+        heads: list[str] = []
+        ran.append(heads)
+        runs = _paginated(
+            f"repos/{owner}/{name}/actions/workflows/{file}/runs"
+            f"?event=pull_request&branch={quote(branch, safe='')}&per_page=100",
+            f"{file} runs",
+            items_key="workflow_runs",
+            env=env,
         )
+        for run in runs:
+            started = parse_timestamp(run.get("created_at"))
+            head_repo = json_object(run.get("head_repository")).get("full_name")
+            if head_repo != f"{owner}/{name}" or started is None or started >= cutoff:
+                continue
+            head = str(run.get("head_sha") or "")
+            if not re.fullmatch(r"[0-9a-f]{40}", head):
+                return None
+            heads.append(head)
+            if head not in vetted:
+                status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
+                if status != 200:
+                    raise PolicyReadError(f"the changes of {head} are unreadable")
+                if lane_change(compare) is not None:
+                    return None
+                vetted.add(head)
+            jobs = _paginated(
+                f"repos/{owner}/{name}/actions/runs/{run.get('id')}/jobs?filter=all&per_page=100",
+                f"run {run.get('id')} jobs",
+                items_key="jobs",
+                env=env,
+            )
+            for job in jobs:
+                done = parse_timestamp(job.get("completed_at"))
+                if job.get("name") != check or done is None or done >= cutoff:
+                    continue
+                notices += cost_notices(
+                    _paginated(
+                        f"repos/{owner}/{name}/check-runs/{job.get('id')}/annotations?per_page=100",
+                        f"job {job.get('id')} annotations",
+                        env=env,
+                    ),
+                    head,
+                    job.get("completed_at"),
+                )
+    decided = decided_head(notices, at)
+    if decided is None:
+        return None
+    ref = quote(f"refs/heads/{branch}", safe="")
+    status, activity = _get(
+        f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100", env
     )
-    nodes, count = items.get("nodes"), items.get("filteredCount")
-    if when is None or not is_json_array(nodes) or not isinstance(count, int) or isinstance(count, bool) or count > len(nodes):
-        return True
-    for node in nodes:
-        made = parse_timestamp(json_object(node).get("createdAt"))
-        if made is None or made >= when:
-            return True
-    return False
+    if status != 200:
+        raise PolicyReadError("the head branch's push history is unreadable")
+    return decided if unran_head(activity, ran, decided, at) is None else None
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2325,42 +2462,25 @@ def same_net_change(decided: Any, current: Any) -> bool:
 def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
     """Whether the decision `comment` covers the pull request at its head
     (owner decisions Q17 c and Q18 d on #9436): its decided head
-    (`cost_marker`, never edited, so no one with write access moved its sha)
-    is the head, with no compare read, or every change since is a merge of the
-    base branch, so the net change against it is the same at both
-    (`same_net_change`). No marker, an edited or unreadable newest marker (no
-    older one stands in), a comment deleted since that marker was posted
-    (`deleted_since`, read before the head check, so deleting a newer marker
-    cannot promote an older head), an unusable base name or a read that fails
-    carries nothing."""
+    (`_noticed_head`, from the head branch's review-lane runs) is the head,
+    with no compare read, or every change since is a merge of the base
+    branch, so the net change against it is the same at both
+    (`same_net_change`). No decided head, an unusable base name or a read
+    that fails carries nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
+    branch = json_object(pr.get("head")).get("ref")
     base = json_object(pr.get("base")).get("ref")
-    owner, name = _split_repo(repo)
-    try:
-        marker = cost_marker(
-            _paginated(
-                f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
-                "cost hold markers",
-            ),
-            comment.get("created_at"),
-        )
-        if marker is None:
-            return False
-        node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
-        if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
-            return False
-        deleted = _graphql(
-            COMMENT_DELETED, "deleted comments", owner=owner, name=name, number=pr.get("number")
-        )
-    except PolicyReadError:
-        return False
-    if deleted_since(deleted, marker[2]):
-        return False
-    decided = marker[0]
-    if decided == sha:
-        return True
     if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
         return False
+    owner, name = _split_repo(repo)
+    try:
+        decided = _noticed_head(owner, name, branch, base, comment.get("created_at"))
+    except PolicyReadError:
+        return False
+    if decided is None:
+        return False
+    if decided == sha:
+        return True
     reads = [
         _get(f"repos/{owner}/{name}/compare/{base}...{each}") for each in (decided, sha)
     ]
@@ -2573,10 +2693,100 @@ def trusted_actors(
     return _TRUSTED_IDS[key]
 
 
+# The timeline events that are their actor's own act on a pull request: a
+# comment, a review, an inline review thread, a label or a title edit, a review
+# request, a ready for review, a reopen or a force push. A `mentioned` event's
+# actor is the account another's text mentioned, and `subscribed` only signs up
+# for notifications, so neither is read.
+ACTIVITY_EVENTS = frozenset(
+    {
+        "commented",
+        "reviewed",
+        "line-commented",
+        "labeled",
+        "unlabeled",
+        "renamed",
+        "review_requested",
+        "ready_for_review",
+        "reopened",
+        "head_ref_force_pushed",
+    }
+)
+
+
+def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any], who: Any) -> bool:
+    """An act by an account off the trusted-actor list that still holds the
+    pull request: a changes-requested review, or a `User`'s comment or review
+    whose text carries a `BODY_MERGE_HOLD_RE` phrase ("do not merge", a "Hold:"
+    line). Only an OWNER, MEMBER or COLLABORATOR (`author_association`) holds,
+    as for `human_veto_logins`: on a public repository anyone else's act would
+    keep any pull request from going idle. A bot's text is not read, since
+    review lanes and the lanes App quote the phrase."""
+    if str(act.get("author_association") or "").upper() not in BLOCKER_ASSOCIATIONS:
+        return False
+    if event.get("event") == "reviewed" and (
+        str(act.get("state") or "").lower() == "changes_requested"
+    ):
+        return True
+    return json_object(who).get("type") == "User" and bool(
+        BODY_MERGE_HOLD_RE.search(str(act.get("body") or ""))
+    )
+
+
+def trusted_activity(
+    pr: Mapping[str, Any],
+    timeline: Sequence[Any],
+    actor_ids: Collection[int],
+) -> str:
+    """When a person's pull request last moved by an account whose activity
+    counts toward its idle test (#9136): its opening (`created_at`, its
+    author's) and each `ACTIVITY_EVENTS` timeline event whose actor id
+    (`actor`, else `user`; an inline thread's each comment by its own `user`)
+    is in `actor_ids`, at its newest `created_at`, `updated_at` or
+    `submitted_at`. Commits and pushes are read apart (`_head_committed`,
+    `_head_last_seen`); a body edit, which names no editor here, is not read,
+    and a body hold refuses on its own.
+    Any other account's activity moves nothing, so it cannot keep the pull
+    request from going idle, but for a repository member's or collaborator's
+    hold (`_untrusted_hold`, owner decision Q30): its changes-requested review
+    or a person's comment or review carrying a `BODY_MERGE_HOLD_RE` phrase
+    counts like a trusted account's. The lane's
+    own pin and reasons comments do not count when `actor_ids` leaves the
+    lane's identity out, as `trusted_actors(exclude=...)` does. An event whose
+    actor id, or a counted one's time, cannot be read raises
+    `PolicyReadError`, which is not idle."""
+    stamps = [_time(pr.get("created_at"))]
+    for raw in timeline:
+        event = json_object(raw)
+        if event.get("event") not in ACTIVITY_EVENTS:
+            continue
+        acts = (
+            [(json_object(c).get("user"), json_object(c)) for c in event["comments"]]
+            if is_json_array(event.get("comments"))
+            else [(event.get("actor") or event.get("user"), event)]
+        )
+        for who, act in acts:
+            uid = json_object(who).get("id")
+            if type(uid) is not int:
+                raise PolicyReadError(f"{event.get('event')} event actor unreadable")
+            if uid not in actor_ids and not _untrusted_hold(event, act, who):
+                continue
+            times = [
+                act.get(k)
+                for k in ("created_at", "updated_at", "submitted_at")
+                if act.get(k) is not None
+            ]
+            if not times:
+                raise PolicyReadError(f"{event.get('event')} event time unreadable")
+            stamps.extend(_time(t) for t in times)
+    return max(stamps).isoformat()
+
+
 def adoption_refusal(
     pr: Mapping[str, Any],
     head_committed: Callable[[], Any],
     *,
+    activity: Callable[[], Any],
     idle_hours: int | None,
     owner_ids: Collection[int],
     human_gated: str | None,
@@ -2587,14 +2797,16 @@ def adoption_refusal(
     """Why the pr-merge lane does not adopt this REST pull request, or None
     when it does (owner decisions Q22 and 2026-10-22): not a draft; opened by
     a User or Bot whose id is in `owner_ids` (`trusted_actor_ids`; never
-    matched by login); for a User, its `updated_at` and its head commit's
-    committer date, `head_committed()`, read last, both at least
-    `idle_hours` old, an unreadable one not idle; and no hold: a
-    `MERGE_HOLD_LABELS` label, the resolved `human_gated` role label, or a
-    body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is excused while
-    `queued_at_head()` (`lane_queued_at_head`) or `toggled_at_head()`
+    matched by login); for a User, its newest activity, `activity()`
+    (`trusted_activity` and the head's arrival, `_head_last_seen`; never the
+    raw `updated_at`, which any commenter moves: #9136), and its head
+    commit's committer date, `head_committed()`,
+    read last, both at least `idle_hours` old, an unreadable one not idle;
+    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
+    label, or a body hold (`BODY_MERGE_HOLD_RE`). Fresh activity is excused
+    while `queued_at_head()` (`lane_queued_at_head`) or `toggled_at_head()`
     (`lane_toggled_at_head`), read only then and in that order: the lane's
-    own pin comment and enqueue refresh it, and so do its whole-review
+    own enqueue, with nobody else speaking after its pin, and its whole-review
     record, draft toggle and the review that toggle starts."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
@@ -2627,11 +2839,7 @@ def adoption_refusal(
 
     if kind == "Bot":
         return None
-    if (
-        not idle(lambda: pr.get("updated_at"))
-        and not queued_at_head()
-        and not toggled_at_head()
-    ):
+    if not idle(activity) and not queued_at_head() and not toggled_at_head():
         return "updated-fresh"
     if not idle(head_committed):
         return "head-fresh"
@@ -2770,7 +2978,9 @@ def _head_last_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
     branch: the newest `created_at` of GitHub Actions' check suites for that
     commit whose `head_branch` is the pull request's. GitHub sets it when a
     push arrives, unlike a commit's dates, which the pusher sets, and a head
-    pushed again (reset away and pushed back) gets a newer suite. No such
+    pushed again (reset away and pushed back) gets a newer suite. A
+    `pull_request` run that a label or title edit starts adds a suite too, so
+    any account's label change can delay adoption, never grant it. No such
     suite, a listing past one page, or an unreadable one raises."""
     head = json_object(pr.get("head"))
     sha, ref = str(head.get("sha") or ""), head.get("ref")
@@ -2883,6 +3093,15 @@ def lane_eligibility(
             not_adopted = adoption_refusal(
                 pr,
                 committed,
+                # A pushed commit's dates are its pusher's: the push counts
+                # when GitHub saw it arrive.
+                activity=lambda: max(
+                    trusted_activity(
+                        pr, _timeline(owner, name, number, {}), adoption_owner_ids
+                    ),
+                    _head_last_seen(owner, name, pr),
+                    key=_time,
+                ),
                 idle_hours=adoption_idle_hours,
                 owner_ids=adoption_owner_ids,
                 human_gated=human_gated,
@@ -4653,11 +4872,19 @@ def _demotion_changed(
 
 
 def _shared_age_refusal(shared: SharedPostMerge, age: timedelta) -> str | None:
-    """`stale` past `SHARED_MAX_AGE` (or from the future), `unverified-stale`
-    past `SHARED_UNVERIFIED_MAX_AGE` while it passes with a merge unverified,
-    else None."""
+    """`stale` past `SHARED_MAX_AGE` (or from the future), `excuse-expired`
+    once a quarantine that excused a failing suite has expired
+    (`excusesExpireAt`, or one that cannot be read), after which the same
+    red run demotes, `unverified-stale` past `SHARED_UNVERIFIED_MAX_AGE`
+    while it passes with a merge unverified, else None."""
     if not timedelta(0) <= age <= SHARED_MAX_AGE:
         return "stale"
+    excuse = shared.gate.report.get("excusesExpireAt")
+    try:
+        if excuse is not None and shared.computed_at + age >= _time(excuse):
+            return "excuse-expired"
+    except PolicyReadError:
+        return "excuse-expired"
     # A refusing answer refuses whatever was verified since, so only a
     # passing one with a merge still unverified is read again.
     if (
@@ -4688,7 +4915,8 @@ def shared_refusal(
     None: it must name the same identity, self logins and lane, give this
     base the floor its own read would (`merged_since_floor` with the shared
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
-    while it passes with a merge unverified), have no demotion record filed
+    while it passes with a merge unverified) nor past a quarantine excuse's
+    end (`_shared_age_refusal`), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an

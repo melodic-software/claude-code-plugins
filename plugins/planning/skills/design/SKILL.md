@@ -173,8 +173,9 @@ Open these threads when their trigger holds:
   reuse an existing seam before adding one, put any new seam as high in the stack as it can go, and
   aim for the fewest seams that cover the surface. The change→test-type mapping lives in
   `/testing:plan`'s classification table; cite it when the `testing` plugin is enabled, otherwise
-  apply standard test-design judgment. Confirm the seam sketch with the user before design output
-  is finalized.
+  apply standard test-design judgment. The sketch is input, not the decision: `/planning:plan`'s
+  Test strategy names the test boundaries from it and its Step 5 approval settles them; a seam the
+  design needs as a contract still goes in Contracts.
 
 **Variation-point pass.** Always for `integration`, `module`, and `system`; for `library` and
 `data`, when the design touches an external system or a domain category. List every variation
@@ -456,9 +457,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-- The design is finished: /planning:design-handoff gates it and writes it into PLAN.md's `## Design` for /planning:plan.
-- A name is still undecided: /naming:name-it-better.
-- A resolved decision is worth keeping: /architecture:record-decision.
+/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design`, which
+/planning:plan reads.
 
 ## Relationship to other skills
 
@@ -467,6 +467,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | `/planning:interview` | **Before.** Locks the brief (scope + constraints); design explores the solution space within them |
 | `/domain-driven-design:curate-language` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
+| `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
+| `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
 | `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what SHOULD exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Gathers external facts; deferred research items can run in parallel |

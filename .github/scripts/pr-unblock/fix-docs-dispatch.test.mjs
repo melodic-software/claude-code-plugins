@@ -52,7 +52,7 @@ const history = (counts = [], earlier = counts.map(() => 0)) => ({
   },
 });
 
-function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), runJobs = new Map() } = {}) {
+function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map(), reviewComments = new Map(), runJobs = new Map() } = {}) {
   const calls = { history: [], dispatch: [], jobs: [] };
   return {
     calls,
@@ -69,6 +69,13 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
+    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
+    async listReviewComments(number) {
+      return reviewComments.get(number) ?? [];
+    },
+    async listReviews() {
+      return [];
     },
     async listDocsFixCandidates({ after }) {
       const index = after === undefined ? 0 : Number(after);
@@ -174,6 +181,32 @@ test("needs-human from a lane escalation does not hold fix-docs, which never esc
   assert.equal(isHandled(record, CHECK, pr(16).headRefOid), false, "a held PR is not done");
 });
 
+test("a person's inline review-thread reply since a lane escalation holds fix-docs; a bot's does not", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const reply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" }];
+  const gated = { labels: { nodes: [{ name: "needs-human" }] } };
+  const { api, lines } = await run(
+    {
+      pages: [[pr(17, gated), pr(18, gated)]],
+      comments: new Map([
+        [17, escalation],
+        [18, escalation],
+      ]),
+      labelEvents: new Map([
+        [17, labeledBy(APP_USER)],
+        [18, labeledBy(APP_USER)],
+      ]),
+      reviewComments: new Map([
+        [17, reply({ login: "kyle-sexton", id: 153232337, type: "User" })],
+        [18, reply(APP_USER)],
+      ]),
+    },
+    { gateLabel: "needs-human", appSenderId: LANES_APP },
+  );
+  assert.deepEqual(numbers(api), ["18"]);
+  assert.ok(lines.includes("skip fix-docs #17: held by needs-human: a person commented or reviewed since needs-human went on"), lines.join("\n"));
+});
+
 test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the release App's and the standards-sync App's are not", async () => {
   const pulls = [
     pr(20, { author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP } }),
@@ -253,6 +286,24 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
     ],
   });
   assert.deepEqual(numbers(api), ["51"]);
+});
+
+test("a fix-docs run an outage lost before its check gets a fresh dispatch from this dispatcher, never a re-run", async () => {
+  const { api } = await run({
+    pages: [[pr(52)]],
+    workflowRuns: [{ id: 4, status: "completed", conclusion: "cancelled", display_title: "pr-refine fix-docs #52" }],
+  });
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "52", activity: "fix-docs", "dispatcher-run-id": "4242" } },
+  ]);
+});
+
+test("a fix-docs run that pushed its lanes App commit is left alone: its check is on the commit before the push", async () => {
+  // pr-refine.yml's push job runs after the report job posted the check on
+  // fix-docs-head, so a pushed run's check sits one commit below the new head.
+  const { api, record } = await run({ pages: [[pr(53)]], histories: { 53: history([0, 1]) } });
+  assert.deepEqual(numbers(api), []);
+  assert.ok(isHandled(record, CHECK, pr(53).headRefOid));
 });
 
 test("a failed history read counts as a failure and dispatches nothing for that PR", async () => {

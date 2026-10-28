@@ -17,6 +17,6 @@ This is complementary to `/planning:devils-advocate`. Review checks completeness
 When `review` is invoked after implementation diverged or stopped (a Major divergence, a falsified load-bearing assumption, a divergence note in the invocation), re-plan instead of only judging completeness:
 
 1. Read `DEVIATIONS.md` beside PLAN.md in the memory slice, or the divergence note the invocation carries. Name each entry that drives the re-plan.
-2. Re-check that the plan's Goal still serves the Brief's `### Problem`, and mark each `### Load-bearing assumptions` row the entries falsify by starting its Assumption cell with `FALSIFIED <date>:`.
+2. Re-check that the phases still serve the Brief's `### Problem` and `### Goal`, and mark each `### Load-bearing assumptions` row the entries falsify by starting its Assumption cell with `FALSIFIED <date>:`.
 3. Revise the affected phases. Route every change that displaces a user answer or adds an external effect through SKILL.md "Plan changes after the Brief"; append a dated scope-change note for the rest (SKILL.md "Mid-flight pivots").
 4. Dispatch the Step 3 fresh-context `plan-reviewer` on the revised plan and run the Step 4.7 outcome gate, then re-present it at Step 5 for approval. Implementation resumes only after that approval. On approval, change each `FALSIFIED <date>:` mark to `RETIRED <date>, re-plan approved:`, keeping the row as history.

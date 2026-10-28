@@ -307,6 +307,31 @@ def question_states(doc, r):
     return derive_states(doc, r)[0]
 
 
+def supersede_chains(doc):
+    """Per question id that supersedes another: every earlier question of its supersede chain as
+    {id, round, stage}, the chain's first question first (G6: a question re-issued twice keeps
+    its history). A cycle or an unknown id ends the walk. Never written to questions.json."""
+    by_id = {
+        q["id"]: q
+        for q in doc.get("questions") or []
+        if isinstance(q, dict) and isinstance(q.get("id"), str)
+    }
+    out = {}
+    for qid, q in by_id.items():
+        chain, seen, prev = [], {qid}, q.get("supersedes")
+        while isinstance(prev, str) and prev in by_id and prev not in seen:
+            seen.add(prev)
+            p = by_id[prev]
+            link = {"id": prev, "round": p.get("round", 1)}
+            if p.get("stage"):
+                link["stage"] = p["stage"]
+            chain.append(link)
+            prev = p.get("supersedes")
+        if chain:
+            out[qid] = chain[::-1]
+    return out
+
+
 def decision_value(e, recs):
     """What a decision settles, compared to tell a changed answer from a repeated one: an alt's
     key; an accept's or hedged accept's count of recommendation changes so far (accepting a
@@ -1034,6 +1059,7 @@ class Hub(LoopbackWatcher):
 
     def signature(self):
         user = self.user_settings()
+        listener = self.listener()
         return (
             mtime(self.questions),
             mtime(self.responses),
@@ -1043,11 +1069,11 @@ class Hub(LoopbackWatcher):
             mtime(self.dir / SESSION_JSON),
             mtime(self.layers.repo_file) if self.layers.repo_file else 0,
             mtime(Path(user)) if user else 0,
-            self.listener()["state"],
-            self.lease_view() is not None,
-            # The header's Live needs a waiter: a wait starting or ending inside the listen grace,
-            # with the lease held, moves neither field above.
-            self.waiters > 0,
+            listener["state"],
+            # The header reads Live only while a watcher waits, and a wait inside the listen
+            # grace leaves state and lease unchanged.
+            listener["waiters"] > 0,
+            listener["lease"] is not None,
         )
 
     def watched(self):
@@ -1074,10 +1100,13 @@ class Hub(LoopbackWatcher):
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             release_user_holds(q, r)
             derived, changed, waits, changed_by = derive_states(q, r)
+            chains = supersede_chains(q)
             # exporters imports server at module top
             from exporters import latest_decision
 
             for x in q.get("questions") or []:
+                if isinstance(x, dict) and x.get("id") in chains:
+                    x["supersedesChain"] = chains[x["id"]]
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
                     if x["id"] in changed:

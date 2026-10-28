@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
 import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
@@ -31,7 +32,7 @@ const head = ({ status = 200, used, reset = 1792748042, resource = "core" }) =>
   `X-Ratelimit-Used: ${used}\r\n\r\n`;
 
 function withDir(fn) {
-  const dir = mkdtempSync(join(tmpdir(), "api-budget-"));
+  const dir = tempDir("api-budget-");
   try {
     return fn(dir);
   } finally {
@@ -44,7 +45,7 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
   const result = spawnSync("bash", ["-c", `. "${LIB}"\n${script}`], {
     input,
     encoding: "utf8",
-    env: { PATH: path, RUNNER_TEMP: dir, ...RUNNER, ...env },
+    env: { PATH: path, RUNNER_TEMP: dir, TMPDIR: dir, ...RUNNER, ...env },
   });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status, signal: result.signal };
 }
@@ -186,6 +187,25 @@ test("the action emits each named token, the call count as an api-calls notice t
     );
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "costs=github-token-cost=28\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
+  }));
+
+test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
+  withDir((dir) => {
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
+    assert.ok(block, "ci-status emits its notices in one block");
+    const out = execFileSync("bash", ["-c", block[1]], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+    });
+    assert.equal(
+      out,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "::notice title=api-calls::github-token=2 not-modified=1\n",
+    );
+    // With no reading, no line, as the action skips a token with none.
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    assert.equal(execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }), "");
   }));
 
 // The shell port of the rate guard decides every shared vector as
@@ -495,7 +515,7 @@ test("the stop file reads the same in the shell and in Node: the stops each writ
     bash(dir, `api_budget_stop core ${now + 3600} x-ratelimit-reset one || :\napi_budget_stop '*' ${now + 60} retry-after two || :`);
     assert.deepEqual(readBoth(dir, now), { shell: until, node: until });
   });
-  const dir = mkdtempSync(join(tmpdir(), "api-budget-"));
+  const dir = tempDir("api-budget-");
   try {
     const answers = [
       new Response("{}", { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(now + 3600), "x-ratelimit-resource": "core" } }),
@@ -614,6 +634,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
+    "pr-merge.yml": { "post-merge-dispatch": "github-token" },
+    "intake-reenter.yml": { reenter: "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -669,6 +691,10 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
   assert.ok(block, "ci-status sets API_BUDGET_SH as a block scalar");
   const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
   assert.equal(carried, readFileSync(LIB, "utf8"));
+});
+
+test("ci-status emits the api-calls notice beside its api-budget notice", () => {
+  assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
 });
 
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post

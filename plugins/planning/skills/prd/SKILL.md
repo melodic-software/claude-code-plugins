@@ -186,7 +186,7 @@ Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; it happens in `/planning:design` as a design thread.
+Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
 
 Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 
@@ -199,7 +199,7 @@ After writing the PRD, recommend the next step by remaining ambiguity:
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
 - **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
-- **An open question waits on a stakeholder** → `/planning:questionnaire`, which sends it to the person who holds the answer
+- **An open question waits on a stakeholder** → also `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -304,9 +304,9 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 
 ## Next
 
-- PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
+- PRD locked: /planning:interview for the engineering contract.
+- PRD locked and the Brief already exists: /planning:design.
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
-- An open question waits on a stakeholder: /planning:questionnaire.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Gotchas

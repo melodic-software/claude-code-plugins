@@ -20,6 +20,7 @@ import copy
 import io
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -59,7 +60,6 @@ MISSING = {
     "earlierFails": [],
     "ignored": 0,
     "detail": None,
-    "headFail": None,
     "ineligible": None,
 }
 ALLOW = MISSING | {
@@ -470,6 +470,7 @@ class AnsweredTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.dir = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, True)
         self.answers_in = self.dir / "in.json"
         self.answers_out = self.dir / "out.json"
         self.world = World()

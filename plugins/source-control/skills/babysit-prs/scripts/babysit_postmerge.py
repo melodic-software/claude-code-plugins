@@ -56,7 +56,7 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -98,6 +98,11 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+# post-merge-dispatch also sends a red full run to post-merge-demotion-alert.yml
+# and records it in an artifact named `<prefix><run id>`, the one job and events
+# of the re-run record; `_Context.lane_alerted` reads it.
+LANE_ALERT_ARTIFACT = "pr-merge-alerted-"
+LANE_ALERT_EVENTS = LANE_RERUN_EVENTS
 # A record found once stays found: pr-merge.yml names a file here that holds
 # the records earlier checks proved (.github/scripts/pr-merge/lane-records.mjs
 # reads it from the last trusted pr-merge run's artifact). A record in it is
@@ -206,6 +211,9 @@ FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispa
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
+# `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
+# failed read (3) or rate limit (75) produces, so only it lets pr-merge.yml send.
+EXIT_NOT_ALERTED = 4
 
 IsHuman = Callable[[Any], bool]
 
@@ -305,6 +313,13 @@ class PostMergeVerdict:
     recover_dispatch: bool = False
     # When the earliest quarantine that excused a failing suite expires.
     excuses_expire_at: datetime | None = None
+    # Each pin the check read, by merge number (None: no pin), which a later
+    # tick reads again before it reuses the report (`idle_refusal`).
+    pins: Mapping[int, str | None] = field(default_factory=dict)
+    # When the earliest canary in a merge's window still running was created:
+    # it can still turn red and fail a merge judged verified, so a later tick
+    # lists runs back to it before it reuses the report (`idle_refusal`).
+    outstanding_since: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -374,6 +389,10 @@ class PostMergeVerdict:
             "branch": self.branch,
             "excusesExpireAt": (
                 self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
+            ),
+            "pins": {str(n): sha for n, sha in sorted(self.pins.items())},
+            "outstandingSince": (
+                self.outstanding_since.isoformat() if self.outstanding_since else None
             ),
         }
 
@@ -1090,6 +1109,7 @@ class _Context:
     excuses_expire_at: datetime | None = None
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+    replaced_cache: dict[int, bool] = field(default_factory=dict)
     # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
     # and the final records this check proved, which `save_lane_records` adds.
     lane_records_path: str | None = field(
@@ -1333,6 +1353,35 @@ class _Context:
             run.head_sha, self._branch_tip()
         )
 
+    def replaced(self, run: Run) -> bool:
+        """Whether `run` is one pr-require-checks.yml's main-dispatch
+        concurrency group cancelled while it waited, replaced by a newer
+        dispatch: attempt 1 cancelled with no job. It never ran, so it is no
+        signal at all, neither red nor pending; the run that replaced it holds
+        a later tip. A run cancelled once its jobs started stays red."""
+        if (
+            run.attempt != 1
+            or run.status != "completed"
+            or run.conclusion != "cancelled"
+        ):
+            return False
+        if run.id not in self.replaced_cache:
+            listing = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/actions/runs/{run.id}"
+                        "/attempts/1/jobs?per_page=1",
+                    ],
+                    f"run {run.id} attempt 1 jobs",
+                )
+            )
+            total = listing.get("total_count")
+            if not isinstance(total, int):
+                raise PostMergeReadError(f"run {run.id}: an unknown jobs listing")
+            self.replaced_cache[run.id] = total == 0
+        return self.replaced_cache[run.id]
+
     def _newest_on_branch(self, runs: list[Run]) -> Run | None:
         """The newest of `runs` on the branch (`on_branch`)."""
         return next(
@@ -1401,6 +1450,7 @@ class _Context:
                 if r.created_at < before
                 and r.head_branch == self.branch
                 and r.status == "completed"
+                and not self.replaced(r)
             ]
             newest = self._newest_on_branch(runs)
             self.baseline_cache[key] = (
@@ -1527,28 +1577,47 @@ class _Context:
             if self._carried_record(artifact, events):
                 self.lane_cache[artifact] = True
                 return True
-            repo = f"{self.owner}/{self.name}"
-            senders = self._lane_senders(repo, artifact)
-            if not senders and reread:
-                senders = self._lane_senders(repo, artifact)
-                if not senders:
-                    self.lane_empty.add(artifact)
-            found = False
-            for sender, item in senders.items():
-                if not isinstance(sender, int):
-                    continue
-                record = json_object(
-                    _read(
-                        ["api", f"repos/{repo}/actions/runs/{sender}"],
-                        f"run {sender}",
-                    )
-                )
-                if self._lane_sender(record, events):
-                    found = True
-                    self._prove(run, artifact, item, record)
-                    break
-            self.lane_cache[artifact] = found
+            proof = self._lane_proof(artifact, events, reread=reread)
+            if proof is not None:
+                self._prove(run, artifact, *proof)
+            self.lane_cache[artifact] = proof is not None
         return self.lane_cache[artifact]
+
+    def lane_alerted(self, run_id: int) -> bool:
+        """Whether post-merge-dispatch already sent full run `run_id` to
+        post-merge-demotion-alert.yml: its `pr-merge-alerted-<id>` artifact was
+        uploaded by a run `_lane_sender` accepts. A same-name artifact any
+        other run uploaded is no record. A failed read raises."""
+        return (
+            self._lane_proof(f"{LANE_ALERT_ARTIFACT}{run_id}", LANE_ALERT_EVENTS)
+            is not None
+        )
+
+    def _lane_proof(
+        self, artifact: str, events: frozenset[str], *, reread: bool = False
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """The first artifact named `artifact` whose uploading run passes
+        `_lane_sender`, with that run's record; None when no such run uploaded
+        one. With `reread`, an empty listing is read once more, and a second
+        empty one is noted in `lane_empty`. A failed read raises."""
+        repo = f"{self.owner}/{self.name}"
+        senders = self._lane_senders(repo, artifact)
+        if not senders and reread:
+            senders = self._lane_senders(repo, artifact)
+            if not senders:
+                self.lane_empty.add(artifact)
+        for sender, item in senders.items():
+            if not isinstance(sender, int):
+                continue
+            record = json_object(
+                _read(
+                    ["api", f"repos/{repo}/actions/runs/{sender}"],
+                    f"run {sender}",
+                )
+            )
+            if self._lane_sender(record, events):
+                return item, record
+        return None
 
     def _lane_senders(self, repo: str, artifact: str) -> dict[Any, dict[str, Any]]:
         """The runs that uploaded an artifact named `artifact`: each run's id
@@ -1897,6 +1966,7 @@ class _Tally:
     reruns: dict[int, Rerun] = field(default_factory=dict)
     flakes: dict[str, None] = field(default_factory=dict)
     unattributed: dict[str, None] = field(default_factory=dict)
+    outstanding: list[datetime] = field(default_factory=list)
 
 
 def _judge(
@@ -2012,15 +2082,13 @@ def _judge(
         elif state == PENDING:
             pending.append(f"{signal}-run-in-progress:{run.id}")
     for run in canaries:
-        if in_window(run) and ctx.outcome(run, attributable=False)[0] == RED:
-            failures.append(
-                Failure(
-                    SIGNAL_CANARY,
-                    merge,
-                    ctx.sighting(run),
-                    ctx.outcome(run, attributable=False)[1],
-                )
-            )
+        if not in_window(run):
+            continue
+        state, detail = ctx.outcome(run, attributable=False)
+        if state == RED:
+            failures.append(Failure(SIGNAL_CANARY, merge, ctx.sighting(run), detail))
+        elif state == PENDING:
+            tally.outstanding.append(run.created_at)
 
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
@@ -2039,6 +2107,7 @@ def _judge(
             if run_id not in listed
             and run.created_at <= deadline
             and run.actor in (LANE_DISPATCH_ACTOR, ctx.identity)
+            and not ctx.replaced(run)
         ]
         if missing:
             raise PostMergeReadError(
@@ -2122,6 +2191,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                and not ctx.replaced(run)
                 # Only a run that could be marked pays for the ancestry read,
                 # and one off the branch never reaches the affected set.
                 and ctx.on_branch(run)
@@ -2244,9 +2314,14 @@ def check(
             )
         ]
         # A listing filtered by branch name also returns runs on a tag named
-        # like the branch, whose red would be charged to the merge.
+        # like the branch, whose red would be charged to the merge. A run the
+        # concurrency group replaced before it started is no signal.
         full_runs = sorted(
-            (item for item in full_runs if ctx.on_branch(item[1])),
+            (
+                item
+                for item in full_runs
+                if ctx.on_branch(item[1]) and not ctx.replaced(item[1])
+            ),
             key=lambda item: item[1].created_at,
         )
         canary_runs = sorted(
@@ -2261,15 +2336,18 @@ def check(
             prefetch(
                 [m.number for m in merges if m.number in pinned_merges | optional_pins]
             )
+        pins = {
+            m.number: pinned_sha(m)
+            for m in merges
+            if pinned_sha and m.number in pinned_merges | optional_pins
+        }
         states = tuple(
             _judge(
                 merge,
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge)
-                if pinned_sha and merge.number in pinned_merges | optional_pins
-                else None,
+                pinned=pins.get(merge.number),
                 pin_required=merge.number in pinned_merges,
                 now=now,
                 tally=tally,
@@ -2300,6 +2378,8 @@ def check(
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
         excuses_expire_at=ctx.excuses_expire_at,
+        pins=pins,
+        outstanding_since=min(tally.outstanding, default=None),
     )
 
 
@@ -3314,6 +3394,51 @@ VERIFYING_WORKFLOWS = frozenset(
 )
 
 
+def _verifying_runs_unchanged(
+    repo: str, branch: str, *, created: datetime, since: datetime
+) -> bool:
+    """Whether no full or canary run on `branch` created at or after
+    `created` completed, or was re-run, at or after `since`, from one listing
+    per verifying workflow: every workflow's runs on a busy branch fill more
+    than one page in an hour or two. A run started since and still running
+    changes nothing yet. A listing that is not whole raises
+    `PostMergeReadError`."""
+    owner, name = _split_repo(repo)
+    floor = quote(
+        f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+    )
+    for workflow in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW):
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
+                    f"?branch={quote(branch, safe='')}&created={floor}&per_page=100",
+                ],
+                f"{workflow} runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            raise PostMergeReadError(f"{workflow} runs: the listing is not whole")
+        if any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        ):
+            return False
+    return True
+
+
+def _pending_merges(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [
+        m
+        for m in map(json_object, json_array(report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+
+
 def pending_runs_unchanged(
     repo: str,
     shared: policy.SharedPostMerge,
@@ -3321,23 +3446,21 @@ def pending_runs_unchanged(
     *,
     now: datetime | None = None,
 ) -> bool:
-    """Whether `check` would judge `shared`'s unverified merges as it did,
-    from one run listing: no full or canary run on `branch` created since the
-    earliest of them completed or was re-run since `computed_at` (less
-    `policy.SINCE_CLOCK_MARGIN`), none has passed `DISPATCH_DEADLINE`, after
-    which a missing dispatch or pin is a failure, and no quarantine that
-    excused a failing suite has expired (`excusesExpireAt`; an answer
-    without the field is False). Those are `_judge`'s time-based excuses. A
-    run started since and still running only stays pending. A listing that
-    cannot be read or is not whole, or an entry without a merge time, is
-    False."""
-    pending = [
-        m
-        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
-        if m.get("verified") is not True
-    ]
+    """Whether `check` would judge `shared`'s unverified merges as it did:
+    no full or canary run on `branch` created since the earliest of them
+    completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`; `_verifying_runs_unchanged`), none has
+    passed `DISPATCH_DEADLINE`, after which a missing dispatch or pin is a
+    failure, and no quarantine that excused a failing suite has expired
+    (`excusesExpireAt`; an answer without the field is False). Those are
+    `_judge`'s time-based excuses. The listing reaches back to the earliest
+    canary still running in a verified merge's window too
+    (`outstandingSince`; an answer without the field is False), which can
+    still turn red and fail it. A listing that cannot be read or is not
+    whole, or an entry without a merge time, is False."""
     report = shared.gate.report
-    if not pending or "excusesExpireAt" not in report:
+    pending = _pending_merges(report)
+    if not pending or not {"excusesExpireAt", "outstandingSince"} <= report.keys():
         return False
     now = now or datetime.now(UTC)
     try:
@@ -3347,32 +3470,136 @@ def pending_runs_unchanged(
             excuse is not None and now >= _time(excuse)
         ):
             return False
-        owner, name = _split_repo(repo)
-        created = quote(
-            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
-        )
-        payload = json_object(
-            _read(
-                [
-                    "api",
-                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
-                    f"&created={created}&per_page=100",
-                ],
-                "verifying runs",
-            )
-        )
-        runs = json_array(payload.get("workflow_runs"))
-        if payload.get("total_count") != len(runs):
-            return False
-        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
-        return not any(
-            run.get("path") in VERIFYING_WORKFLOWS
-            and run.get("status") == "completed"
-            and _time(run.get("updated_at")) >= since
-            for run in map(json_object, runs)
+        outstanding = report["outstandingSince"]
+        return _verifying_runs_unchanged(
+            repo,
+            branch,
+            created=earliest
+            if outstanding is None
+            else min(earliest, _time(outstanding)),
+            since=shared.computed_at - policy.SINCE_CLOCK_MARGIN,
         )
     except PostMergeReadError:
         return False
+
+
+# How much of `policy.SHARED_MAX_AGE` a report reused from an earlier tick
+# must have left: the merge gate (`assess`, per candidate) and the lane room
+# read the same report after post-merge-dispatch ends, and one past the age
+# sends them to the full check. Over 72 scheduled runs on 2026-10-26/27 the
+# gate ended a median 17.7 minutes after a reuse tick's check would start;
+# replayed on those runs, 10 minutes reuses as often as 5 and leaves fewer
+# gates past the age.
+IDLE_HEADROOM = timedelta(minutes=10)
+QUARANTINE_MARKER = "<!-- post-merge-quarantine "
+
+
+def _quarantine_touched(repo: str, since: datetime) -> bool:
+    """Whether any issue carrying a quarantine marker was opened, reopened,
+    closed or edited at or after `since`, in one listing; a full page counts
+    as touched. A read that fails raises `PostMergeReadError`."""
+    owner, name = _split_repo(repo)
+    stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    issues = json_array(
+        _read(
+            [
+                "api",
+                f"repos/{owner}/{name}/issues?state=all&since={stamp}&per_page=100",
+            ],
+            "issues changed since the report",
+        )
+    )
+    return len(issues) >= 100 or any(
+        "pull_request" not in issue
+        and QUARANTINE_MARKER in str(issue.get("body") or "")
+        for issue in map(json_object, issues)
+    )
+
+
+def idle_refusal(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    confirm_wait_minutes: int,
+    now: datetime | None = None,
+) -> str | None:
+    """Why a post-merge report an earlier pr-merge tick kept, which
+    `policy.settle_shared` already keeps (the same merges, floor and
+    demotion), may not stand for this tick's check, or None. It covers the
+    rest of what `check` reads that can move with no new lane merge:
+
+    - the report: passing (exit 0 or 5), with no hold, no full run or
+      re-run to start, no red run charged to no merge, no quarantine excuse
+      (`quarantines`, `excusesExpireAt`), a `_lane_reruns` read that did not
+      fail, and its pins recorded;
+    - its age: `IDLE_HEADROOM` short of `SHARED_MAX_AGE`, from the
+      `computedAt` of the check that made it, never re-stamped;
+    - an unverified merge past `DISPATCH_DEADLINE`;
+    - verifying runs: none completed since `computedAt` (less
+      `SINCE_CLOCK_MARGIN`) among those created since the earliest unverified
+      merge, the earliest canary still running in a merge's window
+      (`outstandingSince`), or the `_lane_reruns` lookback
+      (`red-main.confirm-wait-minutes` plus `FULL_RUN_ALLOWANCE`, once more
+      for a baseline run still going);
+    - quarantine issues: none carrying the marker changed since;
+    - pins: each recorded one reads the same again, so an edited, new or
+      deleted pin refuses.
+
+    Any read that fails refuses (`unreadable`)."""
+    report = shared.gate.report
+    now = now or datetime.now(UTC)
+    warnings = json_array(report.get("warnings"))
+    unsettled = (
+        (
+            report.get("ok") is not True or report.get("readable") is not True,
+            "not-passing",
+        ),
+        (report.get("hold") is not None, "hold"),
+        (report.get("needsDispatch") is not False, "needs-dispatch"),
+        (bool(json_array(report.get("reruns"))), "reruns"),
+        (bool(json_array(report.get("unattributed"))), "unattributed"),
+        (bool(json_array(report.get("quarantines"))), "quarantines"),
+        (report.get("excusesExpireAt", "") is not None, "excused"),
+        (
+            any(str(w).startswith("lane-rerun-unreadable") for w in warnings),
+            "lane-reruns-unread",
+        ),
+        (not is_json_object(report.get("pins")), "pins-unrecorded"),
+        ("outstandingSince" not in report, "outstanding-unrecorded"),
+        (
+            now + IDLE_HEADROOM - shared.computed_at > policy.SHARED_MAX_AGE,
+            "stale-soon",
+        ),
+    )
+    refusal = next((text for refused, text in unsettled if refused), None)
+    if refusal:
+        return refusal
+    since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+    try:
+        created = shared.computed_at - (
+            timedelta(minutes=confirm_wait_minutes) + 2 * FULL_RUN_ALLOWANCE
+        )
+        pending = _pending_merges(report)
+        if pending:
+            earliest = min(_time(m.get("mergedAt")) for m in pending)
+            if now > earliest + DISPATCH_DEADLINE:
+                return "dispatch-deadline"
+            created = min(created, earliest)
+        if report["outstandingSince"] is not None:
+            created = min(created, _time(report["outstandingSince"]))
+        if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
+            return "runs-changed"
+        if _quarantine_touched(repo, since):
+            return "quarantine-changed"
+        recorded = report["pins"]
+        reader = pin_reader(repo, shared.identity)
+        reader.prefetch(int(n) for n in recorded)
+        if {str(n): sha for n, sha in reader.pins.items()} != recorded:
+            return "pins-changed"
+    except (PostMergeReadError, ValueError) as exc:
+        return f"unreadable: {exc}"
+    return None
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:
@@ -3509,6 +3736,19 @@ def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) ->
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 2 if refusal else 0
+
+
+def _lane_alerted(repo: str, branch: str, run_id: int) -> int:
+    """`--lane-alerted`: 0 when `_Context.lane_alerted`, EXIT_NOT_ALERTED (4)
+    when not, 3 when a read failed. A rate limit exits 75 through babysit_gh,
+    and an uncaught exception exits 1: neither is 4, so neither sends."""
+    try:
+        owner, name = _split_repo(repo)
+        alerted = _Context(owner, name, "", branch=branch).lane_alerted(run_id)
+    except PostMergeReadError as exc:
+        print(f"lane-alerted {run_id}: {exc}", file=sys.stderr)
+        return EXIT_UNREADABLE
+    return 0 if alerted else EXIT_NOT_ALERTED
 
 
 def _judge_run(args: argparse.Namespace) -> int:
@@ -3660,6 +3900,17 @@ def main(argv: list[str] | None = None) -> int:
         help="with --judge-run: file or comment on each excused suite's quarantine issue",
     )
     mode.add_argument(
+        "--lane-alerted",
+        type=int,
+        metavar="RUN_ID",
+        help=(
+            "with --branch: exit 0 when pr-merge.yml's post-merge-dispatch on the "
+            "branch already sent full run RUN_ID to post-merge-demotion-alert.yml "
+            "(its pr-merge-alerted-<id> record, from a sender `_lane_sender` "
+            "accepts), 4 when not, 3 unreadable; read-only"
+        ),
+    )
+    mode.add_argument(
         "--preflight",
         action="store_true",
         help=(
@@ -3671,6 +3922,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
+    if args.lane_alerted is not None:
+        if not args.branch:
+            parser.error("--lane-alerted needs --branch")
+        return _lane_alerted(args.repo, args.branch, args.lane_alerted)
     if args.file_quarantine and args.judge_run is None:
         parser.error("--file-quarantine needs --judge-run")
     if args.judge_run is not None:

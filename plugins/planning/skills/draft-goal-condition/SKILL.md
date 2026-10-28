@@ -234,6 +234,13 @@ skill passes the condition as the launched session's `/goal`.
 or `ProposeGoal` resolves, never that either is present in their host. The four-part records live
 in [reference/native-goal.md](reference/native-goal.md).
 
+## Next
+
+- The person armed the condition and an approved plan runs in this session: /implementation:implement.
+- The person wants the run to go on while they are away: /session-flow:continue-in-background, which launches with the condition as the new session's `/goal`.
+- The lever routed to multi-window work with no tickets yet: /work-items:decompose.
+- The intent was too vague to name a structure or a content list: /planning:interview.
+
 ## Gotchas
 
 - **The limit is characters, not tokens.** The counter counts Unicode code points; do not
