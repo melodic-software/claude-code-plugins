@@ -169,6 +169,51 @@ class TestStopStatusUrl(Running):
         code, out, _ = share(self.d, "ensure-running")
         self.assertEqual((code, out["guestUrl"], out["resumed"]), (0, self.first["guestUrl"], True))
 
+    def test_stop_writes_a_one_guest_sessions_held_counts(self):
+        """#9069: a one-on-one session's counts are held until shutdown, and on Windows a TERM ends the process before
+        it runs; stop asks the server to shut down first, so they are written on every OS."""
+        guest = self.join("Ann")
+        summary = {"kind": "summary", "message": "pv=0a1b2c3d gap=5 use:vf-chat=2", "ua": "safari phone"}
+        self.assertEqual(call(self.guest_port(), "POST", "/api/client-log", summary, guest)[0], 200)
+        code, out, err = share(self.d, "stop")
+        self.assertEqual((code, "server" in out["stopped"]), (0, True), err)
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn(' summary-batch summaries=0 dropped=1 counts={"use:vf-chat":2} data=[]', log)
+
+    def test_stop_server_lets_the_server_exit_before_any_force_end(self):
+        """The shutdown route, not a TERM: by the time the fallback runs, the server has exited of itself."""
+        s, real, seen = self.session_record(), detached.stop, []
+
+        def stop(pid, marker, *args, **kwargs):
+            seen.append(detached.alive(pid, marker))
+            return real(pid, marker, *args, **kwargs)
+
+        with mock.patch.object(share_cli.detached, "stop", side_effect=stop):
+            self.assertTrue(share_cli.stop_server(self.d.resolve(), s))
+        self.assertEqual(seen, [False])
+        self.assertIsNone(share_cli.bridge.ping(s["port"]))
+
+    def test_stop_server_force_ends_a_server_whose_shutdown_request_fails(self):
+        s, real, seen = self.session_record(), detached.stop, []
+
+        def stop(pid, marker, *args, **kwargs):
+            seen.append(detached.alive(pid, marker))
+            return real(pid, marker, *args, **kwargs)
+
+        refused = share_cli.Refused(2, "the server did not answer")
+        with mock.patch.object(share_cli, "call", side_effect=refused), mock.patch.object(share_cli.detached, "stop", side_effect=stop):
+            self.assertTrue(share_cli.stop_server(self.d.resolve(), s))
+        self.assertEqual(seen, [True])
+        self.assertFalse(detached.alive(s["pid"], share_cli.SERVER_MARKER))
+        self.assertIsNone(share_cli.bridge.ping(s["port"]))
+
+    def test_the_shutdown_route_is_only_on_the_control_listener_and_needs_its_token(self):
+        s = self.session_record()
+        self.assertNotEqual(call(self.guest_port(), "POST", "/api/shutdown", {})[0], 200)
+        self.assertEqual(call(self.guest_port(), "POST", "/api/shutdown", {}, {"X-Shared-Token": s["token"]})[0], 404)
+        self.assertEqual(call(s["port"], "POST", "/api/shutdown", {})[0], 403)
+        self.assertTrue(share_cli.bridge.running(self.d.resolve(), s))
+
     def test_status_reports_round_people_queue_and_lease(self):
         self.join("Ann")
         code, st, _ = share(self.d, "status")

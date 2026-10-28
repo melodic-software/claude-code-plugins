@@ -108,6 +108,12 @@ D/audit-sessions/
   `excerpt` and `reason`. These findings never enter `data.findings` or `data.suggestions` and leave
   the exit code unchanged. `--judged` refuses `--write-report`, so a saved report never holds an
   excerpt.
+- With `--session`, `data.window` carries `session_ids` (the ids named) and `sessions_not_found`
+  (those with no record in the store). Metrics and findings cover only the named sessions, kept
+  whatever their class, while each row's `p90` and `baseline_stale` still come from every
+  interactive session in scope and window. The machine-wide and per-ticket metrics carry
+  `"not_applicable": true` with a null `value`, raise no finding and are listed in
+  `data.unchecked`. The drift check still reads every record. `--session` refuses `--write-report`.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.

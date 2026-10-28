@@ -5,6 +5,9 @@
 #
 #   scripts/check-affected.sh                 the lint checks
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
+#   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
+#                                             once (default: $CHECK_AFFECTED_JOBS,
+#                                             else one less than the core count)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
 #                                             stale-base check
@@ -88,11 +91,18 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") [--tests] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
+  echo "usage: $(basename "$0") [--tests] [--jobs N] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
   exit 2
 }
 
 run_tests=0
+# The selected suites run through run-plugin-tests.sh's job pool, which keeps
+# the suites in scripts/run-plugin-tests-serial.txt off the parallel group.
+# One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
+# (scripts/affected-tests.sh, #3694).
+cores="$(nproc 2>/dev/null || echo 2)"
+jobs="${CHECK_AFFECTED_JOBS:-$((cores > 1 ? cores - 1 : 1))}"
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=1
 fetch=1
 uncommitted=0
 base=
@@ -101,6 +111,12 @@ while (($#)); do
   --tests) run_tests=1 ;;
   --no-fetch) fetch=0 ;;
   --uncommitted) uncommitted=1 ;;
+  --jobs)
+    [[ $# -ge 2 ]] || usage
+    jobs="$2"
+    shift
+    ;;
+  --jobs=*) jobs="${1#--jobs=}" ;;
   --base)
     [[ $# -ge 2 && -n "$2" ]] || usage
     base="$2"
@@ -111,6 +127,7 @@ while (($#)); do
   esac
   shift
 done
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || usage
 
 tools="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || exit 2
 top="$(git -C "${CHECK_DATA_ROOT:-$tools}" rev-parse --show-toplevel 2>/dev/null)" || {
@@ -174,7 +191,7 @@ if ((uncommitted)); then
   # A shallow clone's boundary, so history walks stop where the clone does.
   [[ ! -f "$shallow" ]] || cp "$shallow" "$snap/tree/.git/shallow" || exit 2
   git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
-  args=(--base "$base" --no-fetch)
+  args=(--base "$base" --no-fetch --jobs "$jobs")
   ((run_tests)) && args+=(--tests)
   rc=0
   CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
@@ -396,8 +413,8 @@ fi
 # machine-paths step, and the types are the composite's default `extensions`
 # input, which that step does not override (scripts/check-affected-gates.test.sh
 # holds both to the workflow). The boundary, the five scans and the exemptions
-# repeat the composite's entry script as read at ci-workflows v0.65.15
-# (30b251532b2e9f7e0c4215e1dee5be0d3c688743); recheck them when the pin moves.
+# repeat the composite's entry script as read at ci-workflows v0.65.17
+# (81a603a6e2b0319428c981bf28f3fe923032afb2); recheck them when the pin moves.
 machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 machine_paths_excludes=(
   ':(exclude)plugins/guardrails/lib/path-detection/**'
@@ -583,7 +600,7 @@ elif ((run_tests)); then
   affected() {
     local rc=0 s pkg ex t n=0 missing=
     local -a pkgs=() exclusions=() node=() unrun=()
-    "$tools/scripts/affected-tests.sh" --run --base "$base" --write-not-run "$out.not-run" || rc=$?
+    "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&
@@ -631,7 +648,7 @@ elif ((run_tests)); then
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"
   else
-    run_check tests "scripts/affected-tests.sh --run --base $base" affected
+    run_check tests "scripts/affected-tests.sh --run --jobs $jobs --base $base" affected
   fi
 fi
 
