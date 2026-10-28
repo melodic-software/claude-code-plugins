@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -10,6 +9,7 @@ import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
 import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(HERE, "fixtures");
@@ -80,7 +80,7 @@ function fakeSleep() {
 
 let dir;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "trusted-trigger-"));
+  dir = tempDir("trusted-trigger-");
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -1952,6 +1952,41 @@ test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () =>
   await assert.rejects(github("GET", "/refused"), (error) => error.status === 403);
   await assert.rejects(github("POST", "/repos/o/r/dispatches", {}), (error) => error.status === 500);
   assert.equal(gh.sent.length, 3);
+  assert.deepEqual(gh.slept, []);
+});
+
+const ISSUE_QUERY = 'query($n: Int!) { repository(owner: "o", name: "r") { issue(number: $n) { title } } }';
+const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+
+test("createGitHub sends a GraphQL query that answered 502 or lost its socket again", async () => {
+  const gh = flaky([{ status: 502 }, dropped(), { status: 200, body: '{"data":{"ok":true}}' }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("POST", "/graphql", { query: ISSUE_QUERY, variables: { n: 1 } }), { data: { ok: true } });
+  assert.deepEqual(gh.sent, ["POST /graphql", "POST /graphql", "POST /graphql"]);
+  assert.deepEqual(gh.slept, [1000, 2000]);
+});
+
+test("createGitHub sends a GraphQL query again when a comment or the shorthand starts it", async () => {
+  const gh = flaky([dropped(), { status: 200, body: '{"data":{}}' }, dropped(), { status: 200, body: '{"data":{}}' }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await github("POST", "/graphql", { query: `# the closer\n${ISSUE_QUERY}` });
+  await github("POST", "/graphql", { query: "{ viewer { login } }" });
+  assert.equal(gh.sent.length, 4);
+});
+
+test("createGitHub sends a GraphQL mutation once, on a 500 and on a dropped socket", async () => {
+  const mutation = "mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }";
+  // A query document that also holds a mutation operation is a write.
+  const mixed = `${ISSUE_QUERY}\nmutation M { addStar(input: {}) { clientMutationId } }`;
+  // A `#` inside a string is not a comment, so it hides nothing after it.
+  const hashed = 'query Q { search(query: "#1", type: ISSUE, first: 1) { issueCount } } mutation M { addStar(input: {}) { clientMutationId } }';
+  const gh = flaky([{ status: 500 }, dropped(), dropped(), dropped()]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await assert.rejects(github("POST", "/graphql", { query: mutation, variables: { id: "t" } }), (error) => error.status === 500);
+  await assert.rejects(github("POST", "/graphql", { query: mutation, variables: { id: "t" } }), TypeError);
+  await assert.rejects(github("POST", "/graphql", { query: mixed, operationName: "M" }), TypeError);
+  await assert.rejects(github("POST", "/graphql", { query: hashed, operationName: "M" }), TypeError);
+  assert.equal(gh.sent.length, 4);
   assert.deepEqual(gh.slept, []);
 });
 

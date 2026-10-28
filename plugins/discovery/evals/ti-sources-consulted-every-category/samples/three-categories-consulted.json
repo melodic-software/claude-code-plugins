@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# INTENT: why MAX_RETRIES in src/client.py is 7\n\n| Section | File |\n|---|---|\n| What we found | INTENT-found.md#found |\n\n- found: MAX_RETRIES = 7 matches Northwind Acquiring's cap of 7 re-presentments per card per day.\n\n## Sources consulted\n\n- Source control: git log -p on src/client.py. Found bb317e4 \"fix: raise MAX_RETRIES to 7\".\n- Long-form documents: docs/ and any ADR or design doc. No relevant results.\n- Issue tracker: INC-2291 is cited, but no tracker interface resolves in this session. Unavailable, recorded as a gap.\n",
+      "why": "skill line form"
+    },
+    {
+      "answer": "## Sources consulted\n| Category | Searched | Result |\n|---|---|---|\n| Commits | git history of src/client.py | the raise MAX_RETRIES to 7 commit |\n| Docs | docs/README.md | nothing relevant |\n| Tickets | INC-2291 | could not reach any tracker; gap |\n",
+      "why": "table with synonyms"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Sources consulted\n\n- Source control: git log. Found the commit.\n- Long-form documents: docs/. Nothing.\n",
+      "why": "tracker line missing"
+    },
+    {
+      "answer": "## What we found\n\nNorthwind caps re-presentment at 7 (commit bb317e4).",
+      "why": "no Sources consulted part"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Section | File |\n|---|---|\n| Sources consulted | INTENT.md#sources |\n\n## Sources consulted\n\n- Source control: git log.\n\n## Docs and tracker\n\n- Long-form documents: none.\n- Issue tracker: unavailable.",
+      "why": "tracker and docs lines sit under a later heading"
+    }
+  ]
+}

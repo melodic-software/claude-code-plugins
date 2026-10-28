@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { parsePublicKey, sealBundle } from "../seal-lane-output/seal.mjs";
 import { generate } from "./keygen.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ACTION = readFileSync(path.join(HERE, "action.yml"), "utf8");
@@ -36,7 +36,7 @@ function sealedInputs(recipient, payloads, { runId = "42", jobId = "run", bundle
 
 // Runs open.mjs as the composite step does; returns its exit, log, output and env files, and the files it wrote.
 function runOpen(t, inputs, { runId = "42", runAttempt = "1" } = {}) {
-  const dir = mkdtempSync(path.join(tmpdir(), "open-"));
+  const dir = tempDir("open-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = path.join(dir, "github-output");
   const envFile = path.join(dir, "github-env");

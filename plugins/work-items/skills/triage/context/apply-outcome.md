@@ -21,7 +21,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Briefed, delegable | Write the brief per [`reference/agent-brief.md`](../../../reference/agent-brief.md) and its field rules (name by contract, describe the end state): behavioral contracts and named interfaces, **no file paths or line numbers**, apply labels + the autonomous-eligible role label (default `agent-ready`) |
 | Briefed, decision-defaulted | Same brief structure and field rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment whose next line is the answer's `Basis:` (the comment, not the brief, carries any `file:line`) |
 | Briefed, multi-surface mechanical stub | For mechanical-class (`work-class: mechanical`) work spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready`, the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief's name-by-contract rule still holds, name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
-| Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy, or a withheld consequential answer, stated as the open question plus the evidence that would settle it) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
+| Briefed, human-gated | Only for an item that meets the human-gated label test in [`../SKILL.md`](../SKILL.md) "Triage states". Same brief structure, plus which part of the test it meets and why (an undecided design choice is stated as the open question plus the evidence that would settle it); apply labels + the human-gated role label (default `needs-human`) |
 | Needs more info | `status:needs-info` + the needs-info comment below |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
@@ -118,7 +118,7 @@ outcome or lane edit.
 
 Step 3 posts it on a passed verification, before the label edit that applies `status: confirmed`.
 If the comment cannot be posted, apply no label. In an autonomous session it starts with the AI
-disclaimer.
+disclaimer when the setting resolves `true` ([`reference/ai-disclaimer.md`](../../../reference/ai-disclaimer.md)).
 
 ```markdown
 **Verified: <bug reproduced | request valid | PR behaves as described>**
@@ -139,7 +139,7 @@ checked and what it showed.
 Posted with the brief by every outcome that applies the autonomous-eligible role label, when
 `triage_objection_window_hours` resolved above 0. `<end>` is the post time plus that many hours, in
 UTC, written `YYYY-MM-DDTHH:MM:SSZ`. The marker line is first so the work-loop admission gate can
-find it; in an autonomous session the AI disclaimer follows it.
+find it; in an autonomous session the AI disclaimer, when the setting adds one, follows it.
 
 Post it before the label edit that applies the autonomous-eligible role label. If the comment
 cannot be posted, apply no label at all: the item keeps its raw marker and the next sweep retries

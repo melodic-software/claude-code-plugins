@@ -1074,6 +1074,7 @@ jobs:
       # changed since fails the step. Runs from the base copy, with the job's
       # read-only token, before the checkout below replaces it.
       - name: Write the issue for the skill
+        id: write-issue
         if: >-
           steps.go.outputs.run == 'true' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'skill'
@@ -1097,7 +1098,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1131,9 +1132,11 @@ jobs:
       # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
       # Head code can rewrite either copy, as it can the collector's; a
-      # forged sealer gains nothing the model job does not already hold.
+      # forged sealer gains nothing the model job does not already hold. It
+      # runs after a failed earlier step too (a write-issue refusal), so the
+      # carry step can still seal lane.json naming why the run never started.
       - name: Copy the patch collector and the output sealer from the base
-        if: steps.go.outputs.run == 'true'
+        if: always() && steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
@@ -1400,7 +1403,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1452,7 +1455,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1498,7 +1501,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1722,7 +1725,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -1870,7 +1873,14 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          # A run whose issue file was not written never started: issue-edited
+          # when the issue changed after its label (write-issue's refused
+          # output), issue-file for any other cause, so report-outcome names it.
+          LANE_CLASS: >-
+            ${{ steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
+            || steps.write-issue.outcome == 'failure' && 'issue-file'
+            || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class
+            || steps.act-fallback.outputs.lane-class }}
           LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets || steps.act-fallback.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
@@ -2489,9 +2499,10 @@ jobs:
               return stat.isFile() ? fs.readFileSync(file) : null;
             };
             let hit = null;
+            let scratch = null;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
-              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
+              scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               // The gate's commit, from this job's own token: the default
               // branch's tip now, never a run job output, which head code with
               // sudo on that runner could have forged.
@@ -2725,6 +2736,8 @@ jobs:
               }
             } catch (error) {
               hit = { label: `no finished scan (${error.name})`, credential: false };
+            } finally {
+              if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
@@ -2790,7 +2803,7 @@ jobs:
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
@@ -2818,7 +2831,7 @@ jobs:
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
@@ -2898,21 +2911,21 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  # PR mode: the scan job's refusal, as an artifact a job that succeeds
-  # uploads. A failed scan fails the caller's job for this whole workflow, and
-  # no documentation says a failed job's outputs reach a workflow_call
-  # caller, so the reply and verdict jobs download this marker by name
-  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
-  # it (a failed or cancelled scan published nothing); the scan's outputs
-  # only name an oversize patch. It reads nothing from the run job, so head
+  # The scan job's refusal, as an artifact a job that succeeds uploads. A
+  # failed scan fails the caller's job for this whole workflow, and no
+  # documentation says a failed job's outputs reach a workflow_call caller,
+  # so the reply and verdict jobs download this marker by name instead
+  # (address-feedback.mjs scanRefusal), and in issue mode so does
+  # report-outcome, which names the refusal in the issue's hand-back. The
+  # scan's own result decides it (a failed or cancelled scan published
+  # nothing); the scan's outputs only name an oversize patch. It reads nothing from the run job, so head
   # code can only fail the scan or add a marker, either of which hands the
   # round to a person. always(), since cancelled() is true once the scan was
   # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
     needs: scan
     if: >-
-      always() && inputs.issue-number == ''
-      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+      always() && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -3079,7 +3092,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Isolate the runner
         id: isolate
@@ -3098,7 +3111,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3124,7 +3137,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.9] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.31.8] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.31.7] - 2026-10-27
+
+### Changed
+
+- The `mcp-tools:audit` seed probe and its baseline rows move to the `mcp-tools` plugin's `probes/`, so no file under this plugin's `probes/` holds a path into another plugin ([#9927](https://github.com/melodic-software/claude-code-plugins/issues/9927)). `probes/baselines/listing-overlap.json` keeps the `skill-quality:check` rows unchanged. `reference/invocation-probes.md` and the `check` skill name where each seed probe set now lives and say to compare a plugin's score against that plugin's baseline; `score`'s no-resolvable-probe error no longer names `plugins/mcp-tools/...` as a seed path.
+
 ## [0.31.6] - 2026-10-25
 
 ### Changed

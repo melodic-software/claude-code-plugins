@@ -3,6 +3,18 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.8.4] - 2026-10-27
+
+### Added
+
+- `probes/audit.json`, the `/mcp-tools:audit` invocation probe set (against `mcp-tools:audit-posture`), and its `probes/baselines/listing-overlap.json` floor, moved unchanged from the `skill-quality` plugin so each probe set sits in the plugin it measures ([#9927](https://github.com/melodic-software/claude-code-plugins/issues/9927)). CI validates it with the other `plugins/*/probes` directories.
+
 ## [0.8.3] - 2026-10-25
 
 ### Changed

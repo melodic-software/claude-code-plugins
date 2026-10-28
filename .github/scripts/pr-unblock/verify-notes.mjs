@@ -18,33 +18,28 @@
 // pull request's first changed file when no note names one. Model text is
 // quoted as data in a text fence, never interpolated into a command.
 //
+// A PASS or PASS-NOTES posts nothing and resolves nothing. For an open pull
+// request still at the head it judged, it names that head in the
+// pass-head-sha output when a fail-note thread from an earlier head is still
+// open (address-feedback.mjs staleVerifyNotes); the dispatch job then sends
+// pr-unblock.yml, whose publish-feedback job resolves those threads as the
+// lanes App. Resolving a thread takes more than this job's token holds.
+//
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, ARTIFACT_NAME
-// (pr-verify-<pr>-<sha>-fail, then the head-ref digest write-verdict.mjs
-// adds, absent on an older verdict, then optionally `-i` and the verdict's
-// issue numbers) and
-// VERDICT_FILE (its verdict.json). Writes pr-number and head-sha outputs once
-// the notes are on the pull request, posted now or by an earlier run.
+// (pr-verify-<pr>-<sha>-<pass|pass-notes|fail>, then the head-ref digest
+// write-verdict.mjs adds, absent on an older verdict, then on a FAIL
+// optionally `-i` and the verdict's issue numbers: write-verdict.mjs NAME) and
+// VERDICT_FILE (its verdict.json). For a FAIL, writes pr-number and head-sha
+// outputs once the notes are on the pull request, posted now or by an earlier
+// run; for a pass, pass-head-sha as above.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { headRefDigest } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, MARKER_AUTHOR_ID, need, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
+import { createGitHubApi, MARKER_AUTHOR_ID, need, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
-// The name may end with `-i` and the issue numbers the verdict records,
-// ascending, each once, joined by dots (babysit_verify_evidence.NAME_RE);
-// `isFailName` checks the order.
-export const FAIL_NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail(?:-([0-9a-f]{16}))?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
-const ascending = (named) => {
-  const numbers = named?.split(".").map(Number) ?? [];
-  return numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
-};
-// The longest name FAIL_NAME allows (babysit_verify_evidence.NAME_MAX).
-export const NAME_MAX = 194;
-export const isFailName = (name) => {
-  const match = String(name).length <= NAME_MAX ? FAIL_NAME.exec(String(name)) : null;
-  return match !== null && ascending(match[4]);
-};
 // GitHub refuses a comment body over 65536 characters; leave room for the
 // framing (judgment).
 const BODY_MAX = 60000;
@@ -104,24 +99,43 @@ const sameIssues = (named, recorded) => {
 };
 
 export function readVerdict(name, text) {
-  const match = FAIL_NAME.exec(name ?? "");
-  if (!match || !isFailName(name)) {
-    throw new Error("the artifact name is not a pr-verify fail verdict");
+  const match = NAME.exec(name ?? "");
+  if (!match || !isVerdictName(name)) {
+    throw new Error("the artifact name is not a pr-verify verdict");
   }
+  const [, pr, head, kind, issues] = match;
+  const digest = /^-([0-9a-f]{16})/.exec(name.slice(`pr-verify-${pr}-${head}-${kind}`.length))?.[1];
   const verdict = JSON.parse(text);
   if (
-    verdict?.verdict !== "fail" ||
-    verdict.pr !== Number(match[1]) ||
-    verdict.head_sha !== match[2] ||
-    (match[3] !== undefined && headRefDigest(verdict.head_ref) !== match[3]) ||
-    (match[4] !== undefined && !sameIssues(match[4], verdict.linked_issues)) ||
-    typeof verdict.summary !== "string" ||
-    !Array.isArray(verdict.notes) ||
-    !verdict.notes.every((note) => typeof note === "string")
+    verdict?.verdict !== kind ||
+    verdict.pr !== Number(pr) ||
+    verdict.head_sha !== head ||
+    (digest !== undefined && headRefDigest(verdict.head_ref) !== digest) ||
+    (issues !== undefined && !sameIssues(issues, verdict.linked_issues))
   ) {
+    throw new Error("the verdict file does not record the verdict its name names");
+  }
+  if (kind !== "fail") {
+    return { pr: verdict.pr, head: verdict.head_sha, verdict: kind };
+  }
+  if (typeof verdict.summary !== "string" || !Array.isArray(verdict.notes) || !verdict.notes.every((note) => typeof note === "string")) {
     throw new Error("the verdict file does not record the fail its name names");
   }
-  return { pr: verdict.pr, head: verdict.head_sha, summary: verdict.summary, notes: verdict.notes };
+  return { pr: verdict.pr, head: verdict.head_sha, verdict: kind, summary: verdict.summary, notes: verdict.notes };
+}
+
+// For a pass: whether the pull request is open at the head it judged and
+// holds an open fail-note thread from another head. Reads only.
+export async function findStaleNotes({ api, verdict, log }) {
+  const { pr, head } = verdict;
+  const pull = await api.getPull(pr);
+  if (pull.state !== "open" || pull.head?.sha !== head) {
+    log(`skip: #${pr} is not open at head ${head}`);
+    return false;
+  }
+  const stale = staleVerifyNotes(await api.listThreads(pr), head);
+  log(`#${pr}: ${stale.length} open fail-note thread(s) from an earlier head than the ${verdict.verdict} at ${head}`);
+  return stale.length > 0;
 }
 
 export async function postNotes({ api, verdict, log }) {
@@ -160,8 +174,14 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      // Each answer's rate-limit reading, for the job-end api-budget notice.
+      fetch: rateLimitLatch.guard(globalThis.fetch),
     });
-  if (await postNotes({ api: client, verdict, log })) {
+  if (verdict.verdict !== "fail") {
+    if (await findStaleNotes({ api: client, verdict, log })) {
+      appendFileSync(env.GITHUB_OUTPUT, `pass-head-sha=${verdict.head}\n`);
+    }
+  } else if (await postNotes({ api: client, verdict, log })) {
     appendFileSync(env.GITHUB_OUTPUT, `pr-number=${verdict.pr}\nhead-sha=${verdict.head}\n`);
   }
   return 0;

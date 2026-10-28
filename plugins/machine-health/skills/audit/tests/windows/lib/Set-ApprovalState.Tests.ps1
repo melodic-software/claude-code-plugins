@@ -3,7 +3,8 @@
 <#
 .SYNOPSIS
 Tests for scripts/windows/lib/Set-ApprovalState.ps1 -- the sole writer of
-approvals.json and mutes.json (actions mute, unmute, approve, revoke).
+approvals.json and mutes.json (actions mute, unmute, approve, revoke,
+exclude-service, include-service).
 
 .DESCRIPTION
 Expected values come from the plan's "Resolver and state write" table: the
@@ -206,6 +207,141 @@ Describe 'Set-ApprovalState' -Tag 'lib' {
             $null = Set-ApprovalState -StateBase $script:base -Action approve -RemediationId 'clear-temp-files'
 
             @((Read-State 'approvals.json').check_overrides.services.service_exclusions) | Should -Be @('Spooler')
+        }
+    }
+
+    Context 'exclude-service and include-service' {
+        It 'creates check_overrides.services.service_exclusions in a new approvals.json' {
+            $out = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'Spooler'
+
+            $out.Changed | Should -BeTrue
+            $doc = Read-State 'approvals.json'
+            $doc.schema_version | Should -Be '1.0'
+            @($doc.check_overrides.services.service_exclusions) | Should -Be @('Spooler')
+        }
+
+        It 'appends to the list and keeps remediations, migration and noise_allowlist' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $seed = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":true,"notes":"n"}},' +
+            '"check_overrides":{"services":{"service_exclusions":["Spooler"]},' +
+            '"event-log-errors":{"noise_allowlist":[{"id":7,"provider_name":"p","reason":"r"}]}},' +
+            '"migration":{"migrated_from_todo_md":true}}'
+            [System.IO.File]::WriteAllText((Join-Path $script:stateDir 'approvals.json'), $seed)
+
+            $out = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'MSSQL$SQLEXPRESS'
+
+            $out.Changed | Should -BeTrue
+            $doc = Read-State 'approvals.json'
+            @($doc.check_overrides.services.service_exclusions) | Should -Be @('Spooler', 'MSSQL$SQLEXPRESS')
+            $doc.remediations.'clear-temp-files'.approved | Should -BeTrue
+            $doc.remediations.'clear-temp-files'.notes | Should -Be 'n'
+            $doc.migration.migrated_from_todo_md | Should -BeTrue
+            @($doc.check_overrides.'event-log-errors'.noise_allowlist).Count | Should -Be 1
+        }
+
+        It 'skips a name already listed in any case and leaves the file as it is' {
+            $null = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'Spooler'
+            $before = [System.IO.File]::ReadAllText((Join-Path $script:stateDir 'approvals.json'))
+
+            $out = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'SPOOLER'
+
+            $out.Changed | Should -BeFalse
+            [System.IO.File]::ReadAllText((Join-Path $script:stateDir 'approvals.json')) | Should -Be $before
+        }
+
+        It 'removes every entry matching in any case and keeps the others' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $seed = '{"schema_version":"1.0","remediations":{"restart-stopped-service":{"approved":true}},' +
+            '"check_overrides":{"services":{"service_exclusions":["spooler","WSearch","Spooler"]}}}'
+            [System.IO.File]::WriteAllText((Join-Path $script:stateDir 'approvals.json'), $seed)
+
+            $out = Set-ApprovalState -StateBase $script:base -Action include-service -ServiceName 'SPOOLER'
+
+            $out.Changed | Should -BeTrue
+            $doc = Read-State 'approvals.json'
+            @($doc.check_overrides.services.service_exclusions) | Should -Be @('WSearch')
+            $doc.remediations.'restart-stopped-service'.approved | Should -BeTrue
+        }
+
+        It 'refuses to include a service that is not excluded (<Case>) and writes nothing' -ForEach @(
+            @{ Case = 'not in the list'; Seed = '{"schema_version":"1.0","remediations":{},"check_overrides":{"services":{"service_exclusions":["WSearch"]}}}' }
+            @{ Case = 'no check_overrides'; Seed = '{"schema_version":"1.0","remediations":{}}' }
+        ) {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $path = Join-Path $script:stateDir 'approvals.json'
+            [System.IO.File]::WriteAllText($path, $Seed)
+
+            { Set-ApprovalState -StateBase $script:base -Action include-service -ServiceName 'Spooler' } |
+                Should -Throw -ExpectedMessage '*Spooler*service_exclusions*'
+
+            [System.IO.File]::ReadAllText($path) | Should -Be $Seed
+        }
+
+        It 'refuses <Case> for <Action> and creates no file' -ForEach @(
+            foreach ($action in 'exclude-service', 'include-service') {
+                @{ Action = $action; Case = 'no name'; Name = $null }
+                @{ Action = $action; Case = 'an empty name'; Name = '' }
+                @{ Action = $action; Case = 'a blank name'; Name = "  `t" }
+                @{ Action = $action; Case = 'a leading space'; Name = ' Spooler' }
+                @{ Action = $action; Case = 'a trailing space'; Name = 'Spooler ' }
+                @{ Action = $action; Case = 'a line break'; Name = "Spooler`nWSearch" }
+                @{ Action = $action; Case = 'a control character'; Name = "Spool`0er" }
+                @{ Action = $action; Case = 'a backslash'; Name = 'C:\Spooler' }
+                @{ Action = $action; Case = 'a forward slash'; Name = 'a/b' }
+                @{ Action = $action; Case = 'a 257-character name'; Name = 'x' * 257 }
+            }
+        ) {
+            { Set-ApprovalState -StateBase $script:base -Action $Action -ServiceName $Name } |
+                Should -Throw -ExpectedMessage '*-ServiceName*'
+            Test-Path -LiteralPath $script:stateDir | Should -BeFalse
+        }
+
+        It 'accepts a 256-character name' {
+            $name = 'x' * 256
+
+            $null = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName $name
+
+            @((Read-State 'approvals.json').check_overrides.services.service_exclusions) | Should -Be @($name)
+        }
+
+        It 'validates the schema before replacing, leaving an invalid file as it is' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $path = Join-Path $script:stateDir 'approvals.json'
+            $invalid = '{"schema_version":"1.0","remediations":{},"check_overrides":{"services":{"unknown":1}}}'
+            [System.IO.File]::WriteAllText($path, $invalid)
+
+            { Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'Spooler' } |
+                Should -Throw -ExpectedMessage '*approvals.schema.json*'
+
+            [System.IO.File]::ReadAllText($path) | Should -Be $invalid
+            @(Get-ChildItem -LiteralPath $script:stateDir -Filter '*.tmp').Count | Should -Be 0
+        }
+
+        It 'refuses <Action> when service_exclusions is not an array, leaving the file as it is' -ForEach @(
+            @{ Action = 'exclude-service' }
+            @{ Action = 'include-service' }
+        ) {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $path = Join-Path $script:stateDir 'approvals.json'
+            $invalid = '{"schema_version":"1.0","remediations":{},"check_overrides":{"services":{"service_exclusions":"Spooler"}}}'
+            [System.IO.File]::WriteAllText($path, $invalid)
+
+            { Set-ApprovalState -StateBase $script:base -Action $Action -ServiceName 'Spooler' } |
+                Should -Throw -ExpectedMessage '*not an array*'
+
+            [System.IO.File]::ReadAllText($path) | Should -Be $invalid
+        }
+
+        It 'waits for approvals.lock like the other actions' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $lock = Enter-RunLock -StateDir $script:stateDir -Name 'approvals'
+            try {
+                { Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'Spooler' -LockTimeoutSeconds 0 } |
+                    Should -Throw -ExpectedMessage '*approvals.lock*'
+            } finally {
+                $lock.Dispose()
+            }
+            Test-Path -LiteralPath (Join-Path $script:stateDir 'approvals.json') | Should -BeFalse
         }
     }
 

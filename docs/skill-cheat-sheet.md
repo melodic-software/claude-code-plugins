@@ -162,6 +162,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/code-tidying:audit-comment-residue`](../plugins/code-tidying/skills/audit-comment-residue/SKILL.md) | `code-tidying` | Classify code comments for history narration and session-reference residue |
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:dissolve-comments`](../plugins/code-tidying/skills/dissolve-comments/SKILL.md) | `code-tidying` | Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep |
+| [`/code-tidying:tidy-diff`](../plugins/code-tidying/skills/tidy-diff/SKILL.md) | `code-tidying` | Tidy one change's own lines before its commit, scoped by a file-and-line list |
 | [`/harness-ops:audit-mod-posture`](../plugins/harness-ops/skills/audit-mod-posture/SKILL.md) | `harness-ops` | Inventory installed and built-in mods with their hooks and calls, and the guard state |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
@@ -370,7 +371,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | --- | --- | --- | --- |
 | [`/bugs:scan`](../plugins/bugs/skills/scan/SKILL.md) | `bugs` | daily | Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only |
 | [`/harness-ops:audit-install-state`](../plugins/harness-ops/skills/audit-install-state/SKILL.md) | `harness-ops` | weekly | Audit a Claude Code install directory. What is there, what the product manages, what is stale |
-| [`/harness-ops:audit-native-overlap`](../plugins/harness-ops/skills/audit-native-overlap/SKILL.md) | `harness-ops` | weekly | Map native Claude Code surfaces against this repo's components and record human-gated verdicts |
+| [`/harness-ops:audit-native-overlap`](../plugins/harness-ops/skills/audit-native-overlap/SKILL.md) | `harness-ops` | weekly | Map native Claude Code surfaces against this repo's components and record owner-directed verdicts |
 | [`/harness-ops:audit-performance`](../plugins/harness-ops/skills/audit-performance/SKILL.md) | `harness-ops` | continuous | Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet, fan-out |
 | [`/harness-ops:audit-skill-visibility`](../plugins/harness-ops/skills/audit-skill-visibility/SKILL.md) | `harness-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/harness-ops:inventory`](../plugins/harness-ops/skills/inventory/SKILL.md) | `harness-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
@@ -385,7 +386,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/repo-fleet-hygiene:sync`](../plugins/repo-fleet-hygiene/skills/sync/SKILL.md) | `repo-fleet-hygiene` | weekly | Fast-forward canonical checkouts to the remote default branch |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
-| [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated items to resolution; hand untriaged intake to triage |
+| [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalations to resolution; list held PRs and post-merge failures; hand intake to triage |
 | [`/work-items:work-loop`](../plugins/work-items/skills/work-loop/SKILL.md) | `work-items` | continuous | Drain the backlog as a self-paced autonomous loop |
 
 <!-- cheatsheet:end -->

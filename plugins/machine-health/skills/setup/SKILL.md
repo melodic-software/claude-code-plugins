@@ -1,11 +1,11 @@
 ---
-description: "Configure the machine-health plugin for this machine. check (read-only, default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, and unmute findings. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
-argument-hint: "[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|unmute=<key>…]"
+description: "Configure the machine-health plugin for this machine. check (default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run; its one write refreshes a stale monthly wrapper copy, only on the owner's yes. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, unmute findings, and exclude services from restart. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
+argument-hint: "[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|exclude-service=<name>…]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|unmute=<key>…]`; the full set: `[check|apply|picks|schedule] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`, `picks` followed by the pasted `checkup-picks` payload, or `schedule`.
+**Arguments.** `[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|exclude-service=<name>…]`; the full set: `[check|apply|picks|schedule] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>|exclude-service=<name>|include-service=<name>]`, `picks` followed by the pasted `checkup-picks` payload, or `schedule`.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ existing files and offers updates rather than overwriting blind.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then applies
 the requested changes. When `apply` is given complete write arguments (`disable=`, `deprecate=`, `demote=`,
-`approve=`, `revoke=`, `unmute=`) it applies them non-interactively; with no arguments in an interactive session it runs
+`approve=`, `revoke=`, `unmute=`, `exclude-service=`, `include-service=`) it applies them non-interactively; with no arguments in an interactive session it runs
 the full interview below. Custom-check registration is inherently interactive (it authors a script)
 and always interviews. `picks` runs the check first, then the [`picks`](#picks-from-a-decision-page)
 steps below; it needs an interactive session, because every write waits for the owner's yes.
@@ -90,12 +90,13 @@ $pluginRoot, $stateRoot, $reportRoot, $payloadPath = @'
   **As of**: 2026-10-22. **Recheck trigger**: that section stops substituting in skill content or
   starts exporting the variables to the Bash or PowerShell tool.
 
-## `check` (read-only)
+## `check` (read-only, except one write on the owner's yes)
 
 The shipped catalog (`${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/checks.jsonc`) is the single
 source of truth for what checks exist and their defaults. **Read it first**, then read the existing
 overlay, approvals, and `<StateBase>/TODO.md` when present. Report a PASS/FAIL/INFO table with one
-suggested-action line per FAIL; modify nothing. The plugin ships a working zero-config default (the whole
+suggested-action line per FAIL; modify nothing but the stale wrapper copy step 6 offers to
+refresh. The plugin ships a working zero-config default (the whole
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
@@ -118,7 +119,8 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/approvals.schema.json` (shape and examples in
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`) and confirm each approval names a real remediation
    (`restart-stopped-service`, `clear-temp-files`). FAIL a malformed file or an approval for an
-   unknown remediation; otherwise report which remediations are approved.
+   unknown remediation; otherwise report which remediations are approved and which services
+   `check_overrides.services.service_exclusions` keeps `restart-stopped-service` from starting.
    **Finding mutes** (`<StateBase>/state/mutes.json`), in the same step: INFO when absent (nothing is
    muted). When present, validate against
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/mutes.schema.json` and FAIL a malformed file, a
@@ -154,18 +156,29 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -StateBase $stateRoot
    ```
 
-   FAIL when `WrapperCurrent` is false, or it throws: the copy is an older wrapper. Rerunning
-   `schedule` rewrites it.
+   FAIL when `WrapperCurrent` is false, or it throws: the copy is an older wrapper. When it is
+   false, offer to refresh the copy from the plugin's template, and only on the owner's own yes in
+   this conversation run, appended to the [roots block](#resolving-the-state-root):
+
+   ```powershell
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $null = Install-MonthlyRun -StateBase $stateRoot; Test-MonthlyRunCurrent -StateBase $stateRoot
+   ```
+
+   It rewrites the copy alone, never the task, and reports the new `WrapperCurrent`: PASS when
+   true, FAIL quoting the error when it throws or is still false. Without a yes, write nothing.
+   The refresh restarts the 35-day clock the no-status-file verdict above reads, so report that
+   verdict before offering it.
 
 ## `apply` (idempotent)
 
 Run `check` first. Then, if the invocation carries write arguments, apply each non-interactively;
-otherwise run the interview. After any write, re-read the target file and confirm the entry landed.
+otherwise run the interview. After any write, re-read the target file and confirm the entry landed
+(or, for a removal, is gone).
 Never report success on the write alone. Only write entries that differ from the shipped catalog, so
 the overlay stays minimal.
 
 **Non-interactive write paths** (named in the argument-hint; each targets a shipped check or
-remediation, so no interview is needed):
+remediation, a muted key or a service name the owner gave, so no interview is needed):
 
 - `disable=<check-id>`. Write `"enabled": false` for that check to the overlay.
 - `deprecate=<check-id>`. Write `"deprecated": true` plus a `deprecation_reason` (from a
@@ -178,8 +191,20 @@ remediation, so no interview is needed):
   (`Set-ApprovalState -Action revoke -RemediationId <id>`).
 - `unmute=<key>`. Remove the muted finding with that FindingKey (`<kind>:<16 hex>`) under every
   check id in `<StateBase>/state/mutes.json` (`Set-ApprovalState -Action unmute -FindingKey <key>`).
+- `exclude-service=<name>`. Add the service name to
+  `check_overrides.services.service_exclusions` in `<StateBase>/state/approvals.json`, so
+  `restart-stopped-service` never starts that service
+  (`Set-ApprovalState -Action exclude-service -ServiceName '<name>'`). A name already listed, in any
+  case, is skipped (`Changed` false).
+- `include-service=<name>`. Remove the service name, in any case, from that list
+  (`Set-ApprovalState -Action include-service -ServiceName '<name>'`); a name not listed throws.
 
-Approvals and mutes are written only through `Set-ApprovalState`, under the rule in
+A service name goes into the command in single quotes, as above, so `$` and a backtick in it stay
+literal. Before running anything, refuse a name holding a single quote (`'` or U+2018 to U+201B,
+each of which PowerShell reads as one) or a line break: the first would end the quoted string and
+the second the one-line command, so such a name never reaches the command line.
+
+Approvals, mutes and service exclusions are written only through `Set-ApprovalState`, under the rule in
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`, "Writing approvals and mutes".
 Run it appended to the [roots block](#resolving-the-state-root), replacing `<action> <arguments>`
 with the action and its arguments from the list above:
@@ -189,7 +214,8 @@ with the action and its arguments from the list above:
 ```
 
 A thrown error means nothing was written: report its message as the FAIL, never retry by editing
-the file. The re-read after the write confirms the entry landed.
+the file. The re-read after the write confirms the entry landed, or for `unmute=` and
+`include-service=` that it is gone.
 
 Reject an argument targeting an unknown check id, remediation or muted key with the same message
 `check` would give, rather than writing a dangling entry.
@@ -340,8 +366,7 @@ It prints the report folder the monthly runs will write to: show it to the owner
 `claude -p "/machine-health:audit on-demand --scheduled"` in auto mode under the wrapper's time
 limit (its `-TimeoutSeconds` default) and records each run in
 `<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). A plugin update that
-changes the wrapper leaves the copy stale, and `check` step 6 FAILs it; rerunning `schedule`
-rewrites it.
+changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offers the refresh.
 
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
@@ -365,7 +390,7 @@ rewrites it.
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -StateBase $stateRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
    ```
 
-   It copies the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
+   It writes the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
    earlier build left there. The wrapper runs only from that folder, never from the plugin install,
    which a plugin update replaces. Re-running this step refreshes the copy and replaces the task. Then show the owner the command the task will run:
    `(Get-ScheduledTask -TaskName 'machine-health monthly').Actions | Format-List Execute, Arguments`.
@@ -392,9 +417,10 @@ rewrites it.
 ## Output
 
 An updated `<StateBase>/catalog/checks.local.jsonc` (and `approvals.json` or `mutes.json` when
-approvals or mutes changed),
+approvals, service exclusions or mutes changed),
 plus a one-paragraph summary of what changed and how to re-run this setup to reconfigure. `check`
-alone reports the effective configuration and changes nothing.
+alone reports the effective configuration and changes nothing but a stale wrapper copy the owner said
+yes to refreshing.
 
 ## Next
 
@@ -406,6 +432,8 @@ alone reports the effective configuration and changes nothing.
 - Edit the shipped catalog or anything inside the plugin install directory. A plugin update
   replaces it; machine-local changes live only under `<StateBase>`.
 - Create a scheduled task without the owner's yes, or from any action but `schedule`.
+- Exclude or re-include a service the owner did not name in an `exclude-service=` or
+  `include-service=` argument.
 - Approve remediations silently. Every approval is an explicit user decision (an `approve=`
   argument, an interview yes, or a yes to one `picks` approval).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

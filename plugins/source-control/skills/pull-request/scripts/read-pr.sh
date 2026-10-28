@@ -37,7 +37,8 @@ die() {
   exit "$1"
 }
 
-LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit
+# isCrossRepository and headRepositoryOwner tell a fork's PR from the repository's own.
+LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit,isCrossRepository,headRepositoryOwner
 
 ACTION="${1:-}"
 case "$ACTION" in

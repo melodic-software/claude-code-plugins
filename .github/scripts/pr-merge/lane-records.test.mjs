@@ -7,8 +7,7 @@
 // its artifact id; and on any other failure nothing is written.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -17,10 +16,11 @@ import { main, nextRecords } from "./lane-records.mjs";
 
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-23T12:00:00Z");
-const dir = mkdtempSync(join(tmpdir(), "lane-records-"));
+const dir = tempDir("lane-records-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const sha = (id) => String(id).padStart(40, "a");
 const sender = (changes = {}) => ({

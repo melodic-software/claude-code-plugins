@@ -1,9 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml's
-  # `dispatch-full-run` starts one on main after every merge, whoever merged,
-  # collapsing a burst of merges into one run of the newest tip.
+  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
+  # for the merges since the last, whoever merged, at most one per 30 minutes,
+  # each of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -70,7 +70,8 @@ on:
 permissions:
   contents: read
 
-# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
+# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
+# CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
 # cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
 # the `ci-lanes` status once and finishes (see the `ci-status` job). The
@@ -83,16 +84,28 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches. A merge-group, schedule or dispatch run keeps the unique
-# `github.run_id` group, so it is never cancelled.
+# fork branches. A merge-group, schedule or other-branch dispatch run keeps
+# the unique `github.run_id` group, so it is never cancelled.
+#
+# A dispatch on main (pr-merge.yml's whole-suite run of main's tip) shares one
+# group with no `queue` key and `cancel-in-progress` false: one runs, one waits,
+# and a newer dispatch replaces the waiting one, which GitHub cancels before
+# any job starts. The newer one holds a later tip, so it covers every merge the
+# replaced one did. A running whole-suite run is never cancelled: the post-merge
+# check and post-merge-demotion-alert.yml read a cancelled run as red, and read
+# a replaced one (cancelled, no job) as no run. Only attempt 1 joins it: a
+# re-run keeps its own `github.run_id` group, so a newer dispatch can never
+# replace the one re-run a red run waits on.
 concurrency:
   group: >-
-    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    && 'pr-require-checks-main-dispatch'
+    || ((github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: true
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id)) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' || github.run_attempt != 1 }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -106,10 +119,10 @@ concurrency:
 # JOBS ARE NAMED <verb>-<domain>, AND THE JOB ID IS THE CHECK NAME. The verb
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
-# what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
+# what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
-# `select-tests`, nine working jobs,
-# `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
+# `select-tests`, ten working jobs,
+# `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
@@ -117,7 +130,8 @@ concurrency:
 # step keeps its `id`, its aggregator key, in whichever job it runs.
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
-# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain. The
+# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain, or
+# when a job that outgrows its timeout is split (see the timeout rule). The
 # three test lanes are jobs for a different reason: each runs only when the
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
@@ -134,7 +148,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
+# and check-catalog, split from one job whose wall was 99 to 125 s over the
+# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
+# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
+# checkout included) in the 125 s run, 3 each;
+# check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
@@ -352,7 +370,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           filters: |
             shell:
@@ -870,7 +888,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -887,7 +905,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/typos@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -910,7 +928,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -925,7 +943,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: lychee.toml
           exclude: >-
@@ -935,7 +953,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .editorconfig-checker.json
 
@@ -949,13 +967,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -963,7 +981,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -975,12 +993,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1013,12 +1031,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1166,6 +1184,17 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
+      # Every upload-artifact step keeps its artifact for the days its family's
+      # row in .github/artifact-retention.json names. Parses workflows with the
+      # yaml package the runner-policy install above provides, so it gates on
+      # the workflows filter group, which holds the table.
+      - name: Check every artifact upload matches the retention table
+        id: artifact_retention
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
+        run: scripts/check-artifact-retention.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1202,6 +1231,7 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
+            artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -1469,7 +1499,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1500,14 +1530,17 @@ jobs:
 
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
-  # gates, the hook-declaration gates, `claude plugin validate`, the
-  # rendered-view HTML assets, the performance counter ceilings, and the
-  # shared-library copy gates with their delivery checks.
+  # gates, the hook-declaration gates, the performance counter ceilings, the
+  # cross-plugin drift check, and the delivery checks of the shared-library
+  # copies. The steps that read the root npm install (`claude plugin validate`
+  # and the rendered-view HTML assets), with the copy and prerequisite gates
+  # moved beside them, are `check-catalog`'s: as one job the two took up to
+  # 125 s against a 3-minute cap that holds a p95 of at most 120.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements. Node and the root npm install follow, gated like the steps
-  # that read them. The manifest schema steps run last: their composite leaves
-  # uv on PATH for every later step.
+  # requirements, then the manifest schema steps, whose composite leaves uv on
+  # PATH for every later step. Node follows for the counter ceilings, gated
+  # like the steps that read it.
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
@@ -1900,7 +1933,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1908,7 +1941,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -1928,10 +1961,159 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh manifest-duplicate-keys {0}
         run: python3 scripts/check-manifest-duplicate-keys.py
 
+      # Node for the counter ceilings, whose hook rows start each hook through
+      # its node launcher. They read no root npm install: that is
+      # `check-catalog`'s. Gated like that step, so a docs-only diff does not
+      # pay for it.
+      - name: Set up Node
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      # The shared-library delivery checks (ADR 0019): a change to a canonical
+      # bumps every carrying plugin. That the copies match their canonical is
+      # checked in `check-catalog`. The bump checks need a base ref, so they
+      # return early off a pull request rather than diffing against a ref that
+      # does not exist.
+      - name: Verify carrying plugins bumped when a generated copy's canonical changed
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
+      - name: Verify contract, changelog, and carrying plugins bumped together
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
+
+      - name: Check for unregistered or drifted cross-plugin source clusters
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-cross-plugin-source-drift.sh --check
+
+      # Counter ceilings from .performance/ratchets.json: each counter's command
+      # runs and the step fails when one rises above its checked-in ceiling.
+      # Counters only, never durations, so the answer does not move with runner
+      # load. A lower count is lowered in the file by hand in the same PR
+      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. The hook counters run through scripts/hook-census.sh under
+      # strace, so its suite runs first here: no other lane runs a scripts/
+      # suite that needs strace. The counts depend on the image's bash, git, jq
+      # and coreutils, so the versions are printed beside every check: an ABOVE
+      # after an image bump reads in one log. The js-complexity-share counter
+      # runs lizard from the pinned install above (.github/requirements-ci.txt),
+      # and its version is printed the same way.
+      - name: Check performance counter ceilings
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: |
+          bash scripts/hook-census.test.sh
+          bash scripts/hook-census.sh --versions
+          echo "lizard $(lizard --version)"
+          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
+
+      - name: Report not applicable to a docs-only diff
+        if: needs.select-tests.outputs.run_tests == 'false'
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the shared-library bump checks, the cross-plugin drift check and the counter ceilings cannot be affected — reporting success."
+
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          # The feed's rules are stated on the one in `lint-repo`; the docs-only
+          # gate pins them on every job.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          STEP_LOG_CHECKS: marketplace-schema plugin-schema
+          CHECK_RESULTS: |
+            userconfig-argv=${{ steps.userconfig_argv.outcome }}
+            hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
+            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
+            hooks-description=${{ steps.hooks_description.outcome }}
+            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
+            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
+            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
+            changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
+            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
+            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
+            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
+            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
+            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
+  # THE PLUGIN CHECKS THAT READ THE ROOT NPM INSTALL: `claude plugin validate`
+  # over the plugins and the catalog (with the contract, catalog, cheatsheet
+  # and native-overlap drift checks and the mod tests scripts/validate-plugins.sh
+  # runs) and the rendered-view HTML assets, plus the shared-library copy and
+  # declared-prerequisite gates, which moved with them and need Node at most.
+  #
+  # ITS OWN JOB BECAUSE OF THE 3-MINUTE CAP. Inside `check-plugins` these
+  # steps took 54 s of a job that ran 99 to 125 s on the scheduled runs of
+  # 2026-10-23 to 10-26, and 1.5 x 125 is over 180. Apart, each job's steps,
+  # its own setup and checkout included, summed to under 80 s on the slowest
+  # of those runs. Neither job sets the critical path, which `check-skills`
+  # holds: this is the split the timeout rule asks of a job that outgrows its
+  # cap, not a domain that shortens the critical path.
+  #
+  # Every step, the checkout included, is gated like the steps that read the
+  # install, so a docs-only diff pays for no checkout or install. None is a
+  # `continue-on-error` gate: each fails the job directly, so this job has no
+  # aggregator feed.
+  #
+  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  check-catalog:
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The plugin validation diffs against the lane base and against
+      # origin/<base_ref>, which this fetches on a pull request.
+      - name: Fetch base
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+
+      # The pinned interpreter for the native-overlap registry checks
+      # scripts/validate-plugins.sh runs. They read no package, so nothing is
+      # installed into it.
+      - name: Set up Python
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+
       # The root npm install, for the steps below that read it: htmlhint and the
-      # claude CLI from node_modules/.bin, and node for the prerequisite gate
-      # and the counter ceilings. Gated like those steps,
-      # so a docs-only diff does not pay for it.
+      # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -1992,12 +2174,10 @@ jobs:
           fi
 
       # The shared-library gates (ADR 0019). Every per-plugin copy is generated
-      # from one canonical source by scripts/sync-shared-copies.sh.
-      # CI only verifies: the copies match their canonical, and a change to a
-      # canonical bumps every carrying plugin. The libraries' own suites are
-      # corpus suites, reached by the selector. The bump checks need a base
-      # ref, so they return early off a pull request rather than diffing against a ref
-      # that does not exist.
+      # from one canonical source by scripts/sync-shared-copies.sh, and CI only
+      # verifies that the copies match their canonical. That a change to a
+      # canonical bumps every carrying plugin is checked in `check-plugins`. The
+      # libraries' own suites are corpus suites, reached by the selector.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
@@ -2007,92 +2187,10 @@ jobs:
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
-      - name: Verify carrying plugins bumped when a generated copy's canonical changed
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
-      - name: Verify contract, changelog, and carrying plugins bumped together
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
-
-      - name: Check for unregistered or drifted cross-plugin source clusters
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: scripts/check-cross-plugin-source-drift.sh --check
-
-      # Counter ceilings from .performance/ratchets.json: each counter's command
-      # runs and the step fails when one rises above its checked-in ceiling.
-      # Counters only, never durations, so the answer does not move with runner
-      # load. A lower count is lowered in the file by hand in the same PR
-      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job. A runner image change can also lower a count: the check log then
-      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
-      # in a PR. The hook counters run through scripts/hook-census.sh under
-      # strace, so its suite runs first here: no other lane runs a scripts/
-      # suite that needs strace. The counts depend on the image's bash, git, jq
-      # and coreutils, so the versions are printed beside every check: an ABOVE
-      # after an image bump reads in one log. The js-complexity-share counter
-      # runs lizard from the pinned install above (.github/requirements-ci.txt),
-      # and its version is printed the same way.
-      - name: Check performance counter ceilings
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: |
-          bash scripts/hook-census.test.sh
-          bash scripts/hook-census.sh --versions
-          echo "lizard $(lizard --version)"
-          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the plugin validation, the shared-library sync gates and the counter ceilings cannot be affected — reporting success."
-
-      - name: Aggregate hygiene results
-        if: always()
-        env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
-          CHECK_RESULTS: |
-            userconfig-argv=${{ steps.userconfig_argv.outcome }}
-            hook-exec-form=${{ steps.hook_exec_form.outcome }}
-            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
-            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
-            hooks-description=${{ steps.hooks_description.outcome }}
-            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
-            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
-            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
-            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
-            changelog-parity=${{ steps.changelog_parity_check.outcome }}
-            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
-            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
-            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
-            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
-            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
-            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
-            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
-            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
-        run: scripts/aggregate-hygiene-results.sh
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
@@ -2308,7 +2406,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2542,7 +2640,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2575,27 +2673,80 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
+      # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+      # hosted image does not carry. Both come from BtbN's static GPL build (the
+      # Linux static build ffmpeg.org links; GPL for libx264), a month-end tag BtbN
+      # keeps, checked against its published SHA-256 on every run. The archive is
+      # about 154 MB, so it has its own cache entry that only the demovideo leg
+      # restores and saves. The step timeout makes a stalled download fail here
+      # instead of spending the leg.
+      - name: Restore the pinned ffmpeg download
+        id: ffmpeg_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
+      - name: Install ffmpeg for demo-video
+        timeout-minutes: 2
+        env:
+          FFMPEG_RELEASE: autobuild-2026-09-30-13-08
+          FFMPEG_BUILD: n8.1.3-9-g29e619e767
+          FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
+        run: |
+          leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
+            { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
+          [[ "$leg_needs" == *demovideo* ]] || exit 0
+          asset="ffmpeg-$FFMPEG_BUILD-linux64-gpl-8.1.tar.xz"
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
+          cached="$HOME/.cache/ci-tools-ffmpeg/$asset"
+          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$cached" \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$asset"
+          echo "$FFMPEG_SHA256  $cached" | sha256sum -c - ||
+            { echo "::error::$asset does not match FFMPEG_SHA256"; exit 1; }
+          tar -xJf "$cached" -C "$HOME/.local/bin" --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          for tool in ffmpeg ffprobe; do
+            [ -x "$HOME/.local/bin/$tool" ] || { echo "::error::$asset holds no bin/$tool"; exit 1; }
+            line=$("$HOME/.local/bin/$tool" -version | sed -n 1p)
+            echo "$line"
+            [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
+          done
+      - name: Save the pinned ffmpeg download
+        if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy) and the inventory's parser packages go only on a leg whose suites
-      # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
-      # quiet: those suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
+      # inventory's parser packages go only on a leg whose suites need them,
+      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
+      # suites fail rather than skip without their dependency
+      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
+      # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # The animation lock must hold every pin its requirements.in declares, so an edit to
-          # the .in without regenerating the lock fails here instead of testing a stale lock.
-          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
-          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          # Each lock must hold every pin its requirements.in declares, so an edit to the .in
+          # without regenerating the lock fails here instead of testing a stale lock.
+          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+            stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
+                             <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
+            [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          done
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement plugins/animation/requirements.txt)
+          fi
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
@@ -2673,6 +2824,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
+          # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
+          DEMO_VIDEO_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
@@ -2748,7 +2901,19 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
+      # A stalled Chromium download can take minutes of this job's 7-minute limit, so the
+      # browser is cached under the locked playwright version (the lockfile hash) and a hit
+      # skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # The animation lock must hold every pin its requirements.in declares, so an edit to
           # the .in without regenerating the lock fails here instead of testing a stale lock.
@@ -2766,7 +2931,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests capture through the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -2786,6 +2956,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       - name: Run this leg's Python suites
         env:
           ANIMATION_REQUIRE_DEPS: '1'
@@ -3013,7 +3189,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3058,6 +3234,7 @@ jobs:
       - lint-repo
       - lint-shell
       - check-plugins
+      - check-catalog
       - check-skills
       - test-bash
       - test-python
@@ -3084,8 +3261,9 @@ jobs:
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six and the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25; its wall time is
-    # unmeasured, and a cold one can reach the cap, which fails red), about four
+    # reads and about 860 without them, measured 2026-10-25, up to 1,520 under
+    # the listing's caps; its wall time is unmeasured, and a cold one can reach
+    # the cap, which fails red), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
@@ -3093,7 +3271,9 @@ jobs:
     # (seconds; its retries replace the contents reads' 15 s each).
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
-    # calls), on top of the job's other reads.
+    # calls), and at most about 15 under the listing's caps (793 per-FAIL
+    # reads at 0.7 s, plus the whole listings' shared 300 s
+    # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
     timeout-minutes: 20
     env:
       # gh_read's wait budget: a rate-limit wait must end by
@@ -3104,10 +3284,12 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 300
-      # The lanes App's bot account id, which the trust-hold and lanes-hold
-      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
-      # checks it is merge.agent-identity's trusted-actor id).
-      LANES_APP_ID: 337595936
+      # The lanes App's bot account id, which the trust-hold, cost-hold and
+      # lanes-hold steps match a pull request author against. Its one source is
+      # the repository variable; each step that reads it fails closed or keeps
+      # its hold when it is not a numeric id, and the cost-hold and lanes-hold
+      # steps when it is not merge.agent-identity's trusted-actor id at the base.
+      LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -3190,6 +3372,11 @@ jobs:
         #                               with the same reset and resource, else na
         #   api_budget_emit_content     the notice for the job's content-creating
         #                               writes: count and most in any 60 s
+        #   api_budget_emit_calls <token>...
+        #                               the hub's api-calls notice for each token with
+        #                               a reading, `<token>=N not-modified=M`: N is
+        #                               the job's own calls, M its 304 answers, which
+        #                               GitHub does not count
         #
         # pr-require-checks.yml's ci-status job carries this file verbatim in its
         # API_BUDGET_SH env (it has no checkout of this directory);
@@ -3254,6 +3441,7 @@ jobs:
                   out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
                   command gh "$@" >"$out" || rc=$?
                   api_budget_observe "$out" "$pool" "gh $*" || rc=1
+                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
                   cat "$out"
                   rm -f "$out"
                   return "$rc"
@@ -3487,6 +3675,16 @@ jobs:
           return 0
         }
 
+        api_budget_emit_calls() {
+          local token file
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ && -s $file ]] || continue
+            awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
+          done
+          return 0
+        }
+
         api_budget_emit() {
           local token file where workflow=${GITHUB_WORKFLOW_REF:-}
           workflow=${workflow%%@*}
@@ -3602,7 +3800,7 @@ jobs:
           # the lane-scope step writes.
           { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -3730,7 +3928,8 @@ jobs:
       # image's default. The same checkout of the default branch holds the
       # merge queue's verdict reader as main has it: babysit_verify_evidence.py
       # with its sibling modules and its config parser, and the pr-merge
-      # scripts that start its run cache and read its head-ref map, with every
+      # scripts that start its run cache and read its head-ref map and
+      # carried artifact listing, with every
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
@@ -3747,6 +3946,7 @@ jobs:
             /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
+            /.github/scripts/pr-merge/listing-carry.mjs
             /.github/scripts/pr-merge/rotation.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
@@ -3759,10 +3959,11 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
-      # config names the human-gated label and the trusted-actor list names who
-      # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
-      # step runs. A sparse checkout of the three files at the base SHA
+      # config names the human-gated label, the trusted-actor list names who
+      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
+      # lanes App's id that LANES_APP_ID must equal; all are read at the base
+      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
+      # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
@@ -3785,6 +3986,7 @@ jobs:
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
+            /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3800,9 +4002,9 @@ jobs:
       #   lane's status job records (any attempt, on this branch), never from
       #   the hold comment, which anyone with write access can edit or delete.
       #   A pull_request run takes its workflow from the pull request, so a
-      #   run whose head changes either review-lane workflow from the base (or
-      #   whose comparison lists 300 files, the API's cap) could forge that
-      #   notice, and keeps the hold.
+      #   run in it or started before the decision whose head changes either
+      #   review-lane workflow from the base (or whose comparison lists 300
+      #   files, the API's cap) could forge that notice, and keeps the hold.
       # - No lanes App escalation comment (a `<!-- work-items:escalation`
       #   marker) was written or edited and no comment was deleted in it: a
       #   lanes App escalation adds no label event to a label already on. Its
@@ -3815,13 +4017,23 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   (the newest github-actions[bot] cost hold marker before it, while
-      #   never edited and no comment was deleted since it was posted; with
-      #   none, an edited one or a deletion since, no head) and a later head only when the pull request's net
-      #   change against its base branch is the same at both, so every change
-      #   since is a base merge (the base's merge-holds.mjs costMarker and
-      #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
-      #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
+      #   and a later head only when the pull request's net change against its
+      #   base branch is the same at both, so every change since is a base
+      #   merge (the base's merge-holds.mjs sameNetChange; owner decisions
+      #   Q17 c and Q18 d on #9436). The decided head is the `sha=` of the
+      #   newest cost hold notice a review lane's status job recorded before
+      #   the decision, read with the holds below from runs vetted the same
+      #   way and only where it names its own run's head; never a hold
+      #   comment, which any GITHUB_TOKEN workflow can post as
+      #   github-actions[bot]. With none, or two heads at that time, it covers
+      #   no head. Nor does it while the head branch's push history (the
+      #   repository activity API, which deleting a run leaves) shows a head
+      #   pushed after the decided head's last push and before the decision
+      #   with no run of every review lane started before the decision, since
+      #   a deleted run of a newer head would make an older notice the decided
+      #   head (the base's merge-holds.mjs unranHead, #10437); a history with
+      #   no push of the decided head before it, or a full page, covers none
+      #   too. The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -3843,7 +4055,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
@@ -3879,6 +4090,10 @@ jobs:
               | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
           fi
           actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
+          # A stale or mistyped variable would miss the lanes App's escalation below.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || keep "merge.agent-identity is unreadable"
+          jq -e --arg login "$identity" --argjson id "$LANES_APP_ID" '[.actors[] | select(.login == $login) | .id] == [$id]' <<<"$actors" >/dev/null ||
+            keep "AUTOMATION_LANES_APP_SENDER_ID is not $identity's trusted-actor id"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           # The window opens at the newest removal a trusted person made directly, not through an App.
@@ -3923,11 +4138,9 @@ jobs:
           fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
-          jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
-          jq '.data' <<<"$deleted" >"$RUNNER_TEMP/cost-hold-deleted.json" || keep "the deleted comments do not parse"
           # holds_js <function> <json-file>...: one function of the base's
           # merge-holds.mjs over the files. The module goes last: as the first
           # argument it would run as the command line.
@@ -3941,26 +4154,13 @@ jobs:
               console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
-          # carries <comment>: whether the decision comment covers HEAD_SHA:
-          # its decided head, from the newest cost hold marker before it and
-          # only while that marker was never edited and no comment was deleted
-          # since it was posted (the base's deletedSince, so deleting a newer
-          # marker cannot promote an older head), is HEAD_SHA, or the net
-          # change against the base branch is the same at both. No marker, an
-          # edited or unreadable newest marker, a deletion since it, an
+          # carries <decided>: whether a decision whose decided head is
+          # <decided> covers HEAD_SHA: it is HEAD_SHA, or the net change
+          # against the base branch is the same at both. No decided head, an
           # unusable base branch name or any read that fails carries nothing.
           carries() {
-            local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
-            jq '.created_at' <<<"$1" >"$at" || return 1
-            marker=$(holds_js costMarker "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
-            [ -n "$marker" ] || return 1
-            decided=$(jq -r '.sha' <<<"$marker") || return 1
+            local decided=$1 base_ref
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
-            # shellcheck disable=SC2016 # GraphQL variables, not shell
-            marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
-            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
-            jq '.at' <<<"$marker" >"$RUNNER_TEMP/cost-hold-marker-at.json" || return 1
-            [ "$(holds_js deletedSince "$RUNNER_TEMP/cost-hold-deleted.json" "$RUNNER_TEMP/cost-hold-marker-at.json")" = false ] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
@@ -4001,15 +4201,21 @@ jobs:
           # review lanes' hold step picks it; only it may carry.
           chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
             | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
-          decision='' decision_id=''
-          if [ -n "$chosen" ] && carries "$(jq -c .comment <<<"$chosen")"; then
-            decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
-          fi
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
-          # Every hold a review lane recorded in the window, as {at, criteria}.
-          holds='[]' vetted=''
+          [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head"
+          decided_at=$(jq -r '.at' <<<"$chosen") || keep "the decisions do not parse"
+          # Every hold notice a review lane's status job recorded in a run
+          # whose head is in this repository (a fork's same-named branch speaks
+          # for another pull request), updated in the window or started before
+          # the decision, as {at, criteria, sha, run}: `sha` as the notice
+          # names it, `run` the head its run ran on.
+          # `ran` lists, per lane, the heads of its runs from this repository
+          # started before the decision.
+          notices='[]' vetted='' ran='[]'
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
+            ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo and (.created_at | fromdateiso8601) < $decided) | .head_sha] | unique]' <<<"$runs") ||
+              keep "the $file runs do not parse"
             while read -r id sha; do
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
@@ -4023,17 +4229,42 @@ jobs:
                 vetted+=" $sha"
               fi
               jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100" --paginate) || keep "the jobs of run $id are unreadable"
-              for job in $(jq -nr --arg check "$check" --argjson since "$since" '[inputs.jobs[] | select(.name == $check
-                and .completed_at != null and (.completed_at | fromdateiso8601) > $since) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
+              for job in $(jq -nr --arg check "$check" '[inputs.jobs[] | select(.name == $check
+                and .completed_at != null) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
                 notes=$(read_api "repos/$repo/check-runs/${job%%/*}/annotations?per_page=100" --paginate) || keep "the annotations of job ${job%%/*} are unreadable"
-                holds=$(jq -nc --argjson holds "$holds" --arg at "${job#*/}" '$holds + [inputs[] | select(.annotation_level == "notice")
+                notices=$(jq -nc --argjson notices "$notices" --arg at "${job#*/}" --arg run "$sha" '$notices + [inputs[] | select(.annotation_level == "notice")
                   | .message | select(startswith("claude-lane-hold "))
-                  | {at: ($at | fromdateiso8601), criteria: (capture("^claude-lane-hold lane=[a-z-]+ sha=[0-9a-f]{40} criteria=(?<c>[a-z,-]+) label=").c // "unparsed")}]' \
+                  | (capture("^claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=(?<c>[a-z,-]+) label=") // {sha: "", c: "unparsed"}) as $m
+                  | {at: ($at | fromdateiso8601), criteria: $m.c, sha: $m.sha, run: $run}]' \
                   <<<"$notes") || keep "the annotations of job ${job%%/*} do not parse"
               done
-            done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
+            done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo)
+              | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
+          # The decided head: the sha of the newest cost notice before the
+          # decision that names its own run's head; none when two heads share
+          # that time.
+          decided=$(jq -r --argjson at "$decided_at" '[.[] | select(.at < $at and .sha == .run and any(.criteria | split(",")[]; . == "cost"))]
+            | (map(.at) | max) as $newest | [.[] | select(.at == $newest) | .sha] | unique
+            | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
+          # The decided head stands only while the head branch's push history
+          # shows a run of every lane on each head pushed since it before the
+          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          if [ -n "$decided" ]; then
+            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+              keep "the head branch's push history is unreadable"
+            printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
+            jq '.comment.created_at' <<<"$chosen" >"$RUNNER_TEMP/cost-hold-decided-at.json" || keep "the decisions do not parse"
+            gap=$(holds_js unranHead "$RUNNER_TEMP/cost-hold-activity.json" "$RUNNER_TEMP/cost-hold-ran.json" \
+              "$RUNNER_TEMP/cost-hold-decided.json" "$RUNNER_TEMP/cost-hold-decided-at.json") || keep "the head branch's push history could not be checked"
+            [ -z "$gap" ] || keep "$gap"
+          fi
+          carries "$decided" || keep "the body cites no recorded owner cost decision covering this head"
+          decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
+          holds=$(jq -c --argjson since "$since" '[.[] | select(.at > $since)]' <<<"$notices") || keep "the hold notices do not parse"
           verdict=$(jq -nr --arg label "$label" --argjson since "$since" --argjson holds "$holds" --argjson app "$LANES_APP_ID" \
             --slurpfile events <(printf '%s\n' "$events") --slurpfile comments <(printf '%s\n' "$comments") \
             --slurpfile deleted <(printf '%s\n' "$deleted") '
@@ -4076,10 +4307,13 @@ jobs:
       # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
       # read live, not from the event payload, which a later label event
-      # outdates. The reason is the newest review-lane hold comment's text: a
-      # `<!-- claude-lane-hold lane=` comment by claude[bot], or by
+      # outdates. The reason is the newest hold comment's text: a review
+      # lane's `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
-      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed.
+      # `claude-lane: <lane>` footer, or pr-merge's refusal, a
+      # merge.agent-identity comment with `<!-- babysit-merge-risk -->` on its
+      # first or second line, whose fenced reasons it names, so the error
+      # names the hold that set the label. Without one the error names none. An unreadable tracker config or label list fails closed.
       # It outputs the label's name, and `held=false` once the live labels
       # read without it, for the hold-lift step below. Pinned
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
@@ -4124,15 +4358,24 @@ jobs:
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
+          # The lanes App's login, best effort: unread, only the review lanes'
+          # hold comments name a reason.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
+          [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
           # gh-read-exempt: the reason is best effort; the step fails either way.
           reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-            --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+            --jq '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                   | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
+              or (.user.login == "'"$identity"'"
+                and ([.body | splits("\r?\n")][0:2] | map(gsub("^\\s+|\\s+$"; "")) | index("<!-- babysit-merge-risk -->") != null
+                  and index("<!-- work-items:escalation lane=pr-merge kind=escalated -->") != null))))
               | .body | @json' | tail -n 1 |
-            jq -r '[splits("[\r\n]+") | gsub("^\\s+|\\s+$"; "")
-              | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
+            jq -r '[splits("\r?\n") | gsub("^\\s+|\\s+$"; "")] as $lines | ($lines | index("\u0060\u0060\u0060text")) as $open
+              | if $open != null and ($lines[0:2] | index("<!-- babysit-merge-risk -->")) != null
+                then $lines[$open + 1:] | .[0:(index("\u0060\u0060\u0060") // length)] else $lines end
+              | [.[] | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
           why=
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
@@ -4305,7 +4548,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4619,7 +4862,9 @@ jobs:
       # so the lanes-hold step's reader reads only what landed since: about 73
       # requests for a lanes App pull request where a cold reader makes about
       # 860 (one run read and compare per FAIL and a download per untied
-      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. They
+      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
+      # most 1,520 under the listing's caps (the cold-read headroom check
+      # below states the derivation). They
       # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
       # finds it (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
@@ -4685,6 +4930,11 @@ jobs:
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
       # the vars context, no API read, and only the exact value `false` on
       # both proceeds. Every other author's pull request is not affected.
+      # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
+      # ci-status on each open lanes App pull request this failed, at most 3
+      # per half-hourly run, when ci-status was the run's only failed job on
+      # attempt 1 (its `switch` kind keys on the error's "the lanes kill
+      # switch is on" text, which reconcile.test.mjs pins here).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
@@ -4702,9 +4952,10 @@ jobs:
       # babysit_verify_evidence.py `evidence --base-sha <group base>` from
       # the .base checkout of main for the pull request at its head, the
       # reader enable-auto-merge armed it on, on a listing of its own (every
-      # page, saved to BABYSIT_VERIFY_LISTING) with pr-merge's head-ref map and
-      # carried run cache, so a FAIL uploaded after enable-auto-merge's one
-      # listing of its run still holds. Its report goes to merge-holds.mjs
+      # page, or the pages since pr-merge's last saved listing when they hold
+      # GitHub's live artifact count, saved to BABYSIT_VERIFY_LISTING) with
+      # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
+      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
@@ -4738,6 +4989,7 @@ jobs:
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -4751,10 +5003,27 @@ jobs:
           # exact value `false` lets a lanes App pull request merge.
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
+          # The id must be merge.agent-identity's entry in the base commit's
+          # trusted-actor list: a stale or mistyped variable would read the
+          # lanes App's pull request as another author's and skip every hold
+          # here and the trust hold's link rule. This step runs on every pull
+          # request and in the queue, so a mismatch turns ci-status red.
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
+              | if length == 1 then .[0] else error("not one entry") end' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::cannot read merge.agent-identity's trusted-actor id from the base commit's config; re-run this run."
+            exit 1
+          fi
+          if [ "$want" != "$LANES_APP_ID" ]; then
+            echo "::error::the job's LANES_APP_ID ($LANES_APP_ID, the AUTOMATION_LANES_APP_SENDER_ID variable) is not $identity's trusted-actor id ($want); correct the variable."
             exit 1
           fi
           pr=$PR_NUMBER
@@ -4790,7 +5059,7 @@ jobs:
             exit 0
           fi
           if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
-            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run."
+            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
             exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA
@@ -4865,12 +5134,29 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # pr-merge's last saved artifact listing: the reader lists only the
+            # pages since it and keeps that listing only when it holds GitHub's
+            # live artifact count, else lists every page, as with no file.
+            node "$PR_MERGE_SCRIPTS/listing-carry.mjs" || echo "::notice::no artifact listing from pr-merge's last run; the verdict reader lists every page."
             # A cold reader runs only with the headroom for it. With no carried
             # run cache, or one whose carried sections (carry-run-cache.mjs
-            # carry) are all empty, the reader reads every FAIL: about 860
-            # GITHUB_TOKEN requests, measured 2026-10-25, so a cold read costs
-            # 900. A missing cache is shared, so every entry the queue builds at
-            # once goes cold together: the cost counts max_entries_to_build of
+            # carry) are all empty, the reader reads every FAIL: 860
+            # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
+            # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
+            # listing is capped by babysit_verify_evidence.py: an incremental
+            # try on a carried listing (at most 13 pages, LISTING_CARRY_MAX_AGE),
+            # then LISTING_READS (3) whole listings, each up to
+            # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
+            # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
+            # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
+            # pages a whole listing (76 at the 7,522-artifact peak of
+            # 2026-10-27, plus one) a cold read costs at most
+            # 793 + 13 + 3 x (3 x 77 + 7) = 1,520; test_babysit_verify_evidence
+            # pins this figure to those caps. It covers this path only: an
+            # entry with a carried run cache but no carried listing pays the
+            # listing's part (up to 727) unguarded. A missing cache is shared,
+            # so every entry the queue builds at once goes cold together: the
+            # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
             # repos/<repo>/rules/branches/<base>, the largest any ruleset sets).
             # It runs when the core pool's remaining count, read once from
@@ -4899,12 +5185,12 @@ jobs:
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" \
-                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 900 * entries + int(floor * cap + 0.999999) }'); then
-                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (about 860 requests) is not started. Re-queue it."
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 1520 * entries + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to 1,520 requests) is not started. Re-queue it."
                 exit 1
               fi
               if [ "$remaining" -lt "$need" ]; then
-                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (900 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (1,520 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
                 exit 1
               fi
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
@@ -5004,7 +5290,7 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_content; }
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
@@ -5026,7 +5312,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

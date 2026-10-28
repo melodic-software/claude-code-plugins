@@ -3,6 +3,96 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.12.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [4.12.1] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [4.12.0] - 2026-10-27
+
+### Added
+
+- **`/harness-ops:plugins sync` offers to fast-forward a `directory` marketplace's checkout.**
+  When the checkout is clean, on a branch with an upstream, and only behind it, the report's
+  digest marks it `offered` and the skill asks once per marketplace. On a yes it reruns with
+  `--pull-source`: `sync-run.sh` checks the checkout again, runs `git pull --ff-only` before
+  the marketplace refresh, and the run goes on against the newer catalog, its `source:` row
+  naming the commits it moved from and to. The script refuses a dirty, detached, upstream-less,
+  ahead, diverged or current checkout with the reason and touches nothing, and a refused or
+  failed pull does not stop the run. The new `directory_source_pull` option takes `ask`
+  (default) or `never`; an autonomous or ambiguous session never asks or pulls, and the script
+  treats a set `CLAUDE_CODE_REMOTE` as `never` (#7454).
+- **The `autoUpdate: off` suggestion can be silenced.** Marketplaces named in the new
+  `quiet_auto_update_marketplaces` option render `autoUpdate: off` without the suggestion to
+  enable it; unset keeps it.
+
+### Fixed
+
+- `/harness-ops:morning-brief`: a queue count or stuck label whose search reads 0 is checked against the REST issue listing, which does not go through search ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)). When that listing reads more than 0 or fails, the label shows `count unavailable` on a `PARTIAL` line, and the Stuck section prints no all-clear.
+- `/harness-ops:lanes` restart consumer: the `Lane telemetry: <lane>` issue lookup reads REST `search/issues` and treats an answer whose `incomplete_results` is not `false` as a failed read, so the lane records `api-error` instead of `no-telemetry` when search is degraded ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)).
+
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
+## [4.11.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [4.11.1] - 2026-10-27
+
+### Changed
+
+- `audit-native-overlap` now says who writes a native-overlap verdict or dismissal: a person, or a session acting on the owner's recorded direction, and never an unattended run ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)). It used to say a person and never a run. The new wording is in the skill's statements of the rule, its `summary`, the `canonical-pairs.json` note, and these `overlap.py` texts: the view header, the generated Dismissed section's lead sentence, the `detect` report note and the `dismiss` help. A run of the skill still only recommends a verdict and never records one. The skill's evals are unchanged.
+
+## [4.11.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [4.10.4] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [4.10.3] - 2026-10-26
+
+### Changed
+
+- `context/gotchas.md` records why the user sweep stays serial: concurrent `claude plugin update` and `plugin uninstall` calls lose registry writes while exiting 0 (probe on Claude Code 2.1.310, #6309).
+
+## [4.10.2] - 2026-10-26
+
+### Fixed
+
+- `/harness-ops:changelog` `status`, `diff` and `apply` read the changelog page's current `**X.Y.Z**` release headings again instead of reporting `range: not computed`; the older `<Update label>` blocks still parse. One parser, `scripts/changelog-releases.sh`, now serves the status script, the `fetch` slice and the behavior-probes `recheck`.
+
+## [4.10.1] - 2026-10-26
+
+### Changed
+
+- **audit-performance:** the Token-leak reference now records the per-logon `ForegroundLockTimeout` workaround, applied after every logon because a third-party write-up reports that Windows resets the live value at logon; on the trial host a process that cannot take the foreground was refused the set. It also records the trial on one host and a before-baseline on build 26300.9711, where the leak still counts one token per creator.
+
+## [4.10.0] - 2026-10-26
+
+### Added
+
+- behavior-probes gains a `prints` outcome that judges the first line a slash command prints, a per-case `cli_args` list limited to allowed flags (today `--autocompact`), and `PROBE_MODEL` in a scaffold's environment. A `prints` case can name a control, and a control's own control now counts too.
+- A new `autocompact` area: four cases that run `/autocompact` with no argument and check which window wins between a project file's top-level and per-model `autoCompactWindow`, the `--autocompact` flag, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. Each case adds one element to the case it names as its control. They pass in the dry run and have not run live yet.
+
 ## [4.9.0] - 2026-10-26
 
 ### Added

@@ -6,12 +6,12 @@
 // window: GitHub's run listing returns at most 1,000 runs per filtered search
 // (REST "List workflow runs for a workflow"), so a range over that is split.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createBudget, listRuns, main, selectUnits, tailLog } from "./collect.mjs";
+import { createBudget, DETAIL_RESERVE, listRuns, main, selectUnits, tailLog } from "./collect.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const run = (id, path, conclusion, over = {}) => ({
   id,
@@ -141,7 +141,7 @@ function fakeRuns() {
   runs.push(run(40_001, WORKFLOWS[1].path, "failure", { created_at: at(TO + 1000) }));
   return runs;
 }
-function fakeGh(budget, runs = fakeRuns()) {
+function fakeGh(budget, runs = fakeRuns(), workflows = WORKFLOWS) {
   const calls = [];
   const call = async (path) => {
     budget.spend();
@@ -150,11 +150,11 @@ function fakeGh(budget, runs = fakeRuns()) {
     const page = Number(url.searchParams.get("page") ?? "1");
     const perPage = Number(url.searchParams.get("per_page"));
     if (url.pathname === "/repos/o/r/actions/workflows") {
-      return { total_count: WORKFLOWS.length, workflows: page === 1 ? WORKFLOWS : [] };
+      return { total_count: workflows.length, workflows: page === 1 ? workflows : [] };
     }
     const id = Number(/^\/repos\/o\/r\/actions\/workflows\/(\d+)\/runs$/.exec(url.pathname)?.[1]);
     const [a, b] = url.searchParams.get("created").split("..").map(Date.parse);
-    const path_ = WORKFLOWS.find((w) => w.id === id).path;
+    const path_ = workflows.find((w) => w.id === id).path;
     const matching = runs
       .filter((r) => r.path === path_ && Date.parse(r.created_at) >= a && Date.parse(r.created_at) <= b)
       .sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at));
@@ -175,20 +175,109 @@ test("the listing reads every run of the window, splitting a range the 1,000 cap
   assert.equal(runs.filter((r) => r.path === WORKFLOWS[0].path).length, 2500);
   assert.equal(runs.filter((r) => r.path === WORKFLOWS[1].path).length, 50);
   assert.ok(!runs.some((r) => r.path === WORKFLOWS[3].path), "the sweep's own runs never count");
-  // One per_page=1 count over the whole window per workflow the sweep reads.
+  // One call over the whole window per workflow the sweep reads: its first
+  // page of 100, which carries the count.
   for (const w of [1, 2, 3]) {
-    const counts = calls.filter((c) => c === `/repos/o/r/actions/workflows/${w}/runs?${fullWindow}&per_page=1`);
-    assert.equal(counts.length, 1, `workflow ${w}`);
+    const whole = calls.filter((c) => c.startsWith(`/repos/o/r/actions/workflows/${w}/runs?${fullWindow}&`));
+    assert.deepEqual(whole, [`/repos/o/r/actions/workflows/${w}/runs?${fullWindow}&per_page=100`], `workflow ${w}`);
   }
   assert.ok(!calls.some((c) => c.includes("/workflows/4/")));
-  // A workflow with no run costs its count alone; 50 runs cost the count and one page.
+  // No count-only call, and no range's page 1 read again: every page call
+  // goes on from a first page this range already read.
+  const runCalls = calls.filter((c) => c.includes("/runs?"));
+  assert.ok(!runCalls.some((c) => /[?&]per_page=1(&|$)/.test(c)));
+  assert.ok(!runCalls.some((c) => /[?&]page=1(&|$)/.test(c)));
+  for (const c of runCalls.filter((x) => /[?&]page=\d/.test(x))) {
+    assert.ok(runCalls.includes(c.replace(/&page=\d+$/, "")), c);
+  }
+  // A workflow with no run, or 50, costs its first page alone.
   assert.equal(calls.filter((c) => c.includes("/workflows/3/")).length, 1);
-  assert.equal(calls.filter((c) => c.includes("/workflows/2/")).length, 2);
-  assert.ok(budget.used <= 350 - 170, `${budget.used} calls`);
+  assert.equal(calls.filter((c) => c.includes("/workflows/2/")).length, 1);
+  assert.ok(budget.used <= 350 - DETAIL_RESERVE, `${budget.used} calls`);
+});
+
+test("the reserve covers the dearest unit mix: four A units, no D unit and four C units", async (t) => {
+  const dir = tempDir("lane-sweep-");
+  const trusted = join(dir, "trusted.json");
+  writeFileSync(trusted, JSON.stringify({ actors: [{ id: 1 }] }));
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  // Four workflows outside the lane pattern, five failed runs each.
+  const workflows = [1, 2, 3, 4].map((id) => ({ id, path: `.github/workflows/check-${id}.yml` }));
+  const runs = workflows.flatMap((w) =>
+    [0, 1, 2, 3, 4].map((i) => run(w.id * 100 + i, w.path, "failure", { created_at: at(FROM + i * 60_000) })),
+  );
+  const { gh } = fakeGh(createBudget(100), runs, workflows);
+  const pulls = Array.from({ length: 40 }, (_, i) => ({
+    number: i + 1,
+    user: { id: 1 },
+    head: { sha: `s${i}` },
+    labels: [],
+  }));
+  // Three full pages of open issues, the most the collector reads.
+  const issues = Array.from({ length: 100 }, (_, i) => ({ number: 1000 + i, title: "t", user: { id: 2 } }));
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const path = String(url).replace("https://api.test", "");
+    let body;
+    if (path.startsWith("/repos/o/r/actions/workflows")) body = await gh.call(path);
+    else if (path.includes("/pulls")) body = pulls;
+    else if (path.includes("/issues")) body = issues;
+    else if (path.includes("/annotations")) body = [];
+    else if (/\/actions\/runs\/\d+\/jobs/.test(path)) {
+      body = {
+        jobs: [1, 2, 3].map((j) => ({
+          id: j,
+          name: `job ${j}`,
+          conclusion: "failure",
+          check_run_url: `https://api.test/repos/o/r/check-runs/${j}`,
+          steps: [],
+        })),
+      };
+    } else body = { check_runs: [] };
+    return { ok: true, status: 200, json: async () => body, text: async () => "log" };
+  });
+  t.mock.method(console, "log", () => {});
+  // The listing: 1 workflow list and 4 first pages, each holding all its runs.
+  const budget = 5 + DETAIL_RESERVE;
+  await main({
+    env: {
+      REPOSITORY: "o/r",
+      OUT_DIR: dir,
+      GITHUB_OUTPUT: output,
+      GITHUB_API_URL: "https://api.test",
+      GITHUB_TOKEN: "x",
+      TRUSTED_ACTORS_PATH: trusted,
+      CALL_BUDGET: String(budget),
+    },
+    now: TO,
+  });
+  const out = readFileSync(output, "utf8");
+  const units = JSON.parse(/units<<(\S+)\n(.*)\n\1/.exec(out)[2]);
+  assert.deepEqual(units, ["a1", "a2", "a3", "a4", "c5", "c6", "c7", "c8"]);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "collect-status.json"), "utf8")), {
+    complete: true,
+    truncated: null,
+    partial: [],
+  });
+  assert.equal(/calls<<(\S+)\n(.*)\n\1/.exec(out)[2], String(budget));
+});
+
+test("the busiest workflow is listed first, so a short budget leaves the smaller ones part-read", async () => {
+  const runs = [
+    ...Array.from({ length: 450 }, (_, i) => run(10_000 + i, WORKFLOWS[0].path, "success", { created_at: at(FROM + i * 60_000) })),
+    ...Array.from({ length: 250 }, (_, i) => run(20_000 + i, WORKFLOWS[1].path, "failure", { created_at: at(FROM + i * 60_000) })),
+  ];
+  // 1 workflow list + 3 first pages, then pr-merge's pages 2 to 5 and one of ci's two.
+  const budget = createBudget(9);
+  const { gh } = fakeGh(budget, runs);
+  const { runs: read, partial } = await listRuns({ gh, repo: "o/r", from: FROM, to: TO, budget, reserve: 0 });
+  assert.equal(read.filter((r) => r.path === WORKFLOWS[0].path).length, 450);
+  assert.deepEqual(partial, [{ path: WORKFLOWS[1].path, listed: 200, total: 250 }]);
 });
 
 test("a listing the budget cuts short names the workflow, what it read and its count, and never spends the reserve", async () => {
-  // 1 workflow list + 3 counts + 1 ci page leaves 7 for the 2,500 runs.
+  // 1 workflow list + 3 first pages, ci's 50 runs all on its first, leaves 8
+  // for the 2,500 runs.
   const budget = createBudget(12);
   const { gh } = fakeGh(budget);
   const { runs, partial } = await listRuns({ gh, repo: "o/r", from: FROM, to: TO, budget, reserve: 0 });
@@ -197,20 +286,19 @@ test("a listing the budget cuts short names the workflow, what it read and its c
   assert.ok(listed < 2500);
   assert.equal(runs.filter((r) => r.path === WORKFLOWS[1].path).length, 50);
   assert.ok(budget.used <= 12);
-  // Room for the workflow list and two counts: the third workflow has no count
-  // read, and the two counted are listed not at all.
+  // Room for the workflow list and two first pages: the third workflow has no
+  // count read, and the two counted keep their first pages, all of ci's runs.
   const tight = createBudget(3);
   const left = await listRuns({ gh: fakeGh(tight).gh, repo: "o/r", from: FROM, to: TO, budget: tight, reserve: 0 });
-  assert.deepEqual(left.runs, []);
+  assert.equal(left.runs.filter((r) => r.path === WORKFLOWS[1].path).length, 50);
   assert.deepEqual(left.partial, [
     { path: WORKFLOWS[2].path, listed: 0, total: null },
-    { path: WORKFLOWS[1].path, listed: 0, total: 50 },
-    { path: WORKFLOWS[0].path, listed: 0, total: 2500 },
+    { path: WORKFLOWS[0].path, listed: 100, total: 2500 },
   ]);
 });
 
 test("a unit from a part-read workflow is marked incomplete, and the run warns", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-"));
+  const dir = tempDir("lane-sweep-");
   const trusted = join(dir, "trusted.json");
   writeFileSync(trusted, JSON.stringify({ actors: [] }));
   const output = join(dir, "output");
@@ -235,9 +323,9 @@ test("a unit from a part-read workflow is marked incomplete, and the run warns",
       GITHUB_API_URL: "https://api.test",
       GITHUB_TOKEN: "x",
       TRUSTED_ACTORS_PATH: trusted,
-      // Before the reserve: 1 workflow list, 3 counts and 1 ci page, then for
-      // pr-merge the counts of its first half and quarter and one page of 100.
-      CALL_BUDGET: String(170 + 8),
+      // Before the reserve: 1 workflow list and 3 first pages of 100, then
+      // pr-merge's first pages of its first half and quarter.
+      CALL_BUDGET: String(DETAIL_RESERVE + 6),
     },
     now: TO,
   });
@@ -250,7 +338,7 @@ test("a unit from a part-read workflow is marked incomplete, and the run warns",
   assert.equal(byWorkflow[WORKFLOWS[0].path].window_end, "2026-10-23T00:00:00.000Z");
   const lines = log.mock.calls.map((c) => String(c.arguments[0]));
   assert.ok(
-    lines.some((l) => l === "::warning::collect read part of the window for 1 workflow(s): .github/workflows/pr-merge.yml 100 of 2500 runs"),
+    lines.some((l) => l === "::warning::collect read part of the window for 1 workflow(s): .github/workflows/pr-merge.yml 300 of 2500 runs"),
     lines.join("\n"),
   );
 });

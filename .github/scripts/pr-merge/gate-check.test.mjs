@@ -4,12 +4,12 @@
 // sweep writes nothing; read from one listing, never one call per candidate.
 // The main ruleset requires only `ci-status`, so no write may carry that name.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { main } from "./gate-check.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const sha = (c) => c.repeat(40);
@@ -27,7 +27,7 @@ const listed = (...suites) => ({ checkSuites: { totalCount: suites.length, nodes
 // answer carries the error, as GitHub sends it. `errors` adds more errors.
 // The answers go through the script's own client, as fetch responses.
 function world(rows, checks = {}, { readFails = false, prHeads = {}, errors = [] } = {}) {
-  const dir = mkdtempSync(path.join(tmpdir(), "gate-check-"));
+  const dir = tempDir("gate-check-");
   const summary = path.join(dir, "pr-merge-summary.json");
   writeFileSync(summary, JSON.stringify(rows));
   const calls = [];

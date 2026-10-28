@@ -3,6 +3,31 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.8] - 2026-10-28
+
+### Changed
+
+- **The loading-mechanics record cites the docs by pointer record** ([#9696](https://github.com/melodic-software/claude-code-plugins/issues/9696)). Each docs-backed cell of the surface table in `context/verified-mechanics.md` now names a record id (`MS-<n>`) instead of a bare *(doc)* marker. The new `context/mechanics-sources.tsv` holds one row per record: the section URL with its anchor, the sentence quoted from that section, and the date it was read. A new "Pointer records" table says what each record decides and when to recheck it. Every measured result now carries the CLI version it ran on, including four that had none. `context/routing-rubric.md` names record ids where it prices a move instead of restating the docs.
+- **Cells the docs re-read changed.** The memory page now says a nested `CLAUDE.md` loads on a Read, Write or Edit in its subtree. The skill listing is rebuilt and re-injected after compaction on 2.1.304 and later. A subagent that skips the CLAUDE.md hierarchy (Explore, Plan, `omitClaudeMd`) still loads a nested `CLAUDE.md` or a matching path-scoped rule when it works with files there. A bare nested `AGENTS.md` beside a `CLAUDE.md` never loads only under the default **Project instructions** setting. That a bare nested `AGENTS.md` reloads when its subtree is touched again is now marked inferred, since no docs sentence states it.
+
+## [0.26.7] - 2026-10-28
+
+### Fixed
+
+- A git-hook entry installed before its manifest listed an asset now reads `stale` rather than `modified` in `verify` and `plan`, so `copy` refreshes it and adds the asset without `--force`. Deleting an asset the install's stamp covers still reads `modified`.
+
+## [0.26.6] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.26.5] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.26.4] - 2026-10-26
 
 ### Added

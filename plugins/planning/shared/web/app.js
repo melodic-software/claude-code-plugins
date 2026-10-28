@@ -1723,11 +1723,17 @@
     const mNew = btn("vf-mnew"); mNew.hidden = true;
     mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
     // A reader at the newest message stays there when the list or its box changes size: an on-screen keyboard opening
-    // or closing, the message field growing a line, a message arriving. Shrinking a box never fires scroll, so the
-    // last scroll decides.
+    // or closing, the message field growing a line, a message arriving. Only a scroll that moves up leaves the newest
+    // message: the pin's own scroll event can arrive after the box shrank again (the keyboard still rising), and its
+    // gap then is the box's doing, not the reader's.
     const mGap = () => mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight;
-    let mStick = true;
-    on(mScroll, "scroll", () => { mStick = mGap() < 40; if (mStick) { mNew.hidden = true; ui.mNewFrom = null; } if (mScroll.scrollTop < EARLIER_PX) loadTop(); });
+    let mStick = true, mTop = 0;
+    on(mScroll, "scroll", () => {
+      const top = mScroll.scrollTop;
+      mStick = mGap() < 40 || (mStick && top >= mTop); mTop = top;
+      if (mStick) { mNew.hidden = true; ui.mNewFrom = null; }
+      if (top < EARLIER_PX) loadTop();
+    });
     // ---------- older chat: loaded when the reader nears the top, or from a Load earlier button ----------
     const EARLIER_PX = 300; // judgment: about five messages above the top edge
     /** A place in the chat: a message's id and time; `after` gives the messages newer than it. */
@@ -4857,6 +4863,12 @@
     // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
     const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
     toastPane.observe(center); offs.push(() => toastPane.disconnect());
+    // in the modal chat the toast stands on the typing line, which moves when it wraps or when what is under it
+    // changes height: the message box growing or emptying (#9202), the counter, the reply bar, the attached files;
+    // the chat itself keeps its size
+    const toastChat = new ResizeObserver(() => { if (toast.classList.contains("vf-on") && activeSheet() === chat) placeToast(); });
+    for (const el of [mTyping, mCount, mReply, chatSlot.chips, mForm]) toastChat.observe(el);
+    offs.push(() => toastChat.disconnect());
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);

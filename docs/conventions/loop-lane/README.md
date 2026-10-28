@@ -4,6 +4,7 @@
 
 - [1. Three-session topology](#1-three-session-topology)
 - [2. Escalation contract](#2-escalation-contract)
+- [When work stops for the owner](#when-work-stops-for-the-owner)
 - [3. Capability tiers](#3-capability-tiers)
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
@@ -310,6 +311,37 @@ write and the out-of-band notification seam below are notification depth on the 
 escalation, the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names, never a
 second channel: the tracker item remains the single escalation of record.
+
+### When work stops for the owner
+
+The owner's rule, 2026-10-27, verbatim:
+
+<!-- spellchecker:off -->
+> "I (the human) should only ever be in the loop or involved via signals like needs-human / needs-decision labels if there is 1. A change in original intent/vision 2. Something comes up during implementation (things don't always go to plan, new findings while doing the actual work) that alters intent/vision or the primary design 3. If there is a HIGH/CRITICAL security issue. Everything else needs to move through the factory floor, the conveyer belt autonomously once work has been deemed agent ready and intent/vision have been translated, expressed and codified in the work item contract. Any changes from that intent/vision are what require my intervention."
+>
+> "Any actual security risks, like tokens/secrets being leaked, things that would compromise my accounts, $$$, etc. particularly if the repository is public."
+<!-- spellchecker:on -->
+
+| Reason | Label | Lane that decides |
+|---|---|---|
+| Original intent or vision changes, or the item cannot answer an intent question | `status: needs-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
+| A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../pr-pipeline/README.md#loop-caps) is spent |
+| A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
+| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
+
+The owner's standing direction on cost and other stops, 2026-10-27, verbatim:
+
+<!-- spellchecker:off -->
+> "Cost, which comes to me: anything that can bill me. That means Azure, GitHub (larger runners, Actions minutes or storage on private repositories, paid storage or artifact retention beyond the free quota, plan or seat changes) and any other billing account."
+>
+> "Not cost, so spend it freely: model usage under the Claude subscriptions, and each account's promotional $200 API credits. Extra usage is off and spending limits are set on all 12 accounts, so reaching a limit stops work and never bills; treat it as a capacity limit."
+>
+> "A limit that protects the host, a rate budget or plan usage (such as a breaker or kill switch) is a safety limit, not such a stop."
+>
+> "Any other stop is a defect to fix, not a reason to ask me."
+<!-- spellchecker:on -->
+
+Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
 
 ### Cross-lane PR hold
 
@@ -900,7 +932,8 @@ offer to persist the answer; the headless path never waits on one.
 time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
 the tracker binding `.work-item-tracker.json` from the checkout, including the role labels that
 admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
-`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given. The
+`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given, and
+both lanes read that `work-items.yaml` for `ai_disclaimer` the same way. The
 babysit loop reads its `babysit_loop_*` keys from the `source-control` config seam's user-global,
 team and local layers, and reads the team layer from the working tree when the checkout is the
 target repository. A deny rule makes such a file read-only to a lane only when at least these four
@@ -1210,8 +1243,8 @@ gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
 
 When an `attend-queue` session writes this comment, or the hold comment below, on the operator's
 behalf, it opens with the
-[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md); the operator's own words
-need none.
+[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md) when that file's setting
+resolves `true`; the operator's own words need none.
 
 `list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
 next cycle-start snapshot. The comment carries no machine marker, which is what marks the item
@@ -1240,6 +1273,22 @@ gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
 
 `babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
 that lane's own invocation overrides it. Remove the label to release the PR.
+
+**Run a PR's plugin evals.** The `eval: run` label runs
+[`eval-browser-dispatch.yml`](../../../.github/workflows/eval-browser-dispatch.yml) on a
+same-repository, non-draft PR: the suite of each plugin whose `skills/`, `agents/` or `evals/` the
+PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or NOT COMPARABLE
+verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin
+is refused when it changes anything but its eval case files (`prompt.md`, `case.yaml`,
+`graders/*.md`, `samples/**/*.json`) and the markdown in its `skills/` or `agents/`, changes a
+case's `allowed_tools`, `env`, `context` or other run keys, has a case that loads another plugin or a directory the
+PR changes, changes a skill's or agent's tool, hook or shell settings, or holds a symlink or
+submodule. It is
+advisory: no required check reads it. Add the label again to run the current head.
+
+```bash
+gh pr edit <n> -R "$R" --add-label "eval: run"
+```
 
 **Pause a lane: no GitHub control exists.** `paused_until` is written by the lane itself before a
 rate-limit pause and means "do not read my silence as death"; no lane reads it as an instruction.

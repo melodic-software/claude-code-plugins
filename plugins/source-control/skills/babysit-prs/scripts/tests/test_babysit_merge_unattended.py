@@ -757,6 +757,9 @@ def entry(
     }
 
 
+_REAL_GET = policy._get
+
+
 class Unattended(unittest.TestCase):
     """`main()` over the real composition, every reader a fake set per test."""
 
@@ -902,7 +905,11 @@ class Unattended(unittest.TestCase):
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
         if endpoint == "repos/owner/repo/commits/main":
             return 200, {"sha": self.main_head}
-        return self._real_get(endpoint)
+        # A test's own patch of `policy._get` answers the rest; the real reader
+        # would reach GitHub, so a read nothing answers raises instead.
+        if self._outer_get is _REAL_GET:
+            raise AssertionError(f"unexpected policy._get call: {endpoint}")
+        return self._outer_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -970,7 +977,7 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
-        self._real_get = policy._get
+        self._outer_get = policy._get
         self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),
@@ -1485,7 +1492,26 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+        # No `labels-absent` list in the config: the human-gated label holds.
+        self.assertEqual(
+            self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
+        )
+
+    def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
+        # #7783: a hold the issue gained since eligibility stops the enqueue.
+        self.closing_issue_now(["needs-human"])
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:closing-issue-held:needs-human",
+            out["blockers"],
+        )
+
+    def test_the_configured_hold_list_reaches_the_enqueue_recheck(self) -> None:
+        holds = ("needs-human", "status: needs-info")
+        self.config = dataclasses.replace(self.config, issue_holds=holds)
+        self.lane()
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41, "holds": holds})
 
     def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
@@ -1766,6 +1792,10 @@ class DependabotLane(Unattended):
                 self.assertEqual(
                     [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
                 )
+                # The gate reads main's Dependabot inputs at the head its
+                # merge config came from; the recheck at the head read now.
+                self.assertEqual(self.dependabot_kwargs[0]["branch"], "main")
+                self.assertEqual(self.dependabot_kwargs[1]["main_sha"], self.main_head)
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -2374,16 +2404,27 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
     def test_a_cost_hold_holds(self) -> None:
+        # Infrastructure as code can start a real charge.
+        self.files = ((dataclasses.replace(LOW_FILE, path="infra/main.tf"),), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
+
+    def test_subscription_spend_is_reported_and_merges(self) -> None:
+        # A pipeline spend line draws on the subscription: no real charge.
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
             LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()
-        self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["cost-review-required"])
+        self.assertEqual(codes, ["cost-finding"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
 
 class BaseConfigParseError(Unattended):
@@ -4281,6 +4322,18 @@ class WholeReviewRequest(Unattended):
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
+    def test_an_adopted_owner_pull_request_records_then_toggles(self) -> None:
+        self.pr_user = {"login": "maintainer", "type": "User"}
+        self.eligible = policy.Eligibility(
+            True, None, "C2", 40, adoption="idle-owner:24h"
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.run_main()
+        self.assertIs(out["unattended"]["wholeReviewWanted"], True)
+        self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
+        self.assertTrue(merge.whole_review.recorded(self.posted(), HEAD))
+        self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
+
     def test_report_only_requests_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
         self.run_main()
@@ -4320,6 +4373,72 @@ class HeadFile(unittest.TestCase):
         ):
             with self.subTest(name), self.assertRaises(RuntimeError):
                 self.read(proc, files)
+
+
+class AttachEdits(unittest.TestCase):
+    """`_lane_evidence` gives each lane-author comment the edit record
+    `bind()` reads; one it cannot read gets none, which `bind()` holds."""
+
+    def comment(self, login: str, updated: str, node: str) -> dict[str, Any]:
+        return {
+            "user": {"login": login, "type": "Bot"},
+            "created_at": "2026-10-22T02:00:00Z",
+            "updated_at": updated,
+            "node_id": node,
+        }
+
+    def test_unedited_comments_need_no_read_and_edited_ones_get_graphql(self) -> None:
+        same = self.comment("github-actions[bot]", "2026-10-22T02:00:00Z", "IC_a")
+        edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
+        editor = {"__typename": "User", "login": "pusher"}
+        reply = {
+            "data": {
+                "nodes": [
+                    {
+                        "id": "IC_b",
+                        "lastEditedAt": "2026-10-22T03:00:00Z",
+                        "editor": editor,
+                    }
+                ]
+            }
+        }
+        with mock.patch.object(merge, "gh_json_graphql", return_value=reply) as read:
+            merge._attach_edits([same, edited, other], "#1")
+        self.assertEqual(same["edit"], {"lastEditedAt": None})
+        self.assertEqual(
+            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+        )
+        self.assertNotIn("edit", other)
+        args = read.call_args.args[0]
+        self.assertIn("ids[]=IC_b", args)
+        self.assertNotIn("ids[]=IC_a", args)
+
+    def test_a_failed_read_leaves_no_record(self) -> None:
+        edited = self.comment("claude[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        with mock.patch.object(
+            merge, "gh_json_graphql", side_effect=RuntimeError("HTTP 502")
+        ):
+            merge._attach_edits([edited], "#1")
+        self.assertNotIn("edit", edited)
+        lanes = merge.review_evidence.bind(
+            evidence_tests.S,
+            [
+                evidence_tests.whole(lane, evidence_tests.S)
+                for lane in evidence_tests.LANES
+            ],
+            [
+                {**marker, "edit": edited.get("edit")}
+                if "security" in marker["body"]
+                else marker
+                for marker in evidence_tests.both_markers()
+            ],
+            [],
+            is_human=evidence_tests.is_human,
+            changed_paths=(),
+        )
+        reasons = {lane.lane: lane.unbound_reason for lane in lanes}
+        self.assertEqual(reasons["claude-security-review"], "comment-edited")
 
 
 class HeadFileFailure(unittest.TestCase):
@@ -4652,6 +4771,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                         "id": 300 + i,
                         "user": {"login": "github-actions[bot]", "type": "Bot"},
                         "created_at": "2026-10-22T02:00:00Z",
+                        "updated_at": "2026-10-22T02:00:00Z",
                         "body": f"<!-- claude-lane-reviewed-head lane={lane}"
                         f" sha={HEAD} -->\n{lane} has reviewed this pull request"
                         f" through {HEAD}.",
@@ -4670,6 +4790,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     "run_attempt": 1,
                     "created_at": "2026-10-22T01:00:00Z",
                     "pull_requests": [{"number": PR}],
+                    "head_commit": {"id": HEAD, "tree_id": "7e" * 20},
                     **done,
                 }
                 return [{"workflow_runs": [item]}]
@@ -5548,6 +5669,19 @@ class AdoptionHoldLabel(unittest.TestCase):
         label = mock.Mock(side_effect=AssertionError)
         assess = self.run_assess(policy.LOCAL_BABYSIT, label)
         self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+    def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
+        self,
+    ) -> None:
+        # A shared answer past the unverified age is kept only on the
+        # post-merge check's own verifying-run proof, for this repository.
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
+        runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
+        with mock.patch.object(
+            postmerge, "pending_runs_unchanged", return_value=True
+        ) as proof:
+            self.assertTrue(runs_unchanged(mock.sentinel.answer, "main"))
+        proof.assert_called_once_with("o/r", mock.sentinel.answer, "main")
 
 
 if __name__ == "__main__":

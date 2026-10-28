@@ -9,7 +9,6 @@
 // env.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,6 +17,7 @@ import { parse, stringify } from "yaml";
 
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../../..");
@@ -657,6 +657,11 @@ for (const [why, models] of [
   ["a zero max-turns", { profiles: { p: { model: "opus", "max-turns": 0 } }, "default-profile": "p" }],
   ["a subagent model ID", { profiles: { p: { model: "opus", "subagent-model": "claude-sonnet-5", "max-turns": 5 } }, "default-profile": "p" }],
   ["an unknown profile key", { profiles: { p: { model: "opus", "max-turns": 5, advisor: "fable" } }, "default-profile": "p" }],
+  // Fable stays off until the owner sets a Fable allowance for the lanes.
+  ["a model of fable", { profiles: { p: { model: "fable", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a model of best", { profiles: { p: { model: "best", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a subagent model of fable", { profiles: { p: { model: "opus", "subagent-model": "fable", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a subagent model of best", { profiles: { p: { model: "opus", "subagent-model": "best", "max-turns": 5 } }, "default-profile": "p" }],
   ["no default-profile", { profiles: { p: { model: "opus", "max-turns": 5 } } }],
   ["no profiles", { profiles: {}, "default-profile": "p" }],
   ["an unknown models key", { profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", sizes: ["S"] }],
@@ -665,6 +670,16 @@ for (const [why, models] of [
     assertRejected(() => fixtureSlot(withModels(models)), "invalid-config");
   });
 }
+
+test("the schema still admits every model alias but the frontier tier, and every subagent model", () => {
+  for (const model of ["default", "opus", "sonnet"]) {
+    for (const subagent of ["inherit", "opus", "sonnet"]) {
+      const profiles = { p: { model, "subagent-model": subagent, "max-turns": 5 } };
+      const slot = fixtureSlot(withModels({ profiles, "default-profile": "p" })).models;
+      assert.equal(slot["subagent-model"], subagent, `${model}/${subagent}`);
+    }
+  }
+});
 
 test("the schema rejects the removed activity model and max-turns keys and merge.verifier-model", () => {
   for (const extra of [{ model: "opus" }, { "max-turns": 30 }]) {
@@ -713,7 +728,7 @@ test("a run route that is not one of the five is undefined-route, as a model-rou
 });
 
 // main() with model-route against a base holding the live config.
-const scratch = mkdtempSync(join(tmpdir(), "resolve-models-"));
+const scratch = tempDir("resolve-models-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 function readOutputs(path) {

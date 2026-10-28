@@ -27,15 +27,12 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 ## Purpose
 
-Code records what a system does. It rarely records why anyone chose it. That lives in review
-threads, tickets, design documents, and incident timelines. Records that are partial, contradictory,
-and sometimes gone. This skill reconstructs intent from those records and is honest about the parts
-it could not recover.
-
-Third axis of this plugin. `/discovery:explore` answers **what IS**, `/discovery:research` answers
-**what SHOULD BE**, and this answers **what WAS, and why**. The failure it exists to prevent is a
-confident story built from thin evidence: a plausible narrative about a decision is worse than an
-admission of ignorance, because it is acted upon.
+Reconstruct intent from the records outside the code (review threads, tickets, design documents,
+incident timelines), which are partial, contradictory, and sometimes gone, and say plainly which
+parts could not be recovered. `/discovery:explore` answers **what IS**, `/discovery:research`
+**what SHOULD BE**, and this skill **what WAS, and why**. Never build a confident story from thin
+evidence: a plausible narrative about a decision is worse than an admission of ignorance, because
+it is acted upon.
 
 ## Routing. Dispatch by default
 
@@ -110,21 +107,17 @@ something real about how the decision was made. Usually that it was never writte
 
 ### Source reliability rides alongside, and never routes
 
-The tier alone cannot distinguish a review comment written by the change's author from a wiki page
-four years stale. Both are `Direct`. So every citation also carries a short reliability note: who
-wrote it, how close they were to the decision, and how old it is. This is a note, not a second
-ladder. Only the tier decides which section a claim lands in.
+Every citation also carries a short reliability note: who wrote it, how close they were to the
+decision, and how old it is (a review comment by the change's author and a wiki page four years
+stale are both `Direct`). This is a note, not a second ladder. Only the tier decides which section
+a claim lands in.
 
 ### Code shape is not intent evidence
 
-"It handles the null case because it checks for null" is mechanics, not motivation. Reading the
-implementation tells you what was built, almost never why. Code-shape inference does not get a low
-tier. It leaves the scale entirely and is recorded as a gap.
-
-Code-shape inference is excluded from the scale rather than admitted at a low tier, and the reason
-is operational rather than epistemic: code is always present and costs nothing to consult, so a
-weak-but-admissible rung for it gets filled exactly when the real record is thin, which is exactly
-when a reader most needs to be told so.
+"It handles the null case because it checks for null" is mechanics, not motivation. Code-shape
+inference does not get a low tier. It leaves the scale entirely and is recorded as a gap: code is
+always there to consult, so a low rung for it would fill exactly when the real record is thin,
+which is when a reader most needs to be told so.
 
 **Version-control behavior is not code shape.** Change coupling, churn and hotspot data are evidence
 the code alone cannot give you, and they are admissible, but they locate rather than explain: they
@@ -152,10 +145,9 @@ and say so. Tracker access routes through `/work-items:track`, invoked via the S
 provider-neutral seam; without it, use whatever tracker interface the session actually has, and when
 none resolves, report the tracker category as unavailable.
 
-Categories beyond these three, team chat, observability, error tracking, product analytics, carry
-real intent evidence and are **not shipped as investigators**: nothing in this marketplace reaches
-them, so four permanently-empty investigators would report the same gap forever. Extension seam:
-[`context/evidence-categories.md`](context/evidence-categories.md).
+Categories beyond these three (team chat, observability, error tracking, product analytics) carry
+real intent evidence but are **not shipped as investigators**, because nothing in this marketplace
+reaches them, so four permanently-empty investigators would report the same gap forever. Extension seam: [`context/evidence-categories.md`](context/evidence-categories.md).
 
 ## Skipping a category
 

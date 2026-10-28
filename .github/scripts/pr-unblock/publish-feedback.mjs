@@ -37,7 +37,8 @@
 //      moved head it escalates feedback-not-landed, and beside a patch, a
 //      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
-//      disposition), feedback-not-landed, feedback-partial (posting stopped
+//      disposition; the round marker names each such thread),
+//      feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
 //      or a reason adjudicate-feedback.mjs settleDisputes gives for an
 //      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
@@ -46,6 +47,15 @@
 //      this round left it open). A finding that stands with the head unmoved
 //      skips finding-stands instead, which feedback-dispatch.mjs's sweep
 //      dispatches again.
+//
+// A pass-only round is the exception: when pr-verify passed the PR's current
+// head, pr-feedback-dispatch.yml sends pr-unblock.yml with verify-pass-head,
+// and the select job lists in run.json's stale_notes the open fail-note
+// threads from earlier heads (address-feedback.mjs staleVerifyNotes), with no
+// thread for a model. This job then resolves each one still open and stale
+// while the PR head is the passing one, and posts no reply and no round
+// marker, and skips pass-only. The job token cannot resolve a thread; the
+// lane token can.
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -89,6 +99,7 @@ import {
   ROUND_MARKER,
   scanRefusal,
   SHA,
+  staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
 import { parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
@@ -147,6 +158,11 @@ export function parseRun(text) {
       Array.isArray(run.threads) &&
       (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
     "run.json is malformed",
+  );
+  check(
+    run.stale_notes === undefined ||
+      (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
+    "run.json holds a malformed stale_notes list",
   );
   for (const thread of run.threads) {
     check(
@@ -442,8 +458,78 @@ async function resolveAfterReply(api, id, expected, headMoved) {
 // posts; a re-run of this job alone reuses that run's artifact.
 export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
 
+// The pass-only round's skip, which feedback-dispatch.mjs tells apart from a
+// round's reply check: it answers no thread, so it releases nothing and holds
+// nothing.
+export const PASS_ONLY_SKIP = "pass-only";
+
+// A pass-only round: the select job listed the fail-note threads a pr-verify
+// pass at its head left stale, and no model ran. Each one still open and still
+// stale (staleVerifyNotes) is resolved while the PR head is the passing one;
+// a failed resolve is logged, the rest are tried, and the job then fails so
+// a re-run tries again. Nothing is posted and no round is counted.
+async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
+  const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
+  const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha));
+  const failed = [];
+  let resolved = 0;
+  for (const id of run.stale_notes) {
+    if (!open.has(id)) {
+      log(`${id} is no open fail-note thread from an earlier head; left alone`);
+      continue;
+    }
+    try {
+      if (await headMoved()) {
+        log(`the PR head is no longer ${run.head_sha}, which pr-verify passed; nothing more is resolved`);
+        break;
+      }
+      if ((await api.resolveThread(id)) !== true) {
+        throw new Error("it does not read resolved");
+      }
+      resolved += 1;
+    } catch (error) {
+      failed.push(id);
+      log(`could not resolve ${id}: ${String(error?.message ?? error).slice(0, 300)}`);
+    }
+  }
+  log(`resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`);
+  if (failed.length > 0) {
+    throw new Error(`could not resolve ${failed.join(", ")}`);
+  }
+  return { escalationReason: "", skipReason: PASS_ONLY_SKIP, posted: [] };
+}
+
+// run.json when it is a pass-only round's, else null; any other run.json,
+// readable or not, is judged by postReplies.
+function staleRunOf(readArtifact) {
+  try {
+    const run = parseRun(readArtifact().runText);
+    return run.stale_notes ? run : null;
+  } catch {
+    return null;
+  }
+}
+
+// The round marker's lines naming each kept thread with no disposition (its
+// id and root comment), which report-escalation.sh copies into the
+// feedback-incomplete escalation: at most 20, then how many more.
+const UNDISPOSED_SHOWN = 20;
+export const undisposedLines = (undisposed = []) =>
+  undisposed.length === 0
+    ? []
+    : [
+        "",
+        "Kept review threads with no disposition:",
+        ...undisposed.slice(0, UNDISPOSED_SHOWN).map(({ id, comment }) => `- \`${id}\` (root comment ${comment})`),
+        ...(undisposed.length > UNDISPOSED_SHOWN ? [`- and ${undisposed.length - UNDISPOSED_SHOWN} more`] : []),
+      ];
+
 export async function publish(args) {
   const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
+  const staleRun = staleRunOf(args.readArtifact);
+  if (staleRun !== null) {
+    return resolveStaleNotes({ api, pr, headSha, headRef: args.headRef, run: staleRun, log });
+  }
   let result = null;
   let failure = null;
   try {
@@ -466,7 +552,12 @@ export async function publish(args) {
       const round = roundLine(rounds, maxRounds + FRESH_FIXER_ROUNDS);
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished ${round} on ${headSha}.`].join("\n"),
+        [
+          ROUND_MARKER,
+          ...(runLine ? [runLine] : []),
+          `pr-unblock / address-feedback finished ${round} on ${headSha}.`,
+          ...undisposedLines(result?.undisposed),
+        ].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
@@ -525,11 +616,14 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason, posted: [] };
     }
     // Every kept thread needs its disposition: one left out would stay open
-    // with no reply, and the head's check run stops another dispatch.
+    // with no reply, and the head's check run stops another dispatch. The
+    // round marker names each one left out, for the escalation.
     if (replies.length !== run.threads.length) {
-      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition`);
+      const disposed = new Set(replies.map((reply) => reply.thread));
+      const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));
+      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
       escalationReason = "feedback-incomplete";
-      return { escalationReason, posted: [] };
+      return { escalationReason, posted: [], undisposed };
     }
     const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
     const now = new Map(kept.map((thread) => [thread.id, thread]));

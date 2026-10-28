@@ -37,7 +37,8 @@
       "category": "intake",
       "lanes": [
         { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY", "INTAKE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "claude-code-action", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY"] },
+        { "id": "refine-issue-subscription", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -98,7 +99,8 @@
       "lanes": [
         { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "judge-subscription", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "judge-fallback", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "audit", "workflow": "post-merge-test-mutation.yml", "launcher": "claude-code-action", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -109,7 +111,7 @@
       "keyed": false,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]

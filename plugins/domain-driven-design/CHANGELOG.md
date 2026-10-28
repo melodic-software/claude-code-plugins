@@ -3,6 +3,18 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.4.3] - 2026-10-27
+
+### Security
+
+- `glossary-settings.mjs` runs `git` from the plugin's own directory, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a `git.exe` or `git.com` committed to the user's repository is never run.
+
 ## [0.4.2] - 2026-10-26
 
 ### Fixed

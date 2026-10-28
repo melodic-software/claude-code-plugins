@@ -3,6 +3,33 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-27
+
+### Changed
+
+- **`setup` names what the detected test runner supports up front.** `apply` step 2 says, beside
+  the tool proposal and before the diff-target question, whether the runner supports
+  `audit --exercised` and `/testing:cleanup`'s mutation gate; a name-filter-only runner (Maven
+  `-Dtest`, Gradle `--tests`) supports neither, so the user can stop before investing in setup.
+  `check` step 3 adds the same line as an INFO row. A new setup eval case covers a Gradle project.
+
+## [0.9.0] - 2026-10-27
+
+### Added
+
+- **`scripts/estimate-run.sh --mutants <n> --seconds <s>`** prints `Estimated wall-clock: <h>h <m>m (<n> mutants x <s>s per build-and-test)`, rounded up to the minute in exact integer arithmetic, with its test.
+
+### Changed
+
+- **`audit` estimates a run from a timed build and test run, not `baseline-suite-ms`.** Before any mutation run it times one build plus test run of the selected tests (every `dotnet-test-selection.sh` line, summed, for a .NET test set), takes the mutant count from the tool's dry run or listing, and prints the line `estimate-run.sh` computes; where the build cannot be made to recompile without editing tracked source, it says the estimate is a floor. `--full` confirms against the same line.
+
+## [0.8.0] - 2026-10-26
+
+### Added
+
+- **`audit --exercised` runs on .NET.** A new `scripts/dotnet-test-selection.sh` groups test files by their nearest `.csproj` and prints one quoted line per project: the project path, then a `--filter` of `FullyQualifiedName~<Namespace>.<Class>.` terms for every top-level class in those files (plus `<Class>+` for a class holding nested classes, and no trailing dot for a generic class). When `test-command` starts with `dotnet test`, the audit runs it once per printed line in place of `{tests}`, refuses a baseline in which no test matched, and never runs `dotnet test` without a project argument.
+- **`setup apply` proposes `dotnet test {tests}`** when the detected runner is `dotnet test`, and its baseline runs `dotnet test` once per test project. Maven and Gradle still get no `test-command`.
+
 ## [0.7.1] - 2026-10-13
 
 ### Changed

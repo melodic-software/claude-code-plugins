@@ -5,21 +5,21 @@
 // read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
-import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import {
+  breakerComment,
   budgetLatch,
   checkCloser,
-  escalationComment,
+  failedComment,
   main as runMain,
   RECURRENCE_PREFIX,
   recurrenceComment,
@@ -29,6 +29,7 @@ import {
   infraComment,
   skipText,
 } from "./label-unblocked.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -175,14 +176,15 @@ function world({
         const items = queuedIssues.map((number) => ({ number }));
         return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
       }
-      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+      // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
+      if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
           throw new Error(`${method} ${path} failed with status 403`);
         }
         const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
         return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
       }
-      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/[\w-]+ (merged|created):>=\S+$/);
       if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
@@ -243,7 +245,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -297,7 +299,7 @@ function world({
 }
 
 function envFor(event = {}, extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "work-unblock-"));
+  const dir = tempDir("work-unblock-");
   const eventPath = join(dir, "event.json");
   writeFileSync(
     eventPath,
@@ -1181,9 +1183,12 @@ test("a stated reset in the past still waits an hour from the stop", async () =>
   assert.deepEqual(writes(late.calls), restarted(30));
 });
 
-// Three limit stops since a person last added agent-ready hand the issue to a
-// person: needs-human and a comment, no restart.
-test("a third limit stop since a person added agent-ready adds needs-human with a comment instead of restarting", async () => {
+// Three limit stops since a person last added agent-ready spend the per-issue
+// cap, a safety limit, so the issue fails visibly (route `fail`): an
+// outcome=failed marker, which maintenance-monitor signal 9 reports, then
+// agent-ready off, and no label. No restart and no needs-human.
+const unready = (n) => `DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`;
+test("a third limit stop since a person added agent-ready fails the issue: a failed marker, agent-ready off, no needs-human", async () => {
   const stops = [
     limitedNote("2026-10-16T01:00:00Z", "2026-10-16T00:30:00Z"),
     limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"),
@@ -1194,20 +1199,34 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   const written = writes(third.calls);
   assert.equal(written.length, 2);
   assert.ok(written[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[0]);
-  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
-  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
-  // The comment went out but the label did not: the next sweep adds only the
-  // label. The App's explanation from before a person's re-add does not count.
-  const explanation = (at) => ({ id: 40, body: escalationComment(3), user: LANES_BOT, created_at: at });
-  const retry = stopped({ comments: [note(), ...stops, explanation("2026-10-16T06:30:00Z")] });
+  assert.ok(written[0].includes("<!-- work-resolve-issue outcome=failed run=7 -->"), written[0]);
+  assert.deepEqual(written.slice(1), [unready(30)]);
+  assert.ok(!written.some((call) => call.includes("needs-human")));
+  // The comment went out but the label did not come off: the next sweep, whose
+  // newest marker is that failed one, removes only the label.
+  const failedNote = (at) => ({ id: 40, body: failedComment({ stops: 3, run: "7" }), user: LANES_BOT, created_at: at });
+  const retry = stopped({ comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")] });
   assert.equal(await sweep({ github: retry.github }), 0);
-  assert.deepEqual(writes(retry.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.deepEqual(writes(retry.calls), [unready(30)]);
+  // A failed marker from before a person's re-add ends nothing now: the new
+  // stops fail the issue again, with a new marker.
   const stale = stopped({
-    comments: [note(), explanation("2026-10-15T23:00:00Z"), ...stops],
+    comments: [note(), failedNote("2026-10-15T23:00:00Z"), ...stops],
     events: [added("2026-10-15T22:00:00Z", OWNER), added("2026-10-15T23:30:00Z", OWNER)],
   });
   assert.equal(await sweep({ github: stale.github }), 0);
   assert.equal(writes(stale.calls).length, 2);
+  // A person's agent-ready after the newest marker, a failed one, starts a new
+  // run: the sweep takes it to the re-fire checks, never the fail route, so
+  // it never removes that agent-ready, whether the run is recent or stranded.
+  for (const at of ["2026-10-16T11:00:00Z", "2026-10-16T07:00:00Z"]) {
+    const readded = stopped({
+      comments: [note(), ...stops, failedNote("2026-10-16T06:30:00Z")],
+      events: [added("2026-10-16T05:00:00Z"), { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T06:30:01Z" }, added(at, OWNER)],
+    });
+    assert.equal(await sweep({ github: readded.github }), 0);
+    assert.deepEqual(writes(readded.calls), [], at);
+  }
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [note(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);
@@ -1217,7 +1236,7 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
 // The sweep reads the resolved config's `limits` (hours and counts) from the
 // file resolve-config wrote.
 const withLimits = (limits) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-limits-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify({ limits }));
   return { RESOLVED_CONFIG: path };
 };
@@ -1266,6 +1285,50 @@ test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
+// A stop stop-routes.json routes to retry (a crash, an unfinished check):
+// report-outcome keeps agent-ready and leaves a retry marker while
+// limits.stop-retries allows one, and the sweep restarts the issue at once.
+// More retry markers since a person added agent-ready than the limit allows
+// restart nothing, so every retry has a hard end.
+const retryNote = (at, run = 7) => ({
+  id: 34,
+  body: `<!-- work-resolve-issue outcome=retry run=${run} -->\nThe work-resolve-issue lane stopped on this issue (\`outcome-unread\`).`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("an issue a retry-routed stop left on agent-ready is restarted while limits.stop-retries allows it", async () => {
+  for (const limits of [{}, { "stop-retries": 1 }]) {
+    const { github, calls } = stopped({ comments: [note(), retryNote("2026-10-16T11:55:00Z")] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), restarted(30), JSON.stringify(limits));
+  }
+});
+
+test("retry stops past limits.stop-retries, or any with it at 0, restart nothing", async () => {
+  for (const [limits, comments] of [
+    [{ "stop-retries": 0 }, [note(), retryNote("2026-10-16T11:55:00Z")]],
+    [{ "stop-retries": 1 }, [note(), retryNote("2026-10-16T08:00:00Z", 6), retryNote("2026-10-16T11:55:00Z")]],
+  ]) {
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+  }
+});
+
+test("the App's remove-and-re-add after a retry stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), retryNote("2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
 // A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
 // leaves a funding marker with the regain date, if one was stated. The sweep
 // restarts the issue after that date, never before, and never without one;
@@ -1283,17 +1346,31 @@ test("a funding-stopped issue past its regain date is restarted", async () => {
   assert.deepEqual(writes(calls), restarted(30));
 });
 
-test("a funding-stopped issue before its regain date, or with none, waits", async () => {
-  for (const resets of ["2026-10-17T00:00:00Z", ""]) {
-    const { github, calls } = stopped({ comments: [note(), fundingNote(resets, "2026-10-16T06:00:00Z")] });
-    assert.equal(await sweep({ github }), 0);
-    assert.deepEqual(writes(calls), [], resets);
-  }
+test("a funding-stopped issue before its regain date waits", async () => {
+  const { github, calls } = stopped({ comments: [note(), fundingNote("2026-10-17T00:00:00Z", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// Funding is the lane's Claude capacity (a spend limit, no credit or a
+// disabled key), not a bill a restart can raise. With no regain date the
+// sweep tries again limits.fallback-reset hours after the stop, as it does a
+// limit stop with no reset, instead of waiting on a person; the per-issue cap
+// below bounds the tries.
+test("a funding-stopped issue with no regain date is restarted limits.fallback-reset hours after the stop", async () => {
+  const early = stopped({ comments: [note(), fundingNote("", "2026-10-16T08:00:00Z")] });
+  assert.equal(await sweep({ github: early.github }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = stopped({ comments: [note(), fundingNote("", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github: due.github }), 0);
+  assert.deepEqual(writes(due.calls), restarted(30));
+  assert.ok(!writes(due.calls).some((call) => call.includes("needs-human")));
 });
 
 // Funding and limit stops share limits.limit-stops-per-issue, so an outage
-// that outlasts the reset clamp hands the issue to a person, not a loop.
-test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
+// that outlasts the reset clamp fails the issue visibly, not a loop and not a
+// person.
+test("a third funding or limit stop since a person added agent-ready fails the issue", async () => {
   const comments = [
     note(),
     fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
@@ -1303,8 +1380,18 @@ test("a third funding or limit stop since a person added agent-ready goes to a p
   const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
   assert.equal(await sweep({ github }), 0);
   const written = writes(calls);
-  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
-  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.ok(written[0].includes("<!-- work-resolve-issue outcome=failed run=6 -->"), written[0]);
+  assert.deepEqual(written.slice(1), [unready(30)]);
+});
+
+// The failed marker parses as the lane's outcome marker, which signal 9's
+// collector and findPrior read: outcome failed, naming the stopped run (and
+// its branch=resumed tag), so a person's new agent-ready resumes that run's
+// branch.
+test("the failed marker parses as outcome failed naming the stopped run", () => {
+  assert.deepEqual(parseOutcomeMarker(failedComment({ stops: 3, run: "7" })), { outcome: "failed", resets: null, run: "7", onResumed: false });
+  assert.deepEqual(parseOutcomeMarker(failedComment({ stops: 3, run: "8", onResumed: true })), { outcome: "failed", resets: null, run: "8", onResumed: true });
+  assert.ok(!failedComment({ stops: 3, run: "7" }).includes("needs-human"));
 });
 
 test("a funding stop under the bound is restarted after its date", async () => {
@@ -1340,7 +1427,7 @@ test("the resolved limits set the sweep's restarts per run, limit stops per issu
   const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
   const second = stopped({ comments: [note(), ...stops] });
   assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
-  assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.deepEqual(writes(second.calls).slice(1), [unready(30)]);
 
   // No stated reset, stopped at 06:00: five hours has passed at 12:00, seven has not.
   const bare = stopped({ resets: "" });
@@ -1383,15 +1470,15 @@ test("a failed listing of closed issues writes nothing and fails the run", async
   assert.deepEqual(writes(calls), []);
 });
 
-// Re-fires after a failed run: a rerun keeps its first event's
-// workflow files, so the token broker refuses it as workflow-modified once
-// main's pr-run-activity-write.yml or work-resolve-issue.yml has changed, and
-// a run that crashed before its report leaves no marker. The sweep gives such
-// an issue a fresh event: the App removes and re-adds agent-ready, when its
-// newest agent-ready label (a listed human's or the App's) has no lanes-App
-// marker after it and the work-resolve-issue run that label started has
-// failed. It records the re-fire in a comment first, and re-fires an issue at
-// most once per version of those two files on main.
+// Re-fires after a failed run: a run that crashed before its report leaves no
+// marker (a rerun the token broker refuses as workflow-modified, since it
+// keeps its first event's workflow files, is a failed mint, below). The sweep
+// gives such an issue a fresh event: the App removes and re-adds agent-ready,
+// when its newest agent-ready label (a listed human's or the App's) has no
+// lanes-App marker after it and the work-resolve-issue run that label started
+// has failed. It records the re-fire in a comment first, and re-fires an issue
+// at most once per version of main's pr-run-activity-write.yml and
+// work-resolve-issue.yml.
 const WRITE_SHA = "1".repeat(40);
 const CALLER_SHA = "2".repeat(40);
 const KEY = `${WRITE_SHA}-${CALLER_SHA}`;
@@ -1564,7 +1651,8 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 // <run>-<attempt>`), with head and base in this repository, counts.
 // The pump: a run that minted no lane token did no work, either because its
 // `Request the lane token` step failed (GitHub's rate limit past the retry
-// budget, say) or because the WIP cap skipped resolve-issue. It is re-fired
+// budget, say), or broker-check's broker ask failed for any reason but the
+// kill switch, or because the WIP cap skipped resolve-issue. It is re-fired
 // with the usual record, past once per workflow version, an hour after the
 // run ended (the broker's Retry-After is at most an hour, so the reset has
 // passed) and only while the WIP cap check does not pause the issue lane.
@@ -1621,7 +1709,7 @@ test("a run that did no work waits until an hour after it ended, past any rate-l
 // The sweep reads the resolved config's `limits` and `wip`; a past pause-from
 // lets the issue lane pause over its cap.
 const withConfig = (config) => {
-  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  const path = join(tempDir("work-unblock-config-"), "resolved-config.json");
   writeFileSync(path, JSON.stringify(config));
   return { RESOLVED_CONFIG: path };
 };
@@ -1698,7 +1786,7 @@ test("a failed mint is re-fired again on the same workflow files up to the bound
 // Past the bound it keeps re-firing on the backoff (3 hours doubling per
 // re-fire, at most 24, from when the run ended), recorded in one comment.
 test("a failed mint past limit-stops-per-issue re-fires on the same workflow files goes on a backoff, with no needs-human", async () => {
-  const mintCause = "The work-resolve-issue run that `agent-ready` started could not get its lane token.";
+  const mintCause = "The work-resolve-issue run that `agent-ready` started could not get its lane token, or the token broker's leave to run.";
   // Three re-fires so far: 24 hours after the run ended at 10:05.
   const { github, actions, calls } = stalledRun(earlierPumps(3));
   assert.equal(await sweep({ github, actions }), 0);
@@ -1998,7 +2086,7 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
 // broker-check's broker ask before any resolve-issue run job; run 40127093047
 // ran the model and was refused at its write runner's mint. Each denial line
 // is the failed step's last, just before `Process completed`. A broker-check
-// refusal for workflow-modified fails at the same step and stays a failed run.
+// refusal for workflow-modified fails at the same step and is a failed mint.
 const denied = (mode, reason, { stamp = "2026-10-24T19:57:51.9466327Z " } = {}) =>
   [
     "2026-10-24T19:57:50.6158116Z ##[group]Run request-lane-token",
@@ -2079,15 +2167,67 @@ async function afterSweeps(count, jobs, logs) {
   return history(bodies);
 }
 
-test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired an hour after it ended", async () => {
+test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired by the first sweep after it ended", async () => {
   const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
   assert.equal(await sweep({ github, actions }), 0);
   tripped(calls);
   assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
-  // Within the hour it waits.
-  const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  // No model ran and the sweep runs only with the switch off, so it does not
+  // wait limits.reset-clamp-min: a run that ended half an hour ago re-fires.
+  const recent = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
+});
+
+test("a breaker trip at a post-model mint still waits limits.reset-clamp-min after the run ended", async () => {
+  // The model ran, so a re-fire runs it again: the clamp stays.
+  const early = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED, ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
   assert.deepEqual(writes(early.calls), []);
+});
+
+// The breaker record names the refused run and when it ended, so a reader
+// hours later sees a re-fire of that refusal, not a fresh one.
+const postedBody = (calls) => {
+  const posted = writes(calls).find((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `));
+  assert.ok(posted, writes(calls).join("\n"));
+  return JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+};
+const REFUSED_LINK = `[run 5030](https://github.com/${REPO}/actions/runs/5030)`;
+
+test("the breaker record links the refused run and its end time, and says it re-fires that earlier refusal", () => {
+  const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z") });
+  assert.ok(body.startsWith(`${BREAKER_MARKER}\n`), body);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("2026-10-16T10:05:00Z"), body);
+  assert.ok(body.includes("not a new refusal"), body);
+});
+
+test("a breaker trip's record names the run the broker refused and when it ended", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  const body = postedBody(calls);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("ended at 2026-10-16T10:05:00Z"), body);
+  // With a later run the WIP cap skipped for the same label, the record still
+  // names the refused run, not the newest.
+  const fake = world({
+    openReady: [ready(30)],
+    comments: { 30: [note()] },
+    events: { 30: [added(LABELED_AT, OWNER)] },
+    runs: [
+      { ...laneRun({ conclusion: "failure" }), updated_at: "2026-10-16T10:05:00Z" },
+      { ...laneRun({ at: "2026-10-16T10:00:04Z", conclusion: "success" }), id: 5031, updated_at: "2026-10-16T10:06:00Z" },
+    ],
+    jobs: { 5030: BROKER_REFUSED, 5031: WIP_CAPPED },
+    logs: CHECK_KILLED,
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github, now: Date.parse("2026-10-16T11:10:00Z") }), 0);
+  const both = postedBody(fake.calls);
+  assert.ok(both.includes(REFUSED_LINK), both);
+  assert.ok(both.includes("ended at 2026-10-16T10:05:00Z"), both);
 });
 
 test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
@@ -2175,7 +2315,7 @@ test("a breaker trip's re-add is its own: the backoff counts every other re-fire
   assert.deepEqual(done.slice(1), restarted(30));
 });
 
-test("a refusal whose log does not name the kill switch on the step's last line stays a failed run", async () => {
+test("a refusal whose log does not name the kill switch on the step's last line is a failed mint", async () => {
   const lines = (...items) => `${items.join("\n")}\n`;
   for (const [name, log] of [
     ["workflow-modified", denied("check", "workflow-modified")],
@@ -2201,6 +2341,39 @@ test("a refusal whose log does not name the kill switch on the step's last line 
   const unread = stalledRun({ jobs: MINT_REFUSED });
   assert.equal(await sweep({ github: unread.github, actions: unread.actions }), 0);
   assert.deepEqual(writes(unread.calls), refired(30));
+});
+
+// The read runner resolve-issue calls has no `Request the lane token` step, so
+// a broker-check failure for any reason but the kill switch is its failed
+// mint: re-fired on the same workflow files up to limits.limit-stops-per-issue,
+// limits.reset-clamp-min hours after the run ended, then on the backoff.
+test("a broker-check failure not for the kill switch is re-fired as a failed mint, under its bound", async () => {
+  const mintCause = "The work-resolve-issue run that `agent-ready` started could not get its lane token, or the token broker's leave to run.";
+  for (const [name, logs] of [
+    ["workflow-modified", { [BROKER_CHECK_ID]: denied("check", "workflow-modified") }],
+    ["no readable log", {}],
+  ]) {
+    // Two re-fires on these workflow files so far: a failed run would be stranded, a failed mint goes again.
+    const again = stalledRun({ jobs: BROKER_REFUSED, logs, ...earlierPumps(2) });
+    assert.equal(await sweep({ github: again.github, actions: again.actions }), 0, name);
+    assert.deepEqual(writes(again.calls), refired(30), name);
+    assert.ok(!writes(again.calls).some((call) => call.includes("needs-human")), name);
+    // It waits limits.reset-clamp-min after the run ended, like any failed mint.
+    const early = stalledRun({ jobs: BROKER_REFUSED, logs, ended: "2026-10-16T11:30:00Z" });
+    assert.equal(await sweep({ github: early.github, actions: early.actions }), 0, name);
+    assert.deepEqual(writes(early.calls), [], name);
+    // Past the bound: the backoff, 24 hours after the run ended at 10:05.
+    const over = stalledRun({ jobs: BROKER_REFUSED, logs, ...earlierPumps(3) });
+    assert.equal(await sweep({ github: over.github, actions: over.actions }), 0, name);
+    assert.deepEqual(writes(over.calls), [], name);
+    const due = stalledRun({ jobs: BROKER_REFUSED, logs, ...earlierPumps(3) });
+    assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0, name);
+    assert.deepEqual(writes(due.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: infraComment(KEY, mintCause, 4) })}`, ...restarted(30)], name);
+  }
+  // A kill-switch refusal there stays a breaker trip, past the failed-mint bound too.
+  const killed = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: killed.github, actions: killed.actions }), 0);
+  tripped(killed.calls);
 });
 
 // Run 40127232943: broker-check's `Check the kill switch` read
@@ -2238,6 +2411,10 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
   const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
   assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
   tripped(late.calls);
+  // No model ran, so the first sweep after it ended re-fires it.
+  const recent = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
 });
 
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
@@ -2251,6 +2428,20 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
     const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), [], name);
+  }
+});
+
+test("a broker-check breaker trip is not re-fired while the issue lane is paused over its cap", async () => {
+  for (const jobs of [BROKER_REFUSED, KILL_SKIPPED]) {
+    const { github, actions, calls } = stalledRun({
+      jobs,
+      logs: CHECK_KILLED,
+      conclusion: jobs === KILL_SKIPPED ? "success" : "failure",
+      ended: "2026-10-16T11:30:00Z",
+      openLanePrs: 2,
+    });
+    assert.equal(await sweep({ github, actions }, PAUSING), 0);
+    assert.deepEqual(writes(calls), []);
   }
 });
 
@@ -2864,7 +3055,7 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
 });
 
 // A degraded search answers a false empty (total_count 0, incomplete_results
-// true): past pause-from that admits nothing, where a failed read fails open.
+// true): that admits nothing, with or without pause-from.
 test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   for (const config of [PAUSING, {}]) {
@@ -2875,6 +3066,19 @@ test("an incomplete search answer defers a newly unblocked issue, with or withou
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #20 admission deferred: GitHub search answered incomplete results"), lines.join("\n"));
   assert.ok(!lines.some((line) => line.includes("at the queued cap")), lines.join("\n"));
+});
+
+// A queued count check-wip-cap could not read (admission_basis fail-open)
+// admits nothing either, as intake's admission defers on it.
+test("a queued count that could not be read defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const config of [PAUSING, {}]) {
+    const { github, calls } = world({ ...oneDependentWorld(), openLanePrs: null });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [deferredLabel(20)], JSON.stringify(config));
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: the issue lane's queued count could not be read"), lines.join("\n"));
 });
 
 test("at the queued cap the deferral names the queued cap", async (t) => {
@@ -2970,6 +3174,18 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   const at = deferredWorld({ queuedIssues: queuedN(24) });
   assert.equal(await sweep({ github: at.github }, PAUSING), 0);
   assert.deepEqual(writes(at.calls), []);
+});
+
+// A manual intake re-dispatch skips intake-reenter, so a deferred issue can
+// carry the parked status: confirmed beside status: ready; admission lifts it.
+test("the sweep lifts a parked status: confirmed beside status: ready when it admits a deferred issue", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = deferredWorld({ labels: ["admission-deferred", "status: ready", "status: confirmed"] });
+  assert.equal(await sweep({ github: parked.github }, PAUSING), 0);
+  assert.deepEqual(writes(parked.calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
+  const ready = deferredWorld({ labels: ["admission-deferred", "status: ready"] });
+  assert.equal(await sweep({ github: ready.github }, PAUSING), 0);
+  assert.deepEqual(writes(ready.calls), [labeled(25), undeferred(25)]);
 });
 
 // A pull request in this repository that references the deferred issue, as the REST
@@ -3094,6 +3310,13 @@ test("a person's mark on an admissible decided issue runs the admission rules an
   assert.equal(fieldReads(calls), 1);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
+});
+
+test("a person's mark admitted with a parked status: confirmed beside status: ready lifts it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
 });
 
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
@@ -3501,8 +3724,80 @@ test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as don
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
+// A split made by hand (#5901): no split record, but a listed human or the
+// App linked every sub-issue (the newest sub_issue_added naming it), the
+// parent is not `recurring`, and its body holds no open task-list item (the
+// admission rules' `- [ ] `), so its work is its sub-issues'.
+const linked = (number, actor = OWNER, repo = REPO) => ({
+  event: "sub_issue_added",
+  actor,
+  created_at: "2026-10-15T00:00:00Z",
+  sub_issue: { number, repository: { full_name: repo } },
+});
+function handSplitWorld({ parent = issue(30), links = [linked(31), linked(32)], failOn } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  const second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) });
+  return world({
+    closedList: [first],
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
+    subIssues: { 30: [first, second] },
+    events: { 30: links },
+    failOn,
+  });
+}
+
+test("a split made by hand closes once every sub-issue a listed human or the App linked is closed", async () => {
+  for (const links of [
+    [linked(31), linked(32)],
+    [linked(31, LANES_BOT), linked(32)],
+  ]) {
+    const { github, calls } = handSplitWorld({ links });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writtenPaths(calls), closeParentWrites, JSON.stringify(links));
+  }
+});
+
+test("a split made by hand stays open on an untrusted or missing link, an open task item, recurring, or a failed read", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const [setup, code] of [
+    [{ links: [linked(31), linked(32, outsider)] }, 0],
+    // The newest link of 32 is the outsider's re-add.
+    [{ links: [linked(31), linked(32), { ...linked(32, outsider), created_at: "2026-10-15T01:00:00Z" }] }, 0],
+    [{ links: [linked(31)] }, 0],
+    [{ links: [linked(31), linked(32, OWNER, "melodic-software/other")] }, 0],
+    [{ parent: { ...issue(30), body: "Split by hand.\n\n- [ ] One item left here." } }, 0],
+    [{ parent: issue(30, { labels: ["recurring"] }) }, 0],
+    [{ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/${REPO}/issues/30/events`) }, 1],
+  ]) {
+    const { github, calls } = handSplitWorld(setup);
+    assert.equal(await sweep({ github }), code, JSON.stringify(setup));
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split made by hand counts as done for what it blocks", async () => {
+  for (const [links, expected] of [
+    [[linked(31), linked(32)], [labeled(20)]],
+    [[linked(31)], []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: [] },
+      events: { 30: links },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});
+
 test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const dir = tempDir("label-unblocked-budget-");
   const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
   process.env.API_BUDGET_TOKEN = "lanes-app";
   process.env.RUNNER_TEMP = dir;

@@ -12,13 +12,13 @@
 // artifacts with that name are returned) and the closingIssuesReferences
 // GraphQL field.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { main, resolvePull } from "./resolve-pr.mjs";
 import { loadRules } from "../intake-triage/admit.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -94,7 +94,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -113,6 +113,14 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
         return { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"], message: `Could not resolve to an issue or pull request with the number of ${n}.` }] };
       }
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
+    }
+    // The pull request's RenamedTitleEvent timeline, oldest first; `renames`
+    // may also be a whole answer.
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
+      assert.equal(body.variables.number, 41);
+      if (!Array.isArray(renames)) return renames;
+      const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
+      return { data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
     }
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
@@ -237,7 +245,7 @@ test("a Refs number that names no issue or pull request names no spec, and any o
 // The production helper throws on any GraphQL `errors` unless asked to keep
 // them, so main must read the Refs issue with one that keeps them.
 test("main with the real GitHub helper reads a Refs typo as no linked issue", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
   const env = {
@@ -403,8 +411,48 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
+// #9115: the title joins the spec, so a title someone else renamed last is
+// not the author's intent either; only the latest rename counts, as only the
+// body's latest edit does.
+test("a PR whose title another actor renamed last is not its own spec", async () => {
+  const RELEASE = 337859524;
+  const opts = {
+    verifyAuthors: "lane-or-owner",
+    humans: new Set([100, OWNER_ID]),
+    ownerIds: [OWNER_ID, RELEASE],
+    specFromBodyApps: [RELEASE],
+  };
+  const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
+  const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
+  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  const by = (databaseId, __typename = "User") => ({ __typename, databaseId });
+  for (const [label, pr, renames, expected] of [
+    ["never renamed", owner, [], spec],
+    ["renamed by its author", owner, [by(OWNER_ID)], spec],
+    ["renamed by the App that opened it", releasePr, [by(RELEASE, "Bot")], spec],
+    ["renamed by another trusted person", releasePr, [by(100)], spec],
+    ["renamed by someone else", owner, [by(4242)], []],
+    ["renamed by a model's App", releasePr, [by(209825114, "Bot")], []],
+    ["renamed by an actor GitHub cannot name", owner, [null], []],
+    ["renamed by someone else, then by its author", owner, [by(4242), by(OWNER_ID)], spec],
+    ["renamed by its author, then by someone else", owner, [by(OWNER_ID), by(4242)], []],
+  ]) {
+    const result = await resolve({ pulls: [pr], issues: [], renames }, opts);
+    assert.deepEqual(result.specText, expected, label);
+    assert.equal(result.specKind, expected.length ? "pull-request" : "none", label);
+  }
+  // A rename read with no timeline stops the run rather than trusting the title.
+  await assert.rejects(resolve({ pulls: [owner], issues: [], renames: { data: { repository: { pullRequest: null } } } }, opts), /timelineItems could not be read/);
+  // A PR with a closing issue, or one whose body is not its intent, never reads its renames.
+  for (const setup of [{ pulls: [owner] }, { pulls: [pull({ title: "t", body: "b" })], issues: [] }]) {
+    const result = await resolve({ ...setup, renames: { data: null } }, opts);
+    assert.equal(result.proceed, true, JSON.stringify(setup.pulls[0].user));
+  }
+});
+
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(
@@ -732,7 +780,7 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
 });
 
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(
     actors,
@@ -816,7 +864,7 @@ test("an issue whose comments are cut off fails the read", async () => {
 });
 
 test("main writes the outputs, the linked issues and the spec text the workflow reads", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const spec = path.join(dir, "spec.json");
   const specText = path.join(dir, "spec-text.json");
@@ -844,7 +892,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
 });
 
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
   const summary = path.join(dir, "summary");
   const actors = path.join(dir, "trusted-actors.json");
@@ -870,7 +918,7 @@ test("main reports a human's PR as skipped in the log and the step summary", asy
 });
 
 test("main reports an invalid verify-authors value in the step summary", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const dir = tempDir("pr-verify-");
   const summary = path.join(dir, "summary");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
@@ -949,5 +997,70 @@ test("with no task-list marker, even the trusted split child is not spec", async
   const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
   for (const taskList of [undefined, ""]) {
     assert.deepEqual(await specBody(childNode(vector), parentNode(vector), { laneAppId: VECTORS.app_id, taskList }), [[8, null]], JSON.stringify(taskList));
+  }
+});
+
+// Every API call resolvePull makes, for the call-count pins below. The counts
+// follow the lookup order: FAIL names first, since a counted FAIL alone
+// decides already-judged, then this PR's passes; a pass whose spec is
+// unchanged decides already-judged before the issue-named FAIL lookups.
+async function calls(setup) {
+  const github = fake(setup);
+  const paths = [];
+  const recording = async (method, apiPath, body) => {
+    paths.push(apiPath === "/graphql" ? `graphql ${body.query.includes("closingIssuesReferences") ? "spec" : "other"}` : apiPath);
+    return github(method, apiPath, body);
+  };
+  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  return { reason, paths };
+}
+
+test("each path through the resolver makes a pinned number of API calls", async () => {
+  const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  const cases = [
+    // run, commit pulls, six names without issues, the spec, two FAIL names with issues.
+    ["an unjudged head", {}, "ok", 11],
+    // run, commit pulls, the FAIL name, its run and compare.
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 5],
+    // run, commit pulls, six names, the FAIL's run and compare, the spec, the -i7 name.
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 12],
+    // run, commit pulls, six names, the pass's run and compare, the spec.
+    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 11],
+    // As above, then the two FAIL names with issues.
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 13],
+  ];
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  for (const [label, setup, expected, count] of cases) {
+    const { reason: got, paths } = await calls({ issues: [edited], ...setup });
+    assert.equal(got, expected, label);
+    assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
+  }
+});
+
+test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {
+  // The old order looked up this PR's passes, then the FAILs, and always the
+  // issue-named FAILs before weighing a pass; each combination resolves the same.
+  const fail = (name, id) => [artifact(name, id), verifyRun(id)];
+  const pass = (id, start) => [artifact(`pr-verify-41-${HEAD}-pass`, id), verifyRun(id, { run_started_at: start })];
+  const verdicts = {
+    plainFail: fail(`pr-verify-41-${HEAD}-fail`, 80),
+    otherFail: fail(`pr-verify-99-${HEAD}-fail`, 81),
+    issueFail: fail(`pr-verify-41-${HEAD}-fail-i7`, 82),
+    stalePass: pass(83, "2026-10-19T00:00:00Z"),
+    freshPass: pass(84, JUDGED_AT),
+  };
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  const keys = Object.keys(verdicts);
+  for (let mask = 0; mask < 1 << keys.length; mask += 1) {
+    const chosen = keys.filter((_, i) => mask & (1 << i));
+    const setup = {
+      issues: [edited],
+      pulls: [pull(), pull({ number: 99, state: "closed" })],
+      artifacts: chosen.map((key) => verdicts[key][0]),
+      runs: Object.fromEntries(chosen.map((key) => [verdicts[key][1].id, verdicts[key][1]])),
+    };
+    const anyFail = chosen.some((key) => key.endsWith("Fail"));
+    const expected = anyFail || chosen.includes("freshPass") ? "already-judged" : chosen.includes("stalePass") ? "spec-changed" : "ok";
+    assert.equal(await reason(setup), expected, chosen.join("+") || "none");
   }
 });

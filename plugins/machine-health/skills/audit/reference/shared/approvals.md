@@ -26,7 +26,9 @@ checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO
 ## Writing approvals and mutes
 
 `approvals.json` and `mutes.json` have one writer, `Set-ApprovalState`, which
-`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`), through an atomic replace.
+`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`, `exclude-service=`,
+`include-service=`), through an atomic replace. Service exclusions are written this way too;
+`Set-ApprovalState` keeps the keys it never writes (`migration`, `noise_allowlist`) as they are.
 No `TODO.md` text, checked box or not, ever becomes an approval.
 
 What a write guarantees:
@@ -83,8 +85,13 @@ block, which the schema still accepts and nothing reads.
 
 The optional `check_overrides` block carries per-host user curation. The one key read is
 `services.service_exclusions`: service names `Restart-StoppedService` never starts. A name
-matches when it equals the service name, ignoring case; the run log records each skip. Setup
-cannot write this list yet, so it is the one key in `approvals.json` the owner edits by hand.
+matches when it equals the service name, ignoring case; the run log records each skip.
+`/machine-health:setup apply exclude-service=<name>` adds a name (one already listed in any case is
+skipped) and `include-service=<name>` removes it in any case, both through `Set-ApprovalState`. A
+name must be 1 to 256 characters with no `/`, `\` or control character and no leading or
+trailing whitespace (a run compares the exact name, so a padded one would never match): the
+`/` and `\` rule and the length are Windows' own
+([`CreateServiceW`, `lpServiceName`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicew)).
 
 The schema still accepts `event-log-errors.noise_allowlist` so an older file validates, but no
 check reads it.

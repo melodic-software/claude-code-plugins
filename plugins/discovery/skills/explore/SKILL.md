@@ -19,9 +19,9 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Project root, `git rev-parse --show-toplevel`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+The pipe is the bound and belongs in the command; a read-time cap ("read only the first 20
+entries") bounds nothing: the Bash tool returns the command's complete output into context before
+there is anything to decide about.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
@@ -30,7 +30,7 @@ contains git. The dated record for that composition claim is the worktree skill'
 [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "The pre-compute block runs as one shell invocation".
 
-These values orient this session only. The project root is an absolute machine path. Use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
+These values orient this session only. Resolve files against the project root, an absolute machine path, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (outcome gate below).
 
 ## Reply shape: `explore_output`
 
@@ -142,9 +142,9 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area, never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md`. `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
 
-**When to fan out, and to what.** Fan-out is the worker's, not the parent's: the parent dispatches **one** `discovery:explorer`, which scales inside its own run. Two triggers, either one: the scope names **two or more disjoint areas**, or the numbered gap-list after the first pass carries **four or more** entries in areas that share no files. Below that, go sequential; a scout costs a spawn and returns a pointer, which a single-area scope does not need. The worker type is the **built-in Explore scout** described above, one per disjoint area, each told what it owns and what it must not wander into. **Spawn at most a dozen scouts at once.** That is this plugin's own ceiling, not the session's: the harness enforces a separate concurrency limit whose value this body does not restate and which a consumer can configure *below* a dozen, so a wave of twelve is not guaranteed to fit. Treat a refused spawn as an area **deferred, not dropped**: hold it and re-spawn it in the next wave, and let the gap-list rather than the first wave decide when coverage is done. The scout is locate-tier: its hits are pointers, and the worker Reads the file itself before any sidecar records `verified: read`.
+**When to fan out, and to what.** Fan-out is the worker's, not the parent's: the parent dispatches **one** `discovery:explorer`, which scales inside its own run. Two triggers, either one: the scope names **two or more disjoint areas**, or the numbered gap-list after the first pass carries **four or more** entries in areas that share no files. Below that, go sequential; a scout costs a spawn and returns a pointer, which a single-area scope does not need. The worker type is the **built-in Explore scout** described above, one per disjoint area, each told what it owns and what it must not wander into. **Spawn at most a dozen scouts at once.** That is this plugin's own ceiling, not the session's: the harness enforces its own concurrency limit, which a consumer can configure *below* a dozen, so a wave of twelve is not guaranteed to fit. Treat a refused spawn as an area **deferred, not dropped**: hold it and re-spawn it in the next wave, and let the gap-list rather than the first wave decide when coverage is done. The scout is locate-tier: its hits are pointers, and the worker Reads the file itself before any sidecar records `verified: read`.
 
-**One `EXPLORE.md`, one worker.** Fanning the six dimensions across *parent-side* explorers, the shape the `/discovery:research` deep tier uses for N independent topics, is deliberately not done here. Research topics are independent; codebase areas share a dependency graph, and dimension 3 is the one a parent-side split severs. Revisit only when an ask arrives as N genuinely separable modules with no cross-area dependency; then the sub-slice machinery this plugin already has applies unchanged.
+**One `EXPLORE.md`, one worker.** Do not fan the six dimensions across *parent-side* explorers, the shape the `/discovery:research` deep tier uses for N independent topics: codebase areas share a dependency graph, and a parent-side split severs dimension 3. Revisit only when an ask arrives as N genuinely separable modules with no cross-area dependency; then the sub-slice machinery this plugin already has applies unchanged.
 
 ## Worker procedure
 
@@ -180,11 +180,11 @@ This file is the authoritative stage summary, a fresh session must be able to re
 
 **`EXPLORE.md` is always an INDEX**, at every size, not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, a `## Code references` listing with its `coverage:` and staleness-check lines, and the closing Next-stage-handoff naming what external research (`/discovery:research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema, the `repos:` commit pin, and the two load-bearing placement rules. Sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
 
-**Sidecar bodies match their length to what the section needs**. Cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate; the index's one-line abstracts and the outcome gate's specifics are the floor, not an invitation to narrate.
+**Sidecar bodies match their length to what the section needs**: cover the substance, with no filler sections, redundant summaries, or boilerplate. The index's one-line abstracts and the outcome gate's specifics are the floor.
 
 **Sidecar filenames are keyed on the SECTION, not the scope**, a run has one scope and many sections, so a scope-keyed name gives every sidecar the same filename and later sections overwrite earlier ones. Use the same stable id the header's `section` field and the index anchor carry.
 
-**Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | ran | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
+**Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | ran | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; never borrow a research field, because filling one launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
 
 **If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Occupancy is the PARENT's to resolve, before any write: stat the slice root pre-dispatch, and when it is occupied assign a sub-slice `<memory_dir>/<slug>/<scope-slug>/` as the envelope's slice path, so the whole artifact set is written there under its normal names. A worker never picks a sub-slice itself, and on an inline run this session is the parent and applies the same check before writing. A prior exploration lost to a filename collision is silent and unrecoverable.
 
@@ -219,7 +219,7 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 
 - **Fan-out without a numbered gap-list**. Dispatching subagents before writing gaps produces duplicate reads and missed areas. The gap-list is the coverage-discipline gate.
 - **Handing off with placeholder sections**. Every Output-format section needs specifics or an explicit numbered gap. "TBD" fails the outcome gate.
-- **Inferring from filenames without Read**. Grep hits are discovery only; conclusion-driving claims need Read verification.
+- **Inferring from filenames or git log without Read**. Grep hits are discovery only; conclusion-driving claims need Read verification. When uncertain, Read the file.
 - **Investigating deleted files without asking**, when `git status` shows intentional deletes, ask before archaeology.
 
 ## What this skill does NOT do
@@ -228,4 +228,3 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 - **Does not make changes**. It explores. Execution is a separate step
 - **Does not make decisions**. It presents what IS. The planning step decides what SHOULD BE
 - **Does not skip dimensions for "simple" tasks**, a quick bug fix still benefits from reading the surrounding code and checking for tests
-- **Does not substitute for reading**, when uncertain, Read the file. Don't infer from file names or git log alone

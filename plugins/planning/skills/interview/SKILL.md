@@ -238,6 +238,7 @@ breath. One coverage check is exempt; a round that happens to contain one is not
 Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
 synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
 is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
+The prompt is never itself a criterion. On the page surface it is a Notes question the user answers there, the restate refuses an acceptance line that asks the user something, and a prompt still unanswered at export lands in the Brief's `### Captured assumptions` as `- asked in Notes, not answered: <the prompt>` ([`context/surface.md`](context/surface.md) "Confirmation gate").
 
 ### Non-interactive runs skip the ask and say so
 
@@ -372,6 +373,8 @@ On the page surface, Step 3's confirmation gate runs on the page: post the resta
 
 **Re-ground open recommendations before they are shown.** On resume, and before a queued round is shown, check each open recommendation: its `Basis:` cites a source read this session or a constraint row, and it does not rest on an artifact the constraint ledger now excludes. A consequential one that fails gets a research dispatch before the user sees it, or is shown marked "not yet researched". When the user adds a constraint mid-interview, write the `confirmed` row at once and re-check every open recommendation's `Checked against:` line against it; revise the ones it changes and say which.
 
+**Check each draft round against earlier answers before it is shown.** Every round after the first, before it is asked inline or posted with `add-round`, gets a contradiction pass: a fresh-context non-fork sub-agent runs only the assumption sweep's contradiction category over the draft round and the register's `answered` rows ([`context/assumption-sweep.md`](context/assumption-sweep.md) "Pre-round contradiction pass"). Fix each contradiction in the draft before the round goes out: revise the recommendation so it holds with the earlier answer or constraint, or, for an earlier answer, ask one question that names both sides. A question that weighs earlier answers, whether it comes from this pass or the sweep, lists their `Q<N>` ids as the answers it reconciles; a round of sweep items is labeled a sweep round, per that file's "Disposition".
+
 **Composed artifacts are candidates.** A design from explore or research output, or read from an existing implementation, is a candidate, never a recommendation, until re-derived against the constraint ledger: check it against every row, recommend only what survives, and name the rows on its `Checked against:` line. A research or exploration brief dispatched mid-interview carries the constraint ledger verbatim.
 
 **Label evidence by when it was true.** When a recommendation rests on historical evidence (past metrics, merged PRs, an existing implementation) and the survey finds a recent process change or cannot tell, label each finding `past`, `current`, or `intended` before a recommendation rests on it. A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out. State or ask any currency you cannot establish; past-only evidence never alone grounds a recommendation.
@@ -397,7 +400,7 @@ Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both H
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).
 
-**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register`, shaped `Q<N> <status>: <question text> (<resolution>)`, generated from the register on disk, never from the transcript, so it survives a compaction. Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
+**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register`, shaped `Q<N> <status>: <question text> (<resolution>)`, generated from the register on disk, never from the transcript, so it survives a compaction. Generate it with `bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" export-ledger --recap --ledger <memory_dir>/<topic-slug>/interview-checklist.md --out <memory_dir>/<topic-slug>/recap.md`, which reads the ledger alone, so the terminal lane, with no page data, passes no `--dir`. Paste the contents of `recap.md` verbatim in place of a recap of your own: no paraphrased or hand-shortened line, and no HTML or collapsible block, which the terminal shows as raw tags. Each recap saves its rows beside the ledger (`interview-checklist.last-recap.json`, overwritten each time). After the first confirmation, add `--changed`: the recap then lists only the rows changed since the last recap, plus one line counting the rest by status. The page lane's `restate` keeps the full recap ([`context/surface.md`](context/surface.md) "Confirmation gate"). Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
@@ -477,7 +480,7 @@ Read [`context/routing.md`](context/routing.md) at entry and at every round boun
 ## Next
 
 - Contract locked: /planning:design, which records a one-line early exit when no design question is open.
-- A branch defers to another person's decision, or quickly accepted answers want a fresh-context check: /planning:questionnaire or /planning:audit-answers.
+- Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
