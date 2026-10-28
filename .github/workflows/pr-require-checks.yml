@@ -3999,7 +3999,14 @@ jobs:
       #   way and only where it names its own run's head; never a hold
       #   comment, which any GITHUB_TOKEN workflow can post as
       #   github-actions[bot]. With none, or two heads at that time, it covers
-      #   no head. The linked issue is the one issue in this repository that
+      #   no head. Nor does it while the head branch's push history (the
+      #   repository activity API, which deleting a run leaves) shows a head
+      #   pushed after the decided head's last push and before the decision
+      #   with no run of every review lane started before the decision, since
+      #   a deleted run of a newer head would make an older notice the decided
+      #   head (the base's merge-holds.mjs unranHead, #10437); a history with
+      #   no push of the decided head before it, or a full page, covers none
+      #   too. The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -4174,9 +4181,14 @@ jobs:
           # for another pull request), updated in the window or started before
           # the decision, as {at, criteria, sha, run}: `sha` as the notice
           # names it, `run` the head its run ran on.
-          notices='[]' vetted=''
+          # `ran` lists, per lane, the heads of its runs from this repository
+          # started before the decision.
+          notices='[]' vetted='' ran='[]'
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
+            ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo and (.created_at | fromdateiso8601) < $decided) | .head_sha] | unique]' <<<"$runs") ||
+              keep "the $file runs do not parse"
             while read -r id sha; do
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
@@ -4210,6 +4222,19 @@ jobs:
           decided=$(jq -r --argjson at "$decided_at" '[.[] | select(.at < $at and .sha == .run and any(.criteria | split(",")[]; . == "cost"))]
             | (map(.at) | max) as $newest | [.[] | select(.at == $newest) | .sha] | unique
             | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
+          # The decided head stands only while the head branch's push history
+          # shows a run of every lane on each head pushed since it before the
+          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          if [ -n "$decided" ]; then
+            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+              keep "the head branch's push history is unreadable"
+            printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
+            jq '.comment.created_at' <<<"$chosen" >"$RUNNER_TEMP/cost-hold-decided-at.json" || keep "the decisions do not parse"
+            gap=$(holds_js unranHead "$RUNNER_TEMP/cost-hold-activity.json" "$RUNNER_TEMP/cost-hold-ran.json" \
+              "$RUNNER_TEMP/cost-hold-decided.json" "$RUNNER_TEMP/cost-hold-decided-at.json") || keep "the head branch's push history could not be checked"
+            [ -z "$gap" ] || keep "$gap"
+          fi
           carries "$decided" || keep "the body cites no recorded owner cost decision covering this head"
           decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
           holds=$(jq -c --argjson since "$since" '[.[] | select(.at > $since)]' <<<"$notices") || keep "the hold notices do not parse"
