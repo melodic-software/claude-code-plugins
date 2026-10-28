@@ -705,11 +705,10 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
 // changed path the merge lane refuses, a runner check that failed, and on a
-// reused branch a leak scan that is anything but clean (found, failed,
-// missing or unread). Runner checks that did not report hold nothing on
-// their own: enable-auto-merge.mjs arms the PR only on a pr-verify pass and a
-// bound security review with no CRITICAL finding at its head, and it merges
-// only once ci-status passes.
+// reused branch a leak scan that found something. Runner checks or a leak
+// scan that did not report hold nothing here: the merge needs ci-status,
+// which needs lint-repo and its gitleaks scan (pr-require-checks.yml), both
+// fail-closed on any non-success.
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
@@ -719,7 +718,7 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
     Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
-    (reused && checks?.scan !== "clean")
+    (reused && checks?.scan === "found")
   );
 }
 
@@ -729,7 +728,7 @@ const scanLine = (checks) =>
     ? "The runner's leak scan read everything the branch changes since its merge base with the default branch and found nothing credential-shaped."
     : checks?.scan === "found"
       ? "The runner's leak scan found a credential shape or a password or secret assignment in what the branch changes, so a person merges this."
-      : "The runner's leak scan of the branch did not finish or could not be read, so a person merges this.";
+      : "The runner's leak scan of the branch did not finish or could not be read.";
 
 // The runner's check results as the PR body's Verification section shows them.
 const checkLines = (checks) =>

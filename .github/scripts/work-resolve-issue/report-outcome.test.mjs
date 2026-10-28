@@ -2506,7 +2506,7 @@ const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/
 const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };
 
 test("a reuse PR with a usable summary carries it under the hold line", () => {
-  const plan = reusePlan({ issueNumber: 77, branch: lane(400), summary: usable, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS });
+  const plan = reusePlan({ issueNumber: 77, branch: lane(400), summary: usable, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS, humanMerge: true });
   assert.equal(plan.title, "docs(work-items): summary title");
   assert.ok(plan.body.startsWith("Closes #77\n\nHold: a human merges this\n\n## Summary\n"), plan.body);
   assert.ok(plan.body.includes("> SUMMARY-PASS-TEXT"), plan.body);
@@ -2565,7 +2565,7 @@ test("main opens a held reuse PR when the compare request fails, saying the file
   });
 });
 
-test("main opens a held reuse PR from a summary bound to this issue, branch and tip", async () => {
+test("main opens a reuse PR with no hold line from a summary bound to this issue, branch and tip when only the runner checks are missing", async () => {
   await withAsyncDir({ "reuse-summary.json": summaryFile(), "resolved.json": RESOLVED }, async (dir) => {
     const { fetch, calls } = fakeFetch([tipRoute(), ...PR_ROUTES]);
     assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
@@ -2574,7 +2574,7 @@ test("main opens a held reuse PR from a summary bound to this issue, branch and 
     assert.equal(pull.title, "docs(work-items): summary title");
     assert.ok(pull.body.includes("SUMMARY-PASS-TEXT") && pull.body.includes("CHANGE-ONE"), pull.body);
     assert.ok(pull.body.includes("\n- README.md\n") && !pull.body.includes("(denied path)"), pull.body);
-    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+    assert.ok(!pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
   });
 });
 
@@ -3252,11 +3252,15 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "the runner checks are missing": { checks: null },
   "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
 const SCAN_CASES = {
   "the leak scan found something": { checks: { ...CLEAN_CHECKS, scan: "found" } },
+};
+// A check that did not report: ci-status, pr-verify and the security review
+// lane check the PR's head before enable-auto-merge arms it, so no hold line.
+const GAP_CASES = {
+  "the runner checks are missing": { checks: null },
   "the leak scan failed": { checks: { ...CLEAN_CHECKS, scan: "failed" } },
   "the leak scan never ran": { checks: { tip: TIP, results: CLEAN_CHECKS.results } },
 };
@@ -3265,6 +3269,22 @@ for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })
   test(`a reuse PR holds when ${name}, and the same clean reuse does not`, () => {
     assert.equal(reuseHeld(), false, "the clean reuse");
     assert.equal(reuseHeld(overrides), true, name);
+  });
+}
+
+for (const [gap, gapOverrides] of Object.entries(GAP_CASES)) {
+  test(`a reuse PR does not hold only because ${gap}, and says what checks its head`, () => {
+    const { body } = reusePlan({ ...CLEAN_REUSE, ...gapOverrides });
+    assert.ok(!body.split("\n").includes(HOLD_LINE), body);
+    assert.ok(body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), body);
+    assert.ok(!body.includes("a person merges this") && !body.includes("a person reviews the diff"), body);
+  });
+
+  test(`a reuse PR still holds on every other condition when ${gap}`, () => {
+    for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })) {
+      const checks = overrides.checks === undefined ? gapOverrides.checks : overrides.checks;
+      assert.equal(reuseHeld({ ...gapOverrides, ...overrides, checks }), true, name);
+    }
   });
 }
 
@@ -3282,13 +3302,11 @@ test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
 });
 
-test("mustHold: missing runner checks alone hold nothing off a reuse, a reuse holds on any scan but clean, and a failed check holds", () => {
-  const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"] };
-  assert.equal(mustHold({ ...facts, checks: null }), false, "missing checks, no reuse");
-  assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS, reused: true }), false, "reused, scan clean");
-  assert.equal(mustHold({ ...facts, checks: null, reused: true }), true, "reused, checks and scan missing");
-  assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results }, reused: true }), true, "reused, scan missing");
-  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" }, reused: true }), true, "reused, scan found");
+test("mustHold: a reuse holds on a scan that found something or a failed check, and not on a scan that did not report", () => {
+  const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
+  assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), false, "scan missing");
+  assert.equal(mustHold({ ...facts, checks: null }), false, "checks and scan missing");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
 });
 
@@ -3333,9 +3351,10 @@ async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: 
   });
 }
 
-test("main opens a clean reuse PR with no hold line, and holds it on a leak scan that is not clean", async () => {
+test("main opens a clean reuse PR with no hold line, holds it on a leak scan that found something, and not on one that did not report", async () => {
   assert.ok(!holds((await runReuse()).body));
-  for (const scan of ["found", "failed", null]) assert.ok(holds((await runReuse({ scan })).body), String(scan));
+  assert.ok(holds((await runReuse({ scan: "found" })).body), "found");
+  for (const scan of ["failed", null]) assert.ok(!holds((await runReuse({ scan })).body), String(scan));
 });
 
 test("main holds a reuse PR on a denied path or a failed compare, and opens a clean one unheld", async () => {
