@@ -19,7 +19,9 @@ workflow change after auto-merge is armed.
   floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
   the Python that decides the holds, `babysit_merge*` as `gate`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
-  match every floor entry, whatever its class.
+  match every floor entry, whatever its class. The gate's trusted-author
+  lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
+  `pathHold`, which judges only lanes App pull requests, holds all of it.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
@@ -265,6 +267,25 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(False, answer["held"])
         self.assertIn(False, answer["configured"])
         self.assertNotEqual(answer["held"], answer["configured"])
+
+    def test_the_author_lift_is_the_gate_class_and_the_lanes_app_never_gets_it(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the Python gate lets a trusted person's
+        # own gate-path lines clear on a clean security review
+        # (risk.AUTHOR_REVIEW_FLOOR). The native holds judge only the lanes
+        # App's pull requests (ci-status skips every other author), so they
+        # keep holding every one of those globs for a person.
+        gate = [g for g, kind in risk.FLOOR_CLASSES if kind == "gate"]
+        self.assertEqual(list(risk.AUTHOR_REVIEW_FLOOR), gate)
+        samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
+        answer = module(samples)
+        self.assertEqual([g for g, kind in answer["classes"] if kind == "gate"], gate)
+        self.assertEqual(answer["held"], [True] * len(samples))
+        step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

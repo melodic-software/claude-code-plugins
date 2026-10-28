@@ -59,6 +59,7 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
+    AUTHOR_REVIEW_FLOOR,
     FLOOR,
     ChangedFile,
     glob_match,
@@ -5034,6 +5035,34 @@ def own_paths(
     )
 
 
+def author_reviewed_paths(
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    humans: Collection[int],
+    verified: bool,
+) -> frozenset[str]:
+    """The `changed` `gate` floor paths (`AUTHOR_REVIEW_FLOOR`) only the
+    author's own commits touched (`foreign_paths`), when a person on the
+    trusted-actor list (`humans`, `trusted_actors`' people) opened the pull
+    request and pr-verify passed its head (`verified`): what
+    `RiskInput.author_reviewed` clears on a clean security review (owner
+    direction 2026-10-27). The lanes App, any other bot, a person off the
+    list, a lane's fix commit on a gate path and commits that do not read
+    get none, so a lane changing its own powers still waits for a person."""
+    user = json_object(pr.get("user"))
+    uid = user.get("id")
+    if not verified or user.get("type") != "User" or type(uid) is not int:
+        return frozenset()
+    if uid not in humans:
+        return frozenset()
+    gate = [p for p in changed if any(glob_match(g, p) for g in AUTHOR_REVIEW_FLOOR)]
+    others = foreign_paths(repo, pr, changed) if gate else frozenset()
+    if others is None:
+        return frozenset()
+    return frozenset(p for p in gate if p not in others)
+
+
 # Manifest and workflow text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
@@ -5858,6 +5887,8 @@ def assess(
                 trusted = trusted_actors(repo, head, exclude=skip)
             except (PolicyReadError, StopReadError):
                 pass
+        # Its people, for the gate-path lift (`author_reviewed_paths`).
+        inputs["trusted_humans"] = trusted[1]
         # Read again right before the enqueue (`recheck_lane_issue`).
         inputs["issue_holds"] = issue_hold_labels(config, human_gated)
         eligible = lane_eligibility(

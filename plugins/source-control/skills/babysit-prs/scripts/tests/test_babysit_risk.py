@@ -1948,6 +1948,108 @@ class ReviewClearedFloorTests(unittest.TestCase):
         self.assertTrue(holds(result))
 
 
+class AuthorReviewedGatePathTests(unittest.TestCase):
+    """Owner direction 2026-10-27: a `gate` path a trusted person's own
+    commits alone touched, on a head pr-verify passed
+    (`RiskInput.author_reviewed`, built by
+    `babysit_merge_policy.author_reviewed_paths`), clears on the evidence that
+    clears an `enforcement` path; a `trust` path, and a gate path not in
+    `author_reviewed`, still hold for a person."""
+
+    GATE = ".github/scripts/pr-merge/who.mjs"
+    GATE_TREE = ".github/actions/resolve-config/resolve.mjs"
+    TRUST = ".github/actions/request-lane-token/action.yml"
+
+    def _score(self, path, security, reviewed=_UNSET, **changes):
+        lanes = (_lane("claude-review"), *security)
+        reviewed = frozenset({path}) if reviewed is _UNSET else reviewed
+        return score(
+            _input(
+                files=(_file(path),), lanes=lanes, author_reviewed=reviewed, **changes
+            )
+        )
+
+    def test_a_clean_bound_security_review_clears_a_reviewed_gate_path(self):
+        for path in (self.GATE, self.GATE_TREE):
+            with self.subTest(path):
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+                self.assertFalse(holds(result))
+
+    def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
+        security = "claude-security-review"
+        cases = {
+            # bind finds no security run at this head when the clean review
+            # is of an older one.
+            "a review of an older head": (
+                _lane(security, bound=False, unbound_reason="no-run"),
+            ),
+            "a CRITICAL finding": (
+                LaneEvidence(security, True, None, 1, blocking_findings=1),
+            ),
+            "no security review": (),
+        }
+        for name, lanes in cases.items():
+            with self.subTest(name):
+                result = self._score(self.GATE, lanes)
+                self.assertEqual(
+                    [c for c in _codes(result) if self.GATE in c],
+                    [f"review-path:{self.GATE}"],
+                )
+                self.assertTrue(holds(result))
+
+    def test_a_gate_path_outside_author_reviewed_holds_for_a_person(self):
+        result = self._score(
+            self.GATE, (_lane("claude-security-review"),), reviewed=frozenset()
+        )
+        self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_a_trust_path_holds_for_a_person_whatever_author_reviewed_says(self):
+        result = self._score(self.TRUST, (_lane("claude-security-review"),))
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/request-lane-token/**",)
+        )
+        self.assertTrue(holds(result))
+
+    def test_a_configured_denied_path_keeps_its_hold(self):
+        result = self._score(
+            self.GATE,
+            (_lane("claude-security-review"),),
+            high_paths=(".github/scripts/**",),
+        )
+        self.assertEqual(
+            _codes(result),
+            ("high-path:.github/scripts/**", f"high-path:{self.GATE}"),
+        )
+
+    def test_a_lane_source_change_sends_it_to_a_person(self):
+        security = _lane(
+            "claude-security-review", bound=False, unbound_reason="lane-source-changed"
+        )
+        result = self._score(self.GATE, (security,))
+        code = f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.GATE}"
+        self.assertIn(
+            code, [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        )
+
+    def test_an_unreadable_author_reviewed_lifts_nothing(self):
+        for value in (None, [self.GATE], "x", frozenset({1})):
+            with self.subTest(value=value):
+                result = self._score(
+                    self.GATE, (_lane("claude-security-review"),), reviewed=value
+                )
+                self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_enforcement_paths_are_unchanged(self):
+        path = B + "babysit_gh.py"
+        for reviewed in (frozenset(), frozenset({path})):
+            with self.subTest(reviewed=reviewed):
+                clean = self._score(path, (_lane("claude-security-review"),), reviewed)
+                self.assertEqual(clean.score, Risk.LOW)
+                held = self._score(path, (), reviewed)
+                self.assertIn(f"review-path:{path}", _codes(held))
+
+
 class UnbindableReviewPathTests(unittest.TestCase):
     """Owner decision Q26 option B, follow-up: an enforcement path whose
     security review can never bind at this head, because the pull request

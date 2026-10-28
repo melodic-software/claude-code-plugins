@@ -21,7 +21,9 @@ main runs to mint and scope lane tokens and judge triggers, code owners and
 submodules, and it holds whatever the floor switch says. Its
 `enforcement` entries (`REVIEW_FLOOR`) rate HIGH as `review-path:<glob>`
 instead, which a clean security review bound to the head clears
-(`security_review_clean`, owner decision Q26 option B). No other path rates
+(`security_review_clean`, owner decision Q26 option B), and so do the
+`gate` entries in `RiskInput.author_reviewed` (owner direction 2026-10-27).
+No other path rates
 HIGH for being trusted alone, and the two review lanes, which are the gate,
 judge it, except the cost and trusted-actor holds below. The configured
 `merge.diff-check.denied-paths` are joined to the floor. Every glob matches
@@ -186,6 +188,12 @@ class RiskInput:
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
+    # `gate` paths a trusted person's own commits alone touched, on a head
+    # pr-verify passed, on that person's own pull request
+    # (babysit_merge_policy.author_reviewed_paths): they rate `review-path:`
+    # as an enforcement path does (owner direction 2026-10-27). Anything but
+    # a frozenset of strings lifts nothing.
+    author_reviewed: frozenset[str] = frozenset()
     # The listing reached the files API's cap, so no read ever completes it
     # and its paths can never all be judged.
     files_capped: bool = False
@@ -225,7 +233,10 @@ class RiskResult:
 #   the routing table they read, so a held reason cannot be dropped unreviewed.
 # A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
 # path holds until the security lane's review binds to the head with no
-# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed.
+# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed. So
+# does a `gate` path on a trusted person's own pull request that only their
+# own commits touched, on a head pr-verify passed (AUTHOR_REVIEW_FLOOR,
+# `RiskInput.author_reviewed`); a lanes App pull request's never does.
 # merge-holds.mjs HOLD_PATH_CLASSES is the same list (test_merge_holds_sync.py).
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/check-trusted-trigger/**", "trust"),
@@ -304,6 +315,10 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
 REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enforcement")
+AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
+AUTHOR_REVIEW_FLOOR: tuple[str, ...] = tuple(
+    g for g, c in FLOOR_CLASSES if c in AUTHOR_REVIEW_CLASSES
+)
 # Every floor glob, whichever clears it.
 FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
 REVIEW_PATH_PREFIX = "review-path:"
@@ -661,14 +676,21 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
+    reviewed = _author_reviewed(inp.author_reviewed, paths, configured)
     for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
-        hits = [path for path in paths if glob_match(pattern, path)]
+        hits = [
+            path
+            for path in paths
+            if glob_match(pattern, path)
+            and not (path in reviewed and pattern in AUTHOR_REVIEW_FLOOR)
+        ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if not security_review_clean(inp.lanes):
         unbindable = _security_review_unbindable(inp.lanes)
-        for pattern in REVIEW_FLOOR:
-            hits = [path for path in paths if glob_match(pattern, path)]
+        for pattern in (*REVIEW_FLOOR, *AUTHOR_REVIEW_FLOOR):
+            candidates = paths if pattern in REVIEW_FLOOR else reviewed
+            hits = [path for path in candidates if glob_match(pattern, path)]
             if hits and unbindable:
                 detail = f"{', '.join(hits)}; it also changes a lane source, so no security review binds to this head"
                 reasons.append(
@@ -690,6 +712,25 @@ def _high_path_reasons(
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
     return reasons
+
+
+def _author_reviewed(
+    raw: Any, paths: list[str], configured: Iterable[str]
+) -> list[str]:
+    """The changed `paths` in `raw` (`RiskInput.author_reviewed`) that a
+    `gate` glob matches and no other floor or configured glob does: only
+    those leave `high-path:` for `review-path:`. Anything but a frozenset of
+    strings names none."""
+    if not (isinstance(raw, frozenset) and all(isinstance(p, str) for p in raw)):
+        return []
+    held = [*(g for g in HIGH_FLOOR if g not in AUTHOR_REVIEW_FLOOR), *configured]
+    return [
+        path
+        for path in dict.fromkeys(paths)
+        if path in raw
+        and any(glob_match(g, path) for g in AUTHOR_REVIEW_FLOOR)
+        and not any(glob_match(g, path) for g in held)
+    ]
 
 
 def is_trusted_actors_path(path: str) -> bool:
