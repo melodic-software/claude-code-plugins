@@ -310,9 +310,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
 
-    def test_every_pr_merge_script_is_gate_code(self) -> None:
+    def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
         # Owner decision Q26 option B: the merge gate's own code stays a
-        # person's, every script pr-merge.yml runs from that directory.
+        # person's, every script pr-merge.yml runs from that directory
+        # (`gate`, or `trust` for merge-holds.mjs, which applies the holds).
         folder = ROOT / ".github/scripts/pr-merge"
         scripts = sorted(
             f".github/scripts/pr-merge/{f.name}"
@@ -323,10 +324,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             and ".fixture." not in f.name
         )
         self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
-        gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
+        held = {g for g, kind in risk.FLOOR_CLASSES if kind in risk.PERSON_CLASSES}
         for path in scripts:
             with self.subTest(path):
-                self.assertIn(path, gate)
+                self.assertIn(path, held)
 
     def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
         files = python_closure(import_closure(FLOOR_ENTRIES))

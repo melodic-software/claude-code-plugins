@@ -220,11 +220,13 @@ class RiskResult:
 #   activity-rules.json, the pipeline config, whose activity `effect:`
 #   values and lane slots the broker reads, check-trusted-trigger,
 #   check-kill-switch, whose writeOutputs both of those write their verdicts
-#   through), code owners and submodules.
-# - `gate`: the merge gate's own code: the rate guard, every pr-merge script,
-#   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
-#   compute the review's clear condition), and scripts/sync-hold-floor.py,
-#   which writes this table's copies.
+#   through), code owners, submodules, and the code that computes the
+#   author lift and the hold tables: babysit_merge*, babysit_risk.py and
+#   babysit_review_evidence.py (which compute the review's clear
+#   condition), merge-holds.mjs and scripts/sync-hold-floor.py, which writes
+#   this table's copies.
+# - `gate`: the rest of the merge gate's own code: the rate guard and the
+#   other pr-merge scripts.
 # - `enforcement`: the pr-merge and ci-status workflows, the rest of the
 #   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
@@ -239,7 +241,8 @@ class RiskResult:
 # own commits touched, on a head pr-verify passed (AUTHOR_REVIEW_FLOOR,
 # `RiskInput.author_reviewed`); a lanes App pull request's never does, nor
 # does a `trust` path: agents commit as the trusted owner, so what scopes a
-# lane token always waits for a person.
+# lane token, and what could widen the lift or drop a floor row for the next
+# pull request, always waits for a person.
 # The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
 # HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
 # hold_patterns, and test_merge_holds_sync.py runs its --check.
@@ -252,7 +255,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/request-lane-token/**", "trust"),
     (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
     (".github/actions/log-api-budget/rate-limits.json", "gate"),
-    (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
+    (".github/scripts/pr-merge/merge-holds.mjs", "trust"),
     (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
     (".github/scripts/pr-merge/superseded.mjs", "gate"),
     (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
@@ -270,19 +273,19 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
     (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
     (".github/actions/report-check-run/posting-run.mjs", "gate"),
-    ("scripts/sync-hold-floor.py", "gate"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
+    ("scripts/sync-hold-floor.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),

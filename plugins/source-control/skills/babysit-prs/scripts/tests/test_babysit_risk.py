@@ -282,7 +282,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 7, "gate": 25, "enforcement": 43},
+            {"trust": 13, "gate": 19, "enforcement": 43},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1937,6 +1937,22 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         result = self._score(self.PIPELINE, (_lane("claude-security-review"),))
         self.assertIn(f"high-path:{self.PIPELINE}", _codes(result))
         self.assertTrue(holds(result))
+
+    def test_the_lift_and_hold_table_code_holds_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise widen the lift or drop a floor
+        # row on a clean review, and the next PR would take the wider lift.
+        for path in (
+            B + "babysit_risk.py",
+            B + "babysit_review_evidence.py",
+            B + "babysit_merge_policy.py",
+            B + "babysit_merge.py",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            "scripts/sync-hold-floor.py",
+        ):
+            with self.subTest(path=path):
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertIn(f"high-path:{path}", _codes(result))
+                self.assertTrue(holds(result))
 
     def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
         security = "claude-security-review"

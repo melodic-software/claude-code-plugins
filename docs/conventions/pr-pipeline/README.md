@@ -923,22 +923,26 @@ the rules that only tighten in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
     which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
     values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
-    `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`
-    and `**/.gitmodules`.
-  - `gate`, a person merges it: the merge gate's own code, which is the rate guard
-    (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
-    `.github/scripts/pr-merge/`,
-    `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
-    `babysit_review_evidence.py`, which compute the security review's clear condition. On a pull
+    `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
+    `**/.gitmodules`, and the code that computes the author lift and the hold tables:
+    `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py` and
+    `babysit_review_evidence.py`, which compute the security review's clear condition,
+    `.github/scripts/pr-merge/merge-holds.mjs`, and `scripts/sync-hold-floor.py`, which writes the
+    floor's copies.
+  - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
+    (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
+    (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
+    `.github/scripts/pr-merge/`. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
     (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
-    lane changing its own powers is still merged by a person. The token-scope files are `trust`,
-    never `gate`, so they never take this lift: agents commit as the trusted owner, and a pull
-    request that widens a lane token's scope waits for a person.
+    lane changing its own powers is still merged by a person. The token-scope files and the lift
+    and hold-table code are `trust`, never `gate`, so they never take this lift: agents commit as
+    the trusted owner, so a pull request that widens a lane token's scope, widens the lift or
+    drops a floor row waits for a person.
   - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
     `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
     request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
