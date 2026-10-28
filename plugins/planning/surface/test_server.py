@@ -152,6 +152,15 @@ class ServerCase(unittest.TestCase):
     def rp(self, *args):
         return run_round(self.dir, *args)
 
+    rp_ops_n = 0
+
+    def rp_ops(self, *ops):
+        """Run `ops` through `apply` from a fresh ops file (apply consumes it); returns (rc, out)."""
+        ServerCase.rp_ops_n += 1
+        f = self.tmp / f"rp-ops-{ServerCase.rp_ops_n}.json"
+        f.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        return self.rp("apply", "--file", str(f))
+
 
 class TestBuild(ServerCase):
     """The server reports the plugin version and source hash it started from, and the page carries
@@ -332,43 +341,41 @@ class TestApi(ServerCase):
         self.assertGreater(data["seq"], 0)
 
     def test_19_revise_refused_when_a_newer_user_event_exists(self):
-        rc, out = self.rp(
-            "revise",
-            "Q5",
-            "--rec",
-            "New rec",
-            "--affects",
-            "none",
-            "--keep-alternatives",
-            "--seq",
-            str(self.accept["seq"]),
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "Q5",
+                "rec": "New rec",
+                "affects": "none",
+                "keepAlternatives": True,
+                "seq": self.accept["seq"],
+            }
         )
         self.assertNotEqual(rc, 0)
         self.assertIn("refused", out)
 
     def test_20_revise_force_works(self):
-        rc, out = self.rp(
-            "revise",
-            "Q5",
-            "--rec",
-            "New rec",
-            "--affects",
-            "none",
-            "--keep-alternatives",
-            "--seq",
-            str(self.accept["seq"]),
-            "--force",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "Q5",
+                "rec": "New rec",
+                "affects": "none",
+                "keepAlternatives": True,
+                "seq": self.accept["seq"],
+                "force": True,
+            }
         )
         self.assertEqual(rc, 0, out)
 
     def test_21_content_rev_bumped_by_revise_not_by_reply(self):
-        self.rp("reply", "Q5", "--text", "Thread reply only")
+        self.rp_ops({"op": "reply", "id": "Q5", "text": "Thread reply only"})
         q5 = next(x for x in self.state()["questions"]["questions"] if x["id"] == "Q5")
         self.assertEqual(q5.get("contentRev"), 1)
 
     def test_22_note_reply_lands_in_notes_and_marks_handled(self):
-        rc, out = self.rp(
-            "note-reply", "--seq", str(self.note_seq), "--text", "Got your note."
+        rc, out = self.rp_ops(
+            {"op": "note-reply", "seq": self.note_seq, "text": "Got your note."}
         )
         st = self.state()
         self.assertEqual(rc, 0, out)

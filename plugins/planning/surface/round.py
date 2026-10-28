@@ -1,26 +1,25 @@
 """Edit questions.json without hand-editing JSON. Python 3 stdlib; atomic writes.
 
 python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also follow the command)
-  add             add a question (from --file JSON or flags)
+
+Page text reaches questions.json only through a file: a question or round JSON file (add,
+add-round) or an ops file (apply). No command takes question, reply, note or reason text on its
+command line; reply, revise, note-reply, record-terminal, archive, reconfirm and group are apply
+ops, and supersede and resolve read their text from a file.
+
+  add             add a question from --file JSON; --id, --group, --stage, --round, --depends,
+                  --follow-up-of, --supersedes and --waiting override its fields
   add-round       add several groups, questions and visuals from one JSON file, in one write; a round
                   with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
                   open: [ids]}) the page pins above its first question; meta.kind "sweep"
                   marks a sweep round, and a question's `reconciles` names the earlier
                   questions whose answers it reconciles;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
-  group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
-  reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation, alternatives, commitments,
-                  dependencies or group
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
-  note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
-  record-terminal record an answer the user gave in the terminal
-  archive         archive off-path questions with a reason (the server derives their state)
-  reconfirm       clear upstream-changed questions that stand as asked after an upstream answer
-                  changed (a revise clears the mark too)
   apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
-                  watcher holds the lease
+                  watcher holds the lease. The ops that write text: reply, revise, note-reply,
+                  record-terminal, archive, reconfirm, group and the rest in schema/ops.schema.json
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
                   and each seeded question whose round differs from its ledger round cell
   repair-rounds   rewrite those rounds to the ledger cell's round and nothing else
@@ -38,11 +37,13 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
                   export-ledger --diff does; records meta.ledgerSync for the page header and logs
                   an Activity line when the rows that disagree change; exit 1 when any does
                   (session-bridge.conf runs it after each apply, AFTER_APPLY)
-  supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
-                  (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
-  resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
-                  restore (the row as it was before supersede); both back the ledger up and print the
-                  check-open-questions verdict
+  supersede       set an answered register row of --ledger F to superseded-by-plan with the proposal
+                  read from --proposes-file P (needs no data dir): the row's resolution becomes `was`,
+                  escaped as the exporter does
+  resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted,
+                  with an optional note read from --note-file N) or restore (the row as it was
+                  before supersede); both back the ledger up and print the check-open-questions
+                  verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
@@ -67,28 +68,28 @@ status, lease, doctor and validate take --json: one JSON object on stdout in pla
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
-New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
-flags) and at least two alternatives (exactly one for a yes/no question flagged `"binary": true`,
-whose alternative may not repeat or contain the recommendation).
+New questions need a `commits` key (an explicit empty list is allowed) and at least two
+alternatives (exactly one for a yes/no question flagged `"binary": true`, whose alternative may
+not repeat or contain the recommendation).
 add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
-independent; `--depends none` on the flags) or names a question still open in its own round; with
-the requireDepends setting on, both refuse.
+independent; `--depends none` on add's flags) or names a question still open in its own round;
+with the requireDepends setting on, both refuse.
 add, add-round and apply warn when one write supersedes three or more questions one for one, and
 point to revise, which keeps a question's id, thread and answer. archive clears any hold.
-reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
-user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
-unhandled user event on it), unless --force. A recommendation change also sets aside the
-question's counted `own` answer; record-terminal --decision own records the resolved decision.
-reply --rec and revise --rec need --alt (the revised alternatives) or --keep-alternatives (the
-current ones were checked against the new recommendation) and refuse with neither (R-I); --alt
-keeps at least two alternatives (exactly one on a binary question). reply --rec and revise --rec or --alt
-refuse when an alternative, case and trailing punctuation folded, equals or contains (as whole
-words) the recommendation or is contained by it; pass revised alternatives in the same op (--alt).
-revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
+The reply and revise ops with `rec` need `affects` (ids, or "none"), and refuse when the question
+has a live user event newer than `seq` (an undo or a withdrawn event does not count; without
+`seq`: any unhandled user event on it), unless `force`. A recommendation change also sets aside
+the question's counted `own` answer; a record-terminal op with decision `own` records the resolved
+decision. A `rec` needs `alternatives` (the revised ones) or `keepAlternatives` (the current ones
+were checked against the new recommendation) and is refused with neither (R-I); `alternatives`
+keeps at least two (exactly one on a binary question). A `rec` or `alternatives` is refused when
+an alternative, case and trailing punctuation folded, equals or contains (as whole words) the
+recommendation or is contained by it; pass revised alternatives in the same op.
+The revise op's `commits` replaces the commitment list (an empty list clears it); when the list
 changes, the recorded confirmations are dropped and confirm events at or below the question's
 commitsSinceSeq no longer count.
-reply --handled N marks every event with seq at or below N handled, including other questions'
-events; prefer `handle` with explicit seqs.
+The reply op's `handled: N` marks every event with seq at or below N handled, including other
+questions' events; prefer `handle` with explicit seqs.
 """
 
 import argparse
@@ -1940,29 +1941,16 @@ def read_input(path, kind, as_json=False, newline=None):
 
 
 def cmd_add(d, a):
-    q = read_input(a.file, "question file", as_json=True) if a.file else {}
-    for field in (
-        "id",
-        "group",
-        "short",
-        "title",
-        "stage",
-        "facts",
-        "recommendation",
-        "basis",
-        "followUpOf",
-        "supersedes",
-        "waitsOn",
-    ):
-        val = getattr(a, field.replace("recommendation", "rec"), None)
+    # The question's text comes only from the file; the flags override ids and placement.
+    q = read_input(a.file, "question file", as_json=True)
+    if not isinstance(q, dict):
+        sys.exit(f"refused: the question file {a.file} holds one question object")
+    for field in ("id", "group", "stage", "followUpOf", "supersedes"):
+        val = getattr(a, field, None)
         if val is not None:
             q[field] = val
     if a.round is not None:
         q["round"] = a.round
-    if a.commit:
-        q["commits"] = [] if a.commit == ["none"] else a.commit
-    if a.alt:
-        q["alternatives"] = [split_alt(s) for s in a.alt]
     if a.depends:
         q["dependsOn"] = [] if a.depends == ["none"] else a.depends
     if a.waiting:
@@ -2008,7 +1996,19 @@ def cmd_add_round(d, a):
     report_notes(notes, ("conflict",))
 
 
-# Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
+# Ops that once had their own command taking page text on the command line; `apply` is their one
+# write path, and the command names stay only to refuse with a pointer to it.
+APPLY_ONLY = (
+    "group",
+    "reply",
+    "revise",
+    "note-reply",
+    "record-terminal",
+    "archive",
+    "reconfirm",
+)
+
+# Per-op argument defaults for `apply`: the op file's keys map onto the namespace each op reads.
 OP_ARGS = {
     "reply": (
         op_reply,
@@ -2695,15 +2695,17 @@ def edit_ledger(a, edit):
 
 
 def cmd_supersede(d, a):
+    proposes = read_input(a.proposes_file, "proposal file").strip()
     edit_ledger(
-        a, lambda text, where: exporters.supersede_row(text, a.qid, a.proposes, where)
+        a, lambda text, where: exporters.supersede_row(text, a.qid, proposes, where)
     )
 
 
 def cmd_resolve(d, a):
+    note = read_input(a.note_file, "note file").strip() if a.note_file else None
     edit_ledger(
         a,
-        lambda text, where: exporters.resolve_row(text, a.qid, a.how, a.note, where),
+        lambda text, where: exporters.resolve_row(text, a.qid, a.how, note, where),
     )
 
 
@@ -3008,29 +3010,15 @@ def main(argv=None):
     p.add_argument("--dir", help="data dir holding questions.json (required)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("add", help="add a question")
-    s.add_argument("--file", help="question JSON; flags override its fields")
-    for f in (
-        "id",
-        "group",
-        "short",
-        "title",
-        "stage",
-        "facts",
-        "rec",
-        "basis",
-        "waits-on",
-    ):
-        s.add_argument(
-            "--" + f, dest=f.replace("-", "_").replace("waits_on", "waitsOn")
-        )
-    s.add_argument("--round", type=int)
+    s = sub.add_parser("add", help="add a question from a JSON file")
     s.add_argument(
-        "--commit",
-        action="append",
-        help="repeatable; `--commit none` alone: commits nothing",
+        "--file",
+        required=True,
+        help="question JSON, the only source of its text; the flags below override its fields",
     )
-    s.add_argument("--alt", action="append", help="key:text, repeatable")
+    for f in ("id", "group", "stage"):
+        s.add_argument("--" + f)
+    s.add_argument("--round", type=int)
     s.add_argument(
         "--depends",
         action="append",
@@ -3080,138 +3068,20 @@ def main(argv=None):
     )
     s.set_defaults(fn=cmd_add_round)
 
-    s = sub.add_parser("group", help="add or update a group")
-    s.add_argument("id")
-    s.add_argument("--title")
-    s.add_argument("--summary")
-    s.add_argument(
-        "--depends", dest="dependsOn", action="append", help="group id, repeatable"
-    )
-    s.set_defaults(fn=write_op(op_group, "group"))
-
     s = sub.add_parser(
         "group-order", help="reorder the groups: every group id once, in the new order"
     )
     s.add_argument("ids", nargs="+", metavar="id")
     s.set_defaults(fn=write_op(op_group_order, "group-order"))
 
-    affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
-    keep_help = (
-        "with --rec and no --alt: the current alternatives were checked against the new "
-        "recommendation (a --rec needs --alt or this)"
-    )
-    s = sub.add_parser(
-        "reply", help="append a Claude line; optional revised recommendation"
-    )
-    s.add_argument("id")
-    s.add_argument("--text", default="")
-    s.add_argument("--rec", help="revised recommendation")
-    s.add_argument("--why", help="one line shown in the Revised banner")
-    s.add_argument(
-        "--resolution",
-        help="the accepted reading of the question's counted own answer; exports give it as "
-        "the answer and keep the user's words as its note",
-    )
-    s.add_argument("--affects", help=affects_help)
-    s.add_argument(
-        "--alt",
-        action="append",
-        help="with --rec: key:text, repeatable; replaces all alternatives",
-    )
-    s.add_argument(
-        "--keep-alternatives",
-        dest="keepAlternatives",
-        action="store_true",
-        help=keep_help,
-    )
-    s.add_argument("--kind", choices=("reply", "rephrase", "note"))
-    s.add_argument(
-        "--seq", type=int, help="page event seq this answers; marks it handled"
-    )
-    s.add_argument(
-        "--handled",
-        type=int,
-        help="mark every event with seq at or below N handled, including other questions' "
-        "events; prefer `handle` with explicit seqs",
-    )
-    s.add_argument(
-        "--force", action="store_true", help="revise even if a newer user event exists"
-    )
-    s.set_defaults(fn=write_op(op_reply, "reply"))
-
-    s = sub.add_parser(
-        "revise", help="change wording, recommendation, alternatives or commitments"
-    )
-    s.add_argument("id")
-    for f in ("title", "short", "facts", "basis", "rec", "why", "text"):
-        s.add_argument("--" + f)
-    s.add_argument("--affects", help=affects_help)
-    s.add_argument(
-        "--alt", action="append", help="key:text, repeatable; replaces all alternatives"
-    )
-    s.add_argument(
-        "--keep-alternatives",
-        dest="keepAlternatives",
-        action="store_true",
-        help=keep_help,
-    )
-    s.add_argument(
-        "--commit",
-        action="append",
-        help="repeatable; replaces all commitments; `--commit none` alone clears them",
-    )
-    s.add_argument(
-        "--depends",
-        dest="dependsOn",
-        action="append",
-        help="question id, repeatable; replaces all dependencies; `--depends none` alone clears them",
-    )
-    s.add_argument("--group", help="move the question to this existing group")
-    s.add_argument(
-        "--seq", type=int, help="page event seq this answers; marks it handled"
-    )
-    s.add_argument(
-        "--force", action="store_true", help="revise even if a newer user event exists"
-    )
-    s.set_defaults(fn=write_op(op_revise, "revise"))
-
     s = sub.add_parser("handle", help="mark page events handled with no reply")
     s.add_argument("--seq", type=int, nargs="+", required=True)
     s.set_defaults(fn=write_op(op_handle, "handle"))
 
-    s = sub.add_parser("note-reply", help="post or reply in the Notes to Claude thread")
-    s.add_argument("--text", required=True)
-    s.add_argument(
-        "--seq", type=int, help="note event seq this answers; marks it handled"
-    )
-    s.add_argument(
-        "--needs-answer",
-        dest="needsAnswer",
-        action="store_true",
-        help="flag the note as needing the user's answer; the page pins it as a loose end with a reply box",
-    )
-    s.set_defaults(fn=write_op(op_note_reply, "note-reply"))
-
-    s = sub.add_parser("record-terminal", help="record the user's terminal answer")
-    s.add_argument("id")
-    s.add_argument("--decision", required=True, choices=DECISIONS)
-    s.add_argument("--alt")
-    s.add_argument("--text")
-    s.set_defaults(fn=write_op(op_record_terminal, "record-terminal"))
-
-    s = sub.add_parser("archive", help="archive off-path questions with a reason")
-    s.add_argument("ids", nargs="+", metavar="id")
-    s.add_argument("--why", required=True, help="why the questions left the path")
-    s.set_defaults(fn=write_op(op_archive, "archive"))
-
-    s = sub.add_parser(
-        "reconfirm", help="clear upstream-changed: the questions stand as asked"
-    )
-    s.add_argument("ids", nargs="+", metavar="id")
-    s.add_argument(
-        "--why", required=True, help="why each still stands after the upstream change"
-    )
-    s.set_defaults(fn=write_op(op_reconfirm, "reconfirm"))
+    # Former commands that took page text on the command line; each is an apply op now.
+    for name in APPLY_ONLY:
+        s = sub.add_parser(name, help=f"removed: write a {name} op to an ops file and run apply")
+        s.set_defaults(fn=None)
 
     s = sub.add_parser(
         "apply",
@@ -3311,9 +3181,12 @@ def main(argv=None):
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_sync_ledger)
 
+    # No abbreviations here: the old `--proposes TEXT` and `--note TEXT` must not read TEXT as a
+    # file name.
     s = sub.add_parser(
         "supersede",
         help="set an answered register row of a ledger to superseded-by-plan (no data dir needed)",
+        allow_abbrev=False,
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.add_argument(
@@ -3321,13 +3194,19 @@ def main(argv=None):
         metavar="Q",
         help="the row: Q<N>, or the [<id>] a renumbered row leads with",
     )
-    s.add_argument("--proposes", required=True, help="what the plan proposes instead")
+    s.add_argument(
+        "--proposes-file",
+        dest="proposes_file",
+        required=True,
+        help="file holding what the plan proposes instead (UTF-8 text; surrounding whitespace dropped)",
+    )
     s.set_defaults(fn=cmd_supersede)
 
     s = sub.add_parser(
         "resolve",
         help="clear a superseded-by-plan register row: reconfirm the proposal or restore the "
         "answer (no data dir needed)",
+        allow_abbrev=False,
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.add_argument(
@@ -3336,7 +3215,12 @@ def main(argv=None):
         help="the row: Q<N>, or the [<id>] a renumbered row leads with",
     )
     s.add_argument("how", choices=("reconfirm", "restore"))
-    s.add_argument("--note", help="reconfirm only: the accept's note")
+    s.add_argument(
+        "--note-file",
+        dest="note_file",
+        help="reconfirm only: file holding the accept's note (UTF-8 text; surrounding whitespace "
+        "dropped)",
+    )
     s.set_defaults(fn=cmd_resolve)
 
     s = sub.add_parser(
@@ -3389,9 +3273,15 @@ def main(argv=None):
 
     for s in sub.choices.values():
         add_dir(s)
-    a = p.parse_args(argv)
-    if a.cmd == "revise" and a.commit == ["none"]:
-        a.commit = []
+    a, extra = p.parse_known_args(argv)
+    if a.cmd in APPLY_ONLY:
+        sys.exit(
+            f"refused: `{a.cmd}` takes no command-line text any more; write a "
+            f'{{"op": "{a.cmd}", ...}} op to an ops file with the Write tool and run '
+            f"`round.sh --dir DATA_DIR apply --file OPS` (fields: schema/ops.schema.json)"
+        )
+    if extra:
+        p.error(f"unrecognized arguments: {' '.join(extra)}")
     if a.fn in (cmd_supersede, cmd_resolve):
         a.fn(None, a)
         return

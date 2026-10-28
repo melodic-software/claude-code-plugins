@@ -1613,7 +1613,7 @@ def supersede_row(text, qid, proposes, where):
     was <form>:: E(its answer)`, escaped as export_ledger escapes a superseded row. `was` keeps
     only the answer and names the form it had, so resolve_row restore rebuilds that form."""
     if not proposes.strip():
-        raise SystemExit("refused: --proposes is empty")
+        raise SystemExit("refused: the proposal (--proposes-file) is empty")
 
     def change(status, res):
         if status != "answered":
@@ -1640,7 +1640,7 @@ def resolve_row(text, qid, how, note, where):
     if how not in ("reconfirm", "restore"):
         raise SystemExit(f"refused: unknown resolution {how!r} (reconfirm or restore)")
     if note and how == "restore":
-        raise SystemExit("refused: --note belongs to reconfirm")
+        raise SystemExit("refused: --note-file belongs to reconfirm")
 
     def change(status, res):
         if status != "superseded-by-plan":
@@ -1676,7 +1676,7 @@ def resolve_row(text, qid, how, note, where):
         marked, kept = None, note
         if form == "named":
             # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
-            # when no --note replaces it, and its commitments. An earlier reconfirm's proposal and
+            # when no --note-file replaces it, and its commitments. An earlier reconfirm's proposal and
             # `was` have no field left to go in, so they are dropped.
             held = parse_named(old, where)
             if held:
