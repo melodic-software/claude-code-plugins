@@ -7,3 +7,5 @@ Subscribed at 2026-10-28T08:19:46Z. subscribe_pr_activity returned:
 Format: receipt time (UTC) | event type | payload top-level keys | delivery (woke idle session, or seen at next turn)
 
 ## Events
+
+- 2026-10-28T08:20:10Z | subscription.created | pr | woke idle session (queued-notification wake; server queued-at 2026-10-28T08:19:44Z)
