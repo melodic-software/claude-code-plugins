@@ -146,6 +146,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && runs) {
       return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
     }
+    // The head branch's push history: the head, pushed before its run.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
+      return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
+    }
     if (method === "GET" && path === `/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`) {
       return { files: [{ filename: "infra/main.tf" }] };
     }

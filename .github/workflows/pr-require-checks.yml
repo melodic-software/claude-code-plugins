@@ -1,9 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml's
-  # `dispatch-full-run` starts one on main after every merge, whoever merged,
-  # collapsing a burst of merges into one run of the newest tip.
+  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
+  # for the merges since the last, whoever merged, at most one per 30 minutes,
+  # each of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -70,7 +70,8 @@ on:
 permissions:
   contents: read
 
-# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
+# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
+# CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
 # cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
 # the `ci-lanes` status once and finishes (see the `ci-status` job). The
@@ -83,16 +84,28 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches. A merge-group, schedule or dispatch run keeps the unique
-# `github.run_id` group, so it is never cancelled.
+# fork branches. A merge-group, schedule or other-branch dispatch run keeps
+# the unique `github.run_id` group, so it is never cancelled.
+#
+# A dispatch on main (pr-merge.yml's whole-suite run of main's tip) shares one
+# group with no `queue` key and `cancel-in-progress` false: one runs, one waits,
+# and a newer dispatch replaces the waiting one, which GitHub cancels before
+# any job starts. The newer one holds a later tip, so it covers every merge the
+# replaced one did. A running whole-suite run is never cancelled: the post-merge
+# check and post-merge-demotion-alert.yml read a cancelled run as red, and read
+# a replaced one (cancelled, no job) as no run. Only attempt 1 joins it: a
+# re-run keeps its own `github.run_id` group, so a newer dispatch can never
+# replace the one re-run a red run waits on.
 concurrency:
   group: >-
-    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    && 'pr-require-checks-main-dispatch'
+    || ((github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: true
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id)) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' || github.run_attempt != 1 }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -357,7 +370,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           filters: |
             shell:
@@ -875,7 +888,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -892,7 +905,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/typos@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -915,7 +928,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -930,7 +943,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: lychee.toml
           exclude: >-
@@ -940,7 +953,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .editorconfig-checker.json
 
@@ -954,13 +967,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -968,7 +981,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -980,12 +993,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1018,12 +1031,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1474,7 +1487,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1908,7 +1921,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1916,7 +1929,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -2381,7 +2394,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2615,7 +2628,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -3163,7 +3176,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3758,7 +3771,7 @@ jobs:
           # the lane-scope step writes.
           { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -3984,7 +3997,14 @@ jobs:
       #   way and only where it names its own run's head; never a hold
       #   comment, which any GITHUB_TOKEN workflow can post as
       #   github-actions[bot]. With none, or two heads at that time, it covers
-      #   no head. The linked issue is the one issue in this repository that
+      #   no head. Nor does it while the head branch's push history (the
+      #   repository activity API, which deleting a run leaves) shows a head
+      #   pushed after the decided head's last push and before the decision
+      #   with no run of every review lane started before the decision, since
+      #   a deleted run of a newer head would make an older notice the decided
+      #   head (the base's merge-holds.mjs unranHead, #10437); a history with
+      #   no push of the decided head before it, or a full page, covers none
+      #   too. The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -4159,9 +4179,14 @@ jobs:
           # for another pull request), updated in the window or started before
           # the decision, as {at, criteria, sha, run}: `sha` as the notice
           # names it, `run` the head its run ran on.
-          notices='[]' vetted=''
+          # `ran` lists, per lane, the heads of its runs from this repository
+          # started before the decision.
+          notices='[]' vetted='' ran='[]'
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
+            ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo and (.created_at | fromdateiso8601) < $decided) | .head_sha] | unique]' <<<"$runs") ||
+              keep "the $file runs do not parse"
             while read -r id sha; do
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
@@ -4195,6 +4220,19 @@ jobs:
           decided=$(jq -r --argjson at "$decided_at" '[.[] | select(.at < $at and .sha == .run and any(.criteria | split(",")[]; . == "cost"))]
             | (map(.at) | max) as $newest | [.[] | select(.at == $newest) | .sha] | unique
             | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
+          # The decided head stands only while the head branch's push history
+          # shows a run of every lane on each head pushed since it before the
+          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          if [ -n "$decided" ]; then
+            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+              keep "the head branch's push history is unreadable"
+            printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
+            jq '.comment.created_at' <<<"$chosen" >"$RUNNER_TEMP/cost-hold-decided-at.json" || keep "the decisions do not parse"
+            gap=$(holds_js unranHead "$RUNNER_TEMP/cost-hold-activity.json" "$RUNNER_TEMP/cost-hold-ran.json" \
+              "$RUNNER_TEMP/cost-hold-decided.json" "$RUNNER_TEMP/cost-hold-decided-at.json") || keep "the head branch's push history could not be checked"
+            [ -z "$gap" ] || keep "$gap"
+          fi
           carries "$decided" || keep "the body cites no recorded owner cost decision covering this head"
           decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
           holds=$(jq -c --argjson since "$since" '[.[] | select(.at > $since)]' <<<"$notices") || keep "the hold notices do not parse"
@@ -5233,7 +5271,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

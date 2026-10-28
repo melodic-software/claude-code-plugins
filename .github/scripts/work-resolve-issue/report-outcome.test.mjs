@@ -2732,10 +2732,19 @@ test("a funding stop keeps agent-ready, adds no label and leaves a funding marke
   assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: "funding", resets: Date.parse("2026-11-01T00:00:00Z"), run: "555", onResumed: false });
 });
 
-test("a funding stop with no date leaves a marker with no reset", () => {
+test("a funding stop with no date leaves a marker with no reset, and work-unblock, not a person, restarts it", () => {
   const plan = decideFunding({ funding: { regain: null } });
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=funding run=555 -->\n"), plan.comment);
   assert.equal(parseOutcomeMarker(plan.comment).resets, null);
+  assert.match(plan.comment, /work-unblock starts it again after limits\.fallback-reset hours/);
+  assert.doesNotMatch(plan.comment, /a person/);
+});
+
+// work-unblock's fail route after limits.limit-stops-per-issue leaves an
+// outcome=failed marker naming the stopped run; a person's new agent-ready
+// then resumes that run's branch like the limit or funding marker it follows.
+test("a failed marker is resumable", () => {
+  assert.ok(RESUMABLE.has("failed"));
 });
 
 test("a funding stop wins over a turn-cap or limit record, so it counts as neither", () => {
