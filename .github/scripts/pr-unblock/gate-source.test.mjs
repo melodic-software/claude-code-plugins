@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
+import { gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -192,6 +192,41 @@ test("prHold reads the timeline only for the human-gated label, and holds on any
   assert.equal(reviewReads, 1, "a PR the timeline alone holds needs no review read");
   assert.equal((await hold_(["needs-human"], { appId: undefined })).held, true, "with no lanes App id the label holds");
   assert.equal((await hold_(["needs-human"], { gateLabel: null })).held, true, "with no readable human-gated label it holds");
+});
+
+// check-signed-commits' escalation comment, posted with its report job's
+// GITHUB_TOKEN; its label write adds no `labeled` event when the label is on.
+const noReviews = async () => ({ comments: [], reviews: [] });
+const signedHold = (user, at) =>
+  commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${OLD}\``, at);
+
+test("check-signed-commits' marked comment holds a PR that is otherwise another lane's escalation", async () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed"), signedHold(ACTIONS, "2026-10-18T11:00:00Z")];
+  assert.equal(source(timeline), "signed-commits-hold");
+  assert.equal(allows(timeline, "fix-ci"), false);
+  const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline: async () => timeline, readReviews: noReviews });
+  assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: needs-human is not a lane escalation (signed-commits-hold)" });
+  assert.equal(source(timeline.slice(0, 2)), "lane-escalation", "without the marked comment");
+});
+
+test("an unmarked bot comment, or the marker from another account, does not hold", async () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  for (const comment of [
+    commented(ACTIONS, "Lane commit check: these commits are not GitHub-verified.", "2026-10-18T11:00:00Z"),
+    signedHold({ login: "chatgpt-codex-connector[bot]", id: 1, type: "Bot" }, "2026-10-18T11:00:00Z"),
+    signedHold({ ...ACTIONS, type: "User" }, "2026-10-18T11:00:00Z"),
+  ]) {
+    const timeline = [...base, comment];
+    assert.equal(source(timeline), "lane-escalation", comment.body);
+    const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline: async () => timeline, readReviews: noReviews });
+    assert.equal(held.held, comment.user.type !== "Bot", comment.user.login);
+  }
+});
+
+test("check-signed-commits' hold a person lifted by unlabeling leaves a later lane escalation workable", () => {
+  const timeline = [signedHold(ACTIONS, "2026-10-18T08:00:00Z"), label("unlabeled", OWNER, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  assert.equal(source(timeline), "lane-escalation");
+  assert.equal(source([signedHold(ACTIONS, "2026-10-18T08:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()]), "signed-commits-hold", "never lifted");
 });
 
 test("prHold holds on a person's inline reply its review reader returns", async () => {

@@ -178,6 +178,25 @@ run 1 "an ingest site without the spine is a finding" \
   --component "$ROOT/agents/fetcher.md" --root "$ROOT"
 has "fetcher.md:5" "the ingest site is cited by its body line"
 
+# A contract moved to docs/contracts/<topic>/ leaves a stub at the home path:
+# the stub has no citation sentence, so reading it would report basis-missing.
+MOVED="$WORK/moved"
+git init -q "$MOVED" >/dev/null 2>&1
+plant_home "$MOVED"
+for t in invocation-mode seam-phrasing untrusted-content windows-path-emit hook-budget; do
+  mkdir -p "$MOVED/docs/contracts/$t"
+  mv "$MOVED/docs/conventions/$t/README.md" "$MOVED/docs/contracts/$t/README.md"
+  printf '# %s (moved)\n\nThis contract now lives at docs/contracts/%s/.\n' "$t" "$t" \
+    >"$MOVED/docs/conventions/$t/README.md"
+done
+mkdir -p "$MOVED/skills/clean"
+cp "$ROOT/skills/clean/SKILL.md" "$MOVED/skills/clean/SKILL.md"
+run 0 "a contract moved to docs/contracts is read there, not from the stub at the home path" \
+  --component "$MOVED/skills/clean/SKILL.md" --root "$MOVED"
+has "invocation-mode status=aligned convention=docs/contracts/invocation-mode/README.md:1" "invocation-mode cites the moved contract"
+has "seam-phrasing status=aligned convention=docs/contracts/seam-phrasing/README.md:1" "seam-phrasing cites the moved contract"
+lacks "basis-missing" "no probe reads the stub"
+
 run 2 "missing arguments are usage"
 has "ERROR: --component and --root are required" "usage names the required flags"
 
