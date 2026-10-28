@@ -1094,10 +1094,12 @@ jobs:
       # reads of enable-auto-merge's pr-merge-verify-run-cache added, each
       # found the way the head-ref map is. Only that run's steps could upload
       # them; neither goes through actions/cache, which any job in the
-      # default branch's cache scope can write. Each kept read still lands in
-      # a carried-* section the gate uses only where it counts a FAIL, never
-      # to turn one away or allow a PASS, and reads GitHub for any other
-      # answer. Rules: .github/scripts/pr-merge/carry-run-cache.mjs. Any error
+      # default branch's cache scope can write. Each kept verdict read still
+      # lands in a carried-* section the gate uses only where it counts a
+      # FAIL, never to turn one away or allow a PASS, and reads GitHub for any
+      # other answer; a completed review-lane run is used while its live
+      # listing still matches. Rules:
+      # .github/scripts/pr-merge/carry-run-cache.mjs. Any error
       # leaves the run cache empty, and the gate reads GitHub.
       - name: Read the verdict reads the last run kept
         if: steps.candidates.outcome == 'success'
@@ -2171,7 +2173,7 @@ jobs:
 
       # The verdict reads this job's reader made, for the next run's two
       # jobs: the merge gate reads no lane verdict, so only this reader fills
-      # run-record. Kept as the merge job keeps its own, and uploaded under a
+      # run-record; both fill lane-run, the completed review-lane runs. Kept as the merge job keeps its own, and uploaded under a
       # name of their own, so the merge job's file keeps its skip refusals;
       # `read` adds only this file's carried-* sections to them. Only a
       # scheduled or hand-started run's file is read back, so only one
