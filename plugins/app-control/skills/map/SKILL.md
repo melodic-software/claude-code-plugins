@@ -144,6 +144,8 @@ placed per Lessons below.
   followed;
 - the output of `git check-ignore -v <control skill dir>/config/local.json`; when it matches
   nothing, the create failed;
+- each `size-budget` line `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" "<control skill dir>"`
+  prints, as a warning that stops nothing (budgets in the contract's "Size budget");
 - each discovery row with `found` and its source, or the answer and who gave it; a secret found
   during discovery as the file and key that hold it, never its value;
 - each credential as its variable name, layer and `set` or `unset`, never its value;

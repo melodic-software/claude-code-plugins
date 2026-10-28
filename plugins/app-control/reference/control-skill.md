@@ -13,6 +13,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 - Writing the Capture section
 - Feature files
 - Shared items
+- Size budget
 - Steps files
 - Driver commands
 - Writing the driver CLI
@@ -146,6 +147,28 @@ Each direct child of `shared/`, a folder or a file, is one item. A feature uses 
 feature file names `shared/<item>`; an item fewer than two features use belongs in that feature's
 own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
 `Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
+
+## Size budget
+
+Drive loads the hub, then one feature file per level of the id, on every run, so their size is a
+cost every run pays. Counted in characters, newlines included, the way
+`/skill-quality:check listing-budget` counts, at about 4 characters per token:
+
+| File | Budget | About |
+|---|---|---|
+| Hub `SKILL.md` | 16,000 characters | 4,000 tokens |
+| Each feature file: a `README.md` under `features/` at any depth, module ones included, or a legacy `features/<feature>.md` | 4,000 characters | 1,000 tokens |
+
+`/app-control:map check` reports a file over its budget, and create reports one it wrote. Over
+budget is a warning, never a stop: move detail into a steps file, a `cli/` command or a
+sub-feature, or group the hub's index by module.
+
+Basis: the control skill measured in
+<https://github.com/melodic-software/claude-code-plugins/pull/10697>. Its hub was 12,160
+characters, 84% of them index lines at about 114 characters each, so 16,000 leaves room for about
+33 more index lines. Its largest feature file was a module README at 3,317 characters (the
+largest seeded feature was 1,588), so 4,000 clears it by a fifth. One drive load at the budgets is
+at most 24,000 characters (hub plus a module and a feature file), against the 16,399 measured.
 
 ## Steps files
 
