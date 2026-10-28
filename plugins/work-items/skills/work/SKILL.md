@@ -96,7 +96,11 @@ dispatch, PR or babysit step. It works in place:
    ```
 
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
-   must answer) or `stopped` (stopped partway; `reason` says why). `title` is a Conventional
+   must answer) or `stopped` (stopped partway; `reason` says why). Open a `stopped` reason with
+   the code that names why, then a colon, and the lane routes the issue by it: `host-only` (the
+   work needs a host or attended run this lane cannot make), `intent-change` (a finding changes
+   what the issue asks for), `design-change` (it changes the primary design), `security-risk` or
+   `cost-risk` (a HIGH or CRITICAL risk). A reason with none goes to a person. `title` is a Conventional
    Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
    work, one string per part, at most 20: with any entry the PR links the issue without closing it
    and lists them, and empty or malformed (a blank entry, a non-string, more than 20), the PR

@@ -107,6 +107,16 @@ test("a person's comment since the label went on holds every activity; one befor
   assert.equal(allows(inline, "resolve-conflicts"), false, "a person's inline comment");
 });
 
+test("a person's comment edited after the label, or written in its own second, holds every activity", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const edited = [{ ...commented(OWNER, "Looks fine. Edit: wait.", "2026-10-18T09:00:00Z"), updated_at: "2026-10-18T11:00:00Z" }, ...base];
+  const sameSecond = [...base, commented(OWNER, "Wait.", "2026-10-18T10:00:00Z")];
+  const inlineEdited = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T11:00:00Z" }] }];
+  assert.equal(allows(edited, "fix-ci"), false, "an edit after the label");
+  assert.equal(allows(sameSecond, "fix-ci"), false, "the label's own second");
+  assert.equal(allows(inlineEdited, "fix-ci"), false, "an inline comment edited after the label");
+});
+
 test("an escalation reason report-escalation.sh does not list holds every activity", () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("some-new-reason")];
   assert.equal(allows(timeline, "fix-ci"), false);

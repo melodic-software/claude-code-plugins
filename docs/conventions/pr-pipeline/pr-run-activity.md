@@ -59,6 +59,7 @@ permissions, and passes no App key.
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the select job's `run-sha256` output |
@@ -2010,9 +2011,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
   patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
-  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), hands the issue to a person naming
+  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), stops the issue naming
   that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
-  (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
+  (the early stop the preamble asks for) stops the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
@@ -2027,9 +2028,18 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
-  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
-  or invalid, it labels the issue with the human-gated role label, removes `agent-ready`, and
-  comments why. Every comment that adds the human-gated label opens with the attended
+  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
+  `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
+  `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
+  `intent-change`, `design-change`, `security-risk`, `cost-risk`, `patch-protected-path`), and a
+  reason with no code, like a reason the table does not list, holds. `hold` labels the issue with
+  the human-gated role label, removes `agent-ready` and comments why; `host-run` adds the
+  `host-run` label (the host queue's one signal) and removes `agent-ready`; `retry` keeps
+  `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock
+  sweep restarts the issue and the next run resumes its branch, while the retry markers since a
+  listed human last added `agent-ready` are fewer than `limits.stop-retries`; past that, the stop
+  takes the `retry-spent` row's route. `fail` removes `agent-ready`, adds no label and comments
+  with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
@@ -2041,7 +2051,7 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
   listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
   adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
-  otherwise it hands back like `stopped`. `lane.json` carries the run's `max-turns` for the cap,
+  otherwise it takes the `turn-cap-spent` row's route. `lane.json` carries the run's `max-turns` for the cap,
   and the `pipeline/resolve-issue` status reads "Stopped at the turn cap.". A run that exited
   non-zero, wrote no readable outcome file, and whose result carries `api_error_status` 400 with
   "regain access on <date>" (a spend limit or no credit) or 401 (a disabled key) is a funding
