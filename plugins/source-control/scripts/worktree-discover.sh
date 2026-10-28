@@ -48,10 +48,16 @@
 # holding a tab or newline cannot be a TSV field: it is skipped with a warning
 # on stderr.
 #
+# Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
+# closed with exit 5 and a message naming the floor and the installed version,
+# rather than printing an inventory that misses every linked worktree.
+#
 # Exit codes:
 #   0  inventory printed
 #   2  usage, or an unreadable root file or fleet config
 #   3  no worktree root resolved (rows for repositories are still printed)
+#   5  a repository's worktrees cannot be listed (git older than the -z floor);
+#      nothing is printed
 
 set -uo pipefail
 
@@ -314,7 +320,15 @@ under_root() {
 
 repo_rows=""
 for r in ${repos[@]+"${repos[@]}"}; do
-  worktree_facts_parse_z <(git -C "$r" worktree list --porcelain -z 2>/dev/null)
+  # Fail closed: a git that rejects -z would otherwise read as no worktrees.
+  porcelain="$(mktemp)" || fail "cannot create a temporary file"
+  if ! git -C "$r" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
+    rm -f -- "$porcelain"
+    printf '%s: cannot list worktrees of %s; %s\n' "$PROG" "$r" "$(worktree_list_z_floor_note)" >&2
+    exit 5
+  fi
+  worktree_facts_parse_z "$porcelain"
+  rm -f -- "$porcelain"
   linked=$((${#WT_FACT_PATH[@]} - 1))
   # The first record is the main checkout or the bare hub.
   for i in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do

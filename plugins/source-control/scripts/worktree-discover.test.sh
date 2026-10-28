@@ -214,6 +214,28 @@ assert_exit "--repo-dir without a value is a usage error" 2 "$RC"
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$T/missing"
 assert_exit "a missing root file is a usage error" 2 "$RC"
 
+# A git older than 2.36 rejects `worktree list -z`: fail closed, naming the
+# floor and the installed version, rather than reporting 0 linked worktrees.
+OLD_GIT_BIN="$T/old-git-bin"
+mkdir -p "$OLD_GIT_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the $@ belongs to the generated stub, not here.
+  printf 'case " $* " in *" worktree list "*" -z "*) echo "error: unknown switch z" >&2; exit 129 ;; esac\n'
+  # shellcheck disable=SC2016
+  printf 'if [[ "${1:-}" == --version ]]; then echo "git version 2.35.0"; exit 0; fi\n'
+  printf 'exec %q "$@"\n' "$(command -v git)"
+} >"$OLD_GIT_BIN/git"
+chmod +x "$OLD_GIT_BIN/git"
+PATH_SAVED="$PATH"
+PATH="$OLD_GIT_BIN:$PATH_SAVED"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+PATH="$PATH_SAVED"
+assert_exit "git without worktree list -z fails closed (exit 5)" 5 "$RC"
+assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
+assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
+assert_eq "the old-git failure prints no inventory" "" "$OUT"
+
 # --- --remove-input-files deletes the handed files and their dir (#8212) ---
 # The status block writes its two input files into a mktemp dir; the helper owns
 # their removal so the block needs no rm and no exit-status variable.
