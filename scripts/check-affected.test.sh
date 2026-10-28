@@ -277,6 +277,16 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+# A passing check's output is not printed, so the stub logs its arguments.
+args_log="$tmp/affected-args.log"
+run -u CHECK_AFFECTED_JOBS -u CHECK_AFFECTED_BUDGET STUB_ARGS_LOG="$args_log" -- --base base --tests
+check "--tests passes a default job count of at most 8 and the 120 s budget" \
+  '[[ $RC == 0 && $(cat "$args_log") =~ ^"--run --jobs "[1-8]" --budget 120 " ]]'
+run CHECK_AFFECTED_JOBS=5 CHECK_AFFECTED_BUDGET=300 STUB_ARGS_LOG="$args_log" -- --base base --tests
+check "CHECK_AFFECTED_JOBS and CHECK_AFFECTED_BUDGET override the defaults" \
+  '[[ $RC == 0 && $(cat "$args_log") == "--run --jobs 5 --budget 300 "* ]]'
+run STUB_ARGS_LOG="$args_log" -- --base base --tests --budget 45
+check "--budget sets the budget passed to affected-tests" '[[ $RC == 0 && $(cat "$args_log") == *" --budget 45 "* ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
@@ -691,6 +701,8 @@ run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
 run -- --jobs 0
 check "a --jobs count below one is a usage error" '[[ $RC == 2 && $ERR == *"--jobs N"* ]]'
+run -- --budget 0
+check "a --budget below one second is a usage error" '[[ $RC == 2 && $ERR == *"--budget S"* ]]'
 run -- --base no-such-ref
 check "an unresolvable base is exit 2" '[[ $RC == 2 && $ERR == *"merge-base"* ]]'
 
