@@ -66,7 +66,8 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       if (threadsFail === kindOf) {
         throw new Error(`GET ${path}: 502`);
       }
-      return path.endsWith("page=1") ? (kindOf === "comments" ? reviewComments : reviews) : [];
+      const page = Number(/page=(\d+)$/.exec(path)[1]);
+      return (kindOf === "comments" ? reviewComments : reviews).slice((page - 1) * 100, page * 100);
     }
     if (method === "POST" || method === "DELETE") {
       return null;
@@ -894,4 +895,44 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
   const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
   const { logs } = await run(cut);
   assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
+});
+
+test("a person's reply or review on the second page of either listing keeps it", async () => {
+  const botComments = Array.from({ length: 100 }, (_, i) => ({ ...BOT_THREAD, id: 1000 + i, created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }));
+  const botReviews = Array.from({ length: 100 }, (_, i) => ({ ...BOT_REVIEW, id: 2000 + i, submitted_at: "2026-10-18T11:00:00Z" }));
+  for (const [reviewComments, reviews, which] of [
+    [[...botComments, reply(OWNER, "2026-10-18T12:00:00Z")], botReviews, "comments"],
+    [botComments, [...botReviews, replyReview(OWNER, "2026-10-18T12:00:00Z")], "reviews"],
+  ]) {
+    const w = world({ timeline: inlineTimeline(), reviewComments, reviews });
+    await run(w);
+    assert.deepEqual(w.writes(), [], which);
+    assert.ok(threadReads(w).some((call) => call.path.includes(`/${which}`) && call.path.endsWith("page=2")), which);
+  }
+});
+
+test("a person's inline reply keeps enable-auto-merge's label without spending a reader run", async () => {
+  const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: clean, reviewComments: [BOT_THREAD, reply(OWNER, "2026-10-18T12:00:00Z")] });
+  const { logs } = await run(w, NATIVE);
+  assert.deepEqual(w.writes(), []);
+  assert.deepEqual(w.reads, []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), logs.join("\n"));
+});
+
+test("a refusal cleared by the reader reads the review threads once", async () => {
+  const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: clean });
+  await run(w, NATIVE);
+  assert.deepEqual(w.writes().at(-1), DELETE);
+  assert.equal(threadReads(w).length, 2);
+});
+
+test("a person's comment written before the label and edited after it, or in the label's own second, keeps it", async () => {
+  for (const spoke of [
+    commented(OWNER, "Looks fine. Edit: wait for me.", "2026-10-18T09:00:00Z", "2026-10-18T12:00:00Z"),
+    commented(OWNER, "Wait.", "2026-10-18T10:00:00Z"),
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], spoke.body);
+  }
 });

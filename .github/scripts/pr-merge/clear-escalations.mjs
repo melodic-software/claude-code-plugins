@@ -38,7 +38,10 @@
 //   the label went on. GitHub's timeline shows no event for a reply inside an
 //   existing review thread, so a lift the rules above allow reads
 //   pulls/<n>/comments (since the label) and pulls/<n>/reviews too; a failed
-//   read keeps the label.
+//   read keeps the label. Known limits: a review body edited after the label
+//   is not seen (a REST review carries no update time), and any account
+//   GitHub does not mark Bot, an outsider included, keeps the label, which
+//   costs throughput only.
 // Any other reason is decided by a person and is never cleared here.
 //
 // With no pr-unblock escalation since the label, a pr-merge escalation clears
@@ -335,7 +338,7 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
   // not. An unknown author counts as a person.
   const speaker = personSince(timeline.flatMap(spoken), since);
   if (speaker !== undefined) {
-    return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on` };
+    return { reason: spokeReason(speaker, label) };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
@@ -358,6 +361,12 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
       return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
     }
     if (native !== null) {
+      // The review threads first: a person's reply there keeps the label
+      // whatever the reader answers, so it spends none of the run's reads.
+      const speaker = await threadSpeaker(github, repo, number, since);
+      if (speaker !== undefined) {
+        return { reason: spokeReason(speaker, label) };
+      }
       if (reads.left <= 0) {
         return { reason: `enable-auto-merge's refusal waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
       }
@@ -372,10 +381,13 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
       if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
-      return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
-        `it refused this head (${native.reason})`,
-        held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
-      ]);
+      return {
+        ...cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
+          `it refused this head (${native.reason})`,
+          held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+        ]),
+        threadsRead: true,
+      };
     }
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
@@ -403,6 +415,8 @@ function cleared(timeline, bot, since, reasons, head, why) {
   );
   return { reason: null, recorded, head, why: why.join("; "), explained, since };
 }
+
+const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on`;
 
 // Who spoke on `number`'s review threads or reviews after `since`, which the
 // timeline misses for a reply inside an existing thread: the first person, or
@@ -458,9 +472,9 @@ export async function main({ env = process.env, github, verify } = {}) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
         }
-        const speaker = await threadSpeaker(github, repo, number, result.since);
+        const speaker = result.threadsRead ? undefined : await threadSpeaker(github, repo, number, result.since);
         if (speaker !== undefined) {
-          console.log(`clear-escalations: #${number} kept: ${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on`);
+          console.log(`clear-escalations: #${number} kept: ${spokeReason(speaker, label)}`);
           continue;
         }
         // The comment first: a failed removal is retried by the next sweep,
