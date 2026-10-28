@@ -1,5 +1,31 @@
 # Changelog for the PR pipeline convention
 
+## [6.5.1] - 2026-10-28
+
+### Changed
+
+- The review callers' `hold-paths`, ci-status's exempt-author `hold_patterns` and merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS` are generated from `babysit_risk.FLOOR_CLASSES` and `COST_PATHS` by `scripts/sync-hold-floor.py` (`--check` fails on a stale copy); the floor holds the generator as `gate`.
+
+### Fixed
+
+- ci-status's exempt-author check matches the trust-gate paths case-insensitively, as the floor does elsewhere, so a Dependabot, release App or standards-sync pull request that changes `.github/codeowners` or `vendor/.GitModules` fails for a person instead of passing.
+
+## [6.5.0] - 2026-10-28
+
+### Added
+
+- `review-threads.reviewer-ids` lists review bots, besides `claude[bot]` and the review lanes, whose review threads pr-unblock's `address-feedback` works exactly as the reviewer bot's (owner decision 2026-10-26): the select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml` all keep such a thread, a disputed one is adjudicated as a code-review lane finding is once the security-review lane has reviewed the bot's reviewed head and holds nothing; a critical-security hold on that head or a later one sends it to a person, and before the lane's review it waits for the next round (the bot's own severity badge decides nothing), and the trusted-person and human-gated rules apply unchanged. The list is matched on the account id GitHub records for each comment and its review, never a login; the bot's later comments count as the reviewer bot's, and anyone else's leaves the thread alone. This repository lists `chatgpt-codex-connector[bot]` (199175422). The resolved config carries the list as `review-threads`.
+
+### Changed
+
+- The issue lane skips an umbrella, an `agent-ready` issue with an open sub-issue, before any model run. It keeps `agent-ready`, logs a notice naming the open sub-issues, and work-unblock's sweep re-fires it once none is open. Neither path adds `needs-human`. An issue read with no sub-issue summary lists the sub-issues rather than assuming none is open.
+
+## [6.4.1] - 2026-10-28
+
+### Fixed
+
+- `ci-status` and `enable-auto-merge` carry a trusted person's hold-path approval over a base merge in two more cases (`merge-holds.mjs` `liftersOf`). An approval GitHub dismissed as stale on the merge's push counts, bound to its own commit and only through the carry (`autoDismissed`: a `review_dismissed` timeline event with no message, a Bot actor and a dismissal commit the merges pushed); a dismissal with a message, by a person, or by a person's push revokes it. When the base changed a file the pull request also changes, the approval carries when the merges brought exactly the base's changes (`exactBaseCarry`, `approvalCarry`): the compare from the approved head to the current head equals, file for file, the compare between the two merge bases. A merge that writes anything of its own carries nothing, and a list of 300 files or more fails closed. The cost-decision carry is unchanged. The carry runs only into the repository's default branch, and the exact path also reads the recursive trees of the current head and of its merge base with the base's tip, so a merge that flips the mode of a file the base changed carries nothing; a truncated tree fails closed.
+
 ## [6.4.0] - 2026-10-28
 
 ### Changed

@@ -110,7 +110,9 @@ BODY_MERGE_HOLD_RE = re.compile(
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
-MERGE_HOLD_LABELS = ("do-not-merge",)
+# `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
+# ci-status enforces only in the merge queue: held here, it is never queued.
+MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed")
 # An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
 # none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
@@ -2540,23 +2542,22 @@ def same_net_change(decided: Any, current: Any) -> bool:
     return then is not None and now is not None and then == now
 
 
+def _listed_commits(compare: Any) -> list[Any] | None:
+    """A compare answer's commits, or None when the list is not read whole
+    (shorter than total_commits, the compare API's 250) (merge-holds.mjs
+    `listedCommits`)."""
+    compare = json_object(compare)
+    commits, total = compare.get("commits"), compare.get("total_commits")
+    if not is_json_array(commits) or type(total) is not int or total != len(commits):
+        return None
+    return commits
+
+
 def _new_commits(then: Any, now: Any) -> list[Any] | None:
     """The commits a compare answer `now` (base...H') lists beyond `then`
-    (base...H), or None when either list is not read whole (shorter than
-    total_commits, the compare API's 250) (merge-holds.mjs `newCommits`)."""
-
-    def listed(compare: Any) -> list[Any] | None:
-        compare = json_object(compare)
-        commits, total = compare.get("commits"), compare.get("total_commits")
-        if (
-            not is_json_array(commits)
-            or type(total) is not int
-            or total != len(commits)
-        ):
-            return None
-        return commits
-
-    before, after = listed(then), listed(now)
+    (base...H), or None when either list is not read whole (merge-holds.mjs
+    `newCommits`)."""
+    before, after = _listed_commits(then), _listed_commits(now)
     if before is None or after is None:
         return None
     old = {json_object(c).get("sha") for c in before}
@@ -2624,6 +2625,154 @@ def base_merge_carry(
     return base_merges_only(then, now, start, in_base) and same_net_change(then, now)
 
 
+def exact_base_carry(merges: Any, based: Any, trees: Any = None) -> bool:
+    """Whether the merges brought exactly the base's changes (the owner's
+    decision of 2026-10-28, part b; merge-holds.mjs `exactBaseCarry`):
+    `merges` is the compare H...H', what the merges brought into the approved
+    head, and `based` the compare M...M' between the merge bases of H and of
+    H' with the base's tip. H' must be ahead of H and M' of (or at) M, each
+    commit list read whole, and the two file lists the same file for file
+    (`same_net_change`). A file the merges changed beyond the base, or a base
+    change they dropped, carries nothing. This assumes GitHub omits no file
+    from a compare's list of fewer than 300 files; nothing here reads a
+    second listing to check that. The compare API reports no file mode, so
+    `trees` ([H' tree, M' tree], recursive git/trees answers) decide it
+    (`_same_modes`)."""
+
+    def forward(compare: Any, statuses: tuple[str, ...]) -> bool:
+        compare = json_object(compare)
+        behind = compare.get("behind_by")
+        return (
+            compare.get("status") in statuses
+            and type(behind) is int
+            and behind == 0
+            and _listed_commits(compare) is not None
+        )
+
+    return (
+        forward(merges, ("ahead",))
+        and forward(based, ("ahead", "identical"))
+        and same_net_change(merges, based)
+        and _same_modes(merges, trees)
+    )
+
+
+def _same_modes(merges: Any, trees: Any) -> bool:
+    """Whether each file the compare `merges` lists has one mode at both
+    trees of `trees` (two recursive git/trees answers, read whole: `truncated`
+    false): present in both at one mode, or, for a removed file and a renamed
+    file's old path, in neither (merge-holds.mjs `sameModes`)."""
+
+    def modes(tree: Any) -> dict[str, str] | None:
+        tree = json_object(tree)
+        entries = tree.get("tree")
+        if tree.get("truncated") is not False or not is_json_array(entries):
+            return None
+        found: dict[str, str] = {}
+        for entry in entries:
+            entry = json_object(entry)
+            path, mode = entry.get("path"), entry.get("mode")
+            if isinstance(path, str) and isinstance(mode, str) and entry.get("type") != "tree":
+                found[path] = mode
+        return found
+
+    if not is_json_array(trees) or len(trees) != 2:
+        return False
+    head, base = modes(trees[0]), modes(trees[1])
+    if head is None or base is None:
+        return False
+    for f in json_object(merges).get("files") or ():
+        f = json_object(f)
+        name, status, previous = f.get("filename"), f.get("status"), f.get("previous_filename")
+        gone = ([name] if status == "removed" else []) + (
+            [previous] if isinstance(previous, str) else []
+        )
+        kept = [] if status == "removed" else [name]
+        if any(p in head or p in base for p in gone):
+            return False
+        if any(p not in head or head[p] != base.get(p) for p in kept):
+            return False
+    return True
+
+
+def approval_carry(
+    then: Any,
+    now: Any,
+    start: str,
+    in_base: Collection[str],
+    merges: Any,
+    based: Any,
+    dismissal: str | None = None,
+    trees: Any = None,
+) -> bool:
+    """Whether an approval of `start` carries to the head `now` was read at
+    (merge-holds.mjs `approvalCarry`): every commit since is a merge of the
+    base (`base_merges_only`), and the net change is the same
+    (`same_net_change`) or the merges brought exactly the base's changes
+    (`exact_base_carry` over `merges`, `based` and `trees`, None when not
+    read). An approval GitHub dismissed as stale (`auto_dismissed`) passes
+    its `dismissal` commit, which must be one of the commits pushed since
+    `start`."""
+    if not base_merges_only(then, now, start, in_base):
+        return False
+    if dismissal is not None and not any(
+        json_object(c).get("sha") == dismissal for c in _new_commits(then, now) or ()
+    ):
+        return False
+    return same_net_change(then, now) or exact_base_carry(merges, based, trees)
+
+
+def _review_key(value: Any) -> str | None:
+    """A review id as text, from a string or a safe integer (as JSON may
+    give either), else None (merge-holds.mjs `reviewKey`)."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, int) and not isinstance(value, bool) and abs(value) < 2**53:
+        return str(value)
+    return None
+
+
+def auto_dismissed(events: Any) -> dict[str, str]:
+    """The reviews GitHub dismissed as stale, from the pull request's issue
+    timeline `events`, as review id (a string) to dismissal commit
+    (merge-holds.mjs `autoDismissed`): a review_dismissed event of an
+    approval with a null message, by a Bot (the account whose push dismissed
+    it), naming a commit SHA. A dismissal whose actor is a User revokes: a
+    person's own dismissal, or the stale dismissal a person's push caused.
+    That a Bot's deliberate dismissal always carries a message is UNVERIFIED,
+    so the null message is a second filter, not the one that tells GitHub's
+    dismissal from an App's. A review with any other dismissal event is left
+    out."""
+    found: dict[str, str] = {}
+    revoked: set[str] = set()
+    for event in events if is_json_array(events) else ():
+        event = json_object(event)
+        if event.get("event") != "review_dismissed":
+            continue
+        d = json_object(event.get("dismissed_review"))
+        key = _review_key(d.get("review_id"))
+        if key is None:
+            continue
+        commit = d.get("dismissal_commit_id")
+        stale = (
+            d.get("state") == "approved"
+            and "dismissal_message" in d
+            and d["dismissal_message"] is None
+            and json_object(event.get("actor")).get("type") == "Bot"
+            and isinstance(commit, str)
+            and re.fullmatch(r"[0-9a-f]{40}", commit) is not None
+        )
+        if stale and key not in found:
+            found[key] = commit
+        else:
+            revoked.add(key)
+    for key in revoked:
+        found.pop(key, None)
+    return found
+
+
 def base_parents(compare: Callable[[str], Any], tip: str, then: Any, now: Any) -> set[str]:
     """The merged parents (`merged_parents`) the base holds, through
     `compare` (a GET of compare/<range> that raises PolicyReadError when
@@ -2648,11 +2797,19 @@ def base_tip(owner: str, name: str, base: str) -> str:
     return sha
 
 
-def lifts_of(reviews: Sequence[Any], humans: Collection[int]) -> list[tuple[str, str]]:
-    """Each trusted person's standing approval, as (login, sha): their newest
-    REST review that approves, requests changes or was dismissed, when it
-    approves a commit (merge-holds.mjs `liftsOf`). A dismissed approval never
-    counts."""
+def lifts_of(
+    reviews: Sequence[Any],
+    humans: Collection[int],
+    dismissed: Mapping[str, str] | None = None,
+) -> list[tuple[str, str, str | None]]:
+    """Each trusted person's standing approval, as (login, sha, dismissal):
+    their newest REST review that approves, requests changes or was
+    dismissed, when it approves a commit, with dismissal None; or when it is
+    an approval GitHub dismissed as stale (`dismissed`, `auto_dismissed`'s
+    map), with its dismissal commit, which lifts only through the carry
+    (merge-holds.mjs `liftsOf`). Any other dismissed approval does not
+    count."""
+    dismissed = dismissed or {}
     newest: dict[int, tuple[datetime, dict[str, Any]]] = {}
     for row in reviews:
         row = json_object(row)
@@ -2666,11 +2823,19 @@ def lifts_of(reviews: Sequence[Any], humans: Collection[int]) -> list[tuple[str,
         made = parse_timestamp(row.get("created_at") if at is None else at)
         if made is not None and (uid not in newest or made >= newest[uid][0]):
             newest[uid] = (made, row)
-    lifts = []
+    lifts: list[tuple[str, str, str | None]] = []
     for _, row in newest.values():
-        sha = str(row.get("commit_id") or "")
-        if row.get("state") == "APPROVED" and re.fullmatch(r"[0-9a-f]{40}", sha):
-            lifts.append((str(json_object(row.get("user")).get("login") or ""), sha))
+        sha = row.get("commit_id")
+        review = row.get("id")
+        key = _review_key(review)
+        restored = (
+            dismissed.get(key) if row.get("state") == "DISMISSED" and key else None
+        )
+        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            continue
+        if row.get("state") == "APPROVED" or restored is not None:
+            login = str(json_object(row.get("user")).get("login") or "")
+            lifts.append((login, sha, restored))
     return lifts
 
 
@@ -2682,9 +2847,15 @@ def carried_lifters(
 ) -> list[str]:
     """The trusted people whose approval (`lifts_of` over the REST `reviews`)
     is of the pull request's head or carries to it over merges of its base
-    branch (`base_merge_carry` against the base's tip, `base_tip`, with
-    `base_parents`), sorted (merge-holds.mjs `liftersOf`). A fork head or a
-    read that fails lifts nothing."""
+    branch (`approval_carry` against the base's tip, `base_tip`, with
+    `base_parents`), sorted (merge-holds.mjs `liftersOf`). An approval GitHub
+    dismissed as stale (`auto_dismissed`, from the issue timeline, read only
+    when a trusted person's review was dismissed; a timeline that does not
+    read restores none) counts only through the carry, which runs only into
+    the repository's default branch. When the net change differs, the
+    compares H...H' and between the two merge bases, and the trees of H' and
+    M', decide (`exact_base_carry`). A fork head, at the call or on the
+    re-read, or a read that fails lifts nothing."""
     head = json_object(pr.get("head"))
     if json_object(head.get("repo")).get("full_name") != repo:
         return []
@@ -2703,26 +2874,74 @@ def carried_lifters(
             compares[spec] = answer
         return compares[spec]
 
-    lifts = lifts_of(reviews, humans)
+    def tree(commit: str) -> Any:
+        status, answer = _get(f"repos/{owner}/{name}/git/trees/{commit}?recursive=1")
+        if status != 200:
+            raise PolicyReadError(f"the tree of {commit} is unreadable")
+        return answer
+
+    dismissed: dict[str, str] = {}
+    if any(
+        json_object(json_object(r).get("user")).get("type") == "User"
+        and json_object(json_object(r).get("user")).get("id") in humans
+        and json_object(r).get("state") == "DISMISSED"
+        for r in reviews
+    ):
+        try:
+            dismissed = auto_dismissed(
+                _paginated(
+                    f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
+                    f"#{pr.get('number')} timeline",
+                )
+            )
+        except PolicyReadError:
+            dismissed = {}
+    lifts = lifts_of(reviews, humans, dismissed)
     lifters: set[str] = set()
     try:
         # The head judged must still be the head, as merge-holds.mjs
         # liftersOf re-reads it; its file count bounds the compare's.
         status, now_pr = _get(f"repos/{owner}/{name}/pulls/{pr.get('number')}")
         now_head = json_object(json_object(now_pr).get("head"))
-        if status != 200 or now_head.get("sha") != sha:
+        if (
+            status != 200
+            or now_head.get("sha") != sha
+            or json_object(now_head.get("repo")).get("full_name") != repo
+        ):
             return []
         changed = json_object(now_pr).get("changed_files")
-        tip = base_tip(owner, name, base) if any(s != sha for _, s in lifts) else ""
-        for login, lifted in lifts:
+        # A carry runs only into the repository's default branch: another
+        # base may be non-linear, with criss-cross merge bases.
+        carrying = any(s != sha for _, s, _ in lifts) and _default_branch(repo) == base
+        tip = base_tip(owner, name, base) if carrying else ""
+        for login, lifted, dismissal in lifts:
             if lifted == sha:
-                lifters.add(login)
+                if dismissal is None:
+                    lifters.add(login)
+                continue
+            if not carrying:
                 continue
             then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
             files = json_object(now).get("files")
             if not is_json_array(files) or type(changed) is not int or len(files) != changed:
                 continue
-            if base_merge_carry(then, now, lifted, base_parents(compare, tip, then, now)):
+            in_base = base_parents(compare, tip, then, now)
+            merges = based = trees = None
+            start, end = (
+                json_object(json_object(c).get("merge_base_commit")).get("sha")
+                for c in (then, now)
+            )
+            if (
+                base_merges_only(then, now, lifted, in_base)
+                and not same_net_change(then, now)
+                and all(
+                    isinstance(x, str) and re.fullmatch(r"[0-9a-f]{40}", x)
+                    for x in (start, end)
+                )
+            ):
+                merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
+                trees = [tree(sha), tree(end)]
+            if approval_carry(then, now, lifted, in_base, merges, based, dismissal, trees):
                 lifters.add(login)
     except PolicyReadError:
         return []

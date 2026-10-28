@@ -3,6 +3,31 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.121.0] - 2026-10-28
+
+### Added
+
+- **The interview assumption sweep reports coined names.** A new `coined-term` category catches a name, label or abbreviation the session coined in a recommendation, a `Commits you to:` part or a composed artifact (one the user did not introduce, nothing existing uses, and the session-shorthand glossary lacks), even after the user accepted the answer that carried it. Each becomes a register row asking the user to accept or rename the term, recommending the closest name the user already uses; a rename carries into the draft and the rows that hold the term. The sweep sub-agent is now handed the glossary, the project's domain-vocabulary file and the user's own names for things ([#8314](https://github.com/melodic-software/claude-code-plugins/issues/8314)).
+- **A question that coins a name records it at ask-time.** Its glossary line is written in the same step as its register row, and the name is defined in the question (`context/loop.md` "Session-shorthand glossary").
+- Eval case `sweep-flags-coined-term-after-accept-all`: a recommendation coins a role name that overlaps the user's existing role, the user answers "accept all", and the sweep must still return a `coined-term` item.
+
+### Fixed
+
+- `/planning:interview` reads a `userConfig` value that arrives as its unexpanded `${user_config.KEY}` token as that key's own default, never as off. A shared session with `shared_session_open_browser` never saved now opens the owner's page in the browser, as the default `true` says.
+
+## [0.120.0] - 2026-10-28
+
+### Added
+
+- `export-brief` writes an `### Intent` section above the Brief's `### Goal`. It opens with the user's goal paragraph from the restatement's new `intent` section, or `none stated`. It then lists the text of each `ask`, `note` and `own` event word for word, in event order and under its `Q<N>`, and leaves out undone and withdrawn events and the note that gave the goal paragraph. An answered row that took the recommendation gets a `why:` line from its question's `basis` under its Constraints entry.
+- The interview asks for the goal in the user's own words before the confirmation restate and sends it as `intent`, which the restatement box shows. The terminal Brief template carries the same `### Intent` section, and `/planning:plan` reads it first.
+
+## [0.119.1] - 2026-10-28
+
+### Fixed
+
+- `/planning:interview` continuation wording: the `me`-mode persistence lines now recommend routing the next step rather than routing it, name Step 5's fallback when session-flow is absent, drop a stale cross-reference to a removed handoff-and-clear step, and give the context-window docs link in `context/loop.md` a Pointer / As of / Recheck trigger record.
+
 ## [0.119.0] - 2026-10-28
 
 ### Changed

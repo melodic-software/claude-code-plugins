@@ -100,6 +100,21 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
   });
 });
 
+// Each review lane edits its one marker in place, so the reply job reads the
+// heads the threads were kept on from run.json, not from the markers then.
+test("select returns every lane's marker-confirmed head, sorted, for run.json; the thread file does not carry them", async () => {
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    { id: 2, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", OLD_HEAD) },
+    { id: 3, user: { id: STRANGER }, body: marker("claude-review", "c".repeat(40)) },
+  ];
+  const result = await run(fakeApi({ issueComments }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.reviewedHeads, [HEAD, OLD_HEAD]);
+  assert.equal(Object.hasOwn(result.file, "reviewed_heads"), false);
+  assert.equal(JSON.parse(runRecord(result.file, result.reviewedHeads)).reviewed_heads.join(), `${HEAD},${OLD_HEAD}`);
+});
+
 // A finding on a doc whose fix lives in a script the PR also changes: the
 // thread file lists every file the PR changes, rename sources included, but
 // none a fix may never change.
@@ -945,7 +960,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // run.json's bytes, in the shape the write runner's collect step wrote.
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
@@ -1011,8 +1026,8 @@ test("run.json carries each kept thread's named_paths and no comment body", () =
     ],
   };
   assert.equal(
-    runRecord(file),
-    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}]}\n`,
+    runRecord(file, [HEAD]),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 });
 
@@ -1049,6 +1064,21 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     calls.map((call) => call.auth),
     ["Bearer tok", "Bearer tok"],
   );
+});
+
+test("createGitHubApi lists review comments since a time when given one, and all of them otherwise", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => [], headers: { get: () => "" } };
+  };
+  const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch });
+  await api.listReviewComments(42, "2026-10-18T10:00:00Z");
+  await api.listReviewComments(42);
+  assert.deepEqual(urls, [
+    "https://api/repos/o/r/pulls/42/comments?since=2026-10-18T10%3A00%3A00Z&per_page=100",
+    "https://api/repos/o/r/pulls/42/comments?per_page=100",
+  ]);
 });
 
 // A contract-only pr-require-checks run posts a lane skipped after the real
@@ -1256,6 +1286,148 @@ test("a leading or trailing _ that belongs to the name is kept; only a matched _
   assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
 });
 
+// Review bots listed in pr-pipeline.yaml review-threads.reviewer-ids, keyed on
+// the account id GitHub records. Codex's id and login are the ones its threads
+// on #10092 carry.
+const CODEX = 199175422;
+const CODEX_LOGIN = "chatgpt-codex-connector[bot]";
+// cursor[bot], on the trusted-actor list but not a listed reviewer.
+const OTHER_BOT = 206951365;
+const codexRun = (api, extra = {}) =>
+  select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, reviewerIds: [CODEX], trustedHumans: new Set([HUMAN]), ...extra });
+// A thread whose root (100) the account `root` wrote in a review `reviewer`
+// submitted, with `replies` after it as [id, user id, body].
+function botThread({ root = CODEX, login = CODEX_LOGIN, reviewer = root, replies = [], commit = HEAD } = {}) {
+  const rows = [[100, root, "finding 100"], ...replies];
+  return {
+    reviewComments: rows.map(([id, user, body], i) =>
+      comment(id, user, { body, created_at: at(i), user: { id: user, login: user === root ? login : LOGINS[user] } }),
+    ),
+    threads: [thread("PRRT_1", rows.map(([id]) => id))],
+    reviews: [{ id: 10, user: { id: reviewer, login }, commit_id: commit }],
+  };
+}
+
+test("a Codex-started thread on a marker-confirmed head is worked like the reviewer bot's, its own replies included", async () => {
+  const result = await codexRun(fakeApi(botThread()));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads[0].comments, [{ id: 100, author: "reviewer", listed: true, security: "pending", body: "finding 100" }]);
+  const replied = await codexRun(fakeApi(botThread({ replies: [[101, CODEX, "finding 101"]] })));
+  assert.equal(replied.decision, "proceed");
+  assert.deepEqual(replied.file.threads[0].comments.map((row) => [row.id, row.author]), [[100, "reviewer"], [101, "reviewer"]]);
+  // The reply job's re-read keeps it too.
+  const { kept } = await currentThreads({ api: fakeApi(botThread()), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+// The security-review lane's hold comment for a person, as its status job
+// posts it on a CRITICAL rating, and its reviewed-head marker.
+const securityHold = (sha, { criteria = "critical-security", user = { id: ACTIONS_BOT, login: "github-actions[bot]", type: "Bot" }, at = "2026-10-17T09:00:00Z" } = {}) => ({
+  id: 2,
+  user,
+  created_at: at,
+  body: `<!-- claude-lane-hold lane=claude-security-review sha=${sha} criteria=${criteria} -->\n**claude-security-review** holds this pull request for a person.\n\nclaude-lane: claude-security-review`,
+});
+const securityMarked = (sha = HEAD) => ({ id: 3, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", sha) });
+const lanesMarked = (...extra) => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, ...extra];
+// Codex's review on HEAD, submitted at 10:00.
+const codexAt = (issueComments) => {
+  const base = botThread();
+  return fakeApi({ ...base, reviews: base.reviews.map((review) => ({ ...review, submitted_at: "2026-10-17T10:00:00Z" })), issueComments });
+};
+const stateOf = async (issueComments) => (await codexRun(codexAt(issueComments))).file.threads[0].comments[0].security;
+
+test("a Codex root carries the security-review lane's state: clear once the lane reviewed its head, pending before", async () => {
+  assert.equal(await stateOf(lanesMarked(securityMarked())), "clear");
+  assert.equal(await stateOf(lanesMarked()), "pending");
+  // A marker for another head, or the code lane's marker, does not clear it.
+  assert.equal(await stateOf(lanesMarked(securityMarked(OLD_HEAD))), "pending");
+  // The reply job's re-read carries the same state.
+  const { kept } = await currentThreads({ api: codexAt(lanesMarked(securityMarked())), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.equal(kept[0].comments[0].security, "clear");
+  // The reviewer bot's own finding carries none.
+  const own = await select({ api: fakeApi({ issueComments: lanesMarked(securityHold(HEAD)) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]) });
+  assert.equal(own.file.threads[0].comments[0].security, undefined);
+});
+
+test("a critical-security hold on the reviewed head, or on a later head, marks a Codex root held; no other hold does", async () => {
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(HEAD))), "held");
+  // A hold the lane posted after Codex's review, on a later head, counts.
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold("c".repeat(40), { at: "2026-10-17T11:00:00Z" }))), "held");
+  // An earlier head's hold, posted before the review, does not.
+  assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(OLD_HEAD))), "clear");
+  for (const other of [
+    securityHold(HEAD, { criteria: "trust-gate" }),
+    securityHold(HEAD, { user: { id: 4343, login: "someone", type: "User" } }),
+    { ...securityHold(HEAD), body: securityHold(HEAD).body.replaceAll("claude-security-review", "claude-review") },
+  ]) {
+    assert.equal(await stateOf(lanesMarked(securityMarked(), other)), "clear", other.body);
+  }
+});
+
+test("a thread an unlisted bot started is not worked, while the listed one's is", async () => {
+  assert.equal((await codexRun(fakeApi(botThread()))).decision, "proceed");
+  const other = await codexRun(fakeApi(botThread({ root: OTHER_BOT, login: "cursor[bot]" })));
+  assert.deepEqual([other.decision, other.escalationReason], ["escalate", "feedback-untaken-threads"]);
+  // With no list, Codex is unlisted too.
+  assert.equal((await codexRun(fakeApi(botThread()), { reviewerIds: [] })).escalationReason, "feedback-untaken-threads");
+});
+
+test("Codex's login on another account id, or Codex's comment in another account's review, is not worked", async () => {
+  assert.equal((await codexRun(fakeApi(botThread()))).decision, "proceed");
+  assert.equal((await codexRun(fakeApi(botThread({ root: 4343, login: CODEX_LOGIN })))).escalationReason, "feedback-untaken-threads");
+  assert.equal((await codexRun(fakeApi(botThread({ reviewer: REVIEWER })))).escalationReason, "feedback-untaken-threads");
+  assert.equal((await codexRun(fakeApi(botThread({ reviewer: 4343 })))).escalationReason, "feedback-untaken-threads");
+  // The lane reviewer's review never vouches for a listed bot's comment, nor
+  // the reverse.
+  assert.equal((await codexRun(fakeApi({ reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }))).escalationReason, "feedback-untaken-threads");
+});
+
+test("a Codex thread on a head no review lane marked is left alone, as the reviewer bot's is", async () => {
+  assert.equal((await codexRun(fakeApi(botThread()))).decision, "proceed");
+  assert.equal((await codexRun(fakeApi(botThread({ commit: OLD_HEAD })))).escalationReason, "feedback-untaken-threads");
+});
+
+test("after a Codex finding, a trusted person's reply follows the reviewer bot's rules", async () => {
+  // A write-access fix request is direction, and works the thread on any head.
+  const asked = await codexRun(fakeApi(botThread({ replies: [[101, HUMAN, REQUEST]], commit: OLD_HEAD })));
+  assert.equal(asked.decision, "proceed");
+  assert.deepEqual(asked.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]), [[100, "reviewer", false], [101, "trusted-human", true]]);
+  // A reply that asks no fix, or a stranger's, leaves it alone.
+  assert.equal((await codexRun(fakeApi(botThread({ replies: [[101, HUMAN, DECISION]] })))).escalationReason, "feedback-untaken-threads");
+  assert.equal((await codexRun(fakeApi(botThread({ replies: [[101, STRANGER, REQUEST]] })))).escalationReason, "feedback-untaken-threads");
+  // A trusted reply to the lane's escalation is direction.
+  const answered = await codexRun(fakeApi(botThread({ replies: [[101, APP, ESCALATION], [102, HUMAN, DECISION]] })));
+  assert.equal(answered.decision, "proceed");
+  assert.equal(answered.file.threads[0].comments.at(-1).direction, true);
+  // An adjudication that let a Codex finding stand hands it back to the lane.
+  const stood = await codexRun(fakeApi(botThread({ replies: [INCORRECT, [102, APP, STANDS]] })));
+  assert.equal(stood.decision, "proceed");
+  // On a needs-human PR only a write-access fix request works it.
+  const gated = await codexRun(fakeApi({ ...botThread(), labels: ["needs-human"] }));
+  assert.equal(gated.skipReason, "awaiting-human");
+  const requested = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), labels: ["needs-human"] }));
+  assert.equal(requested.decision, "proceed");
+  assert.equal(requested.fixRequested, true);
+});
+
+test("past the round cap a Codex finding goes to a person, as the reviewer bot's own does", async () => {
+  const checks = { [HEAD]: [], c1: [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success" }], c2: [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success" }] };
+  const result = await codexRun(fakeApi({ ...botThread(), checks }), { maxRounds: 2 });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "feedback-round-cap");
+});
+
+test("reviewerIdsFrom reads one id per line, an unset value as none, and throws on anything else", async () => {
+  const { reviewerIdsFrom } = await import("./address-feedback.mjs");
+  assert.deepEqual(reviewerIdsFrom(`${CODEX}\n`), [CODEX]);
+  assert.deepEqual(reviewerIdsFrom("1\n2"), [1, 2]);
+  assert.deepEqual(reviewerIdsFrom(undefined), []);
+  assert.deepEqual(reviewerIdsFrom(""), []);
+  assert.throws(() => reviewerIdsFrom("chatgpt-codex-connector[bot]"), /REVIEWER_IDS/);
+  assert.throws(() => reviewerIdsFrom("0"), /REVIEWER_IDS/);
+});
+
 // A retry after the reply job stopped on this head (a lane-stopped
 // publish-feedback check from the GitHub Actions app) runs one model rung up;
 // a first round, or a stop record from another app, runs at the profile's own.
@@ -1277,7 +1449,6 @@ test("select asks for model rung 1 only after a lane stop on the head's reply ch
 // the head with a neutral not-applicable skip, no stop and no signal. The
 // select job now ends it in feedback-untaken-threads (routed to a failing
 // status); only a PR with no unresolved thread still skips.
-const CODEX = 199175422;
 test("an unresolved thread the lane does not take escalates feedback-untaken-threads", async () => {
   const codex = await run(
     fakeApi({

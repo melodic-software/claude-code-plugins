@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Notification hook: cross-platform terminal/desktop alert when Claude Code needs input.
-# Triggered on the permission_prompt and idle_prompt notification types.
+# Triggered on the permission_prompt and idle_prompt notification types, and on
+# plugin_notification when its title is desktop-notification: the toast this
+# plugin's own mod (register.ts) forwards.
 #
 # ADVISORY: always exits 0; a Notification hook is not a gate. Pointer: what a
 # Notification hook can return is in https://code.claude.com/docs/en/hooks#notification.
@@ -62,7 +64,8 @@ start=${EPOCHREALTIME:-}
 # https://mywiki.wooledge.org/CommandSubstitution).
 hook::buffer_stdin_to INPUT \
   '.notification_type // "unknown"' \
-  '.message // "Needs your attention"' || exit 0
+  '.message // "Needs your attention"' \
+  '.title // ""' || exit 0
 
 # jq is load-bearing for parsing; absent → skip.
 # silent-skip-ok: Claude Code discards a Notification hook's systemMessage (https://code.claude.com/docs/en/hooks#notification), so no notice can be read; /desktop-notification:check reports the missing jq.
@@ -84,6 +87,7 @@ strip_c0_to() {
 
 TYPE="${HOOK_JQ_FIELDS[0]:-}"
 MESSAGE="${HOOK_JQ_FIELDS[1]:-}"
+TITLE="${HOOK_JQ_FIELDS[2]:-}"
 strip_c0_to TYPE "$TYPE"
 strip_c0_to MESSAGE "$MESSAGE"
 [[ -n "$TYPE" ]] || TYPE="unknown"
@@ -100,6 +104,12 @@ permission_prompt)
 idle_prompt)
   HEADLINE="Input Needed"
   DEFAULT_MSG="Waiting for your input"
+  ;;
+plugin_notification)
+  # Only the toast this plugin's mod forwards; another mod's notification is its own.
+  [[ "$TITLE" == "desktop-notification" ]] || exit 0
+  HEADLINE="Claude Code"
+  DEFAULT_MSG="Needs your attention"
   ;;
 *) exit 0 ;;
 esac

@@ -67,6 +67,8 @@
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
 //                         and the people whose replies are direction
+//   REVIEWER_IDS          the listed review bots' ids, one per line
+//                         (address-feedback.mjs reviewerIdsFrom)
 //   FEEDBACK_REPLIES_DIR  the downloaded artifacts: the select job's run.json
 //                         and the model run's scanned replies.jsonl
 //   RUN_SHA256            run.json's SHA-256, from the select job
@@ -97,6 +99,7 @@ import {
   need,
   positive,
   reviewerIdFrom,
+  reviewerIdsFrom,
   ROUND_MARKER,
   scanRefusal,
   SHA,
@@ -146,7 +149,8 @@ function check(condition, why) {
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
 // run.json is the select job's: the gated head and the threads it kept, with
-// the comment ids the model was shown.
+// the comment ids the model was shown and, from a select job that records
+// them, the reviewed heads it kept them on.
 export function parseRun(text) {
   let run;
   try {
@@ -165,6 +169,10 @@ export function parseRun(text) {
     run.stale_notes === undefined ||
       (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
     "run.json holds a malformed stale_notes list",
+  );
+  check(
+    run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
+    "run.json holds a malformed reviewed_heads list",
   );
   for (const thread of run.threads) {
     check(
@@ -575,7 +583,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, reviewerIds = [], trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -627,7 +635,11 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [], undisposed };
     }
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
+    // The threads are judged on the heads the select job kept them on: the
+    // review lane re-marks its one marker on this round's fix push. A run.json
+    // from before the select job recorded them reads the markers now.
+    const heads = run.reviewed_heads && new Set(run.reviewed_heads);
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
@@ -832,6 +844,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     repliesExpected: attempt !== "" || (env.REPLIES_SHA256 ?? "") !== "",
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+    reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: readReplies() }),
     readAdjudication,

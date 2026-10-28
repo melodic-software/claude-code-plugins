@@ -46,6 +46,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
 const DEPENDABOT_ID = 49699333;
@@ -175,8 +176,7 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
     return undefined;
   }
   const checks = (await actions("GET", `/repos/${repo}/commits/${pull.head.sha}/check-runs?per_page=100`))?.check_runs;
-  const link = `/${repo}/actions/runs/${run.id}`;
-  const linked = Array.isArray(checks) && checks.some((check) => check.conclusion === "failure" && String(check.details_url ?? "").endsWith(link));
+  const linked = Array.isArray(checks) && checks.some((check) => check.conclusion === "failure" && postingRunId(check) === String(run.id));
   return linked ? pull : undefined;
 }
 
