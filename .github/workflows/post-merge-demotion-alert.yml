@@ -352,14 +352,25 @@ jobs:
             # A dispatched red files nothing, and the report job skips it,
             # once a newer full run on this repository's main has passed: main
             # already recovered. newer_green prints that run as <id>\t<sha>,
-            # or nothing when there is none.
+            # or nothing when there is none. Only a run whose head descends
+            # from the red SHA counts (a ref named main, a tag included, can
+            # sit anywhere): the compare must read ahead or identical, and
+            # any other status or a failed compare prints nothing.
             newer_green() {
-              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
+              local found newer_id newer_sha ancestry
+              found="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
                 --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
                   and (.event | IN("schedule", "workflow_dispatch"))
                   and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
                   and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
-                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv'
+                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || return 1
+              [[ -n "$found" ]] || return 0
+              IFS=$'\t' read -r newer_id newer_sha <<<"$found"
+              [[ "$newer_id" =~ ^[0-9]+$ && "$newer_sha" =~ ^[0-9a-f]{40}$ ]] || return 0
+              ancestry="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$newer_sha" --jq '.status')" || return 0
+              if [[ "$ancestry" == ahead || "$ancestry" == identical ]]; then
+                printf '%s\n' "$found"
+              fi
             }
             main_recovered() {
               local newer_id newer_sha
@@ -438,13 +449,21 @@ jobs:
             # Exit 0: every newly failing suite is outside the merges' affected
             # set or quarantined, so each suite's quarantine issue is filed or
             # commented and no record is. Exit 1: a suite demotes, which for a
-            # check red on the baseline too means its quarantine expired. Any
-            # other exit (the judge failed) files as before.
+            # check red on the baseline too means its quarantine expired. Exit 2
+            # to 4 (the judge failed) warns with its error and files as before,
+            # as does any other exit.
             judged=0
             judgment="$(python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
               --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
               --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
             printf '%s\n' "$judgment"
+            if ((judged >= 2 && judged <= 4)); then
+              error="$(jq -r '.error // empty' <<<"$judgment" 2>/dev/null)" || error=''
+              [[ -n "$error" ]] || error='no error in its output'
+              error="${error//'%'/%25}"
+              error="${error//$'\r'/%0D}"
+              echo "::warning::the suite judge exited $judged, so every newly failing check demotes: ${error//$'\n'/%0A}"
+            fi
             if [[ "$judged" -eq 0 && -s "$now" ]]; then
               echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
               echo 'excused=true' >>"$GITHUB_OUTPUT"
