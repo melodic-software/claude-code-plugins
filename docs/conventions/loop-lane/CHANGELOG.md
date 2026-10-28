@@ -12,6 +12,9 @@ Minor. Guidance only; no topology, escalation-contract mechanism, capability-tie
 - **The owner's standing direction.** §2 quotes the owner's 2026-10-28 direction for every session
   and lane on deciding from evidence, throughput, efficiency and use of time, and rewords reason 3
   of the stop rule to the owner's current text: a real HIGH or CRITICAL security or cost risk.
+- **Session holds.** §2 states that a session does not hold a pull request a lane already judges
+  (a Dependabot tier, the security review lane's verdict) on its own concern: it files the concern
+  with the lane's owner and labels only for a HIGH or CRITICAL risk it can evidence.
 
 ## [12.9.0] - 2026-10-27
 
