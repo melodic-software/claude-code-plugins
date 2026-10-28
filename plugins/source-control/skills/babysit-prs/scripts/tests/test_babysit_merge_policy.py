@@ -7752,14 +7752,24 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
         gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
         gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
-        # Dependabot pushed the head; the diff is a covered lock file.
+        # Dependabot created the branch at its first commit and pushed the
+        # head; the diff is a covered lock file.
+        first = str(self.commits[0].get("sha")) if self.commits else self.HEAD
+        dependabot = {"login": "dependabot[bot]", "type": "Bot"}
         gh.rest[self.ACTIVITY] = (
             [
                 {
-                    "activity_type": "branch_creation",
+                    "activity_type": "push",
+                    "before": first,
                     "after": self.HEAD,
-                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
-                }
+                    "actor": dependabot,
+                },
+                {
+                    "activity_type": "branch_creation",
+                    "before": "0" * 40,
+                    "after": first,
+                    "actor": dependabot,
+                },
             ]
             if pushes is None
             else pushes

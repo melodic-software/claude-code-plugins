@@ -1270,7 +1270,9 @@ warns of a [classifier gap](README.md#classifier-gaps).
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
      changing, as regular files), or a single-parent commit that passes the fix rule against
-     its parent, it posts no merge marker and escalates `dependency-fix-refused`; it reads
+     its parent, and arrived in its own author's push (the README's **Pushes** check, read
+     from the head branch's repository activity), it posts no merge marker and escalates
+     `dependency-fix-refused`; it reads
      `.github/dependabot.yml` at `BASE_SHA` itself, and a config that does not read escalates
      `dependency-config-unreadable`; without each of `controls` quoted
      in `evidence` it escalates `dependency-control-uncited`
