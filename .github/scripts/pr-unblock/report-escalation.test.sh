@@ -482,7 +482,10 @@ has "incomplete: says how many more" '- and 2 more' "$STUB/bodies"
 check "incomplete: a line of another shape is not copied" 0 "$(grep -c 'PRRT_y' "$STUB/bodies" || true)"
 check "incomplete: a marker on another head is not read" 0 "$(grep -c 'PRRT_old' "$STUB/bodies" || true)"
 check "incomplete: a marker another author wrote is not read" 0 "$(grep -c 'PRRT_human' "$STUB/bodies" || true)"
-has "incomplete: still resumes by removing the label" 'remove the `needs-human` label' "$STUB/bodies"
+# feedback-incomplete routes to a failing status: the comment says how the
+# run resumes, and no label goes on.
+has "incomplete: says a new commit starts clean" 'A new commit to the branch starts clean' "$STUB/bodies"
+check "incomplete: one comment, no label" 0 "$(grep -cE '^(POST|PATCH|PUT) [^ ]*/labels' "$STUB/requests" || true)"
 
 setup '[]' "$(round_comment "$HEAD_B" '- `PRRT_old` (root comment 1)')"
 run feedback-incomplete
