@@ -118,6 +118,14 @@ test("a person's comment edited after the label, or written in its own second, h
   assert.equal(allows(inlineEdited, "fix-ci"), false, "an inline comment edited after the label");
 });
 
+test("a person's timeline comment with no updated_at counts as written since the label", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const comment = [{ ...commented(OWNER, "Wait.", "2026-10-18T09:00:00Z"), updated_at: undefined }, ...base];
+  const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T09:00:00Z" }] }];
+  assert.equal(allows(comment, "fix-ci"), false, "a comment");
+  assert.equal(allows(inline, "fix-ci"), false, "an inline comment");
+});
+
 // GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
 // carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
 const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
@@ -206,7 +214,7 @@ test("prHold holds on a person's inline reply its review reader returns", async 
   assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: a person commented or reviewed since needs-human went on" });
 });
 
-test("prHold's review reader asks for the review comments since the label, to the second, and every review", async () => {
+test("prHold's review reader asks for the review comments since a second before the label, and every review", async () => {
   const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00.250Z"), escalated("feedback-disputed")];
   const asked = [];
   const api = {
@@ -216,7 +224,7 @@ test("prHold's review reader asks for the review comments since the label, to th
   const result = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, readReviews: reviewReader(api, 7) });
   assert.equal(result.held, false);
   assert.deepEqual(asked, [
-    ["comments", 7, "2026-10-18T10:00:00Z"],
+    ["comments", 7, "2026-10-18T09:59:59Z"],
     ["reviews", 7],
   ]);
 });

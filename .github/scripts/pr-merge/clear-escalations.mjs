@@ -426,7 +426,7 @@ const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} 
 // update time), so an edit after the label counts too. A failed read throws,
 // which keeps the label.
 async function threadSpeaker(github, repo, number, since) {
-  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since)}`);
+  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
   return personSince(reviewEntries({ comments, reviews }), since);
 }

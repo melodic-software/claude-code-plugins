@@ -873,7 +873,7 @@ test("the thread reads run once each, since the label, and only when the timelin
   await run(clears);
   assert.deepEqual(
     threadReads(clears).map((call) => call.path),
-    [`/repos/${REPO}/pulls/7/comments?since=2026-10-18T10:00:00Z&per_page=100&page=1`, `/repos/${REPO}/pulls/7/reviews?per_page=100&page=1`],
+    [`/repos/${REPO}/pulls/7/comments?since=2026-10-18T09:59:59Z&per_page=100&page=1`, `/repos/${REPO}/pulls/7/reviews?per_page=100&page=1`],
   );
   const spoke = world({ timeline: [...inlineTimeline(), commented(OWNER, "Wait.", "2026-10-18T12:00:00Z")] });
   await run(spoke);

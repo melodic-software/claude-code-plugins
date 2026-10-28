@@ -162,8 +162,9 @@ export const escalationActivity = (reason) =>
           : null;
 
 // A comment's last write: its creation or its last edit, so an old comment
-// edited to say "wait" counts at the edit. A time that does not parse is NaN.
-const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+// edited to say "wait" counts at the edit. A time that does not parse, a
+// missing updated_at included, is NaN, which personSince counts as since.
+const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at));
 
 // When a timeline item was written, and by whom, for a comment or a review
 // (clear-escalations.mjs reads people speaking the same way).
@@ -198,8 +199,9 @@ export const reviewEntries = ({ comments, reviews }) => [
   ...reviews.map((review) => ({ user: review.user, at: Date.parse(review.submitted_at) })),
 ];
 
-// `since` (epoch ms) as GitHub's `since` query value, to the second, so the
-// label's own second is included.
+// `since` (epoch ms) as GitHub's `since` query value, to the second. GitHub
+// documents `since` as "updated after" without saying whether its own second
+// is included, so callers pass a second earlier and personSince filters again.
 export const sinceParam = (since) => new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
@@ -269,7 +271,7 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
   if (allowed) {
     let read;
     try {
-      read = await readReviews(sinceParam(labelHistory(timeline, gateLabel).since));
+      read = await readReviews(sinceParam(labelHistory(timeline, gateLabel).since - 1000));
     } catch {
       read = undefined;
     }
