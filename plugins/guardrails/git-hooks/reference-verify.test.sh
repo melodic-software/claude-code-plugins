@@ -2,7 +2,8 @@
 # Contract tests for the guardrails pre-push entry git-hooks/reference-verify.sh:
 # an unknown CLI flag or a cited path the repository deleted, on a line the
 # pushed commits add, blocks with "<path>:<line>: <message>"; the same text on an
-# unchanged line, or in a file type the verifiers do not read, does not; a new
+# unchanged line, in a file type the verifiers do not read, or in an eval
+# suite's samples/ folder (recorded model output), does not; a new
 # branch ranges from its merge-base with the remote's default branch, a pushed
 # branch that merged main is judged only on its own lines, and a
 # deletion checks nothing; the failure names the way out (decline the entry;
@@ -290,6 +291,27 @@ printf 'faketool --bogus in a text file\n' >"$REPO/notes.txt"
 commit_all notes
 expect "a file type the verifiers do not read passes" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# An eval suite's samples/ folder holds recorded model output, so it is not
+# verified; the suite's other files and a samples/ folder outside evals/ are.
+# eval_case <path> -> "<rc>|<path before the first colon of the first finding>"
+eval_case() {
+  local c rest
+  new_repo
+  mkdir -p "$REPO/${1%/*}"
+  # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+  printf 'Run `faketool --bogus` here.\n' >"$REPO/$1"
+  commit_all eval-case
+  c="$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+  rest="${c#*|}"
+  printf '%s|%s' "${c%%|*}" "${rest%%:*}"
+}
+for p in plugins/p/evals/c/samples/answer.md evals/sources/labels/T1/samples/run1.md evals/samples/x.md; do
+  expect "an unknown flag in the eval sample $p does not block" "0|" "$(eval_case "$p")"
+done
+for p in plugins/p/evals/c/graders/check.md plugins/p/evals/c/prompt.md docs/samples/x.md myevals/samples/x.md; do
+  expect "an unknown flag in $p blocks" "1|$p" "$(eval_case "$p")"
+done
 
 new_repo
 git -C "$REPO" checkout -q -b topic
