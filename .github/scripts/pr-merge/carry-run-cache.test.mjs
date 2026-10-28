@@ -1,8 +1,11 @@
 // carry-run-cache.mjs: only reads that cannot change reach the next pr-merge
-// run, each under a carried-* name the reader uses only to count a FAIL. The kept and dropped sections follow
+// run, each under a carried-* name the verdict reader uses only to count a
+// FAIL, and carried-lane-run, which babysit_gh.collect_lane_runs uses while the
+// live listing still matches. The kept and dropped sections follow
 // babysit_run_cache.py's readers (babysit_verify_evidence.py: run-record,
-// fail-head-ref, on-branch; babysit_merge*.py: the MAX_AGE-bounded and
-// credential-keyed ones); record shapes follow GET .../actions/runs/{id}.
+// fail-head-ref, on-branch; babysit_gh.py: lane-run; babysit_merge*.py: the
+// MAX_AGE-bounded and credential-keyed ones); record shapes follow
+// GET .../actions/runs/{id}.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

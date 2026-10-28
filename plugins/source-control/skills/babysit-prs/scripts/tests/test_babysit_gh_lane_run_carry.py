@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator, Mapping
 from typing import Any
 from unittest import mock
 
@@ -296,6 +297,76 @@ class EveryRecordedBindDecidesAlikeWarm(unittest.TestCase):
                     review_evidence.bind(head, cold, *rest, **kwargs),
                 )
         self.assertGreater(warmed, 200)
+
+
+class Recorded(Mapping[str, Any]):
+    """A record that notes each key read from it into `read`."""
+
+    def __init__(self, data: dict[str, Any], read: set[str]) -> None:
+        self.data = data
+        self.read = read
+
+    def __getitem__(self, key: str) -> Any:
+        self.read.add(key)
+        return self.data[key]
+
+    def __contains__(self, key: object) -> bool:
+        self.read.add(str(key))
+        return key in self.data
+
+    def __iter__(self) -> Iterator[str]:
+        self.read.add("<every key>")
+        return iter(self.data)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+
+class BindReadsOnlyTheSavedFields(unittest.TestCase):
+    """A saved attempt keeps only the fields bind() reads: over the
+    review-evidence suite's bind() calls, it reads no other key of an
+    attempt, a job or an annotation."""
+
+    def test_the_corpus(self) -> None:
+        read: dict[str, set[str]] = {
+            "attempt": set(),
+            "job": set(),
+            "annotation": set(),
+        }
+
+        def job(value: Any) -> Any:
+            if not isinstance(value, dict):
+                return value
+            out = dict(value)
+            if isinstance(value.get("annotations"), list):
+                out["annotations"] = [
+                    Recorded(a, read["annotation"]) if isinstance(a, dict) else a
+                    for a in value["annotations"]
+                ]
+            return Recorded(out, read["job"])
+
+        def attempt(value: Any) -> Any:
+            if not isinstance(value, dict):
+                return value
+            out = dict(value)
+            if isinstance(value.get("jobs"), list):
+                out["jobs"] = [job(j) for j in value["jobs"]]
+            return Recorded(out, read["attempt"])
+
+        for args, kwargs in bind_corpus():
+            head, runs, *rest = args
+            if isinstance(runs, list):
+                runs = [
+                    {**item, "attempts": [attempt(a) for a in item["attempts"]]}
+                    if isinstance(item, dict) and isinstance(item.get("attempts"), list)
+                    else item
+                    for item in runs
+                ]
+            review_evidence.bind(head, runs, *rest, **kwargs)
+        self.assertLessEqual(read["attempt"], {*gh.LANE_ATTEMPT_FIELDS, "jobs"})
+        self.assertLessEqual(read["job"], {*gh.LANE_JOB_FIELDS, "annotations"})
+        self.assertLessEqual(read["annotation"], set(gh.LANE_ANNOTATION_FIELDS))
+        self.assertTrue(read["attempt"] and read["job"] and read["annotation"])
 
 
 if __name__ == "__main__":

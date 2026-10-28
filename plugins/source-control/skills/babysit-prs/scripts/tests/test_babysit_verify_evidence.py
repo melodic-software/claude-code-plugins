@@ -2590,9 +2590,10 @@ def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
 class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
     """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
     read, which a job in the default branch's cache scope may have written.
-    Whatever that entry holds, carry-run-cache.mjs and the reader together
+    Whatever that entry holds, carry-run-cache.mjs and this reader together
     may only add refusals: a carried read that would turn a FAIL away is read
-    again from GitHub."""
+    again from GitHub. Review-lane runs, read outside this reader
+    (babysit_gh.collect_lane_runs), are the exception."""
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
