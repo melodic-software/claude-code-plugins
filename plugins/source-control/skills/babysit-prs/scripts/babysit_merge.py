@@ -183,6 +183,7 @@ from babysit_feedback import latest_reviews_by_author
 from babysit_risk import LaneEvidence
 from babysit_gh import (
     GraphQLUnavailableError,
+    gh_json_graphql,
     collect_lane_runs,
     compare_shows_behind,
     fetch_base_compare,
@@ -3161,6 +3162,7 @@ def _lane_evidence(
         f"#{number} comments",
         env_overrides=read_env,
     )
+    _attach_edits(comments, f"#{number}")
     try:
         threads: list[Any] | None = fetch_review_threads(
             repo, number, include_resolved=True
@@ -3194,8 +3196,61 @@ def _lane_evidence(
         changed_paths=changed_paths,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
         head_file=_head_file(repo, str(head.get("sha"))),
+        base_sha=json_object(pr.get("base")).get("sha"),
     )
     return lanes, comments
+
+
+# The review lanes' comment authors: `review_evidence.bind()` reads only theirs.
+_LANE_AUTHORS = review_evidence.LANE_AUTHORS
+_EDITS_QUERY = (
+    "query($ids:[ID!]!){nodes(ids:$ids){... on IssueComment"
+    "{id lastEditedAt editor{__typename login}}}}"
+)
+
+
+def _attach_edits(comments: Any, label: str) -> None:
+    """Give each lane-author comment the `edit` record `bind()` reads
+    (babysit_review_evidence._edited_by_another): unedited when REST's
+    `updated_at` equals `created_at`, else GraphQL's `lastEditedAt` and
+    `editor`, read 100 node ids at a time. A comment whose record cannot be
+    read gets none, so `bind()` holds it unproven."""
+    if not is_json_array(comments):
+        return
+    pending: dict[str, dict[str, Any]] = {}
+    for comment in comments:
+        if not is_json_object(comment):
+            continue
+        if json_object(comment.get("user")).get("login") not in _LANE_AUTHORS:
+            continue
+        created, updated = comment.get("created_at"), comment.get("updated_at")
+        if isinstance(created, str) and created and created == updated:
+            comment["edit"] = {"lastEditedAt": None}
+        elif isinstance(comment.get("node_id"), str):
+            pending[comment["node_id"]] = comment
+    ids = list(pending)
+    for start in range(0, len(ids), 100):
+        batch = ids[start : start + 100]
+        args = ["api", "graphql", "-f", f"query={_EDITS_QUERY}"]
+        for node in batch:
+            args.extend(["-f", f"ids[]={node}"])
+        try:
+            data = gh_json_graphql(args, label=f"{label} comment edits")
+        except Exception:  # noqa: BLE001 - unread is unproven
+            return
+        nodes = json_object(json_object(data).get("data")).get("nodes")
+        if not is_json_array(nodes):
+            return
+        for node in nodes:
+            if (
+                is_json_object(node)
+                and node.get("id") in pending
+                and "lastEditedAt" in node
+            ):
+                pending[node["id"]]["edit"] = {
+                    "lastEditedAt": node["lastEditedAt"],
+                    "editor": node.get("editor"),
+                }
 
 
 class HeadFileUnproven(RuntimeError):
@@ -3309,7 +3364,9 @@ def score_unattended(
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
         )
-        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        # Provisional: an allow is judged again on a listing of this gate
+        # run's own below, once nothing else refuses.
+        verdict = reader.evidence(number, str(details["headSha"]), pr, provisional=True)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:

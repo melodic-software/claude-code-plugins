@@ -43,13 +43,10 @@ runs:
           printf '%s\n' "$lines"
           sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
           # This job's own calls, one reading each: unlike cost, no other job's.
-          # A notice, as the hub reads annotations, not the log; its message
-          # escaped as workflow commands require.
-          calls=$(awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "%s=%d not-modified=%d", token, n, m }' token="$name" "$RUNNER_TEMP/api-budget/$name")
-          notice=${calls//%/%25}
-          notice=${notice//$'\r'/%0D}
-          echo "::notice title=api-calls::${notice//$'\n'/%0A}"
-          echo "api-calls $calls" >>"$GITHUB_STEP_SUMMARY"
+          # A notice, as the hub reads annotations, not the log.
+          calls=$(api_budget_emit_calls "$name")
+          printf '%s\n' "$calls"
+          echo "api-calls ${calls#*title=api-calls::}" >>"$GITHUB_STEP_SUMMARY"
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
         done

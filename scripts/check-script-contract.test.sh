@@ -67,6 +67,7 @@ REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-affected.sh|-|-|-"
   "check-app-key-references.sh|-|-|-"
+  "check-artifact-retention.sh|node|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-cant-fail-scan.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
