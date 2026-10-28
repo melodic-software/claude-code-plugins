@@ -39,7 +39,15 @@ test("a run's stop reason routes by the code it opens with, and by none otherwis
   assert.equal(runCode("host-only: needs the native bundle"), "host-only");
   assert.equal(runCode("  `security-risk`: a token leaks"), "security-risk");
   assert.equal(runCode("patch-protected-path: .github/workflows/ci.yml"), "patch-protected-path");
+  assert.equal(runCode("umbrella: #9691 is open"), "umbrella");
   assert.equal(runCode("The tests failed; not host-only."), "stopped");
   assert.equal(runCode("check-failed: a code no run may give"), "stopped");
   assert.equal(runCode(undefined), "stopped");
+});
+
+// #6052: an umbrella with open sub-issues is no work for the lane and no
+// decision for a person: agent-ready off, no label, a visible failed marker.
+test("a run's umbrella code fails the stop, holding for no person", () => {
+  assert.equal(stopRoute("umbrella"), "fail");
+  assert.equal(STOP_ROUTES.umbrella.code, true);
 });

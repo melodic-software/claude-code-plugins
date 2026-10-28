@@ -169,6 +169,18 @@ export function operatorConfirmation({ schedule, labels, title }) {
 // with blockerDone or stillBlocking.
 export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
 
+// An issue's open sub-issues: an umbrella's work is its sub-issues' (owner
+// Q93), so the issue lane waits while one is open. `issue` is a REST issue
+// read (one issue or a listing), whose `sub_issues_summary { total, completed }`
+// (https://docs.github.com/en/rest/issues/issues#get-an-issue) costs no call;
+// only an issue with `total > completed` lists its sub-issues
+// (https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues), since
+// the docs do not say whether `completed` counts a close as not planned.
+export async function openSubIssues(github, base, issue) {
+  const { total = 0, completed = 0 } = issue?.sub_issues_summary ?? {};
+  return total > completed ? (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed") : [];
+}
+
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()

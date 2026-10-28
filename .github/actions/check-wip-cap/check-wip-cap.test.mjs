@@ -269,6 +269,22 @@ test("an agent-ready issue a blocker still blocks is not queued work; one whose 
   assert.equal(status(reads).queued_issues, 3);
 });
 
+// The run gate skips an umbrella while a sub-issue is open (check-blockers.mjs),
+// so it is not queued work either; the search item's sub_issues_summary says
+// so with no read.
+test("an agent-ready umbrella the search item shows with an open sub-issue is not queued work, at no read", async () => {
+  const queued = [
+    { number: 1, sub_issues_summary: { total: 5, completed: 0, percent_completed: 0 } },
+    { number: 2, sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } },
+    { number: 3 },
+  ];
+  const { github, paths } = searchApi({ merged: 24, queued });
+  const reads = await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
+  assert.deepEqual(reads.blocked, [1]);
+  assert.equal(status(reads).queued_issues, 2);
+  assert.ok(!paths.some((path) => path.includes("/issues/1/")), "an umbrella costs no read");
+});
+
 test("blocker reads skip issues a lane PR names, stop at BLOCKER_READS, and a failed one leaves the issue queued", async () => {
   const many = Array.from({ length: BLOCKER_READS + 5 }, (_, i) => i + 1);
   const blockedBy = Object.fromEntries(many.map((n) => [n, [blocker(1000 + n)]]));

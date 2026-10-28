@@ -17,6 +17,7 @@
   "required-undone": { "route": "retry", "why": "the run left a required check undone, so the next run continues the branch" },
   "pr-head-moved": { "route": "retry", "why": "the PR opened at a head other than the tip the runner checked, a race, not a finding about the issue" },
   "turn-cap-spent": { "route": "fail", "why": "the run reached its turn cap with no restart left" },
+  "umbrella": { "route": "fail", "why": "the run reports the issue is an umbrella whose work is its open sub-issues, which is no work for the lane and no decision for a person", "code": true },
   "retry-spent": { "route": "fail", "why": "the lane has retried this issue as many times as limits.stop-retries allows" },
   "pushback": { "route": "hold", "why": "the issue leaves a decision open, an intent question only a person answers" },
   "intent-change": { "route": "hold", "why": "the run found the work changes the issue's intent, which a person decides", "code": true },

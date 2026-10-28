@@ -2031,7 +2031,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
-  `intent-change`, `design-change`, `security-risk`, `cost-risk`, `patch-protected-path`), and a
+  `intent-change`, `design-change`, `security-risk`, `cost-risk`, `patch-protected-path`,
+  `umbrella`), and a
   reason with no code, like a reason the table does not list, holds. `hold` labels the issue with
   the human-gated role label, removes `agent-ready` and comments why; `host-run` adds the
   `host-run` label (the host queue's one signal) and removes `agent-ready`; `retry` keeps

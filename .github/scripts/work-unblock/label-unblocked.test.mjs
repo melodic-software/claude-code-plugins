@@ -1675,12 +1675,15 @@ function stalledRun({
   queuedIssues = [],
   blockedBy = {},
   logs = {},
+  summary,
+  subIssues = {},
 } = {}) {
   const fake = world({
     blockedBy,
+    subIssues,
     queuedIssues,
     logs,
-    openReady: [ready(number)],
+    openReady: [{ ...ready(number), ...(summary && { sub_issues_summary: summary }) }],
     comments: { [number]: comments },
     events: { [number]: events },
     runs: [{ ...laneRun({ number, conclusion }), updated_at: ended }],
@@ -1872,6 +1875,27 @@ test("a run the blocker gate skipped is re-fired once a listed human closed its 
     const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [blocker] } });
     assert.equal(await sweep({ github, actions }), 0);
     assert.deepEqual(writes(calls), refired(30), JSON.stringify(blocker));
+  }
+});
+
+// The admit job skips an umbrella with an open sub-issue the way it skips a
+// blocked issue (check-blockers.mjs): agent-ready kept, no marker. The sweep
+// waits while one is open, with no write and no needs-human, reading the
+// listing's sub_issues_summary, and re-fires it once none is.
+test("a run the gate skipped on an umbrella waits, with no write, while a sub-issue is open", async () => {
+  const subIssues = { 30: [issue(9691), issue(9692, { state: "closed" })] };
+  const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", summary: { total: 2, completed: 1, percent_completed: 50 }, subIssues });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a run the gate skipped on an umbrella is re-fired once every sub-issue is closed, reading no sub-issue list when the summary shows none open", async () => {
+  const closed = { 30: [issue(9691, { state: "closed" }), issue(9692, { state: "closed", reason: "not_planned" })] };
+  for (const summary of [{ total: 2, completed: 2, percent_completed: 100 }, { total: 2, completed: 1, percent_completed: 50 }]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", summary, subIssues: closed });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30), JSON.stringify(summary));
+    assert.equal(calls.some((call) => call.includes("/sub_issues")), summary.completed < summary.total, JSON.stringify(summary));
   }
 });
 

@@ -20,8 +20,8 @@
 // WIP_STATE; with none it fails open.
 //
 // Queued work is the agent-ready issues no open lane PR names, on its first
-// body line or else by its lane branch, and no blocker still blocks (at most
-// BLOCKER_READS blocker reads), plus the held lane PRs. At or over the queued cap,
+// body line or else by its lane branch, no blocker still blocks (at most
+// BLOCKER_READS blocker reads) and the search item shows no open sub-issue, plus the held lane PRs. At or over the queued cap,
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
@@ -154,7 +154,16 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
   const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
-  const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
+  // An umbrella the search item shows with an open sub-issue never runs
+  // either (check-blockers.mjs); its sub_issues_summary costs no read.
+  const umbrellas = new Set();
+  const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => {
+    const number = Number(issue?.number);
+    if ((issue?.sub_issues_summary?.total ?? 0) > (issue?.sub_issues_summary?.completed ?? 0)) {
+      umbrellas.add(number);
+    }
+    return number;
+  });
   // A search item carries no head ref, so a lane PR whose first body line
   // names no issue (a person edited it) costs one pull request read for its
   // lane branch. One that fails leaves the PR unmatched.
@@ -173,9 +182,10 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   // counts as done without reading who closed it: an untrusted close the lane
   // would still wait on is counted as queued, which only slows admissions.
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
-  const blocked = [];
   const unnamed = open === null ? [] : (queued?.items ?? []).filter((number) => !named.has(number) && Number.isSafeInteger(number) && number > 0);
-  for (const number of unnamed.slice(0, BLOCKER_READS)) {
+  const blocked = unnamed.filter((number) => umbrellas.has(number));
+  const unread = unnamed.filter((number) => !umbrellas.has(number));
+  for (const number of unread.slice(0, BLOCKER_READS)) {
     try {
       if ((await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, async () => true, async () => true)).length > 0) {
         blocked.push(number);
