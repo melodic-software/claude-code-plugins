@@ -36,6 +36,7 @@ import urllib.request
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -5270,7 +5271,7 @@ SHARED_MAX_AGE = timedelta(minutes=30)
 # How old a shared answer still waiting on a lane merge's verifying run may
 # be on age alone: that run may have reached a conclusion since. Past it,
 # `assess` keeps the answer up to `SHARED_MAX_AGE` only on evidence that
-# nothing it was read from moved (`_still_current`, with the caller's
+# nothing it was read from moved (`_moved`, with the caller's
 # `runs_unchanged`), else reads it again.
 SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
 # Refusals that bind the answer to another candidate, not to an older state,
@@ -5421,7 +5422,7 @@ def shared_refusal(
     base the floor its own read would (`merged_since_floor` with the shared
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
     while it passes with a merge unverified, a refusal its callers may
-    overrule on run evidence: `_still_current`) nor past a quarantine excuse's
+    overrule on run evidence: `_moved`) nor past a quarantine excuse's
     end (`_shared_age_refusal`), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
@@ -5553,7 +5554,7 @@ def assess(
     (`merged_since_floor`) and must be given: without it the path refuses.
     `shared`, the run's one answer for every candidate, replaces the
     demotion, floor and post-merge reads when `shared_refusal` passes it, or
-    when it refuses it only as `unverified-stale` and `_still_current` with
+    when it refuses it only as `unverified-stale` and `_moved` with
     `runs_unchanged(shared, branch)` (no verifying run of its unverified
     merges reached a conclusion since) shows nothing it was read from moved
     (`postMergeShared: kept:unverified-stale`); a kept answer is not handed
@@ -5955,7 +5956,9 @@ class LaneRoom:
     a read failed, which the caller holds on as on a refusal. Otherwise
     `count` merges are in flight of `cap`, `queued` holds the merge queue's
     pull request numbers, and `rung` is the effective rung the gate scores
-    each candidate at ("off" unless the lane has room)."""
+    each candidate at ("off" unless the lane has room). `post_merge` is how
+    the run's post-merge answer settled (`settle_shared`'s `outcome`), None
+    when a read failed before it was settled."""
 
     refusal: str | None = None
     unreadable: str | None = None
@@ -5963,6 +5966,7 @@ class LaneRoom:
     cap: int = 1
     queued: frozenset[int] = frozenset()
     rung: str = "off"
+    post_merge: Mapping[str, str | None] | None = None
 
     def report(self) -> dict[str, Any]:
         return {
@@ -5972,30 +5976,49 @@ class LaneRoom:
             "cap": self.cap,
             "queued": sorted(self.queued),
             "rung": self.rung,
+            "postMerge": None if self.post_merge is None else dict(self.post_merge),
         }
 
 
-def _still_current(
+def _moved(
     repo: str,
     default: str,
     identity: str,
     shared: SharedPostMerge,
     runs_unchanged: Callable[[SharedPostMerge, str], bool],
-) -> bool:
-    """Whether the post-merge check would answer `shared` again, in order:
-    the default branch head is its `main_sha`, the head's config commit is its
-    `config_sha` (with the demotion unchanged, the same floor), no demotion
-    record was filed or changed since (`_demotion_changed`), and
-    `runs_unchanged`: none of its unverified merges' verifying runs reached a
-    conclusion since. Raises `PolicyReadError`."""
+    *,
+    reread_demotion: bool = False,
+) -> str | None:
+    """What `shared` was read from that has moved since, or None when the
+    post-merge check would answer it again, in order: the default branch head
+    is its `main_sha` (else `head-moved`), the head's config commit is its
+    `config_sha` (with the demotion unchanged, the same floor; else
+    `config-moved`), no demotion record was filed or changed since
+    (`_demotion_changed`, else `demotion-changed`), and `runs_unchanged`:
+    none of its unverified merges' verifying runs reached a conclusion since
+    (else `runs-moved`). With `reread_demotion`, a tripped demotion probe
+    counts only when `read_demotion`, read after the runs, differs from the
+    shared demotion in any field, as `settle_shared` keeps a
+    `demotion-changed` answer. Raises `PolicyReadError`."""
     owner, name = _split_repo(repo)
     _, head = _default_branch_head(repo, default)
-    return (
-        head == shared.main_sha
-        and newest_config_commit(repo, head) == shared.config_sha
-        and not _demotion_changed(owner, name, shared, identity)
-        and runs_unchanged(shared, default)
-    )
+    if head != shared.main_sha:
+        return "head-moved"
+    if newest_config_commit(repo, head) != shared.config_sha:
+        return "config-moved"
+    probed = _demotion_changed(owner, name, shared, identity)
+    if probed and not reread_demotion:
+        return "demotion-changed"
+    if not runs_unchanged(shared, default):
+        return "runs-moved"
+    if probed and shared.demotion != read_demotion(
+        repo,
+        agent_identity=identity,
+        self_logins=shared.self_logins,
+        permission=permission_reader(repo),
+    ):
+        return "demotion-changed"
+    return None
 
 
 def _kept_unverified(
@@ -6008,12 +6031,12 @@ def _kept_unverified(
 ) -> bool:
     """Whether an answer refused only as `unverified-stale` is kept up to
     `SHARED_MAX_AGE`: nothing it was read from moved and no verifying run of
-    its unverified merges reached a conclusion since (`_still_current`). No
+    its unverified merges reached a conclusion since (`_moved`). No
     `runs_unchanged` or any failed read is not kept."""
     if unusable != "unverified-stale" or runs_unchanged is None:
         return False
     try:
-        return _still_current(repo, default, identity, shared, runs_unchanged)
+        return _moved(repo, default, identity, shared, runs_unchanged) is None
     except (RuntimeError, ValueError, OSError):
         return False
 
@@ -6107,18 +6130,27 @@ def settle_shared(
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
     keep: bool = True,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    outcome: dict[str, str | None] | None = None,
 ) -> tuple[SharedPostMerge | None, str | None]:
     """The answer to use for the run's post-merge check in place of
     `shared`, or None and why not (`post-merge answer <refusal>`): the gate's
     own reuse rule (`shared_refusal`) as a candidate at the default branch
     head `base_sha` with the gate's self logins (none). With `keep`, two
     refusals keep `shared`: `unverified-stale` when nothing it was read from
-    moved (`_still_current`, with `runs_unchanged`), and `demotion-changed`
-    when `read_demotion` reads the shared demotion again. Any other refusal
+    moved (`_moved`, with `runs_unchanged` and `reread_demotion`), and
+    `demotion-changed` when `read_demotion` reads the shared demotion again. Any other refusal
     is read again with `post_merge` (`_recompute_shared`), or with none
     refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
     from other check code: `code-changed`, never reused or kept. One rule for
-    the lane room and the merge job's reuse of post-merge-dispatch's report."""
+    the lane room and the merge job's reuse of post-merge-dispatch's report.
+
+    `outcome`, when given, is filled with how it settled: `answer` is
+    `reused`, `kept`, `recomputed` or `refused`, `reason` the
+    `shared_refusal` (or `code-changed`) behind any but `reused`, and `moved`
+    what `_moved` found for an `unverified-stale` answer not kept (or
+    `unreadable`)."""
+    note = outcome if outcome is not None else {}
+    note.update(answer="refused", reason=None, moved=None)
     unusable = (
         shared_refusal(
             repo,
@@ -6135,10 +6167,13 @@ def settle_shared(
         else "code-changed"
     )
     if not unusable:
+        note["answer"] = "reused"
         return shared, None
+    note["reason"] = unusable
     # An unverified-stale answer is kept when nothing it was read from moved,
     # a demotion-changed one when the demotion reads the same (an issue the
-    # lane opened that triage edited, most runs).
+    # lane opened that triage edited, most runs); the unverified keep takes
+    # that same demotion read when the probe trips.
     try:
         if not keep:
             current = False
@@ -6149,13 +6184,18 @@ def settle_shared(
                 self_logins=frozenset(),
                 permission=permission_reader(repo),
             )
-        else:
-            current = _kept_unverified(
-                repo, default, identity, shared, unusable, runs_unchanged
+        elif unusable == "unverified-stale" and runs_unchanged is not None:
+            note["moved"] = _moved(
+                repo, default, identity, shared, runs_unchanged, reread_demotion=True
             )
+            current = note["moved"] is None
+        else:
+            current = False
     except (RuntimeError, ValueError, OSError):
+        note["moved"] = "unreadable" if unusable == "unverified-stale" else None
         current = False
     if current:
+        note["answer"] = "kept"
         return shared, None
     if post_merge is None:
         return None, f"post-merge answer {unusable}"
@@ -6165,6 +6205,7 @@ def settle_shared(
         return None, f"post-merge answer {unusable}: {exc}"
     if fresh is None:
         return None, f"post-merge answer {unusable}: unreadable"
+    note["answer"] = "recomputed"
     return fresh, None
 
 
@@ -6189,8 +6230,9 @@ def lane_room(
     (`_recompute_shared`, with the room's self logins, none), and a readable
     one stands in for `shared`. Two refusals are first kept: one refused only
     as `unverified-stale` when nothing it was read from has moved
-    (`_still_current`, with `runs_unchanged(shared, branch)` for its
-    unverified merges' runs), and one refused only as `demotion-changed`
+    (`_moved`, with `runs_unchanged(shared, branch)` for its
+    unverified merges' runs and the demotion read again when its probe
+    trips), and one refused only as `demotion-changed`
     when `read_demotion` alone reads the shared demotion again.
 
     - A config naming another authority stops (`enabled_authority`).
@@ -6217,6 +6259,7 @@ def lane_room(
     identity = config.agent_identity
     if not identity:
         return LaneRoom(unreadable="no agent identity")
+    note: dict[str, str | None] = {}
     settled, unusable = settle_shared(
         repo,
         shared,
@@ -6229,12 +6272,14 @@ def lane_room(
         # With no check to read it again, the room keeps nothing either.
         keep=post_merge is not None,
         post_merge=post_merge,
+        outcome=note,
     )
+    room = partial(LaneRoom, post_merge=note)
     if settled is None:
-        return LaneRoom(unreadable=unusable)
+        return room(unreadable=unusable)
     shared = settled
     if shared.gate.refusal:
-        return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
+        return room(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)
     rung = effective_rung(
         config_rung=config.rung,
@@ -6243,7 +6288,7 @@ def lane_room(
         demoted=shared.demotion.active,
     )
     if rung.rung == "off":
-        return LaneRoom(refusal=f"rung-off:{rung.limited_by}")
+        return room(refusal=f"rung-off:{rung.limited_by}")
     flight_cap, _ = _run_max_in_flight(repo, default, config.base_sha, config)
     flight = in_flight(
         repo,
@@ -6257,8 +6302,8 @@ def lane_room(
     )
     counted = str(flight.reason).startswith(FLIGHT_COUNTED)
     if flight.queued is None or not (flight.clear or counted):
-        return LaneRoom(unreadable=f"in-flight:{flight.reason}", cap=flight_cap)
-    return LaneRoom(
+        return room(unreadable=f"in-flight:{flight.reason}", cap=flight_cap)
+    return room(
         count=flight.count if flight.clear else flight_cap,
         cap=flight_cap,
         queued=flight.queued,

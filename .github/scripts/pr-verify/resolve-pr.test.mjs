@@ -19,6 +19,7 @@ import { test } from "node:test";
 import { main, resolvePull } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { loadRules } from "../intake-triage/admit.mjs";
+import { holds } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
@@ -96,9 +97,10 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
+    if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
     if (listed && restFails) throw new Error(`GET ${apiPath} failed with status 500`);
     if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
@@ -284,6 +286,7 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
     { event: "merge_group" },
     { event: "workflow_dispatch" },
     { conclusion: "failure" },
+    { conclusion: "cancelled" },
     { status: "in_progress", conclusion: null },
     { repository: { full_name: "someone/fork" } },
     { head_repository: { full_name: "someone/fork" } },
@@ -292,6 +295,123 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
   ]) {
     assert.equal(await reason({ run: upstream(overrides) }), "not-a-passing-run", JSON.stringify(overrides));
   }
+});
+
+// A run whose only failure is a hold an approving review of the head lifts is
+// judged, so the person approves a judged head; any other failure still
+// starts nothing. The job and step shapes follow GET
+// /actions/runs/{id}/jobs as it listed a held ci-status run, and the log
+// lines follow that job's log: a timestamp, `##[error]`, then the
+// `#<pr>: <reason>.` merge-holds.mjs prints. Each reason is merge-holds.mjs
+// `holds`' own text, so its wording cannot drift from this check unseen.
+const HOLD_FILES = ["plugins/x/scripts/risk.py"];
+const PATH_HOLD = holds("", [], HOLD_FILES, ["plugins/x/**"])[0];
+// actorsHold's shape: the list's changed path and why, in parentheses.
+const WIDENED = holds("", [], [], [], [], null, true, "it widens the trusted-actor list (.github/standards/trusted-actors/trusted-actors.json: adds a human)")[0];
+const COST = holds("", [], ["infra/main.tf"], [])[0];
+const BODY = holds("Hold: wait", [], [], [])[0];
+// A cost path whose name carries the lift clause, as an author can name a file.
+const LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status";
+const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
+// The lift clause as main worded it before, from a held ci-status log.
+const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
+const CI_STEPS = [
+  ["Set up job", "success"],
+  ["Note a draft", "skipped"],
+  ["Fail a pull request carrying the human-gated label", "success"],
+  ["Fail a head a pr-unblock lane stopped", "success"],
+  ["Fail a lanes App pull request its body or a member holds", "failure"],
+  ["Check each skipped lane against scope", "success"],
+  ["Aggregate lane results", "success"],
+  ["Complete job", "success"],
+];
+const ciJob = (steps = CI_STEPS, conclusion = "failure") => ({ id: 9001, name: "ci-status", conclusion, steps: steps.map(([name, c]) => ({ name, conclusion: c })) });
+const heldJobs = (ci = ciJob(), others = [{ id: 9002, name: "lint-repo", conclusion: "success" }, { id: 9003, name: "pr-unblock / address-feedback", conclusion: "neutral" }]) => {
+  const jobs = [...others, ci];
+  return { total_count: jobs.length, jobs };
+};
+const logOf = (...reasons) =>
+  [
+    "﻿2026-10-28T16:21:40.0000000Z ##[group]Run node merge-holds.mjs",
+    '2026-10-28T16:21:40.0000001Z   echo "::error::merge-holds.mjs exited 0 without its verdict."',
+    ...reasons.map((r) => `2026-10-28T16:21:45.8101959Z ##[error]${r.startsWith("#") ? r : `#41: ${r}.`}`),
+    "2026-10-28T16:21:45.8106286Z ##[error]Process completed with exit code 1.",
+  ].join("\r\n");
+const held = (log, setup = {}) =>
+  reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs(), ...setup }, { readLog: async (id) => (id === 9001 ? log : "") });
+
+test("a run that failed only on a hold an approval of the head lifts is judged", async () => {
+  assert.ok(PATH_HOLD.includes("it changes plugins/x/scripts/risk.py, a hold path"));
+  assert.equal(await held(logOf(PATH_HOLD)), "ok");
+  assert.equal(await held(logOf(WIDENED)), "ok");
+  assert.equal(await held(logOf(PATH_HOLD, WIDENED)), "ok");
+  assert.equal(await held(logOf(OLD_WORDING)), "ok");
+});
+
+test("a run that failed on anything but a hold an approval lifts starts nothing", async () => {
+  const cases = {
+    "a cost hold beside it": [logOf(PATH_HOLD, COST)],
+    "a cost hold whose path carries the lift clause": [logOf(COST_NAMED)],
+    "a hold path and a cost hold whose path carries the lift clause": [logOf(PATH_HOLD, COST_NAMED)],
+    "a line with text after the lift clause": [logOf(`${PATH_HOLD} and more`)],
+    "a body hold": [logOf(BODY)],
+    "another pull request's hold": [logOf(`#42: ${PATH_HOLD}.`)],
+    "no hold logged": [logOf()],
+    "a second failed step's exit": [`${logOf(PATH_HOLD)}\n2026-10-28T16:21:46.0000000Z ##[error]Process completed with exit code 1.`],
+    "an unreadable log": [null, { jobs: heldJobs() }, async () => { throw new Error("502"); }],
+    "a pr-unblock stop too": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n.includes("pr-unblock") ? "failure" : c]))) }],
+    "a failed lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]) }],
+    "a cancelled lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "cancelled" }]) }],
+    "a failed aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === "Aggregate lane results" ? "failure" : c]))) }],
+    "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 5))) }],
+    "no step list": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob([])) }],
+    "a job list cut short": [logOf(PATH_HOLD), { jobs: { ...heldJobs(), total_count: 4 } }],
+    "no ci-status job": [logOf(PATH_HOLD), { jobs: heldJobs({ ...ciJob(), name: "other" }) }],
+    "an unreadable job list": [logOf(PATH_HOLD), { jobs: undefined }],
+  };
+  for (const [name, [log, setup = {}, readLog]] of Object.entries(cases)) {
+    const got = readLog
+      ? await reason({ run: upstream({ conclusion: "failure" }), ...setup }, { readLog })
+      : await held(log, setup);
+    assert.equal(got, "not-a-passing-run", name);
+  }
+  // With no log reader a failed run is never judged.
+  assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
+});
+
+test("main reads the ci-status log through the redirect, without the token", async () => {
+  const dir = tempDir("resolve-pr-held-");
+  const env = {
+    GITHUB_TOKEN: "t0ken",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: path.join(dir, "actors.json"),
+    LANE_IDENTITY: LANE,
+  };
+  writeFileSync(env.TRUSTED_ACTORS_PATH, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  const github = fake({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
+  const storage = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (url === `https://api.github.com/repos/${REPO}/actions/jobs/9001/logs`) {
+      assert.equal(init.redirect, "manual");
+      assert.equal(init.headers.Authorization, "Bearer t0ken");
+      return new Response(null, { status: 302, headers: { Location: "https://storage.example/log?sig=1" } });
+    }
+    if (url === "https://storage.example/log?sig=1") {
+      storage.push(init);
+      return new Response(logOf(PATH_HOLD), { status: 200 });
+    }
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    const json = await github(init.method, new URL(url).pathname + new URL(url).search, body);
+    return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  await main(env, { fetchImpl });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\npr-number=41\n/);
+  assert.deepEqual(storage, [{}]);
 });
 
 test("anything but exactly one open same-repository PR into main at that head starts nothing", async () => {

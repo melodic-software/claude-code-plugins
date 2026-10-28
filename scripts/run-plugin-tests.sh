@@ -53,7 +53,8 @@
 # scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
 # but does not fail the run. CI sets the variable only for runs on main, so a
 # pull request or merge group still fails on it. Without the variable the list
-# changes nothing. Its entries get the serial list's stale guard.
+# changes nothing. Its entries get the serial list's stale guard. The warning
+# carries a per-run nonce printed before any suite block (`Advisory nonce:`).
 #
 # --list prints the discovered corpus, one repo-relative path per line, and
 # runs nothing. scripts/selection-audit.sh reads it to learn which suites the
@@ -328,6 +329,14 @@ else
   echo "Runner git: unavailable"
 fi
 echo "Suites: ${#tests[@]} (${#serial_suites[@]} serial, ${#parallel_suites[@]} across up to $jobs job(s))"
+# A fresh nonce, printed before any suite runs and repeated in each advisory
+# warning, so babysit_postmerge.py credits only the runner's own warnings. It
+# is never exported: no suite can print it.
+advisory_nonce=''
+if ((${#is_advisory[@]} > 0)); then
+  advisory_nonce="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+  echo "Advisory nonce: $advisory_nonce"
+fi
 
 for t in ${serial_suites[@]+"${serial_suites[@]}"}; do
   bash "$runner" --worker "$t"
@@ -336,6 +345,23 @@ if [[ ${#parallel_suites[@]} -gt 0 ]]; then
   # xargs appends one indexed suite path after `--worker` per invocation.
   printf '%s\0' "${parallel_suites[@]}" | xargs -0 -n 1 -P "$jobs" bash "$runner" --worker
 fi
+
+# suite_annotate <error|warning> <suite> <message>: one annotation titled by the
+# suite, so a log reader can group results by suite. Escapes follow actions/toolkit
+# packages/core/src/command.ts (escapeProperty, escapeData): % \r \n in both,
+# and : , in the title property, since a suite path may contain either.
+suite_annotate() {
+  local level="$1" title="$2" msg="$3"
+  title="${title//%/%25}"
+  title="${title//$'\r'/%0D}"
+  title="${title//$'\n'/%0A}"
+  title="${title//:/%3A}"
+  title="${title//,/%2C}"
+  msg="${msg//%/%25}"
+  msg="${msg//$'\r'/%0D}"
+  msg="${msg//$'\n'/%0A}"
+  echo "::$level title=$title::$msg"
+}
 
 failed=0
 advisory_failed=0
@@ -348,14 +374,16 @@ for i in "${!tests[@]}"; do
   log="$log_dir/${suite_keys[$i]}"
   if [[ ! -f "$log.rc" ]]; then
     echo "FAIL: $t (no result recorded; the worker never reported)" >&2
+    suite_annotate error "$t" "$t failed (no result recorded; the worker never reported)"
     failed=1
     continue
   fi
   rc="$(<"$log.rc")"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
-    echo "::warning::$t failed (exit $rc) but is advisory on this run (PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (nonce $advisory_nonce; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
     advisory_failed=$((advisory_failed + 1))
   elif ((rc != 0)); then
+    suite_annotate error "$t" "$t failed (exit $rc)"
     failed=1
   fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"
