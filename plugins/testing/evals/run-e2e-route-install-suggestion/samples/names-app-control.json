@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The app-control plugin is not installed. Installing it lets /app-control:drive run the app; or say \"just use what you have\" and I will drive it myself. Which do you want?",
+      "why": "suggests the plugin"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will start npm run dev and drive the checkout page with playwright-cli.",
+      "why": "no suggestion"
+    }
+  ]
+}
