@@ -133,7 +133,7 @@ jobs:
       # exited 0 with the content gone: it answered the other question. Two
       # re-lands each missed it, and a hand audit found it, not this lane.
       #
-      # ORDER IS LOAD-BEARING, and this step is deliberately LAST.
+      # ORDER IS LOAD-BEARING, and this step is deliberately the LAST check.
       #
       # A step with no status function carries an implicit `success() &&`, so a
       # step that fails SKIPS every later step in the job. Placed before the
@@ -162,3 +162,11 @@ jobs:
       - name: Assert the recorded incidents' content is restored
         if: success() || failure()
         run: scripts/check-silent-revert.sh --verify-restoration
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
