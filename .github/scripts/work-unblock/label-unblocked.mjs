@@ -759,9 +759,14 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
         console.log(`label-unblocked: #${number} left as is: ${settled}`);
         continue;
       }
-      decided += 1;
       const { decision, facts } = await admissionDecision({ github, repo, number, issue, events, humans, bot, appId, closes, admission });
       const reasons = decision.reasons.join("; ");
+      // Only a verdict that moves the issue out of this listing uses the cap: a
+      // wait with no open pull request (a Size large split pending) keeps it in
+      // no queue, oldest updated, so counting it would spend the cap on it every sweep.
+      if (decision.verdict === "admit" || decision.verdict === "refuse" || (decision.verdict === "wait" && decision.pulls.length > 0)) {
+        decided += 1;
+      }
       if (decision.verdict === "admit") {
         await admit({ github, repo, number, gate, deferred: false, confirmed: parkedBesideReady(labels) });
       } else if (decision.verdict === "refuse") {

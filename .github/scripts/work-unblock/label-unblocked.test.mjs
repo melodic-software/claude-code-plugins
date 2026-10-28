@@ -3966,6 +3966,19 @@ test("a sweep decides at most limits.readmit-per-run status: ready issues, oldes
   assert.equal(eventReads(calls, 26), 0);
 });
 
+test("a wait that writes nothing durable (a Size large split pending) does not use up readmit-per-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  // #30 is oldest and waits on its split; with the cap at 1 it must not stop
+  // #26 from being admitted, or the same wait would take the cap every sweep.
+  const items = [readyIssue(30, { updated: "2026-10-16T05:00:00Z" }), readyIssue(26, { updated: "2026-10-16T06:00:00Z" })];
+  const { github, calls } = readyWorld({ items, extra: { fieldValues: { 30: LARGE_LOW_KNOWN, 26: SMALL_LOW_KNOWN } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 1 } })), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: Size large: the split into sub-issues at intake is pending (owner Q93).` })}`,
+    labeled(26),
+  ]);
+});
+
 test("a status: ready issue already agent-ready or deferred is not run through admission a second time", async (t) => {
   t.mock.method(console, "log", () => {});
   const queued = readyIssue(31, { labels: [...READY_LABELS, "agent-ready"] });
