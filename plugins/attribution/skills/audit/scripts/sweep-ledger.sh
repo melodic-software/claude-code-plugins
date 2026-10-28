@@ -29,7 +29,7 @@
 # usage or input error (a `close` missing a field included), 3 when the ledger's
 # state refuses the call (no ledger for a write, a file already closed, a ledger
 # from another checkout), 4 when
-# `status` needs jq to read the config layers and it is absent, 5 when the ledger
+# `status` needs jq to read a JSON config layer and it is absent, 5 when the ledger
 # could not be written.
 set -uo pipefail
 
@@ -123,28 +123,19 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 cfg_layers_init "$CONFIG_ROOT"
 
-HAVE_JQ=1
-command -v jq >/dev/null 2>&1 || HAVE_JQ=0
-if [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  echo "sweep-ledger.sh: jq not found; config layers present but unread, using defaults" >&2
+UNREAD_LAYER=0
+if cfg_have_unread_layer; then
+  UNREAD_LAYER=1
+  echo "sweep-ledger.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
-# The last layer that defines a whole-number ceiling wins. Not read through a
-# command substitution: the layer's name has to reach --show-config and status.
+# The last layer that defines a whole-number ceiling wins.
 CEILING=200
-CEILING_FROM=""
-if [[ "$HAVE_JQ" -eq 1 ]]; then
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r '.budgets.corpus_fetch_ceiling // empty' "$layer" 2>/dev/null)" || continue
-    v="${v//$'\r'/}"
-    if [[ "$v" =~ ^[0-9]+$ ]]; then
-      CEILING="$((10#$v))"
-      CEILING_FROM="$layer"
-    fi
-  done
-fi
-CEILING_LABEL="(bundled default)"
-[[ -z "$CEILING_FROM" ]] || CEILING_LABEL="(from $CEILING_FROM)"
+CEILING_RAW=""
+cfg_scalar CEILING_RAW budgets.corpus_fetch_ceiling '^[0-9]+$'
+CEILING_FROM="$CFG_SOURCE"
+[[ -z "$CEILING_RAW" ]] || CEILING="$((10#$CEILING_RAW))"
+CEILING_LABEL="$(cfg_from_label "$CEILING_FROM")"
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cfg_layers_print
@@ -307,8 +298,8 @@ status)
     echo "$NO_LEDGER"
     exit 0
   fi
-  [[ "$HAVE_JQ" -eq 1 || "${#CFG_LAYERS[@]}" -eq 0 ]] ||
-    die 4 "jq is required to read corpus_fetch_ceiling from the config layers"
+  [[ "$UNREAD_LAYER" -eq 0 ]] ||
+    die 4 "jq is required to read corpus_fetch_ceiling from the JSON config layers"
   load_ledger
   echo "ledger: $LEDGER"
   echo "sweep: $SWEEP_ID (started $SWEEP_AT)"

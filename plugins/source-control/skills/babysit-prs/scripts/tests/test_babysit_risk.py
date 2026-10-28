@@ -323,8 +323,8 @@ class HighReasonTests(unittest.TestCase):
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
                 ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-                (".github/workflows/pr-require-checks.yml", "gate"),
-                (".github/workflows/pr-merge.yml", "gate"),
+                (".github/workflows/pr-require-checks.yml", "enforcement"),
+                (".github/workflows/pr-merge.yml", "enforcement"),
                 ("docs/conventions/pr-pipeline.yaml", "gate"),
                 (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
                 (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
@@ -1802,7 +1802,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 21)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 23)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
@@ -1867,9 +1867,9 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 self.assertTrue(holds(result))
 
     def test_a_review_caller_workflow_change_unbinds_the_review(self):
-        # Any .github/workflows/ change is a lane source
-        # (babysit_review_evidence.LANE_SOURCE_PREFIXES), so no lane binds and
-        # the enforcement path stays held.
+        # A review caller stays a lane source whatever its content
+        # (babysit_review_evidence.REVIEW_CALLERS), so no lane binds and the
+        # enforcement path stays held.
         import babysit_review_evidence
 
         path = B + "babysit_verify_evidence.py"

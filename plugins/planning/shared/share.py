@@ -166,10 +166,21 @@ def start_server(d, guest, control, *, defaults_file=None):
 
 
 def stop_server(d, s):
-    """End the server process s names (only when its ping still matches); True when it stopped."""
+    """End the server process s names (only when its ping still matches); True when it stopped. It asks the server to
+    shut down first (POST /api/shutdown), so its shutdown writes the usage summaries it holds (README "Logs") on every
+    OS; a server that refuses, or still runs START_SECONDS later, is ended (TerminateProcess on Windows, which skips
+    that shutdown)."""
     if not bridge.running(d, s):
         return False
-    detached.stop(int(s["pid"]), SERVER_MARKER)
+    pid = int(s["pid"])
+    try:
+        asked = call(s, "POST", "/api/shutdown", {}, timeout=5)[0] == 200
+    except Refused:
+        asked = False
+    deadline = time.monotonic() + START_SECONDS
+    while asked and time.monotonic() < deadline and detached.alive(pid, SERVER_MARKER):
+        time.sleep(0.05)
+    detached.stop(pid, SERVER_MARKER)  # nothing to end once it has exited
     deadline = time.monotonic() + START_SECONDS
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)

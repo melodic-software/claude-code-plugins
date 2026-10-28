@@ -2150,7 +2150,8 @@ def fetch_review_threads(
     ({__typename login}, or None when open or the resolver is unknown),
     `originalStartLine` and `originalLine` (the commented range), `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
-    databaseId, diffHunk, originalCommit{oid}), `comments_total_count`, and `comments_truncated`. Resolved
+    databaseId, lastEditedAt, editor{__typename login}, diffHunk,
+    originalCommit{oid}), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
     record to the caller's shape inside the loop.
     """
@@ -2166,6 +2167,7 @@ def fetch_review_threads(
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
         "nodes{author{__typename login} body path url createdAt updatedAt databaseId "
+        "lastEditedAt editor{__typename login} "
         "diffHunk originalCommit{oid}}}}}}}}"
     )
     threads: list[Any] = []
