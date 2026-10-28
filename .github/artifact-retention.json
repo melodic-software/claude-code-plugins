@@ -40,6 +40,13 @@
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
       "reason": "The post-merge check reads the lane's re-run record back to merged_since, with no age cap."
     },
+    "pr-merge-alerted-*": {
+      "retention-days": 1,
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_ALERT_ARTIFACT (`--lane-alerted`), asked by .github/workflows/pr-merge.yml post-merge-dispatch only for full runs created within LOOKBACK_HOURS (6)"
+      ],
+      "reason": "Read back only for full runs created in the last 6 hours (pr-merge.yml LOOKBACK_HOURS), and each record is uploaded after its run was created; 1 day, the minimum, outlasts that window."
+    },
     "pr-merge-post-merge-report": {
       "retention-days": 1,
       "readers": [
