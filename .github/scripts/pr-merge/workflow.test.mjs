@@ -500,7 +500,7 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
 // sees. Every such job carries the log-api-budget step, run whatever failed
 // or stopped before it, naming github-token: under `always()` alone, so a job
 // that ends before it mints a lane token still logs the job token's calls. A
-// token with no reading gets no line (log-api-budget.test.mjs).
+// token with no reading logs 0 (log-api-budget.test.mjs).
 test("every job that calls GitHub with the job token logs its api-calls", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
@@ -649,7 +649,7 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
       });
       assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0$/m);
-      assert.doesNotMatch(out.stdout, /lanes-app/);
+      assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0$/m);
     } finally {
       server.close();
       rmSync(dir, { recursive: true, force: true });

@@ -204,8 +204,9 @@ conversion moves out of.
    directory, from the default branch, merged into and never rebased; open or update one pull
    request. List every local and remote `feature-map-upkeep/*` branch and report each one by
    name, never adopting it.
-7. **Return.** With several control skills, switch back to the branch the pass started on after
-   each one's step 6, before the next starts.
+7. **Return.** After each control skill's step 6, switch back to where the pass started, the branch
+   or, from a detached HEAD, the commit (refresh.md § Return to the starting branch): before the
+   next skill starts, and before the pass reports, so a caller resumes where it was.
 
 ## Lessons
 

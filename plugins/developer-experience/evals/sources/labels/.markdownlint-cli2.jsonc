@@ -1,0 +1,5 @@
+{
+  // Labeled samples are judge inputs captured from model runs: reformatting them
+  // would change what the judge is measured on, so this nested config ignores them.
+  "ignores": ["**"]
+}
