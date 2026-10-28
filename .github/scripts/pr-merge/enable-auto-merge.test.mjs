@@ -675,6 +675,15 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   const next = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
   assert.deepEqual(next.verified, []);
   assert.deepEqual(next.notes, []);
+  // With no partial comment, only the discussion is read: no file listing.
+  const listed = (calls) => calls.filter(({ path }) => /\/pulls\/2\/files\?/.test(path)).length;
+  assert.equal(listed(next.calls), 0);
+  // A held lane spends no read on it, partial or not.
+  const laneOff = { ...ROOM, refusal: "the gate holds the lane off" };
+  const heldLane = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], {}, {}, laneOff);
+  assert.deepEqual(heldLane.verified, []);
+  assert.deepEqual(heldLane.notes, []);
+  assert.ok(!heldLane.calls.some(({ body }) => body?.query === DETAIL_QUERY));
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {

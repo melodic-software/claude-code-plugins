@@ -1281,7 +1281,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
       // verifier's answer (isPartial): a reader run with time left reads it
       // once, judged as if unlabeled, to widen the comment. It never arms.
       const labelHold = reason;
-      const widen = reads && stopped === null && held === null && pull.autoMergeRequest == null && reason === `it carries ${humanGated}` && now() <= deadline;
+      const widen = reads && stopped === null && held === null && pull.autoMergeRequest == null && reason === `it carries ${humanGated}` && now() <= deadline && roomHold(pull) === null;
+      // A widening read finding no partial comment reads nothing past the discussion.
+      let unmarked = false;
       const judged = widen ? { ...pull, labels: unlabeledAs(pull.labels, humanGated) } : pull;
       // Whether a widening read got the verifier's answer.
       let answered = false;
@@ -1294,6 +1296,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
             detail = await wholeDiscussion(github, variables, detail);
+            unmarked = widen && !isPartial(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid);
+          }
+          if (detail !== null && !unmarked) {
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
@@ -1304,10 +1309,10 @@ export async function main({ env = process.env, github, actions, verify, room, s
           detail = null;
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${describe(error)}`);
         }
-        ({ action, reason, clears, comment, withdraw, partial, fold = null } = decide(judged, { bot: slug, humanGated, holdPaths }, detail));
-        if (widen && !isPartial(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid)) {
-          ({ action, reason, clears, comment, withdraw, partial, fold } = { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null });
-        }
+        ({ action, reason, clears, comment, withdraw, partial, fold = null } =
+          widen && (detail === null || unmarked)
+            ? { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null }
+            : decide(judged, { bot: slug, humanGated, holdPaths }, detail));
       }
       // Past the budget, under serve with an answers file, an unarmed pull
       // request is answered only from a kept refusal, which reads no more
