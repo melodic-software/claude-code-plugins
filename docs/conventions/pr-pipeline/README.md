@@ -2162,10 +2162,6 @@ them on every `pull_request` run, contract-only runs included:
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
   status is not read. The merge-group run checks the queued pull request's head too. A status post
   re-runs nothing, so a stop posted after ci-status passed holds at the merge queue's run.
-- **A pr-verify fail holds in the merge queue.** The merge-group run fails while the queued PR
-  carries `pr-verify-failed`, as it does for `do-not-merge` and the human-gated label; a pass at a
-  new commit removes the label. A `pull_request` run does not read it: a red ci-status there stops
-  `pr-verify` from judging the next head, so the pass that removes the label would never come.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
@@ -2176,7 +2172,10 @@ gets one re-run, not one per lane. A ci-status not started yet, or one that star
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
-nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels.
+nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
+fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
+`pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
+the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths
