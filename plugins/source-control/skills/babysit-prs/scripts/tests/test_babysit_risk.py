@@ -1815,6 +1815,7 @@ def _credentialed(text: str) -> bool:
     return writes or bool(secrets) or "request-lane-token" in code
 
 
+@unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
 class CredentialedWorkflowsAreGate(unittest.TestCase):
     """Owner direction 2026-10-28: a review cannot be trusted to judge the
     workflows that hold its own credential or one it cannot see. Each

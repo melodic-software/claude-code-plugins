@@ -80,7 +80,9 @@ parsed and each job's write scopes compared (a job left with no
 `permissions:` of its own or at the top level runs on the repository default
 and counts as a gain; an added file compares against none; unread text, a
 repeated key or an alias holds), with net-added `write` lines as a raw-text
-backstop. One that gains a `pull_request_target` or `workflow_run` trigger
+backstop. Where PyYAML is not installed the text alone decides: a `write`
+grant the head adds, a `permissions:` key it drops, or an added file with
+jobs and no `permissions:` key. One that gains a `pull_request_target` or `workflow_run` trigger
 rates HIGH as `privileged-trigger-review`, read the same two ways. They widen
 what a credential, an agent or a write token can reach, so all four are a
 person's (`PERSON_CODES`) and no cost decision clears them.
@@ -1053,6 +1055,54 @@ def _code_lines(lines: list[str]) -> list[str]:
     ]
 
 
+def _yaml() -> Any:
+    """PyYAML, or None where it is not installed."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    return yaml
+
+
+_PERMISSIONS_KEY = re.compile(r"^\s*['\"]?permissions['\"]?\s*:")
+
+
+def _text_privileges(text: str | None) -> tuple[Counter[str], int, set[str]]:
+    """Without PyYAML: (write grants, `permissions:` keys, triggers) read
+    from the comment-stripped lines of workflow text."""
+    lines = _code_lines(text.split("\n")) if isinstance(text, str) else []
+    grants = Counter(
+        re.sub(r"\s+", "", m).casefold()
+        for line in lines
+        for m in _WRITE_TEXT.findall(line)
+    )
+    keys = sum(1 for line in lines if _PERMISSIONS_KEY.match(line))
+    triggers = {t for line in lines for t in _trigger_tokens(line)}
+    return grants, keys, triggers
+
+
+def _text_gains(base: str | None, head: str) -> tuple[list[str], list[str]]:
+    """`_workflow_privilege_gains` without PyYAML: a write grant the head
+    text adds, a `permissions:` key it drops (a job may fall back to the
+    repository default), or a file with jobs and no `permissions:` key at
+    all that the base did not already have; and the privileged triggers it
+    adds."""
+    b_grants, b_keys, b_triggers = _text_privileges(base)
+    h_grants, h_keys, h_triggers = _text_privileges(head)
+    gained = h_grants.copy()
+    gained.subtract(b_grants)
+    widened = [f"grants {g}" for g, n in sorted(gained.items()) if n > 0]
+    if h_keys < b_keys:
+        widened.append("a permissions block removed")
+    elif (
+        h_keys == 0
+        and (base is None or b_keys > 0)
+        and re.search(r"^jobs\s*:", head, re.MULTILINE)
+    ):
+        widened.append(f"jobs on the {_DEFAULT_TOKEN} token")
+    return widened, sorted((h_triggers - b_triggers) & PRIVILEGED_TRIGGERS)
+
+
 def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
     """(job:scope write grants, triggers) of workflow text, None when it
     does not read as one mapping with a `jobs` mapping and a readable `on`.
@@ -1061,9 +1111,8 @@ def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
     could read it otherwise."""
     if text is None:
         return set(), set()
-    try:
-        import yaml
-    except ImportError:
+    yaml = _yaml()
+    if yaml is None:
         return None
 
     class _Strict(yaml.SafeLoader):
@@ -1141,12 +1190,19 @@ def _workflow_privilege_gains(
         isinstance(contents, tuple) and len(contents) == 2
     ):
         return ["contents unreadable"], []
-    base = _workflow_privileges(contents[0])
-    head = _workflow_privileges(contents[1])
-    if base is None or head is None or contents[1] is None:
-        return ["unreadable, malformed, a repeated key or an alias"], []
-    widened = sorted(head[0] - base[0])
-    triggers = sorted((head[1] - base[1]) & PRIVILEGED_TRIGGERS)
+    if not isinstance(contents[1], str) or not (
+        contents[0] is None or isinstance(contents[0], str)
+    ):
+        return ["contents unreadable"], []
+    if _yaml() is None:
+        widened, triggers = _text_gains(contents[0], contents[1])
+    else:
+        base = _workflow_privileges(contents[0])
+        head = _workflow_privileges(contents[1])
+        if base is None or head is None:
+            return ["unreadable, malformed, a repeated key or an alias"], []
+        widened = sorted(head[0] - base[0])
+        triggers = sorted((head[1] - base[1]) & PRIVILEGED_TRIGGERS)
     lines = _patch_lines(patch)
     if lines is not None:
         added, removed = (_code_lines(side) for side in lines)

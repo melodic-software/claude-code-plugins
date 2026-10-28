@@ -12,10 +12,12 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import babysit_risk
 from babysit_risk import (
     AGENT_SURFACE_CODE,
     COST_CODE,
@@ -667,6 +669,15 @@ class WorkflowPrivilegeHolds(_Finding):
         wf = _file(WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head))
         result = _cost([wf], public=True, cost_decision=DECISION)
         self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
+
+class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
+    """The same holds where PyYAML is not installed: the raw-text reading."""
+
+    def setUp(self):
+        patcher = mock.patch.object(babysit_risk, "_yaml", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 if __name__ == "__main__":
