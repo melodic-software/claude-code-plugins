@@ -1482,7 +1482,7 @@ const noteThread = (id, { resolved = false, commit = GATED, author = ACTIONS_BOT
   root: { nodes: [{ author: { databaseId: author }, body, originalCommit: { oid: commit } }] },
 });
 const staleRun = (ids, head = NOW) => JSON.stringify({ version: 1, head_sha: head, pr_paths: [], threads: [], stale_notes: ids });
-const staleApi = (threads, { failOn = [], moved = false } = {}) => {
+const staleApi = (threads, { failOn = [], moved = false, error = "POST https://api.github.com/graphql returned 502" } = {}) => {
   const calls = [];
   return {
     calls,
@@ -1491,7 +1491,7 @@ const staleApi = (threads, { failOn = [], moved = false } = {}) => {
     readBranch: async () => (moved ? PUSHED : NOW),
     resolveThread: async (id) => {
       calls.push(["resolve", id]);
-      if (failOn.includes(id)) throw new Error("POST https://api.github.com/graphql returned 502");
+      if (failOn.includes(id)) throw new Error(error);
       return true;
     },
     listIssueComments: async () => assert.fail("a pass-only round posts no round marker"),
@@ -1521,10 +1521,29 @@ test("a pass-only round re-run with nothing left open resolves none and succeeds
   assert.equal(result.escalationReason, "");
 });
 
-test("a failed resolve does not stop the others from being tried, and fails the job after them", async () => {
-  const api = staleApi([noteThread("PRRT_a"), noteThread("PRRT_b"), noteThread("PRRT_c")], { failOn: ["PRRT_a"] });
-  await assert.rejects(run(api, null, staleRun(["PRRT_a", "PRRT_b", "PRRT_c"])), /PRRT_a/);
+// The lanes App token holds contents: read, so GitHub refuses it a thread on
+// a PR a person opened (runs 40735547786 and 40735925406). The open thread
+// still blocks the merge under required thread resolution; the lane must not
+// also stop and turn ci-status red.
+test("a failed resolve does not stop the others from being tried, and only warns", async () => {
+  const api = staleApi([noteThread("PRRT_a"), noteThread("PRRT_b"), noteThread("PRRT_c")], {
+    failOn: ["PRRT_a"],
+    error: "GraphQL: Resource not accessible by integration",
+  });
+  const logged = [];
+  const result = await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    headRef: "feature",
+    appId: APP,
+    readArtifact: () => ({ runText: staleRun(["PRRT_a", "PRRT_b", "PRRT_c"]), repliesText: null }),
+    log: (line) => logged.push(line),
+  });
   assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b", "PRRT_c"]);
+  assert.equal(result.escalationReason, "");
+  assert.equal(result.skipReason, "pass-only");
+  assert.ok(logged.some((line) => line.startsWith("::warning::") && line.includes("PRRT_a") && !line.includes("PRRT_b")));
 });
 
 test("a pass-only round resolves nothing once the head moved past the passing one", async () => {

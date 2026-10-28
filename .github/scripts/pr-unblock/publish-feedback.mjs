@@ -56,7 +56,8 @@
 // thread for a model. This job then resolves each one still open and stale
 // while the PR head is the passing one, and posts no reply and no round
 // marker, and skips pass-only. The job token cannot resolve a thread; the
-// lane token can.
+// lane token can only on a PR the lanes App opened, so a resolve it is
+// refused is a warning, never a lane stop.
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -471,8 +472,10 @@ export const PASS_ONLY_SKIP = "pass-only";
 // A pass-only round: the select job listed the fail-note threads a pr-verify
 // pass at its head left stale, and no model ran. Each one still open and still
 // stale (staleVerifyNotes) is resolved while the PR head is the passing one;
-// a failed resolve is logged, the rest are tried, and the job then fails so
-// a re-run tries again. Nothing is posted and no round is counted.
+// a failed resolve is logged, the rest are tried, and the job warns and
+// succeeds: an open thread still blocks the merge under required thread
+// resolution, and a failed job would stop the lane and turn ci-status red.
+// Nothing is posted and no round is counted.
 async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
   const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
   const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha));
@@ -499,7 +502,7 @@ async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
   }
   log(`resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`);
   if (failed.length > 0) {
-    throw new Error(`could not resolve ${failed.join(", ")}`);
+    log(`::warning::could not resolve ${failed.join(", ")}; a person resolves them before the merge`);
   }
   return { escalationReason: "", skipReason: PASS_ONLY_SKIP, posted: [] };
 }
