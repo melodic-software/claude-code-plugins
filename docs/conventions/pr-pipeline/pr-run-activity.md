@@ -1474,7 +1474,7 @@ Then, in order:
      issue outcome a PR-mode run carried.
 3. Checks out the gated `head-sha`, in issue mode the start commit, with
    `persist-credentials: false` when a patch arrived.
-4. `leak-scan` runs the default branch's `findSecret` (`lib/publish-gate.mjs`, read through the API
+4. `leak-scan` runs the default branch's `scanLeak` (`lib/publish-gate.mjs`, read through the API
    at the default branch's tip, which the step resolves itself with the scan job's read token
    (`getBranch`), never from a run job output, an older PR base or a checkout; a failed call or a
    malformed SHA fails the scan closed with no fetch) over the reply, the run fields, the replies,
@@ -1543,9 +1543,13 @@ Recorded, not fixed:
   alone. With that key empty or out of credit the pass fails softly and the PR keeps the fixed
   text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
-  commits on the branch it resumes, and a reused branch's commits reach a PR with no scan at
-  reuse. Those commits were scanned when their run made them, against the pattern list of that
-  day, unless the branch predates issue-mode scanning (GAPS X5).
+  commits on the branch it resumes. Those commits were scanned when their run made them, against
+  the pattern list of that day, unless the branch predates issue-mode scanning (GAPS X5). A reused branch's
+  commits are scanned again at reuse: `run-checks` runs the same `scanLeak` on the diff from the
+  branch's merge base with the default branch tip and on every file that diff makes, and
+  `report-outcome` holds the PR on any result but clean. A plain `password or secret assignment`,
+  which this job only warns on, holds a reuse PR too. Only that diff is scanned, not each commit
+  on the way to it.
 - A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
   run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
 - The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
@@ -2094,8 +2098,11 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
   Either way its Fix section lists the files `GET /compare` names, those on a
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
-  unavailable and still opens the PR.
-  The summary never reaches a status or the hold line, which every reuse PR carries:
+  unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
+  `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
+  three of its own: the compare failed, the runner's checks for that tip are missing or any did
+  not pass, or the leak scan `run-checks` ran on the branch (its `scan` word in the checks
+  record) is missing or not `clean`. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
