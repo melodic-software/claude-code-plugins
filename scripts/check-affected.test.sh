@@ -36,6 +36,7 @@ done
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
+[[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
 while (($#)); do
   [[ "$1" == --write-not-run ]] && printf '%s' "${STUB_NOT_RUN:-}" >"$2"
   shift
@@ -124,6 +125,15 @@ run_from() {
 run_from "$other" --base base --tests
 check "run from another checkout, it lists the script's own branch's change" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $ERR != *"SKIP tests"* ]]'
+# The ready step names the script's own tree in CHECK_DATA_ROOT from another
+# checkout. The suites build fixture repositories of their own, so the variable
+# must not reach them, or each one reads this tree in place of its fixture.
+RC=0
+OUT="$(cd "$other" && CHECK_DATA_ROOT="$repo" STUB_ENV_LOG="$tmp/env.log" \
+  bash "$repo/scripts/check-affected.sh" --base base --tests 2>"$tmp/err")" || RC=$?
+ERR="$(cat "$tmp/err")"
+check "CHECK_DATA_ROOT naming the script's own tree checks that tree and is not passed to the suites" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $(cat "$tmp/env.log") == unset ]]'
 git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
 run_from "$other" --base origin/main --no-fetch
 check "an explicit --base run from another checkout still lists the change" \
