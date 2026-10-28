@@ -210,7 +210,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, admissionSettled, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -261,8 +261,9 @@ const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// A person decides these; the lane never starts on them.
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance"]);
+// The lane never starts on these: a person decides the first five, and
+// `attended` waits on a step the owner takes present (admit.mjs ATTENDED).
+const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it
@@ -582,6 +583,11 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`::warning title=label-unblocked::#${number}: ${DEFERRED_LABEL} was added by neither the lanes App nor a listed human, so it is left as is and not re-admitted`);
         continue;
       }
+      // Only a listed human lifts attended: a removal by anyone else holds as the label does.
+      if (attendedHold(events, humans)) {
+        console.log(`label-unblocked: #${number} stays deferred: the newest removal of ${ATTENDED} was not a listed human's`);
+        continue;
+      }
       const { reason, held, deferred, confirmed, current } = await refusal({ github, repo, number, humans, closes, bot });
       if (humans.has(mark.actor?.id) && labelNames(current).includes(READY) && !held && current.state === "open") {
         await admitMarked({ github, repo, number, issue: current, events, humans, bot, appId, closes, gate, admission });
@@ -670,11 +676,13 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
     await admit({ github, repo, number, gate, deferred: true, confirmed: parkedBesideReady(labelNames(issue).map((name) => name.toLowerCase())) });
   } else if (decision.verdict === "refuse") {
-    // The comment first, then the needs-decision hold before status: ready
-    // comes off, and admission-deferred last: a failed write leaves the issue
-    // either still marked, for the next sweep, or held, which no sweep admits.
+    // The comment first, then the hold before status: ready comes off, and
+    // admission-deferred last: a failed write leaves the issue either still
+    // marked, for the next sweep, or held, which no sweep admits. The hold is
+    // needs-decision, except that a refusal for a manual external step alone
+    // asks no decision: status: confirmed beside attended, itself a hold.
     await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
-    await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    await github("POST", `${base}/labels`, { labels: decision.attended ? [decision.hold ? NEEDS_DECISION : CONFIRMED, ATTENDED] : [NEEDS_DECISION] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
     console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
@@ -771,7 +779,8 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
         await admit({ github, repo, number, gate, deferred: false, confirmed: parkedBesideReady(labels) });
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking label before status: ready comes off.
-        await github("POST", `${base}/labels`, { labels: [decision.hold ? NEEDS_DECISION : CONFIRMED] });
+        const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
+        await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
         await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
         await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);

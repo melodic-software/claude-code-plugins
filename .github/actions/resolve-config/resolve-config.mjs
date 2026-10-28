@@ -404,6 +404,13 @@ export function issueLaneWebHostsFromBase(env) {
   return web?.enabled ? web.domains : [];
 }
 
+// The base config's attended classes, {name: meaning}, or {} when unset.
+export function attendedClassesFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath }).attended?.classes ?? {};
+}
+
 // The base config's `branch-cleanup` leaf as set, likewise; its defaults have
 // one copy, in .github/scripts/branch-cleanup/rules.mjs.
 export function branchCleanupFromBase(env) {

@@ -47,6 +47,12 @@
 // earlier flag is unknown (admit.mjs earlierFlags); that hold stays for a
 // person.
 //
+// An exact refinement ends its criteria with one plain External state line
+// (externalLine): `none`, `iac (<owner/repo>)` or `manual (<class>: <what>)`,
+// the class one of pr-pipeline.yaml's attended.classes, which --select puts
+// in the context and --apply checks. Admission refuses a `manual` one with the
+// `attended` label (admit.mjs externalState).
+//
 // A split the model judges sound names exactly the held item numbers; the
 // model writes no text the lanes read. The refinement comment lists those
 // items as written, quoted, as checks a person runs that the lane does not
@@ -85,7 +91,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, CONFIRMED, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
@@ -99,6 +105,9 @@ const NEEDS_TRIAGE = "needs-triage";
 const AGENT_READY = "agent-ready";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
+const EXTERNAL_KINDS = new Set(["none", "iac", "manual"]);
+const EXTERNAL_NONE = Object.freeze({ state: "none", repo: "", class: "", what: "" });
+const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const LIMITS = { criteria: 12, dependencies: 10, related: 10, questions: 5, sources: 15, split: 12 };
 const TEXT_MAX = 500;
 const CANDIDATES = 10;
@@ -393,6 +402,9 @@ export async function selectRefinement({ github, repository, number, humans, app
       issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
       thin: reasons,
       split,
+      // pr-pipeline.yaml attended.classes: the only classes a manual
+      // External state may name.
+      attended: { ...(splitConfig().attended ?? {}) },
       triage: String(lane[0].body),
       comments: kept.map(({ comment }) => ({ author: comment.user?.login ?? "", created_at: comment.created_at ?? null, body: String(comment.body ?? "") })),
       candidates: await candidates(github, repository, issue, (id) => humans.has(id) || (appId !== undefined && id === appId)),
@@ -408,11 +420,31 @@ const list = (value, key, check) => {
   return value;
 };
 
+// The model's `external`, checked: `none`; `iac` with an owner/name `repo`;
+// or `manual` with a `class` of `classes` (pr-pipeline.yaml attended.classes,
+// from the context) and a `what`. Throws on any other shape.
+function externalOf(value, classes) {
+  const keys = ["state", "repo", "class", "what"];
+  if (value === null || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== [...keys].sort().join() || !keys.every((key) => isText(value[key]))) {
+    throw new Error(`\`external\` must hold exactly ${keys.join(", ")}, each a string`);
+  }
+  if (!EXTERNAL_KINDS.has(value.state)) {
+    throw new Error(`\`external.state\` must be one of ${[...EXTERNAL_KINDS].join(", ")}`);
+  }
+  if (value.state === "iac" && !REPO.test(value.repo)) {
+    throw new Error("an `iac` external state names its repository as owner/name");
+  }
+  if (value.state === "manual" && (!Object.hasOwn(classes, value.class) || value.what.trim() === "")) {
+    throw new Error(`a \`manual\` external state names one of the attended classes (${Object.keys(classes).join(", ") || "none configured"}) and what the step is`);
+  }
+  return value;
+}
+
 // The model's output, checked; related work outside `known` (the candidate
-// numbers) is dropped. `split` is the context's split, or null. Throws on
-// any other shape.
-export function validateOutput(output, known, split = null) {
-  const keys = ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split"];
+// numbers) is dropped. `split` is the context's split, or null; `classes`,
+// the context's attended classes. Throws on any other shape.
+export function validateOutput(output, known, split = null, classes = {}) {
+  const keys = ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split", "external"];
   if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== [...keys].sort().join()) {
     throw new Error(`the refinement must hold exactly ${keys.join(", ")}`);
   }
@@ -463,7 +495,20 @@ export function validateOutput(output, known, split = null) {
   } else if (moved.length > 0) {
     throw new Error("only an exact refinement of a held issue moves done-when items");
   }
-  return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved };
+  // Checked only once `exact` is final: a not-exact refinement records none,
+  // so a stray value there must not stop its questions posting.
+  const external = exact ? externalOf(output.external, classes) : EXTERNAL_NONE;
+  return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external };
+}
+
+// The External state line an exact refinement ends its criteria with: plain
+// text, never a task-list line, in the fixed form admit.mjs externalState
+// reads. Only `what` and `repo` are model text; the class is a configured name.
+export function externalLine({ state, repo, class: kind, what }) {
+  if (state === "iac") {
+    return `${EXTERNAL_STATE}iac (${line(repo)})`;
+  }
+  return state === "manual" ? `${EXTERNAL_STATE}manual (${kind}: ${line(what)})` : `${EXTERNAL_STATE}none`;
 }
 
 // One line of model text, unable to forge markup the lanes read.
@@ -503,6 +548,9 @@ export function render(output, { body, from, checks = [], retriage = false } = {
   }
   if (output.exact) {
     section("Acceptance criteria", output.criteria.map((item) => `${TASK}${line(item)}`));
+    if (output.external) {
+      parts.push(externalLine(output.external), "");
+    }
   }
   section("Dependencies", output.dependencies.map((item) => `- ${line(item)}`));
   section("Related work", output.related.map((item) => `- #${item.number} (${item.relation}): ${line(item.note)}`));
@@ -924,9 +972,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         if (!Number.isFinite(startedAt)) {
           throw new Error("STARTED_AT is not a time");
         }
-        const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+        const { attendedClassesFromBase, issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env) });
+        const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env) });
         const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, note: summary });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
@@ -946,7 +994,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
-          const output = validateOutput(raw, known, context.split ?? null);
+          const output = validateOutput(raw, known, context.split ?? null, context.attended ?? {});
           const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context });
           writeOutputs({ redispatch: String(result.redispatch), children: "" });
         }

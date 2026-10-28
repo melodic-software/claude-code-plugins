@@ -213,7 +213,9 @@
 # path (an ERE alternation of bounded basenames took minutes per level); one
 # awk pass then drops comment lines, splits each line into tokens, and keeps the
 # (file, name) pairs MATCHING and AMBIGUOUS NAMES let stand, marking each with
-# whether its line runs or loads the file.
+# whether its line runs or loads the file. A run that has paid for many tree
+# greps reads every code line naming a file once (build_name_lines) and greps
+# those lines instead.
 # Both stages fail loud; see the call site in select_for. Each stage's output is
 # a function of its inputs alone, so a level whose inputs an earlier level of
 # any seed already had reuses that stage's result: the copies of one shared
@@ -532,6 +534,9 @@ build_sync_map() {
 declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
 declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
+# The extensions lang_family() names: the reverse lookup searches them all.
+CODE_SPECS=('*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1')
+UNTRACKED=()
 # build_tree_index: every tracked or untracked-unignored file, listed once for
 # the ambiguous-name set, the reverse lookup's resolution, the declared scopes
 # and the unmapped corpora. Fatal on a failed listing: a short list under-selects.
@@ -542,6 +547,21 @@ build_tree_index() {
     echo "error: listing the tree failed." >&2
     exit 2
   fi
+  # `--untracked` walks the working tree on every reverse lookup; with no
+  # untracked code file a plain `git grep` reads the same files.
+  if ! git ls-files --others --exclude-standard -- "${CODE_SPECS[@]}" >"$WORK_DIR/untracked-code"; then
+    echo "error: listing the untracked code files failed." >&2
+    exit 2
+  fi
+  [[ -s "$WORK_DIR/untracked-code" ]] && UNTRACKED=(--untracked)
+  # token_hits reads the files of a name it resolves: an ambiguous or
+  # structural basename, or __init__.py.
+  awk -v s="$STRUCTURAL_BASENAMES" '{ b = $0; sub(/.*\//, "", b) } NR == FNR { n[b]++; next }
+    n[b] > 1 || b == "__init__.py" || index(s, " " b " ")' "$WORK_DIR/all-files" "$WORK_DIR/all-files" \
+    >"$WORK_DIR/resolvable-files" || {
+    echo "error: listing the files of the resolvable names failed." >&2
+    exit 2
+  }
   # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
   # match; anything above it is an unreadable lookup, fatal like the grep in
   # select_for.
@@ -604,6 +624,39 @@ build_tree_index() {
       SCOPE_GLOBS+=("${words[i]}")
     done
   done
+}
+
+declare -A NAMED=() # basename -> 1 for each name the lines of build_name_lines cover
+TREE_GREPS=0
+# build_name_lines: every code line naming a basename a frontier can hold (a
+# file of the tree, a changed path, a shared library's copy), as `git grep`
+# prints it, read from the tree once. A level whose names it covers greps these
+# lines instead of the tree, which a `git grep` walked on every level. GNU grep
+# matches the path too, so it also returns lines of a file whose path alone
+# holds a name; token_hits reads only the text after the path, and those lines
+# name nothing. `git grep -h` and `-c` over one tree align line for line.
+build_name_lines() {
+  local b names_rc=0 lines_rc=0 counts_rc=0 named_rc=0
+  {
+    awk '{ sub(/.*\//, "") } $0 != ""' "$WORK_DIR/all-files"
+    printf '%s\n' "${changed[@]##*/}" | awk '$0 != ""'
+    printf '%s' ${SYNC_SRC_COPIES[@]+"${SYNC_SRC_COPIES[@]}"} | awk '{ sub(/.*\//, "") } $0 != ""'
+  } | sort -u >"$WORK_DIR/names" || names_rc=2
+  git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -I -h -e '' -- "${CODE_SPECS[@]}" >"$WORK_DIR/code-lines" || lines_rc=$?
+  git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -I -c -e '' -- "${CODE_SPECS[@]}" >"$WORK_DIR/code-counts" || counts_rc=$?
+  LC_ALL=C grep -naF -f "$WORK_DIR/names" "$WORK_DIR/code-lines" >"$WORK_DIR/named" || named_rc=$?
+  if ((names_rc > 1 || lines_rc > 1 || counts_rc > 1 || named_rc > 1)) || ! awk '
+    FILENAME == ARGV[1] {
+      i = length($0); while (substr($0, i, 1) != ":") i--
+      path[++n] = substr($0, 1, i - 1); end[n] = end[n - 1] + substr($0, i + 1); next
+    }
+    { i = index($0, ":"); ln = substr($0, 1, i - 1) + 0; while (ln > end[f]) f++; print path[f] ":" substr($0, i + 1) }
+  ' "$WORK_DIR/code-counts" "$WORK_DIR/named" >"$WORK_DIR/name-lines"; then
+    echo "error: reading the code lines of the tree failed." >&2
+    exit 2
+  fi
+  rm -f "$WORK_DIR/code-lines" "$WORK_DIR/named"
+  while IFS= read -r b; do NAMED["$b"]=1; done <"$WORK_DIR/names"
 }
 
 # scope_declarations <file-list> -> one `<suite> <glob>...` line per
@@ -680,15 +733,17 @@ lang_family() {
   esac
 }
 
-# token_hits <plain> <resolve> <matched-lines> <hits>
+# token_hits <plain> <resolve> <matched-lines> <hits> <resolvable-files> <py-imports>
 # Reduce `git grep`'s SUBSTRING hits to the mentions the rules mean. Inputs:
 # the frontier paths this level looks up by plain basename, those whose names
-# must RESOLVE (AMBIGUOUS NAMES), and the `<path>:<line>` grep output. Output,
+# must RESOLVE (AMBIGUOUS NAMES), the `<path>:<line>` grep output, the files of
+# the tree that carry a resolvable name and the Python import lines, each
+# /dev/null for a level no rule reads it for. Output,
 # one line per pair:
 #   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
 #   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
-  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" -v impf="$WORK_DIR/py-imports" '
+  awk -v plainf="$1" -v resf="$2" -v allf="$5" -v impf="$6" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
@@ -909,7 +964,7 @@ token_hits() {
         print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
       }
     }
-  ' "$1" "$2" "$WORK_DIR/all-files" "$WORK_DIR/py-imports" "$3" >"$4"
+  ' "$1" "$2" "$5" "$6" "$3" >"$4"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
@@ -962,7 +1017,8 @@ select_for() {
   local -a frontier=() next=()
   local p b sib copy line kind hit_path hit_name hit_x grep_rc
   local origin_family hit_family hop_state
-  local pattern_key plain_key resolve_key hits_key matched hits
+  local pattern_key plain_key resolve_key hits_key matched hits covered
+  local -a index_files=()
   # PATTERN_ORIGIN maps a plain basename back to the ecosystem of the file that
   # contributed it ('*' when two families contributed it, which over-selects),
   # and PATTERN_CROSSED records whether that file had spent its transition.
@@ -994,12 +1050,13 @@ select_for() {
     : >"$WORK_DIR/patterns"
     : >"$WORK_DIR/plain"
     : >"$WORK_DIR/resolve"
-    pattern_key="" plain_key="" resolve_key=""
+    pattern_key="" plain_key="" resolve_key="" covered=1
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
       VISITED["$p"]=1
-      # R1/R2
+      # R1/R2, through a file: a process substitution forks once per path.
+      colocated_suites "$p" >"$WORK_DIR/colocated"
       while IFS= read -r sib; do
         [[ -n "$sib" ]] || continue
         if [[ "$sib" == "$p" ]]; then
@@ -1007,7 +1064,7 @@ select_for() {
         else
           add_suite "$sib" "co-located with $p" || true
         fi
-      done < <(colocated_suites "$p")
+      done <"$WORK_DIR/colocated"
       # R7. The suite path is joined from two pieces so this file never carries
       # its basename as one token, which would make this file name the suite.
       case "$p" in
@@ -1021,6 +1078,7 @@ select_for() {
       # MANIFESTS: no mention reaches a suite from a manifest or changelog.
       [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
+      [[ -n "${NAMED[$b]:-}" ]] || covered=0
       pattern_key+="$b"$'\n'
       if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
         [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then
@@ -1060,11 +1118,18 @@ select_for() {
         LOOKUPS=$((LOOKUPS + 1))
         matched="$WORK_DIR/matched-lines.$LOOKUPS"
         grep_rc=0
-        git grep --untracked -F -f "$WORK_DIR/patterns" \
-          -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
-          >"$matched" || grep_rc=$?
+        if ((covered)); then
+          LC_ALL=C grep -aF -f "$WORK_DIR/patterns" "$WORK_DIR/name-lines" >"$matched" || grep_rc=$?
+        else
+          git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -F -f "$WORK_DIR/patterns" -- "${CODE_SPECS[@]}" \
+            >"$matched" || grep_rc=$?
+          # Reading the name lines costs about as much as 16 tree greps, so a
+          # run builds them once it has paid that many.
+          TREE_GREPS=$((TREE_GREPS + 1))
+          ((TREE_GREPS == ${AFFECTED_TESTS_TREE_GREPS:-16})) && build_name_lines
+        fi
         if [[ "$grep_rc" -gt 1 ]]; then
-          echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
+          echo "error: the grep failed (exit $grep_rc) resolving dependents of the current level." >&2
           echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
           echo "       under-selection is reported as success by everything downstream." >&2
           exit 2
@@ -1075,7 +1140,10 @@ select_for() {
       hits="$WORK_DIR/hits.$LOOKUPS"
       # Fatal for the same reason: a filter that dies mid-stream hands the walk a
       # TRUNCATED hit set.
-      if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$matched" "$hits"; then
+      index_files=(/dev/null /dev/null)
+      [[ -n "$resolve_key" || "$plain_key" == *.py$'\n'* ]] && index_files[0]="$WORK_DIR/resolvable-files"
+      [[ "$plain_key$resolve_key" == *.py$'\n'* ]] && index_files[1]="$WORK_DIR/py-imports"
+      if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$matched" "$hits" "${index_files[@]}"; then
         echo "error: the token filter over the reverse lookup failed on the current level." >&2
         echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
         echo "       under-selection is reported as success by everything downstream." >&2
