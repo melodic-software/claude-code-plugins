@@ -8,11 +8,28 @@ async page => {
   const state = async () => (await page.request.get(base + "api/state")).json();
   const events = async () => (await state()).responses.events;
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
+  const until = async (fn, ms) => { for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(100)) if (await fn()) return true; return false; };
+  // A re-render can collapse the card's group between the check and the click (answered groups
+  // start collapsed), so the group is opened in the same tick it is checked, and the pick retries
+  // until the card holds the selection.
   const pick = async id => {
-    if (await page.$eval('.rail-list .qbtn[data-q="' + id + '"]', el => !el.offsetParent).catch(() => false)) await page.click('.sec:has(.qbtn[data-q="' + id + '"]) .sec-h'); // answered groups start collapsed
-    await page.click('.rail-list .qbtn[data-q="' + id + '"]'); await page.waitForTimeout(200); };
+    const btn = '.rail-list .qbtn[data-q="' + id + '"]';
+    const picked = await until(async () => {
+      await page.$eval(btn, el => { const s = el.closest(".sec"); if (!el.offsetParent && s && s.dataset.collapsed === "true") s.querySelector(".sec-h").click(); }).catch(() => {});
+      return await page.click(btn, {timeout: 2000}).then(() => true).catch(() => false) &&
+        await page.waitForFunction(q => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q === q, id, {timeout: 2000}).then(() => true).catch(() => false);
+    }, 20000);
+    if (!picked) throw new Error("pick " + id + ": the card never took the selection in 20 s");
+  };
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
+  // Runs act, then waits until the server has recorded a new event: a save is a network round trip.
+  const saved = async act => { const n = (await events()).length; await act(); await until(async () => (await events()).length > n, 10000); };
+  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
+  // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
+  const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
+  const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
+  const card = (id, re, yes = true) => page.waitForFunction(([q, r, y]) => { const el = document.querySelector('.rail-list .qbtn[data-q="' + q + '"]'); return !!el && new RegExp(r).test(el.textContent) === y; }, [id, re, yes], {timeout: 10000}).then(() => true).catch(() => false);
   const armed = async () => (await page.textContent(".choice.armed").catch(() => "")) || "";
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
   const Q_MARK = "❓", R_MARK = "➡️";
@@ -72,26 +89,29 @@ async page => {
     ok("AC22: rows sit above the collapsed details", rows.length === 2 && rows.every(r => r.before) && !(await page.$("#more [data-confirm]")));
     await page.click("main.detail h3"); await page.keyboard.press("a");
     ok("AC16: a arms Rec", /Rec/.test(await armed()), await armed());
-    await page.click("[data-save]"); await page.waitForTimeout(700);
+    await saved(() => page.click("[data-save]"));
     const e1 = await events();
     ok("Accept saved on Q1", e1[e1.length - 1].id === "Q1" && e1[e1.length - 1].kind === "accept");
     await pick("Q1");
     ok("AC22: Accept leaves every commitment row unchecked", (await page.$$eval("#dscroll [data-confirm]", els => els.filter(e => e.checked).length)) === 0);
     let s = await state(), want = openAssumptions(s);
+    await counted(open(want));
     ok("AC22: header counter equals the unconfirmed commitments on answered questions", want >= 2 && (await counter()) === open(want), (await counter()) + " vs " + want);
     ok("displayName labels the user's lines", /Dana accepted/.test(await page.textContent("#thread")), (await page.textContent("#thread")).slice(0, 120));
     const n0 = (await events()).length;
-    await page.click('#dscroll [data-confirm="0"]'); await page.waitForTimeout(700);
+    await saved(() => page.click('#dscroll [data-confirm="0"]'));
+    await shown(() => document.querySelector('#dscroll [data-confirm="0"]')?.checked);
     const e2 = await events(), c = e2[e2.length - 1];
     ok("Confirm posts a confirm event with the commitment index", e2.length === n0 + 1 && c.kind === "confirm" && c.id === "Q1" && c.alt === "0" && c.text === "", JSON.stringify(c));
     ok("confirmed row shows checked", await page.$eval('#dscroll [data-confirm="0"]', el => el.checked));
     s = await state();
+    await counted(open(want - 1));
     ok("counter drops after Confirm", (await counter()) === open(want - 1) && openAssumptions(s) === want - 1, await counter());
     await page.click('#dscroll [data-confirm="0"]'); await page.waitForTimeout(500);
     ok("a second Confirm click does nothing", (await events()).length === n0 + 1);
     await page.click('#dscroll [data-challenge="1"]'); await page.waitForTimeout(150);
     ok("Challenge fills the note and focuses it", (await page.inputValue("#note")) === "Challenge: Runs on every save " && (await focused()) === "note", JSON.stringify(await page.inputValue("#note")));
-    await page.keyboard.type("on a slow disk?"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
+    await page.keyboard.type("on a slow disk?"); await saved(() => page.keyboard.press("Control+Shift+Enter"));
     const e3 = await events(), ask = e3[e3.length - 1];
     ok("Ctrl+Shift+Enter sends the challenge as an ask", ask.kind === "ask" && ask.id === "Q1" && ask.text === "Challenge: Runs on every save on a slow disk?", JSON.stringify(ask));
 
@@ -142,37 +162,40 @@ async page => {
     const nm = await page.$eval('.qbtn[data-q="Q1"]', el => ({label: el.getAttribute("aria-label"), desc: (document.getElementById(el.getAttribute("aria-describedby")) || {}).textContent || ""}));
     ok("#5915: a rail button's accessible name is its id, short title and state", nm.label.startsWith("Q1, ") && nm.label.includes(short1) && /, Accepted/.test(nm.label) && !/needs/.test(nm.label), nm.label);
     ok("#5915: the rest of the card is the button's accessible description", /Accepted/.test(nm.desc), nm.desc);
-    await page.goto(base + "?load=1#Q3"); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(500);
+    await page.goto(base + "?load=1#Q3"); await page.waitForSelector('.qbtn[data-q="Q3"][aria-current="true"]', {state: "attached", timeout: 10000}).catch(() => {});
     ok("#5915: loading the page with #Q3 selects Q3", (await sel()) === "Q3", await sel());
     // Hedged: accept with a required condition note; its commitments count like an accept's
     await pick("Q3"); await page.click("main.detail h3");
     await page.keyboard.press("h");
     ok("h arms Hedged and focuses the note", /Hedged/.test(await armed()) && (await focused()) === "note", await armed());
     ok("Hedged with no condition cannot be saved", await page.$eval("[data-save]", el => el.disabled) && /Hedged needs a condition/.test(await page.textContent("#decideRow")));
-    await page.keyboard.type("only if the migration is reversible"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    await page.keyboard.type("only if the migration is reversible"); await saved(() => page.keyboard.press("Control+Enter"));
     const eh = await events(), hd = eh[eh.length - 1];
     ok("Hedged posts a hedged event with the condition", hd.id === "Q3" && hd.kind === "hedged" && hd.text === "only if the migration is reversible", JSON.stringify(hd));
     await pick("Q3");
+    await shown(() => /only if the migration is reversible/.test((document.getElementById("cur") || {}).textContent || ""));
     ok("the hedged decision shows as Hedged with its condition", /Hedged/.test(await page.textContent("#cur")) && /only if the migration is reversible/.test(await page.textContent("#cur")), await page.textContent("#cur"));
     s = await state();
+    await counted(openAssumptions(s) ? open(openAssumptions(s)) : "");
     ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
-    await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
+    await page.click("main.detail h3"); await saved(() => page.keyboard.press("r"));
     // Someone else decides: a defer that names the person who holds the decision
     await pick("Q3"); await page.click('.choice:has-text("Someone else decides")'); await page.waitForTimeout(150);
     ok("Someone else decides needs a note naming who before it saves", /Someone else decides/.test(await armed()) && await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await armed());
     await page.click("#note"); await page.keyboard.type("Someone else decides:"); await page.waitForTimeout(150);
     ok("a note that only repeats the label names nobody, so Save stays off", await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await page.textContent("#decideRow"));
-    await page.keyboard.type(" Dana, the DBA"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    await page.keyboard.type(" Dana, the DBA"); await saved(() => page.keyboard.press("Control+Enter"));
     const ep = await events(), pd = ep[ep.length - 1];
     ok("Someone else decides posts a defer whose text names the person once, even when the note repeats the label", pd.id === "Q3" && pd.kind === "defer" && pd.text === "someone else decides: Dana, the DBA", JSON.stringify(pd));
     await pick("Q3");
+    await shown(() => /Someone else decides/.test((document.querySelector(".choice.current") || {}).textContent || ""));
     ok("the person-held deferral shows as Someone else decides, not plain Defer", /Someone else decides/.test(await page.textContent(".choice.current").catch(() => "")), await page.textContent(".choice.current").catch(() => ""));
     await page.click(".sumbtn"); await page.waitForTimeout(300);
     ok("the summary lists the person-held deferral and the questionnaire hand-off", /Q3/.test(await page.textContent("#personHeld").catch(() => "")) && /Dana, the DBA/.test(await page.textContent("#personHeld").catch(() => "")) && /questionnaire/.test(await page.textContent("#personHeld").catch(() => "")), await page.textContent("#personHeld").catch(() => "none"));
-    await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
+    await pick("Q3"); await page.click("main.detail h3"); await saved(() => page.keyboard.press("r"));
     await pick("Q1"); await page.click("main.detail h3");
     const nBeforeReopen = (await events()).length;
-    await page.keyboard.press("r"); await page.waitForTimeout(700);
+    await saved(() => page.keyboard.press("r"));
     const e4 = await events();
     ok("AC16: r sends Reopen when a decision exists", e4.length === nBeforeReopen + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
 
@@ -233,13 +256,14 @@ async page => {
     const planBan = await page.textContent("#planban").catch(() => "");
     ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
     await page.locator("#choices .choice", {hasText: "(was)"}).click();
-    await page.click("[data-save]"); await page.waitForTimeout(700);
+    await saved(() => page.click("[data-save]"));
     let se = (await events()).filter(e => e.id === "S1").pop();
     ok("the (was) button records the was alternative", se && se.kind === "alt" && se.alt === "was", JSON.stringify(se));
     await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200); // the save moved on to the next open question
+    await shown(() => !document.getElementById("planban"));
     ok("the banner leaves once the question is answered", await sel() === "S1" && await page.$("#planban") === null, await sel());
     await page.locator("#choices .choice.rec").first().click();
-    await page.click("[data-save]"); await page.waitForTimeout(700);
+    await saved(() => page.click("[data-save]"));
     se = (await events()).filter(e => e.id === "S1").pop();
     ok("the Rec button records accept", se && se.kind === "accept", JSON.stringify(se));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
@@ -247,7 +271,7 @@ async page => {
     // SPEC 6: stale after an upstream re-answer, upstream-pending further down
     for (const id of ["P1", "P2", "P3"]) await post({id, kind: "accept", alt: null, text: ""});
     await post({id: "P1", kind: "alt", alt: "b", text: "Later after all"});
-    await page.waitForTimeout(900);
+    await card("P2", "Stale");
     await pick("P2");
     ok("stale banner names the changed prerequisite", /Stale: P1/.test(await page.textContent("#dscroll")), (await page.textContent("#dscroll")).slice(0, 160));
     ok("stale keeps its decision visible", /Accepted/.test(await page.textContent("#cur")), await page.textContent("#cur"));
@@ -291,8 +315,8 @@ async page => {
     // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
     const last = async () => { const e = await events(); return e[e.length - 1]; };
     const stale = async id => (await state()).questions.questions.find(q => q.id === id).state === "stale";
-    const reconfirm = async () => { await page.click("main.detail h3"); await page.keyboard.press("a"); const a = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800); return a; };
-    const restale = async (p2, p1) => { await post(Object.assign({id: "P2", alt: null, text: ""}, p2)); await post(Object.assign({id: "P1", alt: null, text: ""}, p1)); await page.waitForTimeout(900); await pick("P2"); };
+    const reconfirm = async () => { await page.click("main.detail h3"); await page.keyboard.press("a"); const a = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter")); await card("P2", "Stale", false); return a; };
+    const restale = async (p2, p1) => { await card("P2", "Stale", false); await post(Object.assign({id: "P2", alt: null, text: ""}, p2)); await post(Object.assign({id: "P1", alt: null, text: ""}, p1)); await card("P2", "Stale"); await pick("P2"); };
     const r0 = await reconfirm(), ev0 = await last();
     ok("Reconfirm of a kept accept records accept", /the recommendation/.test(r0) && ev0.id === "P2" && ev0.kind === "accept" && ev0.alt === null && !(await stale("P2")), r0 + " " + JSON.stringify(ev0));
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "alt", alt: "a"});
@@ -310,34 +334,34 @@ async page => {
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
     ok("alternatives the server flags as restating the recommendation fold into Accept: Rec is first with class rec, no (a) or (c) choice, (b) stays", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\((a|c)\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)), dup.join(" | "));
     const nEv = (await events()).length;
-    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]"); await page.waitForTimeout(400);
+    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await saved(() => page.click("[data-save]"));
     const hid = await page.evaluate(() => ({open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent}));
     ok("a note naming the hidden duplicate (a) is not offered as a choice and saves as typed", !hid.open && (await events()).length === nEv + 1, JSON.stringify(hid));
     await pick("P2"); await page.click("main.detail h3"); await page.keyboard.press("2");
-    const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const r3 = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter")); await card("P2", "Stale", false);
     const ev3 = await last();
     ok("2 then save on a stale question picks again: Rec", /^Rec/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
     await pick("P2");
     // An armed choice keeps its identity when an upstream decision stales the question and a Reconfirm row renumbers the list
     await page.click("main.detail h3"); await page.keyboard.press("4");
     const a0 = (await armed()).trim();
-    await post({id: "P1", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
+    await post({id: "P1", kind: "accept", alt: null, text: ""}); await card("P2", "Stale");
     const a1 = (await armed()).trim(), wasStale = await stale("P2");
-    await page.click("main.detail h3"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    await page.click("main.detail h3"); await saved(() => page.keyboard.press("Control+Enter"));
     const ev4 = await last();
     ok("an armed alternative survives a Reconfirm row shifting the key numbers: (b) stays armed once stale and saves alt b", /^\(b\)/.test(a0) && wasStale && /^\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
     // Reconfirm of a person-held deferral with a new name typed over the kept one stays person-held
     await restale({kind: "defer", text: "someone else decides: Dana"}, {kind: "alt", alt: "b"});
     await page.fill("#note", "Lee, the architect");
     await page.click("main.detail h3"); await page.keyboard.press("a");
-    const r7 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const r7 = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter"));
     const ev7 = await last();
     ok("Reconfirm of a person-held deferral with a new name keeps the someone else decides prefix", /^Reconfirm/.test(r7) && ev7.id === "P2" && ev7.kind === "defer" && ev7.text === "someone else decides: Lee, the architect", r7 + " " + JSON.stringify(ev7));
     // Reconfirm with a note typed over the kept one records the typed note
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
     await page.fill("#note", "Weekdays too");
     await page.click("main.detail h3"); await page.keyboard.press("a");
-    const r6 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const r6 = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter"));
     const ev6 = await last();
     ok("Reconfirm sends the note typed over the kept one", /^Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
     await pick("P2");
@@ -345,7 +369,7 @@ async page => {
     // SPEC 5.2: revising while an upstream decision is delivered and unhandled (an accept with a note: the server auto-handles a plain one)
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: "Fine for now"})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
-    await page.waitForTimeout(900);
+    await card("P1", "Answer not handled yet");
     ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));
 
     // shortcuts off: no single key acts
@@ -420,7 +444,7 @@ async page => {
     const fx = await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText));
     ok("a missing file shows its path and the error", fx.cap === "missing.svg" && /not found/.test(fx.text) && !fx.srcdoc, JSON.stringify(fx).slice(0, 160));
     await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(5200);
-    await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText)); await page.waitForTimeout(600);
+    await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText)); await until(() => vxFetches >= 2, 5000);
     ok("a failed file visual is fetched again, once, on a render after 5 s", vxFetches === 2, "fetches " + vxFetches);
     await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
     await page.click("[data-full]"); await page.waitForTimeout(200);
@@ -499,12 +523,15 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open Accept all dialog", (await events()).length === n3 && await page.evaluate(() => document.getElementById("dlg").open), await armed());
   }
   if (PHASE === 2) {
-    await page.waitForTimeout(900); // SSE brings the external revise of A2 and the emoji switch
+    // SSE brings the external revise of A2 and the emoji switch
+    await page.waitForFunction(m => !document.querySelector("#dscroll .dhead h3").textContent.includes(m) && !document.getElementById("conflict").hidden, Q_MARK, {timeout: 15000}).catch(() => {});
+    // Accept all reports in a toast once its posts and the refresh are done; each run below reads a different one.
+    const accepted = async () => { const t0 = await page.textContent("#toast"); await page.click("#dlgOk"); await page.waitForFunction(t => { const x = document.getElementById("toast").textContent; return x !== t && /Accepted|Not accepted/.test(x); }, t0, {timeout: 10000}).catch(() => {}); };
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
     // A2 was selected with a choice armed when the shell revised its recommendation: the notice is up before any Save
     const early = await page.evaluate(() => { const c = document.getElementById("conflict"); return {hidden: c.hidden, text: c.textContent}; });
     ok("a revision landing on the armed question shows the changed notice before Save", !early.hidden && /A2 just changed: review/.test(early.text) && /Recommendation/.test(early.text), JSON.stringify(early));
-    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    await accepted();
     const ev = await events(), acc =ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
@@ -512,12 +539,12 @@ async page => {
     // before the shell's revise, so a dialog opened only now still refuses it until A2 is opened again.
     await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
     ok("Accept all opened after the revise still lists A2", await page.evaluate(() => document.getElementById("dlg").open && /A2/.test(document.getElementById("dlgBody").innerText)));
-    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    await accepted();
     const acc2 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
     ok("Accept all refuses a question revised after the user opened it", acc2 === 0 && /Skipped A2/.test(await page.textContent("#toast")), acc2 + " " + await page.textContent("#toast"));
     await pick("A2");
     await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
-    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    await accepted();
     const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
     ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
     { // the shell revised Q1's commitments after phase 1 ticked one: that tick belongs to the old list
@@ -525,14 +552,16 @@ async page => {
       await pick("Q1");
       const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => e.checked));
       ok("a revise of the commitments drops the old confirm tick", q1.commitsSinceSeq > 0 && rows.length === 2 && rows.every(c => !c), JSON.stringify(rows) + " since " + q1.commitsSinceSeq);
+      await counted(openAssumptions(s2) ? open(openAssumptions(s2)) : "");
       ok("counter agrees after the commitments were replaced", (await counter()) === (openAssumptions(s2) ? open(openAssumptions(s2)) : ""), (await counter()) + " vs " + openAssumptions(s2));
     }
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;
-    await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); await page.waitForTimeout(700);
+    await saved(async () => { await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); });
     const ev2 = await events();
     ok("Wrap up posts one wrapup event", ev2.length === n0 + 1 && ev2[ev2.length - 1].kind === "wrapup");
+    await shown(() => /Wrapping up/.test(document.getElementById("dscroll").textContent));
     ok("toast reads Wrapping up", /Wrapping up/.test(await page.textContent("#dscroll")));
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
     ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Rec/.test(await armed()));
@@ -548,13 +577,13 @@ async page => {
     ok("a recommendation change on P1 marks P2 Upstream changed in the card and the rail", /Upstream changed: the recommendation of P1.*was revised/.test(dtext) && /Upstream changed/.test(await page.textContent('.qbtn[data-q="P2"]')) && JSON.stringify(p2.upstreamChanged) === '["P1"]', dtext.slice(0, 120) + " " + JSON.stringify(p2.upstreamChanged));
   }
   if (PHASE === 3) {
-    await page.waitForTimeout(600); // SSE brings the handle of phase 2's events
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
+    await page.waitForFunction(() => !document.querySelector("[data-save]").disabled, null, {timeout: 10000}).catch(() => {}); // SSE brings the handle of phase 2's events
     ok("Save enabled again once phase 2's wrap-up is handled", !(await page.$eval("[data-save]", el => el.disabled)));
     // A fresh wrapup freezes saves; the shell's background handler lifts the freeze well inside
     // the 10 s window, which the page must show before that window runs out on its own.
     const w = await (await post({kind: "wrapup", text: ""})).json();
-    await page.waitForTimeout(600);
+    await page.waitForFunction(() => document.querySelector("[data-save]").disabled, null, {timeout: 5000}).catch(() => {});
     ok("Save disabled by a fresh wrap-up", await page.$eval("[data-save]", el => el.disabled), "seq " + w.seq);
     const lifted = await page.waitForFunction(() => !document.querySelector("[data-save]").disabled, null, {timeout: 9000}).then(() => true).catch(() => false);
     const st = await state(), at = st.responses.events.find(e => e.seq === w.seq).at, age = (Date.now() - Date.parse(at)) / 1000;
@@ -586,7 +615,7 @@ async page => {
   }
   if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
     await page.goto(base);
-    await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
+    await page.waitForSelector('.qbtn[data-q="E1"]', {state: "attached"});
     const lbl = await page.textContent("#roundLbl");
     ok("the header round comes from the newest question's stage only", lbl === "Round 1 · Design", lbl);
     const rounds = await page.$$eval(".qbtn", els => els.length);
@@ -622,7 +651,7 @@ async page => {
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
     // A waiter arrives: Live. D1 is handled by now, so the wait holds for its whole timeout instead of
     // taking D1; the header is checked only once the server itself counts the waiter.
-    const listening = async (pred, ms) => { for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(100)) if (pred((await state()).listener)) return true; return false; };
+    const listening = async (pred, ms) => until(async () => pred((await state()).listener), ms);
     const live = page.request.get(base + "api/wait?after=handled&timeout=10&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
     const waiting = await listening(l => l.waiters >= 1, 8000);
     const isLive = waiting && await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
@@ -654,10 +683,11 @@ async page => {
   if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
-    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"}); await page.waitForTimeout(300);
+    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"});
     if (await sel() !== "D1") await page.click('.qbtn[data-q="D1"]');
     await page.click("main.detail h3"); await page.keyboard.press("a");
-    await page.click("[data-save]"); await page.waitForTimeout(700);
+    await saved(() => page.click("[data-save]"));
+    await shown(() => document.getElementById("meterText").textContent === "1 of 1 answered");
     const ev = (await events()).filter(e => e.id === "D1");
     ok("#9715: the page answers D1 and the meter counts it", ev.length === 1 && ev[0].kind === "accept" && await page.textContent("#meterText") === "1 of 1 answered", JSON.stringify(ev) + " " + await page.textContent("#meterText"));
   }
