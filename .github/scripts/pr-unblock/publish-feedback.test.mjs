@@ -61,7 +61,7 @@ function fakeApi(overrides = {}) {
     posted: () => calls.filter((call) => call[0] === "reply"),
     resolved: () => calls.filter((call) => call[0] === "resolve").map((call) => call[1]),
     markers: () => calls.filter((call) => call[0] === "comment"),
-    listIssueComments: async () => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker }, ...(overrides.issueComments ?? [])],
+    listIssueComments: async () => [{ id: 1, user: { id: ACTIONS_BOT }, body: overrides.marker ?? marker }, ...(overrides.issueComments ?? [])],
     listReviews: async () => [{ id: 10, user: { id: REVIEWER }, commit_id: GATED }, { id: 30, user: { id: ACTIONS_BOT }, commit_id: GATED }, ...(overrides.reviews ?? [])],
     listReviewComments: async () =>
       overrides.reviewComments ?? [comment(100, "src/a.js"), comment(200, "docs/b.md")],
@@ -1128,6 +1128,48 @@ test("a thread that changed since the model job read it is skipped; the rest are
   });
   await run(human, lines(reply(), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })));
   assert.deepEqual(human.posted().map((call) => call[2]), [200]);
+});
+
+// The review lane edits its one reviewed-head marker in place: after this
+// round's fix push it names the fix head, not the head the threads' review
+// sits on. run.json's reviewed_heads (the select job's) still vouch for them.
+const repointed = `<!-- claude-lane-reviewed-head lane=claude-review sha=${FIX} -->\nreviewed.`;
+const recordedRun = (repliesText, heads = [GATED]) => JSON.stringify({ ...JSON.parse(runFor(repliesText)), reviewed_heads: heads });
+
+test("a VALID reply posts and resolves after the review lane re-marks the fix head, against the heads the select job recorded", async () => {
+  const api = fakeApi({ marker: repointed });
+  const repliesText = lines(reply({ disposition: "VALID" }));
+  const result = await run(api, repliesText, recordedRun(repliesText));
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+test("with the marker re-pointed, a thread that changed, or one on no recorded head, is still skipped", async () => {
+  const repliesText = lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] }));
+  for (const [overrides, heads] of [
+    [{ threads: { PRRT_a: { ids: [100, 101], resolved: false }, PRRT_b: { ids: [200], resolved: false } } }, [GATED]],
+    [{ threads: { PRRT_a: { ids: [100], resolved: true }, PRRT_b: { ids: [200], resolved: false } } }, [GATED]],
+    [{ reread: { PRRT_a: { ids: [100], resolved: true } } }, [GATED]],
+    [{ reread: { PRRT_a: { ids: [100, 102], resolved: false } } }, [GATED]],
+    [{}, [FIX]],
+  ]) {
+    const api = fakeApi({ marker: repointed, ...overrides });
+    await run(api, repliesText, recordedRun(repliesText, heads));
+    const posted = api.posted().map((call) => call[2]);
+    assert.deepEqual(posted, heads.includes(GATED) ? [200] : [], JSON.stringify({ overrides, heads }));
+    assert.deepEqual(api.resolved(), [], JSON.stringify({ overrides, heads }));
+  }
+});
+
+test("feedback-invalid, nothing posted: a malformed reviewed_heads", async () => {
+  const repliesText = lines(reply({ disposition: "VALID" }));
+  for (const heads of ["x", ["x"], [1]]) {
+    const api = fakeApi();
+    const result = await run(api, repliesText, JSON.stringify({ ...JSON.parse(runFor(repliesText)), reviewed_heads: heads }));
+    assert.equal(result.escalationReason, "feedback-invalid", JSON.stringify(heads));
+    assert.deepEqual(api.posted(), []);
+  }
 });
 
 test("a resolve that took effect before its answer was lost counts as resolved", async () => {
