@@ -107,6 +107,8 @@ jobs:
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
           save-state: "true"
+          # A failed read restores only the pause from this state.
+          reads: pause
 
       - name: Log the API budget at the end
         if: always()
