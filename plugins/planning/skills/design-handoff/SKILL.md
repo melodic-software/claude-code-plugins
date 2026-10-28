@@ -123,7 +123,10 @@ memory:
   the seam or containing module, and the recorded reason; an abstraction question left to a human
   is listed with its arbiter
 - **Conventions followed**: repository paths of the existing patterns, rules, and ADRs the design
-  follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
+  follows. Never a memory-slice path: PLAN.md is published, and that path would dangle. Under them,
+  from the resolved threads' rationale: one `Net new:` line listing each part no existing pattern
+  covers and why none fits, and one `Challenges a pattern:` line listing each pattern the design
+  departs from or questions, its path and the reason; `none` when a line has nothing to list
 
 An early exit (`design-resolution.md`) writes the section as one line naming the early exit and
 its reason. A Tier B early exit adds a `### Contracts` subsection under that line, quoting the
@@ -154,7 +157,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   candidate (never for a near-miss), passing the decision and its recorded rationale from
   `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer,
   and the write. Otherwise list them under an "ADR candidates" heading for the human to record by
-  hand. The offer never blocks the handoff
+  hand. The offer never blocks the handoff: it runs beside the next step, not in place of it
 - Deferred research items with tags
 - Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)
@@ -168,7 +171,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   from human judgment, mark per capability whether a sub-step is script-, hook-, agent-, or
   human-owned; a trivial early-exit records "no deterministic sub-steps"
 - **Uncovered dimensions**. The dimensions the coverage table read as `none`, listed verbatim, so
-  `/planning:plan` can hold them as open questions. Record "none" when all six are covered
+  `/planning:plan` can raise them as Step 1 Open Decisions. Record "none" when all six are covered
 
 Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` reading only the
 persisted artifacts. The resume prompt carries the uncovered dimensions verbatim; the coverage
@@ -185,7 +188,6 @@ table stays in the emitted output and is never written to disk.
 ## Next
 
 - The gate passed: /planning:plan, reading the plan-ready summary and PLAN.md's `## Design`.
-- A resolved decision is an ADR candidate: /architecture:record-decision, before the plan.
 - The gate failed: /planning:design.
 
 ## Gotchas

@@ -142,6 +142,10 @@
 # unknown tree — a completed-looking scan of the wrong tree is
 # indistinguishable from a clean bill.
 #
+# A whole-tree scan runs the per-file engine on $CANT_FAIL_SCAN_JOBS files at a
+# time (default: every core), then folds the records in scan order, so the
+# output is the serial run's. 1 runs it serially; --file is always serial.
+#
 # Config: docs/conventions/testing.yaml, docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
 # $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
 # off or on (a file whose adapter is off is not scanned, never handed to
@@ -331,7 +335,8 @@ fi
 WALK_ERR="$(mktemp)"
 ADAPTER_TABLE="$(mktemp)"
 EXTEND_FILE=""
-trap 'rm -f "$WALK_ERR" "$ADAPTER_TABLE" "$EXTEND_FILE"' EXIT
+ENGINE_DIR=""
+trap 'rm -rf "$WALK_ERR" "$ADAPTER_TABLE" "$EXTEND_FILE" "$ENGINE_DIR"' EXIT
 
 # Location values are REPO-relative, not scan-root-relative: the fix action
 # fences each remediation to Location, so a subdirectory scan root must not
@@ -735,8 +740,28 @@ rule_override() {
   return 0
 }
 
+engine() {
+  # engine <file>: the per-file rule engine's records for <file>.
+  awk -v ADAPTER="${file_adapter[$1]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
+    -f "$MASK_AWK" -f "$AWK_PROG" "$1"
+}
+
+engine_records() {
+  # engine_records <file> <scan index>: the records the parallel pass left for
+  # the file, else the engine's run now. A missing result is logged, so the
+  # scan fails closed instead of reading it as a file with no findings.
+  if [[ -z "$ENGINE_DIR" ]]; then
+    engine "$1" 2>>"$WALK_ERR"
+  elif [[ -f "$ENGINE_DIR/$2" ]]; then
+    cat "$ENGINE_DIR/$2.err" >>"$WALK_ERR"
+    cat "$ENGINE_DIR/$2"
+  else
+    printf 'engine: no records for %s\n' "$1" >>"$WALK_ERR"
+  fi
+}
+
 scan_one() {
-  # scan_one <file>
+  # scan_one <file> <scan index>
   local file="$1" rel kind slug line detail target gates
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
@@ -805,8 +830,7 @@ scan_one() {
     E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
     *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
-  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
-    -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
+  done < <(engine_records "$file" "$2")
 }
 
 scan_config() {
@@ -869,9 +893,29 @@ scan_config() {
   done < <(awk -f "$MASK_AWK" -f "$CONFIG_AWK" "$file" 2>>"$WALK_ERR")
 }
 
-for f in ${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"} \
-  ${sh_files[@]+"${sh_files[@]}"} ${ps_files[@]+"${ps_files[@]}"} ${go_files[@]+"${go_files[@]}"}; do
-  scan_one "$f"
+scan_files=(${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"}
+  ${sh_files[@]+"${sh_files[@]}"} ${ps_files[@]+"${ps_files[@]}"} ${go_files[@]+"${go_files[@]}"})
+max_jobs="${CANT_FAIL_SCAN_JOBS:-}"
+[[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)"
+[[ "$max_jobs" =~ ^[1-9][0-9]*$ ]] || max_jobs=1
+if [[ -z "$FILE" && "$max_jobs" -gt 1 && ${#scan_files[@]} -gt 1 ]] && ENGINE_DIR="$(mktemp -d)"; then
+  running=0
+  for i in "${!scan_files[@]}"; do
+    f="${scan_files[$i]}"
+    [[ -f "$f" && -r "$f" ]] || continue
+    if [[ $running -ge $max_jobs ]]; then
+      wait -n
+      running=$((running - 1))
+    fi
+    # The rename marks a finished engine run, whatever its exit status, as the
+    # serial run reads the records either way; a file without one is logged.
+    { engine "$f" >"$ENGINE_DIR/$i.part" 2>"$ENGINE_DIR/$i.err"; mv "$ENGINE_DIR/$i.part" "$ENGINE_DIR/$i"; } &
+    running=$((running + 1))
+  done
+  wait
+fi
+for i in "${!scan_files[@]}"; do
+  scan_one "${scan_files[$i]}" "$i"
 done
 
 # One config per directory, in Playwright's probe order. Everything else the

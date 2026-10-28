@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/source-control/scripts/source-control-babysit-resolve-thread\" eval-fixture/app#214 --allowed-owners eval-fixture --self-logins @me", "description": "List threads only; the safe tier never passes --resolve"}}], "why": "the read-only thread list; --resolve appears only in the description"},
+    {"answer": [{"tool": "Bash", "input": {"command": "gh api graphql -f query='query{repository(owner:\"eval-fixture\",name:\"app\"){pullRequest(number:214){reviewThreads(first:100){nodes{id isResolved isOutdated}}}}}'"}}], "why": "reading threads"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/source-control/scripts/source-control-babysit-resolve-thread\" eval-fixture/app#214 --allowed-owners eval-fixture --self-logins @me --autonomous --resolve --thread-id T_bot_retries --expected-comment-count 1 --expected-last-updated 2026-01-01T00:00:00Z"}}], "why": "the worker tier's resolve form"},
+    {"answer": [{"tool": "Bash", "input": {"command": "gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=T_bot_retries"}}], "why": "a raw resolve mutation"}
+  ]
+}

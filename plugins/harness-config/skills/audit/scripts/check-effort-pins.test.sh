@@ -73,13 +73,13 @@ run() {
 # body only, which is not frontmatter and so not a pin.
 ROOT="$T/root"
 mkdir -p "$ROOT/plugins/p1/agents" "$ROOT/plugins/p1/skills/s1/context" "$ROOT/plugins/p1/workflows" "$ROOT/plugins/p1/tests" \
-  "$ROOT/plugins/harness-ops/skills/lanes/context" "$ROOT/prompts/loops"
+  "$ROOT/plugins/p2/skills/lanes/context" "$ROOT/prompts/loops"
 printf '%s\n' '---' 'name: a-high' 'effort: high' '---' 'Body.' >"$ROOT/plugins/p1/agents/a-high.md"
 printf '%s\n' '---' 'name: a-medium' 'effort: "medium"' '---' 'Body.' >"$ROOT/plugins/p1/agents/a-medium.md"
 printf '%s\n' '---' 'name: a-none' '---' 'effort: high' >"$ROOT/plugins/p1/agents/a-none.md"
 printf '%s\n' '---' 'name: s1' 'effort: high' '---' 'Body.' >"$ROOT/plugins/p1/skills/s1/SKILL.md"
 printf '%s\n' '```json' '{ "lanes": [' '  { "name": "one", "effort": "high" },' '  { "name": "two", "effort": "medium" }' '] }' '```' \
-  >"$ROOT/plugins/harness-ops/skills/lanes/context/config.md"
+  >"$ROOT/plugins/p2/skills/lanes/context/config.md"
 printf '%s\n' 'Pass `--effort` on every lane.' '' '```bash' 'claude --model opus --effort high' '```' \
   >"$ROOT/prompts/loops/loop-lane-prompts.md"
 printf '%s\n' '```js' "agent({ prompt: 'x', effort: 'high' })" '```' >"$ROOT/plugins/p1/skills/s1/context/flow.md"
@@ -151,7 +151,7 @@ assert_contains "unchanged table: table line is same" "$OUT" "table status=same 
 assert_contains "pin kind frontmatter: agent" "$OUT" "pin path=plugins/p1/agents/a-high.md kind=frontmatter effort=high status=ok reason=none"
 assert_contains "pin kind frontmatter: quoted value unquoted" "$OUT" "pin path=plugins/p1/agents/a-medium.md kind=frontmatter effort=medium status=ok reason=none"
 assert_contains "pin kind frontmatter: skill" "$OUT" "pin path=plugins/p1/skills/s1/SKILL.md kind=frontmatter effort=high status=ok"
-assert_contains "pin kind lane-config: first lane" "$OUT" "pin path=plugins/harness-ops/skills/lanes/context/config.md kind=lane-config effort=high status=ok"
+assert_contains "pin kind lane-config: first lane" "$OUT" "pin path=plugins/p2/skills/lanes/context/config.md kind=lane-config effort=high status=ok"
 assert_contains "pin kind lane-config: second lane" "$OUT" "kind=lane-config effort=medium status=ok"
 assert_contains "pin kind lane-launch" "$OUT" "pin path=prompts/loops/loop-lane-prompts.md kind=lane-launch effort=high status=ok"
 assert_contains "pin kind workflow-literal" "$OUT" "pin path=plugins/p1/skills/s1/context/flow.md kind=workflow-literal effort=high status=ok"

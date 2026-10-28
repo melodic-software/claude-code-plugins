@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Doc drift: the export works at /timesheets/export, so I would correct features/weekly-timesheet-export/README.md and ship it on control-skill-upkeep/control-clockwork.",
+      "why": "names the doc drift class at the start of a line"
+    },
+    {
+      "answer": "**Class: Doc drift**. The route moved and still works.",
+      "why": "labels the class in bold"
+    },
+    {
+      "answer": "Triage: **documentation drift**.",
+      "why": "labels the long form"
+    },
+    {
+      "answer": "I classify this as doc drift.",
+      "why": "classes it in prose"
+    },
+    {
+      "answer": "The moved route is doc drift.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "I'd classify the 404 as doc drift.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "This difference is doc drift.",
+      "why": "names the class after is or as"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product regression: /reports/timesheet returns 404, so the entry stays and the failure goes to the report.",
+      "why": "calls a moved route a regression"
+    },
+    {
+      "answer": "Class: product regression, not doc drift. /reports/timesheet returns 404, so the entry stays as written.",
+      "why": "names doc drift only to reject it"
+    },
+    {
+      "answer": "It is not doc drift; the old route is gone, so this is a product regression.",
+      "why": "negates doc drift"
+    },
+    {
+      "answer": "The 404 is not doc drift; the old route is gone.",
+      "why": "negates the class after is"
+    }
+  ]
+}

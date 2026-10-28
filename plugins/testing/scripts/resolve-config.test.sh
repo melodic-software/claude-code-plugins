@@ -406,7 +406,6 @@ erun
 assert_eq "e2e with no layer: every key at its default" \
   "0:e2e_driver	auto	default
 reuse_running_instance	auto	default
-feature_map_dir	.claude/skills/feature-map	default
 browser_driver	playwright-cli	default" "$rc:$out"
 erun --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance='
 assert_eq "an unrendered or empty userConfig value reads as unset" \
@@ -488,76 +487,19 @@ assert_eq "a symlinked overlay is skipped, not followed" "0:e2e_driver	playwrigh
 assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
 rm -f "$REPO/.claude/testing.local.yaml"
 
-# feature_map_dir: a repository path, so only the overlay and testing.yaml set
-# it, and a location that is not the map's own directory is refused.
-fmd() { grep '^feature_map_dir	' <<<"$out"; }
-printf 'feature_map_dir: docs/feature-map/\n' >"$TY"
+# feature_map_dir is retired: a line left in a layer resolves nothing, warns
+# nothing and stops neither mode.
+printf 'feature_map_dir: docs/map\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
+printf 'feature_map_dir: .claude/skills/feature-map\n' >"$REPO/.claude/testing.local.yaml"
 erun
-assert_eq "testing.yaml sets feature_map_dir, trailing slash dropped" "0:feature_map_dir	docs/feature-map	$TY" "$rc:$(fmd)"
-printf 'feature_map_dir: .claude/skills/my-map\n' >"$REPO/.claude/testing.local.yaml"
-erun
-assert_eq "the overlay wins over testing.yaml" "feature_map_dir	.claude/skills/my-map	$REPO/.claude/testing.local.yaml" "$(fmd)"
-rm -f "$REPO/.claude/testing.local.yaml" "$TY"
-printf 'feature_map_dir: docs/map\n' >"$HOME/.claude/testing.yaml"
-erun
-assert_eq "the user-global file is not read for it" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
-assert_contains "and says so" "$err" "$HOME/.claude/testing.yaml: feature_map_dir is a repository path; the user-global layer is not read for it"
-rm -f "$HOME/.claude/testing.yaml"
-erun --user feature_map_dir=docs/map
-assert_eq "feature_map_dir has no userConfig level" 2 "$rc"
-# shellcheck disable=SC2088 # '~/map' is the literal value under test
-for bad in '.claude/skills/verify' 'tools/smoke-verify/' '.claude/skills/run-shop/features' 'run-shop' \
-  '/srv/map' '~/map' 'C:/map' '../map' 'docs/../../map' '.' './' 'docs/$(touch pwned)' 'docs/my map' \
-  '.claude/skills' './.claude/skills' '.claude/skills/' '.Claude/SKILLS'; do
-  printf "feature_map_dir: '%s'\n" "$bad" >"$TY"
-  erun
-  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
-  assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '$bad'"
-done
-assert_eq "and the other keys still resolve" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
-printf 'feature_map_dir: .claude/skills\n' >"$TY"
-erun
-assert_contains "the skills root is refused as the skills root, not a map's own directory" "$err" \
-  "refused value '.claude/skills' (the skills root, not a directory of its own under .claude/skills/)"
-printf 'feature_map_dir: ./\n' >"$TY"
-erun
-assert_contains "./ is refused as the repository root" "$err" "$TY: feature_map_dir: refused value './' (the repository root)"
-for good in .claude/skills/feature-map .claude/skills/my-map; do
-  printf 'feature_map_dir: %s\n' "$good" >"$TY"
-  erun
-  assert_eq "a directory under the skills root, '$good', still resolves" "0:feature_map_dir	$good	$TY" "$rc:$(fmd)"
-  assert_eq "with no warning for '$good'" "" "$err"
-done
-# An empty or '.' segment is refused anywhere but one leading ./ and one
-# trailing /, the same rule as the schema pattern.
-for bad in '././.claude/skills/x' '.claude//skills/x' '.claude/skills/x/.' '.claude/./skills/x'; do
-  printf 'feature_map_dir: %s\n' "$bad" >"$TY"
-  erun
-  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
-  assert_contains "naming the value as written and the segment for '$bad'" "$err" \
-    "$TY: feature_map_dir: refused value '$bad' (an empty or '.' path segment)"
-done
-printf 'feature_map_dir: .claude/skills/x//\n' >"$TY"
-erun
-assert_eq "a doubled trailing slash is an empty segment" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
-assert_contains "and is refused for it" "$err" "(an empty or '.' path segment)"
-for pair in '.claude/skills/feature-map=.claude/skills/feature-map' \
-  './.claude/skills/feature-map-web=.claude/skills/feature-map-web' \
-  '.claude/skills/feature-map/=.claude/skills/feature-map'; do
-  printf 'feature_map_dir: %s\n' "${pair%%=*}" >"$TY"
-  erun
-  assert_eq "one leading ./ or one trailing / is allowed: '${pair%%=*}'" "0:feature_map_dir	${pair#*=}	$TY" "$rc:$(fmd)"
-  assert_eq "with no warning for '${pair%%=*}'" "" "$err"
-done
-printf 'feature_map_dir: .claude/skills/run-shop\n' >"$TY"
-printf 'feature_map_dir: docs/map\n' >"$REPO/.claude/testing.local.yaml"
-erun
-assert_eq "a valid overlay still wins over a refused testing.yaml" "feature_map_dir	docs/map	$REPO/.claude/testing.local.yaml" "$(fmd)"
-assert_eq "and the refused lower layer is never read" "" "$err"
-printf 'feature_map_dir: ../outside\n' >"$REPO/.claude/testing.local.yaml"
-printf 'feature_map_dir: docs/map\n' >"$TY"
-erun
-assert_eq "a refused overlay takes the default, not testing.yaml's value" "feature_map_dir	.claude/skills/feature-map	default" "$(fmd)"
+assert_eq "a leftover feature_map_dir prints only the other keys" \
+  "0:e2e_driver	auto	default
+reuse_running_instance	auto	default
+browser_driver	playwright-cli	default" "$rc:$out"
+assert_eq "and warns nothing" "" "$err"
+run
+assert_eq "nor stops the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
+assert_eq "which prints no record for it" "" "$(records feature_map_dir)"
 rm -f "$REPO/.claude/testing.local.yaml" "$TY"
 
 # browser_driver: one command name, same layer order as e2e_driver.

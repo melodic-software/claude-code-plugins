@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\n",
+      "why": "only the callers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\nplugins/multi-agent/skills/check/scripts/check.sh\n",
+      "why": "adds check.sh, which does not run the resolver"
+    },
+    {
+      "answer": "plugins/multi-agent/scripts/docs-cache.sh\nplugins/multi-agent/scripts/fetch-docs.sh\n",
+      "why": "lists sibling scripts"
+    },
+    {
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\nplugins/multi-agent/scripts/resolve-roles.test.sh\n",
+      "why": "adds the test file the prompt leaves out"
+    },
+    {
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/setup/scripts/setup.test.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\n",
+      "why": "adds a test that reaches the resolver only through setup.sh"
+    }
+  ]
+}

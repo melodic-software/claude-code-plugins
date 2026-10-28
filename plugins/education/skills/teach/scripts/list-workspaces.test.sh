@@ -147,6 +147,28 @@ rc=0
 OUT=$(bash "$SCRIPT" "$PROJ" '${user_config.workspace_root}' '' 2>/dev/null) || rc=$?
 assert_exit "all-placeholder roots exit 2" 2 "$rc"
 
+# --- Case 9b: a `Status: closed` line in MISSION.md marks the workspace `(closed)`;
+# an active mission, a non-closed Status value, and a workspace with no MISSION.md stay unmarked. ---
+
+CLOSED_ROOT="$TEST_TMPDIR/closed-root"
+mkdir -p "$CLOSED_ROOT/$SLUG/topic/sql-joins" "$CLOSED_ROOT/$SLUG/topic/sailing" \
+  "$CLOSED_ROOT/$SLUG/topic/crlf" "$CLOSED_ROOT/$SLUG/topic/drafting" "$CLOSED_ROOT/$SLUG/codebase/no-mission"
+printf '# Mission: SQL Joins\n\nStatus: closed\n\n## Result\n\nWrite the reports.\n' \
+  >"$CLOSED_ROOT/$SLUG/topic/sql-joins/MISSION.md"
+printf '# Mission: Sailing\n\n## Result\n\nThe mission is not closed yet.\n' \
+  >"$CLOSED_ROOT/$SLUG/topic/sailing/MISSION.md"
+printf '# Mission: CRLF\r\n\r\nStatus: closed\r\n' >"$CLOSED_ROOT/$SLUG/topic/crlf/MISSION.md"
+printf '# Mission: Drafting\n\nStatus: closed later\n' >"$CLOSED_ROOT/$SLUG/topic/drafting/MISSION.md"
+rc=0
+OUT=$(bash "$SCRIPT" "$PROJ" "$CLOSED_ROOT") || rc=$?
+assert_exit "closed-mission listing exits 0" 0 "$rc"
+assert_contains "closed mission is marked" "$OUT" "$CLOSED_ROOT/$SLUG/topic/sql-joins/ (closed)"
+assert_contains "CRLF closed mission is marked" "$OUT" "$CLOSED_ROOT/$SLUG/topic/crlf/ (closed)"
+assert_eq "only the two closed missions are marked" "2" "$(printf '%s\n' "$OUT" | grep -c '(closed)$')"
+assert_eq "active mission stays unmarked" "1" "$(printf '%s\n' "$OUT" | grep -cxF "$CLOSED_ROOT/$SLUG/topic/sailing/")"
+assert_eq "a Status value that only starts with closed stays unmarked" "1" "$(printf '%s\n' "$OUT" | grep -cxF "$CLOSED_ROOT/$SLUG/topic/drafting/")"
+assert_contains "workspace with no MISSION.md is still listed" "$OUT" "$CLOSED_ROOT/$SLUG/codebase/no-mission/"
+
 # --- Case 10: --default-root honors xdg-user-dir and the ≠ $HOME guard (Linux path) ---
 # Stubbed xdg-user-dir + fake HOME; skipped on non-Linux platforms where the script takes
 # the Darwin/Windows branch instead of consulting xdg-user-dir.
@@ -199,6 +221,9 @@ if command -v git >/dev/null 2>&1; then
     assert_exit "worktree invocation exits 0" 0 "$rc"
     assert_contains "worktree lists the MAIN repo's workspace" "$OUT" "$DATA/$MAIN_SLUG/codebase/auth-flow/"
     assert_contains "old per-worktree workspace is labeled legacy" "$OUT" "$DATA/$LEGACY_SLUG/topic/old-notes/ (legacy worktree slug)"
+    printf '# Mission: Old notes\n\nStatus: closed\n' >"$DATA/$LEGACY_SLUG/topic/old-notes/MISSION.md"
+    OUT=$(bash "$SCRIPT" "$WORKTREE" "$DATA")
+    assert_contains "closed legacy workspace carries both marks" "$OUT" "$DATA/$LEGACY_SLUG/topic/old-notes/ (closed) (legacy worktree slug)"
   else
     printf 'SKIP: worktree case (git worktree add failed here)\n'
   fi

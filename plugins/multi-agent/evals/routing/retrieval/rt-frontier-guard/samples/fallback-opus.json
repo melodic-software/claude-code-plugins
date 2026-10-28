@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json\nfallback: opus\n",
+      "why": "plain lines"
+    },
+    {
+      "answer": "- **File:** `plugins/multi-agent/scripts/resolve-roles.sh`\n- **Function:** `role_json`\n- **Fallback:** `opus` (`fan=\"${fan:-opus}\"`)\n",
+      "why": "bold labels and the code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json\nfallback: sonnet\n",
+      "why": "wrong model"
+    },
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json\nfallback: inherit, the session model\n",
+      "why": "wrong model"
+    },
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json, which swaps in opus\nfallback: sonnet\n",
+      "why": "opus appears only on another line"
+    }
+  ]
+}

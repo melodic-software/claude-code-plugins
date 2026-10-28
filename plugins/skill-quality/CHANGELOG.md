@@ -3,6 +3,42 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.9] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.31.8] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.31.7] - 2026-10-27
+
+### Changed
+
+- The `mcp-tools:audit` seed probe and its baseline rows move to the `mcp-tools` plugin's `probes/`, so no file under this plugin's `probes/` holds a path into another plugin ([#9927](https://github.com/melodic-software/claude-code-plugins/issues/9927)). `probes/baselines/listing-overlap.json` keeps the `skill-quality:check` rows unchanged. `reference/invocation-probes.md` and the `check` skill name where each seed probe set now lives and say to compare a plugin's score against that plugin's baseline; `score`'s no-resolvable-probe error no longer names `plugins/mcp-tools/...` as a seed path.
+
+## [0.31.6] - 2026-10-25
+
+### Changed
+
+- `measure-invocation.sh score` reads a competitor's listing from `plugins/<plugin>/skills/<skill>`, derived from its `plugin:skill` id, so a probe file needs no `competitor_dirs` entry and holds no path into another plugin ([#9927](https://github.com/melodic-software/claude-code-plugins/issues/9927)). An explicit `competitor_dirs` entry still overrides the derived path, for a rival outside the `plugins/` tree; a competitor whose derived directory does not exist still fails the run. The seed probes drop their now-redundant entries.
+
+## [0.31.5] - 2026-10-25
+
+### Changed
+
+- The settings-token baseline is empty: its one row, for `/evals:plugin-eval`, is gone now that the skill states the fallback for its settings token, so every settings token used as a condition with no fallback fails check 31 when this marketplace checks its own skills.
+
+## [0.31.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.31.3] - 2026-10-23
 
 ### Fixed

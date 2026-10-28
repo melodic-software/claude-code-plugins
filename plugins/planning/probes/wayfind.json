@@ -11,14 +11,6 @@
     "work-items:track",
     "planning:prd"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:brainstorm": "plugins/planning/skills/brainstorm",
-    "work-items:decompose": "plugins/work-items/skills/decompose",
-    "work-items:track": "plugins/work-items/skills/track",
-    "planning:prd": "plugins/planning/skills/prd"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: steps-include-with-undeclared-stops
+description: Drive stops a feature whose include passes a with value the included file does not declare, naming it, before launching anything, although the prefixed ids do not collide
+tags: [drive, steps-files, invented]
+expected_outcome: "The reply says the to- include passes `year`, which pick-month.yaml does not declare among its params (field and month), so the feature does not start: nothing is launched or performed. It names `year` as the undeclared with value, does not drop or ignore it to let the run go ahead, and reports no repeated step id."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files, expand the includes, and say whether the run can start. If it can, list the step ids it would perform, in order, with the field and month each included step uses; if it cannot, say why. Then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-included-steps
+    type: tool_used
+    tool: Read
+    input_match: 'billing/export/pick-month\.yaml'
+    min: 1
+    arm: both
+  - name: names-undeclared-year
+    type: regex
+    flags: i
+    pattern: '(?<!this )(?<!of )`?\byear\b`?(?!\s*\d)[\s\S]{0,120}(?<!no )(?<!nothing )(not declared|undeclared|isn''t declared|does not declare|doesn''t declare|not (a|one of|among|in) (its |the )?(declared )?param|unknown|no year param)|(?<!no )(?<!nothing )(not declared|undeclared|does not declare|doesn''t declare)[\s\S]{0,120}(?<!this )(?<!of )`?\byear\b`?(?!\s*\d)|\|\s*year\s*\|\s*(no|✗|undeclared)'
+    arm: both
+  - name: stops-on-undeclared-with
+    type: llm
+    criteria: "PASS only if the reply (1) names `year` in the to- include's with values as a name pick-month.yaml does not declare, (2) says the feature does not start because of it, with nothing launched or performed, and (3) does not report a repeated step id. FAIL if it lists a run that goes ahead, ignores or drops `year` and expands the steps, adds `year` to the included file itself, reports a repeated id, or says it launched the app."

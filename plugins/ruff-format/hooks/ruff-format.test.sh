@@ -113,8 +113,9 @@ else
   while IFS= read -r pg_arg; do
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
-  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
+  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')
 
   # run_probe <value|__unset__> -> run the row with ruff_format_enabled set to <value> (or unset).
   run_probe() {
@@ -392,13 +393,14 @@ fi
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that never mentions .py costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" ruff-format PostToolBatch ruff-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \
     --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: a batch with no Python costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo

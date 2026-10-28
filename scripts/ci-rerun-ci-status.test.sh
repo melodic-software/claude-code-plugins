@@ -127,6 +127,21 @@ if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"/actions/workflows/pr-require-check
   fi
   exit 1
 fi
+# With STUB_ETAG set, a read of one run carries that ETag; a read sent with
+# If-None-Match on it is answered 304 (headers only, exit 1, as gh does)
+# while STUB_NOT_MODIFIED_FILE holds a count above 0, which drops by one, and
+# otherwise with the last line of STUB_RUN_SEQ.
+if [[ -n "${STUB_ETAG:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\ -H) ]]; then
+  if [[ "$*" == *" -H If-None-Match: $STUB_ETAG" && "$(cat "$STUB_NOT_MODIFIED_FILE")" -gt 0 ]]; then
+    echo $(($(cat "$STUB_NOT_MODIFIED_FILE") - 1)) >"$STUB_NOT_MODIFIED_FILE"
+    printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n' "$STUB_ETAG"
+    echo "gh: HTTP 304" >&2
+    exit 1
+  fi
+  if [[ "$*" == *" -H If-None-Match: "* ]]; then body=$(tail -n 1 <<<"$STUB_RUN_SEQ"); else body=$(head -n 1 <<<"$STUB_RUN_SEQ"); fi
+  printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$STUB_ETAG" "$body"
+  exit 0
+fi
 case "$*" in
 */pulls/*) ok200 "$STUB_PR" ;;
 */actions/workflows/pr-review-hosted.yml/runs* | */actions/workflows/pr-review-security-hosted.yml/runs*)
@@ -315,6 +330,19 @@ check_reran 1 "the polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 2 ]]; then ok "it polled every 60 s"; else fail "polls: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
 check_calls 6 "each poll reads the run only"
 if [[ "$(grep -c '/jobs?' "$TMP_ROOT/log")" == 1 ]]; then ok "the job list is read once"; else fail "job list reads: $(grep -c '/jobs?' "$TMP_ROOT/log")"; fi
+# A poll read again is a conditional GET: a 304 stands for the last 200's
+# body, so the run still reads in progress, and the polls keep their 60 s pace.
+echo 2 >"$TMP_ROOT/not-modified"
+STUB_ETAG='W/"e1"' STUB_NOT_MODIFIED_FILE="$TMP_ROOT/not-modified" \
+  expect "a poll answered 304 reads the run as last read, then re-runs once it finishes" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "the conditionally polled run's ci-status is re-run once"
+if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 4 && "$(grep -c '^sleep' "$TMP_ROOT/log")" == 4 ]]; then ok "two 304s cost two 60 s polls and no retry"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
+check_calls 8 "each poll still sends one read"
+if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 3 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
+  ok "every repeat poll is conditional, and each 304 keeps its reading"
+else
+  fail "conditional reads: $(grep -c 'If-None-Match' "$TMP_ROOT/log"), 304 readings: $(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")"
+fi
 STUB_RUN_SEQ="$(run 9 in_progress)"
 expect "a run still going after the limit fails" 1 "::error::run 9 on $HEAD has not finished after 600s"
 check_reran 0 "nothing is re-run past the poll limit"

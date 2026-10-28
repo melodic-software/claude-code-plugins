@@ -1,5 +1,47 @@
 # Changelog: discovery plugin
 
+## [0.39.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.39.3] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.39.2] - 2026-10-27
+
+### Added
+
+- Outcome eval cases for `blindspot`, `check`, `explore`, `read-docs`, `research` and `trace-intent`, and held-out triggering probes under `probes/` ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
+### Changed
+
+- **`blindspot`, `explore`, `trace-intent`:** shorter skill bodies with the same directives, measured against the previous text on Opus and Sonnet with no loss beyond the 0.05 margin ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
+## [0.39.1] - 2026-10-25
+
+### Changed
+
+- The parent contract points at `/harness-config:audit` for the operator's sandbox configuration instead of linking a file inside that plugin's skill folder.
+
+## [0.39.0] - 2026-10-25
+
+### Added
+
+- **`research`:** restatements cite a claim ID instead of restating the claim. Each sidecar claim carries an `id:` (`M1`, `CI-02`), and the index Summary, the Settled list and the rest of the handoff, catalog and table cells, and sidecar abstracts cite it; a line naming a claim at `HIGH (single source)`, `MEDIUM` or `LOW` carries that label on the same line. The researcher writes to the rule, and the research verifier grades restatements under row 12, or row 7 for a `MEDIUM` or `LOW` claim ([#6070](https://github.com/melodic-software/claude-code-plugins/issues/6070)).
+- **`research`:** `scripts/check-restatement-labels.py` reports every line of a research slice that names a labeled claim's ID without its label. The parent runs it after the acceptance gate and hands what it reports to the verifier; it is advisory, so no exit halts the run ([#6070](https://github.com/melodic-software/claude-code-plugins/issues/6070)).
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+- **`research`:** the outcome gate's result line points at "Effort, source breadth" for its rework bounds instead of saying run-owned rows have no iteration limit ([#6070](https://github.com/melodic-software/claude-code-plugins/issues/6070)).
+
 ## [0.38.0] - 2026-10-24
 
 ### Added

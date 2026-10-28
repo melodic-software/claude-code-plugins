@@ -10,7 +10,7 @@ planning plan and brainstorm views, and the review change digest's author Q&A).
 |---|---|
 | `session_bridge.py` | The `Transport` port, the loopback adapter (`LoopbackWatcher`, `LoopbackHandler`, `start`, `serve`), the client half the app's control script runs, the channels adapter (`ChannelRelay`, `ChannelServer`) and `select_transport` |
 | `watch.sh` | The watcher: long-polls `/api/wait` from a background Bash task and prints one JSON line when there are events |
-| `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then `watch.sh` |
+| `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then the app's `AFTER_APPLY` subcommand when its conf names one (output on stderr, exit code ignored), then `watch.sh` |
 | `test_session_bridge.py` | Tests against a toy app: port, guards, long-poll, lease, event stream, client, `watch.sh` and `wake.sh`, adapter selection, and the channel server over stdio |
 | `view_bridge.py` | The view app: serves a page built by `lib/view-builder.mjs --connect`, takes its actions, and shows the session's replies |
 | `view-bridge.sh` | The view app's control script (`CONTROL` in its `session-bridge.conf`): runs `view_bridge.py` with the first Python 3 that runs |
@@ -45,24 +45,33 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
 - Binds 127.0.0.1 only. `Host` must be `127.0.0.1:<port>` or `localhost:<port>`, and `Origin`, when
   sent, must match.
 - A per-run token from `secrets.token_urlsafe(32)` rides only in the `X-<Name>-Token` header; every
-  POST and `/api/wait` needs it. Every POST must be `application/json`, 1 to `max_body` bytes, a
-  JSON object. `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
+  POST needs it, and so does `/api/wait` unless the app sets a `watch_token`. Every POST must be `application/json`, 1 to `max_body` bytes, a
+  JSON object. An app may set a separate `watch_token` on its hub: it then alone gates `/api/wait` and
+  the lease release, is written to the env file as `WATCH_TOKEN` and to the session json as
+  `watchToken`, and is never served to the page (without one, the page token gates them too).
+  `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
   process's argv, which other local users can read on Linux without `hidepid` and on macOS.
 - On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
   local process can bind the same port and receive requests that carry the token.
-- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt) and
-  `.<name>-session.env` (`PID`, `PORT`, `TOKEN`, `NONCE`) to the data dir, mode 0600.
+- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt,
+  pluginVersion, sourceHash, and `watchToken` when the app sets one) and `.<name>-session.env`
+  (`PID`, `PORT`, `TOKEN`, `PLUGIN_VERSION` when known, `WATCH_TOKEN` when set, `NONCE`) to the
+  data dir, mode 0600. `pluginVersion` and `sourceHash` are `plugin_build()` taken at start: the
+  version in the plugin manifest beside the bridge's folder (null when there is none) and a SHA-256
+  of the non-test `.py` files in that folder. The hub keeps them as `build`.
 - `GET /events` streams `state` frames on every change and a `ping` every 15 s when idle; at most 8
   streams run at once (one more gets 503).
 - `GET /api/wait?after=handled&replayed=<n>&timeout=<s>&watcher=<id>&pid=<pid>` blocks until the
   log holds unhandled events, at most `timeout` seconds (1 to 120, default 90). Events a dead turn
   never handled come back at once when any seq exceeds `replayed`. `after=<seq>` returns the
-  events past a seq instead. The answer is `{seq, timedOut, replayed?, events, note}`.
+  events past a seq instead. The answer is `{seq, timedOut, replayed?, note, events}`, `note`
+  ahead of the events it frames.
 - The first `watcher` id holds an in-memory lease; another id gets 409 `lease held` until the
   lease expires. `POST /api/lease {"action": "release"}` clears it, and a wait the old holder has
   in flight ends with 409 `lease released`. `GET /api/lease` shows the holder. A wait without a
   `watcher` takes no part in leasing.
-- `GET /api/ping` answers `ok`, the app's `identity()`, `pid`, `dataDir` and `consoleWindow`.
+- `GET /api/ping` answers `ok`, the app's `identity()`, `pluginVersion`, `sourceHash`, `pid`,
+  `dataDir` and `consoleWindow`.
 
 ## The watcher
 
@@ -73,16 +82,29 @@ name for `ensure-running`, `stop` and `lease [--release]`. On events it prints o
 `dataDir` and `next` (the re-arm command, `bash '<here>/wake.sh' '<data_dir>'`), stores the seq in
 `.watch-seq` and the replayed seq in `.watch-replay`, and exits 0. It exits 2 when curl, the conf
 or the env file is missing, the token is rejected, or the server stays unreachable, and 3 when
-another watcher holds the lease, its lease was released, or the server was stopped. The watcher id
-is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else `<hostname>-<parent pid>`.
+another watcher holds the lease, its lease was released, or the server was stopped. It exits 4 after
+`WAIT_EMPTY` consecutive waits with no event (default 40, about an hour at the default 90 s wait),
+printing the re-arm command: a watcher orphaned by a crashed session ends, and the server expires.
+A live session re-arms it. There is no parent-pid check, since the parent pid is 1 for a Claude Code
+Bash shell on Windows. The watcher id is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else
+`<hostname>-<parent pid>`. It sends `WATCH_TOKEN` from the env file, else `TOKEN`. Before its first
+poll it prints a `note:` line to stderr when the env file's `PLUGIN_VERSION` differs from the
+version in the plugin manifest beside its folder (a server started before a plugin update), naming
+both and `CONTROL ensure-running`; with no manifest there it compares nothing.
+
+Output lines (the `/api/wait` body and the channel server's messages) are `json.dumps` with
+`ensure_ascii=False`, then U+2028 and U+2029 are escaped (`dumps_line`), so no reader splits a line
+on them.
 
 ## The client half
 
-`ping`, `read_session`, `running`, `port_free`, `interpreter`, `spawn`, `wait_started`,
+`ping`, `read_session`, `running`, `stale_build` (why a session file's recorded build is not this
+plugin copy's, or None), `port_free`, `interpreter`, `spawn`, `wait_started`,
 `kept_port`, `clear_session` (keeps the port so the page's origin survives a restart),
 `set_wait_timeout`, `end_watcher` (signals only this data dir's `watch.sh`, never on Windows),
 `watcher_lease` and `release_lease` are the pieces an app's control script composes into
-`ensure-running`, `stop` and `lease`.
+`ensure-running`, `stop` and `lease`. Each app's `ensure-running` restarts a running server whose
+`stale_build` names a reason, so a plugin update never leaves the old code serving.
 
 ## Delivery as data
 
@@ -98,13 +120,18 @@ carries: an action a page asks for passes the same confirm or permission gate it
 `view-bridge/` inside each adopting plugin, beside a `session-bridge.conf` with `NAME=view` and
 `CONTROL=view-bridge.sh`.
 
-1. `view-bridge.sh --dir <data_dir> ensure-running` starts the server, or reuses a running one, and
-   prints `{url, origin, page, watch}`.
+1. `view-bridge.sh --dir <data_dir> ensure-running` starts the server, or reuses a running one
+   (restarting it when `stale_build` names a reason), and prints `{url, origin, page, watch}`.
 2. The adopter builds its page with `--connect <origin>` into `page`. The builder adds
    `connect-src <origin>` to the page's policy and nothing else (rendered-views rule 3).
-3. The reader opens `url`. The runtime fetches the token from `GET /api/token`, which answers only
-   a request with `Sec-Fetch-Site: same-origin` and a matching `Host` and `Origin`. The token never
-   enters the page's markup, so a saved or published copy holds none.
+3. The reader opens `url`. The runtime fetches the page token from `GET /api/token`, which answers
+   only a request with `Sec-Fetch-Site: same-origin` and a matching `Host` and `Origin`. The token
+   never enters the page's markup, so a saved or published copy holds none. Those checks stop a
+   browser page from another origin; they do not stop a non-browser local client such as curl, which
+   can send the same headers, so any local process can fetch the page token. The bridge assumes a
+   single-user workstation: another OS user on the same machine can reach the loopback port. The
+   page token opens `POST /api/action` only. `/api/wait` and the lease release need the watcher
+   token, which lives in the 0600 session env file and is never served by `/api/token`.
 4. `POST /api/action` takes `{action, picked, choices, notes}`: `action` and every choice are builder
    keys (`^[a-z0-9-]{1,32}$`), `picked` holds builder row ids, and `notes` holds the reader's text,
    at most 20 entries of 4000 characters. Any other field or shape is a 400.
@@ -122,7 +149,8 @@ clears the watcher lease.
 The server also ends on its own once no watcher wait has been in flight for `IDLE_SECONDS` (600, the
 lease timeout; `--idle-seconds` overrides it), and clears its session files. The watcher is a
 background task of the session that armed it, so a session that ends stops polling and its token
-stops working about 600 seconds after its last wait. A session that leaves the watcher down that long
+stops working about 600 seconds after its last wait. (A watcher orphaned by a crash is not that
+case: it exits itself after `WAIT_EMPTY` empty waits, see The watcher.) A session that leaves the watcher down that long
 loses the server too: `watch` then exits 2 asking for `ensure-running`, which starts a server with a
 new token on the same port, and the reader reloads the page.
 
@@ -132,7 +160,7 @@ new token on the same port, and the reader reloads the page.
 |---|---|
 | The page sends only reader input and builder ids | `view-runtime.js` sends picked row ids, option keys and textarea text; `view_bridge.py` refuses anything else |
 | Page fields reach the session as data, never as the user's message | `DATA_NOTE` on every wait answer, delivered as background-task output (Delivery as data) |
-| An unguessable per-session token authenticates every message | `secrets.token_urlsafe(32)` per server run, required on every POST and wait, handed only to same-origin page script, gone when the server stops; the server stops by itself about 600 s after the session's watcher last waited, so the token expires with the session |
+| An unguessable per-session token authenticates every message | `secrets.token_urlsafe(32)` per server run, required on every POST (the page token) and wait (the separate watcher token, never served to the page), handed only to same-origin page script (a browser-only check: a local process can fetch it), gone when the server stops; the server stops by itself about 600 s after the session's watcher last waited, so the token expires with the session |
 | No message triggers a gated action without its gate | The bridge and the view app store and deliver; nothing in either acts on an event |
 
 ## The channels adapter

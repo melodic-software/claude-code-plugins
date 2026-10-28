@@ -115,6 +115,14 @@ assert_eq "api graphql: the resolved thread reads resolved afterwards" "true,fal
 run_gh "$THREADED" api graphql -f 'query=mutation{deleteRepository}' >/dev/null 2>&1
 assert_exit "api graphql: any other query is refused" 1 "$?"
 
+# --outdated-bot-thread serves a bot-authored thread GitHub marks outdated, in argument order.
+BOTTHREAD="$TEST_TMPDIR/botthread"
+make_forge botthread --open --thread T_human --outdated-bot-thread T_bot
+out=$(run_gh "$BOTTHREAD" api graphql -f "query=$THREADS_QUERY" \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes | map("\(.id):\(.isOutdated):\(.comments.nodes[0].author.__typename)") | join(",")' 2>&1)
+assert_eq "api graphql: --outdated-bot-thread is outdated and bot-authored, --thread is neither" \
+  "T_human:false:User,T_bot:true:Bot" "$out"
+
 out=$(run_gh "$THREADED" api user --jq .login 2>&1)
 assert_eq "api user: serves the fixture login" "eval-fixture" "$out"
 

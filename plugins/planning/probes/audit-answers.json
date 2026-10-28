@@ -9,12 +9,6 @@
     "review:quality-gate",
     "discovery:research"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "review:quality-gate": "plugins/review/skills/quality-gate",
-    "discovery:research": "plugins/discovery/skills/research"
-  },
   "queries": [
     {
       "id": "pos-train-01",

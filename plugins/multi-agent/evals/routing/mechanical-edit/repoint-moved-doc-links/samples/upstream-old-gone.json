@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "[routing rubric](../../plugins/multi-agent/reference/routing/rubric.md) |\n\nThis record replaces [the earlier routing record](routing-rubric.md).\n",
+      "why": "the sibling link is not the moved file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[routing rubric](../../plugins/multi-agent/reference/routing-rubric.md) |\n\nThis record replaces [the earlier routing record](routing-rubric.md).\n",
+      "why": "old link left"
+    }
+  ]
+}

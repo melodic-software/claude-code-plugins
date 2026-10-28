@@ -12,15 +12,6 @@
     "songwriting:co-write",
     "songwriting:suno"
   ],
-  "competitor_dirs": {
-    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
-    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
-    "songwriting:song-form": "plugins/songwriting/skills/song-form",
-    "songwriting:workflow": "plugins/songwriting/skills/workflow",
-    "songwriting:practice": "plugins/songwriting/skills/practice",
-    "songwriting:co-write": "plugins/songwriting/skills/co-write",
-    "songwriting:suno": "plugins/songwriting/skills/suno"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -10,7 +10,8 @@
 // a held PR (do-not-merge, or the human-gated label unless another lane's
 // escalation put it on: gate-source.mjs prHold), or one whose current head
 // already carries a pr-unblock check run that handles it (limit-stop.mjs: a
-// limit stop stops counting once its limit resets, a failed run until
+// limit stop, a usage limit or a refused credential, stops counting once its
+// limit resets, and the skip names its class and reset; a failed run until
 // limit-stops-per-head failures stand on the head, and a skip while held
 // once the hold is gone), and dispatches pr-unblock.yml on main for at most
 // maxDispatch of them, lowest PR number first. Authors are left to the lane's
@@ -28,7 +29,9 @@
 // rate-limited run listing defers that pass, not fails it. A head whose check
 // runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
-// head's check-run read, and its UNKNOWN re-queries.
+// head's check-run read, and its UNKNOWN re-queries. A head recorded at the
+// per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
+// recorded.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -38,12 +41,12 @@ import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs"
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
-import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
-import { budgetedFetch } from "./request-budget.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
+import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
+import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -187,6 +190,7 @@ export async function dispatchConflicting({
       continue;
     }
     let handled;
+    let waiting = null;
     try {
       const { held, why } = await prHold({
         labels: (node.labels?.nodes ?? []).map((label) => label?.name),
@@ -196,6 +200,7 @@ export async function dispatchConflicting({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       // Not recorded: the hold can come off with the head unchanged.
       if (held) {
@@ -205,13 +210,36 @@ export async function dispatchConflicting({
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       const options = { limits, failuresRetry: true, heldSkipsRelease: true };
       handled = anyHandles(existing, { now, ...options });
+      // Handled only because a limit stop has not reset: the log names it.
+      waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
       if (permanentlyHandles(existing, options)) {
+        // Recording it means this warning shows once per head.
+        const capped = cappedAt(existing, options);
+        if (capped > 0) {
+          // The newest finished run's stop class, so a cap a credential outage
+          // or a usage limit spent names that cause.
+          const newest = existing.filter((run) => run.status === "completed").sort((a, b) => Date.parse(b.completed_at ?? "") - Date.parse(a.completed_at ?? ""))[0];
+          const stop = newest ? limitStop(newest, limits) : null;
+          log(
+            `::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push${stop ? `; the last run stopped on class=${stop.failureClass}` : ""}`,
+          );
+        }
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(
         `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
+      );
+      continue;
+    }
+    if (waiting) {
+      log(
+        `::notice::#${node.number}: head ${node.headRefOid}'s ${checkName} stopped on class=${waiting.failureClass}; no ${activity} before ${new Date(waiting.resetsAt).toISOString()}`,
       );
       continue;
     }
@@ -265,10 +293,17 @@ export function createGitHubApi({
   fetch = globalThis.fetch,
 }) {
   const [owner, name] = repository.split("/");
+  // Connection: close ends each socket after its answer, so no request goes
+  // out on a pooled one that sat idle through dispatchConflicting's waits and
+  // that GitHub has since dropped. A read that still fails on the network is
+  // sent again (budgetedFetch); a dispatch is not, since it may have started a
+  // run. A request's own Connection: close does not keep it off a pooled
+  // socket, so every request sends it, as enable-auto-merge.mjs does.
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
+    Connection: "close",
   };
 
   async function request(url, method = "GET", body) {
@@ -278,7 +313,7 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -289,7 +324,7 @@ export function createGitHubApi({
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
       }
       rows.push(...(await response.json()));
       url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
@@ -346,8 +381,24 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
-    // A held PR's issue timeline (gate-source.mjs reads its REST shape).
+    // A held PR's issue timeline, review comments and reviews (gate-source.mjs
+    // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
+    listReviewComments: (number) => paginate(`pulls/${Number(number)}/comments`),
+    listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
+    // Every check run on a commit, up to 300, as fix-ci-context reads them
+    // (address-feedback.mjs listCommitCheckRuns).
+    async listCommitCheckRuns(sha) {
+      const runs = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        runs.push(...(data.check_runs ?? []));
+        if ((data.check_runs ?? []).length < 100) {
+          break;
+        }
+      }
+      return runs;
+    },
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -360,6 +411,14 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
+    // One check run's annotations: whether a cancelled job passed its time
+    // limit (infra-failure.mjs timeLimitNoted).
+    async listAnnotations(checkRunId) {
+      if (!Number.isSafeInteger(checkRunId) || checkRunId < 1) {
+        throw new Error("not a check run id");
+      }
+      return request(`${apiUrl}/repos/${owner}/${name}/check-runs/${checkRunId}/annotations?per_page=100`);
+    },
     // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
     // workflow at path (pr-require-checks unless named) on the head that
     // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
@@ -369,8 +428,10 @@ export function createGitHubApi({
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      // A fork PR at the same head SHA lists its runs here too; a newer one
+      // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
-        .filter((run) => run.path === path)
+        .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
       const tested = await testedRun(runs, async (run) => {
         const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
@@ -380,6 +441,27 @@ export function createGitHubApi({
         return jobs.jobs;
       });
       return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
+    },
+    // One run's status and latest jobs, as fix-docs-dispatch.mjs counts a
+    // head's runs; null when the run is gone.
+    async readRunJobs(runId) {
+      if (!RUN_ID.test(String(runId))) {
+        throw new Error("not a run id");
+      }
+      let run;
+      try {
+        run = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}`);
+      } catch (error) {
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+      const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+      if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+        throw new Error(`run ${runId}'s job listing is not one complete page`);
+      }
+      return { status: run.status, jobs: jobs.jobs };
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
@@ -450,17 +532,19 @@ function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's timeline is read at most once a run, however many dispatchers
-// ask.
+// A held PR's timeline, review comments and reviews are each read at most once
+// a run, however many dispatchers ask.
 export function shareTimeline(base) {
-  const seen = new Map();
-  const listTimeline = (number) => {
-    if (!seen.has(number)) {
-      seen.set(number, base.listTimeline(number));
-    }
-    return seen.get(number);
+  const shared = (method) => {
+    const seen = new Map();
+    return (number) => {
+      if (!seen.has(number)) {
+        seen.set(number, base[method](number));
+      }
+      return seen.get(number);
+    };
   };
-  return { ...base, listTimeline };
+  return { ...base, listTimeline: shared("listTimeline"), listReviewComments: shared("listReviewComments"), listReviews: shared("listReviews") };
 }
 
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
@@ -551,6 +635,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
     fixes = await dispatchCiFixes({
       api: client,
+      record,
       runId: env.GITHUB_RUN_ID,
       log,
       appSenderId: Number(env.APP_SENDER_ID),
@@ -572,6 +657,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log,
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
+    maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
     ...gate,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];

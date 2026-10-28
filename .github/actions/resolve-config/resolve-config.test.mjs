@@ -4,18 +4,17 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { issueLaneWebHostsFromBase, main, resolveFromBase } from "./resolve-config.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "resolve-config.mjs");
@@ -29,7 +28,7 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 
-const scratch = mkdtempSync(join(tmpdir(), "resolve-config-"));
+const scratch = tempDir("resolve-config-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
 let counter = 0;
 
@@ -1041,7 +1040,6 @@ test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-r
 });
 
 test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the base config, none when it reads no web", () => {
-  const live = issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") });
-  assert.ok(Array.isArray(live) && live.includes("code.claude.com"), JSON.stringify(live));
+  assert.equal(issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") }), "any");
   assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
 });

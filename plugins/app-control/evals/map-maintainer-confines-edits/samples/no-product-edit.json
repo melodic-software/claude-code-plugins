@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-clockwork/features/start-a-timer/README.md"
+          }
+        }
+      ],
+      "why": "read the map, edited nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/components/TimerRow.tsx",
+            "old_string": "Begin",
+            "new_string": "Start"
+          }
+        }
+      ],
+      "why": "edited a product file"
+    }
+  ]
+}

@@ -13,16 +13,6 @@
     "planning:devils-advocate",
     "planning:plan"
   ],
-  "competitor_dirs": {
-    "overengineering:audit": "plugins/overengineering/skills/audit",
-    "overengineering:delta": "plugins/overengineering/skills/delta",
-    "overengineering:realign": "plugins/overengineering/skills/realign",
-    "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
-    "docs-hygiene:audit-derivability": "plugins/docs-hygiene/skills/audit-derivability",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "planning:plan": "plugins/planning/skills/plan"
-  },
   "queries": [
     {
       "id": "pos-train-01",

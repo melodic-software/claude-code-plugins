@@ -1,5 +1,83 @@
 # Changelog: session-flow plugin
 
+## [1.7.0] - 2026-10-28
+
+### Added
+
+- `/session-flow:audit-sessions now` audits the current session against the sweep's rules, so you can change course before the session ends. It collects only this session, by the id from `${CLAUDE_SESSION_ID}`, and stops without collecting when that id does not expand. It reports the per-session metrics, with each finding over its threshold.
+- `sweep.py --session <id>...` limits metrics and findings to the named sessions. Each row's store p90 still covers every interactive session in scope, and the drift check still reads every record. The machine-wide cache ratio and per-PR churn are reported as not applicable, and `--write-report` is refused.
+
+## [1.6.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.1] - 2026-10-27
+
+### Fixed
+
+- **`/session-flow:audit-sessions` redacts bare `sk-ant-oat01-` tokens and dotted `ghs_` tokens whole ([#9026](https://github.com/melodic-software/claude-code-plugins/issues/9026)).** `redact.py` now runs two of its own rules before the vendored gitleaks rules. Before this, a bare `sk-ant-oat01-` value went unredacted, and the vendored `github-app-token` rule replaced only the first 36 characters of a stateless `ghs_` token containing a dot, so the rest of the token stayed in the text.
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- **`/session-flow:audit-sessions correction`, a judged correction lens ([#5928](https://github.com/melodic-software/claude-code-plugins/issues/5928)).** The session's own model judges each short turn the collector flagged as a correction or not, reading the excerpts as untrusted data. `sweep.py --correction-candidates` prints those excerpts with a stable `turn_id`, and `sweep.py --judged <file>` merges the verdicts into a separate `Judged (unranked)` section whose findings carry `"confidence": "judged"`. They never enter the measured findings, suggestions or exit code, and no agreement figure exists yet. The skill deletes the verdict file after the merge, and `--judged` refuses `--write-report`, so no saved report holds an excerpt.
+
+## [1.5.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.5.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [1.4.5] - 2026-10-25
+
+### Changed
+
+- `audit-sessions`' `redact.py` is now a generated copy of the repository's shared `lib/redact.py`, which the corrections plugin also carries; the code is unchanged and it gains a generated-file header. The header changes the collector digest, so the next `collect` run re-ingests every transcript once.
+
+## [1.4.4] - 2026-10-25
+
+### Changed
+
+- The handoff skill's phase-boundary owner record cites `/implementation:implement-dispatch` by its slash invocation instead of by a path into the implementation plugin's `skills/` folder.
+
+## [1.4.3] - 2026-10-25
+
+### Changed
+
+- The `hooks.stop_ms` basis now says the metric reads every `hookInfos` entry and cannot tell a background (`async` or `asyncRewake`) Stop hook from a blocking one, so where such a hook has an entry the wait overstates the blocking cost.
+
+### Fixed
+
+- `/session-flow:audit-sessions` no longer marks `tokens.main` and `tokens.sub` lost when one message's streamed records differ on input or cache usage. The API's `message_delta` usage is cumulative, so later records of a message can carry higher input and cache counts, and the dedup that keeps each message's last record is still right. The `invariant:usage_split` canary, which counted any such difference, is replaced by `invariant:usage_regress`, which counts a message whose last record falls below an earlier one on input or cache usage, the case where keeping the last record would undercount. Collecting re-ingests every session, since the collector changed.
+
+## [1.4.2] - 2026-10-25
+
+### Fixed
+
+- **A handoff purpose leads the Resumption brief again.** On shape 3 the brief slot told the writer to open with the write time and branch, and the purpose framing landed in Review before you continue, so the purpose argument no longer reliably led the brief or steered Suggested skills. `save_point.py new --purpose <text>` now writes the purpose as the brief's first line, `Purpose: <text>`, and points the brief and Suggested skills slots at it; sections, their order and the resume prompt are unchanged. The handoff skill and the structure doc's write procedure pass it when the invocation carried a purpose.
+
+## [1.4.1] - 2026-10-25
+
+### Changed
+
+- Handoff skill-eval case 9 (`purpose-argument-tailors-emphasis-only`) now ships the prior session state it assumes, as two synthetic fixtures under `evals/fixtures/` (the api-refactor work record and its draft endpoint design), and its prompt says that earlier work exists and names a working-directory memory dir when the run is outside a git work tree. Before, an empty eval sandbox left nothing to hand off, so runs refused or had their write denied instead of exercising the purpose argument. The expectations are unchanged.
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [1.4.0] - 2026-10-25
 
 ### Added

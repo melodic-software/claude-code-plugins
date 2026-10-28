@@ -11,14 +11,6 @@
     "songwriting:song-form",
     "songwriting:diagnose"
   ],
-  "competitor_dirs": {
-    "songwriting:object-writing": "plugins/songwriting/skills/object-writing",
-    "songwriting:workflow": "plugins/songwriting/skills/workflow",
-    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
-    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
-    "songwriting:song-form": "plugins/songwriting/skills/song-form",
-    "songwriting:diagnose": "plugins/songwriting/skills/diagnose"
-  },
   "queries": [
     {
       "id": "pos-train-01",

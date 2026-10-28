@@ -563,6 +563,41 @@ else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
 
+# --- --run puts the CI venv's bin first on PATH, when there is one ----------
+# A suite records the PATH it sees. The fake venv's python imports pytest, which
+# is what the shared lookup (scripts/lib/pytest-python.sh) asks of a venv.
+cat >"$repo/lib/pathprobe.test.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$PATH" >"${MARKER_FILE:-/dev/null}"
+EOF
+printf 'probe\n' >"$repo/lib/pathprobe.sh"
+mkdir -p "$repo/.work/venv/bin"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/.work/venv/bin/python"
+chmod +x "$repo/.work/venv/bin/python"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$repo/.work/venv/bin:"* ]]; then
+  ok "--run puts the CI venv's bin first on PATH for a suite"
+else
+  fail "--run did not put the venv first (rc=$RC): $(cat "$marker")"
+fi
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --jobs 2 lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$repo/.work/venv/bin:"* ]]; then
+  ok "--run --jobs 2 puts the CI venv's bin first on PATH too"
+else
+  fail "--run --jobs 2 did not put the venv first (rc=$RC): $(cat "$marker")"
+fi
+rm -rf "$repo/.work"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/pathprobe.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 && "$(cat "$marker")" == "$PATH" ]]; then
+  ok "--run leaves PATH unchanged with no CI venv"
+else
+  fail "--run changed PATH with no venv (rc=$RC): $(cat "$marker")"
+fi
+rm -f "$repo/lib/pathprobe.sh" "$repo/lib/pathprobe.test.sh"
+
 # --- --run --jobs N hands the same selection to run-plugin-tests.sh ---------
 #
 # The property is that the SET of suites executed does not change with the job
@@ -1085,13 +1120,35 @@ fi
 # vitest, Pester) and cannot be derived from a suite path; a guessed runner
 # either errors as though the suite failed, or exits 0 having run nothing, which
 # is a PASS the change never earned. Exit 3 says "ran the shell ones, these
-# still need their own lane".
-OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run eco/gadget.js 2>&1)"
+# still need their own lane", and --write-not-run lists them for a caller that
+# runs them (scripts/check-affected.sh --tests).
+printf 'stale\n' >"$TMP_ROOT/not-run"
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
 RC=$?
 if [[ "$RC" -eq 3 ]] && contains "$OUT" 'NOT RUN'; then
   ok "--run reports a non-shell suite as NOT RUN and exits 3"
 else
   fail "--run should exit 3 naming the unrun suite (rc=$RC): $OUT"
+fi
+NOT_RUN="$(cat "$TMP_ROOT/not-run")"
+if has_line "$NOT_RUN" eco/gadget.test.js && ! has_line "$NOT_RUN" stale; then
+  ok "--write-not-run replaces the file with the selected suites --run did not run"
+else
+  fail "--write-not-run should list eco/gadget.test.js and drop the old content: $NOT_RUN"
+fi
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run --write-not-run "$TMP_ROOT/not-run" eco/hop/far-runner.test.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 && ! -s "$TMP_ROOT/not-run" ]]; then
+  ok "--write-not-run empties the file when every selected suite ran"
+else
+  fail "--write-not-run should leave an empty file after a shell-only run (rc=$RC): $(cat "$TMP_ROOT/not-run") $OUT"
+fi
+OUT="$(cd "$repo" && bash scripts/affected-tests.sh --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$OUT" 'only applies to --run'; then
+  ok "--write-not-run without --run is a usage error"
+else
+  fail "--write-not-run without --run should exit 2 (rc=$RC): $OUT"
 fi
 
 # --- crossing once does not stop the walk in the destination language ------

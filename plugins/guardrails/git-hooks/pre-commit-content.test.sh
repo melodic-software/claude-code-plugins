@@ -9,6 +9,8 @@
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
+# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
+unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/pre-commit-content.sh"
@@ -172,6 +174,19 @@ $HINT" "$(check "$REPO")"
 expect "--worktree: a tracked gitignored file is judged" 1 "$(rc_of "$REPO" --worktree)"
 git -C "$REPO" rm -q --cached .env
 expect "--worktree: an untracked gitignored file is not judged" "0|" "$(check "$REPO" --worktree)"
+
+# secret-pattern-detection's path options exempt a Write, never a commit: an
+# ignored file under an allowed root, force-added, still blocks with both set.
+new_repo
+mkdir -p "$REPO/notes"
+printf 'notes/\n' >"$REPO/.gitignore"
+printf 'token=%s\n' "$FAKE_GHP" >"$REPO/notes/keys.md"
+git -C "$REPO" add .gitignore
+git -C "$REPO" add -f notes/keys.md
+expect "the Write-time path options do not exempt a commit" 1 \
+  "$(cd "$REPO" && env CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS="$REPO/notes" \
+    CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED=true bash "$CHECK" >/dev/null 2>&1
+  printf '%s' "$?")"
 
 new_repo
 ln -s "token=$FAKE_GHP" "$REPO/link.txt"

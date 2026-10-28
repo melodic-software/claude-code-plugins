@@ -6,7 +6,8 @@
 // the review-digest cascade surface for the policy and thresholds and the
 // rendered-views surface for `medium`. Team files are read from the base commit,
 // never the working tree, so a checked-out pull request cannot configure its
-// own digest. Prints one JSON object. Paths and labels from the pull request
+// own digest. The team file is docs/conventions/review-digest.yaml; the docs
+// block and the dot file are read only when it is absent. Prints one JSON object. Paths and labels from the pull request
 // are compared, never echoed.
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
@@ -14,7 +15,7 @@
 //   digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, isAbsolute } from "node:path";
@@ -32,6 +33,7 @@ export const DEFAULTS = Object.freeze({
 });
 /** The config files themselves: a change to one always fires risk-path, whatever risk_paths says. */
 export const CONFIG_PATHS = Object.freeze([
+  "docs/conventions/review-digest.yaml",
   "docs/conventions/review-digest.md",
   ".claude/review-digest.json",
   ".claude/review-digest.local.json",
@@ -39,6 +41,9 @@ export const CONFIG_PATHS = Object.freeze([
   ".claude/rendered-views.local.md",
   ".gitmodules",
 ]);
+/** The team file, validated by plugins/review/schemas/review-digest.schema.json. The docs block and the dot file are read only when it is absent. */
+const TEAM_YAML = "docs/conventions/review-digest.yaml";
+const YAML_PARSER = fileURLToPath(new URL("../../../lib/yaml-subset.awk", import.meta.url));
 export const MEDIUM_DEFAULT = "artifact";
 const POLICIES = ["off", "offer", "always"];
 const MEDIUMS = ["terminal", "file", "artifact", "hosted"];
@@ -159,11 +164,53 @@ function parseJsonLayer(text, label, path, warnings) {
   return null;
 }
 
-/** The team layer as the base commit holds it: the docs block, else the dot file. */
-function readTeamDigest(base, docsPath, dotPath, warnings) {
+const COUNT_KEYS = ["max_files", "max_changed_lines"];
+
+/**
+ * The team YAML file as a layer object: the records of the shared YAML-subset
+ * parser (`lib/yaml-subset.awk`) folded back to keys, lists and, for the count
+ * keys, whole numbers. A quoted count reads as a number; the schema, not this
+ * reader, is strict about that. A key holding a map reads as an empty object,
+ * which no key accepts.
+ */
+export function parseYamlLayer(text, label, path, warnings) {
+  const parsed = spawnSync("awk", ["-f", YAML_PARSER], { input: text, encoding: "utf8", env: { ...process.env, LC_ALL: "C" } });
+  if (parsed.error) {
+    warnings.push(`${label} ${path}: cannot run awk (${parsed.error.code ?? parsed.error.message}); layer ignored`);
+    return null;
+  }
+  if (parsed.status !== 0) {
+    const failure = (parsed.stdout ?? "").split("\n").find((l) => l.startsWith("error\t")) ?? "error\t?\tunreadable";
+    const [, line, message] = failure.split("\t");
+    warnings.push(`${label} ${path}: line ${line}: ${message}; layer ignored`);
+    return null;
+  }
+  const value = Object.create(null);
+  for (const record of parsed.stdout.split("\n").filter(Boolean)) {
+    const tab = record.indexOf("\t");
+    const [key, ...rest] = record.slice(0, tab).split(".");
+    const raw = record.slice(tab + 1);
+    if (rest.length === 0) value[key] = COUNT_KEYS.includes(key) && /^(0|[1-9]\d*)$/.test(raw) ? Number(raw) : raw;
+    else if (rest.length === 1 && /^\d+$/.test(rest[0])) value[key] = [...(Array.isArray(value[key]) ? value[key] : []), raw];
+    else value[key] = {};
+  }
+  // The parser prints nothing for an empty flow list, which a list key accepts.
+  for (const [, key] of text.matchAll(/^([A-Za-z0-9_-]+):[ \t]*\[[ \t]*\][ \t]*(?:#.*)?\r?$/gm)) {
+    if (!(key in value)) value[key] = [];
+  }
+  return value;
+}
+
+/** The team layer as the base commit holds it: the YAML file, else the docs block, else the dot file. */
+function readTeamDigest(base, yamlPath, docsPath, dotPath, warnings) {
+  const yaml = base.read(yamlPath);
+  if (yaml !== null) {
+    const value = parseYamlLayer(yaml, "team", yamlPath, warnings);
+    return value ? { value, path: yamlPath } : null;
+  }
   const [docs, dot] = [base.read(docsPath), base.read(dotPath)];
   if (docs === null && dot === null && base.ref) {
-    for (const p of [docsPath, dotPath]) {
+    for (const p of [yamlPath, docsPath, dotPath]) {
       if (existsSync(join(base.root, p))) warnings.push(`team ${p}: not on the base commit ${base.ref}; layer ignored`);
     }
   }
@@ -200,7 +247,7 @@ export function resolveDigestConfig(baseOid) {
   const paths = layerPaths(
     findRoot(),
     "review-digest.json",
-    ["docs/conventions/review-digest.md", ".claude/review-digest.json"],
+    [TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json"],
     ".claude/review-digest.local.json",
   );
   const layers = [];
@@ -211,7 +258,7 @@ export function resolveDigestConfig(baseOid) {
   if (paths.root) {
     if (paths.team.length) {
       const base = baseReader(paths.root, baseOid, warnings);
-      const team = readTeamDigest(base, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
+      const team = readTeamDigest(base, TEAM_YAML, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
     if (paths.overlay && existsSync(paths.overlay) && overlayApplies(paths.root, paths.overlay, warnings)) {
@@ -221,6 +268,7 @@ export function resolveDigestConfig(baseOid) {
   }
   for (const layer of layers) {
     for (const [key, value] of Object.entries(layer.value)) {
+      if (key === "$schema") continue;
       if (!Object.hasOwn(VALID, key)) {
         warnings.push(`${layer.label} ${layer.path}: unknown key ${key} is inert`);
       } else if (!VALID[key](value)) {

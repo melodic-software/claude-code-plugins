@@ -6,9 +6,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
 const REPO_ID = "1277265216";
@@ -78,7 +78,7 @@ let root;
 let bin;
 
 before(() => {
-  root = mkdtempSync(path.join(tmpdir(), "request-lane-token-"));
+  root = tempDir("request-lane-token-");
   bin = path.join(root, "bin");
   mkdirSync(bin);
   writeFileSync(path.join(bin, "curl"), FAKE_CURL);

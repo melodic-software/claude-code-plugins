@@ -3,6 +3,97 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.3] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.2] - 2026-10-27
+
+### Fixed
+
+- `/review:security-review` rates a finding CRITICAL (the one severity that holds a pull request for a person) only when it shows who reaches the change, what security impact they get, and that no existing control stops it, each with file and line.
+  - Touching a trust control, a gate file or a hold path no longer counts as a severity by itself.
+  - A widening of who is trusted, of what a token may do, of untrusted reach or of the kill switch still meets the bar by itself, unless a cited control blocks it.
+  - A weakened merge hold, such as one that guards only spend, has to show a security impact like any other finding.
+  - A finding that rests on a configuration value quotes the line it read. A marketplace entry with `"defaultEnabled": false` is therefore read as opt-in (IMPORTANT), not default-on.
+  - Every CRITICAL candidate now gets a refute pass that looks for a blocking control.
+  - A finding the review cannot settle stays CRITICAL.
+
+## [1.6.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
+## [1.5.0] - 2026-10-26
+
+### Changed
+
+- `/review:security-review` rates a trust-control change CRITICAL unless the diff shows it keeps or narrows the control: widening who passes the trusted-trigger check, widening the lanes App token's scope, leaving the kill switch unable to stop a lane, or changing code or rules the token broker loads into its signer process, the pipeline config included. Such a widening is reported even where zizmor's permission-widening deferral would apply. A change that weakens, narrows or removes a merge hold, or widens another trust, untrusted-text or isolation action under `.github/actions/`, is CRITICAL too; widening is judged from the code alone, and a change the lane cannot judge is CRITICAL.
+- A `manifest <field>: flag` on a key that installs or runs code (`hooks`, `mcpServers`, `lspServers`, `monitors`, `experimental.monitors`, `dependencies`) or in `marketplace.json` on a plugin entry added, removed or renamed, an entry's `source` or the marketplace `name` is CRITICAL, so it sets the `critical-security` hold; other manifest flags stay IMPORTANT.
+
+### Removed
+
+- The `trust-gate` hold class: a trusted path with no CRITICAL finding sets no hold.
+
+## [1.4.0] - 2026-10-25
+
+### Changed
+
+- `/review:explain-change` reads its team settings from `docs/conventions/review-digest.yaml`, validated by the new `schemas/review-digest.schema.json`. The `json config` block in `docs/conventions/review-digest.md` and `.claude/review-digest.json` are read only when the YAML file is absent from the base commit, for one release. `/review:setup apply` writes the file when the operator asks to change a digest setting.
+
+## [1.3.6] - 2026-10-25
+
+### Fixed
+
+- `explain-change` says what to do when the view watcher exits 4 after its run of empty waits: re-arm it with the command it prints while the reader is still using the view.
+
+## [1.3.5] - 2026-10-25
+
+### Fixed
+
+- Harden the view bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the wait and lease-release endpoints need a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines.
+
+## [1.3.4] - 2026-10-25
+
+### Changed
+
+- The quality-gate close-out reference cites `/source-control:pull-request`, `/work-items:work` and `/work-items:decompose` by their slash invocations instead of by URLs into those plugins' `skills/` folders, which an install of this plugin alone does not carry.
+
+## [1.3.3] - 2026-10-25
+
+### Added
+
+- Two eval cases check that a CI code review of a full-diff file larger than one Read still finds the bug: `code-review-large-diff-pages-to-end` puts it in an ordinary file in the diff's last third, `code-review-large-diff-middle-file` in a service file mid-diff ([evals](https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/review/evals)).
+
+## [1.3.2] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+- `view-bridge/wake.sh` is regenerated from `lib/session-bridge/wake.sh`, which now runs an optional `AFTER_APPLY` subcommand named in `session-bridge.conf` between `apply` and the watcher ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). This plugin's conf names none, so its wake behaves as before.
+
+### Fixed
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
 ## [1.3.1] - 2026-10-24
 
 ### Fixed

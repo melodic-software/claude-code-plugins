@@ -6,6 +6,7 @@
 - [Discipline liveness: why a token at all](#discipline-liveness-why-a-token-at-all)
 - [The acceptance gate: why it grades the slice path, not the payload](#the-acceptance-gate-why-it-grades-the-slice-path-not-the-payload)
 - [The coverage ledger is graded separately, and its freshness is not bound](#the-coverage-ledger-is-graded-separately-and-its-freshness-is-not-bound)
+- [The restatement check is advisory](#the-restatement-check-is-advisory)
 - [Recovery ladder](#recovery-ladder)
 - [Truncation](#truncation)
 - [What dispatch does and does not buy](#what-dispatch-does-and-does-not-buy)
@@ -87,6 +88,19 @@ against a run that produced none):
    method: it re-derives `published:` with that method, never another one. The per-family methods
    and a serve-time header's exclusion are in
    [`artifact-shape.md`](artifact-shape.md), "Dating an undated living doc".
+
+   **Brief it on restatements.** Row 12 reaches every place the artifact restates an accepted
+   claim: the Summary, the Settled list and the rest of the handoff, catalog and table cells, and
+   sidecar abstracts. When the restatement check ("The restatement check is advisory" below)
+   exits 1, add one prompt line per line it reported, copied from its stderr:
+
+   ```text
+   Restatements: <file>:<line>: <id> (<label>) appears without its label
+   ```
+
+   The verifier reads each named line and grades it under row 12, or under row 7 when the line
+   names a `MEDIUM` or `LOW` claim. The check is advisory, so a reported line is a lead the
+   verifier confirms, not a FAIL the parent records.
 
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
    so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
@@ -263,6 +277,38 @@ Together those mean a re-dispatch into a dirty slice can be graded against a *de
 narrowly but really: Phase 0 rewrites the ledger before any query, so the window is a re-dispatch
 whose new run recorded the corpus as unbounded (and therefore wrote no ledger) while the previous
 run's marked one is still sitting there. Hence the ladder's first move on a discard.
+
+## The restatement check is advisory
+
+Once every gate step in `SKILL.md` has exited 0, and before the verifier is dispatched, run the
+restatement check on the directory of the `index=` path the artifact gate printed, as one plain
+command:
+
+```bash
+"<plugin-root>/scripts/check-restatement-labels.py" <that index's directory>
+```
+
+It reads each sidecar's `claims:` header for every claim at `HIGH (single source)`, `MEDIUM` or
+`LOW` that carries an `id:`, and reports each line of the index and the sidecars, outside those
+headers and the fetch log, that names one of those IDs without the claim's label. The rule it checks
+is [`artifact-shape.md`](artifact-shape.md), "Restatements cite; they do not restate". Read its exit
+status:
+
+- **0**: every line that names a labeled claim carries the label. Its summary line also counts the
+  IDs it found, and `ids=0` means the run wrote no `id:` fields, so there was nothing to check.
+- **1**: each stderr line, `<file>:<line>: <id> (<label>) appears without its label`, is a
+  restatement that dropped its label. Brief the verifier on each one (step 2 of "The orchestration
+  boundary"); on the cost path, with no verifier, record the lines in the outcome-gate result.
+- **2**: the check could not grade the slice: a header it cannot parse, an `id:` outside the
+  claim-ID grammar, one ID declared twice, or a usage error. Record that in the outcome-gate result.
+
+**No exit halts the workflow, and none is a gate FAIL.** The rule's mechanism is inferred from one
+fan-out's verifier rounds, not proven, so the check stays advisory until it runs clean on real
+research slices; then it joins the gate as a fifth step. Until then the verifier, not the script,
+decides whether a reported line fails row 12. Like the applicability checker it ships as Python
+only: where `python3` does not resolve, run it as `python`. An invocation that is denied, declined
+or cannot find an interpreter is recorded in the outcome-gate result as not run, and the run
+continues.
 
 ## Recovery ladder
 

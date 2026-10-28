@@ -116,8 +116,8 @@ audit_noise_follower_is_document_locator() {
 # generically rather than pointing at a prior exchange. Both apostrophe forms
 # are spelled as literal ALTERNATIVES rather than a bracket class: `’` (U+2019)
 # is multibyte, and a bracket class over it breaks under a C locale, where the
-# regex is byte-based. Same reasoning, and same spelling, as the I6_ERE in
-# plugins/harness-config/skills/audit-instructions/scripts/instruction-scan.sh.
+# regex is byte-based. Same reasoning, and same spelling, as the I6 cue pattern of
+# /harness-config:audit-instructions.
 audit_noise_line_has_conversational_antecedent() {
   local line="$1" rest follower
   [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0

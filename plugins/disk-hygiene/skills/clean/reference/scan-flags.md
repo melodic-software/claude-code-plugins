@@ -34,6 +34,15 @@ more explicit `--root-child <name>` flags, after the human clears the confirmati
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection.
 
+A mount point that is not a volume root (a tmpfs `/tmp` on WSL) is refused as a target, and the
+refusal's `hint` names `--root-children`. With that flag and no `--root-child`, the engine lists the
+mount's immediate children under the strict ladder (loose files admitted, nested mounts withheld as
+`nested-mount-point`), sets `mount_point_target: true`, and walks nothing. Under `--quiet` the full
+listing goes to the `--output` path (`listing_path`) and stdout carries `admitted_kinds` and the
+withheld-reason counts. A `--root-child` selection on a mount point is refused: scan an admitted
+child directory as its own target. No snapshot of a mount-point target exists, so no entry reaches
+preview or removal from this listing.
+
 ## `--deep`
 
 `--deep` selects the deep mode of the read-only `inventory` subcommand: every level of the target
@@ -158,6 +167,10 @@ A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match onl
 `*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
 hinted. The scan does not probe processes, so a `common-lock-file` hint stays at confidence `low`
 and whether the lock is stale is proven during investigation (step 2 of the skill).
+
+Every entry also carries `review_rank`, and `scan-complete` carries `ranked_entries`,
+`unranked_entries` and `entries_by_signal`, unchanged by `--quiet`. What each signal reads and why
+an unranked entry has no position: [review ranking](safety-model.md#review-ranking).
 
 The snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
 `scan-complete` stdout carries only `empty_directory_count`.

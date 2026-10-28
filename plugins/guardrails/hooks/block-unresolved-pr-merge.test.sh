@@ -710,6 +710,34 @@ quiet "echo naming an issue before pr merge, with a backtick" 'echo "Issue #8657
 scenario unresolved none green green
 run "gh pr merge inside \$(...) is checked" 'echo $(gh pr merge 42 -R acme/widgets)' 2
 quiet "heredoc commit naming the PR merge gate with a backtick" $'git commit -F - <<\'EOF\'\nfix(guardrails): note the gate\n\n1. PR merge gate uses `jq`\nEOF'
+# #8949: a quoted heredoc body is stdin, so merge text and backticks in it are
+# data; the backtick refusal reads the command with that body cut out.
+quiet "python3 heredoc editing a pulls/*/merge deny rule, with backticks" $'python3 -I - file <<\'EOF\'\nimport json, sys\np = sys.argv[1]\nd = json.load(open(p))\nd["deny"].append("Bash(gh api *pulls/*/merge)")\nnote = "- `Bash(gh api *pulls/*/merge)` is denied"\njson.dump(d, open(p, "w"))\nEOF'
+quiet "python3 heredoc holding merge-subcommand regexes and a backtick" $'python3 - <<\'EOF\'\nimport re\nPATS = [r"gh pr merge 4231", r"gh pr merge --squash 4231"]\n# each matches `gh pr merge 4231`\nEOF'
+quiet "commit -F - message naming a flagged merge in backticks" $'git commit -q -F - <<\'MSG\'\nfix(evals): widen the merge probe\n\nThe probe missed `gh pr merge --squash 4231`, a flag before the number.\nMSG'
+quiet "double-quoted heredoc delimiter, merge text in backticks" $'gh pr comment 7 --body-file - <<"EOF"\nRun `gh pr merge 7 --squash` once checks pass.\nEOF'
+quiet "backslash-escaped heredoc delimiter, REST route in backticks" $'cat <<\\EOF > notes.md\nsee `PUT repos/acme/widgets/pulls/5/merge`\nEOF'
+# The body stays in, and the refusal with it, wherever it may run or the parse
+# may not bound it as bash does; merge text after the body is read as usual.
+unresolvable "heredoc opener inside quotes, then a backtick merge" $'echo "<<\'EOF\'"\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "backtick merge after a quoted heredoc closes" $'cat <<\'EOF\' > notes.md\nnotes\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "backtick merge inside an unquoted heredoc body" $'cat <<EOF > notes.md\ngh pr merge 5`echo 0` -R acme/widgets\nEOF'
+unresolvable "backtick merge in a quoted heredoc fed to bash" $'bash <<\'EOF\'\ngh pr merge 5`echo 0` -R acme/widgets\nEOF'
+unresolvable "backtick merge in a quoted heredoc piped to sh" $'cat <<\'EOF\' | sh\ngh pr merge 5`echo 0` -R acme/widgets\nEOF'
+unresolvable "backtick merge in a quoted heredoc fed to sudo bash" $'sudo bash <<\'EOF\'\ngh pr merge 5`echo 0` -R acme/widgets\nEOF'
+unresolvable "backtick merge in a quoted heredoc fed to source" $'source /dev/stdin <<\'EOF\'\ngh pr merge 5`echo 0` -R acme/widgets\nEOF'
+unresolvable "backtick merge after two heredocs opened on one line" $'cat <<\'A\' <<\'B\'\na\nA\nb\nB\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "<<- body with a tab-indented delimiter, then a backtick merge" $'cat <<-\'X\' > notes.md\n\tnotes\n\tX\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "quoted heredoc opener after a \$( in quotes, then a backtick merge" $'x="$(cat <<\'EOF\'\nfoo " <<\'Z\'\nEOF\n)"\ngh pr merge 5`echo 0` -R acme/widgets\nZ'
+unresolvable "heredoc delimiter closed by a parenthesis, then a backtick merge" $'(cat <<\'E\')\nx\nE\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "<< inside \${...} is no heredoc, then a backtick merge" $'echo ${x:-<<\'E\' }\ngh pr merge 5`echo 0` -R acme/widgets\nE'
+unresolvable "<< inside ((...)) is no heredoc, then a backtick merge" $'((x = 1 <<\'E\' ))\ngh pr merge 5`echo 0` -R acme/widgets\nE'
+unresolvable "escaped quote in a double-quoted delimiter, then a backtick merge" $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "backtick merge in a quoted heredoc fed to sudo -s" $'sudo -s <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
+unresolvable "backtick merge in a quoted heredoc fed to ssh" $'ssh host <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
+unresolvable "backtick merge in a quoted heredoc fed to a globbed command word" $'/bin/ba?h <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
+unresolvable "backtick merge written to a script the command runs" $'cat > m.sh <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE\n./m.sh'
+unresolvable "GraphQL merge mutation read from a quoted heredoc, with a backtick" $'gh api graphql -F query=@- <<\'E\'\nmutation{mergePullRequest(input:{pullRequestId:"PR_x"}){clientMutationId}} # `x`\nE'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0

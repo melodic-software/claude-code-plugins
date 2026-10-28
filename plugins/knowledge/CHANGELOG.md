@@ -4,6 +4,37 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.28.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.28.0] - 2026-10-27
+
+### Added
+
+- `/knowledge:absorb-upstream` reads one outside source, a GitHub repository at a pinned commit or one web page or post, and writes a tracked `docs/upstream/` record. Each row gives what an idea does; the upstream's problem, motivation and goal in our own words, labeled Stated or Inference, with a link at the pin; our matching problem; and a take, adapt, already-have or reject disposition with the reason. The record also carries the pin marker, the recheck trigger and a license notice, holds no quoted or paraphrased upstream text, and the skill stops instead of overwriting an existing record.
+- `upstream_records_dir` in `<home>/knowledge.yaml` (default `docs/upstream`, overridden for one run by `--out`) sets where the record lands, with its schema at `schemas/knowledge.schema.json` and its contract at `reference/config.md`. `/knowledge:setup check` reports the directory and its layer, and names an invalid value.
+
+## [0.27.6] - 2026-10-26
+
+### Changed
+
+- **`docpage-digest` profile:** worked examples for four tagging readings: a pointer that states what its target covers takes a vocabulary tag, a named Agent SDK option or callback is an SDK call, a request-body field of an Anthropic-served endpoint is a request parameter, and Basis anchors come from the rendered page's ids, percent-encoded where an id keeps a typographic apostrophe.
+
+## [0.27.5] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.27.4] - 2026-10-25
 
 ### Changed

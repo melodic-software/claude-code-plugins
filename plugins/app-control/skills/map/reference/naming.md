@@ -18,8 +18,9 @@ it quoted; a title never reaches a shell.
 
 ## Location rules
 
-A control skill lives only at `.claude/skills/control-<slug>/` under the repository root, the one
-place `/app-control:drive` looks. `--dir` is refused when it:
+This skill writes a control skill only to `.claude/skills/control-<slug>/` under the repository
+root; `/app-control:drive` reads it from there as it reads any repository control skill. `--dir` is
+refused when it:
 
 - is absolute: starts with `/`, `\`, `~` or a drive letter such as `C:`;
 - contains `..` anywhere;

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "This lesson is about how agents work in this repository, not about a feature or a drive step, so I write nothing into .claude/skills/control-clockwork/. I report it for /corrections:codify, which places it. Every feature drove as written, so the outcome is clean: no upkeep commit and no pull request.",
+      "why": "not a feature lesson, nothing written, left for codify, clean"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not a feature lesson, so I report it for /corrections:codify, and I also add 'never stage dist/' to the hub's `## Gotchas` so drives see it. That edit ships in the upkeep pull request on control-skill-upkeep/control-clockwork.",
+      "why": "names codify but still writes the lesson into the control skill and opens a pull request"
+    }
+  ]
+}

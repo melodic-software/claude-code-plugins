@@ -10,13 +10,6 @@
     "session-flow:continue-in-background",
     "planning:plan"
   ],
-  "competitor_dirs": {
-    "session-flow:show-options": "plugins/session-flow/skills/show-options",
-    "session-flow:orient": "plugins/session-flow/skills/orient",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
-    "planning:plan": "plugins/planning/skills/plan"
-  },
   "queries": [
     {
       "id": "pos-train-01",

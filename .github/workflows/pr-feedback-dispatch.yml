@@ -22,7 +22,14 @@ name: pr-feedback-dispatch
 # address-feedback works like the reviewer bot's threads. The dispatch job
 # then decides as for a review run, with the newest completed review run at
 # that head as its upstream, so the gate and the broker check the same kind of
-# run either way.
+# run either way. When the run uploaded a pass or pass-notes verdict instead,
+# for a PR still at the head it judged, the job posts nothing and resolves
+# nothing: it reads the PR's review threads, and when a fail-note thread from
+# an earlier head is still open (address-feedback.mjs staleVerifyNotes) it
+# names the head, and the dispatch job sends a pass-only round, whose
+# publish-feedback job resolves those threads as the lanes App (resolving a
+# thread takes more than this job's token holds). A pass with no such thread
+# dispatches nothing.
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
@@ -34,6 +41,15 @@ name: pr-feedback-dispatch
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
 # broker trust with a review run as its upstream.
+#
+# A completed pull_request_target run of pr-merge.yml on a lane branch starts
+# the dispatch job too. That workflow wakes when a label comes off a PR, and
+# both writers that take needs-human off a lanes App PR (a person, and
+# clear-escalations with the lanes App token) start it. A head the human gate
+# skipped at its review completion has no other trigger, so the job decides
+# that head again, through its newest completed review run, with every gate as
+# before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
+# waits in that head's concurrency group and reads its dispatch record.
 #
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
@@ -50,14 +66,17 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge]
     types: [completed]
 
 permissions: {}
 
 # Both review lanes finish on the same head; one listing at a time per head.
 # A pr-verify run's head is main's, so each such run has a group of its own;
-# the sweeps share one.
+# the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
+# otherwise keeps one pending run per group and cancels it for a newer one,
+# so a pr-merge completion, or a review re-run's, could drop the later review
+# lane's run and with it the one rerun-ci-status after both lanes.
 concurrency:
   group: >-
     pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
@@ -65,6 +84,7 @@ concurrency:
     || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
     || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # A pr-verify run of main, which only steps of that run could upload to.
@@ -83,11 +103,16 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read # check out main
-      actions: read # the pr-verify run's fail verdict
-      pull-requests: write # read the PR and post the verdict's notes on it
+      actions: read # the pr-verify run's verdict
+      pull-requests: write # read the PR and its threads, and post a fail's notes on it
     outputs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
+      pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -109,7 +134,7 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      - name: Download the fail verdict
+      - name: Download the verdict
         id: verdict
         if: steps.kill.outputs.proceed == 'true'
         env:
@@ -123,27 +148,28 @@ jobs:
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
-          { . .base/.github/actions/log-api-budget/api-budget.bash && api_budget_wrap_gh github-token; } 2>/dev/null || true
-          # Every FAIL-shaped name, then the ones the readers take (the
-          # grammar babysit_verify_evidence.NAME_RE holds, at most 194
-          # characters, issues ascending and once each). A FAIL-shaped name
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # Every verdict-shaped name, then the ones the readers take (the
+          # grammar write-verdict.mjs NAME and babysit_verify_evidence.NAME_RE
+          # hold: at most 194 characters, the digest optional, `-i` on a FAIL
+          # only, its issues ascending and once each). A verdict-shaped name
           # no reader takes fails the run rather than being skipped.
           listed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-fail"))')
-          names=$(jq -Rr 'select(length <= 194 and test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
+            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-(fail|pass)"))')
+          names=$(jq -Rr 'select(length <= 194 and (test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") or test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-pass(-notes)?(-[0-9a-f]{16})?\\z")) and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
           if [ "$names" != "$listed" ]; then
-            echo "::error::run $RUN_ID uploaded a fail verdict whose name no reader takes"
+            echo "::error::run $RUN_ID uploaded a verdict whose name no reader takes"
             exit 1
           fi
           if [ -z "$names" ]; then
-            echo "::notice::run $RUN_ID uploaded no fail verdict; nothing to post"
+            echo "::notice::run $RUN_ID uploaded no verdict; nothing to post"
             exit 0
           fi
           name=$(head -n 1 <<<"$names")
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/verdict"
           echo "name=$name" >>"$GITHUB_OUTPUT"
 
-      - name: Post the notes
+      - name: Post a fail's notes, or find a pass's stale ones
         id: post
         if: steps.verdict.outputs.name != ''
         env:
@@ -166,12 +192,16 @@ jobs:
     # The lanes App opens PRs only from work-resolve-issue lane branches
     # (work-resolve-issue/report-outcome.mjs), so a review run on any other
     # branch is not on a lanes App PR. A pr-verify run dispatches only once its
-    # notes are on the PR, and a pr-unblock-dispatch.yml run sweeps only when
-    # its schedule started it on main. A job skipped here starts no runner.
+    # notes are on the PR, or, for a pass, once its job found a stale fail-note
+    # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
+    # schedule started it on main. A pr-merge.yml run counts whatever its
+    # conclusion: it skips the lanes App's own unlabel, which still took the
+    # label off. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.post-verify-notes.outputs.head-sha != ''
+      || needs.post-verify-notes.outputs.pass-head-sha != ''
       || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml'
       && github.event.workflow_run.event == 'schedule'
       && github.event.workflow_run.head_branch == 'main'
@@ -180,7 +210,12 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
       && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
       && github.event.workflow_run.conclusion != 'skipped'
-      && github.event.workflow_run.conclusion != 'cancelled') }}
+      && github.event.workflow_run.conclusion != 'cancelled'
+      || github.event.workflow_run.path == '.github/workflows/pr-merge.yml'
+      && github.event.workflow_run.event == 'pull_request_target'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')) }}
     needs: post-verify-notes
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -189,6 +224,12 @@ jobs:
       pull-requests: read # the PR, its comments and review threads
       checks: read # skip a head that already has an address-feedback check run
       actions: write # list pr-unblock runs; dispatch pr-unblock.yml
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+      # Each guarded API call's rate-limit reading, for the job-end api-budget
+      # notice (.github/actions/log-api-budget).
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -236,19 +277,19 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-
 
       - name: Dispatch address-feedback
         id: dispatch
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          API_BUDGET_TOKEN: github-token
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
+          VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
 
       - name: Save the dispatch record for this head
@@ -257,7 +298,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
@@ -319,7 +360,7 @@ jobs:
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
   # but the trusted-actors list and the api-budget library: the token can
-  # only read contents, runs and the PR and re-run a job. Each read's
+  # only read contents, runs and the PR and re-run a job. Each call's
   # rate-limit reading is logged at the end of the job
   # (.github/actions/log-api-budget).
   #
@@ -347,6 +388,10 @@ jobs:
       contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The list the record check reads, from the default branch, never the
       # PR head, and the api-budget library. A failed checkout leaves no list:
@@ -418,18 +463,30 @@ jobs:
           # completion exists only while the other lane is running, and
           # maintenance-reconcile-lost-runs leaves a run where only ci-status
           # failed alone). Any other failure is read three times, then fails.
-          waited=0
+          # A path read again (the poll below) is sent as a conditional GET
+          # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
+          # 200's body back, as request-budget.mjs does. Its reading is kept,
+          # so the notice shows whether GitHub counted it.
+          waited=0 etag_path='' etag='' etag_body=''
           read_api() {
-            local attempt out hdr status left reset after wait
+            local attempt out hdr status left reset after wait cond
             for attempt in 1 2 3; do
-              if out=$(gh api -i "$3"); then
+              cond=()
+              [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
+              if out=$(gh api -i "$3" "${cond[@]}"); then
                 budget "$out"
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
+                etag_path=$3 etag_body=${!1}
+                etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
                 return 0
               fi
               budget "$out"
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
+              if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
+                printf -v "$1" '%s' "$etag_body"
+                return 0
+              fi
               read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }
                 END { print h["x-ratelimit-remaining"] "-", h["x-ratelimit-reset"] "-", h["retry-after"] "-" }')
               left=${left%-} reset=${reset%-} after=${after%-}
@@ -573,6 +630,8 @@ jobs:
             echo "::error::'$JOB_ID' is not a job id."
             exit 1
           fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/rerun" >/dev/null
           echo "Re-ran ci-status (job $JOB_ID)."
 

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "gh pr view --json number,url,author,headRefName"}}], "why": "resolving the current branch's PR"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 \"/plugins/source-control/skills/babysit-prs/scripts/pr_queue_snapshot.py\" --owners eval-fixture"}}], "why": "the engine's snapshot"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/source-control/scripts/source-control-babysit-merge\" eval-fixture/app#214 --allowed-owners eval-fixture --self-logins @me --state-dir /state"}}], "why": "the read-only merge gate"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "git branch --show-current"}}, {"tool": "Bash", "input": {"command": "git status --porcelain"}}], "why": "local git reads only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status", "description": "before gh pr view"}}], "why": "gh named only in the description"}
+  ]
+}

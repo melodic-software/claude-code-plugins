@@ -126,6 +126,16 @@ rc=0
 CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --check >/dev/null 2>&1 || rc=$?
 assert_exit "--check on positive fixtures fails (exit 1)" 1 "$rc"
 
+# --- a parallel whole-tree scan prints the serial run's output -----------------
+serial="$(CANT_FAIL_SCAN_JOBS=1 CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --blocks 2>&1)"
+out="$(CANT_FAIL_SCAN_JOBS=3 CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --blocks 2>&1)"
+assert_finding_count "parallel scan of the positive fixtures yields the 11 findings" 11
+if [[ "$out" == "$serial" ]]; then
+  pass "parallel scan output is byte-identical to the serial scan"
+else
+  fail "parallel scan output is byte-identical to the serial scan" "$(diff <(printf '%s\n' "$serial") <(printf '%s\n' "$out"))"
+fi
+
 # --- negative fixtures: the false-positive guard ------------------------------
 run_scan "$FIX/negative" --check
 assert_exit "--check on negative fixtures passes (exit 0)" 0 "$rc"
@@ -2268,7 +2278,7 @@ assert_exit "a docs/conventions/testing.yaml with a run-e2e key scans" 0 "$rc"
 assert_finding_count "and its scan keys apply" 2
 printf 'feature_map_dir: docs/features\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
 cfg_scan
-assert_exit "a testing.yaml with feature_map_dir scans" 0 "$rc"
+assert_exit "a testing.yaml with the retired feature_map_dir scans" 0 "$rc"
 assert_finding_count "and its scan keys apply" 2
 # The scan refuses a double-quoted value it parses; this one is skipped unread.
 printf 'feature_map_dir: "docs/features\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"

@@ -67,7 +67,7 @@ Everything else resolves in order:
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
 2. **The layered config seam**, the `babysit_loop_*` keys on the `.claude/source-control.md`
-   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). Key table, defaults, and layering semantics:
+   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of `babysit_loop_stop_mode`, `babysit_loop_tier`, `babysit_loop_merge` and `babysit_loop_grace_window_minutes` comes from `docs/conventions/source-control.yaml`, and for one release from the legacy file's `## <key>` H2 when the YAML lacks the key. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
@@ -88,18 +88,19 @@ required `<owner/repo>` argument may name a repository other than the current ch
 lane may launch from a neutral directory), and the config resolver's ambient team layer reads the
 current git root, so for every policy key that can raise behavior (the merge rung and its
 tracked-adoption activation above all), the lane reads the TARGET repository's tracked
-`.claude/source-control.md` from its default branch (the forge's contents read; provider
-reference: [GitHub](../../reference/providers/github/README.md)) whenever the current
-checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
-human-only (fail closed); a caller-side tracked file can never enable merges for a target that did
-not adopt the lane. Full precedence mechanics are owned by the config reference above. Report the
-effective config, which source supplied each value, and which repository's team layer bound the
-merge rung, at lane start.
+`docs/conventions/source-control.yaml` and `.claude/source-control.md` from its default branch (the
+forge's contents read; provider reference: [GitHub](../../reference/providers/github/README.md))
+whenever the current checkout is not that repository. For the four YAML keys, run
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>`, which prints each value with the layer that supplied it and exits 1 when the team layer cannot be read;
+without Python, make the same two reads by hand, YAML first. Unreadable or absent = no tracked
+adoption = merges stay human-only (fail closed); a caller-side tracked file can never enable merges
+for a target that did not adopt the lane. Full precedence mechanics are owned by the config
+reference above. Report the effective config, which source supplied each value, and which repository's team layer bound the merge rung, at lane start.
 
 **Interactive ambiguity**, an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
 unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification.
+the team-tracked layer, `docs/conventions/source-control.yaml`, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification. While the repository still has `.claude/source-control.md`, a merge-rung change goes into its `## babysit_loop_merge` H2 as well: the merge gate takes the lower of the two files (config reference, "The team layer of four keys is the YAML").
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.
@@ -117,9 +118,8 @@ including the merge dimension's policy-floor exception, are owned by the config 
 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** The convention's
 baseline rung, human merge for everything except gate-proven C2-mechanical PRs, is what a
-repository gets by *adopting* the lane in its team-tracked config: while the target repo's tracked
-`.claude/source-control.md` carries no loop-lane keys, the merge dimension resolves to
-`human-only`, and a merge-capable tier from the invocation or any other source never substitutes
+repository gets by *adopting* the lane in its team-tracked config: while neither the target repo's
+tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a loop-lane key, the merge dimension resolves to `human-only`, and a merge-capable tier from the invocation or any other source never substitutes
 for that recorded adoption, the lane merges nothing and reports why. Once tracked adoption is in
 place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
 when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
@@ -179,7 +179,7 @@ step may mutate at the resolved autonomy tier, and where the escalation and no-p
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
 Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 means no merge that cycle (exit 5: an auto-merge is not yet verified).
 
-**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The options below go in managed settings the lane user cannot write; a user settings file sits under a directory the lane user owns, so it serves only an attended lane ([deployment requirements](reference/promotion-evidence-bootstrap.md#deployment-requirements-by-host)); `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal, or an unreadable config, stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
+**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below (keyed by the effective rung, never a work class) and the rest; its only class-named check is the untrusted-provenance hold ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The options below go in managed settings the lane user cannot write; a user settings file sits under a directory the lane user owns, so it serves only an attended lane ([deployment requirements](reference/promotion-evidence-bootstrap.md#deployment-requirements-by-host)); `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal, or an unreadable config, stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
 in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
@@ -193,7 +193,7 @@ the seam needs are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
 report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
 step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
-effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`. The three-arm resolver, what counts as
+effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`: the effective rung's cells (C2 needs `C2-auto-merge`, C3 every C3 cell), not the pull request's class. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
@@ -483,10 +483,10 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   re-invokes the same prompt in the same session, carrying the same explicit authorization) and
   ends when a newly launched invocation omits either token, a `babysit_loop_tier: autopilot`
   config value with no typed pair is that case, and stays at the seam rung.
-- **C4/C5 never merge autonomously, full stop.** Not at `full-autonomy`, not under the
-  explicit-`autopilot` exception, not through any future rung name. This is a floor from the
-  autonomy matrix's own promotion contract, not a `babysit_loop_merge` value, no config edit in
-  this plugin can remove it.
+- **C4/C5 never merge autonomously through this loop.** Not at `full-autonomy`, the `autopilot`
+  exception, or any future rung name. Cycle-shape step 3's rung partition is this floor's only
+  enforcer (the unattended merge gate reads no work class; it holds only untrusted provenance), a
+  floor from the autonomy matrix's promotion contract, not a `babysit_loop_merge` value.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
   autonomously by this loop regardless of work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.

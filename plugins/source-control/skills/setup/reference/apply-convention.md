@@ -36,8 +36,15 @@ absent, since a convention is a team artifact until someone says otherwise.
 | `layer=` | Target path | For |
 |---|---|---|
 | `user` | `~/.claude/source-control.md` | the operator's own preference across every repo |
-| `team` (default) | `REPO_ROOT/.claude/source-control.md` | the shared, tracked convention |
+| `team` (default) | `REPO_ROOT/docs/conventions/source-control.yaml` | the shared, tracked convention |
 | `local` | `REPO_ROOT/.claude/source-control.local.md` | a personal deviation from team policy here |
+
+The team layer is YAML, validated by `plugins/source-control/schemas/source-control.schema.json`
+([config-resolution.md](../../../reference/config-resolution.md), "The config surface"). The user
+and local layers stay markdown, one `## <key>` section per key. A repository's legacy team file
+`REPO_ROOT/.claude/source-control.md` is still read for a key the YAML lacks (the compatibility
+read, one release); `apply layer=team` never writes new keys there, and its migration step (below)
+moves the convention keys it carries into the YAML.
 
 Infer the layer rather than asking when the request names one: "my personal convention" / "on this
 machine" is `local`, "for all my repos" is `user`, "our convention" is `team`. State which layer
@@ -45,7 +52,7 @@ you picked before writing, since writing to the wrong one either fails to reach 
 commits a personal preference to shared history.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, **refuse
-`layer=team` and `layer=local`**. At home those two paths collapse onto
+`layer=team` and `layer=local`**. At home the legacy team path and the user-global path collapse onto
 `~/.claude/source-control.md` (and a home-rooted overlay), so a team write would edit the
 operator's personal config under a team label; outside a repository the tracked/ignored probes
 have no repository to answer against. Name the reason, the same note `parse-branch-issue.sh`
@@ -100,10 +107,12 @@ file.
   value on its first non-blank line: a near-miss heading, a section with no value, or a heading or
   HTML comment as that line also stops resolution
   ([config-resolution.md](../../../reference/config-resolution.md)).
-- **Alone** (no `subject_pattern=`): write or replace only the `## branch_issue_pattern` section of
-  the chosen layer, value in backticks on the first line under the heading (a value that itself
-  contains a backtick goes in a fenced code block instead). Every other section and the preamble stay
-  byte-for-byte as they are. When the target file does not exist yet, write the step 5 template's
+- **Alone** (no `subject_pattern=`): write or replace only the `branch_issue_pattern` key of the
+  chosen layer. For `layer=team` that is a single-quoted scalar line in the YAML
+  (`branch_issue_pattern: '^[^/]+/([0-9]+)-'`), every other key and comment left byte-for-byte as it
+  is. For `user` and `local` it is the `## branch_issue_pattern` section, value in backticks on the
+  first line under the heading (a value that itself contains a backtick goes in a fenced code block
+  instead), every other section and the preamble untouched. When the target file does not exist yet, write the step 5 template's
   preamble plus this one section, never placeholder sections for the other keys. The overlay rule
   above applies: writing `user` or `local`, when the layers below already resolve the same value,
   write nothing and say so.
@@ -239,7 +248,30 @@ With no argument in an interactive session, run the interview:
      omitted section would silently keep inheriting the lower layer's list instead.
      State the one-line reason when this applies ("written explicitly to override the team layer's
      list, not merely to restate the default").
-5. **Write the config.** Materialize the target layer's path with these sections:
+5. **Write the config.** For `layer=team`, update `REPO_ROOT/docs/conventions/source-control.yaml` in
+   place (create it with the `# yaml-language-server: $schema=../../plugins/source-control/schemas/source-control.schema.json`
+   header line when absent), carrying every key already there such as `pr_open_state` and `pre_ready`:
+
+   ```yaml
+   subject_pattern: Conventional Commits   # the keyword, or exactly one anchored regex; never a list
+   type_list: [feat, fix]                  # only when subject_pattern is Conventional-Commits-shaped
+   pr_title_pattern: "Same as `subject_pattern`."
+   trailer_policy: none                    # only when the repo has a trailer convention
+   pr_body_attribution: none               # only when the repo overrides the default line
+   pr_body_required_sections:              # a list of H2 headings, or one keyword: briefing | summary-test-plan | none
+     - Summary
+     - Test plan
+   branch_issue_pattern: '^[^/]+/([0-9]+)-'  # only when set
+   ```
+
+   Drop any key with no content. Quote a regex, and any value holding a colon or a hash sign that follows a space. Then, when the legacy
+   `REPO_ROOT/.claude/source-control.md` still carries one of these keys, carry its value into the YAML
+   (when the YAML lacks it) and remove that `## <key>` section from the legacy file in the same apply;
+   keep its `babysit_*` sections. Validate the result with `scripts/check-convention-yaml.sh --check`
+   where the repository has it, and confirm the layer with
+   `bash "<plugin-root>/lib/convention-key.sh" layer "$REPO_ROOT" <key>`, which must print `yaml`.
+
+   For `layer=user` and `layer=local`, materialize the target layer's path with these sections:
 
    ```markdown
    # source-control configuration
@@ -322,7 +354,7 @@ With no argument in an interactive session, run the interview:
      tracked files, so "no rule exists" and "a rule exists but the file was committed anyway" are
      indistinguishable from its output alone, and they need opposite remediations. Never stage the
      overlay in either case.
-   - **`layer=team`**: `REPO_ROOT/.claude/source-control.md` must be tracked and staged. Verify it
+   - **`layer=team`**: `REPO_ROOT/docs/conventions/source-control.yaml` must be tracked and staged. Verify it
      is actually staged before reporting success; neither `git check-ignore -v` nor
      `git ls-files --error-unmatch` proves this alone. `git check-ignore -v` only reports a matching
      `.gitignore` pattern, staying silent for both a properly tracked file and a plain untracked one.
@@ -352,20 +384,22 @@ With no argument in an interactive session, run the interview:
    # NOT fall through to add/diff on a match: `git add` would silently refuse the ignored path, and
    # `git diff --quiet` on an ignored untracked file exits 0 trivially, so the sequence would report
    # false success with nothing actually staged for teammates.
-   if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/.claude/source-control.md")"; then
-     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH" >&2
+   TEAM_FILE="docs/conventions/source-control.yaml"
+   if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/$TEAM_FILE")"; then
+     echo "STOP: $TEAM_FILE is excluded by .gitignore: $IGNORE_MATCH" >&2
      exit 1
    fi
    # With no ignore match, read the two-character XY status: `??` (untracked) or a non-blank
    # worktree (Y) column — a letter such as `M` in the second position, as in `XM`, `MM`, etc. —
    # means the just-written content is not yet staged.
-   git -C "$REPO_ROOT" status --porcelain -- .claude/source-control.md
+   git -C "$REPO_ROOT" status --porcelain -- "$TEAM_FILE"
    # If unstaged (per the check above), stage it. This covers both the fresh-file case and the
    # reconfiguration case (an already-tracked file whose rewritten content hadn't been staged yet),
    # unlike an index-presence check alone.
-   git -C "$REPO_ROOT" add .claude/source-control.md
+   git -C "$REPO_ROOT" add "$TEAM_FILE"
    # Confirm nothing is left unstaged (exit 0 = worktree matches the index).
-   git -C "$REPO_ROOT" diff --quiet -- .claude/source-control.md
+   git -C "$REPO_ROOT" diff --quiet -- "$TEAM_FILE"
+   # A migration that removed sections from the legacy markdown file stages that file too.
    ```
 
    For `layer=local`, run both probes and branch on the pair:
@@ -408,7 +442,7 @@ With no argument in an interactive session, run the interview:
 
    Either guard stopping the sequence (non-zero exit) halts the apply. Do not report success or
    proceed to step 7. For the team guard (`IGNORE_MATCH` reported), tell the user the matching
-   `.gitignore` pattern and ask them to either fix `.gitignore` so `.claude/source-control.md` is no
+   `.gitignore` pattern and ask them to either fix `.gitignore` so the team YAML is no
    longer excluded, or persist the convention to a different layer. For the `layer=local` guard,
    surface the failure's own remediation, the recursive `.claude/**/*.local.*` ignore line for a missing
    rule or `git rm --cached` for an already-tracked overlay, so the personal overlay does not linger in a
@@ -453,7 +487,7 @@ this skill's part:
   `## convention_source` pointer at all** (the resolver probes the well-known path at rung 2), so the
   common case leaves nothing in agent-rewritable markdown to sever. Only when the repo insists on a
   different location do you declare `## convention_source` with that repo-relative path (forward
-  slashes, no `..`) in `.claude/source-control.md`, the rung-1 relocation override. Write the YAML
+  slashes, no `..`) in the legacy markdown file (the compatibility read), the rung-1 relocation override. Write the YAML
   with machine keys (`subject_pattern`, `pr_title_pattern`, optionally `pr_body_required_sections`,
   `dialect: posix-ere`) plus a **1–2 line** `#` header (what the file is, who reads it), not a
   multi-line preamble; the flat YAML is self-describing and the human document proper lives in
@@ -468,7 +502,7 @@ this skill's part:
   sits at the well-known default path (no pointer) or at a relocated `convention_source` target; a
   broken file or pointer fails closed to no-enforcement by contract, so surface it at write time, not
   at the team's first blocked commit. (2) The neutral file is **staged**, by explicit path, in the
-  same team-write verification (step 6's team guard covers only `.claude/source-control.md`). A
+  same team-write verification (step 6's team guard covers only the team YAML). A
   commit that resolves to a neutral file whose tracked target is absent (an unstaged well-known file,
   or a `convention_source` pointer without its YAML) would hand every fresh checkout the missing-file
   fail-closed path and silently disable enforcement repo-wide. Run the same ignore-check + stage +

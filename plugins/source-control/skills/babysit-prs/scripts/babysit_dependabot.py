@@ -37,8 +37,8 @@ for a reviewed pull request, a verified `[dependabot skip]` fix commit the
 lanes App authored. A commit's author is text whoever creates it chooses, so
 two more checks bind the pull request to Dependabot. `push_refusal()` reads
 who pushed each update of the head branch (the repository activity API) and
-admits only Dependabot, and the github-actions or lanes App push of such a
-commit; a failure there always refuses. `content_refusal()` names any path
+admits only pushes by Dependabot, github-actions or the lanes App, each
+bringing only its pusher's own commits; a failure there always refuses. `content_refusal()` names any path
 beyond the manifests and lock files `.github/dependabot.yml` covers, a
 workflow or action file whose diff changes only `uses:` lines, and the paths
 the version-bump commits touched; the caller makes such a pull request tier
@@ -1027,6 +1027,33 @@ def content_refusal(
     return None
 
 
+def _ancestry(sha: str, by_sha: dict[str, Any]) -> set[str]:
+    """`sha` and its ancestors among the pull request's commits `by_sha`."""
+    found: set[str] = set()
+    todo = [sha]
+    while todo:
+        current = todo.pop()
+        if current in found or current not in by_sha:
+            continue
+        found.add(current)
+        parents = json_object(by_sha[current]).get("parents")
+        if isinstance(parents, list):
+            todo += [str(json_object(p).get("sha")) for p in parents]
+    return found
+
+
+def _pusher(item: Any, lane: str | None) -> str | None:
+    """The login whose push must bring a pull-request commit: Dependabot's,
+    the lanes App's (author login `lane`) or github-actions[bot]'s; None for
+    any other commit."""
+    if _signed(item) == DEPENDABOT_AUTHOR:
+        return DEPENDABOT_AUTHOR[0]
+    login = json_object(json_object(item).get("author")).get("login")
+    if lane and str(login or "").casefold() == lane:
+        return lane
+    return ACTIONS_AUTHOR[0] if _signed(item) == ACTIONS_AUTHOR else None
+
+
 def push_refusal(
     activities: Sequence[Any],
     head: str,
@@ -1038,8 +1065,11 @@ def push_refusal(
     first. Reading back to Dependabot's newest branch creation or force push
     (which rewrites the branch), every push must be by `dependabot[bot]`, or
     by github-actions[bot] (or, for a reviewed pull request, the lanes App)
-    when the commit it pushed is that account's own commit in the pull
-    request; the newest push must have pushed `head`."""
+    when it pushed a commit of the pull request. Every commit a push brought
+    (its `after` and the ancestors its `before` lacks) must be its pusher's
+    own (`_pusher`), every commit of the pull request must arrive in one of
+    those pushes, and the newest push must have pushed `head`. The pr-unblock
+    lane's twin is `pushRefusal` in dependency-classify.mjs."""
     pushes = [
         json_object(a)
         for a in activities
@@ -1048,31 +1078,22 @@ def push_refusal(
     if not pushes or pushes[0].get("after") != head:
         return "push-history-incomplete"
     by_sha = {str(json_object(c).get("sha")): c for c in commits}
+    lane = lane_identity.casefold() if lane_identity else None
+    unattributed = set(by_sha)
     for push in pushes:
         actor = json_object(push.get("actor"))
         login = str(actor.get("login") or "").casefold()
-        tip = by_sha.get(str(push.get("after")))
-        if login == "dependabot[bot]" and actor.get("type") == "Bot":
-            if push.get("activity_type") in ("force_push", "branch_creation"):
-                return None
-            continue
-        if (
-            login == "github-actions[bot]"
-            and tip is not None
-            and _signed(tip) == ACTIONS_AUTHOR
-        ):
-            continue
-        if (
-            lane_identity
-            and login == lane_identity.casefold()
-            and tip is not None
-            and str(
-                json_object(json_object(tip).get("author")).get("login") or ""
-            ).casefold()
-            == login
-        ):
-            continue
-        return f"pushed-by:{login or 'unknown'}"
+        after = str(push.get("after"))
+        brought = _ancestry(after, by_sha) - _ancestry(str(push.get("before")), by_sha)
+        unattributed -= brought
+        dependabot = login == DEPENDABOT_AUTHOR[0] and actor.get("type") == "Bot"
+        if not (
+            dependabot or (after in by_sha and login in (ACTIONS_AUTHOR[0], lane))
+        ) or any(_pusher(by_sha[sha], lane) != login for sha in brought):
+            return f"pushed-by:{login or 'unknown'}"
+        rewrite = push.get("activity_type") in ("force_push", "branch_creation")
+        if dependabot and rewrite:
+            return "push-history-incomplete" if unattributed else None
     # No Dependabot branch creation or force push in reach: the history is cut.
     return "push-history-incomplete"
 
@@ -1121,7 +1142,8 @@ _PROJECT = re.compile(r"([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 
 def in_fix_scope(path: Any, config: Sequence[tuple[str, str]] | None) -> bool:
     """Whether a lanes App fix may change `path`: a fix manifest in a
-    directory of its ecosystem in `config` (the base dependabot.yml's pairs),
+    directory of its ecosystem in `config` (the dependabot.yml pairs the gate
+    reads),
     never under `.github/`. No config admits nothing."""
     text = str(path or "")
     name = posixpath.basename(text)

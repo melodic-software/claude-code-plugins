@@ -51,7 +51,7 @@ leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
@@ -239,7 +239,11 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 
    When preflight's `suite_tools` lists gated tools, add `--allow-tools` with exactly those tools;
    without the grant each is removed from every run, so a case that must run or verify its own
-   work cannot.
+   work cannot. When a selected case's `case.yaml` sets `context.scaffold_script`, read each such
+   script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
+   Without it those cases run against an unstaged workspace, both arms score the same, and their
+   delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -304,11 +308,11 @@ Read in this order. Stopping early at any step is the finding.
    ```
 
    `<method>` is `${user_config.interval_method}`, and an empty or unfilled value there means the
-   default, `normal`, applies; do not mention the setting's state to the user. Pass
-   `--grader-agreement` unless `${user_config.grader_run_twice}` is `false`. Any other method
-   value is passed as is, and the script falls back to `normal`. These values set the command this
-   skill runs; they say nothing about a user's own run. Exit 2 means the file could not be read or
-   an argument was malformed: say which, and report no interval.
+   default, `normal`, applies; do not mention the setting's state to the user. Pass `--grader-agreement`
+   unless `${user_config.grader_run_twice}` is `false` (unexpanded, empty, or any other value means `true`,
+   the manifest default). Any other `interval_method` value is passed as is, and the script falls back to
+   `normal`. These values set the command this skill runs; they say nothing about a user's own run. Exit 2
+   means the file could not be read or an argument was malformed: say which, and report no interval.
 
 Read the noise report's lines this way:
 
@@ -329,9 +333,7 @@ Read the noise report's lines this way:
   changes only this line, the count of cases at or above the threshold. Every score interval, the
   delta line included, uses the normal method paired over cases whatever the setting, because a
   case score is not a proportion of trials. So a normal delta interval under `wilson` is the
-  setting working as designed, and nothing needs checking.
-  [local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)
-  records the decision for a human reader.
+  setting working as designed, and nothing needs checking ([local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)).
 
 Spot-read outputs against verdicts before trusting any delta. For each case whose delta you
 report, open a few runs from each arm (the grader explanations in `results.json`, and the kept
@@ -352,9 +354,8 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- Spoke reach is version-bound: at 2.1.270 and 2.1.287 every with-arm `Read` under the plugin
-  directory was denied, so only the hub reached the model; at 2.1.289 `context/`, `reference/`,
-  `actions/` and `templates/` reads succeeded.
+- Spoke reach is version-bound ([records.md](reference/records.md#spoke-reach)): on 2.1.270 and 2.1.287
+  every with-arm `Read` under the plugin directory was denied, so only the hub reached the model; on 2.1.289 a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded with no grant.
   Check the trace for a denied `Read` before crediting a spoke.
 
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
@@ -423,16 +424,14 @@ pin both, each to a full model ID and never an alias such as `sonnet`, so a mode
 read as a plugin regression; pass `--trust-plugin` because a non-TTY job is otherwise refused; and
 read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
 but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
-reader which one happened and whether the arms were comparable at all. This section's pointer
-record is the CI pins row under [Sources](#sources).
+reader which one happened and whether the arms were comparable at all (pointer: the CI pins row under [Sources](#sources)).
 
 ## Boundary, the built-in `plugin eval` command
 
-- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the
-  JSON and the HTML report. It is gated by the version floor under Preflight, so this skill reads
-  the version and never assumes the command is available. This skill owns what surrounds a spend:
-  the preflight, the no-spend validation, the estimate and ceiling, target routing and the reading
-  discipline. It never re-implements grading and never simulates a run or a score.
+- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the JSON and the HTML report. It is gated
+  by the version floor under Preflight, so this skill reads the version and never assumes the
+  command is available. This skill owns what surrounds a spend: the preflight, the no-spend
+  validation, the estimate and ceiling, target routing and the reading discipline. It never re-implements grading and never simulates a run or a score.
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
 - `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
   validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
@@ -465,7 +464,7 @@ record is the CI pins row under [Sources](#sources).
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
-  and say nothing yet about the cases themselves.
+  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 - A run from inside a Claude Code session keeps its report local and says `kept local`; from a
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
@@ -490,6 +489,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
+| `--scaffold` for a case with a `scaffold_script`, and the zero delta without it | <https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml>; the `--scaffold` row of <https://code.claude.com/docs/en/plugin-evals#command-options>; two discarded passes on Claude Code 2.1.309 and 2.1.310 (issue #9414) | 2026-10-27 | That section changes when a `scaffold_script` runs, or a release note touches `--scaffold` |
 | Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
 | Cost anchors (list-price estimates, this plugin's read-only suite, Claude Code 2.1.287 and 2.1.296) | [records.md, Cost anchors](reference/records.md#cost-anchors) | 2026-10-11 | A release note touches `plugin eval`, the served model changes, or a pass averages more than 0.2 USD per run |
 | Spoke reach | <https://code.claude.com/docs/en/plugin-evals#grant-tools>; kept traces in [records.md](reference/records.md#spoke-reach) | 2026-10-04 | A release note touches `plugin eval` or sandbox permissions, or a kept trace on 2.1.289 or later shows a spoke `Read` denied |

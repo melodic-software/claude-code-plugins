@@ -94,7 +94,7 @@ mention anyone, hide text or read as a hold.
 
 Step `base-merge`. Disabled by `pre_ready` or skipped by `--skip`: skip the merge, but still push any local commits
 first, through `push-branch.sh` as below, so the reviews (which read the PR's diff on the remote)
-and the verify gate (which runs on local HEAD) in 2.5.3 cover the same commit.
+and the verify gate (which runs on the PR worktree's HEAD) in 2.5.3 cover the same commit.
 
 Record the PR's head commit as `HEAD_BEFORE` first
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-head-before-the-refresh)),
@@ -193,27 +193,44 @@ The bullets below are the steps.
 
 **Commit, then record the verify result.** Both run in every repository and every run, whatever
 `pre_ready` or `--skip` says; neither is a step either can name. First commit whatever the reviews
-changed, so the gate and the record cover the head 2.5.4 flips. Then record one result for
-`git rev-parse HEAD`. 2.5.4 reads it: prose cannot stop the flip, a script in the flip's own shell
+changed, so the gate and the record cover the head 2.5.4 flips. Then record one result for the PR
+worktree's HEAD. 2.5.4 reads it: prose cannot stop the flip, a script in the flip's own shell
 command can.
 
+**The PR worktree** is the checkout that has the PR's head branch checked out, which need not be
+the one the shell sits in: a session in the main checkout can run `ready <pr>` for a PR built in
+another worktree. `scripts/pr-worktree.sh --pr "$PR_NUMBER"` prints its path: the worktree
+`git worktree list` shows on the PR's head branch, whose HEAD contains the PR's head commit. A
+shell already in the PR's worktree gets its own top level back, so the gate runs as it would from
+there. When no worktree has the head branch checked out, or the one that has it lacks the head
+commit (another branch of that name, such as a fork's `main` beside this repository's), the script
+exits 2 and each record command below records nothing, so 2.5.4 refuses the flip: check the PR out
+with the forge's PR checkout and run the gate again.
+
 - `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
-  shell command, so `pass` is never typed by hand:
+  shell command, so `pass` is never typed by hand. The gate runs the PR worktree's own
+  `scripts/check-affected.sh` with `CHECK_DATA_ROOT` naming that tree, so the tree checked never
+  depends on the shell's directory, and the record names that tree's HEAD:
 
   ```bash
-  if bash scripts/check-affected.sh --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git rev-parse HEAD)" --result "$R"
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; if CHECK_DATA_ROOT="$PR_TREE" bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
   ```
 
-  Without `scripts/check-affected.sh`, the `if` holds §1.5's ecosystem-native commands joined
-  with `&&`. When an earlier part of §1.5 already failed, record `--result fail` directly. A
-  recorded `fail` stops the flip.
-- `verify` did not run: record `--result skipped` when the `parse-ready-skip.sh` output has a
-  `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line. The report
-  still names the skip or the disabling (2.5.6).
+  Without `scripts/check-affected.sh` in the PR worktree, the `if` holds §1.5's ecosystem-native
+  commands joined with `&&`, run from `$PR_TREE` (`(cd "$PR_TREE" && <commands>)`). When an earlier
+  part of §1.5 already failed, record `fail` directly, with the next bullet's command and
+  `--result fail`. A recorded `fail` stops the flip.
+- `verify` did not run: record `skipped` with the command below when the `parse-ready-skip.sh`
+  output has a `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line.
+  The report still names the skip or the disabling (2.5.6).
+
+  ```bash
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail
+  ```
 
 Completion criterion, for each step that ran: any review evidence the plan asks for is linked,
-the findings of each review that ran are fixed or recorded, and the verify gate is clean on
-`git rev-parse HEAD`. In every run, a result is recorded for `git rev-parse HEAD`: `pass` or
+the findings of each review that ran are fixed or recorded, and the verify gate is clean on the
+PR worktree's HEAD. In every run, a result is recorded for the PR worktree's HEAD: `pass` or
 `fail` from the gate's exit status, or `skipped`.
 
 ## 2.5.4 Flip to ready
@@ -231,14 +248,18 @@ on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
 `lane-push.sh` instead, as the `merge.agent-identity` the repository configures, and refuses when
 the session does not act as it, or when `--pr` names a fork head and no `--dir <checkout>` names
 the checkout to push (loop-lane convention, "Lane write identity"). For a fork head in a lane, add
-`--dir` with the PR's checkout.
+`--dir` with the PR's checkout. With `sync_stale_base` on, a base that moved on overlapping paths
+since 2.5.2 is merged in before the push (see [create.md](create.md) §2.4.1, exit 4 on a
+conflict), and its stderr names the new HEAD. That merge commit is not the head the verify gate
+recorded, so the head wait below can time out and the flip refuses, leaving the PR a draft; run
+`ready` again.
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
 **Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. Take
-the head commit from local `git rev-parse HEAD`, the commit the verify gate recorded, and poll the
+the head commit from the PR worktree's HEAD (2.5.3), the commit the verify gate recorded, and poll the
 forge until the PR's head equals it, up to 60 seconds. When it is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
 push of local commits moved it), wait up to 90 seconds, polling every
 5, for CI runs to exist for the new head commit and their count to hold steady across two polls.

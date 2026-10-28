@@ -66,8 +66,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
+import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
+import { retryFetch } from "./retry-fetch.mjs";
+
+export { segments } from "./protected-paths.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
 // A compressed binary patch inflates: any one patched blob, and all of them
@@ -84,51 +89,36 @@ const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
-// A path's segments in lower case with `.`, `..` and empty segments resolved,
-// so `.GitHub/x` and `a/../.github/x` read as `.github/x`.
-export function segments(path) {
-  const out = [];
-  for (const part of String(path).toLowerCase().split("/")) {
-    if (part === "..") {
-      out.pop();
-    } else if (part !== "" && part !== ".") {
-      out.push(part);
-    }
-  }
-  return out;
-}
-
-const PATH_RULES = {
-  // The lane token has no workflows permission, so GitHub refuses the push.
-  "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
-  // The three places GitHub reads a CODEOWNERS file from
-  // (docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners,
-  // as of 2026-10-22; recheck when that page names another location).
-  codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
-  gitmodules: (s) => s.at(-1) === ".gitmodules",
-  settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
+// Path refusals a row may add to the universal set, in any case and through
+// any .. segment; rename-into-refused does not read them.
+const ROW_PATH_RULES = {
+  // A path under a skills/ directory at any depth.
+  skills: (s) => s.slice(0, -1).includes("skills"),
+  "skill-md": (s) => s.at(-1) === "skill.md",
 };
-const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
-const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
+const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
 
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and the `optional` ones, which apply only
+// to a row that names them; any match refuses the whole patch, and `kind`
+// picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
-  // A backslash reads as a directory separator on Windows checkouts.
-  backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
-  "github-workflows": { kind: "protected-path", test: pathRule("github-workflows") },
-  codeowners: { kind: "protected-path", test: pathRule("codeowners") },
-  gitmodules: { kind: "protected-path", test: pathRule("gitmodules") },
-  settings: { kind: "protected-path", test: pathRule("settings") },
+  backslash: PROTECTED_REFUSALS.backslash,
+  "github-workflows": PROTECTED_REFUSALS["github-workflows"],
+  codeowners: PROTECTED_REFUSALS.codeowners,
+  gitmodules: PROTECTED_REFUSALS.gitmodules,
+  settings: PROTECTED_REFUSALS.settings,
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
-  "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
+  "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
+  skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
+  "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
 };
 
-// The names of the refusals that match one changed entry; by default all.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default all but
+// the optional ones, which apply only to a row that names them.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 // GitHub prefixes from
@@ -235,12 +225,15 @@ export const TARGETS = {
     movedHead: true,
     checkRef: () => "",
     // The push goes to this repository's branch only: a fork head throws.
+    // A body hold (merge-holds.mjs BODY_HOLD) stops a push to a PR the lanes
+    // App did not open; on the App's own PR it holds the merge, not a fix.
     async held(api, number, { holds, repository }) {
       const [pull, labels] = [await api.getPull(number), await api.listLabels(number)];
       if (pull.head?.repo?.full_name !== repository) {
         throw new Error(`the PR head is ${pull.head?.repo?.full_name ?? "unreadable"}, not ${repository}; the patch is not pushed`);
       }
-      return pull.draft !== false || labels.some((label) => holds.has(label.name));
+      const lanesApp = pull.user?.type === "Bot" && pull.user?.login === LANES_APP_LOGIN;
+      return pull.draft !== false || labels.some((label) => holds.has(label.name)) || (!lanesApp && BODY_HOLD.test(String(pull.body ?? "")));
     },
     async ready(api, ref, head) {
       const tip = await api.readBranch(ref);
@@ -293,7 +286,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !REFUSALS[name].optional && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
@@ -436,7 +429,10 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   if (names.length !== 1 || names[0] !== "patch.diff" || patchProblem(join(patchDir, "patch.diff"), patchSha256)) {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
-  return decide(true, "", escalated ? reasonFor(row, "escalated") : "");
+  // A written patch pushes a new head, and the report's escalations are about
+  // the old one: the new head's CI decides. A red new head gets its own run,
+  // which escalates what it cannot fix, and the round cap ends the rounds.
+  return decide(true, "", "");
 }
 
 // git with an allowlisted environment, so nothing the job's env or the
@@ -907,13 +903,19 @@ export async function push({
 }
 
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
-// or committer as the App.
-export function createGitHubApi({ token, repository, apiUrl, fetch = globalThis.fetch }) {
+// or committer as the App. A read, and a write marked safeToResend, is sent
+// again after a network error or a 5xx (retry-fetch.mjs). A blob, a tree and
+// a commit are used only by the sha their answer names, and a ref update
+// carries the sha it sets, so each repeats to the same state. createRef is
+// sent once: a resend after a create that landed answers 422.
+export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = globalThis.fetch, sleep }) {
+  const fetch = retryFetch(rawFetch, { sleep });
   const repo = `${apiUrl}/repos/${repository}`;
   const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
-  async function request(path, method = "GET", body) {
+  async function request(path, method = "GET", body, safeToResend = false) {
     const response = await fetch(`${repo}/${path}`, {
       method,
+      safeToResend,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -934,11 +936,11 @@ export function createGitHubApi({ token, repository, apiUrl, fetch = globalThis.
     },
     // From git/ref, which GET /pulls can lag behind after a push.
     readBranch: async (ref) => (await request(`git/ref/heads/${refPath(ref)}`)).data.object.sha,
-    createBlob: async (content) => (await request("git/blobs", "POST", { content, encoding: "base64" })).data.sha,
-    createTree: async (baseTree, tree) => (await request("git/trees", "POST", { base_tree: baseTree, tree })).data.sha,
-    createCommit: async (message, tree, parents) => (await request("git/commits", "POST", { message, tree, parents })).data.sha,
+    createBlob: async (content) => (await request("git/blobs", "POST", { content, encoding: "base64" }, true)).data.sha,
+    createTree: async (baseTree, tree) => (await request("git/trees", "POST", { base_tree: baseTree, tree }, true)).data.sha,
+    createCommit: async (message, tree, parents) => (await request("git/commits", "POST", { message, tree, parents }, true)).data.sha,
     async updateRef(ref, sha, force) {
-      await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force });
+      await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force }, true);
     },
     // GitHub answers 422 when the ref already exists.
     async createRef(ref, sha) {

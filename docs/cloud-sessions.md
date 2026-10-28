@@ -266,7 +266,7 @@ from the two together (see
   descriptions at their source is the fix, and
   [#6846](https://github.com/melodic-software/claude-code-plugins/issues/6846) owns it, including
   lowering this fraction again once the trimmed listing is re-measured. Until it lands, a
-  second report-only CI step measures this repository's skills at the configured fraction on a
+  scheduled report-only CI step measures this repository's skills at the configured fraction on a
   750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, which
   overflows at 750,000 tokens already.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
@@ -452,9 +452,11 @@ add them.
   [Context7 plans](https://context7.com/plans), [Ref pricing](https://docs.ref.tools/usage/pricing),
   [Firecrawl pricing](https://www.firecrawl.dev/pricing).
   The owner confirmed on 2026-10-24 that this fleet's Context7 and Ref accounts meet the rule
-  ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6395023400)).
-  The Firecrawl and Perplexity accounts are not yet confirmed; the account owner adds them only
-  after confirming they meet the rule.
+  ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6395023400)),
+  and later that its Firecrawl account does
+  ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6398682964)).
+  The Perplexity account is not yet confirmed; the account owner adds it only after confirming it
+  meets the rule.
 - **Perplexity.** Its connector bills tool calls to the API organization chosen at sign-in, not a
   consumer subscription ([Perplexity MCP server](https://docs.perplexity.ai/guides/mcp-server));
   the same cost rule applies to that organization's billing.

@@ -1,6 +1,7 @@
 # Project-type recipes
 
-Used when the project has no `control-<app>` skill and the bundled `run` skill does not resolve.
+Used when no project or plugin `control-<app>` skill is found and the bundled `run` skill does not
+resolve.
 Find the launch command, the port or entry point and the data from the repository's own docs and
 manifests; name no stack the repository does not use. Report the line
 `No control skill: drive used project-type recipe (<type>).`

@@ -1,0 +1,5 @@
+steps:
+  - id: clear-month-filter
+    action: click button "Clear filters"
+  - id: reload-billing
+    action: goto /billing

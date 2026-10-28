@@ -12,15 +12,6 @@
     "harness-ops:audit-plugin-landscape",
     "bugs:write"
   ],
-  "competitor_dirs": {
-    "plugin-quality:setup": "plugins/plugin-quality/skills/setup",
-    "plugin-quality:report": "plugins/plugin-quality/skills/report",
-    "skill-quality:check": "plugins/skill-quality/skills/check",
-    "mcp-tools:audit": "plugins/mcp-tools/skills/audit",
-    "review:code-review": "plugins/review/skills/code-review",
-    "harness-ops:audit-plugin-landscape": "plugins/harness-ops/skills/audit-plugin-landscape",
-    "bugs:write": "plugins/bugs/skills/write"
-  },
   "queries": [
     {
       "id": "pos-train-01",

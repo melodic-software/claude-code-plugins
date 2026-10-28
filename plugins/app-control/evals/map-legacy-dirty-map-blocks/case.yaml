@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: map-legacy-dirty-map-blocks
+description: Refresh of a tracked legacy feature map holding uncommitted edits refuses the conversion, ends blocked and writes, moves and switches nothing
+tags: [map, refresh, migration, invented]
+expected_outcome: "The reply finds the tracked legacy map has an uncommitted change in .claude/skills/feature-map/start-a-timer.md, ends the refresh blocked before the conversion with nothing written, moved or switched, and tells the person to commit or stash that change first. It does not plan to discard, restore or overwrite the change."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/feature-map. Read the files under that directory, but do not drive the app, switch branches, write, move or commit anything in this session. There is no shell: `git status --porcelain` from the repository root prints ` M .claude/skills/feature-map/start-a-timer.md` and nothing else, and the decide step prints `run`. Tell me what the refresh does next, the outcome, and what you would leave for a person, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: says-blocked
+    type: regex
+    pattern: '\bblocked\b'
+    flags: i
+    arm: both
+  - name: refuses-dirty-conversion
+    type: llm
+    criteria: "PASS only if the reply (1) ends the refresh with the outcome blocked because the tracked legacy map file .claude/skills/feature-map/start-a-timer.md has uncommitted changes, (2) does so before converting: no branch switch, no move of the legacy files, no write into .claude/skills/control-clockwork-web/, and (3) leaves the person to commit or stash that change before a refresh converts the map. FAIL if it plans the conversion, the upkeep branch switch or the move anyway, plans to discard, reset, restore or overwrite the uncommitted change, or calls the outcome changed or clean."

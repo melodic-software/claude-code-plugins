@@ -1,40 +1,54 @@
-# test-scope: .github/scripts/pr-merge/merge-holds.mjs
+# test-scope: .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
-run here under node) cover the merge gate's HIGH floor, cost paths and
-manifest review, so a lane pull request native auto-merge merges cannot skip
-them. The gate's other cost reasons (Pulumi project files, workflow and
-pipeline lines) are not mirrored: the lanes App's token never carries the
-`workflows` permission (request-lane-token checks the grant is contents,
-pull-requests, issues and at most actions), so no lanes App push changes a
-workflow file. That covers lanes App pushes only: another identity with
-write access can still push a workflow change after auto-merge is armed.
-The repository's pipeline config is a hold path.
+run here under node) cover the merge gate's cost paths, so a lane pull
+request native auto-merge merges cannot skip them. The gate's other cost
+reasons (Pulumi project files, workflow and pipeline lines) are not mirrored:
+the lanes App's token never carries the `workflows` permission
+(request-lane-token checks the grant is contents, pull-requests, issues and
+at most actions), so no lanes App push changes a workflow file. That covers
+lanes App pushes only: another identity with write access can still push a
+workflow change after auto-merge is armed.
 
-- The floor: every `babysit_risk.HIGH_FLOOR` glob is a hold path glob
-  (`HOLD_PATH_FLOOR`), and `pathHold` holds the paths `glob_match` matches
-  over that floor, case variants included.
+- The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
+  `HOLD_PATH_CLASSES` is `babysit_risk.FLOOR_CLASSES`, glob and class alike,
+  `HOLD_PATH_FLOOR` is `babysit_risk.HIGH_FLOOR` (its `trust` and `gate`
+  globs), and `pathHold` holds, with no configured glob, exactly the paths
+  `glob_match` matches over that, case variants included; an `enforcement`
+  path is the gate's (`review-path:`), and a trusted path off the floor holds
+  only for a configured glob. Every module the floor actions load is on the
+  floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
+  the Python that decides the holds, `babysit_merge*` as `gate`. The review
+  callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
+  match every floor entry, whatever its class.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
-- The manifests: `manifestChanges` finds what `babysit_risk._manifest_changes`
-  finds for each change, so ci-status holds what the gate's manifest review
-  holds and passes what it passes.
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
   pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
-  to the same heads: the decided head, or a later one with the same net
-  change against the base branch (`costMarker`, `sameNetChange`).
+  to the same heads: the decided head, read from the review lanes' check-run
+  notices (`noticedHead`, `_noticed_head`) while the head branch's push
+  history shows a run of every review lane on each head pushed since it
+  (`unranHead`, `unran_head`), or a later one with the same net change
+  against the base branch (`sameNetChange`).
+- The high-path lift: `pathLifters` over `fromRest` and
+  `babysit_merge_policy.path_lifters` name the same trusted approvers of the
+  head on the same REST review lists.
 """
 
 from __future__ import annotations
 
+import ast
+import fnmatch
 import json
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import unittest
+from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -45,13 +59,23 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
-# The floor actions' entry points: every module they load is code main runs
-# with their verdict, so the floor holds it too.
+# The floor actions' entry points and the floored scripts that enforce the
+# floor (owner decision Q-ENFORCE (A)): every module they load is code main
+# runs with their verdict, so the floor holds it too.
 FLOOR_ENTRIES = (
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/resolve-config/resolve-config.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
 )
-IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
+# A relative import, or a module-relative file a module reads at load
+# (`new URL("./x.json", import.meta.url)`): data such as a routing table
+# decides as much as the code that reads it.
+IMPORT = re.compile(
+    r"""(?:(?:from|import)\s*\(?|new\s+URL\()\s*["'](\.{1,2}/[^"']+)["']"""
+)
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -66,20 +90,57 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
             todo.append(file.parent / spec)
     return sorted(seen)
+
+
+# The Python that decides the holds: babysit_risk, and every script a floored
+# JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
+# babysit-prs/scripts/ they import.
+SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
+PY_RUN = re.compile(r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]""")
+
+
+def python_closure(js_files: list[str]) -> list[str]:
+    todo = [SCRIPTS / "babysit_risk.py"]
+    # A floor entry for a script not in this tree yet runs nothing here.
+    floored = {g for g in risk.FLOOR if g.endswith(".mjs") and (ROOT / g).is_file()}
+    for name in sorted(floored | set(js_files)):
+        for path in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
+            todo.append(ROOT / path)
+    seen: set[str] = set()
+    while todo:
+        file = todo.pop()
+        name = file.relative_to(ROOT).as_posix()
+        if name in seen:
+            continue
+        seen.add(name)
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                names = [node.module]
+            else:
+                continue
+            todo.extend(
+                SCRIPTS / f"{n}.py" for n in names if (SCRIPTS / f"{n}.py").is_file()
+            )
+    return sorted(seen)
+
+
 NODE = """
-import { COST_PATHS, HOLD_PATH_FLOOR, costHold, pathHold } from %s;
-const paths = JSON.parse(process.argv[1]);
+import { COST_PATHS, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, REVIEW_FLOOR, costHold, pathHold } from %s;
+const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   costPaths: COST_PATHS,
+  classes: HOLD_PATH_CLASSES,
   floor: HOLD_PATH_FLOOR,
+  review: REVIEW_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
+  configured: paths.map((path) => pathHold([path], globs) !== null),
 }));
 """
-NODE_MANIFEST = """
-import { manifestChanges } from %s;
-console.log(JSON.stringify(JSON.parse(process.argv[1]).map(manifestChanges)));
-"""
+# A configured denied-paths list, for the presence case.
+CONFIGURED = ["Docs/Conventions/PR-Pipeline.yaml", ".github/workflows/**"]
 PATHS = [
     "plugins/multi-agent/reference/defaults.yaml",
     "Plugins/Multi-Agent/Reference/Defaults.YAML",
@@ -107,6 +168,16 @@ PATHS = [
 FLOOR_PATHS = [
     ".github/actions/resolve-config/resolve.mjs",
     ".github/actions/Resolve-Config/resolve.mjs",
+    ".github/actions/request-lane-token/action.yml",
+    ".github/actions/Request-Lane-Token/index.mjs",
+    ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/CHECK-KILL-SWITCH/action.yml",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/Rate-Guard.MJS",
+    ".github/actions/log-api-budget/action.yml",
+    ".github/actions/log-api-budget/rate-guard.test.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
+    ".github/actions/log-api-budget/Rate-Limits.JSON",
     ".github/CODEOWNERS",
     ".github/codeowners",
     "CODEOWNERS",
@@ -117,6 +188,11 @@ FLOOR_PATHS = [
     ".github/Standards/trusted-actors/trusted-actors.json",
     ".github/actions/check-trusted-trigger/action.yml",
     ".github/actions/Check-Trusted-Trigger/action.yml",
+    ".github/scripts/pr-merge/rotation.mjs",
+    ".github/scripts/pr-merge/rotation.test.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/scripts/work-resolve-issue/report-outcome.mjs",
     "Docs/Conventions/PR-Pipeline.yaml",
     ".github/actions/other/action.yml",
     ".github/workflows/x.yml",
@@ -128,7 +204,7 @@ FLOOR_PATHS = [
 def module(paths: list[str]) -> dict[str, Any]:
     script = NODE % json.dumps(MODULE.as_uri())
     proc = subprocess.run(
-        ["node", "--input-type=module", "-e", script, json.dumps(paths)],
+        ["node", "--input-type=module", "-e", script, json.dumps([paths, CONFIGURED])],
         capture_output=True,
         text=True,
         check=True,
@@ -149,165 +225,259 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(True, answer["cost"])
         self.assertIn(False, answer["cost"])
 
-    def test_the_floor_covers_the_gate_s(self) -> None:
+    def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertTrue(set(risk.HIGH_FLOOR) <= set(answer["floor"]), answer["floor"])
-        for path, held in zip(FLOOR_PATHS, answer["held"], strict=True):
+        self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
+        self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
+        self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
+        self.assertEqual(len(risk.FLOOR_CLASSES), 57)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 27)
+        self.assertEqual(
+            {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
+        )
+        for path, held, configured in zip(
+            FLOOR_PATHS, answer["held"], answer["configured"], strict=True
+        ):
             with self.subTest(path):
+                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                self.assertEqual(held, on_floor)
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in answer["floor"])
+                    configured,
+                    on_floor or any(risk.glob_match(g, path) for g in CONFIGURED),
                 )
         self.assertIn(True, answer["held"])
         self.assertIn(False, answer["held"])
+        self.assertIn(False, answer["configured"])
+        self.assertNotEqual(answer["held"], answer["configured"])
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
+        self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        # The rate-limit defaults rate-guard.mjs reads decide when the lanes
+        # stop short of GitHub's limits, so they are held like the module.
+        self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(held)
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertEqual(
+                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                )
 
-    def test_the_manifest_review_is_the_gate_s(self) -> None:
-        js = manifest_changes([change for _, change, _ in MANIFEST_CASES])
-        for (name, change, holds), found in zip(MANIFEST_CASES, js, strict=True):
+    def test_every_pr_merge_script_is_gate_code(self) -> None:
+        # Owner decision Q26 option B: the merge gate's own code stays a
+        # person's, every script pr-merge.yml runs from that directory.
+        folder = ROOT / ".github/scripts/pr-merge"
+        scripts = sorted(
+            f".github/scripts/pr-merge/{f.name}"
+            for f in folder.iterdir()
+            if f.is_file()
+            and f.suffix in {".mjs", ".bash"}
+            and ".test." not in f.name
+            and ".fixture." not in f.name
+        )
+        self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
+        gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
+        for path in scripts:
+            with self.subTest(path):
+                self.assertIn(path, gate)
+
+    def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
+        files = python_closure(import_closure(FLOOR_ENTRIES))
+        scripts = SCRIPTS.relative_to(ROOT).as_posix()
+        self.assertIn(f"{scripts}/babysit_verify_evidence.py", files)
+        self.assertIn(f"{scripts}/babysit_merge.py", files)
+        answer = module(files)
+        for path, held in zip(files, answer["held"], strict=True):
+            with self.subTest(path):
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                # babysit_merge*, and the scorer and binder that compute the
+                # security review's clear condition, are the gate's own code,
+                # a person's; the rest is enforcement, which a clean security
+                # review clears.
+                name = pathlib.PurePosixPath(path).name
+                gate = name.startswith("babysit_merge") or name in {
+                    "babysit_risk.py",
+                    "babysit_review_evidence.py",
+                }
+                self.assertEqual(held, gate)
+                self.assertEqual(path in risk.REVIEW_FLOOR, not gate)
+        # Nothing else of that directory: the floor tracks the closure.
+        self.assertEqual(
+            sorted(g for g in risk.FLOOR if g.startswith(f"{scripts}/")), files
+        )
+
+
+def _hold_paths(workflow: str) -> list[str]:
+    text = (ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8")
+    block = re.search(r"^      hold-paths: \|\n((?:        \S.*\n)+)", text, re.M)
+    assert block, workflow
+    return block[1].split()
+
+
+def _hold_patterns() -> list[str]:
+    text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+        encoding="utf-8"
+    )
+    found = re.search(r"^ *hold_patterns=\((.*)\)$", text, re.M)
+    assert found
+    return shlex.split(found[1])
+
+
+class TheScrutinyListsNameTheFloor(unittest.TestCase):
+    """The review callers' `hold-paths` (prompt globs) and ci-status's
+    exempt-author `hold_patterns` (bash patterns, `*` crossing `/`) each match
+    every floor entry."""
+
+    def test_each_list_covers_every_floor_entry(self) -> None:
+        lists = {
+            workflow: (_hold_paths(workflow), risk.glob_match)
+            for workflow in ("pr-review-hosted.yml", "pr-review-security-hosted.yml")
+        }
+        lists["hold_patterns"] = (
+            _hold_patterns(),
+            lambda pattern, entry: fnmatch.fnmatchcase(entry, pattern),
+        )
+        for name, (patterns, match) in lists.items():
+            self.assertTrue(patterns, name)
+            for entry in risk.FLOOR:
+                with self.subTest(list=name, entry=entry):
+                    self.assertTrue(any(match(p, entry) for p in patterns))
+
+
+NODE_ACTORS = """
+import { actorsWidened } from %s;
+const cases = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(cases.map(([status, previous, contents]) => actorsWidened({ status, previous, contents }))));
+"""
+_KYLE = {"id": 1, "login": "kyle", "kind": "human"}
+_BOT = {"id": 2, "login": "lanes[bot]", "kind": "bot"}
+
+
+def _list(*actors: Any, version: Any = 1) -> str:
+    return json.dumps({"version": version, "actors": list(actors)}, indent=2)
+
+
+_BASE_LIST = _list(_KYLE, _BOT)
+# Each case: status, renamed-from path, then [base text, head text] or None.
+ACTOR_CASES = {
+    "an entry added": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, {"id": 3})]),
+    "an entry's kind changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT | {"kind": "human"})]),
+    "a removal beside an addition": ("modified", None, [_BASE_LIST, _list(_KYLE, {"id": 5})]),
+    "an entry repeated": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, _BOT)]),
+    "another key changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, version=2)]),
+    "unparsable head": ("modified", None, [_BASE_LIST, "{"]),
+    "a repeated key": ("modified", None, [_BASE_LIST, _BASE_LIST.replace('"version": 1', '"version": 1, "version": 1')]),
+    "actors not a list": ("modified", None, [_BASE_LIST, '{"version": 1, "actors": {}}']),
+    "an array at the root": ("modified", None, [_BASE_LIST, "[]"]),
+    "contents unread": ("modified", None, None),
+    "added": ("added", None, [None, _BASE_LIST]),
+    "removed": ("removed", None, [_BASE_LIST, None]),
+    "renamed": ("renamed", "a.json", [_BASE_LIST, _BASE_LIST]),
+    "an entry removed": ("modified", None, [_BASE_LIST, _list(_KYLE)]),
+    "every entry removed": ("modified", None, [_BASE_LIST, _list()]),
+    "reformatted and reordered": ("modified", None, [_BASE_LIST, json.dumps({"actors": [_BOT, _KYLE], "version": 1})]),
+    "keys reordered in an entry": ("modified", None, [_BASE_LIST, _list({"kind": "human", "login": "kyle", "id": 1}, _BOT)]),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheWideningHoldIsTheGates(unittest.TestCase):
+    def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
+        cases = list(ACTOR_CASES.values())
+        script = NODE_ACTORS % json.dumps(MODULE.as_uri())
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, (status, previous, contents)), js in zip(
+            ACTOR_CASES.items(), answers, strict=True
+        ):
+            changed = risk.ChangedFile(
+                path=risk.TRUSTED_ACTORS_PATH,
+                previous_path=previous,
+                status=status,
+                additions=1,
+                deletions=1,
+                has_patch=True,
+                mode="100644",
+                previous_mode=None if status == "added" else "100644",
+                contents=None if contents is None else tuple(contents),
+            )
+            py = risk._actors_widened(risk._check_file(changed), changed)
             with self.subTest(name):
-                self.assertEqual(found, py_manifest_changes(change))
-                self.assertEqual(bool(found), holds)
+                self.assertEqual(js is None, py is None, (js, py))
+        held = [js is not None for js in answers]
+        self.assertIn(True, held)
+        self.assertIn(False, held)
 
 
-PLUGIN = "plugins/foo/.claude-plugin/plugin.json"
-MARKET = ".claude-plugin/marketplace.json"
-PLUGIN_BASE = (
-    '{"name": "foo", "version": "1.0.0",'
-    ' "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}'
-)
-MARKET_BASE = (
-    '{"name": "m", "plugins": [{"name": "foo", "source": "./plugins/foo",'
-    ' "category": "dev"}]}'
-)
+NODE_LIFTERS = """
+import { fromRest, pathLifters } from %s;
+const [cases, humans, head] = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(cases.map((rows) => pathLifters(rows.map(fromRest), new Set(humans), head))));
+"""
+_HEAD = "a" * 40
 
 
-def _key(text: str) -> str:
-    return PLUGIN_BASE.replace('"name": "foo",', f'"name": "foo", {text},')
+def _review(
+    state: str,
+    user: int = 1,
+    sha: str = _HEAD,
+    at: str = "2026-10-26T16:41:00Z",
+    kind: str = "User",
+) -> dict[str, Any]:
+    return {
+        "user": {"id": user, "login": f"u{user}", "type": kind},
+        "state": state,
+        "commit_id": sha,
+        "submitted_at": at,
+    }
 
 
-def _case(
-    name: str,
-    after: str | None,
-    holds: bool,
-    *,
-    path: str = PLUGIN,
-    before: str | None = PLUGIN_BASE,
-    status: str = "modified",
-    previous: str | None = None,
-) -> tuple[str, dict[str, Any], bool]:
-    return (
-        name,
-        {"path": path, "previous": previous, "status": status, "contents": [before, after]},
-        holds,
-    )
+_LATER = "2026-10-26T17:20:00Z"
+# REST review lists, kyle (id 1) and id 3 trusted, at head _HEAD.
+LIFTER_CASES = {
+    "approved at the head": [_review("APPROVED")],
+    "approved at another head": [_review("APPROVED", sha="b" * 40)],
+    "an untrusted approver": [_review("APPROVED", user=2)],
+    "a bot account": [_review("APPROVED", kind="Bot")],
+    "changes requested since": [_review("APPROVED"), _review("CHANGES_REQUESTED", at=_LATER)],
+    "dismissed since": [_review("APPROVED"), _review("DISMISSED", at=_LATER)],
+    "approved after changes requested": [_review("CHANGES_REQUESTED"), _review("APPROVED", at=_LATER)],
+    "a comment after the approval": [_review("APPROVED"), _review("COMMENTED", at=_LATER)],
+    "two people, one blocks": [_review("APPROVED", user=3), _review("APPROVED"), _review("CHANGES_REQUESTED", at=_LATER)],
+    "no reviews": [],
+}  # fmt: skip
 
 
-# The classes #9280 set the gate's manifest review to hold, then changes it
-# lets merge: a userConfig default (#9483), a version, a description, a
-# marketplace category.
-MANIFEST_CASES = [
-    _case("hooks", _key('"hooks": "./h.json"'), True),
-    _case("mcpServers", _key('"mcpServers": {}'), True),
-    _case("lspServers", _key('"lspServers": {}'), True),
-    _case("monitors", _key('"monitors": []'), True),
-    _case("experimental.monitors", _key('"experimental": {"monitors": []}'), True),
-    _case("experimental.monitors removed", PLUGIN_BASE, True, before=_key('"experimental": {"monitors": []}')),
-    _case("hooks reordered", _key('"hooks": {"b": 1, "a": [1, 2]}'), False, before=_key('"hooks": {"a": [1, 2], "b": 1}')),
-    _case("hooks 1 to 1.0", _key('"hooks": {"t": 1.0}'), True, before=_key('"hooks": {"t": 1}')),
-    _case("an integer past int_max_str_digits", _key('"size": ' + "1" * 4301), True),
-    _case("hooks true to null", _key('"hooks": null'), True, before=_key('"hooks": true')),
-    _case("hooks true to false", _key('"hooks": false'), True, before=_key('"hooks": true')),
-    _case(
-        "hooks 20-digit integer, last digit",
-        _key('"hooks": {"t": 12345678901234567891}'),
-        True,
-        before=_key('"hooks": {"t": 12345678901234567890}'),
-    ),
-    _case("hooks -0.0 to 0.0", _key('"hooks": {"t": 0.0}'), True, before=_key('"hooks": {"t": -0.0}')),
-    _case("hooks false to 0", _key('"hooks": 0'), True, before=_key('"hooks": false')),
-    _case(
-        "a plugin added",
-        MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("a plugin removed", '{"name": "m", "plugins": []}', True, path=MARKET, before=MARKET_BASE),
-    _case("a plugin renamed", MARKET_BASE.replace('"name": "foo"', '"name": "fob"'), True, path=MARKET, before=MARKET_BASE),
-    _case(
-        "a plugin source changed",
-        MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("the marketplace name changed", MARKET_BASE.replace('"name": "m"', '"name": "n"'), True, path=MARKET, before=MARKET_BASE),
-    _case("plugins not a list", '{"name": "m", "plugins": {}}', True, path=MARKET, before=MARKET_BASE),
-    _case(
-        "two entries of one name",
-        MARKET_BASE.replace("]}", ', {"name": "foo", "source": "./plugins/foo"}]}'),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("removed", None, True, status="removed"),
-    _case("renamed", PLUGIN_BASE, True, status="renamed", previous="plugins/foo/plugin.json"),
-    _case("copied", PLUGIN_BASE, True, status="copied", previous="plugins/bar/.claude-plugin/plugin.json"),
-    _case("an unreadable head", None, True),
-    _case("a parse error", "{", True),
-    _case("not an object", "[]", True),
-    _case("a duplicate key", _key('"name": "x"'), True),
-    _case("a nested duplicate key", _key('"hooks": {"a": 1, "a": 2}'), True),
-    _case("an added plugin.json", PLUGIN_BASE, False, before=None, status="added"),
-    _case("an added plugin.json with hooks", _key('"hooks": {}'), True, before=None, status="added"),
-    _case("a userConfig default (#9483)", PLUGIN_BASE.replace('"default": true', '"default": false'), False),
-    _case("a version", PLUGIN_BASE.replace("1.0.0", "1.1.0"), False),
-    _case("a marketplace category", MARKET_BASE.replace('"dev"', '"tools"'), False, path=MARKET, before=MARKET_BASE),
-    _case(
-        "a marketplace metadata key",
-        MARKET_BASE.replace('"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'),
-        False,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-]
-
-
-def manifest_changes(changes: list[dict[str, Any]]) -> list[list[str]]:
-    script = NODE_MANIFEST % json.dumps(MODULE.as_uri())
-    proc = subprocess.run(
-        ["node", "--input-type=module", "-e", script, json.dumps(changes)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(proc.stdout)
-
-
-def py_manifest_changes(change: dict[str, Any]) -> list[str]:
-    status = change["status"]
-    two_sided = status in ("modified", "changed", "renamed", "copied")
-    before, after = change["contents"]
-    changed = risk.ChangedFile(
-        path=change["path"],
-        previous_path=change["previous"],
-        status=status,
-        additions=1,
-        deletions=1,
-        has_patch=True,
-        mode="100644",
-        previous_mode="100644" if two_sided else None,
-        contents=(None if status == "added" else before, after),
-    )
-    return risk._manifest_changes(risk._check_file(changed), changed)
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheHighPathLiftIsTheGates(unittest.TestCase):
+    def test_both_name_the_same_lifters(self) -> None:
+        script = NODE_LIFTERS % json.dumps(MODULE.as_uri())
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                json.dumps([list(LIFTER_CASES.values()), [1, 3], _HEAD]),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, rows), js in zip(LIFTER_CASES.items(), answers, strict=True):
+            with self.subTest(name):
+                self.assertEqual(policy.path_lifters(rows, {1, 3}, _HEAD), js)
+        self.assertIn([], answers)
+        self.assertIn(["u1"], answers)
+        self.assertIn(["u3"], answers)
 
 
 REPO = "o/r"
@@ -393,118 +563,226 @@ DECISIONS = {
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
-def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
-    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
-    user = {"login": "github-actions[bot]", "type": "Bot"}
-    return {"user": user, "node_id": "M", "created_at": at, "body": body} | fields
+CHECKS = dict(policy.REVIEW_LANES)
 
 
-# The head reads: the pull request's comments (a cost hold marker at the head
-# before the decision by default) and a compare per head.
-# The marker's edit read answers `marker_edited`, or fails when it is "fail";
-# the deleted-comment read lists the `deleted` times (or answers the timeline
-# items given), or fails when it is "fail".
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None, "deleted": []}
+def _run(
+    sha: str,
+    at: str = "2026-01-02T12:00:00Z",
+    *,
+    criteria: str = "cost",
+    lane: str = "pr-review-hosted.yml",
+    job: str | None = None,
+    notice: str | None = None,
+    created: str = "2026-01-02T11:00:00Z",
+    repo: str | None = "o/r",
+) -> dict[str, Any]:
+    """A review lane's run on `sha` with its head in `repo`, started at
+    `created`, whose status job (or `job`) finished at `at` with a hold notice
+    naming `notice`."""
+    message = f"claude-lane-hold lane=claude-review sha={notice or sha} criteria={criteria} label=needs-human"
+    return {
+        "lane": lane,
+        "sha": sha,
+        "at": at,
+        "job": job or CHECKS[lane],
+        "created": created,
+        "repo": repo,
+        "notes": [{"annotation_level": "notice", "message": message}],
+    }
+
+
+def _push(after: str, timestamp: str) -> dict[str, Any]:
+    return {"after": after, "timestamp": timestamp, "activity_type": "push"}
+
+
+# The head reads: the review lanes' runs on the head branch (a cost notice at
+# the head before the decision by default), their jobs and annotations, a
+# compare per head (a run's head answers {"files": [TF]} unless `compares`
+# names it), and the head branch's push history, newest first (`activity`,
+# by default each run's head pushed five minutes before its first status job
+# finished).
+DEFAULT_HEADS = {"runs": [_run(HEAD)], "compares": {}}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
+LATE = "2026-01-02T18:00:00Z"
+NEW = "1" * 40
+# The decided head OLD, then NEW pushed before the decision; HEAD carries
+# OLD's net change.
+SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
+SAME = {OLD: {"files": [TF]}, HEAD: {"files": [TF]}}
+
+
+def _plain(lane: str) -> dict[str, Any]:
+    """A run on NEW before the decision whose status job noticed no cost."""
+    return _run(
+        NEW,
+        "2026-01-02T13:10:00Z",
+        criteria="trust-gate",
+        lane=lane,
+        created="2026-01-02T13:05:00Z",
+    )
+
+
 # Each case: the heads world for a decision on the pull request (_link(7)).
 CARRIES = {
-    "a marker at the head": DEFAULT_HEADS,
+    "a notice at the head": DEFAULT_HEADS,
     "a base merge since the decided head": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
     },
     "a commit of its own since": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
     },
     "a rename since": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
             OLD: {"files": [TF]},
             HEAD: {"files": [TF | {"status": "renamed", "previous_filename": "z.tf"}]},
         },
     },
     "300 files": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
             sha: {"files": [TF | {"filename": f"f{i}"} for i in range(300)]}
             for sha in (OLD, HEAD)
         },
     },
     "a file with no patch": {
-        "markers": [_marker(OLD)],
-        "compares": {sha: {"files": [{"filename": "a.png", "status": "added"}]} for sha in (OLD, HEAD)},
+        "runs": [_run(OLD)],
+        "compares": {
+            sha: {"files": [{"filename": "a.png", "status": "added"}]}
+            for sha in (OLD, HEAD)
+        },
     },
-    "an unreadable compare": {"markers": [_marker(OLD)], "compares": {OLD: {"files": [TF]}}},
-    "the latest marker before it, not an older one at the head": {
-        "markers": [_marker(HEAD, "2026-01-02T06:00:00Z"), _marker(OLD)],
+    "an unreadable compare": {"runs": [_run(OLD)], "compares": {OLD: {"files": [TF]}}},
+    "the latest notice before it, not an older one at the head": {
+        "runs": [
+            _run(HEAD, "2026-01-02T06:00:00Z", created="2026-01-02T05:00:00Z"),
+            _run(OLD),
+        ],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
     },
-    "a marker after it": {"markers": [_marker(HEAD, "2026-01-04T00:00:00Z")]},
-    "a person's marker": {"markers": [_marker(HEAD, user={"type": "User"})]},
-    "another bot's marker": {
-        "markers": [_marker(HEAD, user={"login": "claude[bot]", "type": "Bot"})]
+    "a notice from the security lane": {
+        "runs": [_run(HEAD, lane="pr-review-security-hosted.yml")]
     },
-    "no marker": {"markers": []},
-    "an edited marker": {"marker_edited": "2026-01-02T13:00:00Z"},
-    "an unreadable marker edit state": {"marker_edited": "fail"},
-    "an edited marker after a base merge": {
-        "markers": [_marker(OLD)],
-        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
-        "marker_edited": "2026-01-02T13:00:00Z",
+    "a job done after it": {"runs": [_run(HEAD, "2026-01-04T00:00:00Z")]},
+    "a run started after it": {
+        "runs": [_run(HEAD, LATE, created="2026-01-03T01:00:00Z")]
+    },
+    "a job other than the status job": {
+        "runs": [_run(HEAD, job="pr-review / review-key")]
+    },
+    "a notice naming another head than its run's": {"runs": [_run(OLD, notice=HEAD)]},
+    "a notice without cost": {"runs": [_run(HEAD, criteria="trust-gate")]},
+    "a run whose head is in another repository": {"runs": [_run(HEAD, repo="f/r")]},
+    "a run with no head repository": {"runs": [_run(HEAD, repo=None)]},
+    "two heads at the newest time": {
+        "runs": [_run(HEAD), _run(OLD, lane="pr-review-security-hosted.yml")]
+    },
+    "no notice": {"runs": []},
+    "a run on a head that changes a review-lane workflow": {
+        "compares": {
+            HEAD: {"files": [{"filename": ".github/workflows/pr-review-hosted.yml"}]}
+        }
+    },
+    "a run on a head whose compare has no file list": {
+        "compares": {HEAD: {"status": "diverged"}}
     },
     "a filename listed twice": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
     },
-    "a comment deleted since the marker": {"deleted": ["2026-01-02T13:00:00Z"]},
-    "a comment deleted since the marker, after a base merge": {
-        "markers": [_marker(OLD)],
-        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
-        "deleted": ["2026-01-02T13:00:00Z"],
+    "a newer head pushed before it with a run of every lane": {
+        "runs": [
+            _run(OLD),
+            _plain("pr-review-hosted.yml"),
+            _plain("pr-review-security-hosted.yml"),
+        ],
+        "compares": SAME,
+        "activity": SINCE,
     },
-    "a comment deleted before the marker": {"deleted": ["2026-01-02T11:00:00Z"]},
-    "an unreadable deleted-comment list": {"deleted": "fail"},
-    "more deleted comments than listed": {
-        "deleted": {"filteredCount": 2, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+    "a newer head pushed before it whose lane runs were deleted": {
+        "runs": [_run(OLD)],
+        "compares": SAME,
+        "activity": SINCE,
     },
-    "a deleted-comment count that is not a number": {
-        "deleted": {"filteredCount": True, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+    "a newer head pushed before it with one lane's run deleted": {
+        "runs": [_run(OLD), _plain("pr-review-security-hosted.yml")],
+        "compares": SAME,
+        "activity": SINCE,
+    },
+    "a history with no push of the decided head": {
+        "runs": [
+            _run(OLD),
+            _plain("pr-review-hosted.yml"),
+            _plain("pr-review-security-hosted.yml"),
+        ],
+        "compares": SAME,
+        "activity": SINCE[:1],
     },
     "a patchless pure rename": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
-            sha: {"files": [{"filename": "b", "status": "renamed", "previous_filename": "a"}]}
+            sha: {
+                "files": [
+                    {"filename": "b", "status": "renamed", "previous_filename": "a"}
+                ]
+            }
             for sha in (OLD, HEAD)
         },
     },
 }
+
+
+def _answers(heads: dict[str, Any]) -> dict[str, Any]:
+    return {r["sha"]: {"files": [TF]} for r in heads["runs"]} | heads["compares"]
+
+
+def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
+    if "activity" in heads:
+        return heads["activity"]
+    first: dict[str, str] = {}
+    for r in heads["runs"]:
+        first[r["sha"]] = min(first.get(r["sha"], r["at"]), r["at"])
+    pushes = [
+        _push(
+            sha,
+            (datetime.fromisoformat(at) - timedelta(minutes=5)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        )
+        for sha, at in first.items()
+    ]
+    return sorted(pushes, key=lambda m: m["timestamp"], reverse=True)
+
+
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads] = JSON.parse(process.argv[1]);
+const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
+  if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
-    if (!(sha in heads.compares)) throw new Error("no such commit");
-    return heads.compares[sha];
+    if (!(sha in answers)) throw new Error("no such commit");
+    return answers[sha];
   }
-  if (method === "GET" && path === "/repos/o/r/issues/7/comments?per_page=100&page=1") return heads.markers;
+  const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
+  if (method === "GET" && runs) {
+    return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created, head_repository: r.repo && { full_name: r.repo } }] : [])) };
+  }
+  const jobs = /\\/actions\\/runs\\/([0-9]+)\\/jobs\\?filter=all&per_page=100&page=1$/.exec(path);
+  if (method === "GET" && jobs) {
+    const r = heads.runs[Number(jobs[1]) - 1];
+    return { jobs: [{ id: Number(jobs[1]), name: r.job, completed_at: r.at }] };
+  }
+  const notes = /\\/check-runs\\/([0-9]+)\\/annotations\\?per_page=100&page=1$/.exec(path);
+  if (method === "GET" && notes) return heads.runs[Number(notes[1]) - 1].notes;
   if (method === "GET") return comment;
-  if (data.query.includes("COMMENT_DELETED_EVENT")) {
-    if (heads.deleted === "fail") throw new Error("unreadable");
-    const items = Array.isArray(heads.deleted)
-      ? { filteredCount: heads.deleted.length, nodes: heads.deleted.map((createdAt) => ({ createdAt })) }
-      : heads.deleted;
-    return { data: { repository: { pullRequest: { timelineItems: items } } } };
-  }
   if (data.variables.number !== undefined) {
-    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main",
+    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main", headRefName: "b",
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
-  }
-  if (data.variables.id === "M") {
-    if (heads.marker_edited === "fail") throw new Error("unreadable");
-    return { data: { node: { lastEditedAt: heads.marker_edited } } };
   }
   return { data: { node: { lastEditedAt: comment.edited } } };
 };
@@ -522,7 +800,16 @@ def js_decision(
             "--input-type=module",
             "-e",
             script,
-            json.dumps([body, comment, ISSUE, DEFAULT_HEADS | heads]),
+            json.dumps(
+                [
+                    body,
+                    comment,
+                    ISSUE,
+                    DEFAULT_HEADS | heads,
+                    _answers(DEFAULT_HEADS | heads),
+                    _activity(DEFAULT_HEADS | heads),
+                ]
+            ),
         ],
         capture_output=True,
         text=True,
@@ -535,33 +822,46 @@ def py_decision(
     body: str, comment: dict[str, Any], heads: dict[str, Any] = DEFAULT_HEADS
 ) -> str | None:
     heads = DEFAULT_HEADS | heads
+    answers = _answers(heads)
 
     def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
-        if "COMMENT_DELETED_EVENT" in query:
-            if heads["deleted"] == "fail":
-                raise policy.PolicyReadError(what)
-            deleted = heads["deleted"]
-            items = (
-                {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
-                if isinstance(deleted, list)
-                else deleted
-            )
-            return {"repository": {"pullRequest": {"timelineItems": items}}}
-        if variables.get("id") == "M":
-            if heads["marker_edited"] == "fail":
-                raise policy.PolicyReadError(what)
-            return {"node": {"lastEditedAt": heads["marker_edited"]}}
         return {"node": {"lastEditedAt": comment["edited"]}}
 
-    def get(endpoint: str) -> tuple[int | None, Any]:
+    def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
-            return (200, heads["compares"][sha]) if sha in heads["compares"] else (404, None)
+            return (200, answers[sha]) if sha in answers else (404, None)
+        if "/activity?" in endpoint:
+            assert endpoint == (
+                "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+            ), endpoint
+            return 200, _activity(heads)
         return 200, comment
 
-    def paginated(endpoint: str, _label: str) -> list[dict[str, Any]]:
-        assert endpoint == "repos/o/r/issues/7/comments?per_page=100", endpoint
-        return heads["markers"]
+    def paginated(
+        endpoint: str, _label: str, items_key: str | None = None, env: Any = None
+    ) -> list[dict[str, Any]]:
+        if "/actions/workflows/" in endpoint:
+            lane = endpoint.split("/actions/workflows/", 1)[1].split("/", 1)[0]
+            assert endpoint.endswith(
+                "/runs?event=pull_request&branch=b&per_page=100"
+            ), endpoint
+            return [
+                {
+                    "id": i + 1,
+                    "head_sha": r["sha"],
+                    "created_at": r["created"],
+                    "head_repository": r["repo"] and {"full_name": r["repo"]},
+                }
+                for i, r in enumerate(heads["runs"])
+                if r["lane"] == lane
+            ]
+        if "/jobs?" in endpoint:
+            n = int(endpoint.split("/actions/runs/", 1)[1].split("/", 1)[0])
+            r = heads["runs"][n - 1]
+            return [{"id": n, "name": r["job"], "completed_at": r["at"]}]
+        n = int(endpoint.split("/check-runs/", 1)[1].split("/", 1)[0])
+        return heads["runs"][n - 1]["notes"]
 
     with (
         mock.patch.object(policy, "_get", side_effect=get),
@@ -599,11 +899,14 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         for case, heads in CARRIES.items():
             with self.subTest(case):
                 answers[case] = py_decision(_link(7), _comment(7), heads)
-                self.assertEqual(js_decision(_link(7), _comment(7), heads), answers[case])
+                self.assertEqual(
+                    js_decision(_link(7), _comment(7), heads), answers[case]
+                )
         carried = {
-            "a marker at the head",
+            "a notice at the head",
             "a base merge since the decided head",
-            "a comment deleted before the marker",
+            "a notice from the security lane",
+            "a newer head pushed before it with a run of every lane",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

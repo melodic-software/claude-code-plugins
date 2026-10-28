@@ -8,11 +8,6 @@
     "architecture:map-landscape",
     "architecture:map-context"
   ],
-  "competitor_dirs": {
-    "architecture:map-containers": "plugins/architecture/skills/map-containers",
-    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
-    "architecture:map-context": "plugins/architecture/skills/map-context"
-  },
   "queries": [
     {
       "id": "pos-train-01",

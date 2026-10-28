@@ -3,6 +3,102 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.0] - 2026-10-28
+
+### Changed
+
+- The commit-subject and PR-title convention that `block-convention-violation` and the `commit-msg-convention` git-hook entry enforce now resolves from `docs/conventions/source-control.yaml` first, read with the shared YAML-subset parser, which ships beside the resolver and installs as a second asset of the entry. For one release, a key that file lacks is read from the legacy surfaces: the `convention_source` neutral file or the well-known folder-form `commit-convention.yml`, then `.claude/source-control.md`. The YAML counts only while git tracks it, and a tracked file that does not parse, carries a key with an empty value, declares a dialect other than `posix-ere`, or is a symlink turns enforcement off with a diagnostic instead of falling back.
+- A `commit-msg-convention` copy installed before this release keeps its old resolver, which does not read `docs/conventions/source-control.yaml`. Once the legacy surfaces are removed, such a copy enforces nothing until it is refreshed. `verify` reads it as `stale`, and the session-start notice names the refresh: run `/guardrails:setup apply install-git-hooks` before the legacy surfaces go.
+- A commit-msg rejection names the file that holds the pattern, from the resolver's new `--layer` option, instead of always naming `.claude/source-control.md`.
+
+### Fixed
+
+- A git-hook entry installed before its manifest listed an asset now reads `stale` rather than `modified` in `verify` and `plan`, so `copy` refreshes it and adds the asset without `--force`. Deleting an asset the install's stamp covers still reads `modified`.
+
+## [0.60.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.60.3] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [0.60.2] - 2026-10-27
+
+### Changed
+
+- `resolve-convention-pattern.sh` reads the neutral convention file (`docs/conventions/source-control/commit-convention.yml` or a `convention_source` pointer) once per run with shell builtins, where it ran a `grep` (and a `tr`) for every key lookup and a `dirname` for its directory check. A `git commit` judged with the well-known file tracked and no convention cache skips 12 `grep` and 2 `dirname` processes (#9526). Resolved patterns and exit codes are otherwise unchanged.
+
+### Fixed
+
+- An unreadable neutral convention file now disables enforcement (exit 1) with its own diagnostic, as a missing file or a symlinked pointer does. Before, the resolver fell back to the `.claude/source-control.md` H2 pattern the neutral file was meant to replace.
+
+## [0.60.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.60.0] - 2026-10-27
+
+### Added
+
+- `hooks/exec-bash.mjs` takes `--require-verdict`, a per-row opt-in for a blocking hook row: the launcher names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line). A row without the flag behaves as before.
+
+### Fixed
+
+- A guard row no longer lets a call through when its dispatcher dies before reaching a verdict. Windows Git Bash reports a crashed bash (a stack overflow, 0xC0000005) as exit 0 with empty output, which read as an allow. Every guardrails row now passes `--require-verdict`, and `run-guards.sh` writes the marker as its last action at each deliberate exit, so a crash denies the call. An abort in the dispatcher's own code, which used to allow the call with a notice, writes no marker either and is now denied. A `--report` process, whose parent gives the answer, never writes it.
+
+## [0.59.4] - 2026-10-26
+
+### Fixed
+
+- `block-unresolved-pr-merge` no longer refuses a command just because merge-shaped text and a backtick appear in the body of a quoted heredoc fed to a program that is not a shell, such as `python3 - <<'EOF'` or `git commit -F - <<'MSG'` (#8949). The backtick and line-continuation refusals now read the command with those bodies cut out, as the shared parser bounds them. A body is cut only when all of these hold:
+  - it ends at its own plain-word delimiter;
+  - it holds no backslash-newline and names no GraphQL merge mutation;
+  - no word of the command names a shell, `sudo`, `su`, `ssh` or `at`;
+  - the command word is not `eval`, `source`, `.` or a `.sh` script, and it can be read;
+  - no backtick, `$(`, `${`, `$[`, `((` or `[[` comes before it.
+
+  An unquoted heredoc body is never cut, because bash runs its backticks.
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted. `run-guards.sh` replays that array along with the rest of a shared parse. A here-doc delimiter word now ends at `(` or `)`, as it does in bash, so `(cat <<'E')` no longer hides the commands after its body.
+
+## [0.59.3] - 2026-10-26
+
+### Added
+
+- The git-hook installer's shared plan (`lib/git-hooks/install.mjs plan --scope shared`, plain hooks, `core.hooksPath` not yet `.githooks`) returns a `shared-entries` decision before `hooks-path`, listing what setting `core.hooksPath` would also run that this plugin did not install: `<event>.d/` markers other than its own, any `.githooks/*.pre-checks` hook, any other hook file there that is not the dispatcher, and every tracked file under `.githooks/local/` ([#7613](https://github.com/melodic-software/claude-code-plugins/issues/7613)). Setup shows the list and sets `core.hooksPath` only on the user's yes. With none present the plan is unchanged.
+
+## [0.59.2] - 2026-10-26
+
+### Fixed
+
+- `secret_pattern_detection_allowed_roots` now grants a Windows write whose path reaches an allowed root through a junction into the temp folder, as it does on Linux. Git Bash answers such a junction in the `/tmp` mount spelling, and the long drive spelling of that answer is now taken from the existing ancestor alone, before the components still to be created are joined. A path that resolves outside every root, or that cannot be resolved, is still scanned.
+
+## [0.59.1] - 2026-10-25
+
+### Fixed
+
+- **block-root-delete-target:** a one-line `git commit -F - <<'EOF'` or `git tag -F - <<'EOF'` whose message names a root delete target is no longer refused: its quoted heredoc body is read as data, as for `cat` and `gh`. A git global option ahead of the subcommand (`git -c …`, `git -C …`), any other git subcommand or alias, `--file=-`, a `-F -` after `--` or in a prefix holding a quote or backslash, a pipe after the opener, and an opener on a later line are still scanned.
+
+## [0.59.0] - 2026-10-25
+
+### Added
+
+- **secret-pattern-detection:** `secret_pattern_detection_allowed_roots`, comma-separated absolute directories. A Write, Edit or NotebookEdit that holds a token is not blocked when its target's real path is strictly under one. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, is not an existing directory, or resolves to a filesystem root, a home directory or a directory holding one grants nothing, and with no usable home no entry grants. A link under a root that points outside it, a target spelled with a `.` or `..` segment, and a file with a second hard link are still scanned. Empty by default.
+- **secret-pattern-detection:** `secret_pattern_detection_skip_gitignored`, off by default. When `true`, a Write, Edit or NotebookEdit that holds a token is not blocked when the repository holding the target reports it ignored, asked from the target's nearest existing directory, so a session started at home is covered too. Tracked files, files in no repository and symlinks are still scanned.
+- With neither option set, the hook starts no extra process; with one set, the target is resolved only once the scan has found a token. Neither option applies to the GitHub MCP write lane or to the `pre-commit-content` git hook, which still judges a force-added file where that hook is installed.
+
+### Changed
+
+- `workflow-resilience-check`'s advisory also names `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS`, the variable that sets Claude Code's own 529 retry backoff ceiling, and links the [Tune retry behavior](https://code.claude.com/docs/en/errors#tune-retry-behavior) section for its default and range. It is offered beside wave caps and `agentRetry`, not in place of them: the docs do not say whether workflow subagents honor it ([#6756](https://github.com/melodic-software/claude-code-plugins/issues/6756)).
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.58.0] - 2026-10-25
 
 ### Added

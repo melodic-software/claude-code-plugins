@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This mission is closed. Do you want to reopen it as it stands, or revise it with a new goal such as window functions?",
+      "why": "offers reopen and revise"
+    },
+    {
+      "answer": "SQL Joins was closed last time. We can re-open it, or write a new Result and Checks. Your call.",
+      "why": "hyphenated spelling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All three success criteria are met. Close the mission, or revise it with a new goal?",
+      "why": "near miss: re-offers close-or-revise on a closed mission"
+    },
+    {
+      "answer": "Welcome back. Today's concept is FULL OUTER JOIN. What do you expect it returns for an order with no customer?",
+      "why": "goes straight to teaching"
+    }
+  ]
+}

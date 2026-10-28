@@ -379,16 +379,10 @@ test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the 
   assert.deepEqual(others, []);
 });
 
-// A domain list, not `any`, for resolve-issue: on the write path `any` also
-// grants the curl-based docs scripts. fix-docs reads any host from a job with
-// no write token, and the launcher stages no docs script.
-test("live config: resolve-issue reads official docs hosts only; review-dependency reads release-note hosts; no other activity, fix-docs included, reads the web", () => {
-  const web = selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"];
-  assert.notEqual(web.domains, "any");
-  assert.deepEqual(web, {
-    enabled: true,
-    domains: ["code.claude.com", "platform.claude.com", "docs.anthropic.com", "docs.github.com", "nodejs.org", "docs.python.org"],
-  });
+// resolve-issue reads any host: it runs on the launcher, which stages no
+// curl-based docs script, from a job with no write token.
+test("live config: resolve-issue reads any host; review-dependency reads release-note hosts; no other activity, fix-docs included, reads the web", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
   const doc = parse(FILES.config);
   assert.deepEqual(doc.activities["review-dependency"]["web-access"], {
     enabled: true,
@@ -399,6 +393,26 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
     ([name, a]) => !["resolve-issue", "review-dependency"].includes(name) && a["web-access"]?.enabled,
   );
   assert.deepEqual(others, []);
+});
+
+// #8485 (owner decision (a), 2026-10-19; cutoffs, share and entry accepted
+// 2026-10-26): resolve-issue tidies a small single-area change in the run,
+// with the named quality skills only; no other activity tidies.
+test("live config: resolve-issue tidies within the small single-area cutoffs with the named quality skills; no other activity tidies", () => {
+  const tidy = selected("work-resolve-issue", "resolve-issue", ISSUE).tidy;
+  assert.equal(tidy.entry, "code-tidying:tidy-diff");
+  assert.deepEqual(tidy.passes, ["docs-hygiene:write-for-agents", "docs-hygiene:write-for-humans", "ai-slop:audit"]);
+  assert.equal(tidy["turn-share"], 25);
+  assert.deepEqual(
+    { files: tidy.cutoffs["max-files"], lines: tidy.cutoffs["max-lines"], areas: tidy.cutoffs["max-areas"] },
+    { files: 10, lines: 300, areas: 1 },
+  );
+  for (const path of [".github/", "scripts/", "docs/conventions/"]) assert.ok(tidy.cutoffs["shared-paths"].includes(path), path);
+  const doc = parse(FILES.config);
+  assert.deepEqual(
+    Object.keys(doc.activities).filter((name) => name !== "resolve-issue" && doc.activities[name].tidy),
+    [],
+  );
 });
 
 // The model run holds no write token; only the script that
@@ -421,12 +435,16 @@ test("live config: resolve-issue holds no write token; apply-issue-patch may onl
 });
 
 // activity-rules.json is trust-root data: a config that gives resolve-issue a
-// write effect again is refused.
+// write effect again is refused. The schema takes tidy only on a read skill
+// that hands on a patch, so the write-effect config drops it too, and the
+// refusal comes from the activity rules rather than the schema.
 test("live config: resolve-issue with a write effect is refused", () => {
-  const writes = FILES.config.replace(
-    "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
-    "effect: mutate-branch\n",
-  );
+  const writes = FILES.config
+    .replace(
+      "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
+      "effect: mutate-branch\n",
+    )
+    .replace(/^    tidy:\n(?: {6}.*\n)+/m, "");
   assert.notEqual(writes, FILES.config);
   assert.throws(
     () => resolve({ ...FILES, config: writes }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),

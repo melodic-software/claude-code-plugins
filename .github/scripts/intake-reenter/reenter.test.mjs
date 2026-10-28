@@ -7,13 +7,13 @@
 // one intake admits on open (a listed human or the lanes App). Anything else
 // changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./reenter.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
@@ -24,7 +24,7 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]", type:
 const NUMBER = 42;
 const DECISION = "**Decision recorded.**\n\nOption 1.";
 
-const dir = mkdtempSync(join(tmpdir(), "intake-reenter-"));
+const dir = tempDir("intake-reenter-");
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(
   TRUSTED,
@@ -125,6 +125,37 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
   assert.equal(await run(w, 1), 0);
   assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
   expectDispatched(w);
+});
+
+const PARKED = { id: 9, user: LANES_APP, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane: no trusted-human acceptance criteria." };
+
+test("a listed human's decision on an issue admission parked at status: confirmed sends it back to triage", async () => {
+  const w = world({
+    labels: ["status: confirmed", "priority: medium"],
+    comments: [PARKED, { id: 1, user: OWNER, body: DECISION }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("a decision on a verified status: confirmed issue admission never parked changes nothing", async () => {
+  for (const labels of [["status: confirmed"], ["status: confirmed", "agent-ready"]]) {
+    const w = world({ labels, comments: [...(labels.includes("agent-ready") ? [PARKED] : []), { id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await run(w, 1), 0);
+    assert.deepEqual([...w.labels()].sort(), [...labels].sort(), labels.join());
+    assert.equal(w.dispatches().length, 0, labels.join());
+  }
+});
+
+test("a plain comment on a status: confirmed issue changes nothing", async () => {
+  const w = world({
+    labels: ["status: confirmed"],
+    comments: [{ id: 1, user: OWNER, body: "Looking at this." }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["status: confirmed"]);
+  assert.equal(w.dispatches().length, 0);
 });
 
 test("the outside author's reply on a needs-info issue moves it to needs-triage without a model run", async () => {
@@ -318,4 +349,43 @@ test("the workflow runs on a needs-human unlabel", () => {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   assert.match(workflow, /^ {2}issues:.*\n {4}types: \[unlabeled\]$/m);
   assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
+});
+
+// The reenter job's folded `if:`, evaluated against one event. Covers only
+// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels.
+function reenterGate({ event, labels, label = null, comment = null }) {
+  const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
+  const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
+  assert.ok(block, "the reenter job has a folded if:");
+  let body = block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
+  body = body.replace(/contains\(github\.event\.issue\.labels\.\*\.name, ('[^']*')\)/g, (_, name) => `${JSON.stringify(labels)}.includes(${name})`);
+  const context = {
+    "github.event.comment.performed_via_github_app": null,
+    "github.event.comment.user.type": comment?.type ?? null,
+    "github.event.issue.pull_request": null,
+    "github.event.issue.state": "open",
+    "github.event.label.name": label,
+    github_event_name: event,
+  };
+  body = body.replaceAll("github.event_name", "github_event_name");
+  for (const name of Object.keys(context).sort((a, b) => b.length - a.length)) {
+    body = body.replaceAll(name, JSON.stringify(context[name]));
+  }
+  assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /github[._]/, `an unresolved reference in ${body}`);
+  return Function(`return (${body});`)();
+}
+
+test("a parked swap that lifts needs-human and adds status: confirmed starts no runner", () => {
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run", "status: confirmed", "priority: medium"] }), false);
+});
+
+test("a plain needs-human lift and a comment on a parked issue still start the job", () => {
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["priority: medium"] }), true);
+  assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run"] }), true);
+  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User" }, labels: ["status: confirmed"] }), true);
+  assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
 });

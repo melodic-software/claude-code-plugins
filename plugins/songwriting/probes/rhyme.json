@@ -10,13 +10,6 @@
     "songwriting:song-form",
     "songwriting:suno"
   ],
-  "competitor_dirs": {
-    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
-    "songwriting:co-write": "plugins/songwriting/skills/co-write",
-    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
-    "songwriting:song-form": "plugins/songwriting/skills/song-form",
-    "songwriting:suno": "plugins/songwriting/skills/suno"
-  },
   "queries": [
     {
       "id": "pos-train-01",

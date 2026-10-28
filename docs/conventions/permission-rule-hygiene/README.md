@@ -136,7 +136,7 @@ skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA
 places."* The `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code v2.1.196 or later; below that
 floor the rule stays a literal string and never matches.
 
-**The plugin-scoped pair carries a boundary, and it is the whole of the rule.** The same page's
+**The plugin-scoped pair carries a boundary.** The same page's
 variable table states `${CLAUDE_PLUGIN_ROOT}` is *"Substituted only in plugin skills."* So in a
 personal or project skill, in an agent or command, and in any settings file's `permissions.allow`
 array, both tokens stay literal and the grant is inert. No page documents `${CLAUDE_*}` expansion in
@@ -153,9 +153,9 @@ a prompt. `${CLAUDE_PLUGIN_ROOT}` is the one that can name a script shared betwe
 which `${CLAUDE_SKILL_DIR}` cannot express. `${CLAUDE_PROJECT_DIR}` anchors to the consuming project
 rather than to a portable command, so it is not the right tool for a shared code-execution helper.
 
-**None of this changes anti-pattern 1**, and the distinction is worth holding: substitution decides
-whether a rule *resolves*, never whether auto mode *keeps* it. Auto mode still drops
-broad and interpreter-shaped rules however the path was written. The docs establish that the token
+**None of this changes anti-pattern 1.** Substitution decides whether a rule *resolves*, never
+whether auto mode *keeps* it. Auto mode still drops broad and interpreter-shaped rules however the
+path was written. The docs establish that the token
 resolves; they do not establish that the resolved rule matches at runtime on every host, so do not
 ship a grant on docs alone.
 
@@ -219,6 +219,18 @@ missing in others on the same machine, including sessions carrying the surveyed 
 root cause in [anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066),
 a macOS/zsh report whose own log shows healthy and degraded sessions minutes apart). Behavior on
 macOS and Linux is unverified at scale. Probe there rather than reading this as platform-specific.
+
+**Re-survey on Claude Code 2.1.309 (Windows 11, Git Bash, 2026-10-24): not reproduced.** 8 of 8
+fresh sessions loading a throwaway plugin with one `bin/` executable resolved its bare name and
+carried that `bin/` on `PATH` ([#6760](https://github.com/melodic-software/claude-code-plugins/issues/6760)).
+At the July corpus's healthy rate, 8 of 8 would come up about once in 10,000 runs. This is evidence that
+the 2.1.284 PATH change closed the gap on this platform, not proof of the upstream mechanism. The
+plugin was loaded with `--plugin-dir`; marketplace-installed delivery, the case originally measured,
+could not be re-probed because no installed plugin ships a `bin/`. A
+session's shell snapshot no longer outlives the session, so the #843 corpus sweep can no longer be
+repeated: re-survey with fresh sessions instead. The guidance below stands. No plugin in this
+repository ships a `bin/` today, and the bundled-path form works whether or not the gap recurs.
+**Recheck:** a plugin here adds a `bin/`, or a report of a bare plugin command missing from `PATH`.
 
 **Per-session absence is what makes the bare name unusable, not permanent non-delivery.** An earlier
 revision of this section read the gap as categorical ("no plugin directory of any kind is on

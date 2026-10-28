@@ -250,12 +250,12 @@ run_prepare
 check 'workflow-conflict: base-side workflow edit stays conflicted, not escalated' conflicted "$(val merge-state)"
 
 echo '# protected-conflict'
-for p in .claude/settings.json plugins/p/Settings.local.json .gitmodules vendor/.gitmodules; do
+for p in .claude/settings.json vendor/Settings.local.json .gitmodules vendor/.gitmodules plugins/p/.gitmodules; do
   conflict "$p" 'base\n' 'pr\n' 'main\n'
   run_prepare
   check "protected-conflict: $p escalates" escalate/protected-path-conflict "$(val merge-state)/$(val escalation-reason)"
 done
-for p in CLAUDE.md CLAUDE.local.md .mcp.json .claude.json .claude/rules/r.md .ripgreprc .husky/pre-commit .github/scripts/x.mjs settings.md; do
+for p in CLAUDE.md CLAUDE.local.md .mcp.json .claude.json .claude/rules/r.md .ripgreprc .husky/pre-commit .github/scripts/x.mjs settings.md plugins/p/Settings.local.json; do
   conflict "$p" 'base\n' 'pr\n' 'main\n'
   run_prepare
   check "protected-conflict: $p goes to the model" conflicted/ "$(val merge-state)/$(val escalation-reason)"

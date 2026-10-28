@@ -37,10 +37,10 @@ name: post-merge-demotion-alert
 # second intake dispatch. The record keeps needs-human, and closing a fix issue
 # changes nothing on it.
 #
-# A full run pr-merge.yml starts after each merge uses GITHUB_TOKEN, so its
-# completion raises no workflow_run event. pr-merge's dispatch-full-run job
-# sends a red one here through workflow_dispatch with its run id and head SHA
-# instead; the first step reads that run and refuses anything but a red
+# A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
+# completion raises no workflow_run event. pr-merge's post-merge-dispatch job
+# sends a red one here on its next scheduled run, through workflow_dispatch
+# with its run id and head SHA, instead; the first step reads that run and refuses anything but a red
 # pr-require-checks run on this repository's main that github-actions[bot]
 # dispatched, at that head SHA. Red is
 # any conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run
@@ -76,7 +76,7 @@ on:
     workflows: [pr-require-checks, post-merge-detect-silent-revert]
     types: [completed]
     branches: [main]
-  # pr-merge.yml's dispatch-full-run job, with GITHUB_TOKEN, or a listed
+  # pr-merge.yml's post-merge-dispatch job, with GITHUB_TOKEN, or a listed
   # human (trusted-actors.json on main) names a red full run that raised no
   # workflow_run event. Both inputs are checked before use, and the head SHA
   # must be the run's own.
@@ -96,6 +96,17 @@ permissions: {}
 jobs:
   alert:
     name: File the demotion issue
+    # The file step's early exits, read from the event before any checkout: a
+    # workflow_run event that is not a signal, a pass on attempt 1, an
+    # action_required, or a run off this repository's main starts no job. A
+    # dispatch always runs; the Read step checks it.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && contains(fromJSON('["pr-require-checks:schedule", "pr-require-checks:workflow_dispatch", "post-merge-detect-silent-revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
+      && (contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
     # Up to 20 minutes waiting on the re-run, 40 for a dispatched run.
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 50 || 30 }}
@@ -276,8 +287,11 @@ jobs:
               exit 0
               ;;
           esac
-          # Neither signal's runs are cancelled by concurrency, so a cancel
-          # comes from an actor with actions: write and counts as a failure.
+          # A cancel counts as a failure: pr-require-checks.yml cancels no
+          # running full run, so it came from an actor with actions: write or
+          # a time-budget overrun. A dispatch the main-dispatch concurrency
+          # group replaced before it started is cancelled too, with no job:
+          # that is no signal, and the check below files nothing for it.
           # A re-run that passes is recorded on the record; it clears nothing.
           # A dispatched run also files on action_required, as the Read step
           # accepts every conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS.
@@ -313,6 +327,13 @@ jobs:
           if [[ ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::run attempt '$RUN_ATTEMPT' is not a positive integer"
             exit 1
+          fi
+          # A failed read is a run that started: it files as before.
+          if [[ "$RUN_CONCLUSION" == cancelled && "$signal" != canary ]] &&
+            jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs?per_page=1" \
+              --jq '.total_count // (.jobs | length)')" && [[ "$jobs" == 0 ]]; then
+            echo "$RUN_WORKFLOW was cancelled before any job started (a newer dispatch replaced it): nothing to file"
+            exit 0
           fi
           newly=''
           if [[ -z "$passed" && "$signal" != canary ]]; then
@@ -392,6 +413,9 @@ jobs:
               node .base/.github/scripts/post-merge-demotion-alert/failing-checks.mjs "$@"
             }
             now="$(mktemp)"
+            kept="$(mktemp)"
+            before="$(mktemp)"
+            trap 'rm -f -- "$now" "$now.new" "$kept" "$before"' EXIT
             failing_checks "$RUN_ID" "$RUN_ATTEMPT" >"$now"
             if [[ ! -s "$now" ]]; then
               echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
@@ -399,13 +423,11 @@ jobs:
             fi
             # The checks also failing on the baseline run, for the judge: one
             # whose suite's quarantine expired demotes all the same.
-            kept="$(mktemp)"
             baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
             if [[ -n "$baseline" ]]; then
               IFS=$'\t' read -r base_id base_attempt base_conclusion <<<"$baseline"
-              before="$(mktemp)"
               if [[ "$base_conclusion" != success ]]; then
                 failing_checks "$base_id" "$base_attempt" --baseline >"$before"
               fi
@@ -858,6 +880,9 @@ jobs:
     concurrency:
       group: red-main-report
       cancel-in-progress: false
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip
@@ -897,6 +922,8 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Each call's rate-limit reading, for the api-budget notice below.
+          API_BUDGET_TOKEN: github-token
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "300"
@@ -906,3 +933,11 @@ jobs:
           RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
           RUN_CREATED: ${{ needs.alert.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

@@ -46,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=248
+EXPECTED_CASES=263
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -739,12 +739,13 @@ assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-
 HOMEROOT="$TEST_TMPDIR/home-root"
 mkdir -p "$HOMEROOT/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 777 } }' >"$HOMEROOT/.claude/ai-slop.json"
+# Count the "Config layers" rows only: each Effective line also names its layer.
 out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
-assert_eq "home root: the user-global file is listed once" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+assert_eq "home root: the user-global file is listed once" "$(printf '%s\n' "$out" | grep -cxF "  $HOMEROOT/.claude/ai-slop.json")" "1"
 assert_contains "home root: the user-global threshold applies" "$out" "threshold_ai_vocabulary=777"
 make_repo "$HOMEROOT"
 out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
-assert_eq "a git repository at the home is still a home root" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+assert_eq "a git repository at the home is still a home root" "$(printf '%s\n' "$out" | grep -cxF "  $HOMEROOT/.claude/ai-slop.json")" "1"
 NONREPO="$TEST_TMPDIR/non-repo-root"
 mkdir -p "$NONREPO/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 555 } }' >"$NONREPO/.claude/ai-slop.json"
@@ -870,6 +871,67 @@ make_repo "$TEST_TMPDIR/trunc-ok-repo"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json"
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-ok-repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "malformed layer: the same value from a well-formed layer still applies" "$out" "threshold_ai_vocabulary=999 (rule"
+
+# --- YAML team layer (docs/conventions/ai-slop.yaml) -------------------------------
+
+# The old location is read when the YAML is absent, and the resolver names it.
+out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-ok-repo" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: the old location is read when the YAML is absent" "$out" "threshold_ai_vocabulary=999 (rule rule-ai-vocabulary) [layer: $okdir/ai-slop.json]"
+assert_contains "yaml: a value no layer supplied reports the default layer" "$out" "threshold_copulative_avoidance=4.0 (rule rule-copulative-avoidance) [layer: default]"
+
+# The YAML wins when both exist: the old file is not read as a second team layer.
+YREPO="$TEST_TMPDIR/yaml-repo"
+mkdir -p "$YREPO/.claude" "$YREPO/docs/conventions"
+make_repo "$YREPO"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 }, "disabled_rules": ["rule-em-dash"], "excluded_paths": ["old/**"] }' >"$YREPO/.claude/ai-slop.json"
+cat >"$YREPO/docs/conventions/ai-slop.yaml" <<'EOF'
+# a comment with a "quote" and a # hash
+thresholds:
+  ai_vocabulary: 2.5   # trailing comment
+disabled_rules:
+  - "rule-emoji-formatting"
+excluded_paths: ["vendor/**", "gen/*.md"]
+em_dash_allowed_paths: []
+rule_allowed_paths:
+  rule-ai-vocabulary:
+    - "docs/marketing/**"
+  rule-em-dash: []
+EOF
+out="$(CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: the YAML is a listed layer" "$out" "$YREPO/docs/conventions/ai-slop.yaml"
+assert_not_contains "yaml: the old file is not read beside it" "$out" "$YREPO/.claude/ai-slop.json"
+assert_contains "yaml: a scalar comes from the YAML" "$out" "threshold_ai_vocabulary=2.5 (rule rule-ai-vocabulary) [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_contains "yaml: a list comes from the YAML and names its layer" "$out" "disabled_rules=rule-emoji-formatting [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_contains "yaml: a flow-sequence list is read" "$out" "excluded_paths=vendor/** gen/*.md [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_contains "yaml: a per-rule glob list names its layer" "$out" "rule_allowed_paths[rule-ai-vocabulary]=docs/marketing/** [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_not_contains "yaml: an empty per-rule list leaves the rule unexempted" "$out" "rule_allowed_paths[rule-em-dash]"
+
+# The personal YAML overlay refines the team YAML per key and is named for what it set.
+printf '%s\n' 'thresholds:' '  copulative_avoidance: 7' 'disabled_rules: []' >"$YREPO/docs/conventions/ai-slop.local.yaml"
+out="$(CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: the overlay supplies its own scalar" "$out" "threshold_copulative_avoidance=7 (rule rule-copulative-avoidance) [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
+assert_contains "yaml: the team YAML still supplies the key the overlay left" "$out" "threshold_ai_vocabulary=2.5 (rule rule-ai-vocabulary) [layer: $YREPO/docs/conventions/ai-slop.yaml]"
+assert_contains "yaml: an explicit empty list in the overlay clears the team list" "$out" "disabled_rules= [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
+
+# phrase_remove alone names its own layer on the model_phrases line, not only phrase_add's.
+printf '%s\n' 'phrase_remove:' '  - "(the|my) honest take"' >"$YREPO/docs/conventions/ai-slop.local.yaml"
+out="$(CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: phrase_remove alone names its layer" "$out" "model_phrases=(the part most people skip|that.s the unlock) [layer: add default, remove $YREPO/docs/conventions/ai-slop.local.yaml]"
+
+# A YAML layer outside the parser's subset is skipped whole, like a malformed JSON layer.
+BADY="$TEST_TMPDIR/yaml-bad-repo"
+mkdir -p "$BADY/docs/conventions"
+make_repo "$BADY"
+printf '%s\n' 'thresholds: {ai_vocabulary: 999}' >"$BADY/docs/conventions/ai-slop.yaml"
+out="$(CLAUDE_PROJECT_DIR="$BADY" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: a layer outside the subset is refused" "$out" "threshold_ai_vocabulary=3.0 (rule rule-ai-vocabulary) [layer: default]"
+
+# The effective YAML config drives the scan, not only the report.
+cp "$SLOP" "$YREPO/doc.md"
+printf '%s\n' 'excluded_paths:' '  - "doc.md"' >"$YREPO/docs/conventions/ai-slop.yaml"
+rm -f "$YREPO/docs/conventions/ai-slop.local.yaml"
+out="$(cd "$YREPO" && CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --list-targets "$YREPO/doc.md" 2>&1)"
+assert_not_contains "yaml: excluded_paths from the YAML drops the target" "$out" "doc.md"
 
 # --- Portability -----------------------------------------------------------------
 

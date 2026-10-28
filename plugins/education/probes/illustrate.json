@@ -7,10 +7,6 @@
     "education:explain",
     "education:quiz-me"
   ],
-  "competitor_dirs": {
-    "education:explain": "plugins/education/skills/explain",
-    "education:quiz-me": "plugins/education/skills/quiz-me"
-  },
   "queries": [
     {
       "id": "pos-train-01",

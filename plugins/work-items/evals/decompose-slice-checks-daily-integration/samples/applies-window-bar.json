@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Window bar: passes. One cold session finishes it in one fresh context window, and it can merge to the mainline at least daily.",
+      "why": "window bar passes"
+    },
+    {
+      "answer": "Check 1 (size): the slice fits a single fresh context window.",
+      "why": "fits a single fresh context window"
+    },
+    {
+      "answer": "Window bar - pass: three files and a test, well within one context window.",
+      "why": "window bar pass"
+    },
+    {
+      "answer": "It fits in one session comfortably, so keep it as one item.",
+      "why": "fits in one session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Independent: yes. Demoable: yes. Valuable: yes. Ship it as is.",
+      "why": "no window-bar check at all"
+    },
+    {
+      "answer": "This does not fit one context window; split it.",
+      "why": "negated fit"
+    },
+    {
+      "answer": "Estimate: about three hours of work, under a one-day cap.",
+      "why": "hours estimate, no window check"
+    },
+    {
+      "answer": "Window bar: fails, it does not fit one window.",
+      "why": "negated window bar"
+    },
+    {
+      "answer": "Window bar: does not pass.",
+      "why": "does not pass"
+    },
+    {
+      "answer": "Window bar: fails; split it.",
+      "why": "fails"
+    }
+  ]
+}

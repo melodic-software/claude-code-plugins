@@ -19,6 +19,7 @@ import {
   isSecurityUpdate,
   parseConfig,
   provenanceReasons,
+  pushRefusal,
   reviewOnly,
   usesOnly,
   withProvenance,
@@ -855,6 +856,98 @@ test("Dependabot's commit is matched on its account ids, not its author text alo
   assert.ok(!isDependabotSigned({ ...own, committer: { id: 5 } }));
   assert.ok(!isDependabotSigned({ ...own, commit: { ...own.commit, verification: { verified: false, reason: "unsigned" } } }));
   assert.ok(!isDependabotSigned({ ...own, commit: { ...own.commit, author: { name: "x", email: "x@example.com" } } }));
+});
+
+// One for one with test_babysit_dependabot.py's PUSH_VECTORS, so both lanes
+// tie each commit to the same pusher. Each vector is the pull request's
+// commits as [sha, author, parents], its pushes newest first as [type, pusher,
+// before, after], and the refusal; the head is the newest push's `after`
+// unless the vector names one.
+const [D, D2, B, A, X, ZERO] = ["d", "c", "e", "f", "9", "0"].map((c) => c.repeat(40));
+const PUSH_VECTORS = [
+  { why: "Dependabot's own branch", commits: [[D, "dependabot", []]], pushes: [["branch_creation", "dependabot", ZERO, D]], want: null },
+  {
+    why: "a lanes App fix on top, pushed by the App",
+    commits: [[D, "dependabot", []], [A, "lane", [D]]],
+    pushes: [["push", "lane", D, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: null,
+  },
+  {
+    why: "a lanes App push carrying a Dependabot-authored commit under its tip",
+    commits: [[D, "dependabot", []], [D2, "dependabot", [D]], [A, "lane", [D2]]],
+    pushes: [["push", "lane", D, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:agent-lanes[bot]",
+  },
+  {
+    why: "a lanes App push carrying a version-bump commit under its tip",
+    commits: [[D, "dependabot", []], [B, "actions", [D]], [A, "lane", [B]]],
+    pushes: [["push", "lane", D, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:agent-lanes[bot]",
+  },
+  {
+    why: "the version bump, pushed by github-actions[bot]",
+    commits: [[D, "dependabot", []], [B, "actions", [D]]],
+    pushes: [["push", "actions", D, B], ["branch_creation", "dependabot", ZERO, D]],
+    want: null,
+  },
+  {
+    why: "a github-actions[bot] push carrying a Dependabot-authored commit",
+    commits: [[D, "dependabot", []], [D2, "dependabot", [D]], [B, "actions", [D2]]],
+    pushes: [["push", "actions", D, B], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:github-actions[bot]",
+  },
+  {
+    why: "a Dependabot push carrying a lanes App commit",
+    commits: [[D, "dependabot", []], [A, "lane", [D]]],
+    pushes: [["push", "dependabot", D, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:dependabot[bot]",
+  },
+  {
+    why: "a lanes App force push that rewrote Dependabot's commit",
+    commits: [[D2, "dependabot", []], [A, "lane", [D2]]],
+    pushes: [["force_push", "lane", D, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:agent-lanes[bot]",
+  },
+  {
+    why: "a push by a person",
+    commits: [[D, "dependabot", []], [X, "other", [D]]],
+    pushes: [["push", "person", D, X], ["branch_creation", "dependabot", ZERO, D]],
+    want: "pushed-by:maintainer",
+  },
+  {
+    why: "a history that misses the push bringing a commit",
+    commits: [[D, "dependabot", []], [D2, "dependabot", [D]], [A, "lane", [D2]]],
+    pushes: [["push", "lane", D2, A], ["branch_creation", "dependabot", ZERO, D]],
+    want: "push-history-incomplete",
+  },
+  {
+    why: "a history whose newest push is not the head",
+    commits: [[D, "dependabot", []], [A, "lane", [D]]],
+    pushes: [["branch_creation", "dependabot", ZERO, D]],
+    head: A,
+    want: "push-history-incomplete",
+  },
+];
+const APP_ID = 337595936;
+const PUSHERS = {
+  dependabot: { login: "dependabot[bot]", id: 49699333, type: "Bot" },
+  actions: { login: "github-actions[bot]", id: 41898282, type: "Bot" },
+  lane: { login: "agent-lanes[bot]", id: APP_ID, type: "Bot" },
+  person: { login: "maintainer", id: 5, type: "User" },
+};
+const vectorCommit = ([sha, author, parents]) => {
+  const authored = {
+    dependabot: commit("x", { sha }),
+    actions: commit("bump [dependabot skip]", { sha, name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" }),
+  }[author] ?? { ...commit("fix", { sha, name: "x", email: "x@x" }), author: { id: author === "lane" ? APP_ID : 5 } };
+  return { ...authored, parents: parents.map((parent) => ({ sha: parent })) };
+};
+
+test("every commit arrives in its own author's push", () => {
+  for (const vector of PUSH_VECTORS) {
+    const history = vector.pushes.map(([activity_type, who, before, after]) => ({ activity_type, before, after, actor: PUSHERS[who] }));
+    assert.equal(pushRefusal(history, vector.head ?? history[0].after, vector.commits.map(vectorCommit), APP_ID), vector.want, vector.why);
+  }
 });
 
 test("the version-bump commit changes only plugin.json's version and CHANGELOG.md", async () => {

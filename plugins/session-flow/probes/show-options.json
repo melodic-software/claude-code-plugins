@@ -10,13 +10,6 @@
     "discipline:use-your-skills",
     "session-flow:orchestrate"
   ],
-  "competitor_dirs": {
-    "session-flow:workflow": "plugins/session-flow/skills/workflow",
-    "session-flow:orient": "plugins/session-flow/skills/orient",
-    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
-    "discipline:use-your-skills": "plugins/discipline/skills/use-your-skills",
-    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate"
-  },
   "queries": [
     {
       "id": "pos-train-01",

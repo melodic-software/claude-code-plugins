@@ -6,9 +6,6 @@
   "competitors": [
     "implementation:implement"
   ],
-  "competitor_dirs": {
-    "implementation:implement": "plugins/implementation/skills/implement"
-  },
   "queries": [
     {
       "id": "pos-train-01",

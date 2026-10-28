@@ -9,12 +9,6 @@
     "architecture:improve",
     "architecture:map-dependencies"
   ],
-  "competitor_dirs": {
-    "architecture:map-context": "plugins/architecture/skills/map-context",
-    "architecture:map-containers": "plugins/architecture/skills/map-containers",
-    "architecture:improve": "plugins/architecture/skills/improve",
-    "architecture:map-dependencies": "plugins/architecture/skills/map-dependencies"
-  },
   "queries": [
     {
       "id": "pos-train-01",

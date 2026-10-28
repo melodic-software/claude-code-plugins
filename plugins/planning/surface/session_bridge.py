@@ -29,6 +29,7 @@ rides in the `X-<Name>-Token` header. The contract is lib/session-bridge/README.
 
 import abc
 import ctypes
+import hashlib
 import http.client
 import json
 import os
@@ -91,6 +92,19 @@ def token_header(name):
     return f"X-{name[:1].upper()}{name[1:]}-Token"
 
 
+def dumps_line(value):
+    """json.dumps for a line a reader splits on line separators: U+2028 and U+2029 stay escaped.
+
+    ensure_ascii=False keeps other non-ASCII text readable; those two are valid raw in JSON
+    (RFC 8259 section 7) but end a line in some readers.
+    """
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
+    )
+
+
 def replace_into(tmp, path):
     """os.replace with retry: Windows refuses while a reader holds the target open."""
     for _ in range(20):
@@ -111,6 +125,32 @@ def write_private(path, text):
     with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
     replace_into(tmp, path)
+
+
+def plugin_build(here=None):
+    """{pluginVersion, sourceHash} of the plugin copy in `here` (default: this file's folder): the
+    version in the plugin manifest beside `here`, and a SHA-256 of the non-test .py files in `here`.
+    Either is None when unreadable. A server records its own at start; a control script compares."""
+    here = Path(here or Path(__file__).resolve().parent)
+    try:
+        manifest = json.loads(
+            (here.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        version = manifest.get("version") if isinstance(manifest, dict) else None
+    except (OSError, ValueError):
+        version = None
+    digest = hashlib.sha256()
+    try:
+        for f in sorted(here.glob("*.py")):
+            if not f.name.startswith("test_"):
+                digest.update(f.name.encode("utf-8") + b"\0" + f.read_bytes() + b"\0")
+        source = digest.hexdigest()
+    except OSError:
+        source = None
+    return {
+        "pluginVersion": version if isinstance(version, str) else None,
+        "sourceHash": source,
+    }
 
 
 class Conflict(Exception):
@@ -173,8 +213,13 @@ class LoopbackWatcher(Transport):
         self.url = f"http://127.0.0.1:{port}/"
         self.dir = Path(data_dir).resolve()
         self.token = secrets.token_urlsafe(32)
+        # Gates /api/wait and the lease release. None means the page token also gates them; an
+        # app whose page is untrusted script sets its own, which is never served to the page.
+        self._watch_token = None
         # Differs on every start; the page tells a restart by it.
         self.instance = secrets.token_hex(6)
+        # The plugin version and source this process started from; start() records it.
+        self.build = {"pluginVersion": None, "sourceHash": None}
         self.cond = threading.Condition()
         self.waiters = 0
         self.streams = 0
@@ -184,6 +229,14 @@ class LoopbackWatcher(Transport):
         self.origins = {f"http://{h}" for h in self.hosts}
         # The one watcher allowed: {watcher, since, last, inflight, pid}. In memory, so a restart frees it.
         self.lease = None
+
+    @property
+    def watch_token(self):
+        return self._watch_token or self.token
+
+    @watch_token.setter
+    def watch_token(self, value):
+        self._watch_token = value
 
     @staticmethod
     def lease_live(lease, now, timeout):
@@ -399,7 +452,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         raw = (
             body
             if isinstance(body, bytes)
-            else json.dumps(body, ensure_ascii=False).encode("utf-8")
+            else dumps_line(body).encode("utf-8")
         )
         if code >= 400:
             # An unread request body must not become the next request.
@@ -445,6 +498,11 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         given = self.headers.get(token_header(self.hub.name)) or ""
         return secrets.compare_digest(given, self.hub.token)
 
+    def watch_token_ok(self):
+        """The watcher's token, which gates /api/wait and the lease release."""
+        given = self.headers.get(token_header(self.hub.name)) or ""
+        return secrets.compare_digest(given, self.hub.watch_token)
+
     def do_GET(self):
         if not self.origin_ok():
             return self.send(403, {"error": "bad host or origin"})
@@ -462,6 +520,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     **self.hub.identity(),
+                    **self.hub.build,
                     "pid": os.getpid(),
                     "dataDir": str(self.hub.dir),
                     "consoleWindow": CONSOLE_WINDOW,
@@ -473,7 +532,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         self.send(404, {"error": "not found"})
 
     def long_poll(self, query):
-        if not self.token_ok():
+        if not self.watch_token_ok():
             return self.send(403, {"error": "token required"})
         try:
             after = (query.get("after") or ["0"])[0]
@@ -504,8 +563,9 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         body = {"seq": seq, "timedOut": not events}
         if replay is not None:
             body["replayed"] = replay
-        body["events"] = events
+        # The data frame comes before the events it frames, as a reader meets them in the line.
         body["note"] = DATA_NOTE
+        body["events"] = events
         return self.send(200, body)
 
     def sse(self):
@@ -563,7 +623,8 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         if not self.origin_ok():
             return self.send(403, {"error": "bad host or origin"})
         url = urlparse(self.path)
-        if not self.token_ok():
+        gate = self.watch_token_ok if url.path == "/api/lease" else self.token_ok
+        if not gate():
             return self.send(403, {"error": "token required"})
         if (
             not self.headers.get("Content-Type", "")
@@ -629,7 +690,8 @@ def bind_without_lookup(server):
 
 
 def start(handler, make_hub, port, nonce=""):
-    """Bind 127.0.0.1:port (0 picks a free one), build the hub, write the session files.
+    """Bind 127.0.0.1:port (0 picks a free one), build the hub, record its plugin_build(), write
+    the session files.
 
     make_hub(port) returns the LoopbackWatcher; the session files go to its data dir, mode 0600,
     because they hold the token. Returns (httpd, hub); the caller runs httpd.serve_forever().
@@ -638,6 +700,7 @@ def start(handler, make_hub, port, nonce=""):
     httpd.daemon_threads = True
     port = httpd.server_address[1]
     hub = make_hub(port)
+    hub.build = plugin_build()
     handler.hub = hub
     pid = os.getpid()
     session = {
@@ -648,13 +711,18 @@ def start(handler, make_hub, port, nonce=""):
         "dataDir": str(hub.dir),
         "nonce": nonce,
         "startedAt": now_iso(),
+        **hub.build,
     }
+    env = f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\n"
+    if hub.build["pluginVersion"]:
+        env += f"PLUGIN_VERSION={hub.build['pluginVersion']}\n"
+    # Only an app's own watcher token is written; without one, readers fall back to the page token.
+    if hub._watch_token:
+        session["watchToken"] = hub._watch_token
+        env += f"WATCH_TOKEN={hub._watch_token}\n"
     json_name, env_name = session_files(hub.name)
     write_private(hub.dir / json_name, json.dumps(session, indent=2) + "\n")
-    write_private(
-        hub.dir / env_name,
-        f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\nNONCE={nonce}\n",
-    )
+    write_private(hub.dir / env_name, f"{env}NONCE={nonce}\n")
     return httpd, hub
 
 
@@ -695,6 +763,22 @@ def running(d, s):
     return bool(p) and p.get("pid") == s["pid"] and same_dir(p.get("dataDir") or "", d)
 
 
+def stale_build(s, here=None):
+    """Why the server session file `s` records started from another build than the plugin copy in
+    `here` (plugin_build), or None when its version and source hash match. A session file from
+    before builds were recorded holds neither, so it reads as stale."""
+    want = plugin_build(here)
+    got = {k: s.get(k) for k in want}
+    if got == want:
+        return None
+    if got["pluginVersion"] != want["pluginVersion"]:
+        return (
+            f"it runs {got['pluginVersion'] or 'a version that records none'}, "
+            f"this plugin is {want['pluginVersion'] or 'unversioned'}"
+        )
+    return "its source differs from this plugin's"
+
+
 def port_free(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         if os.name == "posix":
@@ -716,8 +800,11 @@ def interpreter():
     return sys.executable
 
 
-def spawn(cmd):
+def spawn(cmd, stderr=None):
     """Start cmd apart from this process: no inherited stdio, own session or process group.
+
+    `stderr` is an open binary file the child writes its stderr to (default: discarded). The
+    caller keeps its own handle.
 
     On Windows the child gets a console with no window (CREATE_NO_WINDOW), never
     DETACHED_PROCESS: a detached launcher's console child would allocate a new, visible one.
@@ -725,7 +812,7 @@ def spawn(cmd):
     kw = {
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL if stderr is None else stderr,
         "close_fds": True,
     }
     if os.name != "nt":
@@ -737,6 +824,29 @@ def spawn(cmd):
         )
     except OSError:  # the job this process runs in forbids breakaway
         return subprocess.Popen(cmd, creationflags=flags, **kw)
+
+
+def server_log(d, name):
+    """The file a spawned server's stderr goes to, in the data dir."""
+    return d / f".{name}-server.log"
+
+
+def open_server_log(d, name):
+    """The server log, emptied and open for the child's stderr (created 0600 on POSIX)."""
+    fd = os.open(server_log(d, name), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    return os.fdopen(fd, "wb")
+
+
+def log_tail(path, lines=20, limit=4096):
+    """The last `lines` lines (at most `limit` bytes) of a log file, or "" when unreadable."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - limit))
+            data = f.read()
+    except OSError:
+        return ""
+    return "\n".join(data.decode("utf-8", "replace").splitlines()[-lines:])
 
 
 def wait_started(d, name, nonce, proc, seconds):
@@ -791,7 +901,7 @@ def end_watcher(d, pid):
     if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
         return
     try:
-        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ")
+        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes()
         text = cmd.decode("utf-8", "replace")
     except OSError:
         try:
@@ -800,7 +910,16 @@ def end_watcher(d, pid):
             ).stdout
         except OSError:
             return
-    if "watch.sh" in text and d.name in text:
+    # Whole arguments, so one topic's path never matches another's that it prefixes.
+    dirs = {str(d), str(Path(d).resolve())}
+    if "\0" in text:
+        args = [a for a in text.split("\0") if a]
+        named = bool(dirs.intersection(args))
+    else:  # ps joins the arguments with spaces: match the path as a delimited run
+        args = text.split()
+        flat = f" {' '.join(args)} "
+        named = any(f" {x} " in flat for x in dirs)
+    if any(a.endswith("watch.sh") for a in args) and named:
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:
@@ -832,7 +951,7 @@ def release_lease(s, name):
             body=json.dumps({"action": "release"}),
             headers={
                 "Content-Type": "application/json",
-                token_header(name): s["token"],
+                token_header(name): s.get("watchToken") or s["token"],
             },
         )
         resp = conn.getresponse()
@@ -1242,11 +1361,11 @@ class ChannelRelay(Transport):
         self.last_deliver = 0.0
 
     def session(self):
-        """(port, token) from the data dir's session env file, or None."""
+        """(port, watcher token) from the data dir's session env file, or None."""
         try:
             text = (self.dir / session_files(self.name)[1]).read_text(encoding="utf-8")
             env = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
-            return int(env["PORT"]), env["TOKEN"]
+            return int(env["PORT"]), env.get("WATCH_TOKEN") or env["TOKEN"]
         except (OSError, KeyError, ValueError):
             return None
 
@@ -1294,7 +1413,7 @@ class ChannelRelay(Transport):
         s = self.session()
         if s is not None:
             try:
-                release_lease({"port": s[0], "token": s[1]}, self.name)
+                release_lease({"port": s[0], "watchToken": s[1]}, self.name)
             except (OSError, http.client.HTTPException):
                 pass
 
@@ -1336,7 +1455,7 @@ class ChannelRelay(Transport):
         line = {"seq": log["seq"], "timedOut": not events}
         if log.get("replayed") is not None:
             line["replayed"] = log["replayed"]
-        line.update({"events": events, "note": DATA_NOTE, "dataDir": str(self.dir)})
+        line.update({"note": DATA_NOTE, "events": events, "dataDir": str(self.dir)})
         if events:
             ops = str(self.dir / "ops.json")
             line["next"] = shlex.join(
@@ -1475,7 +1594,7 @@ class ChannelServer:
 
     def send(self, msg):
         with self.lock:
-            self.out.write(json.dumps(msg, ensure_ascii=False) + "\n")
+            self.out.write(dumps_line(msg) + "\n")
             self.out.flush()
 
     def ring(self, relay, text, **meta):
@@ -1525,7 +1644,7 @@ class ChannelServer:
         return f"watching {d}: a channel event announces new page events; read them with the events tool"
 
     def tool_events(self, args):
-        return json.dumps(self.relay_for(args).take(), ensure_ascii=False)
+        return dumps_line(self.relay_for(args).take())
 
     def tool_unwatch(self, args):
         relay = self.relay_for(args)

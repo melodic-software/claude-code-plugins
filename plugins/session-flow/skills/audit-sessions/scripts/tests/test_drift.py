@@ -3,8 +3,10 @@
 
 Classifier cases build store records in memory; the CLI cases read the synthetic store
 `drift/store/` (records `drift-s1.json`, `drift-s2.json`, `drift-s3.json`, `drift-s4.json`, census
-and unknown blocks only), and the collector case ingests `drift/split/proj-s/split-0001.jsonl`,
-where one message's streamed records disagree on input tokens. The bundled
+and unknown blocks only), and the collector case ingests the hand-written
+`drift/usage/proj-u/usage-0001.jsonl`: msg_M's second record carries usage merged from a cumulative
+message_delta (input and cache counts up), msg_D dips on input and recovers on its last record, and
+msg_R's last record is below its first on input tokens. The bundled
 `reference/canaries.json` is checked for shape.
 """
 
@@ -19,7 +21,7 @@ from conftest import FIXTURES, envelope, run_cli
 
 DRIFT_STORE = FIXTURES / "drift" / "store"
 TOKENS = {"key": "usage_key:input_tokens", "record_type": "assistant", "feeds": ["tokens.main"]}
-SPLIT = {"key": "invariant:usage_split", "record_type": "assistant", "expect": "absent", "feeds": ["tokens.main"]}
+REGRESS = {"key": "invariant:usage_regress", "record_type": "assistant", "expect": "absent", "feeds": ["tokens.main"]}
 
 
 def rec(session_id: str, buckets: dict, unknown: dict | None = None) -> dict:
@@ -223,14 +225,19 @@ def test_canary_population_narrows_to_its_subtype():
     assert drift(lost, [hooks])["degraded_metrics"] == ["hooks.stop_ms"]
 
 
-@pytest.mark.parametrize(("splits", "lost"), [(0, False), (2, False), (20, True)])
-def test_invariant_canary_lost_when_streamed_usage_disagrees_at_min_count(splits, lost):
-    # A few split groups are legitimate (cumulative usage over two API iterations); a format
-    # change splits many.
-    records = [rec("a", {"1.0.2|m": {"record_type:assistant": 30, "invariant:usage_split": splits}})]
-    result = drift(records, [SPLIT])
-    assert classes(result, "canary-lost") == (["invariant:usage_split"] if lost else [])
+@pytest.mark.parametrize(("regressions", "lost"), [(0, False), (2, False), (20, True)])
+def test_invariant_canary_lost_when_last_records_regress_at_min_count(regressions, lost):
+    records = [rec("a", {"1.0.2|m": {"record_type:assistant": 30, "invariant:usage_regress": regressions}})]
+    result = drift(records, [REGRESS])
+    assert classes(result, "canary-lost") == (["invariant:usage_regress"] if lost else [])
     assert result["degraded_metrics"] == (["tokens.main"] if lost else [])
+
+
+def test_bundled_token_canary_checks_regression_not_disagreement():
+    keys = {c["key"]: c for c in census.load_canaries(census.BUNDLED_CANARIES)["canaries"]}
+    assert "invariant:usage_split" not in keys
+    assert keys["invariant:usage_regress"]["expect"] == "absent"
+    assert {"tokens.main", "tokens.sub"} <= set(keys["invariant:usage_regress"]["feeds"])
 
 
 @pytest.mark.parametrize(
@@ -268,13 +275,17 @@ def test_unknown_record_types_surface_with_counts():
     assert result["counts"]["unknown-record-type"] == 2
 
 
-def test_collector_counts_a_split_usage_group_once(data_dir, copy_fixture):
-    root = copy_fixture("drift/split")
+def test_collector_counts_only_a_last_record_below_an_earlier_one(data_dir, copy_fixture):
+    root = copy_fixture("drift/usage")
     collected = run_cli("collect.py", "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
     assert collected.returncode == 0, collected.stderr
-    (stored,) = (data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/split-0001.json")
-    bucket = json.loads(stored.read_text(encoding="utf-8"))["census"]["2.0.9|model-s"]
-    assert bucket["invariant:usage_split"] == 1
+    (stored,) = (data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/usage-0001.json")
+    record = json.loads(stored.read_text(encoding="utf-8"))
+    # msg_M's merged usage raises input and cache counts, and msg_D's last record recovers its
+    # dip: neither counts. Only msg_R does.
+    assert record["census"]["2.0.9|model-s"]["invariant:usage_regress"] == 1
+    tokens = record["tokens"]["main"]
+    assert (tokens["input"], tokens["cache_read"], tokens["cache_creation"]) == (8 + 5 + 4, 1500 * 3, 350)
 
 
 @pytest.fixture

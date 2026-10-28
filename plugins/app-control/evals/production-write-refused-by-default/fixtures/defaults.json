@@ -1,0 +1,19 @@
+{
+  "environment": "staging",
+  "environments": {
+    "staging": {
+      "url": "https://staging.shop.example.invalid",
+      "writes": {
+        "issue-refund": "attended"
+      }
+    },
+    "prod": {
+      "url": "https://shop.example.invalid",
+      "production": true,
+      "writes": {
+        "issue-refund": "attended"
+      }
+    }
+  },
+  "safety": {}
+}

@@ -233,6 +233,15 @@ Write into the memory slice, following the skill's Output Format and the plugin'
 Sidecars never live outside the slice, and `RESEARCH.md` is always the entry point: a consumer
 handed that filename must get a readable document.
 
+**Restatements cite; they do not restate.** Give every claim in a sidecar header an `id:` (`M1`,
+`CI-02`). The index Summary, the Settled list and the rest of the handoff, catalog and table cells,
+and sidecar abstracts cite a claim by that ID instead of restating its figures, qualifiers or
+attribution, and a line that names a claim at `HIGH (single source)`, `MEDIUM` or `LOW` carries that
+label verbatim on the same line: `(M1, HIGH (single source))`. When a verifier fails a restatement,
+shrink it to a pointer rather than adding text. Rule and ID grammar:
+`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`, "Restatements cite; they do not
+restate".
+
 **Paths in the artifact are machine-agnostic.** Resolve absolute paths to work, but never echo one
 into an artifact; every path you record is relative to the repo root, or to the working directory
 when there is no repo root.

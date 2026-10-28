@@ -103,6 +103,26 @@ else
   fail "$label: $(state)"
 fi
 
+# 4b. A plugin's further concern (a stem that is not a plugin name) validates
+#     against the schema that plugin ships; the first two lookups still win.
+label="a plugin's further concern uses the schema the plugin ships"
+new_repo && put docs/conventions/alpha-extra.yaml 'mode: on' && put plugins/alpha/schemas/alpha-extra.schema.json '{}'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha-extra.schema.json -- docs/conventions/alpha-extra.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a convention-folder schema wins over a plugin's further-concern schema"
+new_repo && put docs/conventions/alpha-extra.yaml 'mode: on' && put plugins/alpha/schemas/alpha-extra.schema.json '{}' &&
+  put docs/conventions/alpha-extra/alpha-extra.schema.json '{}'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile docs/conventions/alpha-extra/alpha-extra.schema.json -- docs/conventions/alpha-extra.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+
 # 5. A YAML file with no schema is a finding, and the validator is not run for it.
 label="missing schema exits 1 naming the file on stderr"
 new_repo && put docs/conventions/gamma.yaml 'mode: on'

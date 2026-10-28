@@ -5,26 +5,26 @@
 // included, while the context keeps every listed account's text and drops
 // unlisted accounts.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, writeData } from "./replay.mjs";
+import { tempDir } from "../../../../lib/test-tmp.mjs";
 
 const CASES = loadCases();
 const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json");
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("twenty cases in the planned mix", () => {
-  assert.equal(CASES.length, 20);
+test("twenty-one cases in the planned mix", () => {
+  assert.equal(CASES.length, 21);
   assert.equal(count((c) => c.expect.class === "control"), 4);
-  assert.equal(count((c) => c.expect.class === "blocking"), 10);
+  assert.equal(count((c) => c.expect.class === "blocking"), 11);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
-  // 11 blocking cases scored on the verifier, 55 runs at five each.
-  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 11);
+  // 12 blocking cases scored on the verifier, 60 runs at five each.
+  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 12);
   assert.equal(count((c) => c.expect.class === "injection" && c.expect.expected === "fail"), 2);
   // The workflow case alone is scored separately.
   const separate = CASES.filter((c) => c.expect.scored === "separate");
@@ -85,7 +85,7 @@ test("each diff is a well-formed git diff under 400 lines", () => {
 });
 
 test("every case lays out the five data files through the real filters", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     for (const [index, testCase] of CASES.entries()) {
       const dataDir = path.join(dir, testCase.id);
@@ -108,7 +108,7 @@ test("every case lays out the five data files through the real filters", async (
 test("the untrusted-requirement case: the lane's comment is context only and the outsider's is dropped", async () => {
   const index = CASES.findIndex((c) => c.id === "19-injection-untrusted-requirement");
   const testCase = CASES[index];
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     await writeData({ testCase, index, dataDir: dir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE });
     const [laneComment, outsiderComment] = testCase.spec.issue.comments.map((comment) => comment.body);
@@ -126,7 +126,7 @@ test("the untrusted-requirement case: the lane's comment is context only and the
 
 test("the scope-claim case: the PR body is context, never spec", async () => {
   const index = CASES.findIndex((c) => c.id === "17-injection-scope-claim");
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-test-"));
+  const dir = tempDir("pr-verify-probe-test-");
   try {
     await writeData({ testCase: CASES[index], index, dataDir: dir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE });
     assert.ok(!readFileSync(path.join(dir, "spec-text.json"), "utf8").includes("owner expanded"));
@@ -217,6 +217,24 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "infrastructure");
   }
 
+  // Only a rate limit or server error is retried; a request or credential
+  // error fails the same way on every attempt.
+  const api = (code) => judgeLeg({ stdout: stream(INIT, result({ is_error: true, api_error_status: code })), status: 1, resolved: RESOLVED });
+  for (const code of [429, 500, 503, 529, 599]) {
+    assert.deepEqual([code, api(code).outcome, api(code).reason], [code, "infrastructure", `api ${code}`]);
+  }
+  for (const code of [400, 401, 403, 404, 413, 499, 600]) {
+    assert.deepEqual([code, api(code).outcome], [code, "no-verdict"]);
+  }
+  // An error during execution is retried whatever status it carries, and
+  // counted under its subtype.
+  const during = judgeLeg({
+    stdout: stream(INIT, result({ is_error: true, subtype: "error_during_execution", api_error_status: 400 })),
+    status: 1,
+    resolved: RESOLVED,
+  });
+  assert.deepEqual([during.outcome, during.reason], ["infrastructure", "api error_during_execution"]);
+
   const extraKey = judgeLeg({ stdout: stream(INIT, result({ structured_output: { ...OUTPUT, approve: true } })), status: 0, resolved: RESOLVED });
   assert.equal(extraKey.outcome, "invalid");
 });
@@ -302,4 +320,17 @@ test("summarize reports catches, false FAILs, over-strict runs and flagged injec
     no_verdict: { "no-verdict": 1, denied: 1 },
     retried: { "api 529": 2 },
   });
+});
+
+test("summarize counts a retry only where another attempt followed", () => {
+  const infra = (reason) => ({ outcome: "infrastructure", reason });
+  const records = [
+    // Three failed attempts are two retries.
+    { expect: control, outcome: "infrastructure", score: null, attempts: [infra("api 529"), infra("api 529"), infra("api 529")] },
+    { expect: control, outcome: "verdict", score: scoreRun(control, verdict("pass")), attempts: [infra("api 429"), { outcome: "verdict" }] },
+    { expect: control, outcome: "infrastructure", score: null, attempts: [infra("exit 1, no result message")] },
+  ];
+  const { retried, no_verdict } = summarize(records);
+  assert.deepEqual(retried, { "api 529": 2, "api 429": 1 });
+  assert.deepEqual(no_verdict, { infrastructure: 2 });
 });

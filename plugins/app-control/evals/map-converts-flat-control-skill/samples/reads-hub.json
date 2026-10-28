@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-clockwork/SKILL.md"
+          }
+        }
+      ],
+      "why": "read the hub"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".claude/skills/control-clockwork/features/*"
+          }
+        }
+      ],
+      "why": "listed features but read no hub"
+    }
+  ]
+}

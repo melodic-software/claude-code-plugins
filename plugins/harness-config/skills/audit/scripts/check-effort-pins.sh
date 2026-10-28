@@ -275,9 +275,12 @@ scan_pins() {
       }
     ' "$f"
   done
-  f="$ROOT/plugins/harness-ops/skills/lanes/context/config.md"
-  [[ -f "$f" ]] && grep -oE '"effort"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" |
-    sed -E 's/.*:[[:space:]]*"([^"]*)"$/\1/' | while IFS= read -r v; do printf 'lane-config\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done
+  # A lane config is found by its JSON "effort" key, never by another plugin's path:
+  # plugins install independently, so a skill's internal layout is not a cite target.
+  for f in "$ROOT"/plugins/*/skills/*/context/*.md; do
+    grep -oE '"effort"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" |
+      sed -E 's/.*:[[:space:]]*"([^"]*)"$/\1/' | while IFS= read -r v; do printf 'lane-config\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done
+  done
   f="$ROOT/prompts/loops/loop-lane-prompts.md"
   [[ -f "$f" ]] && grep -oE -- '--effort[ =][A-Za-z0-9_-]+' "$f" |
     sed -E 's/^--effort[ =]//' | while IFS= read -r v; do printf 'lane-launch\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done

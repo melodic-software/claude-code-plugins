@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Outcome: **blocked**. start-a-timer.md has uncommitted changes; commit or stash them first.",
+      "why": "names the blocked outcome"
+    },
+    {
+      "answer": "The refresh is Blocked before the conversion and writes nothing.",
+      "why": "case-insensitive outcome word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Outcome: changed. The conversion moves start-a-timer.md into control-clockwork-web.",
+      "why": "converts the dirty map"
+    },
+    {
+      "answer": "The pass is unblocked once the copy is taken, so it converts.",
+      "why": "only the word unblocked, not the outcome"
+    }
+  ]
+}

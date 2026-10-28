@@ -673,6 +673,24 @@ expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody
 expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
 expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
+# `git commit -F -` and `git tag -F -` read the body as a message, and git
+# ignores an alias that hides a built-in command, so their one-line form is data.
+expect_both "quoted heredoc fed to git commit -F - allowed" 0 --command $'git commit -F - <<\'EOF\'\nfix: x\n\nRun `rm -rf /` never.\nEOF'
+expect_both "quoted heredoc fed to git tag -F - allowed" 0 --command $'git tag -F - v1.0.0 <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
+# A global option ahead of the subcommand can define or reach an alias, another
+# subcommand or an unknown alias can be `!sh`, and only `-F -` names stdin, so
+# each of these is still scanned. So is the form whose opener sits on a later
+# line, a pipe after the opener, and a `cat` redirected into a file.
+expect_both "quoted heredoc fed to git -c commit -F - blocks" 2 --command $'git -c alias.x=y commit -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git -C commit -F - blocks" 2 --command $'git -C /tmp commit -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to an unknown git alias with -F - blocks" 2 --command $'git ci -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git notes add -F - blocks" 2 --command $'git notes add -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit with -F - after -- blocks" 2 --command $'git commit -- -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit with -F - inside quotes blocks" 2 --command $'git commit "a -F - b" <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit --file=- blocks" 2 --command $'git commit --file=- <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc opener on a later line of git commit -F - blocks" 2 --command $'git commit -F - --trailer "Refs: #1" \\\n<<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit -F - piped into sh blocks" 2 --command $'git commit -F - <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc written by a redirected cat blocks" 2 --command $'cat > /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
 # An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
 expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'

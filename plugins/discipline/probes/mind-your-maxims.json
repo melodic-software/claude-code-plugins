@@ -10,13 +10,6 @@
     "education:explain",
     "discipline:scrutinize-dont-coast"
   ],
-  "competitor_dirs": {
-    "writing:be-concise": "plugins/writing/skills/be-concise",
-    "discipline:tighten-your-output": "plugins/discipline/skills/tighten-your-output",
-    "adhd:clarify": "plugins/adhd/skills/clarify",
-    "education:explain": "plugins/education/skills/explain",
-    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast"
-  },
   "queries": [
     {
       "id": "pos-train-01",

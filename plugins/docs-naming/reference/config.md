@@ -37,7 +37,7 @@ A layer whose file is absent under that name but present under the retired
 both exist. Rename the file to retire the warning.
 
 All three absent is a valid state: every key has a bundled default, and the
-defaults are this marketplace's own values. The recommended gitignore line for
+defaults are this marketplace's own values, except `generated`, which is empty. The recommended gitignore line for
 the overlay is `.claude/**/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
@@ -99,7 +99,7 @@ names any declaration it ignored.
 | `tiers` | array of objects | see below | how a reference is rewritten, by where it lives |
 | `sweep_exclude` | array of strings | `[".work/**"]` | pathspecs the reference sweep never reads and never edits |
 | `sweep_exclude_sites` | array of strings | `[]` | `path:literal` pairs the sweep never edits, for a site whose text matches by accident |
-| `generated` | array of objects | the landscape record | files that are produced by a command rather than edited |
+| `generated` | array of objects | `[]` | files that are produced by a command rather than edited; the team layer declares them, because a regenerate command is specific to its repository |
 | `redirect_map` | string or null | `null` | reserved for a site generator's old-to-new map; no version writes one yet |
 
 ### Root objects

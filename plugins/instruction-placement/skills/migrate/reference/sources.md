@@ -374,7 +374,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `~/.claude/plugins`"; [plugins/loading](https://code.claude.com/docs/en/plugins/loading)
   (fetched 2026-10-01, 37,348 bytes) says the same root "is `~/.claude/plugins` unless you set
   `CLAUDE_CODE_PLUGIN_CACHE_DIR`". The resolution expression is the one
-  `plugins/performance/skills/verify/SKILL.md` uses. The memory page names the exempt user file
+  `/performance:verify` uses. The memory page names the exempt user file
   only as "your `~/.claude/CLAUDE.md`" and does not say how `CLAUDE_CONFIG_DIR` changes that, so
   the walk exempts it only at the default root. The removal procedure for an `@AGENTS.md`
   shim: "Remove

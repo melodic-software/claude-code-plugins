@@ -10,13 +10,6 @@
     "improvement:find",
     "performance:go-faster"
   ],
-  "competitor_dirs": {
-    "session-flow:retro": "plugins/session-flow/skills/retro",
-    "session-flow:running-retro": "plugins/session-flow/skills/running-retro",
-    "session-flow:audit-friction": "plugins/session-flow/skills/audit-friction",
-    "improvement:find": "plugins/improvement/skills/find",
-    "performance:go-faster": "plugins/performance/skills/go-faster"
-  },
   "queries": [
     {
       "id": "pos-train-01",

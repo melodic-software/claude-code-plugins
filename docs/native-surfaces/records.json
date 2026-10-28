@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/native-surfaces.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /harness-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
+  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person or by a session acting on the owner's recorded direction, never by an unattended run. docs/native-surfaces.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /harness-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
   "rows": [
     {
       "native": {
@@ -486,7 +486,7 @@
       },
       "verdict": "complementary",
       "integration": "route",
-      "reason": "Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (real header, real data, real routes) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.",
+      "reason": "Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (a local mockup in the app's own look by default, or the real header, data and routes on request) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.",
       "evidence": [
         "upstream SKILL.md read at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7: 'especially when the input space is large, visual, or structural and hard to express as plain text'",
         "our description: builds throwaway UI variations, a few structurally different layouts (three by default) behind one route, toggled from a floating switcher",
@@ -570,7 +570,7 @@
       },
       "verdict": "complementary",
       "integration": "suggest",
-      "reason": "The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup by default and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
+      "reason": "The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup either way and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
       "evidence": [
         "binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub",
         "our Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas'; the description no longer carries a design clause",
@@ -1426,6 +1426,9 @@
         "markers": [
           "gated",
           "model-invocation-disabled"
+        ],
+        "docs_markers": [
+          "gated"
         ]
       },
       "component": {
@@ -1439,9 +1442,10 @@
       "evidence": [
         "`skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)",
         "invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)",
-        "markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)",
+        "markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction sets no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row), so `native.docs_markers` lists gated and the changelog's native-drift pass does not compare it",
+        "2.1.296 recheck (2026-10-25, item #6885): the 2.1.265..2.1.296 changelog apply's native-drift pass extracted skill-doctor with model-invocation-disabled and no gated flag; the docs pointers below, reread, still state the same version and feature-flag gate, so gated stands",
         "detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30",
-        "docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands",
+        "docs pointers (read 2026-10-25, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands",
         "our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause"
       ],
       "observation": {
@@ -1451,7 +1455,7 @@
       },
       "recheck": {
         "trigger": "a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison",
-        "verified": "2026-10-02"
+        "verified": "2026-10-25"
       },
       "baked": {
         "description_phrase": false,
@@ -1938,7 +1942,7 @@
       },
       "verdict": "defer",
       "integration": "route",
-      "reason": "Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants on the real stack. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants as a local HTML mockup by default, or on the real stack on request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "evidence": [
         "`prototype` present in the extraction as bundled-skill",
         "markers: gated",
@@ -2680,7 +2684,7 @@
       },
       "verdict": "complementary",
       "integration": "route",
-      "reason": "The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants on the real stack or as a local HTML mockup and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.",
+      "reason": "The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants as a local HTML mockup by default, or on the real stack on request, and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.",
       "evidence": [
         "`ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'",
         "description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'",

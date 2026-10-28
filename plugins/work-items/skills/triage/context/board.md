@@ -110,7 +110,9 @@ closes the loop.
 7. A watcher exit 3 means another session holds the board or it was stopped: stop watching. Exit 2
    names its cause on stderr. When it asks for `ensure-running`, the server ended after 600 seconds
    with no watcher, and its token with it: run step 1 again, tell the reader to reload the board, and
-   run the new `watch`. Report any other exit 2 cause. When triage is done, run
+   run the new `watch`. Report any other exit 2 cause. Exit 4 means the watcher hit its limit of
+   consecutive empty waits and ended so an orphan cannot keep the server alive; stderr names the re-arm
+   command: run it as a background Bash task while triage is still going. When triage is done, run
    `bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<dir>/board-bridge" stop`.
 
 With no session listening, the board says so and its copy control still works.

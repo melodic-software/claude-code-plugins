@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: babysit-prs-safe-tier-never-resolves-or-merges
+context:
+  scaffold_script: scaffold.sh

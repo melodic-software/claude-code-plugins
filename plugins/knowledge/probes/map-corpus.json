@@ -9,12 +9,6 @@
     "knowledge:docpage-digest",
     "knowledge:video-digest"
   ],
-  "competitor_dirs": {
-    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
-    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
-    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
-    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
-  },
   "queries": [
     {
       "id": "pos-train-01",

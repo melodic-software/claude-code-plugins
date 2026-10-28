@@ -40,6 +40,11 @@ PASS=0
 FAIL=0
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+# Fixtures read only their own git config: a global commit.gpgsign or signing
+# program would sign every fixture commit with the machine's key, and decide
+# what the sync-stale-base cases sign.
+: >"$WORKDIR/gitconfig-global"
+export GIT_CONFIG_GLOBAL="$WORKDIR/gitconfig-global" GIT_CONFIG_NOSYSTEM=1
 
 BRANCH="feat/x"
 
@@ -50,7 +55,7 @@ BRANCH="feat/x"
 # base): push-branch.sh's own read (`-q`, one line) and lane-push.sh's (`-R`,
 # two lines). `api --hostname github.com repos/...` is lane-push.sh's default-branch read. Lane cases add a git
 # stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
-# the git stand-in sends a push for https://github.com/<path> to
+# the git stand-in sends a push or ls-remote for https://github.com/<path> to
 # $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
 # `git remote get-url` reports) and still push into a local bare repository.
 REAL_GIT="$(type -P git)"
@@ -70,7 +75,14 @@ case "$1 $2" in
     ;;
   "repo view") echo "example-org/app" ;;
   "pr view")
-    if [[ " $* " == *" -R "* ]]; then
+    if [[ " $* " == *" baseRefName,url "* ]]; then
+      echo base-read >>"$PB_GH_LOG"
+      [[ -n ${PB_PR_BASE:-} ]] || {
+        echo "no pull requests found for branch \"$3\"" >&2
+        exit 1
+      }
+      echo "$PB_PR_BASE ${PB_PR_BASE_REPO:-example-org/app}"
+    elif [[ " $* " == *" -R "* ]]; then
       printf '%s\n' "${PB_PR_HEAD_REPO:-example-org/app}" feat/b
     else
       echo "feat/b ${PB_PR_HEAD_REPO:-example-org/app}"
@@ -82,12 +94,14 @@ EOF
 cat >"$SHIM/git" <<EOF
 #!/usr/bin/env bash
 for a in "\$@"; do
+  [[ \$a != fetch ]] || printf '%s\n' "\$*" >>"$LOG/fetch.log"
+  [[ \$a != ls-remote ]] || printf '%s\n' "\$*" >>"$LOG/ls-remote.log"
   if [[ \$a == push && -n \${PB_RECORD_PUSH:-} ]]; then
     printf '%s\n' "\$@" >"$LOG/push.argv"
     pwd -P >"$LOG/push.cwd"
     exit 0
   fi
-  if [[ \$a == push && -n \${PB_GITHUB_ROOT:-} ]]; then
+  if [[ (\$a == push || \$a == ls-remote || \$a == fetch) && -n \${PB_GITHUB_ROOT:-} ]]; then
     exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=ssh://git@github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=git@github.com:" "\$@"
@@ -96,6 +110,7 @@ done
 exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$SHIM/gh" "$SHIM/git"
+export PB_GH_LOG="$LOG/gh.log"
 export PATH="$SHIM:$PATH"
 
 # push-branch.sh runs from a copy of the plugin's layout, so the lane identity
@@ -104,8 +119,9 @@ export PATH="$SHIM:$PATH"
 # passing with PB_IDENTITY as the configured identity, else refusing as a
 # target that names none. lane-push.sh is the real one.
 PLUGIN="$WORKDIR/plugin"
-mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts"
+mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "${SCRIPT_DIR}/../../../lib/convention-key.sh" "${SCRIPT_DIR}/../../../lib/yaml-subset.awk" "$PLUGIN/lib/"
 cp -p "${SCRIPT_DIR}/../../../scripts/lane-push.sh" "$PLUGIN/scripts/"
 cat >"$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh" <<EOF
 #!/usr/bin/env bash
@@ -122,7 +138,9 @@ PUSH_BRANCH="$PLUGIN/skills/pull-request/scripts/push-branch.sh"
 
 # Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
 # plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
-# repo of its own so a real push has somewhere to land. Echoes the clone path.
+# repo of its own so a real push has somewhere to land. Every remote holds the
+# commit as `trunk`, its HEAD, so ls-remote reports a default branch, as a real
+# remote does. Echoes the clone path.
 make_clone() {
   local name="$1"
   shift
@@ -137,6 +155,10 @@ make_clone() {
   for extra in "$@"; do
     git init -q --bare "$base/$extra.git"
     git -C "$base/wc" remote add "$extra" "$base/$extra.git"
+  done
+  for bare in "$base"/*.git; do
+    git -C "$base/wc" push -q "$bare" "HEAD:refs/heads/trunk" 2>/dev/null
+    git -C "$bare" symbolic-ref HEAD refs/heads/trunk
   done
   echo "$base/wc"
 }
@@ -462,6 +484,425 @@ rm -f "$LOG"/*
 check "login read failed: exit 0 on the operator path" "$?" "0"
 check "login read failed: the remote received the branch by plain git" "$(has_branch "$WORKDIR/login-fail/origin")" "yes"
 check "login read failed: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
+
+# 10. Never pushed: main, master, or the push remote's default branch as the
+#     remote reports it (ls-remote --symref), whatever the local <remote>/HEAD
+#     says. A failed ls-remote refuses. Each refusal pushes nothing.
+has_ref() {
+  if git -C "$1" rev-parse --verify --quiet "refs/heads/$2" >/dev/null 2>&1; then echo yes; else echo no; fi
+}
+# refuse_case <desc> <bare remote> <ref> <message> <cwd> [push-branch.sh args...]
+# runs push-branch.sh from <cwd>, with $STUB first on PATH when set. An empty
+# <ref> skips the "did not receive" check (the caller checks the tip itself).
+refuse_case() {
+  local desc="$1" bare="$2" ref="$3" want_msg="$4" cwd="$5"
+  shift 5
+  local rc=0 err
+  err=$(cd "$cwd" && PATH="${STUB:+$STUB:}$PATH" bash "$PUSH_BRANCH" "$@" 2>&1 >/dev/null) || rc=$?
+  check "$desc: exits non-zero" "$([[ $rc != 0 ]] && echo nonzero || echo zero)" "nonzero"
+  check "$desc: names why" "$([[ $err == *"$want_msg"*"; not pushing"* ]] && echo refused || echo "$err")" "refused"
+  [[ -z $ref ]] || check "$desc: the remote did not receive '$ref'" "$(has_ref "$bare" "$ref")" "no"
+}
+ALWAYS="(main and master are always refused)"
+STUB=""
+
+# main and master refuse on a remote with no HEAD yet: named, current, --dir.
+wc=$(make_clone always)
+bare="$WORKDIR/always/origin.git"
+git -C "$wc" branch -q -f main
+git -C "$wc" branch -q -f master
+refuse_case "always, main named" "$bare" main "'main' is refused $ALWAYS" "$wc" main
+refuse_case "always, master named" "$bare" master "'master' is refused $ALWAYS" "$wc" master
+git -C "$wc" checkout -q main
+refuse_case "always, main current" "$bare" main "'main' is refused $ALWAYS" "$wc"
+refuse_case "always, --dir on main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" --dir "$wc"
+
+# The remote's default is trunk. Local origin/HEAD unset, then stale (main):
+# trunk refuses either way, main and master still refuse, a feature branch pushes.
+wc=$(make_clone remote-trunk)
+bare="$WORKDIR/remote-trunk/origin.git"
+git -C "$wc" branch -q trunk
+git -C "$wc" branch -q -f main
+git -C "$wc" branch -q -f master
+git -C "$wc" push -q origin "HEAD:refs/heads/trunk" 2>/dev/null
+git -C "$bare" symbolic-ref HEAD refs/heads/trunk
+remote_trunk=$(git -C "$bare" rev-parse refs/heads/trunk)
+git -C "$wc" commit -q --allow-empty -m "local trunk ahead"
+git -C "$wc" branch -q -f trunk HEAD
+refuse_case "remote trunk, local HEAD unset" "$bare" "" \
+  "'trunk' is the default branch of origin" "$wc" trunk
+git -C "$wc" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+refuse_case "remote trunk, local HEAD stale at main" "$bare" "" \
+  "'trunk' is the default branch of origin" "$wc" trunk
+check "remote trunk: the remote's trunk did not move" "$(git -C "$bare" rev-parse refs/heads/trunk)" "$remote_trunk"
+refuse_case "remote trunk, main" "$bare" main "'main' is refused $ALWAYS" "$wc" main
+refuse_case "remote trunk, master" "$bare" master "'master' is refused $ALWAYS" "$wc" master
+(cd "$wc" && bash "$PUSH_BRANCH" "$BRANCH") >/dev/null 2>&1
+check "remote trunk, control: a feature branch pushes" "$(has_ref "$bare" "$BRANCH")" "yes"
+
+# A remote whose default cannot be read refuses, even where the push URL works.
+wc=$(make_clone lsremote-fail)
+bare="$WORKDIR/lsremote-fail/origin.git"
+git -C "$wc" remote set-url origin "$WORKDIR/lsremote-fail/missing.git"
+git -C "$wc" remote set-url --push origin "$bare"
+refuse_case "ls-remote failed" "$bare" "$BRANCH" \
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
+
+# A remote that answers ls-remote but advertises no HEAD symref (here a HEAD
+# naming no branch) has an unreadable default: refused like a failed read.
+wc=$(make_clone no-head)
+bare="$WORKDIR/no-head/origin.git"
+git -C "$bare" symbolic-ref HEAD refs/heads/absent
+refuse_case "remote advertises no HEAD" "$bare" "$BRANCH" \
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
+
+# --check runs the same check and pushes nothing.
+wc=$(make_clone check-mode)
+bare="$WORKDIR/check-mode/origin.git"
+git -C "$wc" branch -q -f main
+refuse_case "--check main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" --check --dir "$wc" main
+(cd "$WORKDIR" && bash "$PUSH_BRANCH" --check --dir "$wc") >/dev/null 2>&1
+check "--check, feature branch: exits 0" "$?" "0"
+check "--check, feature branch: nothing pushed" "$(has_ref "$bare" "$BRANCH")" "no"
+
+# --pr: a head in the base repository on main refuses, before the
+# head-repository check, and names the PR head. A fork head pushes to the
+# contributor's fork, not the base, so its main pushes (lane-push.sh's rule).
+# The stub answers "<head branch> <head repo> <base repo>".
+wc=$(make_clone default-pr)
+git -C "$wc" branch -q -f main
+git -C "$wc" remote set-url origin https://github.com/default-pr/origin.git
+STUB="$WORKDIR/default-pr/bin"
+mkdir -p "$STUB"
+cat >"$STUB/gh" <<'STUB'
+#!/usr/bin/env bash
+[[ "$1" == api ]] && echo example-user && exit 0
+[[ "$*" == *" 47 "* ]] && echo "main default-pr/origin default-pr/origin" && exit 0
+[[ "$*" == *" 48 "* ]] && echo "main default-pr/origin base-org/app" && exit 0
+exit 1
+STUB
+chmod +x "$STUB/gh"
+export PB_GITHUB_ROOT="$WORKDIR"
+refuse_case "--pr head main in the base repository" "$WORKDIR/default-pr/origin.git" main \
+  "PR '47' head 'main' is refused $ALWAYS" "$wc" --pr 47
+(cd "$wc" && PATH="$STUB:$PATH" bash "$PUSH_BRANCH" --pr 48) >/dev/null 2>&1
+check "--pr fork head main: exits 0" "$?" "0"
+check "--pr fork head main: the fork received main" "$(has_ref "$WORKDIR/default-pr/origin.git" main)" "yes"
+STUB=""
+unset PB_GITHUB_ROOT
+
+# 11. sync-stale-base: inside the rate gate, just before the push, a branch
+#     behind its base on overlapping paths gets the base merged in (never a
+#     rebase), so the pre-push stale-base refusal does not bounce it. Off by
+#     default; on through sync_stale_base in docs/conventions/source-control.yaml
+#     or --sync-stale-base, off again through --no-sync-stale-base.
+# sync_clone <name> <yes|no>: make_clone plus a ten-line c.txt (and, for yes, the
+# config turning the sync on) committed on feat/x and pushed as the remote's
+# trunk, so both sides share it.
+sync_clone() {
+  local wc
+  wc=$(make_clone "$1")
+  printf '%s\n' 1 2 3 4 5 6 7 8 9 10 >"$wc/c.txt"
+  if [[ $2 == yes ]]; then
+    mkdir -p "$wc/docs/conventions"
+    echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
+  fi
+  git -C "$wc" add -A
+  git -C "$wc" commit -q -m shared
+  git -C "$wc" push -q origin HEAD:refs/heads/trunk 2>/dev/null
+  echo "$wc"
+}
+# set_line <checkout> <file> <line> <text>: rewrite one line and commit it.
+set_line() {
+  awk -v n="$3" -v t="$4" 'NR == n { $0 = t } { print }' "$1/$2" >"$1/$2.new" && mv "$1/$2.new" "$1/$2"
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "edit $2"
+}
+# advance_base <name> <file> <line> <text>: move the remote's trunk on in a
+# second clone, as another pull request landing would.
+advance_base() {
+  local o="$WORKDIR/$1/other"
+  [[ -d $o ]] || {
+    git clone -q -b trunk "$WORKDIR/$1/origin.git" "$o" 2>/dev/null
+    git -C "$o" config user.email other@example.com
+    git -C "$o" config user.name Other
+  }
+  [[ -f $o/$2 ]] || : >"$o/$2"
+  set_line "$o" "$2" "$3" "$4"
+  git -C "$o" push -q origin trunk 2>/dev/null
+}
+sync_run() {
+  local wc="$1"
+  shift
+  rm -f "$LOG"/*
+  OLD_TIP=$(git -C "$wc" rev-parse HEAD)
+  (cd "$wc" && bash "$PUSH_BRANCH" "$@") >/dev/null 2>"$LOG/err"
+  RC=$?
+}
+parents() { git -C "$1" rev-list --parents -n 1 HEAD | wc -w | tr -d ' '; }
+pushed() { git -C "$WORKDIR/$1/origin.git" rev-parse --verify --quiet "refs/heads/$BRANCH" || echo none; }
+fetched() { [[ -s $LOG/fetch.log ]] && echo fetched || echo none; }
+trunk_tip() { git -C "$WORKDIR/$1/origin.git" rev-parse refs/heads/trunk; }
+
+# Current base: nothing to merge, a plain push.
+wc=$(sync_clone sync-current yes)
+set_line "$wc" c.txt 1 branch-one
+sync_run "$wc"
+check "sync, current base: exit 0" "$RC" "0"
+check "sync, current base: the base was fetched" "$(fetched)" "fetched"
+check "sync, current base: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, current base: the remote received HEAD" "$(pushed sync-current)" "$OLD_TIP"
+
+# Stale base, no overlap: no merge (the hook allows it), a plain push.
+wc=$(sync_clone sync-disjoint yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-disjoint other.txt 1 base-only
+sync_run "$wc"
+check "sync, stale no overlap: exit 0" "$RC" "0"
+check "sync, stale no overlap: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, stale no overlap: the remote received HEAD" "$(pushed sync-disjoint)" "$OLD_TIP"
+
+# Stale base with overlap, unsigned repository: a --no-edit merge commit whose
+# first parent is the old tip and second the base tip, no signature, pushed.
+wc=$(sync_clone sync-overlap yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-overlap c.txt 10 base-ten
+sync_run "$wc"
+check "sync, overlap: exit 0" "$RC" "0"
+check "sync, overlap: HEAD is a merge commit" "$(parents "$wc")" "3"
+check "sync, overlap: first parent is the old tip (history kept)" "$(git -C "$wc" rev-parse HEAD^1)" "$OLD_TIP"
+check "sync, overlap: second parent is the base tip" "$(git -C "$wc" rev-parse HEAD^2)" "$(trunk_tip sync-overlap)"
+check "sync, overlap: both edits are in the tree" "$(sed -n '1p;10p' "$wc/c.txt" | paste -sd' ')" "branch-one base-ten"
+check "sync, overlap: unsigned repository, unsigned merge" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "0"
+check "sync, overlap: the remote received the merge" "$(pushed sync-overlap)" "$(git -C "$wc" rev-parse HEAD)"
+
+# Signing follows the repository: commit.gpgsign=true signs the merge, and so
+# does a signed tip with commit.gpgsign unset.
+ssh-keygen -q -t ed25519 -N '' -f "$WORKDIR/signkey" >/dev/null
+sign_cfg() {
+  git -C "$1" config gpg.format ssh
+  git -C "$1" config user.signingkey "$WORKDIR/signkey"
+}
+wc=$(sync_clone sync-gpgsign yes)
+sign_cfg "$wc"
+git -C "$wc" config commit.gpgsign true
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-gpgsign c.txt 10 base-ten
+sync_run "$wc"
+check "sync, commit.gpgsign: exit 0" "$RC" "0"
+check "sync, commit.gpgsign: HEAD is a merge commit" "$(parents "$wc")" "3"
+check "sync, commit.gpgsign: the merge is signed" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "1"
+wc=$(sync_clone sync-signedtip yes)
+sign_cfg "$wc"
+printf 'branch-one\n' >"$wc/tip.txt"
+awk 'NR == 1 { $0 = "branch-one" } { print }' "$wc/c.txt" >"$wc/c.new" && mv "$wc/c.new" "$wc/c.txt"
+git -C "$wc" add -A
+git -C "$wc" commit -q -S -m "signed tip"
+advance_base sync-signedtip c.txt 10 base-ten
+sync_run "$wc"
+check "sync, signed tip: exit 0" "$RC" "0"
+check "sync, signed tip: the merge is signed" \
+  "$(git -C "$wc" cat-file commit HEAD | grep -c '^gpgsig')" "1"
+check "sync, signed tip: HEAD is a merge commit" "$(parents "$wc")" "3"
+
+# Conflict: the merge is aborted, nothing is pushed, exit 4.
+wc=$(sync_clone sync-conflict yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-conflict c.txt 1 base-one
+sync_run "$wc"
+check "sync, conflict: exit 4" "$RC" "4"
+check "sync, conflict: names the conflict" "$(grep -c 'conflicted; merge aborted; not pushing' "$LOG/err")" "1"
+check "sync, conflict: no merge in progress" \
+  "$(git -C "$wc" rev-parse -q --verify MERGE_HEAD >/dev/null && echo merging || echo clean)" "clean"
+check "sync, conflict: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, conflict: the remote did not receive the branch" "$(pushed sync-conflict)" "none"
+
+# Disabled: no config, or --no-sync-stale-base over the config, fetches nothing
+# and merges nothing.
+wc=$(sync_clone sync-off no)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-off c.txt 10 base-ten
+sync_run "$wc"
+check "sync, no config: exit 0" "$RC" "0"
+check "sync, no config: nothing fetched" "$(fetched)" "none"
+check "sync, no config: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+wc=$(sync_clone sync-flag-off yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-flag-off c.txt 10 base-ten
+sync_run "$wc" --no-sync-stale-base
+check "sync, --no-sync-stale-base: exit 0" "$RC" "0"
+check "sync, --no-sync-stale-base: nothing fetched" "$(fetched)" "none"
+check "sync, --no-sync-stale-base: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, --no-sync-stale-base: the remote received HEAD" "$(pushed sync-flag-off)" "$OLD_TIP"
+sync_run "$wc" --check
+check "sync, --check: nothing fetched" "$(fetched)" "none"
+
+# --sync-stale-base turns it on with no config.
+wc=$(sync_clone sync-flag-on no)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-flag-on c.txt 10 base-ten
+sync_run "$wc" --sync-stale-base
+check "sync, --sync-stale-base: exit 0" "$RC" "0"
+check "sync, --sync-stale-base: HEAD is a merge commit" "$(parents "$wc")" "3"
+for args in "--sync-stale-base --no-sync-stale-base" "--sync-stale-base --sync-stale-base"; do
+  # shellcheck disable=SC2086 # word-split on purpose: each entry is an argv.
+  sync_run "$wc" $args
+  check "sync, '$args': refused" "$RC" "1"
+done
+
+# The pull request's base, not the default branch: a PR based on 'stack',
+# which is current, merges nothing even though trunk moved on c.txt. The base
+# is fetched from the remote that is the PR's base repository.
+wc=$(sync_clone sync-stacked yes)
+git -C "$wc" push -q origin HEAD:refs/heads/stack 2>/dev/null
+git -C "$wc" remote set-url origin https://github.com/sync-stacked/origin.git
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-stacked c.txt 10 base-ten
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=sync-stacked/origin sync_run "$wc"
+check "sync, stacked PR: exit 0" "$RC" "0"
+check "sync, stacked PR: fetched its base" "$(grep -c 'origin +refs/heads/stack:' "$LOG/fetch.log")" "1"
+check "sync, stacked PR: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+# A PR whose base repository no remote fetches skips the sync and still pushes.
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=elsewhere/app sync_run "$wc"
+check "sync, base repository with no remote: exit 0" "$RC" "0"
+check "sync, base repository with no remote: says why" "$(grep -c 'no remote fetches the base repository elsewhere/app' "$LOG/err")" "1"
+check "sync, base repository with no remote: nothing fetched" "$(fetched)" "none"
+check "sync, base repository with no remote: pushed" "$(pushed sync-stacked)" "$OLD_TIP"
+
+# --pr on a head that fetches from a fork: the base is fetched from the remote
+# that is the PR's base repository (upstream), never the fork's same-named
+# branch, and the fork's stale trunk is not what gets merged.
+wc=$(sync_clone sync-fork yes)
+git init -q --bare "$WORKDIR/sync-fork/upstream.git"
+git -C "$wc" push -q "$WORKDIR/sync-fork/upstream.git" HEAD:refs/heads/trunk 2>/dev/null
+git -C "$WORKDIR/sync-fork/upstream.git" symbolic-ref HEAD refs/heads/trunk
+git -C "$wc" remote add upstream https://github.com/sync-fork/upstream.git
+git -C "$wc" remote set-url origin https://github.com/sync-fork/origin.git
+PB_GITHUB_ROOT="$WORKDIR" git -C "$wc" fetch -q upstream
+set_line "$wc" c.txt 1 branch-one
+up="$WORKDIR/sync-fork/up"
+git clone -q -b trunk "$WORKDIR/sync-fork/upstream.git" "$up" 2>/dev/null
+git -C "$up" config user.email up@example.com
+git -C "$up" config user.name Up
+set_line "$up" c.txt 10 upstream-ten
+git -C "$up" push -q origin trunk 2>/dev/null
+fork_stub="$WORKDIR/sync-fork/bin"
+mkdir -p "$fork_stub"
+# shellcheck disable=SC2016 # the stub body expands when it runs, not here.
+printf '#!/usr/bin/env bash\n[[ "$1" == api ]] && echo example-user && exit 0\necho "%s sync-fork/origin sync-fork/upstream trunk"\n' "$BRANCH" >"$fork_stub/gh"
+chmod +x "$fork_stub/gh"
+PATH="$fork_stub:$PATH" PB_GITHUB_ROOT="$WORKDIR" sync_run "$wc" --pr 50
+check "sync, fork head: exit 0" "$RC" "0"
+check "sync, fork head: fetched the base from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
+check "sync, fork head: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-fork/upstream.git" rev-parse trunk)"
+
+# Without --pr, the setting is read from the PR's base repository, which the
+# forge names, not the fetch remote. Here origin is the fork and upstream the
+# base. A fork that turns the setting on, where upstream does not, syncs
+# nothing; upstream turning it on, where the fork does not, syncs from upstream.
+# fork_base_clone <checkout> <yes|no> <name>: adds the base repository
+# `upstream` (the setting on for yes) beside the fork `origin`, then moves
+# upstream's trunk on c.txt so the branch is stale on an overlapping path.
+fork_base_clone() {
+  local wc="$1" up_on="$2" up
+  git init -q --bare "$WORKDIR/$3/upstream.git"
+  up="$WORKDIR/$3/upseed"
+  git clone -q "$WORKDIR/$3/upstream.git" "$up" 2>/dev/null
+  git -C "$up" config user.email up@example.com
+  git -C "$up" config user.name Up
+  git -C "$up" checkout -q -b trunk
+  git -C "$wc" show HEAD:c.txt >"$up/c.txt"
+  if [[ $up_on == yes ]]; then
+    mkdir -p "$up/docs/conventions"
+    echo 'sync_stale_base: true' >"$up/docs/conventions/source-control.yaml"
+  fi
+  git -C "$up" add -A
+  git -C "$up" commit -q -m upstream
+  git -C "$up" push -q origin trunk 2>/dev/null
+  git -C "$WORKDIR/$3/upstream.git" symbolic-ref HEAD refs/heads/trunk
+  git -C "$wc" remote add upstream "https://github.com/$3/upstream.git"
+  git -C "$wc" remote set-url origin "https://github.com/$3/origin.git"
+  PB_GITHUB_ROOT="$WORKDIR" git -C "$wc" fetch -q upstream
+  git -C "$wc" merge -q --allow-unrelated-histories -X ours --no-edit upstream/trunk >/dev/null 2>&1
+  set_line "$wc" c.txt 1 branch-one
+  set_line "$up" c.txt 10 upstream-ten
+  git -C "$up" push -q origin trunk 2>/dev/null
+}
+wc=$(sync_clone sync-fork-on yes)
+fork_base_clone "$wc" no sync-fork-on
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=trunk PB_PR_BASE_REPO=sync-fork-on/upstream sync_run "$wc"
+check "sync, fork turns it on, base does not: exit 0" "$RC" "0"
+check "sync, fork turns it on, base does not: nothing fetched" "$(fetched)" "none"
+check "sync, fork turns it on, base does not: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+wc=$(sync_clone sync-base-on no)
+fork_base_clone "$wc" yes sync-base-on
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=trunk PB_PR_BASE_REPO=sync-base-on/upstream sync_run "$wc"
+check "sync, base turns it on, fork does not: exit 0" "$RC" "0"
+check "sync, base turns it on, fork does not: fetched from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
+check "sync, base turns it on, fork does not: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-base-on/upstream.git" rev-parse trunk)"
+
+# With the setting unset everywhere the clone has fetched, the step makes no
+# network call: no forge read of the base, no fetch, and no ls-remote beyond
+# the default-branch check every push makes, even with a remote that has no
+# refs/remotes/<remote>/HEAD.
+wc=$(sync_clone sync-quiet no)
+git -C "$wc" remote add upstream "$WORKDIR/sync-quiet/origin.git"
+git -C "$wc" fetch -q upstream
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-quiet c.txt 10 base-ten
+PB_PR_BASE=trunk sync_run "$wc"
+check "sync, off everywhere: exit 0" "$RC" "0"
+check "sync, off everywhere: no forge read of the base" "$(grep -c . "$LOG/gh.log" 2>/dev/null || echo 0)" "0"
+check "sync, off everywhere: nothing fetched" "$(fetched)" "none"
+check "sync, off everywhere: one ls-remote (the default-branch check)" "$(wc -l <"$LOG/ls-remote.log" | tr -d ' ')" "1"
+
+# Nothing the pushed head holds decides the step or runs in it. A head that
+# turns sync_stale_base on, where the base's config does not, fetches nothing.
+wc=$(sync_clone sync-head-config no)
+mkdir -p "$wc/docs/conventions"
+echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
+git -C "$wc" add -A
+git -C "$wc" commit -q -m "head turns it on"
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-head-config c.txt 10 base-ten
+sync_run "$wc"
+check "sync, head-only config: exit 0" "$RC" "0"
+check "sync, head-only config: nothing fetched" "$(fetched)" "none"
+check "sync, head-only config: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+
+# The overlap rule is the base's scripts/check-stale-base-overlap.sh: it runs
+# with --check and the fetched base, and its pass (exit 0) means no merge
+# though git sees an overlap. The head's edited copy, which would merge and
+# leave a marker, is never run.
+wc=$(make_clone sync-repo-rule)
+printf '%s\n' 1 2 3 4 5 6 7 8 9 10 >"$wc/c.txt"
+mkdir -p "$wc/docs/conventions" "$wc/scripts"
+echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
+printf '#!/usr/bin/env bash\necho "$*" >"%s/rule.argv"\nexit 0\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
+git -C "$wc" add -A
+git -C "$wc" commit -q -m "shared with the base rule"
+git -C "$wc" push -q origin HEAD:refs/heads/trunk 2>/dev/null
+printf '#!/usr/bin/env bash\ntouch "%s/head-rule-ran"\nexit 1\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
+git -C "$wc" commit -q -am "head edits the rule"
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-repo-rule c.txt 10 base-ten
+sync_run "$wc"
+check "sync, repo rule: exit 0" "$RC" "0"
+check "sync, repo rule: the base's copy ran with --check and the fetched base" "$(cat "$LOG/rule.argv" 2>/dev/null)" "--check origin/trunk"
+check "sync, repo rule: the head's copy did not run" "$([[ -e $LOG/head-rule-ran ]] && echo ran || echo none)" "none"
+check "sync, repo rule: its pass means no merge" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+
+# Uncommitted edits to tracked files: the sync is skipped, the push goes on.
+wc=$(sync_clone sync-dirty yes)
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-dirty c.txt 10 base-ten
+echo dirty >>"$wc/c.txt"
+sync_run "$wc"
+check "sync, dirty tree: exit 0" "$RC" "0"
+check "sync, dirty tree: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+check "sync, dirty tree: says why" "$(grep -c 'uncommitted' "$LOG/err")" "1"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

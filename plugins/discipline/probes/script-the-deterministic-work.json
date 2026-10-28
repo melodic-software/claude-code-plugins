@@ -10,13 +10,6 @@
     "verification:measure",
     "wizard:generate"
   ],
-  "competitor_dirs": {
-    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast",
-    "code-metrics:audit-size": "plugins/code-metrics/skills/audit-size",
-    "toolchain:check": "plugins/toolchain/skills/check",
-    "verification:measure": "plugins/verification/skills/measure",
-    "wizard:generate": "plugins/wizard/skills/generate"
-  },
   "queries": [
     {
       "id": "pos-train-01",

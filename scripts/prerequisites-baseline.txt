@@ -17,7 +17,6 @@ playwright jq
 playwright npm
 playwright npx
 session-flow claude
-source-control claude
 source-control gh
 source-control py
 source-control python

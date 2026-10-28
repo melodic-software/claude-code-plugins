@@ -23,8 +23,15 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
   ranking.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
-  via `--root-children` with an explicit child selection), user shell-folder roots,
+- The scan ranks entries for review by signals read from the snapshot it already took (a discovery
+  hint, siblings whose modification times cluster, files of identical size in sibling directories).
+  Each ranked entry's `review_rank` names the signals that placed it, and an entry no signal reached
+  is `unranked`, not given a middle position. The rank orders review only: no eligibility, tick or
+  blocker decision reads it. Detail: [review ranking](skills/clean/reference/safety-model.md#review-ranking).
+- Filesystem roots, mount targets (a non-root mount such as a tmpfs `/tmp` can only have its
+  immediate children listed, read-only, with `--root-children`), OS-managed roots on every Windows
+  volume (unless addressed only via `--root-children` with an explicit child selection), user
+  shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
@@ -138,8 +145,10 @@ from the scopes a repo cannot forge:
 2026-10-11; recheck when that section changes which scopes the key is read from), register
 unconditionally, and fail closed to enabled.
 
-Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the session. Start a
-new session to clear it. The plugin-level engine gate fires inside subagents. The
+Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
+new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
+a `SessionStart` notice tells the model to make no delete or overwrite until the user types
+`/disk-hygiene:clean` again (#9853). The plugin-level engine gate fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
 "evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
 [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565) observed the subagent
@@ -174,7 +183,8 @@ either; the failure table below states what happens then.
 (`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
 skill the guard's absolute Python and authorized `--data-root`, resolved by the guard's own code, so
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
-guard still judges every call.
+guard still judges every call. The same row records the session id in a marker file, which the resume
+notice reads.
 
 An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
 they blocked, so the guard is only as strong as the mods installed beside it.
@@ -268,8 +278,7 @@ launched.
   records nothing and changes no decision: the verdict is computed and emitted before the record is
   attempted, and the write path raises nothing.
 - **Not a replacement for telemetry.** A configured `HOOK_TELEMETRY_SINK` keeps receiving exactly
-  what it received before. The local record is the floor beneath it, for the ordinary case where no
-  sink exists.
+  what it received before. The local record covers the ordinary case where no sink exists.
 - **What is not recorded.** The plugin-level defer, the branch this hook takes for every Bash
   command that does not name the engine, writes nothing, which is what keeps the always-on path
   free. The watchdog's expiry path also writes nothing: that callback runs while the main thread is
@@ -444,8 +453,8 @@ selectable.
 
 ## Security posture
 
-What this plugin can reach, what it refuses, and what it costs you to have it installed. The
-measurements below carry the conditions they were taken under.
+This section covers what the plugin can reach, what it refuses, and the cost of having it
+installed. The measurements below carry the conditions they were taken under.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
@@ -518,8 +527,8 @@ measurements below carry the conditions they were taken under.
   does not invoke an interpreter or call-operator through a variable now costs this plugin
   zero processes and zero `execve` calls. Before, on a warm interpreter cache, every
   PowerShell call paid four `execve` calls (`bash -c`, the launcher through its `env`
-  shebang, bash, the interpreter), no fork, and a 106 KB module import, to be told it was
-  irrelevant; measured with `strace -f` on Linux, where the hook process walled at p50 44 ms
+  shebang, bash, the interpreter), no fork, and a 106 KB module import, only to conclude it
+  was irrelevant; measured with `strace -f` on Linux, where the hook process walled at p50 44 ms
   against a `bash -c :` floor of 2 ms (n = 20 per tool), about 22 spawn-equivalents, the cost
   class the issue measured as a 2.4 s median on Windows. A call that names the engine, or
   invokes python/`&` through a variable, pays that chain unchanged and is judged unchanged.
@@ -655,8 +664,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure disk-hygiene@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure disk-hygiene@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -664,18 +673,12 @@ Three supported routes:
    claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -692,13 +695,11 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 

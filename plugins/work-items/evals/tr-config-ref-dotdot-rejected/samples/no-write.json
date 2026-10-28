@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/triage/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/conventions/work-items.yaml",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "edits the settings file"
+    }
+  ]
+}

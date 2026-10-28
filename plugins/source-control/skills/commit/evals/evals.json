@@ -81,11 +81,11 @@
       "id": 7,
       "name": "trailer-policy-none-honored-in-pathspec-form",
       "prompt": "The index already has other unrelated staged files from another session. Commit only src/api/me.js with the null-user fix, scoped by pathspec.",
-      "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-authored-by trailer is appended.",
-      "files": [".claude/source-control.md"],
+      "expected_output": "With docs/conventions/source-control.yaml declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-authored-by trailer is appended.",
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
         "The skill uses the pathspec-limited commit form (git commit ... -- <path>) since the index has unrelated staged files",
-        "trailer_policy: none from .claude/source-control.md is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
+        "trailer_policy: none from docs/conventions/source-control.yaml is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
         "No Co-authored-by trailer appears in the resulting commit"
       ]
     },
@@ -94,7 +94,7 @@
       "name": "personal-overlay-overrides-team-convention-per-key",
       "prompt": "Commit the null-user fix in src/api/me.js.",
       "expected_output": "Resolves the convention across all three layers before drafting. The personal overlay .claude/source-control.local.md declares only subject_pattern (a ticket-prefix regex), so the drafted subject matches the ticket-prefix shape rather than the team file's Conventional Commits value; the team file's trailer_policy: none still applies, because the overlay does not declare that key and per-key override never drops the base layer wholesale. The overlay is not treated as the whole config.",
-      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
         "Reads the personal overlay and the team file, not the team file alone",
         "Drafts a subject matching the overlay's ticket-prefix subject_pattern, not the team file's Conventional Commits pattern",
@@ -107,7 +107,7 @@
       "name": "inherited-type-list-drops-for-an-effective-custom-pattern",
       "prompt": "Commit the null-user fix in src/api/me.js.",
       "expected_output": "The team file declares Conventional Commits plus the bundled 11-type type_list; the personal overlay overrides subject_pattern with a ticket-prefix regex and says nothing about type_list. type_list is bound to the effective subject_pattern rather than merged per key on its own, so it is dropped: the drafted subject matches the ticket-prefix pattern and is not pre-checked against a Conventional-Commits type vocabulary the effective pattern does not use.",
-      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
       "expectations": [
         "Drafts a subject matching the overlay's ticket-prefix subject_pattern",
         "Drops the team layer's type_list because the effective subject_pattern is not Conventional-Commits-shaped",

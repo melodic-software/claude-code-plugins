@@ -11,6 +11,10 @@
 #   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
 #   scripts/affected-tests.sh --run              ... and run them, sequentially
 #   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
+#   scripts/affected-tests.sh --run --write-not-run FILE
+#                                                ... and write each selected suite it did not run
+#                                                to FILE, one per line (exit 3 names them); a
+#                                                relative FILE is from the repository root
 #   scripts/affected-tests.sh path/a.sh path/b   ... for explicit paths instead of a diff
 #   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
@@ -223,6 +227,10 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/pytest-python.sh
+. "$SCRIPT_DIR/lib/pytest-python.sh" || exit 2
+# shellcheck source=lib/test-git-env.sh
+. "$SCRIPT_DIR/lib/test-git-env.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
@@ -250,6 +258,7 @@ print_fanout=""
 shard_spec=""
 replay_range=""
 against_ref=""
+not_run_file=""
 jobs=1
 # Whether --shard was SUPPLIED, tracked apart from its value: `--shard=` with an
 # empty right-hand side is what an unset environment variable produces, and it
@@ -334,6 +343,11 @@ while [[ $# -gt 0 ]]; do
     against_ref="$2"
     shift
     ;;
+  --write-not-run)
+    need_value "$1" $# "${2:-}" "a file"
+    not_run_file="$2"
+    shift
+    ;;
   --)
     shift
     explicit_paths+=("$@")
@@ -363,6 +377,15 @@ if [[ "$allow_unmapped" -eq 1 && "$unmapped_corpus" -eq 1 ]]; then
 fi
 if [[ -n "$against_ref" && -z "$replay_range" ]]; then
   echo "error: --against only applies to --replay." >&2
+  exit 2
+fi
+if [[ -n "$not_run_file" && "$do_run" -eq 0 ]]; then
+  echo "error: --write-not-run only applies to --run." >&2
+  exit 2
+fi
+# Emptied first, so a run that selects nothing leaves no earlier run's list.
+if [[ -n "$not_run_file" ]] && ! : >"$not_run_file"; then
+  echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
 fi
 if [[ -n "$replay_range" ]] && [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
@@ -1589,6 +1612,17 @@ for s in "${selected[@]}"; do
   *) delegated+=("$s") ;;
   esac
 done
+if [[ -n "$not_run_file" && ${#delegated[@]} -gt 0 ]] &&
+  ! printf '%s\n' "${delegated[@]}" >"$not_run_file"; then
+  echo "error: cannot write --write-not-run file: $not_run_file" >&2
+  exit 2
+fi
+
+# The suites run under the CI venv's python when one exists (PyYAML and the
+# rest of .github/requirements-ci.txt), not whatever python3 the host has.
+if venv_bin=$(pytest_python::venv_bin); then
+  PATH="$venv_bin:$PATH"
+fi
 
 failed=0
 if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
@@ -1598,9 +1632,11 @@ if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
   bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
 elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
+  n=0
   for s in "${runnable[@]}"; do
+    n=$((n + 1))
     echo "=== $s ==="
-    if bash "$s"; then
+    if (test_git_env::isolate "$WORK_DIR/gitconfig.$n" && bash "$s"); then
       echo "PASS: $s"
     else
       echo "FAIL: $s" >&2

@@ -22,13 +22,17 @@
 # Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
 #          contract is not locked), --procedure found a procedure defect
 #          (the register is gradeable but the interview did not complete its
-#          own procedure; fix the ledger or Brief and re-run), or the named
+#          own procedure; fix the ledger or Brief and re-run), the named
 #          Brief is stamped `UNCONFIRMED` (the user has not confirmed the
-#          latest restatement; `brief=unconfirmed`)
+#          latest restatement, or none was posted; `brief=unconfirmed`), or a
+#          stamped Brief still carries the export's placeholder Goal or
+#          criteria while answered rows exist (`brief=placeholder`)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate, an
-#          out-of-order or a missing (gap) Q id, or a named `--brief` that is
+#          out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
+#          outside the register section (any heading ends the section, a
+#          sub-heading inside it included), or a named `--brief` that is
 #          missing. Row errors are collected in one pass, each on stderr with
 #          its own ledger line, and the verdict keeps the counts of the rows
 #          that parsed.
@@ -55,10 +59,16 @@
 # headings and fences are not graded, so a stray fence in an unrelated section
 # of a large planning document cannot fail a clean register.
 #
-# --brief also fails (exit 1, `brief=unconfirmed`) on the line
+# --brief also fails (exit 1, `brief=unconfirmed`) on the stamp
 # `- Restatement: UNCONFIRMED (latest rev <N>)` that `round.sh export-brief` writes
-# while the newest restatement has no Confirm. A Brief without that line is not
-# graded for it. A line inside a fenced block is documentation.
+# while the newest restatement has no Confirm, and on
+# `- Restatement: UNCONFIRMED (no restatement posted)` it writes with none. A
+# stamped Brief with an answered row fails (exit 1, `brief=placeholder`) when
+# its Goal's first paragraph equals its `- Page title:` line (the export's
+# fallback without a confirmed goal) or its only acceptance criterion is
+# `- none recorded in the interview surface`. A Brief with no `- Restatement:`
+# line (hand-written) is graded for none of this. A line inside a fenced block
+# is documentation.
 #
 # --procedure is OPT-IN and adds checks a script can derive from the ledger, so
 # a caller that omits it keeps every verdict and exit code above unchanged:
@@ -89,7 +99,7 @@
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed|placeholder> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
 
 set -uo pipefail
 
@@ -172,6 +182,88 @@ extract_section() {
     { print ".\t" $0 }
     END { if (fenced) { exit 4 } }
   ' "$2"
+}
+
+# Print the line number of each unfenced `- Q<N> |` row outside lines `lo` to
+# `hi` (inclusive), the register section's body. The register reads only the
+# rows above its next heading, so a row below a sub-heading would otherwise go
+# ungraded while the gate reports clean. The pipe is required: the exported
+# ledger's deferred-questions list (`- Q3: <question>`) is not a register row.
+rows_outside() {
+  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    NR >= lo && NR <= hi { next }
+    /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
+  ' "$3"
+}
+
+# Set brief_lo and brief_hi to the Brief's own lines in "$brief". A PLAN.md holds
+# `## Brief` + `## Plan`: a heading under `## Plan` must not stand in for a
+# section the Brief lacks, so only the lines from the `## Brief` heading to the
+# next level-2 heading count. A file with no `## Brief` heading counts whole.
+# With `lenient`, a fence left open reads the headings above it rather than
+# making the Brief ungradeable: a stray fence under `## Plan` sits below every
+# Brief heading.
+brief_bounds() {
+  local brief_h2 brief_h2_status
+  brief_lo=0
+  brief_hi=999999999
+  brief_h2="$(heading_matches '^##[[:space:]]' "$brief")"
+  brief_h2_status=$?
+  if [[ "$brief_h2_status" -eq 4 ]]; then
+    [[ "${1-}" == "lenient" ]] ||
+      die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+  elif [[ "$brief_h2_status" -ne 0 ]]; then
+    die_ungradeable "could not read the headings of: $brief"
+  fi
+  brief_lo="$(printf '%s\n' "$brief_h2" | awk -F'\t' 'tolower($2) ~ /^##[[:space:]]+brief[[:space:]]*$/ { print $1; exit }')"
+  if [[ -n "$brief_lo" ]]; then
+    brief_hi="$(printf '%s\n' "$brief_h2" | awk -F'\t' -v lo="$brief_lo" '$1 > lo { print $1; exit }')"
+    brief_hi="${brief_hi:-999999999}"
+  else
+    brief_lo=0
+  fi
+}
+
+# Print, from the Brief's lines between `lo` and `hi` (both exclusive), the
+# first `- Page title:` value, each line of the Goal section's opening paragraph
+# (up to a blank line or a list item, so the Intent and Vision bullets a PLAN.md
+# adds under it are not part of it), and each non-blank Acceptance criteria
+# line, as `title`, `goal` or `criteria`, a TAB, then the text with its
+# whitespace runs made one space. A fenced line is documentation; the heading
+# bounds came from outside any fence.
+brief_fields() {
+  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+    NR <= lo || NR >= hi { next }
+    fence_line($0) { next }
+    fenced { next }
+    {
+      text = $0
+      gsub(/[[:space:]]+/, " ", text)
+      sub(/^ /, "", text)
+      sub(/ $/, "", text)
+    }
+    /^#+[[:space:]]/ {
+      section = tolower(text)
+      sub(/^#+ /, "", section)
+      goal_state = 0
+      next
+    }
+    !titled && text ~ /^- Page title: / {
+      titled = 1
+      print "title\t" substr(text, 15)
+      next
+    }
+    section == "goal" && goal_state < 2 {
+      if (text ~ /^[-*+] /) { goal_state = 2; next }
+      if (text == "") { if (goal_state == 1) { goal_state = 2 }; next }
+      goal_state = 1
+      print "goal\t" text
+      next
+    }
+    section == "acceptance criteria" && text != "" { print "criteria\t" text }
+  ' "$3"
 }
 
 ledger=""
@@ -432,6 +524,15 @@ while IFS= read -r line; do
   registered=$((registered + 1))
 done <<<"$section"
 
+# The loop read one line per ledger line, so lineno is the section's last line
+# (an empty section reads one empty line: the line after the heading, which is
+# a heading or past the end of the file, never a row).
+outside_lines="$(rows_outside $((register_line + 1)) "$lineno" "$ledger")" ||
+  die_ungradeable "could not read the rows of: $ledger"
+for lineno in $outside_lines; do
+  row_error "question row outside the register section (any heading ends it, a sub-heading included); move the row into the register, above its next heading"
+done
+
 # A gap is a number missing below the highest id; one sort over the whole set,
 # not a walk to the highest id, so a mistyped Q99999 costs nothing extra.
 prev=0
@@ -517,18 +618,46 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
-# export-brief stamps the Brief `- Restatement: UNCONFIRMED (latest rev N)` while the newest
-# restatement has no Confirm. A Brief with no stamp (hand-written, or no restatement posted) is
-# not graded for it; a fenced line is documentation.
+# export-brief stamps every page export with a `- Restatement:` line: `UNCONFIRMED (latest rev N)`
+# while the newest restatement has no Confirm, `UNCONFIRMED (no restatement posted)` with none.
+# Either fails. A stamped export whose Goal is still its `- Page title:` line, or whose criteria
+# are the placeholder, fails too while answered rows exist: the user decided things the Brief
+# does not carry. A Brief with no stamp (hand-written) is not graded for any of it; a fenced
+# line is documentation.
 if [[ "$brief_named" -eq 1 ]]; then
-  unconfirmed_stamp="$(awk "$fence_awk"'
+  restatement_stamp="$(awk "$fence_awk"'
     fence_line($0) { next }
     fenced { next }
-    /^- Restatement: UNCONFIRMED \(latest rev [0-9]+\)/ { sub(/\r$/, ""); print; exit }
+    /^- Restatement: / { sub(/\r$/, ""); print; exit }
   ' "$brief")"
-  if [[ -n "$unconfirmed_stamp" ]]; then
+  if [[ "$restatement_stamp" =~ ^-\ Restatement:\ UNCONFIRMED\ \(no\ restatement\ posted\) ]]; then
     brief_state="unconfirmed"
-    printf 'brief: the restatement is unconfirmed (%s in %s); the user confirms the latest restate, then the Brief is exported again\n' "${unconfirmed_stamp#- Restatement: }" "$brief" >&2
+    printf 'brief: the restatement is unconfirmed (%s in %s); restate on the page, the user confirms it, then the Brief is exported again\n' "${restatement_stamp#- Restatement: }" "$brief" >&2
+  elif [[ "$restatement_stamp" =~ ^-\ Restatement:\ UNCONFIRMED\ \(latest\ rev\ [0-9]+\) ]]; then
+    brief_state="unconfirmed"
+    printf 'brief: the restatement is unconfirmed (%s in %s); the user confirms the latest restate, then the Brief is exported again\n' "${restatement_stamp#- Restatement: }" "$brief" >&2
+  elif [[ -n "$restatement_stamp" && "$answered" -gt 0 ]]; then
+    # Lenient, as the deferred lookup is: without --procedure a stray fence is not refused.
+    brief_bounds lenient
+    page_title=""
+    goal=""
+    criteria=""
+    while IFS=$'\t' read -r tag text; do
+      case "$tag" in
+      title) [[ -n "$page_title" ]] || page_title="$text" ;;
+      goal) goal="${goal:+$goal }$text" ;;
+      criteria) criteria="$criteria$text"$'\n' ;;
+      *) ;;
+      esac
+    done <<<"$(brief_fields "$brief_lo" "$brief_hi" "$brief")"
+    if [[ -n "$page_title" && "$goal" == "$page_title" ]]; then
+      brief_state="placeholder"
+      printf "brief: the Goal is the page title ('%s' in %s) while %s question(s) are answered; the confirmed restatement needs a goal, then the Brief is exported again\n" "$page_title" "$brief" "$answered" >&2
+    fi
+    if [[ "$criteria" == $'- none recorded in the interview surface\n' ]]; then
+      brief_state="placeholder"
+      printf 'brief: the acceptance criteria are the placeholder (in %s) while %s question(s) are answered; the confirmed restatement needs acceptance criteria, then the Brief is exported again\n' "$brief" "$answered" >&2
+    fi
   fi
 fi
 
@@ -549,26 +678,7 @@ if [[ "$procedure_on" -eq 1 ]]; then
   done
 
   if [[ "$brief_named" -eq 1 ]]; then
-    # A PLAN.md holds `## Brief` + `## Plan`: a heading under `## Plan` must not
-    # satisfy a template section the Brief lacks, so grade only the lines from
-    # the `## Brief` heading to the next level-2 heading. A file with no
-    # `## Brief` heading is graded whole.
-    brief_lo=0
-    brief_hi=999999999
-    brief_h2="$(heading_matches '^##[[:space:]]' "$brief")"
-    brief_h2_status=$?
-    if [[ "$brief_h2_status" -eq 4 ]]; then
-      die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
-    elif [[ "$brief_h2_status" -ne 0 ]]; then
-      die_ungradeable "could not read the headings of: $brief"
-    fi
-    brief_lo="$(printf '%s\n' "$brief_h2" | awk -F'\t' 'tolower($2) ~ /^##[[:space:]]+brief[[:space:]]*$/ { print $1; exit }')"
-    if [[ -n "$brief_lo" ]]; then
-      brief_hi="$(printf '%s\n' "$brief_h2" | awk -F'\t' -v lo="$brief_lo" '$1 > lo { print $1; exit }')"
-      brief_hi="${brief_hi:-999999999}"
-    else
-      brief_lo=0
-    fi
+    brief_bounds
     for section_pattern in 'tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints' \
       'acceptance criteria' 'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
       section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
@@ -598,7 +708,7 @@ if [[ $((open_count + superseded)) -gt 0 ]]; then
   exit 1
 fi
 
-if [[ "$procedure_state" == "fail" || "$brief_state" == "unconfirmed" ]]; then
+if [[ "$procedure_state" == "fail" || "$brief_state" == "unconfirmed" || "$brief_state" == "placeholder" ]]; then
   echo "$verdict status=incomplete procedure=$procedure_state"
   exit 1
 fi

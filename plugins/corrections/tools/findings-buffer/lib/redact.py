@@ -1,4 +1,4 @@
-# GENERATED from plugins/session-flow/skills/audit-sessions/scripts/redact.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# GENERATED from lib/redact.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 """Redact secrets, emails and home paths from text before audit-sessions stores any of it.
 
@@ -73,6 +73,13 @@ _CLI_PASSWORD = re.compile(
     r"""(?i)(?<![\w-])((?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s(?-i:-p))"""
     r"""(?!<redacted:)('[^']*'|"[^"]*"|[^\s'"]\S*)"""
 )
+# Run before the vendored rules: github-app-token stops at 36 alphanumerics, so it would leave the
+# tail of a stateless ghs_ token that holds a dot. Each writes a keyword-free stand-in, swapped for
+# its label after every other pass, so the label's "token" cannot wake generic-api-key.
+_PRE_PASSES = (
+    (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+    (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+)
 _PASSES = (
     (_PRIVATE_KEY, "<redacted:private-key>"),
     (_URL_CREDENTIAL, _url_credential),
@@ -111,6 +118,8 @@ class Redactor:
         # The curl rules were written for RE2. Python's `.` matches a bare \r, so a run of them
         # backtracks polynomially; as \n, `.` stops at each one.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
+        for index, (pattern, _) in enumerate(_PRE_PASSES):
+            text = pattern.sub(f"<redacted:pre-{index}>", text)
         # A rule runs only when one of its keywords appears, as gitleaks does.
         lowered = text.lower()
         for rule in self.rules:
@@ -118,6 +127,8 @@ class Redactor:
                 text = rule.pattern.sub(f"<redacted:{rule.id}>", text)
         for pattern, replacement in _PASSES:
             text = pattern.sub(replacement, text)
+        for index, (_, label) in enumerate(_PRE_PASSES):
+            text = text.replace(f"<redacted:pre-{index}>", f"<redacted:{label}>")
         return text
 
     def excerpt(self, text: str, limit: int) -> str | None:

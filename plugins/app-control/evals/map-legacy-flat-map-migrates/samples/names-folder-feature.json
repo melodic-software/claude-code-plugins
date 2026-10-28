@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Write .claude/skills/control-clockwork-web/features/start-a-timer/README.md with the six sections.",
+      "why": "names the folder feature file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Keep .claude/skills/control-clockwork-web/start-a-timer.md as a flat file.",
+      "why": "keeps the flat layout"
+    }
+  ]
+}

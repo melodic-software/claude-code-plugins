@@ -88,6 +88,30 @@
       "next_due": "2026-11-24",
       "notes": "Run github-iac eng/ci-perf snapshot.sh capture/compare read-only with --raw-root under .work/; append the scored rows to github-iac eng/ci-perf/GOAL.md's Run log; file an issue per row over target (targets p50 5 min, p95 12 min). Spec: #3932.",
       "close_previous": true
+    },
+    {
+      "id": "pr-verify-denial-watch",
+      "title": "Check pr-verify verdicts lost to permission denials",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-26",
+      "next_due": "2026-11-26",
+      "notes": "Run gh run list -R melodic-software/claude-code-plugins --workflow pr-verify.yml --branch main --status failure -L 50 and read each failed run's log for ::error::no verdict: the run hit N permission denial(s) or ::error::no verdict: the run's legs hit N permission denial(s) (write-verdict.mjs); list the lane PRs the merge lane refused verify:missing behind those heads. A person decides, per denial, whether it was a benign read (the model reaching for a path outside pr-verify-data) or injected PR text. Injected PR text: the refusal worked; keep it and change nothing. Benign reads recurring (2 or more lane PRs refused verify:missing from benign-read denials in 30 days): file a fix issue, trying first an automatic pr-require-checks rerun on the stalled head, since it leaves the injection refusal intact, then a tighter prompt. Below that: comment the counts on the [Maintenance] issue and change nothing. Rejected for now (#8432): a fail verdict with the reason, which refuses that head verify:fail, holds the PR's later heads verify:earlier-fail until a later pass on a different change clears them, and counts toward the verify:repeated-fail cap; and ignoring denials, which lets an injected read still be judged. Spec: #8432.",
+      "close_previous": true
+    },
+    {
+      "id": "userconfig-fallback-removal-watch",
+      "title": "Remove the userConfig fallback for six migrated babysit keys",
+      "cadence": "annual",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-25",
+      "next_due": "2026-12-27",
+      "notes": "One-off; retire this row when the removal lands (cadence annual is only the schema's required value). Owner decision on #5653, 2026-10-26: closed not planned, reopen on or after 2026-12-27, the date the branch_issue_pattern entry under The config surface in plugins/source-control/reference/config-resolution.md keeps the fallback until. next_due is that reopen date; the removal itself must not land before 2026-12-29, the date #5653 gates it on, and its CHANGELOG Removed entry is dated on or after 2026-12-29 (fix the reference's 12-27 line when it lands). Scope: remove the userConfig fallback and its deprecation note for the six migrated keys and the deprecated branch_issue_pattern userConfig twin, in the same minor release under one CHANGELOG Removed entry. The review pair (babysit_review_bot_logins, babysit_review_settle_minutes) stays userConfig-only. Spec: #5653.",
+      "close_previous": true
     }
   ]
 }

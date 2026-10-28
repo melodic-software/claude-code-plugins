@@ -9,12 +9,6 @@
     "code-tidying:dissolve-comments",
     "code-tidying:tidy"
   ],
-  "competitor_dirs": {
-    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
-    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
-    "code-tidying:tidy": "plugins/code-tidying/skills/tidy"
-  },
   "queries": [
     {
       "id": "pos-train-01",

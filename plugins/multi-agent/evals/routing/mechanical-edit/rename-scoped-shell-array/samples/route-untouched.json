@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "NOTES=()\nif [[ -n \"$WORKLOAD\" ]]; then\n  NOTES+=(\"workload $WORKLOAD is not declared\")\nfi\nfor n in \"${NOTES[@]+\"${NOTES[@]}\"}\"; do\n",
+      "why": "route.sh keeps all four NOTES sites"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "ROLE_NOTES=()\n  ROLE_NOTES+=(\"x\")\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "the rename leaked into route.sh"
+    },
+    {
+      "answer": "ROLE_NOTES=()\n  NOTES+=(\"x\")\nfor n in \"${NOTES[@]+\"${NOTES[@]}\"}\"; do\n",
+      "why": "one route.sh site renamed"
+    }
+  ]
+}

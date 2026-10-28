@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "notes_json=()\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n  notes_json+=(\"$(json_str \"$n\")\")\ndone\nprintf '%s' \"$(join \"${notes_json[@]+\"${notes_json[@]}\"}\")\"\n",
+      "why": "all four notes_json sites intact"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "ROLE_NOTES_json=()\n  ROLE_NOTES_json+=(x)\nprintf '%s' \"${ROLE_NOTES_json[@]+\"${ROLE_NOTES_json[@]}\"}\"\n",
+      "why": "case-blind replace renamed notes_json"
+    },
+    {
+      "answer": "role_notes_json=()\n  role_notes_json+=(x)\nprintf '%s' \"${role_notes_json[@]+\"${role_notes_json[@]}\"}\"\n",
+      "why": "lowercase replace renamed notes_json"
+    }
+  ]
+}

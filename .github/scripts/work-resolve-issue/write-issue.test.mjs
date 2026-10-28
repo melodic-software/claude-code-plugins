@@ -4,11 +4,12 @@
 // was never edited or last edited by a listed id), from the trusted-actor
 // list's kinds (only a `human` entry can record a decision), and from the
 // label-only admission rule (the issue is admitted as it stood when the
-// account that applied the label last added it). Ids and logins are the shared
+// account that applied the label last added it, and the App's restart, a
+// removal no trusted `status: ready` followed, admits nothing new; admit.mjs
+// removalStands). Ids and logins are the shared
 // trusted-actors fixture's.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_LIST = path.join(HERE, "..", "..", "actions", "check-trusted-trigger", "fixtures", "trusted-actors.json");
@@ -90,7 +92,7 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
 let dir;
 let list;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "write-issue-"));
+  dir = tempDir("write-issue-");
   // The shared fixture plus cursoragent, a listed bot whose login has no [bot].
   const actors = JSON.parse(readFileSync(SHARED_LIST, "utf8"));
   actors.actors.push({ ...CURSOR_AGENT, kind: "bot" });
@@ -105,7 +107,9 @@ afterEach(() => {
 async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00:00:00Z", extraEnv = {} } = {}) {
   const file = path.join(dir, "issue.json");
   const logged = [];
+  const outputs = [];
   const code = await main({
+    write: (values) => outputs.push(values),
     env: {
       ISSUE_NUMBER: "6825",
       GITHUB_REPOSITORY: REPO,
@@ -120,7 +124,7 @@ async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00
     github,
     log: (line) => logged.push(line),
   });
-  return { code, issue: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null, logged };
+  return { code, issue: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null, logged, outputs };
 }
 
 const summary = (issue) => issue.comments.map((kept) => [kept.author_login, kept.author_kind, kept.decision]);
@@ -222,9 +226,11 @@ test("a body or title changed after the label was added writes no file, for a hu
   for (const labeler of [OWNER, LANES_BOT]) {
     const options = { sender: String(labeler.id) };
     for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
-      const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
+      const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
       assert.equal(code, 1);
       assert.equal(issue, null);
+      // report-outcome names this refusal from the step output (run 40208736808).
+      assert.deepEqual(outputs, [{ refused: "edited" }]);
     }
     const { code } = await run(
       fakeGitHub({
@@ -329,7 +335,32 @@ test("an App re-fire whose payload update time predates its label event admits, 
 // text, so it must come from the App or a listed human.
 test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
   const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
-  const { code, issue } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  const { code, issue, outputs } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+  // Only an edit after the label is reported as one.
+  assert.deepEqual(outputs, []);
+});
+
+// #6377: the App removed agent-ready on a pushback, a listed human edited the
+// body and added `status: ready`, and the App admitted it again days later.
+// That admission is fresh, not a restart, so it is the anchor.
+test("the App's admission after a pushback and a trusted status: ready is its own anchor", async () => {
+  const readmitted = [labeled(OWNER, 10), unlabeled(LANES_BOT, 12), labeled(OWNER, 15, "status: ready"), labeled(LANES_BOT, 20)];
+  const app = { sender: String(LANES_BOT.id) };
+  const between = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: readmitted }), app);
+  assert.equal(between.code, 0);
+  assert.equal(between.issue.number, 6825);
+  const after = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-22T00:00:00Z" }, events: readmitted }), app);
+  assert.equal(after.code, 1);
+  assert.equal(after.issue, null);
+});
+
+test("an unlisted account's status: ready never turns the App's restart into an admission", async () => {
+  const restart = [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(STRANGER, 20, "status: ready"), labeled(LANES_BOT, 20)];
+  const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), {
+    sender: String(LANES_BOT.id),
+  });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });

@@ -2,7 +2,8 @@
 
 Usage: python view_bridge.py --dir DATA_DIR <command>
   ensure-running [--port P] [--idle-seconds S]
-                             start the server on the data dir (or reuse it); print its JSON
+                             start the server on the data dir (or reuse it, unless it started
+                             from another plugin build: then restart it); print its JSON
   serve --port P --nonce N [--idle-seconds S]
                              run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
@@ -124,6 +125,8 @@ class ViewHub(bridge.LoopbackWatcher):
         self.replies = self.dir / "replies.json"
         self.page = self.dir / "page.html"
         self.idle = idle
+        # The page gets only self.token (at /api/token); the watcher token stays in the 0600 env file.
+        self.watch_token = secrets.token_urlsafe(32)
         self.started = time.time()
 
     def expired(self):
@@ -207,7 +210,10 @@ class ViewHandler(bridge.LoopbackHandler):
         if url.path == "/api/token":
             # Only the page's own script gets the token: a browser sets Sec-Fetch-Site and no page
             # can forge it, and do_GET already refused a foreign Host or Origin. The token never
-            # enters the page's markup, so a saved or published copy holds none.
+            # enters the page's markup, so a saved or published copy holds none. This stops a
+            # browser page from another origin, not a local process: curl can send the header. The
+            # token opens POST /api/action only; /api/wait and the lease release need the watcher
+            # token, which this route never serves.
             if self.headers.get("Sec-Fetch-Site") != "same-origin":
                 return self.send(403, {"error": "same-origin page script only"})
             return self.send(200, {"token": self.hub.token})
@@ -313,21 +319,38 @@ def cmd_ensure_running(d, a):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     private_dir(d)
     s = bridge.read_session(d, NAME)
-    if not (s and bridge.running(d, s)):
+    live = bool(s and bridge.running(d, s))
+    stale = live and bridge.stale_build(s)
+    if stale:
+        # A server started before a plugin update runs the old code: start this build in its place.
+        end_server(d, s)
+        print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
+        live = False
+    if not live:
         ports = [a.port, bridge.kept_port(d, NAME)]
         port = next((p for p in ports if p and bridge.port_free(p)), 0)
         nonce = secrets.token_hex(8)
         cmd = [bridge.interpreter(), str(HERE / "view_bridge.py"), "--dir", str(d)]
         idle = ["--idle-seconds", str(a.idle_seconds)]
-        proc = bridge.spawn(
-            [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle]
-        )
+        with bridge.open_server_log(d, NAME) as log:
+            proc = bridge.spawn(
+                [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle],
+                stderr=log,
+            )
         s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
         if s is None:
-            if proc.poll() is None:
+            code = proc.poll()
+            if code is None:
                 proc.kill()
+            why = (
+                f"the server exited with status {code}"
+                if code is not None
+                else f"the server did not start within {START_SECONDS} s"
+            )
+            tail = bridge.log_tail(bridge.server_log(d, NAME))
             sys.exit(
-                f"the server did not start within {START_SECONDS} s (data dir {d})"
+                f"{why} (data dir {d})"
+                + (f"\nserver stderr (last lines):\n{tail}" if tail else "")
             )
     origin = f"http://127.0.0.1:{int(s['port'])}"
     print(
@@ -349,13 +372,18 @@ def cmd_stop(d, a):
             bridge.clear_session(d, NAME)
         print("not running")
         return
+    end_server(d, s)
+    print(f"stopped {s['pid']}")
+
+
+def end_server(d, s):
+    """End the running server `s` records and its watcher, then clear the session files."""
     bridge.end_watcher(d, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
     os.kill(s["pid"], signal.SIGTERM)
     deadline = time.monotonic() + START_SECONDS
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)
     bridge.clear_session(d, NAME)
-    print(f"stopped {s['pid']}")
 
 
 def cmd_lease(d, a):

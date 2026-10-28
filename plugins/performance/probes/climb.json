@@ -10,13 +10,6 @@
     "verification:measure",
     "improvement:improve"
   ],
-  "competitor_dirs": {
-    "performance:snapshot": "plugins/performance/skills/snapshot",
-    "performance:verify": "plugins/performance/skills/verify",
-    "performance:goal": "plugins/performance/skills/goal",
-    "verification:measure": "plugins/verification/skills/measure",
-    "improvement:improve": "plugins/improvement/skills/improve"
-  },
   "queries": [
     {
       "id": "pos-train-01",

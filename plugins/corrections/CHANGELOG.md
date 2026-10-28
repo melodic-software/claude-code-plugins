@@ -3,6 +3,73 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.8.3] - 2026-10-27
+
+### Fixed
+
+- **The findings buffer redacts bare `sk-ant-oat01-` tokens and dotted `ghs_` tokens whole ([#9026](https://github.com/melodic-software/claude-code-plugins/issues/9026)).** Its copy of `redact.py` now runs two of its own rules before the vendored gitleaks rules. Before this, a bare `sk-ant-oat01-` value reached the adapter unredacted, and the vendored `github-app-token` rule replaced only the first 36 characters of a stateless `ghs_` token containing a dot, so the rest of the token stayed in the row.
+
+## [0.8.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.8.1] - 2026-10-27
+
+### Fixed
+
+- The `local-file` findings buffer's `append.sh` takes perl's `flock` on `.work/buffer/.lock` where `flock` is absent and perl calls flock(2) itself, so an appender killed with SIGKILL no longer leaves a lock that fails every later append until an operator removes it. Where neither is available, the `.lockdir` lock stays as before.
+
+## [0.8.0] - 2026-10-26
+
+### Added
+
+- `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` runs `buffer.sh read` and prints the findings buffer grouped by the named top-level fields (default `producer`): a first line naming the keys, then each group with its row count, its occurrence count (distinct `source_id`) and its members, most occurrences first. `--since` cuts exactly, fraction included, and row values print with control, format (bidirectional and zero-width included) and separator characters escaped.
+
+### Changed
+
+- `/corrections:codify group` takes `--by`, runs `group-findings.mjs`, shows the field groups, then groups by mistake, and names the keys of both groupings.
+
+## [0.7.2] - 2026-10-26
+
+### Fixed
+
+- `scripts/lib/yaml-subset.mjs` reads an empty sequence item (`-` alone) as `null` when the next line is another item at the same indent, instead of nesting the following items under it.
+- A quoted key may hold a doubled `''` in single quotes or a `\"` escape in double quotes; such a key no longer fails with `expected a mapping entry`.
+
+## [0.7.1] - 2026-10-26
+
+### Fixed
+
+- `scripts/codify-settings.mjs` and `scripts/findings-buffer.mjs` print at most the first five errors per settings layer, then `and N more`, so a committed `corrections.yaml` or `findings-buffer.yaml` full of unknown keys no longer floods stderr.
+- `recurrence.min_occurrences` now has a maximum of 1000; a larger value is dropped with a note on stderr and the threshold falls back as for any invalid value.
+
+## [0.7.0] - 2026-10-25
+
+### Added
+
+- A repository's own findings-buffer adapter can be bound in user scope, through two new `userConfig` options: `findings_buffer_adapter_repository`, the git common directory of the one repository it applies to, and `findings_buffer_adapter_path`, the adapter directory relative to the checkout root. `buffer.sh` reads them from user and managed settings only, never from the environment, a project settings file or the repository's binding files, which still name only adapters the plugin ships. The binding applies in that repository's main checkout and its worktrees and in no other repository, and the adapter must resolve inside the current checkout, outside any nested repository, and pass the existing verb and `capabilities.json` checks.
+- A generated copy of the shared `lib/plugin-options.mjs` settings reader, under `scripts/lib/`.
+
+## [0.6.2] - 2026-10-25
+
+### Changed
+
+- The findings buffer's `lib/redact.py` is now generated from the repository's shared `lib/redact.py` rather than from a file inside the session-flow plugin's skill folder; only its generated-file header changed.
+
+## [0.6.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

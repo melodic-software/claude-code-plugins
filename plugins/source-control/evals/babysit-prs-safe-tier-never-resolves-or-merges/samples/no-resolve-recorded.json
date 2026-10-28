@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "", "why": "the stand-in recorded no call"},
+    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\",\"--body\",\"resolve thread T_bot_retries when a worker runs\"]}\n", "why": "the words inside a review body are not a resolve call"}
+  ],
+  "fail": [
+    {"answer": "{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n"},
+    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\"]}\n{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n", "why": "a resolve after another call"}
+  ]
+}

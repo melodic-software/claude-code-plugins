@@ -75,7 +75,7 @@ at its entry point. `optional` means the scope continues with a reduced result a
 
 | `kind` | `detect` | Resolves when |
 | --- | --- | --- |
-| `cli`, `runtime` | `any` (names, first match wins), optional `local_bin` (paths tried upward from the working directory, up to eight levels), optional `version` (`args`, a `pattern` whose first group is the version, `min`), optional `reject_store_alias` (`true` skips Windows `WindowsApps` directories, so a Microsoft Store App Execution Alias never counts) | A name is on `PATH` or a `local_bin` path is executable, and the version is at least `min`. A runtime lists its ladder in `any`, such as `["python3", "python", "py"]`. On Windows a Store App Execution Alias counts as found, except the Python install stub, unless the entry sets `reject_store_alias`. |
+| `cli`, `runtime` | `any` (names, first match wins), optional `local_bin` (paths tried upward from the working directory, up to eight levels), optional `version` (`args`, a `pattern` whose first group is the version, `min`, optional exclusive ceiling `below`), optional `reject_store_alias` (`true` skips Windows `WindowsApps` directories, so a Microsoft Store App Execution Alias never counts) | A name is on `PATH` or a `local_bin` path is executable, and the version is at least `min` and, when `below` is set, under it. A runtime lists its ladder in `any`, such as `["python3", "python", "py"]`. On Windows a Store App Execution Alias counts as found, except the Python install stub, unless the entry sets `reject_store_alias`. |
 | `system-lib` | `probe`: `args` (the first item is the binary) and `pattern` | The probe output matches the pattern, for example `ffmpeg -encoders` listing `libx264`. |
 | `python-pkg` | `any` (interpreters) and `import` (a module name) | The first interpreter found imports the module on its own, or, when the plugin commits `requirements.txt`, any listed interpreter on PATH imports it from the set its install hook put in the plugin data directory for that interpreter ([on-demand dependencies, Rule P3](../on-demand-dependencies/README.md#rule-p3-install-into-the-plugin-data-directory-keyed-by-lock-and-interpreter-spec)), imported the way the plugin's launcher runs it. When only that set could hold the module and the data directory is unknown (no `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified`. |
 | `node-pkg` | `module` and `paths` (relative to the plugin root, or starting with `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}`) | `<path>/<module>/package.json` exists under one of the paths. |
@@ -84,6 +84,11 @@ at its entry point. `optional` means the scope continues with a reduced result a
 
 A version floor compares dotted numbers numerically, so `2.10` is newer than `2.9`. When the
 version cannot be read, the entry reports `unverified` and does not fail.
+
+A `version` may also carry `below`, an exclusive ceiling in the same dotted-number format. A
+detected version at or above `below` reports `outdated`, with a detail naming the supported range
+(`>= <min>, < <below>`). `below` must be greater than `min`; a manifest that sets it at or under
+`min` fails the schema. An entry without `below` has no ceiling.
 
 ## The checker
 

@@ -258,15 +258,27 @@ EOF
 )"
 expect_exit "fenced example ignored -> 0" 0 --ledger "$fenced"
 
-# 17. The register section stops at the next heading — a `- Q<N>` line in a
-#     later section is not a register row.
+# 17. The register section stops at the next heading, so a `- Q<N> |` row in a
+#     later section is never graded: the ledger is ungradeable and the error
+#     names the row's line (14: the register's one row is line 9, and mkledger's
+#     `## Decision tree` section ends on line 13). A `- Q<N>:` line with no pipe,
+#     the exported ledger's deferred-questions list, is not a register row.
 bleed="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
 EOF
 )"
 printf -- '- Q9 | open | round 3 | leaked row |\n' >>"$bleed"
-expect_exit "rows after the section do not bleed in -> 0" 0 --ledger "$bleed"
+expect_exit "a row after the section -> 2" 2 --ledger "$bleed"
+bleed_err="$(stderr_of --ledger "$bleed")"
+if [[ "$bleed_err" == *"line 14: question row outside the register section"* ]]; then pass "a row after the section is named by line"; else fail "a row after the section is named by line (stderr: '$bleed_err')"; fi
+deferred_list="$(
+  mkledger <<'EOF'
+- Q1 | deferred | round 1 | Who writes? | post-V1
+EOF
+)"
+printf -- '\n### Deferred questions\n\n- Q1: Who writes?\n' >>"$deferred_list"
+expect_exit "a deferred-questions list after the section -> 0" 0 --ledger "$deferred_list"
 
 # 18. Without --brief the verdict says `unchecked`, never omits the field.
 expect_stdout "brief=unchecked when not asked for" "brief=unchecked" --ledger "$clean"
@@ -855,6 +867,86 @@ open_ledger="$(
 EOF
 )"
 expect_stdout "an open row outranks an UNCONFIRMED Brief" "status=open" --ledger "$open_ledger" --brief "$unconfirmed_brief"
+
+# 58. A page export with no restatement is stamped UNCONFIRMED (no restatement posted) and
+#     fails. A stamped export whose Goal is its page title, or whose criteria are the
+#     placeholder, fails while answered rows exist; a hand-written Brief with no stamp passes
+#     with the same content.
+no_restatement_brief="$(stamped_brief '- Restatement: UNCONFIRMED (no restatement posted)')"
+expect_exit "a page export with no restatement -> 1" 1 --ledger "$stamp_ledger" --brief "$no_restatement_brief"
+expect_stdout "a page export with no restatement reports brief=unconfirmed" "brief=unconfirmed status=incomplete" --ledger "$stamp_ledger" --brief "$no_restatement_brief"
+expect_exit "a page export with no restatement and nothing retired -> 1" 1 --ledger "$clean" --brief "$no_restatement_brief"
+no_restatement_err="$(stderr_of --ledger "$stamp_ledger" --brief "$no_restatement_brief")"
+if [[ "$no_restatement_err" == *"(UNCONFIRMED (no restatement posted) in"* ]]; then pass "the unrestated export is named on stderr"; else fail "the unrestated export is named on stderr (stderr: '$no_restatement_err')"; fi
+
+# page_brief <stamp line or ''> <goal> <criteria line>: a PLAN.md in export-brief's shape,
+# titled `Cache builds`, with a `## Plan` that holds its own Goal and criteria headings.
+page_brief() {
+  local path
+  path="$(mktemp "$TMP/page-brief-XXXXXX.md")"
+  printf '## Brief\n\n### TLDR\n\n- 2 questions\n%s\n- Page title: Cache builds\n\n### Goal\n\n%s\n- Intent (why, in the user'"'"'s words): faster CI\n\n### Acceptance criteria\n\n%s\n\n### Deferred questions\n\n- Q2: Moderation model?\n\n## Plan\n\n### Goal\n\nCache builds\n\n### Acceptance criteria\n\n- none recorded in the interview surface\n' "$1" "$2" "$3" >"$path"
+  printf '%s' "$path"
+}
+confirmed_stamp='- Restatement: confirmed at rev 2, 2026-09-24T11:00:00Z'
+title_goal="$(page_brief "$confirmed_stamp" 'Cache builds' '- p75 build is 4 min or less')"
+placeholder_criteria="$(page_brief "$confirmed_stamp" 'Cut CI build time.' '- none recorded in the interview surface')"
+restated_brief="$(page_brief "$confirmed_stamp" 'Cut CI build time.' '- p75 build is 4 min or less')"
+hand_brief="$(page_brief '' 'Cache builds' '- none recorded in the interview surface')"
+expect_exit "a stamped Brief whose Goal is the page title -> 1" 1 --ledger "$stamp_ledger" --brief "$title_goal"
+expect_stdout "a title Goal reports brief=placeholder status=incomplete" "brief=placeholder status=incomplete" --ledger "$stamp_ledger" --brief "$title_goal"
+title_goal_err="$(stderr_of --ledger "$stamp_ledger" --brief "$title_goal")"
+if [[ "$title_goal_err" == *"the Goal is the page title ('Cache builds'"* ]]; then pass "the title Goal is named on stderr"; else fail "the title Goal is named on stderr (stderr: '$title_goal_err')"; fi
+expect_exit "a stamped Brief with the placeholder criteria -> 1" 1 --ledger "$stamp_ledger" --brief "$placeholder_criteria"
+expect_stdout "placeholder criteria report brief=placeholder" "brief=placeholder status=incomplete" --ledger "$stamp_ledger" --brief "$placeholder_criteria"
+placeholder_err="$(stderr_of --ledger "$stamp_ledger" --brief "$placeholder_criteria")"
+if [[ "$placeholder_err" == *"the acceptance criteria are the placeholder"* && "$placeholder_err" != *"page title"* ]]; then pass "the placeholder criteria are named on stderr"; else fail "the placeholder criteria are named on stderr (stderr: '$placeholder_err')"; fi
+expect_exit "a stamped Brief with a restated Goal and criteria -> 0" 0 --ledger "$stamp_ledger" --brief "$restated_brief"
+open_fence_plan="$TMP/open-fence-plan.md"
+{ cat "$restated_brief"; printf '\n```bash\nmake cache\n'; } >"$open_fence_plan"
+expect_exit "a stray open fence under ## Plan, nothing retired, does not make a stamped Brief ungradeable -> 0" 0 --ledger "$clean" --brief "$open_fence_plan"
+expect_exit "a stray open fence under ## Plan with --procedure is ungradeable -> 2" 2 --ledger "$clean" --brief "$open_fence_plan" --procedure
+expect_stdout "a restated Brief under --procedure fails only on its missing template headings" "brief=ok status=incomplete procedure=fail" --ledger "$stamp_ledger" --brief "$restated_brief" --procedure
+expect_exit "a hand-written Brief with no stamp -> 0" 0 --ledger "$stamp_ledger" --brief "$hand_brief"
+expect_stdout "a hand-written Brief reports brief=ok" "brief=ok status=clean" --ledger "$stamp_ledger" --brief "$hand_brief"
+nothing_answered="$(
+  mkledger <<'EOF'
+- Q1 | withdrawn | round 1 | Who writes? | dropped
+- Q2 | deferred | round 1 | Moderation model? | later
+EOF
+)"
+expect_exit "a title Goal with no answered row -> 0" 0 --ledger "$nothing_answered" --brief "$title_goal"
+expect_exit "placeholder criteria with no answered row -> 0" 0 --ledger "$nothing_answered" --brief "$placeholder_criteria"
+fenced_stamp_brief="$(page_brief $'```\n- Restatement: confirmed at rev 2\n```' 'Cache builds' '- none recorded in the interview surface')"
+expect_exit "a stamp inside a fence leaves the Brief hand-written -> 0" 0 --ledger "$stamp_ledger" --brief "$fenced_stamp_brief"
+
+# 59. A sub-heading inside the register ends the section, so a row below it is
+#     outside the register: ungradeable, never `registered=2 ... status=clean`,
+#     with the row's line (12) named. A row above the register heading is
+#     outside it too; a fenced row outside it is documentation, as inside.
+sub_heading="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | Format? | markdown
+### Round 2
+- Q3 | open | round 2 | x? |
+EOF
+)"
+expect_exit "a row below a sub-heading in the register -> 2" 2 --ledger "$sub_heading"
+expect_stdout "a row below a sub-heading is ungradeable" "status=ungradeable" --ledger "$sub_heading"
+sub_heading_err="$(stderr_of --ledger "$sub_heading")"
+if [[ "$sub_heading_err" == *"line 12: question row outside the register section"* ]]; then pass "a row below a sub-heading is named by line"; else fail "a row below a sub-heading is named by line (stderr: '$sub_heading_err')"; fi
+above_register="$TMP/above-register.md"
+printf '# Checklist\n\n- Q2 | open | round 1 | stray |\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$above_register"
+above_err="$(stderr_of --ledger "$above_register")"
+if [[ "$above_err" == *"line 3: question row outside the register section"* ]]; then pass "a row above the register is named by line"; else fail "a row above the register is named by line (stderr: '$above_err')"; fi
+fenced_outside="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+EOF
+)"
+# shellcheck disable=SC2016 # the backticks are literal fence markers, not expansion
+printf '\n```text\n- Q2 | open | round 1 | example only |\n```\n' >>"$fenced_outside"
+expect_exit "a fenced row outside the register is documentation -> 0" 0 --ledger "$fenced_outside"
 
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2

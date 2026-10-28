@@ -22,18 +22,41 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
+    // #7970: with no stored Pin choice a 1280 px screen opens the side panels pinned, Pin labeled in view; a stored choice still wins.
+    // It stores Unpin, which the overlay checks below rely on.
+    const pinState = () => page.evaluate(() => { const b = document.getElementById("pinBtn"); return {pinned: document.getElementById("layout").classList.contains("pinned"), pos: getComputedStyle(document.getElementById("fly")).position, pressed: b.getAttribute("aria-pressed"), label: b.innerText.trim(), shown: b.getClientRects().length > 0}; });
+    await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
+    await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(300);
+    const pin0 = await pinState();
+    ok("#7970: at 1280 px with no stored choice the side panel opens pinned, its Pin control labeled in view", pin0.pinned && pin0.pos === "static" && pin0.pressed === "true" && /^Pin\b/.test(pin0.label) && pin0.shown, JSON.stringify(pin0));
+    await page.click("#pinBtn"); await page.click("#flyClose"); await page.waitForTimeout(150);
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
+    await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(300);
+    const pin1 = await pinState();
+    ok("#7970: a stored Unpin still wins at 1280 px after a reload", !pin1.pinned && pin1.pos === "absolute" && pin1.pressed === "false", JSON.stringify(pin1));
+    await page.click("#flyClose"); await page.waitForTimeout(150);
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
+    // G7: the round's restate card sits above the round's first question and on no other
+    await pick("Q1");
+    const rs = await page.evaluate(() => { const c = document.getElementById("roundRestate"), h = document.querySelector("#dscroll .dhead");
+      return {text: c ? c.textContent.replace(/\s+/g, " ").trim() : "", above: !!c && !!h && !!(c.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), refs: c ? c.querySelectorAll("button.ref").length : 0}; });
+    ok("G7: the round's restate card is above the first question, with its open branches", /Nothing is decided yet/.test(rs.text) && rs.above && rs.refs === 9, JSON.stringify(rs));
+    await pick("Q2");
+    ok("G7: a later question of the round shows no restate card", await page.$("#roundRestate") === null);
+
     // #7749: the Source text quote shows open and above the recommendation; a question without one renders as before
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
       await pick("Q1");
-      const src = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), r = document.querySelector("#dscroll .recbox"), m = document.querySelector("#dscroll details.more");
+      const src = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), r = document.querySelector("#dscroll .recbox"), m = document.querySelector("#dscroll #more");
         return {open: !!s && s.open, text: s ? s.textContent.replace(/\s+/g, " ").trim() : "", above: !!s && !!r && !!(s.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING), moreHasQuote: !!m && /weekday/.test(m.textContent), moreKeepsRest: !!m && /bars weekend/.test(m.textContent)}; });
       ok("Q1's Source text quote is open and above the recommendation at " + w + " px, with the rest of facts under Details", src.open && src.above && /^Source text ?Releases ship on a weekday\.$/.test(src.text) && !src.moreHasQuote && src.moreKeepsRest, JSON.stringify(src));
       await pick("Q2");
-      const none = await page.evaluate(() => ({src: document.querySelectorAll("#dscroll details.src").length, more: document.querySelectorAll("#dscroll details.more").length}));
+      const none = await page.evaluate(() => ({src: document.querySelectorAll("#dscroll details.src").length, more: document.querySelectorAll("#dscroll #more").length}));
       ok("Q2, with no source text, renders no Source text block at " + w + " px", none.src === 0 && none.more === 1, JSON.stringify(none));
       await pick("Q10");
-      const two = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), m = document.querySelector("#dscroll details.more");
+      const two = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), m = document.querySelector("#dscroll #more");
         return {src: s ? s.textContent.replace(/\s+/g, " ").trim() : "", more: m ? m.textContent.replace(/\s+/g, " ").trim() : ""}; });
       ok("Q10's two-paragraph Source quote stays whole, with only the rest under Details at " + w + " px", /^Source text ?First paragraph\. ?Second paragraph\.$/.test(two.src) && /Rest\./.test(two.more) && !/paragraph/.test(two.more), JSON.stringify(two));
     }
@@ -125,6 +148,40 @@ async page => { // the question page itself: choices, chips, banners, header and
         await toggle(panel); await page.waitForTimeout(250);
       }
     }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
+    // #7970: the question pane shows the recommendation once, in the Rec row, with no auto "Claude asked" thread line
+    await pick("Q1");
+    const once = await page.evaluate(() => ({n: document.querySelector("main.detail").innerText.split("Roll back on the first new error").length - 1,
+      rec: /Roll back on the first new error/.test(document.querySelector("#choices .choice.rec").innerText), asked: /Claude asked/.test(document.getElementById("thread").innerText)}));
+    ok("#7970: the full recommendation text occurs once in the question pane, in the Rec row, and the Thread has no Claude asked line", once.n === 1 && once.rec && !once.asked, JSON.stringify(once));
+    // #7970: expanding Why leaves the Details control where it was
+    await pick("Q8");
+    const moreBox = () => page.$eval("#moreBtn", b => { const r = b.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).catch(() => "");
+    await page.$eval("#whyBtn", b => b.scrollIntoView({block: "nearest"})).catch(() => {}); // the click would otherwise scroll the pane between the two measures
+    const b0 = await moreBox();
+    await page.click("#whyBtn"); await page.waitForTimeout(200);
+    const why = await page.evaluate(() => ({expanded: document.getElementById("whyBtn").getAttribute("aria-expanded"), shown: !document.getElementById("why").hidden, text: document.getElementById("why").innerText}));
+    const b1 = await moreBox();
+    ok("#7970: expanding Why shows its text and leaves the Details control's box unchanged", why.expanded === "true" && why.shown && /buries what changed/.test(why.text) && !!b0 && b0 === b1, JSON.stringify({b0, b1, why}));
+    await page.click("#whyBtn"); await page.waitForTimeout(150);
+    // #7970: every button has an accessible name
+    const unnamed = await page.evaluate(() => [...document.querySelectorAll("button")].filter(b => !b.textContent.trim() && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.title).map(b => b.id || b.className || b.outerHTML.slice(0, 80)));
+    ok("#7970: no button lacks an accessible name (text, aria-label or title)", unnamed.length === 0, JSON.stringify(unnamed));
+    // #7970: with questions still open, Finish is a secondary control and stays enabled (R4)
+    await page.click("#sumBtn"); await page.waitForTimeout(300);
+    const fin = await page.$eval("[data-wrapup]", b => ({primary: b.classList.contains("primary"), disabled: b.disabled, open: (document.getElementById("wrapChip") || {}).textContent})).catch(e => ({error: String(e)}));
+    ok("#7970: with questions open, Finish is not the primary style and stays enabled", fin.primary === false && fin.disabled === false, JSON.stringify(fin));
+    // #7970: at 1568x744 the full Rec text and every alternative show in the Decide list, which has no inner scroll
+    await page.setViewportSize({width: 1568, height: 744}); await page.waitForTimeout(300);
+    await pick("Q1");
+    const fit = await page.evaluate(() => {
+      const c = document.getElementById("choices"), a = document.getElementById("answer").getBoundingClientRect(), t = c.querySelector(".choice.rec .t");
+      const seen = el => { const r = el.getBoundingClientRect(); return r.top >= a.top - 1 && r.bottom <= a.bottom + 1; };
+      const want = [c.querySelector(".choice.rec"), ...[...c.querySelectorAll(".choice")].filter(r => /^\(\w+\)/.test(r.innerText.trim()))];
+      return {inner: c.scrollHeight - c.clientHeight, alts: want.length - 1, unseen: want.filter(r => !seen(r)).map(r => r.innerText.slice(0, 24)), recWhole: t.scrollHeight <= t.clientHeight + 1 && /Ship it on Monday\..*Roll back on the first new error/.test(t.innerText)};
+    });
+    ok("#7970: at 1568x744 the Decide list has no inner scroll and shows the whole Rec text and both alternatives", fit.inner <= 1 && fit.alts === 2 && fit.unseen.length === 0 && fit.recWhole, JSON.stringify(fit));
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
   }
   if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
@@ -333,6 +390,109 @@ async page => { // the question page itself: choices, chips, banners, header and
     await post({id: "Q11", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(600);
     const q12 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q12") || {};
     ok("#9709: deciding the prerequisite marks the out-of-order answer stale", q12.state === "stale", q12.state);
+  }
+  if (PHASE === 15) { // #9714: the shell set frontierLock back to confirm and added Q13, unanswered, on Q11; the page changes Q11's answer
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await post({id: "Q11", kind: "alt", alt: "a", text: ""}); await page.waitForTimeout(900);
+    const qs = (await (await page.request.get(base + "api/state")).json()).questions.questions, q13 = qs.find(q => q.id === "Q13") || {}, q12 = qs.find(q => q.id === "Q12") || {};
+    ok("#9714: a changed answer marks the undecided dependent upstream-changed and keeps the decided one stale", q13.state === "upstream-changed" && JSON.stringify(q13.changedBy) === '["Q11"]' && q12.state === "stale", q13.state + " " + JSON.stringify(q13.changedBy) + " / " + q12.state);
+    const chip = await page.$eval('.qbtn[data-q="Q13"] .qmeta', el => ({text: el.textContent, lock: !!el.querySelector(".upchip svg.padlock")})).catch(e => ({error: String(e)}));
+    ok("#9714: the dependent's rail card says the upstream change is not handled yet, with a padlock", chip.lock && /Upstream changed, not handled yet/.test(chip.text), JSON.stringify(chip));
+    await pick("Q13");
+    const ban = await text("#upstreamChanged");
+    ok("#9714: its detail pane names the changed question and says Save stays locked", /^Upstream changed, not handled yet: the answer to Q11.* changed or was reopened, and Claude has not revised or reconfirmed Q13 yet\. Save stays locked until it does/.test(ban), ban);
+    await page.click("#choices .choice.rec"); await page.fill("#note", "Does this still hold?"); await page.waitForTimeout(150);
+    const ctl = await page.evaluate(() => { const on = s => { const e = document.querySelector(s); return e ? !e.disabled : null; }; return {save: on("[data-save]"), ask: on('#talkRow [data-act="ask"]'), rephrase: on('#talkRow [data-act="rephrase"]'), hint: document.getElementById("saveHint").textContent}; });
+    ok("#9714: under confirm, Save is disabled and names the change while Ask and Rephrase stay enabled", ctl.save === false && ctl.ask === true && ctl.rephrase === true && ctl.hint === "Locked: Claude reviews it after Q11 changed", JSON.stringify(ctl));
+    const n0 = (await events()).length;
+    await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(400);
+    const t = await text("#toast");
+    ok("#9714: Ctrl+Enter sends nothing and says why", (await events()).length === n0 && /^Not saved: The answer to Q11 changed or was reopened/.test(t) && !(await page.evaluate(() => document.getElementById("dlg").open)), t);
+    const res = await post({id: "Q13", kind: "accept", alt: null, text: ""}), body = await res.json();
+    ok("#9714: the server answers a decision on it 409 upstream-changed, naming the changed question", res.status() === 409 && body.error === "upstream-changed" && JSON.stringify(body.changedBy) === '["Q11"]', res.status() + " " + JSON.stringify(body));
+  }
+  if (PHASE === 16) { // #9714: the shell reconfirmed Q13
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q13");
+    const q13 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q13") || {};
+    ok("#9714: a reconfirm clears the state, the banner and the rail mark", q13.state === "open" && !q13.changedBy && !(await page.$("#upstreamChanged")) && !(await page.$('.qbtn[data-q="Q13"] .upchip')), q13.state + " " + JSON.stringify(q13.changedBy));
+    ok("#9714: the thread shows Claude's reconfirm line", /Reconfirmed after Q11.* changed: The rollback owner does not turn on the rollout width\./.test(await text("#thread")), await text("#thread"));
+    await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
+    ok("#9714: Save is enabled again", await page.$eval("[data-save]", el => !el.disabled), await text("#saveHint"));
+  }
+  if (PHASE === 17) { // #9694: the shell proposed Q14, Q15 and Q16; a proposal is one Needs-you card and no Decide list until the user answers it
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    const stateOf = async id => ((await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === id) || {}).state;
+    const chip = await text('.qbtn[data-q="Q14"] .qmeta');
+    await pick("Q14");
+    const card = await page.evaluate(() => { const c = document.getElementById("proposal");
+      return {text: c ? c.textContent.replace(/\s+/g, " ").trim() : "", buttons: c ? [...c.querySelectorAll("button[data-proposal]")].map(b => b.textContent) : [], decide: !document.getElementById("answer").hidden || !!document.querySelector("#dscroll .choice")}; });
+    ok("#9694: a proposed question renders a card containing Claude proposes adding: with Accept, Edit and Not this and no Decide list", /Claude proposes adding: Should the rollout pause on a failed health check\?/.test(card.text) && JSON.stringify(card.buttons) === '["Accept","Edit","Not this"]' && !card.decide && /Proposed/.test(chip), JSON.stringify(card) + " " + chip);
+    let n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="accept"]'); await page.waitForTimeout(900);
+    let ev = await events(), last = ev[ev.length - 1] || {};
+    ok("#9694: Accept posts one proposal event, the question becomes open and the Decide list returns", ev.length === n0 + 1 && last.id === "Q14" && last.kind === "proposal" && last.alt === "accept" && await stateOf("Q14") === "open" && !(await page.$("#proposal")) && await page.$eval("#answer", el => !el.hidden), JSON.stringify(last));
+    await pick("Q15"); await page.click('#proposal [data-proposal="open-edit"]'); await page.waitForTimeout(150);
+    await page.fill("#propText", "Should a failed health check pause every region?"); n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="edit"]'); await page.waitForTimeout(900);
+    ev = await events(); last = ev[ev.length - 1] || {};
+    ok("#9694: Edit then Send edit posts the user's wording and the question becomes open", ev.length === n0 + 1 && last.id === "Q15" && last.alt === "edit" && last.text === "Should a failed health check pause every region?" && await stateOf("Q15") === "open", JSON.stringify(last));
+    await pick("Q16"); n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="decline"]'); await page.waitForTimeout(900);
+    ev = await events(); last = ev[ev.length - 1] || {};
+    ok("#9694: Not this posts a decline and the question is archived", ev.length === n0 + 1 && last.id === "Q16" && last.alt === "decline" && await stateOf("Q16") === "archived", JSON.stringify(last));
+  }
+  if (PHASE === 18) { // gap G10: a page stamped with another build than its server started from says the server is older
+    const banner = () => page.$eval("#oldServer", el => ({hidden: el.hidden, shown: el.getClientRects().length > 0, text: el.textContent}));
+    const load = async () => { await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400); };
+    await load();
+    const same = await banner();
+    ok("gap G10: a page from the build its server started from shows no old-server banner", same.hidden && !same.shown, JSON.stringify(same));
+    const isPage = u => u.pathname === "/";
+    await page.route(isPage, async route => {
+      const res = await route.fetch(), headers = res.headers();
+      delete headers["content-length"]; // the body changes length; fulfill sets it from the new body
+      await route.fulfill({status: res.status(), headers, body: (await res.text()).replace(/<meta name="interview-build" content="[^"]*">/, '<meta name="interview-build" content="0.0.0-newer 0">')});
+    });
+    await load();
+    const newer = await banner();
+    await page.unroute(isPage);
+    ok("gap G10: a page newer than its server shows the old-server banner", !newer.hidden && newer.shown && newer.text === "This page's server is older than the page. Run ensure-running to restart.", JSON.stringify(newer));
+    await load();
+  }
+  if (PHASE === 19) { // G6 (#9721): the shell asked Q17 in round 1, re-issued it as Q18 in round 2, then as Q19 in round 3, the newest round
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await page.click('.seg button[data-view="groups"]'); await page.waitForTimeout(200);
+    const q19 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q19") || {};
+    ok("G6: the server derives Q19's whole supersede chain, first asked first", JSON.stringify((q19.supersedesChain || []).map(c => c.id + "@" + c.round)) === '["Q17@1","Q18@2"]', JSON.stringify(q19.supersedesChain));
+    const dups = () => page.evaluate(() => [...document.querySelectorAll(".rail-list [id]")].map(e => e.id).filter((v, i, a) => a.indexOf(v) !== i));
+    const grp = await page.evaluate(() => { const s = document.querySelector('.rail-list .sec[data-key="carry"]');
+      return {first: !!s && s === document.querySelector(".rail-list .sec"), title: s ? s.querySelector("h2").textContent : "", ids: s ? [...s.querySelectorAll(".qbtn")].map(b => b.dataset.q) : [], inGroup: !!document.querySelector('.rail-list .sec[data-key="g:g1"] .qbtn[data-q="Q19"]')}; });
+    const gdup = await dups();
+    ok("G6: Groups view pins Still open from earlier rounds first, holding Q19 and neither predecessor, keeps Q19 in its group, and repeats no element id", grp.first && grp.title === "Still open from earlier rounds" && grp.ids.includes("Q19") && !grp.ids.includes("Q17") && !grp.ids.includes("Q18") && grp.inGroup && gdup.length === 0, JSON.stringify(grp) + " dups " + JSON.stringify(gdup));
+    const chip = await text('.rail-list .sec[data-key="carry"] .qbtn[data-q="Q19"] .qmeta');
+    ok("G6: Q19's carried count starts from Q17's round 1, not its own round 3", /asked 2 rounds ago, unanswered/.test(chip), chip);
+    await pick("Q19");
+    const asked = await text("#askedAs");
+    ok("G6: the detail pane shows the full chain, both earlier ids with their rounds", /^Asked as Q17.* in round 1, then Q18.* in round 2$/.test(asked), asked);
+    await page.click('.seg button[data-view="tree"]'); await page.waitForTimeout(200);
+    const tree = await page.evaluate(() => { const s = document.querySelector('.rail-list .sec[data-key="carry"]');
+      return {pinned: !!s && [...s.querySelectorAll(".qbtn")].some(b => b.dataset.q === "Q19"), inTree: !!document.querySelector('.rail-list ul.tree .qbtn[data-q="Q19"]')}; });
+    const tdup = await dups();
+    ok("G6: Tree view pins the carried section too, keeps Q19 in the tree, and repeats no element id", tree.pinned && tree.inTree && tdup.length === 0, JSON.stringify(tree) + " dups " + JSON.stringify(tdup));
+    await page.click('.seg button[data-view="groups"]'); await page.waitForTimeout(150);
+  }
+  if (PHASE === 20) { // #9695: the shell answered Q1 in the terminal, then posted a sweep round whose Q20 reconciles Q1
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q20");
+    const card = await text("#roundRestate"), rec = await text("#reconciles"), head = await text("#dscroll .dids");
+    ok("#9695: the sweep round's card is labeled Sweep: reconciling earlier answers", /^Sweep: reconciling earlier answers \(round 4\)/.test(card) && /Sweep/.test(head), card + " | " + head);
+    ok("#9695: Q1's decision text shows beside Q20, which reconciles it", /^Earlier answers this reconciles\s*Q1.*Ship on Wednesday after the code freeze\./.test(rec), rec);
   }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }

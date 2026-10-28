@@ -8,11 +8,6 @@
     "evals:plugin-eval",
     "evals:validate"
   ],
-  "competitor_dirs": {
-    "evals:design": "plugins/evals/skills/design",
-    "evals:plugin-eval": "plugins/evals/skills/plugin-eval",
-    "evals:validate": "plugins/evals/skills/validate"
-  },
   "queries": [
     {
       "id": "pos-train-01",

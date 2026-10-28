@@ -10,13 +10,6 @@
     "session-flow:orchestrate",
     "implementation:implement-dispatch"
   ],
-  "competitor_dirs": {
-    "multi-agent:route": "plugins/multi-agent/skills/route",
-    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
-    "multi-agent:setup": "plugins/multi-agent/skills/setup",
-    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate",
-    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -1,0 +1,15 @@
+diff --git a/plugins/sample-kit/README.md b/plugins/sample-kit/README.md
+index 3c4d5e6..7a8b9c0 100644
+--- a/plugins/sample-kit/README.md
++++ b/plugins/sample-kit/README.md
+@@ -12,3 +12,6 @@ npm test
+ ## Hooks
+
+ The pack hook bundles the kit's assets before each commit.
++
++The hook runs `sk-pack` from `plugins/sample-kit/bin/`, so a contributor needs nothing
++installed beyond Node.
+diff --git a/plugins/sample-kit/bin/sk-pack b/plugins/sample-kit/bin/sk-pack
+new file mode 100755
+index 0000000..e4f1a2b
+Binary files /dev/null and b/plugins/sample-kit/bin/sk-pack differ

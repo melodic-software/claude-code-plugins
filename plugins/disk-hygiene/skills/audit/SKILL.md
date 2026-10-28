@@ -85,7 +85,10 @@ Report from the snapshot and the scan's stdout, and nothing the run did not obse
 - Report `truncated_paths` (a count under `--quiet`, the list in the snapshot) and every scan error
   as coverage gaps. A `large-target-confirmation-required` or `root-children-selection-required`
   status names the next step, not a failure.
-- Quote hint coverage as a rate: `hinted_entries` of `entries`, never "N findings".
+- Quote hint coverage as a rate: `hinted_entries` of `entries`, never "N findings". Quote
+  `ranked_entries` of `entries` beside it, and order the entries you list by `review_rank`
+  `position`, naming each entry's signals and group. Show an `unranked` entry as unranked, not in
+  a middle position. A rank orders review only and ranks nothing for deletion.
 - List protected entries separately, and surface an `os_autoclean` recommendation as the engine
   states it. A scan does not assess live handles or elevation, so it yields no locked,
   needs-elevation, or unverified entries: say those were not assessed, never that there are none.

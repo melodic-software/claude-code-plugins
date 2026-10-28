@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/feature-map/SKILL.md"
+          }
+        }
+      ],
+      "why": "read the legacy index"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".claude/skills/feature-map/*"
+          }
+        }
+      ],
+      "why": "listed the map but read no index"
+    }
+  ]
+}

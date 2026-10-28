@@ -46,8 +46,8 @@ operators: default
 timeout-ms: <n>
 
 # Measured wall-clock of one unmutated suite run, in milliseconds, at the time
-# setup last ran. Recorded so the audit can report an estimated run cost before
-# starting, and so a later slowdown is visible rather than inferred.
+# setup last ran. Recorded so a later slowdown is visible rather than inferred;
+# the audit's run estimate times its own build and test run instead.
 baseline-suite-ms: <n>
 
 # Optional. Cap on how many mutants a single audit run will generate, as a guard
@@ -60,7 +60,9 @@ max-mutants: <n>
 # be a standalone, unquoted word; it is replaced with the test paths, each
 # single-quoted as its own argument, so the runner
 # must take file paths (`python -m pytest {tests}`, `npx vitest run {tests}`).
-# A runner that only filters by name (`dotnet test --filter`) cannot use it.
+# `dotnet test {tests}` is the one name-filter form: the audit runs it once per
+# test project, with `{tests}` replaced by that project and a class filter.
+# Other runners that only filter by name (Maven `-Dtest`) cannot use it.
 test-command: <command containing {tests}>
 ```
 

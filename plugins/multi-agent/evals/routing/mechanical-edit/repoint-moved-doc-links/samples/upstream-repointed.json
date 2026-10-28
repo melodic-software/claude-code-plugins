@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| H1 Routing | No role routes to `haiku` until it passes the routing eval: [routing rubric](../../plugins/multi-agent/reference/routing/rubric.md) |\n\nThis record replaces [the earlier routing record](routing-rubric.md).\n",
+      "why": "repointed, sibling link kept"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "[routing rubric](../../plugins/multi-agent/reference/routing-rubric.md)\n",
+      "why": "still the old path"
+    },
+    {
+      "answer": "[routing rubric](plugins/multi-agent/reference/routing/rubric.md)\n",
+      "why": "path written as if from the repository root"
+    }
+  ]
+}

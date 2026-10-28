@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
@@ -65,6 +66,22 @@ const THREAD_COMMENT_CAP = 100;
 const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
+
+// The ids of the unresolved threads (listThreads) a pr-verify FAIL's notes
+// opened on a head other than `head`: the first comment is
+// github-actions[bot]'s, opens with VERIFY_NOTE_MARKER, and was posted on
+// another commit (its original commit, which a later push does not move). A
+// pass at `head` supersedes them: post-verify-notes finds them, and
+// publish-feedback.mjs resolves them as the lanes App.
+export function staleVerifyNotes(threads, head) {
+  return threads
+    .filter((thread) => {
+      const root = thread.root?.nodes?.[0];
+      const commit = root?.originalCommit?.oid ?? "";
+      return thread.isResolved === false && root?.author?.databaseId === MARKER_AUTHOR_ID && firstLine(root.body) === VERIFY_NOTE_MARKER && SHA.test(commit) && commit !== head;
+    })
+    .map((thread) => thread.id);
+}
 
 // A review lane's own comment as the pr-review-cli reusable posts it: by
 // github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
@@ -430,6 +447,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       path: rows[0].path,
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
+      // Newer changes moved the thread's code, so its line may be stale.
+      is_outdated: thread.isOutdated === true,
       root_comment_id: rows[0].id,
       // A lane only from the github-actions[bot] author whose footer the
       // review lanes write; claude[bot] writes its own body.
@@ -570,6 +589,7 @@ export function runRecord(file) {
       comment_ids: t.comments.map((c) => c.id),
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
+    ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
   };
   return `${JSON.stringify(run)}\n`;
 }
@@ -613,10 +633,13 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
     pullRequest(number: $pr) {
       reviewThreads(first: 100, after: $after) {
         nodes {
-          id isResolved
+          id isResolved isOutdated
           comments(first: 100) {
             totalCount
             nodes { databaseId lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
+          }
+          root: comments(first: 1) {
+            nodes { author { ... on User { databaseId } ... on Bot { databaseId } } body originalCommit { oid } }
           }
         }
         pageInfo { hasNextPage endCursor }
@@ -625,16 +648,23 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
-export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch = globalThis.fetch }) {
+// A read, GraphQL queries included, and a write marked safeToResend, is sent
+// again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
+// pull request changes nothing; a blob, a tree and a commit are used only by
+// the sha their answer names, and a ref update carries the sha it sets. A
+// comment, an issue and a mutation are sent once.
+export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = globalThis.fetch, sleep }) {
+  const fetch = retryFetch(rawFetch, { sleep });
   const [owner, name] = repository.split("/");
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
   };
-  async function request(url, method = "GET", body) {
+  async function request(url, method = "GET", body, safeToResend = false) {
     const response = await fetch(url, {
       method,
+      safeToResend,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -676,7 +706,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       return (await response.json()).permission;
     },
-    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" })).data,
+    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" }, true)).data,
     createIssue: async (fields) => (await request(`${repo}/issues`, "POST", fields)).data,
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
@@ -686,6 +716,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
     listReviewComments: (pr) => paginate(`pulls/${pr}/comments`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    // The repository activity for one ref, newest first (contents read).
+    listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];
@@ -788,11 +820,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     },
     // The Git Data API: GitHub signs a commit made with no author or
     // committer as the App.
-    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
-    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
-    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,
+    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" }, true)).data.sha,
+    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree }, true)).data.sha,
+    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents }, true)).data.sha,
     async updateRef(ref, sha, force) {
-      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force });
+      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force }, true);
     },
   };
 }
@@ -806,8 +838,9 @@ const MARKER_FILE = /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/;
 // where the write runner downloaded every attempt's marker for the model
 // call's activity (SCAN_REFUSED_DIR), `read` that download's outcome
 // (SCAN_REFUSED_READ). A download that failed cannot rule a refusal out, so
-// it reads `output`; any marker reads `patch` only when one names it. A
-// forged marker only hands the round to a person.
+// it reads `output`; the markers read `patch` only when every one names it,
+// so a mixed set fails closed to `output`. A forged marker only hands the
+// round to a person.
 export function scanRefusal({ dir = "", read = "" } = {}) {
   if (read === "failure") {
     return "output";
@@ -830,7 +863,7 @@ export function scanRefusal({ dir = "", read = "" } = {}) {
   if (kinds.length === 0) {
     return "";
   }
-  return kinds.includes("patch") ? "patch" : "output";
+  return kinds.every((kind) => kind === "patch") ? "patch" : "output";
 }
 
 export function need(env, keys) {
@@ -886,6 +919,32 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
+  if (command === "select" && env.VERIFY_PASS_HEAD) {
+    // A pass-only round (pr-feedback-dispatch.yml after a pr-verify pass):
+    // only the stale fail-note threads, for the reply job to resolve; no
+    // thread for a model, so the round's model jobs and its neutral checks
+    // stay off. Nothing to resolve writes no output at all.
+    need(env, ["THREAD_FILE", "RUN_FILE"]);
+    if (!SHA.test(env.VERIFY_PASS_HEAD)) {
+      throw new Error("VERIFY_PASS_HEAD is not a commit id");
+    }
+    if (!env.DISPATCHER_RUN_ID) {
+      throw new Error("only a dispatcher run sends a pr-verify pass head");
+    }
+    if (env.VERIFY_PASS_HEAD !== env.HEAD_SHA) {
+      log(`skip: the PR head ${env.HEAD_SHA} is not ${env.VERIFY_PASS_HEAD}, which pr-verify passed`);
+      return 0;
+    }
+    const stale = staleVerifyNotes(await client.listThreads(pr), env.HEAD_SHA);
+    log(`pass-only: ${stale.length} open fail-note thread(s) from an earlier head`);
+    if (stale.length > 0) {
+      const file = { version: 1, repository: env.GITHUB_REPOSITORY, pr, head_sha: env.HEAD_SHA, pr_paths: [], threads: [], stale_notes: stale };
+      writeFileSync(env.THREAD_FILE, `${JSON.stringify(file, null, 2)}\n`);
+      writeFileSync(env.RUN_FILE, runRecord(file));
+      output("resolve-only", "true");
+    }
+    return 0;
+  }
   if (command === "select") {
     need(env, ["THREAD_FILE", "RUN_FILE", "TRUSTED_ACTORS"]);
     const result = await select({

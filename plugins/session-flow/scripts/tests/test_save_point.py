@@ -2637,6 +2637,50 @@ def test_shape3_written_before_suggested_skills_still_validates(tmp_path):
     assert "WARN" in out(result) and "Suggested skills" in out(result), out(result)
 
 
+@pytest.mark.parametrize("shape", ["2", "3"])
+def test_new_purpose_leads_the_brief_and_changes_nothing_else(tmp_path, shape):
+    texts: dict[str, str] = {}
+    emitted: dict[str, str] = {}
+    for arm, extra in (
+        ("plain", []),
+        ("purpose", ["--purpose", "review the design\n  with the platform team"]),
+    ):
+        base = tmp_path / arm
+        repo = make_repo(base)
+        made = run(*new_args(repo, base, "--no-previous", *extra, shape=shape))
+        assert made.returncode == 0, err(made)
+        path = Path(out(made).strip())
+        text = path.read_text(encoding="utf-8")
+        fill = shape3_fill if shape == "3" else model_fill
+        path.write_text(fill(text), encoding="utf-8", newline="\n")
+        checked = run("validate", str(path))
+        assert checked.returncode == 0, out(checked)
+        printed = run("emit", str(path))
+        assert printed.returncode == 0, err(printed)
+        here = real_posix(base)
+        texts[arm] = text.replace(here, "<base>")
+        emitted[arm] = out(printed).replace(here, "<base>")
+    plain = _sections_by_hand(texts["plain"])
+    tailored = _sections_by_hand(texts["purpose"])
+    assert list(tailored) == list(plain)
+    changed = {title for title in plain if plain[title] != tailored[title]}
+    assert changed == {"Resumption brief", "Suggested skills"}
+    brief = tailored["Resumption brief"].split("\n")
+    assert brief[0] == "Purpose: review the design with the platform team"
+    assert "Purpose:" not in plain["Resumption brief"]
+    assert "selected for the Purpose line" in tailored["Suggested skills"]
+    assert emitted["purpose"] == emitted["plain"]
+
+
+@pytest.mark.parametrize("purpose", ["see --> here", "a <!-- FILL: x — y --> b"])
+def test_new_refuses_a_purpose_that_breaks_the_slot_grammar(tmp_path, purpose):
+    repo = make_repo(tmp_path)
+    made = run(*new_args(repo, tmp_path, "--no-previous", "--purpose", purpose))
+    assert made.returncode == 2
+    assert "--purpose must not carry" in err(made)
+    assert not (repo / ".work" / "handoffs" / HOP1).exists()
+
+
 def test_shape3_validate_enforces_the_section_order(tmp_path):
     repo = make_repo(tmp_path)
     hop1 = s3_hop(repo, tmp_path)

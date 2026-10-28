@@ -1,5 +1,54 @@
 # Changelog: evals
 
+## [0.10.11] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.10.10] - 2026-10-27
+
+### Fixed
+
+- `plugin-eval` preflight's leftover-sandbox cleanup now prints a per-sandbox loop that opens each sandbox and its mode-000 `sealed/` directory with `chmod 700` before `chmod -R u+rwx` and `rm -rf`, since the old `chmod -R u+w` stopped with `Permission denied` on a kept sandbox ([#9414](https://github.com/melodic-software/claude-code-plugins/issues/9414)).
+- `plugin-eval`'s run step now adds `--scaffold` when a selected case's `case.yaml` sets `context.scaffold_script`, after the user reads each such script, because such a case run without it runs against an unstaged workspace and its delta reads 0 ([#9414](https://github.com/melodic-software/claude-code-plugins/issues/9414)).
+
+## [0.10.9] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.10.8] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the Run step now tells you to run the CLI on Linux and WSL2 with `TMPDIR` set to a short directory outside the system temp directories. Under the default, the eval sandbox cannot write and the validity gate fails most runs.
+
+## [0.10.7] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the validity gate's `session started` check also marks a run INVALID when it made 2 or more Bash calls and every one failed. This catches a broken sandbox whatever its error text says, including runs under a read-only `/tmp` where each command runs but reports a failure.
+
+## [0.10.6] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the validity gate's new `session started` check marks a run INVALID when it ended at 0 turns with no run error, or when its kept trace shows the shell sandbox failing to start. Both had passed as VALID and scored a session that never ran or had no shell. The sandbox notes give the `TMPDIR` workaround and its upstream pointers.
+
+## [0.10.5] - 2026-10-25
+
+### Fixed
+
+- `/evals:plugin-eval` says what an unset `grader_run_twice` setting means where it decides whether to pass `--grader-agreement`: an unexpanded, empty or other value means `true`, the manifest default, so an unset key no longer reads as neither true nor false.
+
+## [0.10.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.10.3] - 2026-10-23
 
 ### Changed

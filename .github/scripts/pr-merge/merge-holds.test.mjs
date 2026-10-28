@@ -1,10 +1,5 @@
 // Expected values come from the issue that added these holds and the gate's
-// own rules: the merge gate holds a manifest change that installs or runs
-// something new (babysit_risk manifest-review-required, the classes #9280
-// set: an executable plugin.json key or experimental.monitors; a marketplace
-// plugin added, removed, renamed or re-sourced, or its name; a manifest
-// removed, renamed or copied; a side that does not read or parse or repeats a
-// key) and lets a userConfig default merge (#9483), holds a change to a cost path
+// own rules: the merge gate holds a change to a cost path
 // (babysit_risk.COST_PATHS) until the owner's cost decision, which
 // babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
 // pins case by case. ci-status names its owner by the trusted-actor list, as
@@ -12,18 +7,20 @@
 // but never a cost hold. A decision binds to one pull request: one on the pull
 // request counts as it is, one on its linked issue (closing, else `Refs:`)
 // only when it names `#<number>`. It covers the head it decided, the sha of the
-// newest cost hold marker github-actions[bot] posted before it, and a later
-// head only when the net change against the base branch is the same at both
-// (owner decisions Q17 c and Q18 d on #9436, as ci-workflows v0.65.4's hold
-// step reads them).
+// newest cost hold notice a review lane's status job recorded before it on a
+// run vetted not to change a review-lane workflow (#9635), while the head
+// branch's push history shows a run of every lane on each head pushed since
+// it before the decision (#10437), and a later head
+// only when the net change against the base branch is the same at both (owner
+// decisions Q17 c and Q18 d on #9436).
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -32,15 +29,31 @@ const HUMANS = new Set([5]);
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 const OLD = "fedcba9876543210fedcba9876543210fedcba98";
-const LANE = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
-// A review lane's cost hold comment on the pull request at `sha`.
-// Its node id IC_M answers the marker's edit read.
-const marker = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", user = LANE } = {}) => ({
-  user,
-  node_id: "IC_M",
-  created_at: at,
-  body: `<!-- claude-lane-hold lane=claude-review sha=${sha} criteria=${criteria} -->\nHeld for a person.\n\nclaude-lane: claude-review`,
+const CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
+// A review lane's pull_request run on `sha`, started at `created`, whose
+// status job (or `job`) finished at `at` and recorded a hold notice naming
+// `notice`, with its head in `repo`.
+const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "pr-review-hosted.yml", job = CHECKS[lane], notice = sha, created = "2026-10-22T10:30:00Z", repo = REPO } = {}) => ({
+  lane,
+  repo,
+  sha,
+  at,
+  job,
+  created,
+  notes: [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${notice} criteria=${criteria} label=needs-human` }],
 });
+// The head branch's history as the repository activity API lists it, newest
+// first: a push of `after` at `timestamp`.
+const push = (after, timestamp) => ({ after, timestamp, activity_type: "push", ref: "refs/heads/fix/cost" });
+const newestFirst = (moves) => [...moves].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+// By default each run's head was pushed five minutes before its first status
+// job finished.
+const pushesOf = (runs) =>
+  newestFirst(
+    Object.entries(
+      runs.reduce((first, run) => ({ ...first, [run.sha]: Math.min(first[run.sha] ?? Infinity, Date.parse(run.at)) }), {}),
+    ).map(([sha, at]) => push(sha, new Date(at - 300_000).toISOString())),
+  );
 // A compare answer: the pull request's files against the base.
 const TF = { filename: "infra/main.tf", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const net = (...files) => ({ files });
@@ -56,10 +69,11 @@ const comment = (changes = {}) => ({
 });
 
 // A GitHub that answers the decision reads: the pull request's creation time
-// and closing issues, the linked issue (`target`), comment 7, and its edit time; then
-// the head reads: the pull request's `comments` (a cost hold marker at HEAD
-// by default) and a `compares` answer per head against `base`.
-// `fail` names a read that throws.
+// and closing issues, the linked issue (`target`), comment 7, and its edit
+// time; then the head reads: the review lanes' `runs` on the head branch (a
+// cost notice at HEAD by default), their jobs and annotations, and a
+// `compares` answer per head against `base` (a run's head answers net(TF)
+// unless given). `fail` names a read that throws.
 function world({
   row = comment(),
   closing = [{ number: 40, repository: { nameWithOwner: REPO } }],
@@ -67,60 +81,69 @@ function world({
   created = PR_CREATED,
   target = { number: 40 },
   fail,
-  comments = [marker(HEAD)],
+  runs = [laneRun(HEAD)],
   compares = {},
   base = "main",
-  markerNode,
-  deleted = [],
+  activity = pushesOf(runs),
 } = {}) {
   const reads = [];
+  const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
   const github = async (method, path, body) => {
+    if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
+      reads.push("activity");
+      if (fail === "activity") {
+        throw new Error("activity failed");
+      }
+      return activity;
+    }
     const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
+    const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
+    const jobs = /^\/repos\/owner\/repo\/actions\/runs\/([0-9]+)\/jobs\?filter=all&per_page=100&page=1$/.exec(path);
+    const notes = /^\/repos\/owner\/repo\/check-runs\/([0-9]+)\/annotations\?per_page=100&page=1$/.exec(path);
     const read =
       body?.query === PULL_OPENED_QUERY
         ? "pull"
         : body?.query === COMMENT_EDITED_QUERY
-          ? body.variables.id === "IC_M"
-            ? "marker edited"
-            : "edited"
-          : body?.query === COMMENT_DELETED_QUERY
-            ? "deleted"
-            : path === "/repos/owner/repo/issues/99/comments?per_page=100&page=1"
-            ? "comments"
-            : compare
-              ? `compare ${compare[2]}`
-              : `${method} ${path}`;
+          ? "edited"
+          : listing
+            ? `runs ${listing[1]}`
+            : jobs
+              ? `jobs ${jobs[1]}`
+              : notes
+                ? `notes ${notes[1]}`
+                : compare
+                  ? `compare ${compare[2]}`
+                  : `${method} ${path}`;
     reads.push(read);
     if (read === fail) {
       throw new Error(`${read} failed`);
     }
-    if (read === "comments") {
-      return comments;
+    if (listing) {
+      return { workflow_runs: runs.flatMap((run, i) => (run.lane === listing[1] ? [{ id: i + 1, head_sha: run.sha, created_at: run.created, head_repository: run.repo && { full_name: run.repo } }] : [])) };
+    }
+    if (jobs) {
+      const run = runs[Number(jobs[1]) - 1];
+      return { jobs: [{ id: Number(jobs[1]), name: run.job, completed_at: run.at }] };
+    }
+    if (notes) {
+      return runs[Number(notes[1]) - 1].notes;
     }
     if (compare) {
       assert.equal(compare[1], base);
-      if (!(compare[2] in compares)) {
+      if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
-      return compares[compare[2]];
+      return answers[compare[2]];
     }
     if (read === "pull") {
       assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
       return {
         data: {
           repository: {
-            pullRequest: { createdAt: created, baseRefName: base, closingIssuesReferences: { totalCount: closing.length, nodes: closing } },
+            pullRequest: { createdAt: created, baseRefName: base, headRefName: "fix/cost", closingIssuesReferences: { totalCount: closing.length, nodes: closing } },
           },
         },
       };
-    }
-    if (read === "deleted") {
-      assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
-      const items = Array.isArray(deleted) ? { filteredCount: deleted.length, nodes: deleted.map((createdAt) => ({ createdAt })) } : deleted;
-      return { data: { repository: { pullRequest: { timelineItems: items } } } };
-    }
-    if (read === "marker edited") {
-      return { data: { node: markerNode === undefined ? { lastEditedAt: null } : markerNode } };
     }
     if (read === "edited") {
       assert.deepEqual(body.variables, { id: "IC_7" });
@@ -143,13 +166,23 @@ const decide = (body = `Closes #40\n\nCost decision: ${LINK}\n`, options = {}) =
 test("an owner decision on the closing issue, linked from the body, clears the cost hold", async () => {
   const { link, reads } = await decide();
   assert.equal(link, LINK);
-  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited", "comments", "marker edited", "deleted"]);
+  assert.deepEqual(reads, [
+    "pull",
+    "GET /repos/owner/repo/issues/comments/7",
+    "edited",
+    "runs pr-review-hosted.yml",
+    `compare ${HEAD}`,
+    "jobs 1",
+    "notes 1",
+    "runs pr-review-security-hosted.yml",
+    "activity",
+  ]);
 });
 
 test("one on the pull request itself clears with no check against the pull request's time and no #number", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
   const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-21T09:00:00Z", body: "**Decision recorded.** Cost: approve it." });
-  assert.equal((await decide(own, { row, closing: [], comments: [marker(HEAD, "2026-10-21T08:00:00Z")] })).link, own);
+  assert.equal((await decide(own, { row, closing: [], runs: [laneRun(HEAD, "2026-10-21T08:00:00Z", { created: "2026-10-21T07:50:00Z" })] })).link, own);
   // With no time it decides no head, so it carries to none.
   assert.equal((await decide(own, { row: { ...row, created_at: null }, closing: [] })).link, null);
 });
@@ -237,37 +270,58 @@ test("a decision line after leading blank lines still counts", async () => {
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
-  for (const path of ["plugins/multi-agent/reference/defaults.yaml", "Pulumi.yaml", "infra/pulumi.Dev.yaml", "infra/.x/main.TF", "a.tfvars", "deploy/main.bicep", "deploy/main.bicepparam"]) {
+  for (const path of ["Pulumi.yaml", "infra/pulumi.Dev.yaml", "infra/.x/main.TF", "a.tfvars", "deploy/main.bicep", "deploy/main.bicepparam"]) {
     assert.match(costHold([path], null), new RegExp(`it changes ${path.replaceAll(".", "\\.")}, a cost path`), path);
     assert.equal(costHold([path], LINK), null, path);
   }
-  assert.equal(costHold(["docs/a.md", "plugins/multi-agent/reference/other.yaml", "Pulumi.md"], null), null);
+  // Owner ruling 2026-10-24: a model or effort default is no real charge.
+  assert.equal(costHold(["docs/a.md", "plugins/multi-agent/reference/defaults.yaml", "Pulumi.md"], null), null);
   assert.equal(costHold(null, null), null);
 });
 
 // ci-status: merge-holds.mjs's command line on the live files, as the
 // workflow step runs it, with a GitHub for the decision reads.
-// A `files` entry is a path, or a files API row; `texts` maps
-// `<path>@<sha>` to a manifest's text, which the contents API answers.
-function ci(files, { reviews = [], body = "Closes #40", options, texts = {}, head = HEAD } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
+// A `files` entry is a path, or a files API row; `denied` is the config's
+// denied paths; `writers` answers BODY_WRITERS_QUERY, or "fail"; `list`
+// maps a ref (BASE, HEAD) to the trusted-actor list's text there.
+// `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
+// each written as given (a string as it is), `evidence` left out when undefined.
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
+  const dir = tempDir("merge-holds-");
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
   writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(typeof row === "string" ? [row] : row)).join("\n"));
-  writeFileSync(join(dir, "denied"), "[]");
+  writeFileSync(join(dir, "denied"), JSON.stringify(denied));
   const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), head];
+  if (queue) {
+    const text = (value) => (typeof value === "string" ? value : JSON.stringify(value));
+    writeFileSync(join(dir, "verdicts"), queue.verdicts.map(text).join("\n"));
+    writeFileSync(join(dir, "link"), text(queue.link));
+    argv.push(join(dir, "verdicts"), join(dir, "link"));
+    if (queue.evidence !== undefined) {
+      writeFileSync(join(dir, "evidence"), text(queue.evidence));
+      argv.push(join(dir, "evidence"));
+    }
+  }
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
-    const read = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
-    if (!read) {
+    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
+    if (listed) {
+      assert.equal(method, "GET");
+      if (!(listed[1] in list)) {
+        throw new Error("not found");
+      }
+      return { type: "file", encoding: "base64", content: Buffer.from(list[listed[1]]).toString("base64") };
+    }
+    if (data?.query !== BODY_WRITERS_QUERY) {
       return decisions(method, path, data);
     }
-    const text = texts[`${decodeURIComponent(read[1])}@${read[2]}`];
-    if (text === undefined) {
-      throw new Error("not found");
+    assert.deepEqual(data.variables, { owner: "owner", name: "repo", number: 99 });
+    if (writers === "fail") {
+      throw new Error("unreadable");
     }
-    return { type: "file", encoding: "base64", content: Buffer.from(text).toString("base64") };
+    return { data: { repository: { pullRequest: writers } } };
   };
   const lines = [];
   const log = console.log;
@@ -285,78 +339,158 @@ function ci(files, { reviews = [], body = "Closes #40", options, texts = {}, hea
 }
 const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-10-23T11:00:00Z" };
 
-const PLUGIN = "plugins/foo/.claude-plugin/plugin.json";
-const MARKET = ".claude-plugin/marketplace.json";
-const PLUGIN_BASE = '{"name": "foo", "version": "1.0.0", "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}';
-const MARKET_BASE = '{"name": "m", "plugins": [{"name": "foo", "source": "./plugins/foo", "category": "dev"}]}';
-const withKey = (key) => PLUGIN_BASE.replace('"name": "foo",', `"name": "foo", ${key},`);
-// One manifest change through ci-status: its files API row and its sides.
-const manifest = (path, before, after, row = {}) =>
-  ci([{ filename: path, status: "modified", ...row }], {
-    texts: { ...(before === undefined ? {} : { [`${path}@${BASE}`]: before }), ...(after === undefined ? {} : { [`${path}@${HEAD}`]: after }) },
-  });
-
-test("ci-status holds every manifest change the merge gate reviews", async () => {
-  const cases = {
-    hooks: [PLUGIN, PLUGIN_BASE, withKey('"hooks": "./h.json"'), "hooks"],
-    mcpServers: [PLUGIN, PLUGIN_BASE, withKey('"mcpServers": {}'), "mcpServers"],
-    lspServers: [PLUGIN, PLUGIN_BASE, withKey('"lspServers": {}'), "lspServers"],
-    monitors: [PLUGIN, PLUGIN_BASE, withKey('"monitors": []'), "monitors"],
-    "experimental.monitors": [PLUGIN, PLUGIN_BASE, withKey('"experimental": {"monitors": []}'), "experimental.monitors"],
-    "a plugin added": [MARKET, MARKET_BASE, MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'), "plugins[bar] added"],
-    "a plugin removed": [MARKET, MARKET_BASE, '{"name": "m", "plugins": []}', "plugins[foo] removed"],
-    "a plugin renamed": [MARKET, MARKET_BASE, MARKET_BASE.replace('"name": "foo"', '"name": "fob"'), "plugins[fob] added, plugins[foo] removed"],
-    "a plugin source changed": [MARKET, MARKET_BASE, MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"), "plugins[foo].source"],
-    "the marketplace name changed": [MARKET, MARKET_BASE, MARKET_BASE.replace('"name": "m"', '"name": "n"'), "name"],
-    "a parse error": [PLUGIN, PLUGIN_BASE, "{", "unreadable, malformed or a repeated key"],
-    "a duplicate key": [PLUGIN, PLUGIN_BASE, withKey('"name": "x"'), "unreadable, malformed or a repeated key"],
-    "an unreadable side": [PLUGIN, undefined, PLUGIN_BASE, "contents unreadable"],
-  };
-  for (const [name, [path, before, after, found]] of Object.entries(cases)) {
-    const held = await manifest(path, before, after);
-    assert.equal(held.code, 1, name);
-    assert.ok(held.out.includes(`it changes ${path} (${found}), a manifest change that needs review`), `${name}: ${held.out}`);
+// Owner direction 2026-10-24: a trusted path alone holds nothing, and a
+// manifest change is the security lane's finding, not a hold; a configured
+// denied path still holds. Owner decision Q-FLOOR (B) keeps a narrow floor:
+// resolve-config, request-lane-token, check-trusted-trigger,
+// check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
+// configured glob, and so do the files that enforce it (owner decision
+// Q-ENFORCE (A)); a trusted person's approval of the head lifts them as it
+// lifts a configured one. Owner decision Q26 option B: only the `trust` and
+// `gate` entries hold here; an `enforcement` one is the merge gate's, which a
+// clean security review bound to the head clears (ENFORCEMENT_FILES).
+const FLOOR_FILES = [
+  ".github/actions/resolve-config/resolve.mjs",
+  ".github/actions/Resolve-Config/lane-rules.json",
+  ".github/actions/request-lane-token/action.yml",
+  ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+  ".github/actions/check-kill-switch/check-kill-switch.mjs",
+  ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
+  ".github/CODEOWNERS",
+  "plugins/foo/codeowners",
+  ".gitmodules",
+  "vendor/sub/.gitmodules",
+  ".github/scripts/pr-merge/merge-holds.mjs",
+  ".github/scripts/pr-merge/enable-auto-merge.mjs",
+  ".github/scripts/pr-merge/superseded.mjs",
+  ".github/scripts/pr-merge/clear-escalations.mjs",
+  ".github/scripts/pr-merge/gate-check.mjs",
+  ".github/scripts/pr-merge/who.mjs",
+  ".github/scripts/pr-merge/rate-stop.bash",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+  "docs/conventions/pr-pipeline.yaml",
+];
+const ENFORCEMENT_FILES = [
+  ".github/workflows/pr-require-checks.yml",
+  ".github/workflows/pr-merge.yml",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+  ".github/scripts/pr-unblock/address-feedback.mjs",
+  ".github/scripts/pr-unblock/gate-source.mjs",
+  ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/pr-unblock/retry-fetch.mjs",
+  ".github/scripts/work-resolve-issue/report-outcome.mjs",
+  ".github/scripts/work-resolve-issue/limits.mjs",
+  ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+  ".github/scripts/pr-unblock/fix-ci-context.mjs",
+  ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
+  ".github/scripts/work-resolve-issue/stop-routes.json",
+  ".github/scripts/work-resolve-issue/stop-routes.mjs",
+];
+test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
+  assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
+  assert.deepEqual(HOLD_PATH_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+  assert.deepEqual([...new Set(HOLD_PATH_CLASSES.map(([, kind]) => kind))].sort(), ["enforcement", "gate", "trust"]);
+  for (const path of ENFORCEMENT_FILES) {
+    assert.ok(REVIEW_FLOOR.includes(path), path);
+    assert.equal(pathHold([path], []), null, path);
   }
-  for (const [name, row] of Object.entries({
-    removed: { status: "removed" },
-    renamed: { status: "renamed", previous_filename: "plugins/foo/plugin.json" },
-    copied: { status: "copied", previous_filename: "plugins/bar/.claude-plugin/plugin.json" },
-  })) {
-    const held = await manifest(PLUGIN, PLUGIN_BASE, PLUGIN_BASE, row);
-    assert.equal(held.code, 1, name);
-    assert.ok(held.out.includes(`(${name} manifest)`), `${name}: ${held.out}`);
+});
+test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
+  for (const path of ENFORCEMENT_FILES) {
+    const passed = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
   }
-  // Renamed away from a manifest path holds too.
-  const away = await ci([{ filename: "plugins/foo/plugin.json", previous_filename: PLUGIN, status: "renamed" }]);
-  assert.ok(away.out.includes("(renamed manifest)"), away.out);
+  // Beside a gate path it still holds on that one.
+  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/who.mjs", status: "modified" }]);
+  assert.equal(both.code, 1, both.out);
+  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
+});
+test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
+  for (const path of FLOOR_FILES) {
+    const held = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(held.code, 1, `${path}: ${held.out}`);
+    assert.ok(held.out.includes(`it changes ${path}, a hold path`), `${path}: ${held.out}`);
+    const approved = await ci([{ filename: path, status: "modified" }], { reviews: [approve] });
+    assert.equal(approved.code, 0, `${path}: ${approved.out}`);
+    assert.match(approved.out, /owner-person approved this head, which lifts its hold path/);
+  }
+  const renamed = await ci([["docs/x.md", ".github/actions/check-kill-switch/action.yml", "renamed"]]);
+  assert.equal(renamed.code, 1, renamed.out);
 });
 
-test("ci-status passes a manifest change the merge gate does not review, such as a userConfig default (#9483)", async () => {
-  for (const [path, before, after] of [
-    [PLUGIN, PLUGIN_BASE, PLUGIN_BASE.replace('"default": true', '"default": false')],
-    [PLUGIN, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")],
-    [MARKET, MARKET_BASE, MARKET_BASE.replace('"dev"', '"tools"')],
+test("ci-status holds no other trusted path or manifest change, only a configured denied path", async () => {
+  for (const path of [
+    "plugins/foo/.claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "docs/conventions/pr-pipeline/README.md",
+    ".github/standards/trusted-actors/README.md",
+    ".github/standards/trusted-actors/trusted-actors.schema.json",
+    ".github/actions/log-api-budget/action.yml",
+    ".github/actions/log-api-budget/rate-guard.test.mjs",
+    ".github/actions/check-trusted-trigger-x/a.mjs",
+    ".github/scripts/pr-unblock/other.mjs",
+    "docs/CODEOWNERS.md",
   ]) {
-    const passed = await manifest(path, before, after);
-    assert.equal(passed.code, 0, passed.out);
+    const passed = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
     assert.match(passed.out, /no body hold, no member veto and no hold path\./);
   }
-  const added = await ci([{ filename: PLUGIN, status: "added" }], { texts: { [`${PLUGIN}@${HEAD}`]: PLUGIN_BASE } });
-  assert.equal(added.code, 0, added.out);
-});
-
-test("a trusted approval of the head lifts a manifest hold", async () => {
-  const hooked = withKey('"hooks": {}');
-  const texts = { [`${PLUGIN}@${BASE}`]: PLUGIN_BASE, [`${PLUGIN}@${HEAD}`]: hooked };
-  const lifted = await ci([{ filename: PLUGIN, status: "modified" }], { texts, reviews: [approve] });
-  assert.equal(lifted.code, 0, lifted.out);
-  assert.match(lifted.out, /owner-person approved this head, which lifts its hold path/);
-});
-
-test("an old files line, with no status, holds a manifest", async () => {
-  const held = await ci([MARKET]);
+  const held = await ci([{ filename: "docs/held.md", status: "modified" }], { denied: ["docs/held.md"] });
   assert.equal(held.code, 1);
-  assert.match(held.out, /\.claude-plugin\/marketplace\.json \(unknown manifest\)/);
+  assert.match(held.out, /it changes docs\/held\.md, a hold path/);
+});
+
+// The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):
+// a change that adds or widens an entry of the trusted-actor list waits for
+// the owner, and one that only removes entries does not. ci-status has no
+// bypass, so the owner's approval of the head lifts it, as it lifts a hold
+// path.
+const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
+const KYLE = { id: 1, login: "kyle", kind: "human" };
+const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
+const listOf = (...actors) => `${JSON.stringify({ version: 1, actors }, null, 2)}\n`;
+test("ci-status holds a trusted-actor list widening until a trusted person approves the head, and passes a removal", async () => {
+  const modified = [{ filename: ACTORS, status: "modified" }];
+  const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
+  const widened = await ci(modified, { list });
+  assert.equal(widened.code, 1, widened.out);
+  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head/);
+  const approved = await ci(modified, { list, reviews: [approve] });
+  assert.equal(approved.code, 0, approved.out);
+  assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
+  const stranger = { ...approve, user: { login: "stranger", id: 9, type: "User" } };
+  assert.equal((await ci(modified, { list, reviews: [stranger] })).code, 1);
+  const changed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE, { ...LANES, kind: "human" }) } });
+  assert.equal(changed.code, 1, changed.out);
+  const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
+  assert.equal(removed.code, 0, removed.out);
+  assert.match(removed.out, /no body hold, no member veto and no hold path\./);
+  // A side that does not read, a repeated key, or a rename holds.
+  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
+  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
+  assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
+});
+
+// A body's hold text counts only when a person wrote some of it.
+test("a body hold counts only when a person wrote or edited the body", async () => {
+  const body = "Closes #40\n\nHold: wait for the release.";
+  const bot = { __typename: "Bot" };
+  const appOnly = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 0, nodes: [] } } });
+  assert.equal(appOnly.code, 0, appOnly.out);
+  assert.match(appOnly.out, /hold text is the lanes App's own/);
+  const edited = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 1, nodes: [{ editor: { __typename: "User" } }] } } });
+  assert.equal(edited.code, 1);
+  assert.match(edited.out, /its body holds it/);
+  // An edit list not read whole, or a failed read, counts as a person.
+  const cut = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 101, nodes: [] } } });
+  assert.equal(cut.code, 1);
+  const unread = await ci(["docs/a.md"], { body, writers: "fail" });
+  assert.equal(unread.code, 1);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {
@@ -377,7 +511,7 @@ test("ci-status lifts a cost hold for the head the decision decided, and re-hold
   const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
   const body = `Closes #40\n\n${own}`;
   assert.equal((await ci(["infra/main.tf"], { body, options: { row } })).code, 0);
-  const later = await ci(["infra/main.tf"], { body, options: { row, comments: [marker(OLD)], compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "infra/b.tf", status: "added", patch: "@@ -0,0 +1 @@\n+c" }) } } });
+  const later = await ci(["infra/main.tf"], { body, options: { row, runs: [laneRun(OLD)], compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "infra/b.tf", status: "added", patch: "@@ -0,0 +1 @@\n+c" }) } } });
   assert.equal(later.code, 1, later.out);
   assert.match(later.out, /a cost path/);
   // The same decision on the closing issue, which names no pull request, holds.
@@ -387,13 +521,13 @@ test("ci-status lifts a cost hold for the head the decision decided, and re-hold
 });
 
 // The carry rule (#9436 Q18 d): the decided head is OLD, the current HEAD.
-const later = (compares, options = {}) => decide(undefined, { comments: [marker(OLD)], compares, ...options });
+const later = (compares, options = {}) => decide(undefined, { runs: [laneRun(OLD)], compares, ...options });
 
 test("a base merge after the decision carries it, and a pull request commit after it re-holds", async () => {
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-4), ["marker edited", "deleted", `compare ${OLD}`, `compare ${HEAD}`]);
+  assert.deepEqual(commit.reads.slice(-3), ["activity", `compare ${OLD}`, `compare ${HEAD}`]);
 });
 
 test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
@@ -421,7 +555,9 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
   assert.equal((await later({ [OLD]: net(binary), [HEAD]: net(binary) })).link, null);
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: `compare ${HEAD}` })).link, null);
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: { status: "diverged" } })).link, null);
-  assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: "comments" })).link, null);
+  for (const read of ["runs pr-review-hosted.yml", "runs pr-review-security-hosted.yml", "jobs 1", "notes 1", `compare ${OLD}`]) {
+    assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: read })).link, null, read);
+  }
   assert.equal((await later({ [OLD]: net(TF, TF), [HEAD]: net(TF, TF) })).link, null);
   // A patchless pure rename never carries.
   const moved = { filename: "b.tf", status: "renamed", previous_filename: "a.tf" };
@@ -434,62 +570,44 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
 });
 
-test("a comment deleted since the newest marker carries nothing, even at its own head", async () => {
-  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
-  // Deleting the newer marker would make an older head the decided head.
-  const promoted = await decide(undefined, { comments: [marker(OLD, "2026-10-22T10:30:00Z")], head: OLD, deleted: ["2026-10-22T11:45:00Z"] });
-  assert.equal(promoted.link, null);
-  assert.ok(!promoted.reads.some((read) => read.startsWith("compare")));
-  assert.equal((await decide(undefined, { deleted: ["2026-10-22T11:00:00Z"] })).link, null);
-  assert.equal((await later(same, { deleted: ["2026-10-22T11:30:00Z"] })).link, null);
-  assert.equal((await decide(undefined, { fail: "deleted" })).link, null);
-  assert.equal((await decide(undefined, { deleted: { filteredCount: 101, nodes: [{ createdAt: "2026-10-22T09:00:00Z" }] } })).link, null);
-  // A deletion before the marker was posted does not stop it.
-  assert.equal((await decide(undefined, { deleted: ["2026-10-22T10:59:59Z"] })).link, LINK);
-  assert.equal((await later(same, { deleted: ["2026-10-22T09:00:00Z"] })).link, LINK);
-  const items = (nodes, filteredCount = nodes.length) => ({ repository: { pullRequest: { timelineItems: { filteredCount, nodes } } } });
-  assert.equal(deletedSince(items([]), "2026-10-22T11:00:00Z"), false);
-  for (const [name, answer, at] of [
-    ["no answer", undefined, "2026-10-22T11:00:00Z"],
-    ["no time", items([]), null],
-    ["an unparsed deletion time", items([{ createdAt: "soon" }]), "2026-10-22T11:00:00Z"],
-    ["no count", { repository: { pullRequest: { timelineItems: { nodes: [] } } } }, "2026-10-22T11:00:00Z"],
-  ]) {
-    assert.equal(deletedSince(answer, at), true, name);
-  }
-});
-
-test("an edited or unreadable newest marker carries nothing, and no older marker stands in", async () => {
-  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
-  for (const [name, options] of Object.entries({
-    edited: { markerNode: { lastEditedAt: "2026-10-22T11:05:00Z" } },
-    "a null node": { markerNode: null },
-    "no lastEditedAt key": { markerNode: {} },
-    unreadable: { fail: "marker edited" },
-  })) {
-    // At the head it held, and after a base merge.
-    assert.equal((await decide(undefined, options)).link, null, name);
-    assert.equal((await later(same, options)).link, null, name);
-  }
-  // An older unedited marker at this head does not stand in for an edited newest one.
-  const older = { comments: [marker(HEAD, "2026-10-22T10:00:00Z"), marker(OLD)], compares: same, markerNode: { lastEditedAt: "2026-10-22T11:05:00Z" } };
-  assert.equal((await decide(undefined, older)).link, null);
-});
-
-test("at the decided head the decision carries with no compare read", async () => {
-  const { link, reads } = await decide(undefined, { base: "" });
+test("at the decided head the decision carries with no net-change compare", async () => {
+  const { link, reads } = await decide();
   assert.equal(link, LINK);
-  assert.ok(!reads.some((read) => read.startsWith("compare")));
+  assert.deepEqual(
+    reads.filter((read) => read.startsWith("compare")),
+    [`compare ${HEAD}`],
+  );
+  // With no usable base name no run can be vetted, so nothing carries.
+  assert.equal((await decide(undefined, { base: "" })).link, null);
 });
 
-test("with no cost hold marker before the decision nothing carries, even at the same head", async () => {
+test("with no cost hold notice before the decision nothing carries, even at the same head", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
   const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
   for (const options of [{ row, closing: [] }, {}]) {
-    const { link, reads } = await decide(options.row ? own : undefined, { ...options, comments: [] });
+    const { link, reads } = await decide(options.row ? own : undefined, { ...options, runs: [] });
     assert.equal(link, null);
-    assert.deepEqual(reads.slice(-1), ["comments"]);
+    assert.deepEqual(reads.slice(-2), ["runs pr-review-hosted.yml", "runs pr-review-security-hosted.yml"]);
   }
+});
+
+test("the decided head is read from the lanes' check-run notices, never from a comment", async () => {
+  const { reads } = await decide();
+  assert.ok(!reads.some((read) => /\/issues\/99\/comments/.test(read)), reads.join(", "));
+  // The lane-run reads go to the reader given for them, the rest to github.
+  const { github, reads: all } = world();
+  const seen = [];
+  const actions = async (method, path, body) => {
+    seen.push(path);
+    return github(method, path, body);
+  };
+  const plain = async (method, path, body) => {
+    assert.ok(!/\/actions\/|\/check-runs\//.test(path), path);
+    return github(method, path, body);
+  };
+  assert.equal(await costDecision(plain, REPO, 99, `Closes #40\n\n${LINK}`, HUMANS, HEAD, actions), LINK);
+  assert.ok(seen.some((path) => path.includes("/actions/workflows/")) && seen.some((path) => path.includes("/check-runs/")), seen.join(", "));
+  assert.ok(all.includes("edited"));
 });
 
 test("the decision is the newest on the pull request, else the newest on its linked issue", async () => {
@@ -499,8 +617,8 @@ test("the decision is the newest on the pull request, else the newest on its lin
     8: comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-22T11:00:00Z", node_id: "IC_7" }),
     9: comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-22T11:30:00Z", node_id: "IC_7" }),
   };
-  const pick = async (body, comments) => {
-    const { github: base } = world({ comments, compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) } });
+  const pick = async (body, runs) => {
+    const { github: base } = world({ runs, compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) } });
     const github = async (method, path, data) => {
       const id = /\/issues\/comments\/([0-9]+)$/.exec(path)?.[1];
       return id ? rows[id] : base(method, path, data);
@@ -509,32 +627,135 @@ test("the decision is the newest on the pull request, else the newest on its lin
   };
   const all = `Closes #40\n${LINK}\n${onPull(8)}\n${onPull(9)}`;
   // The pull request's newest (9, at 11:30) is the one judged, over the issue's newer one.
-  assert.equal(await pick(all, [marker(HEAD, "2026-10-22T11:15:00Z")]), onPull(9));
+  assert.equal(await pick(all, [laneRun(HEAD, "2026-10-22T11:15:00Z")]), onPull(9));
   // Its decided head is not this head, and the older one at this head is not consulted.
-  assert.equal(await pick(all, [marker(HEAD, "2026-10-22T10:00:00Z"), marker(OLD, "2026-10-22T11:15:00Z")]), null);
-  assert.equal(await pick(`Closes #40\n${LINK}`, [marker(HEAD)]), LINK);
+  assert.equal(await pick(all, [laneRun(HEAD, "2026-10-22T10:00:00Z", { created: "2026-10-22T09:50:00Z" }), laneRun(OLD, "2026-10-22T11:15:00Z")]), null);
+  assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
 });
 
-test("the decided head is the latest bot cost hold marker made before the decision", async () => {
+test("the decided head is the newest cost notice a lane's status job recorded before the decision", async () => {
   const same = { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) };
-  // An older marker at the current head does not outweigh the latest one before the decision.
-  assert.equal((await decide(undefined, { comments: [marker(HEAD, "2026-10-22T10:30:00Z"), marker(OLD, "2026-10-22T11:30:00Z")], compares: same })).link, null);
-  assert.equal((await decide(undefined, { comments: [marker(OLD, "2026-10-22T10:30:00Z"), marker(HEAD, "2026-10-22T11:30:00Z")], compares: same })).link, LINK);
-  // A marker after the decision, by a person, or without cost decides nothing.
+  const runs = (...extra) => decide(undefined, { runs: [laneRun(OLD), ...extra], compares: same });
+  // An older notice at the current head does not outweigh the latest one before the decision.
+  assert.equal((await decide(undefined, { runs: [laneRun(HEAD, "2026-10-22T10:40:00Z"), laneRun(OLD, "2026-10-22T11:30:00Z")], compares: same })).link, null);
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z"))).link, LINK);
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml" }))).link, LINK);
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" }))).link, LINK);
   for (const [name, extra] of Object.entries({
-    after: marker(HEAD, "2026-10-22T12:30:00Z"),
-    "a person": marker(HEAD, "2026-10-22T11:30:00Z", { user: { login: "owner-person", id: 5, type: "User" } }),
-    "another bot": marker(HEAD, "2026-10-22T11:30:00Z", { user: { login: "claude[bot]", id: 9, type: "Bot" } }),
-    "not on the first line": { ...marker(HEAD, "2026-10-22T11:30:00Z"), body: `Held.\n<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` },
-    "not cost": marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "trust-gate" }),
+    "a job done after the decision": laneRun(HEAD, "2026-10-22T12:30:00Z"),
+    "a run started after the decision": laneRun(HEAD, "2026-10-22T11:30:00Z", { created: "2026-10-22T12:10:00Z" }),
+    "a job other than the status job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-key" }),
+    "the other lane's status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: CHECKS["pr-review-security-hosted.yml"] }),
+    "a notice naming another head than its run's": laneRun(OLD, "2026-10-22T11:30:00Z", { notice: HEAD }),
+    "a notice without cost": laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "trust-gate" }),
+    "a run whose head is in another repository": laneRun(HEAD, "2026-10-22T11:30:00Z", { repo: "fork/repo" }),
+    "a run with no head repository": laneRun(HEAD, "2026-10-22T11:30:00Z", { repo: null }),
   })) {
-    assert.equal((await decide(undefined, { comments: [marker(OLD), extra], compares: same })).link, null, name);
+    assert.equal((await runs(extra)).link, null, name);
   }
-  assert.equal((await decide(undefined, { comments: [marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" })], compares: same })).link, LINK);
-  assert.deepEqual(costMarker([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), { sha: OLD, node: "IC_M", at: "2026-10-22T11:00:00Z" });
-  // Of two at one time, the first listed wins, as in the hold step.
-  assert.equal(costMarker([marker(OLD), marker(HEAD)], "2026-10-22T12:00:00Z").sha, OLD);
-  assert.equal(costMarker([], "2026-10-22T12:00:00Z"), null);
+  // Two heads noticed at the newest time decide nothing.
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:00:00Z", { lane: "pr-review-security-hosted.yml" }))).link, null);
+  // A run that started after the decision is not read at all.
+  const late = await decide(undefined, { runs: [laneRun(HEAD), laneRun(OLD, "2026-10-22T12:30:00Z", { created: "2026-10-22T12:10:00Z" })] });
+  assert.ok(!late.reads.includes("jobs 2"), late.reads.join(", "));
+});
+
+test("a lane run on a head that changes a review-lane workflow, or whose compare cannot vet it, decides nothing", async () => {
+  for (const [name, answer] of Object.entries({
+    "the code lane's workflow": net(TF, { filename: ".github/workflows/pr-review-hosted.yml" }),
+    "the security lane's workflow": net({ filename: ".github/workflows/pr-review-security-hosted.yml" }),
+    "300 files": net(...Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }))),
+    "no file list": { status: "diverged" },
+  })) {
+    assert.equal((await decide(undefined, { compares: { [HEAD]: answer } })).link, null, name);
+    // Even a vetted later notice does not stand in for it.
+    const mixed = await decide(undefined, { runs: [laneRun(OLD, "2026-10-22T10:40:00Z"), laneRun(HEAD)], compares: { [OLD]: answer } });
+    assert.equal(mixed.link, null, name);
+  }
+});
+
+// #10437: a deleted lane run of a head pushed after the decided head, before
+// the decision, would make an older notice the decided head. The branch's
+// push history, which deleting a run leaves, shows that head, and it must
+// have a run of every review lane started before the decision.
+test("a head pushed between the decided head and the decision with no run of every lane keeps the hold", async () => {
+  const NEW = "1111111111111111111111111111111111111111";
+  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
+  const history = (...moves) => newestFirst([push(OLD, "2026-10-22T10:25:00Z"), ...moves]);
+  const plain = (sha, lane) => laneRun(sha, "2026-10-22T11:20:00Z", { criteria: "trust-gate", lane, created: "2026-10-22T11:12:00Z" });
+  const carried = (runs, activity, options = {}) => decide(undefined, { runs: [laneRun(OLD), ...runs], compares: same, activity, ...options });
+  // No deletion: both lanes ran on the newer head, which noticed no cost.
+  const both = [plain(NEW, "pr-review-hosted.yml"), plain(NEW, "pr-review-security-hosted.yml")];
+  assert.equal((await carried(both, history(push(NEW, "2026-10-22T11:10:00Z")))).link, LINK);
+  // A head pushed after the decision needs no run here.
+  assert.equal((await carried([], history(push(NEW, "2026-10-22T12:10:00Z")))).link, LINK);
+  for (const [name, runs] of Object.entries({
+    "both lanes' runs deleted": [],
+    "the code lane's run deleted": [plain(NEW, "pr-review-security-hosted.yml")],
+    "the security lane's run deleted": [plain(NEW, "pr-review-hosted.yml")],
+    "a run started only after the decision": both.map((run) => ({ ...run, created: "2026-10-22T12:05:00Z" })),
+    "a run whose head is in another repository": both.map((run) => ({ ...run, repo: "fork/repo" })),
+  })) {
+    const kept = await carried(runs, history(push(NEW, "2026-10-22T11:10:00Z")));
+    assert.equal(kept.link, null, name);
+    assert.ok(kept.reads.includes("activity"), name);
+  }
+  // Pushing the decided head again after the decision makes it the head: the
+  // gap before the decision still keeps the hold.
+  const back = history(push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T12:30:00Z"));
+  assert.equal((await carried([], back, { head: OLD })).link, null);
+  // A history that shows no push of the decided head before the decision, a
+  // full page that may not reach it, or a read that fails keeps the hold.
+  assert.equal((await carried(both, [push(NEW, "2026-10-22T11:10:00Z")])).link, null);
+  assert.equal((await carried(both, [push(OLD, "2026-10-22T12:30:00Z")])).link, null);
+  const full = newestFirst([...Array.from({ length: 99 }, (_, i) => push(NEW, new Date(Date.parse("2026-10-22T12:10:00Z") + i * 1000).toISOString())), push(OLD, "2026-10-22T10:25:00Z")]);
+  assert.equal((await carried(both, full)).link, null);
+  assert.equal((await carried(both, full.slice(1))).link, LINK);
+  assert.equal((await carried(both, history(), { fail: "activity" })).link, null);
+  assert.equal((await carried(both, { message: "Not Found" })).link, null);
+});
+
+test("unranHead names the first head pushed after the decided head with no run of every lane", () => {
+  const NEW = "1111111111111111111111111111111111111111";
+  const at = "2026-10-22T12:00:00Z";
+  const moves = [push(NEW, "2026-10-22T11:10:00Z"), { ...push("0".repeat(40), "2026-10-22T11:05:00Z"), activity_type: "branch_deletion" }, push(OLD, "2026-10-22T10:25:00Z")];
+  assert.equal(unranHead(moves, [[OLD, NEW], [NEW]], OLD, at), null);
+  assert.match(unranHead(moves, [[OLD], [NEW]], OLD, at), new RegExp(NEW));
+  assert.match(unranHead(moves, [[OLD, NEW]], OLD, at), /every review lane/);
+  assert.match(unranHead(moves, null, OLD, at), /every review lane/);
+  assert.match(unranHead(moves, [[NEW], [NEW]], HEAD, at), /no push of/);
+  assert.match(unranHead(moves, [[NEW], [NEW]], OLD, "not a time"), /no push of/);
+  assert.match(unranHead([{ after: NEW, timestamp: "soon" }, ...moves], [[NEW], [NEW]], OLD, at), /unreadable/);
+  assert.match(unranHead("nope", [[], []], OLD, at), /unreadable/);
+  // Only the moves after the decided head's last push before the decision count.
+  assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
+});
+
+test("laneChange, costNotices and decidedHead", () => {
+  assert.equal(laneChange(net(TF)), null);
+  assert.equal(laneChange(net({ filename: ".github/workflows/pr-review-hosted.yml" })), "a review-lane workflow");
+  assert.equal(laneChange(net(...Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })))), "too many files");
+  assert.equal(laneChange(null), "no file list");
+  const note = (message, level = "notice") => ({ annotation_level: level, message });
+  const at = "2026-10-22T11:00:00Z";
+  assert.deepEqual(costNotices([note(`claude-lane-hold lane=claude-review sha=${HEAD} criteria=critical-security,cost label=needs-human`)], HEAD, at), [{ sha: HEAD, at }]);
+  for (const [name, row] of Object.entries({
+    "another head": note(`claude-lane-hold lane=claude-review sha=${OLD} criteria=cost label=needs-human`),
+    "a warning": note(`claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost label=needs-human`, "warning"),
+    "no label": note(`claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost`),
+    "not cost": note(`claude-lane-hold lane=claude-review sha=${HEAD} criteria=critical-security label=needs-human`),
+    "not first": note(`x claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost label=needs-human`),
+  })) {
+    assert.deepEqual(costNotices([row], HEAD, at), [], name);
+  }
+  assert.deepEqual(costNotices(null, HEAD, at), []);
+  const n = (sha, when) => ({ sha, at: when });
+  assert.equal(decidedHead([n(OLD, "2026-10-22T10:00:00Z"), n(HEAD, "2026-10-22T11:00:00Z")], "2026-10-22T12:00:00Z"), HEAD);
+  assert.equal(decidedHead([n(OLD, "2026-10-22T10:00:00Z"), n(HEAD, "2026-10-22T12:00:00Z")], "2026-10-22T12:00:00Z"), OLD);
+  assert.equal(decidedHead([n(OLD, at), n(HEAD, at)], "2026-10-22T12:00:00Z"), null);
+  assert.equal(decidedHead([n(HEAD, at), n(HEAD, at)], "2026-10-22T12:00:00Z"), HEAD);
+  assert.equal(decidedHead([], "2026-10-22T12:00:00Z"), null);
+  assert.equal(decidedHead([n(HEAD, at)], null), null);
 });
 
 test("sameNetChange compares filename, status, previous_filename and patch", () => {
@@ -559,13 +780,24 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(record(5, "refs"), "Closes #5", closes(5), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "closes"), "Refs: #5", closes(), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "refs"), "Refs: #6", closes(), "o/r"), /refs #6, and the pass judged #5/);
-  assert.match(linkHold(record(5, "refs"), "Refs: #5\nRefs: #6", closes(), "o/r"), /names no issue/);
-  assert.match(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), /names no issue/);
-  assert.match(linkHold(record(5, "closes"), "Closes #5", closes(5, 6), "o/r"), /exactly one issue/);
-  assert.match(
-    linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [{ number: 5, repository: { nameWithOwner: "x/y" } }] }, "o/r"),
-    /exactly one issue/,
-  );
+  // A link of several issues that still names the judged one binds; the
+  // fix loop rewrites it. A link that drops the judged issue holds, and so
+  // does one removed, a Refs: line hidden in a comment included.
+  assert.equal(linkHold(record(5, "refs"), "Refs: #5\nRefs: #6", closes(), "o/r"), null);
+  assert.equal(linkHold(record(5, "closes"), "Closes #5", closes(5, 6), "o/r"), null);
+  assert.match(linkHold(record(5, "closes"), "Closes #6", closes(6, 7), "o/r"), /it closes #6, #7, and the pass judged #5/);
+  assert.match(linkHold(record(5, "closes"), "", closes(), "o/r"), /it refs no issue, and the pass judged #5 \(closes\)/);
+  assert.match(linkHold(record(5, "refs"), "## Summary", closes(), "o/r"), /it refs no issue, and the pass judged #5 \(refs\)/);
+  assert.match(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), /it refs no issue/);
+  assert.match(linkHold(record(5, "refs"), "Refs: #6\nRefs: #7", closes(), "o/r"), /it refs #6, #7, and the pass judged #5/);
+  assert.match(linkHold(record(5, "refs"), "Refs: x/y#5", closes(), "o/r"), /it refs no issue/);
+  // A pass judged as a Refs slice never covers a body that closes the issue,
+  // with other issues or alone.
+  assert.match(linkHold(record(5, "refs"), "Closes #5, #6", closes(5, 6), "o/r"), /it closes #5, #6, and the pass judged #5 \(refs\)/);
+  // Closing issues all in another repository drop the judged one.
+  const foreign = { number: 5, repository: { nameWithOwner: "x/y" } };
+  assert.match(linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [foreign] }, "o/r"), /it closes x\/y#5, and the pass judged #5/);
+  assert.equal(linkHold(record(5, "closes"), "Closes x/y#5\nCloses #5", { totalCount: 2, nodes: [foreign, ...closes(5).nodes] }, "o/r"), null);
   assert.match(linkHold(record(5, "pull-request"), "", closes(), "o/r"), /kind 'pull-request'/);
   assert.match(linkHold(null, "Closes #5", closes(5), "o/r"), /record could not be read/);
   assert.match(linkHold({ linked_issues: [{ number: 5 }, { number: 6 }] }, "Closes #5", closes(5), "o/r"), /link changed/);
@@ -580,4 +812,78 @@ test("changeOf reads a files line with and without its status", () => {
   assert.deepEqual(changeOf(["b.md", "a.md"]), { path: "b.md", previous: "a.md", status: null });
   assert.deepEqual(changeOf(["a.md"]), { path: "a.md", previous: null, status: null });
   assert.throws(() => changeOf("a.md"), /does not read/);
+});
+
+// The merge queue's FAIL check: babysit_verify_evidence.py's report for the
+// head, as ci-status runs that reader from main's checkout.
+const PASS_RUN = {
+  id: 11,
+  path: ".github/workflows/pr-verify.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  repository: { full_name: REPO },
+  head_repository: { full_name: REPO },
+  status: "completed",
+  conclusion: "success",
+};
+const QUEUE_PASS = { name: `pr-verify-99-${HEAD}-pass`, verdict: "pass", runId: 11, run: PASS_RUN };
+const QUEUE_LINK = { record: { linked_issues: [{ number: 40 }], spec_kind: "closes" }, closing: { totalCount: 1, nodes: [{ number: 40, repository: { nameWithOwner: REPO } }] } };
+const report = (refusal, extra = {}) => ({ refusal, head: HEAD, detail: refusal ? "why" : null, ...extra });
+const queued = (evidence, reviews = []) => ci(["docs/a.md"], { reviews, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence } });
+
+test("evidenceHold holds the reader's FAIL classes, an unreadable or too-old pull request, and a refusal it does not know", () => {
+  for (const refusal of [null, "verify:missing", "verify:spec-changed", "verify:untrusted-spec"]) {
+    assert.equal(evidenceHold(report(refusal), HEAD), null, String(refusal));
+  }
+  for (const refusal of ["verify:fail", "verify:earlier-fail", "verify:repeated-fail", "verify:unreadable", "verify:too-old", "verify:something-new"]) {
+    assert.equal(evidenceHold(report(refusal), HEAD), `pr-verify's reader refuses this head (${refusal}: why)`, refusal);
+  }
+  assert.equal(evidenceHold(report("verify:fail", { detail: null }), HEAD), "pr-verify's reader refuses this head (verify:fail)");
+});
+
+test("evidenceHold holds a report it cannot read, or one for another head", () => {
+  const unread = "its pr-verify FAILs could not be read";
+  for (const bad of [null, [], "x", {}, { head: HEAD }, { refusal: 1, head: HEAD }, report(null, { head: OLD }), report(null, { head: undefined })]) {
+    assert.equal(evidenceHold(bad, HEAD), unread, JSON.stringify(bad));
+  }
+});
+
+test("in the merge queue, a reader with no FAIL hold lets a passed head through", async () => {
+  const { code, out } = await queued(report(null));
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: the reader allows this head\.$/m);
+  assert.match(out, /^#99: no verifier hold: pr-verify passed this head\.$/m);
+});
+
+test("in the merge queue, a reader that refuses only on the pass leaves that to verdictHold", async () => {
+  const { code, out } = await queued(report("verify:spec-changed"));
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: the reader refuses this head only on its pass \(verify:spec-changed\)\.$/m);
+});
+
+test("in the merge queue, a FAIL the reader counts holds a passed head", async () => {
+  const { code, out } = await queued(report("verify:fail", { detail: "fails at the head" }));
+  assert.equal(code, 1, out);
+  assert.match(out, /::error::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
+  assert.doesNotMatch(out, /no pr-verify FAIL hold/);
+});
+
+test("in the merge queue, a trusted approval of the head lifts a FAIL hold", async () => {
+  const { code, out } = await queued(report("verify:repeated-fail"), [approve]);
+  assert.equal(code, 0, out);
+  assert.match(out, /^#99: no pr-verify FAIL hold: owner-person approved this head, which lifts 'pr-verify's reader refuses this head \(verify:repeated-fail: why\)'\.$/m);
+});
+
+test("in the merge queue, an approval of another head lifts no FAIL hold", async () => {
+  const { code, out } = await queued(report("verify:earlier-fail"), [{ ...approve, commit_id: OLD }]);
+  assert.equal(code, 1, out);
+  assert.match(out, /verify:earlier-fail/);
+});
+
+test("in the merge queue, a missing or unreadable reader report holds", async () => {
+  for (const evidence of [undefined, "", "not json", JSON.stringify(report(null, { head: OLD }))]) {
+    const { code, out } = await queued(evidence);
+    assert.equal(code, 1, `${evidence}: ${out}`);
+    assert.match(out, /::error::#99: its pr-verify FAILs could not be read/, String(evidence));
+  }
 });

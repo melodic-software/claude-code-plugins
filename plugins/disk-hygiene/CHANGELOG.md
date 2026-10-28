@@ -3,6 +3,58 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-10-27
+
+### Added
+
+- `scan` ranks entries for review by three signals read from fields the snapshot already records: `discovery-hint` (`hints`), `sibling-mtime-cluster` (files or directories in one parent whose `mtime_ns` chain within 2 s, likely one operation's output) and `size-collision` (non-empty files of identical `stat_size` in one directory or sibling directories, the target's own files only among themselves, hard links to one object excepted). No path is opened or stat'ed again. Each entry carries `review_rank`: `ranked` with a `position` and the signals and groups that placed it, or `unranked` with a null position. The snapshot's `review_ranking` lists each group with its detail and what each signal reads, and `scan-complete` reports `ranked_entries`, `unranked_entries` and `entries_by_signal`. No eligibility, tick or blocker decision reads the rank, so it changes review order only. The `clean` and `audit` skills present findings in that order.
+
+## [0.45.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.45.3] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [0.45.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.45.1] - 2026-10-27
+
+### Fixed
+
+- **`run-python-hook.sh` ignores a tmp launch-marker directory this user does not own.** With no plugin data root, the `--launch-marker` and `--skip-unless-marker` markers live under the shared `${TMPDIR:-/tmp}/disk-hygiene-<subdir>`, so another local user could pre-create that directory, or a symlink in its place, and plant or suppress a `.launched` marker; an empty planted directory reads as "no guard launched" and skips the guard-launch monitor. A tmp marker directory that is a symlink or that this user does not own is now neither read nor written by the launcher, the same check its no-interpreter notice already made, and the launcher creates its marker directories with mode 700. The node launcher's own pre-bash skip (`hooks/exec-bash.mjs`) does not check ownership yet.
+
+## [0.45.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [0.44.1] - 2026-10-26
+
+### Fixed
+
+- **A session resumed after `/disk-hygiene:clean` now hears that the clean skill's guard is gone.** The skill-frontmatter belt (the PowerShell deletion prompts and the deny-by-default Bash lane) is not registered after `claude -p --resume`, so an approved manual-lane delete ran unprompted in the resumed process. The `/disk-hygiene:clean` expansion hook now writes a per-session marker, and the existing `SessionStart` entry, on `source: resume` with that marker present, tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again. It is a notice, not a gate. The safety model, the unsupported-platform handoff, the README and the setup skill now state the belt's lifetime as the process that invoked the skill, with the Windows probe as the verification record ([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)).
+
+## [0.44.0] - 2026-10-25
+
+### Added
+
+- `scan --root-children` on a mount point that is not a volume root, such as a tmpfs `/tmp` on WSL, now lists the mount's immediate children read-only. Loose files are admitted, nested mounts are withheld, and nothing is walked. The output sets `mount_point_target: true`, and under `--quiet` the full listing goes to the `--output` file. A `--root-child` selection on a mount point is refused: scan an admitted child directory as its own target. No snapshot of a mount point is written, so removal stays closed. Without `--root-children`, the refusal of a mount-point target now carries a `hint` that names the flag ([#9572](https://github.com/melodic-software/claude-code-plugins/issues/9572)).
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.43.21] - 2026-10-24
 
 ### Fixed

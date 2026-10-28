@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/validate-cases.py`\nFunction: `python_only_tokens`\n",
+      "why": "full path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/test_validate_cases.py`\nFunction: `python_only_tokens`\n",
+      "why": "names the test module"
+    },
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/validate-cases.test.sh`\nFunction: `python_only_tokens`\n",
+      "why": "names the shell test"
+    }
+  ]
+}

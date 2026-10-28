@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review-digest.schema.json",
+  "title": "Review digest team config",
+  "description": "Schema for a repository's docs/conventions/review-digest.yaml: the team layer of the review-digest cascade concern that /review:explain-change reads. Prose and the trigger table: docs/conventions/review-digest.md. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "digest_policy": {
+      "description": "When the skill builds or offers a digest. off: never unasked. offer: offer it when a trigger fires. always: build it when the pull request is marked ready, else behave as offer.",
+      "enum": ["off", "offer", "always"],
+      "default": "offer"
+    },
+    "max_files": {
+      "description": "The files trigger fires when the pull request changes more than this many files.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 5
+    },
+    "max_changed_lines": {
+      "description": "The changed-lines trigger fires when additions plus deletions exceed this.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 200
+    },
+    "blast_radius": {
+      "description": "The blast-radius trigger fires when the assessed blast radius is one of these levels. A list replaces the layer below whole.",
+      "type": "array",
+      "items": { "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+      "default": ["HIGH", "CRITICAL"]
+    },
+    "risk_paths": {
+      "description": "The risk-path trigger fires when a changed path matches one of these globs: ** spans directories, * and ? stay inside one path segment. At most 64 globs of at most 256 characters; a longer list or glob makes the layer's risk_paths invalid. A list replaces the layer below whole.",
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 256 },
+      "default": [".github/workflows/**", "**/hooks/**", "**/migrations/**"]
+    },
+    "opt_in_label": {
+      "description": "The label trigger fires when the pull request carries this label. An empty string turns the label trigger off.",
+      "type": "string",
+      "default": "explain-change"
+    }
+  }
+}

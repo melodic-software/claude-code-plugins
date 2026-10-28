@@ -34,10 +34,8 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
 so the class escalates for upfront plan approval before execution. Its risk shows in the diff
-the review lanes read, so a merge authority that reads the class merges it as `C3` (the
-babysit merge gate's `WORK_CLASS_LABELS`).
-A merge authority that reads no class works differently: see [Merge authorities that read no
-class](#merge-authorities-that-read-no-class).
+the review lanes read. A merge authority that reads no class works differently: see [Merge
+authorities that read no class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
 
@@ -99,6 +97,15 @@ class or promotion evidence. This marketplace defines it in `docs/conventions/pr
 sections "The pr-merge lane" and "Verifier verdict". `C5` stays human-merged there too: such an
 authority refuses every fork change request and every change request its automation identity or
 the dependency manager did not open.
+
+The babysit unattended merge gate (`/source-control:babysit-prs`, its `--unattended` path) is
+another. It reads no class; it needs its effective rung's promotion cells (rung C2 the `C2-auto-merge`
+cell, rung C3 every C3 cell), read by rung, never by class. The one label it
+reads by a class name is a trust hold: it refuses a change request whose linked item carries
+`work-class: untrusted-provenance`, or had that label removed by a non-human, and it needs the
+linked item vouched for by a human (written by one with write access, or given the admission
+label by one in person with no body edit after). That skill's safety reference defines it, section
+"Unattended Merge Path".
 
 ## Promotion and demotion
 

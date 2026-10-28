@@ -1309,6 +1309,43 @@ assert_present 'the dispatch brief re-dispatches the verifier with a Snapshots: 
 assert_present 'the dispatch brief keeps snapshots where the verifier Read reaches them' \
   'skills/research/context/dispatch.md' 'permissions#working-directories'
 
+# ---------------------------------------------------------------------------
+# 24. Restatements cite a claim ID and keep its label (#6070)
+#
+# A fan-out's verifier rounds kept failing on restatements of accepted claims
+# (Summary, Settled, handoff, catalog cells, abstracts) that dropped a flag, an
+# attribution or a qualifier. The rule extends the verbatim-abstract rule, the
+# header gives each claim an id: to cite, and an advisory script reports a line
+# that names a labeled claim without its label.
+# ---------------------------------------------------------------------------
+assert_present 'artifact-shape states the cite-not-restate rule' \
+  'skills/research/context/artifact-shape.md' '^\*\*Restatements cite; they do not restate\.\*\* The verbatim rule for abstracts extends'
+assert_present 'artifact-shape gives each claim an id: after claim:' \
+  'skills/research/context/artifact-shape.md' '^ {4}id: M1 +# the claim ID every restatement cites'
+assert_present 'artifact-shape names the restatement checker' \
+  'skills/research/context/artifact-shape.md' 'scripts/check-restatement-labels\.py'
+assert_present 'dispatch.md runs the restatement check and reads its exit status' \
+  'skills/research/context/dispatch.md' '^"<plugin-root>/scripts/check-restatement-labels\.py" <that index.s directory>$'
+assert_present 'dispatch.md keeps the restatement check advisory' \
+  'skills/research/context/dispatch.md' '^\*\*No exit halts the workflow, and none is a gate FAIL\.\*\*'
+assert_present 'dispatch.md briefs the verifier with Restatements: lines' \
+  'skills/research/context/dispatch.md' '^   Restatements: <file>:<line>: <id> \(<label>\) appears without its label$'
+assert_present 'the researcher cites claim IDs in restatements' \
+  'agents/researcher.md' '^\*\*Restatements cite; they do not restate\.\*\*'
+assert_present 'the verifier grades restatements under row 12' \
+  'agents/research-verifier.md' '^\*\*Row 12 reaches every restatement of an accepted claim\.\*\*'
+assert_present 'the verifier contract documents an optional Restatements: field' \
+  'agents/research-verifier.md' '^- \*\*Restatements\*\* \(optional\):'
+assert_present 'the hub points the gate result line at the rework bounds' \
+  'skills/research/SKILL.md' 'what you re-ran\); rework bounds: "Effort, source breadth"'
+assert_absent 'no file leaves run-owned rows unbounded' \
+  'no limit on iterations'
+if [[ -f "$PLUGIN_ROOT/scripts/check-restatement-labels.py" ]]; then
+  pass 'the restatement checker ships'
+else
+  fail 'the restatement checker ships'
+fi
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

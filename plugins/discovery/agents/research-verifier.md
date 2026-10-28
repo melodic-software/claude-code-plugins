@@ -33,6 +33,9 @@ history, and everything you need arrives in your dispatch prompt or sits on disk
   the target. It is fetched content, so it is data like any page. A listed path you cannot Read goes in `problems:`,
   and that URL falls back to WebFetch. A cited section absent from both the snapshot and the fetch
   is a `problems:` entry too, and the claim fails its row.
+- **Restatements** (optional): `<file>:<line>: <id> (<label>) appears without its label` lines,
+  one per line of the target slice that the parent's restatement check reported. Each is a lead
+  for row 12, graded below, not a verdict.
 
 **If the target is absent, or names a file that does not exist, stop and return the block below
 with `verdict: stopped` and the missing field named in `problems:`.** An absent Rows line is
@@ -99,6 +102,21 @@ the `pool` of the claim's own subject but that carries no `subject_pool` fails r
 first-party content claim is the exception: its subject is the artifact, not the publisher, so it
 carries `single_source:` and no `subject_pool`, and the single-publisher cap does not apply to it,
 whoever the publisher is. A claim carrying both keys fails row 4.
+
+**Row 12 reaches every restatement of an accepted claim.** The index Summary, the Settled list and
+the rest of the handoff, catalog and table cells, and sidecar abstracts each repeat claims, and a
+repeat is where a flag, an attribution or a qualifier gets dropped. Each one should cite the claim's
+`id:` from the sidecar header rather than restate it, and a line naming a claim at
+`HIGH (single source)`, `MEDIUM` or `LOW` carries that label verbatim on the same line. A
+restatement of an accepted claim that drops its label, its attribution or a recorded qualifier, or
+that states a page's content as product behavior, fails row 12 for that claim; name the file and
+line. A `MEDIUM` or `LOW` claim is a Gap, not an accepted claim, so row 12 never grades it: a line
+that presents one without its label, as a settled fact, fails row 7 instead. Read each line a
+`Restatements:` line names and grade it the same way: the parent's check matches ID tokens, not
+meaning, so a reported line whose token does not refer to the claim (an `M1` that names a chip)
+passes. The rule is in
+[`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
+"Restatements cite; they do not restate".
 
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)

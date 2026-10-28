@@ -40,8 +40,9 @@ reviewed pull request.
 ## Routing and failure behavior
 
 The `ci-status` required check depends on every **required** workload lane
-(`select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`,
-`test-bash`, `test-python`, `test-node`) and requires
+(`mark-lanes`, `select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`,
+`check-skills`, `test-bash`, `test-python`, `test-node`, `check-managed-files`,
+`check-tests`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). The one exception is an ordered skip: a test
@@ -78,17 +79,22 @@ runs linters over source, `check` holds a repository contract across files,
 `test` executes code. `lint-repo` lints the repository as a whole (text
 hygiene, the CI configuration, the docs conventions); `lint-shell` runs
 ShellCheck and the gates that read shell source; `check-plugins` holds the
-plugin manifests, changelogs, hook declarations, `claude plugin validate`, the
-counter ceilings and every shared-library sync; `check-skills` holds the skill
+plugin manifests, changelogs, hook declarations, the counter ceilings and the
+shared-library bump checks; `check-catalog` holds the plugin checks that read
+the root npm install (`claude plugin validate` and the rendered-view HTML
+assets) with the shared-library copy and declared-prerequisite gates beside
+them, split from `check-plugins` to keep each under its 3-minute cap;
+`check-skills` holds the skill
 and eval contracts, check 25 included; `test-bash`, `test-python` and
 `test-node` run the shell suites, the Python suites and the Node packages the
 change selects, and each skips when it has none. A domain is its own job only
 when that shortens the critical path by more than a job's fixed cost (about
-15 s bare, about 40 s with a toolchain), or, for the test lanes, when it lets a
+15 s bare, about 40 s with a toolchain), when a job that outgrows its timeout
+is split, or, for the test lanes, when it lets a
 change that touches none of its ecosystem start no runner for it. Every gate
 keeps its step name and its `id`, which is its aggregator key, and each job
-carries its own `aggregate-hygiene-results.sh` feed over exactly its own gate
-steps.
+with gate steps carries its own `aggregate-hygiene-results.sh` feed over
+exactly those steps.
 
 ## What each event tests
 

@@ -304,6 +304,148 @@ class Contains(unittest.TestCase):
         self.assertEqual(set(local_verdicts), {True, False})
 
 
+def is_ancestor(root: pathlib.Path, ancestor: str, sha: str) -> bool:
+    """Git's own answer: `merge-base --is-ancestor` exits 0 or 1."""
+    code = subprocess.run(
+        ["git", "-C", str(root), "merge-base", "--is-ancestor", ancestor, sha],
+        capture_output=True,
+        env=GIT_ENV,
+    ).returncode
+    assert code in (0, 1), code
+    return code == 0
+
+
+class FirstParentChain(unittest.TestCase):
+    """`_local_contains` answers two commits on the branch's first-parent chain
+    from one `rev-list`, and every other pair from `merge-base`. Fixture: main
+    m0 m1 M1 m2 M2 m3, where M1 merges side f1-f2 (off m0) and M2 merges h1
+    (off m2), both with --no-ff, so f1, f2 and h1 are reachable only through a
+    second parent; g1 (off f1) is never merged."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = cls.root = pathlib.Path(cls.tmp.name) / "repo"
+        root.mkdir()
+        git(root, "init", "-q", "-b", "main")
+        m0 = commit(root, "m0")
+        git(root, "checkout", "-q", "-b", "f")
+        f1 = commit(root, "f1")
+        f2 = commit(root, "f2")
+        git(root, "checkout", "-q", "-b", "g", f1)
+        g1 = commit(root, "g1")
+        git(root, "checkout", "-q", "main")
+        m1 = commit(root, "m1")
+        git(root, "merge", "-q", "--no-ff", "-m", "M1", "f")
+        big_m1 = git(root, "rev-parse", "HEAD")
+        m2 = commit(root, "m2")
+        git(root, "checkout", "-q", "-b", "h")
+        h1 = commit(root, "h1")
+        git(root, "checkout", "-q", "main")
+        git(root, "merge", "-q", "--no-ff", "-m", "M2", "h")
+        big_m2 = git(root, "rev-parse", "HEAD")
+        m3 = commit(root, "m3")
+        cls.chain = [m3, big_m2, m2, big_m1, m1, m0]
+        cls.second_parent = [f1, f2, h1]
+        cls.unmerged = g1
+        cls.shas = [*cls.chain, *cls.second_parent, g1]
+        # A full clone whose graft file cuts M2 off from m2.
+        cls.grafted = pathlib.Path(cls.tmp.name) / "grafted"
+        subprocess.run(
+            ["git", "clone", "-q", root.as_uri(), str(cls.grafted)],
+            check=True,
+            env=GIT_ENV,
+        )
+        (cls.grafted / ".git" / "info").mkdir(exist_ok=True)
+        (cls.grafted / ".git" / "info" / "grafts").write_text(f"{big_m2} {h1}\n")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def context(self, checkouts: list[pathlib.Path]) -> tuple[pm._Context, list[str]]:
+        """A context on `main`, and the pairs `merge-base` was spawned for."""
+        spawned: list[str] = []
+        real = pm.run_command
+
+        def run(args: list[str], **kwargs: object) -> object:
+            if "merge-base" in args:
+                spawned.append(" ".join(args[-2:]))
+            return real(args, **kwargs)
+
+        for patcher in (
+            mock.patch.object(pm, "gh_capture", ApiCompare(self.root)),
+            mock.patch.object(pm, "run_command", run),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=checkouts),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        ctx = pm._Context(
+            owner="example-org", name="example-repo", identity="x", branch="main"
+        )
+        return ctx, spawned
+
+    def test_every_pair_matches_merge_base(self) -> None:
+        ctx, spawned = self.context([self.root])
+        for ancestor, sha in itertools.product(self.shas, repeat=2):
+            with self.subTest(ancestor=ancestor[:7], sha=sha[:7]):
+                self.assertEqual(
+                    ctx._local_contains(ancestor, sha),
+                    is_ancestor(self.root, ancestor, sha),
+                )
+        off = len(self.shas) ** 2 - len(self.chain) ** 2
+        self.assertEqual(len(spawned), off)
+
+    def test_pairs_on_the_chain_spawn_no_merge_base(self) -> None:
+        ctx, spawned = self.context([self.root])
+        verdicts = {
+            (a, b): ctx._local_contains(a, b)
+            for a, b in itertools.product(self.chain, repeat=2)
+        }
+        self.assertEqual(spawned, [])
+        m3, m0 = self.chain[0], self.chain[-1]
+        self.assertTrue(verdicts[(m0, m3)])
+        self.assertFalse(verdicts[(m3, m0)])
+
+    def test_a_second_parent_commit_is_asked_of_merge_base(self) -> None:
+        ctx, spawned = self.context([self.root])
+        f2, m3 = self.second_parent[1], self.chain[0]
+        self.assertTrue(ctx._local_contains(f2, m3))
+        self.assertEqual(spawned, [f"{f2} {m3}"])
+
+    def test_an_unmerged_commit_is_asked_of_merge_base(self) -> None:
+        ctx, spawned = self.context([self.root])
+        m3 = self.chain[0]
+        self.assertFalse(ctx._local_contains(self.unmerged, m3))
+        self.assertEqual(spawned, [f"{self.unmerged} {m3}"])
+
+    def test_the_chain_is_read_once(self) -> None:
+        ctx, _ = self.context([self.root])
+        with mock.patch.object(pm.policy, "_git", wraps=pm.policy._git) as read:
+            for a, b in itertools.product(self.chain, repeat=2):
+                ctx._local_contains(a, b)
+        listed = [c for c in read.call_args_list if "rev-list" in c.args]
+        self.assertEqual(len(listed), 1)
+
+    def test_a_graft_file_does_not_shape_the_chain(self) -> None:
+        # Grafted, M2's first parent would be h1, putting h1 on the chain and
+        # m2 off it; the real chain still holds m2 and not h1.
+        ctx, spawned = self.context([self.grafted])
+        m2, big_m2, h1 = self.chain[2], self.chain[1], self.second_parent[2]
+        self.assertTrue(ctx._local_contains(m2, big_m2))
+        self.assertEqual(spawned, [])
+        self.assertTrue(ctx._local_contains(h1, big_m2))
+        self.assertEqual(spawned, [f"{h1} {big_m2}"])
+
+    def test_no_branch_reads_no_chain(self) -> None:
+        ctx, spawned = self.context([self.root])
+        ctx.branch = ""
+        m3, m0 = self.chain[0], self.chain[-1]
+        self.assertTrue(ctx._local_contains(m0, m3))
+        self.assertEqual(spawned, [f"{m0} {m3}"])
+        self.assertEqual(ctx.chain, {})
+
+
 class LiveRepo:
     """The compare and branch-ref endpoints, answered from a live repository's
     real ancestry: a SHA it lacks is a 404, as GitHub answers one. `failing`

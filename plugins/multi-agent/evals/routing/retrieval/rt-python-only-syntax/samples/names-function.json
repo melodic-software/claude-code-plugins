@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/validate-cases.py`\nFunction: `python_only_tokens`\n",
+      "why": "names the scanner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/validate-cases.py`\nFunction: `check_js_syntax`\n",
+      "why": "names the caller that reports the tokens"
+    },
+    {
+      "answer": "File: `plugins/evals/skills/validate/scripts/validate-cases.py`\nFunction: `js_regex`\n",
+      "why": "names the offline compiler"
+    }
+  ]
+}

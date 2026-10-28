@@ -32,6 +32,7 @@ from session_bridge import (
     LoopbackHandler,
     LoopbackWatcher,
     now_iso,
+    plugin_build,
     replace_into,
     serve,
     session_files,
@@ -55,9 +56,11 @@ REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
 # `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
 # Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
-# `confirm-understanding` carries `confirm` or `off`, and `accept-audit` the round id.
-WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit"}
+# `confirm-understanding` carries `confirm` or `off`, `accept-audit` the round id, and
+# `proposal` the user's answer to a proposed question (PROPOSAL), recording no decision.
+WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit", "proposal"}
 UNDERSTANDING = ("confirm", "off")
+PROPOSAL = ("accept", "edit", "decline")
 API = 2
 MAX_BODY = 64 * 1024
 # A file visual larger than this is neither served nor inlined.
@@ -88,6 +91,11 @@ QUESTION_SHAPE = {
 # A visual may never name a runtime file: the session files and their transient temp copies
 # hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
+
+
+def page_build():
+    """plugin_build() of the files on disk, as attribute-safe text ("" for an unreadable part)."""
+    return {k: html.escape(v or "") for k, v in plugin_build(HERE).items()}
 
 
 def runtime_path(rel):
@@ -299,27 +307,74 @@ def question_states(doc, r):
     return derive_states(doc, r)[0]
 
 
+def supersede_chains(doc):
+    """Per question id that supersedes another: every earlier question of its supersede chain as
+    {id, round, stage}, the chain's first question first (G6: a question re-issued twice keeps
+    its history). A cycle or an unknown id ends the walk. Never written to questions.json."""
+    by_id = {
+        q["id"]: q
+        for q in doc.get("questions") or []
+        if isinstance(q, dict) and isinstance(q.get("id"), str)
+    }
+    out = {}
+    for qid, q in by_id.items():
+        chain, seen, prev = [], {qid}, q.get("supersedes")
+        while isinstance(prev, str) and prev in by_id and prev not in seen:
+            seen.add(prev)
+            p = by_id[prev]
+            link = {"id": prev, "round": p.get("round", 1)}
+            if p.get("stage"):
+                link["stage"] = p["stage"]
+            chain.append(link)
+            prev = p.get("supersedes")
+        if chain:
+            out[qid] = chain[::-1]
+    return out
+
+
+def decision_value(e, recs):
+    """What a decision settles, compared to tell a changed answer from a repeated one: an alt's
+    key; an accept's or hedged accept's count of recommendation changes so far (accepting a
+    revised recommendation is a new answer), with a hedged condition; an own or defer text,
+    whitespace folded. An accept's note is not part of it."""
+    kind, text = e["kind"], " ".join((e.get("text") or "").split())
+    if kind == "alt":
+        return (kind, e.get("alt"))
+    if kind == "accept":
+        return (kind, recs)
+    return (kind, recs, text) if kind == "hedged" else (kind, text)
+
+
 def derive_states(doc, r):
-    """(states, upstream_changed, upstream_stale). states maps each question id to (state,
-    revising); none of the three is written to questions.json.
+    """(states, upstream_changed, upstream_stale, changed_by). states maps each question id to
+    (state, revising); none of the four is written to questions.json.
 
     Live decision events replay in seq order, with each question's terminal decision placed by its
     updatedAt against the events' `at` (before a same-second event, as the page decision wins that
     tie in round.py's effective(); a terminal decision and a recommendation change in the same
-    second fall in `rev` order). A decision on a question that is not stale marks
-    its direct dependents that hold a live decision stale; a decision on a stale question clears
-    it without re-staling its own dependents (that cascade is deferred). A decision event carrying
+    second fall in `rev` order). A question's first decision marks its direct dependents that hold
+    a live decision stale. A decision that changes the question's value (decision_value) or a
+    reopen of a decision marks every direct dependent: stale when it holds a live decision, else
+    upstream-changed, and changed_by maps it to the questions whose answer changed. That holds on
+    a stale question too, so propagation moves one hop per value-changing answer; a repeated value
+    marks nothing, and the automatic transitive cascade stays deferred. A decision event carrying
     `outOfOrder` (the open prerequisites the user answered it ahead of) marks its question stale
     when the first live decision on each of them replays, whatever its dependsOn says by then; a
     newer decision on the question replaces that list. A recommendation change
     (a history line with `pageSeq`, placed after the events up to that seq) marks stale each
     question named in its `affects` and each direct dependent of the revised question that holds a
     live decision, and upstream_changed maps each such question to the revised ids that did it; a
-    new decision on the question clears both. A withdrawn event never
+    new decision on the question clears both. upstream-changed clears when Claude revises the
+    question (a recommendation change, or a history line with `reviewSeq` placed the same way:
+    a revise or a reconfirm; a revise line written before reviewSeq existed goes by its `at`) or
+    a live decision on it replays. A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
     upstream-pending, and upstream_stale maps it to every stale ancestor, nearest first and ties
-    by id; `archived` wins over both. `revising` marks a question with its own
-    delivered, unhandled decision event; upstream effects stay in stale and upstream-pending.
+    by id; `archived` wins over all three, then stale, then upstream-changed. A question the
+    propose op added is `proposed` until a live proposal event answers it, `archived` once the
+    latest one declines it, and derived as any other question once it accepts or edits it
+    (proposal_answer). `revising` marks a question with its own delivered, unhandled decision
+    event; upstream effects stay in the states.
     """
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict) and q.get("id")]
     deps = {q["id"]: list(q.get("dependsOn") or []) for q in qs}
@@ -341,6 +396,8 @@ def derive_states(doc, r):
         {
             "id": q["id"],
             "kind": t["decision"],
+            "alt": t.get("alt"),
+            "text": t.get("text") or "",
             "at": t["updatedAt"],
             "rev": t.get("rev") or 0,
         }
@@ -375,13 +432,41 @@ def derive_states(doc, r):
             (i for i, e in enumerate(events) if e.get("seq", 0) > seq), len(events)
         )
 
+    # Claude revised or reconfirmed the question: a line goes by its reviewSeq, and a revise line
+    # written before reviewSeq existed goes by its time, as a terminal decision does.
+    reviews = [
+        (
+            after(h["reviewSeq"])
+            if isinstance(h.get("reviewSeq"), int)
+            else slot(h.get("at") or ""),
+            0,
+            h.get("at") or "",
+            h.get("rev") or 0,
+            {"id": q["id"], "kind": "review"},
+        )
+        for q in qs
+        for h in q.get("history") or []
+        if isinstance(h, dict)
+        and (
+            isinstance(h.get("reviewSeq"), int)
+            or h.get("kind") in ("revise", "depends", "group")
+        )
+    ]
+
     replay = [(i, 1, "", 0, e) for i, e in enumerate(events)]
     replay += [(slot(t["at"]), 0, t["at"], t["rev"], t) for t in terminal]
     replay += [(after(c["seq"]), 0, c["at"], c["rev"], c) for c in changes]
+    replay += reviews
     live, stale, changed, ahead = {}, set(), {}, {}
+    value, pending, recs = {}, {}, {}
     for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
+        if e["kind"] in ("rec", "review"):
+            pending.pop(qid, None)  # Claude revised or reconfirmed it
+        if e["kind"] == "review":
+            continue
         if e["kind"] == "rec":
+            recs[qid] = recs.get(qid, 0) + 1
             hit = {c for c in e["hit"] if c != qid and live.get(c)}
             stale.update(hit)
             for c in hit:
@@ -389,12 +474,23 @@ def derive_states(doc, r):
                 if qid not in changed[c]:
                     changed[c].append(qid)
             continue
-        was_stale = qid in stale
         stale.discard(qid)
         changed.pop(qid, None)
+        before = value.get(qid)
         live[qid] = e["kind"] != "reopen"
+        value[qid] = decision_value(e, recs.get(qid, 0)) if live[qid] else None
         ahead[qid] = set(e.get("outOfOrder") or []) if live[qid] else set()
-        if live[qid] and not was_stale:
+        if live[qid]:
+            pending.pop(qid, None)
+        if before is not None and value[qid] != before:
+            for c in children.get(qid, []):
+                if c == qid:
+                    continue
+                if live.get(c):
+                    stale.add(c)
+                elif qid not in pending.setdefault(c, []):
+                    pending[c].append(qid)
+        elif live[qid] and before is None:
             stale.update(c for c in children.get(qid, []) if live.get(c))
         if live[qid]:
             for c, waited in ahead.items():
@@ -402,8 +498,11 @@ def derive_states(doc, r):
                     waited.discard(qid)
                     if live.get(c):
                         stale.add(c)
-    archived = {q["id"] for q in qs if q.get("archived")}
+    answers = {q["id"]: proposal_answer(q, r.get("events")) for q in qs}
+    archived = {q["id"] for q in qs if q.get("archived") or answers[q["id"]] == "decline"}
+    proposed = {qid for qid, a in answers.items() if a == "pending"} - archived
     stale -= archived
+    pending = {c: ids for c, ids in pending.items() if c not in archived}
 
     def upstream(qid):  # stale ancestors, nearest first, ties by id
         seen, level, found = {qid}, list(deps.get(qid, [])), []
@@ -425,8 +524,12 @@ def derive_states(doc, r):
     for qid in deps:
         if qid in archived:
             state = "archived"
+        elif qid in proposed:
+            state = "proposed"
         elif qid in stale:
             state = "stale"
+        elif qid in pending:
+            state = "upstream-changed"
         elif up.setdefault(qid, upstream(qid)):
             state = "upstream-pending"
         else:
@@ -436,6 +539,7 @@ def derive_states(doc, r):
         out,
         {c: ids for c, ids in changed.items() if c in stale},
         {c: ids for c, ids in up.items() if ids},
+        pending,
     )
 
 
@@ -562,14 +666,67 @@ def is_handled(doc, seq):
     return seq <= (doc.get("handledSeq") or 0) or seq in set(doc.get("handled") or [])
 
 
+def proposal_answer(q, events):
+    """For a question the propose op added: the `alt` of its latest live proposal event (accept,
+    edit or decline), or `pending` while none answers it. None for any other question."""
+    if not (isinstance(q, dict) and q.get("proposed")):
+        return None
+    alts = [
+        e.get("alt")
+        for e in sorted(events or [], key=lambda e: e.get("seq", 0))
+        if e.get("id") == q.get("id")
+        and e.get("kind") == "proposal"
+        and not e.get("withdrawn")
+    ]
+    return alts[-1] if alts else "pending"
+
+
+def check_proposal(q, alt, text, events):
+    """ValueError (400) or Conflict (409) for a proposal event on q: `alt` is accept, edit or
+    decline, an edit carries the reworded question in `text` (one line), and q is a proposed
+    question no proposal event has answered yet."""
+    answer = proposal_answer(q, events)
+    if answer is None:
+        raise ValueError("not a proposed question")
+    if alt not in PROPOSAL:
+        raise ValueError("proposal needs alt: accept, edit or decline")
+    if alt == "edit" and not text.strip():
+        raise ValueError("text required: the question as you would ask it")
+    if alt == "edit" and (len(text) > LINE_CAP or len(text.splitlines()) > 1):
+        raise ValueError(f"text must be one line of at most {LINE_CAP} characters")
+    if answer != "pending":
+        raise Conflict({"error": "proposal answered", "proposal": answer})
+
+
+def chain_end(qs, q):
+    """The id q's supersededBy chain ends at: each hop goes to a known question until one with no
+    supersededBy, or one already passed (a cycle). A first hop to an unknown id ends at that id."""
+    seen, cur = {q.get("id")}, q
+    while (nxt := cur.get("supersededBy")) in qs and nxt not in seen:
+        seen.add(nxt)
+        cur = qs[nxt]
+    return q.get("supersededBy") if cur is q else cur.get("id")
+
+
+def check_retired(qs, q):
+    """Conflict (409) for a decision on a question off the path: `superseded`, with `by` naming
+    the end of its supersededBy chain (chain_end), wins over `archived`."""
+    if q.get("supersededBy"):
+        raise Conflict({"error": "superseded", "by": chain_end(qs, q)})
+    if q.get("archived"):
+        raise Conflict({"error": "archived"})
+
+
 def round_complete(doc, r, qid):
-    """True when every live question in qid's round has a decision in r (this accept included)."""
+    """True when every live question in qid's round has a decision in r (this accept included);
+    a proposed question the user has not accepted or edited is not a question yet."""
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
     rnd = next((q.get("round") for q in qs if q.get("id") == qid), None)
     return not any(
         q.get("round") == rnd
         and not q.get("archived")
         and not q.get("supersededBy")
+        and proposal_answer(q, r["events"]) in (None, "accept", "edit")
         and not (r["responses"].get(q.get("id")) or {}).get("decision")
         and not (q.get("terminal") or {}).get("decision")
         for q in qs
@@ -712,15 +869,22 @@ def check_accept_audit(msg):
 
 
 def open_prereqs(doc, r, q):
-    """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived or
-    superseded) and held, or with no decision that counts. Call release_user_holds first."""
+    """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived,
+    superseded or a declined proposal) and held, or with no decision that counts. Call
+    release_user_holds first."""
     from exporters import latest_decision  # exporters imports server at module top
 
     qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
     out = []
     for p in q.get("dependsOn") or []:
         x = qs.get(p)
-        if not x or x.get("archived") or x.get("supersededBy") or p in out:
+        if (
+            not x
+            or x.get("archived")
+            or x.get("supersededBy")
+            or p in out
+            or proposal_answer(x, r.get("events")) == "decline"
+        ):
             continue
         if x.get("waiting") or not (
             latest_decision(x, r.get("responses") or {}) or {}
@@ -742,7 +906,8 @@ def check_out_of_order(msg):
 def split_accept_audit(doc, r, items):
     """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
     {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
-    `ineligible` is an unknown, closed, held or recommendation-less question, or one with a
+    `ineligible` is an unknown, closed, superseded, held or recommendation-less question, one
+    whose state is not open (stale, upstream-changed, upstream-pending), or one with a
     prerequisite still open (open_prereqs: an archived or superseded prerequisite is met)."""
     release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
@@ -756,6 +921,7 @@ def split_accept_audit(doc, r, items):
         elif (
             not q
             or states.get(it["id"], ("",))[0] != "open"
+            or q.get("supersededBy")
             or not q.get("recommendation")
             or q.get("waiting")
             or (seeded.get(it["id"]) or {}).get("status") == "superseded-by-plan"
@@ -893,6 +1059,7 @@ class Hub(LoopbackWatcher):
 
     def signature(self):
         user = self.user_settings()
+        listener = self.listener()
         return (
             mtime(self.questions),
             mtime(self.responses),
@@ -902,8 +1069,11 @@ class Hub(LoopbackWatcher):
             mtime(self.dir / SESSION_JSON),
             mtime(self.layers.repo_file) if self.layers.repo_file else 0,
             mtime(Path(user)) if user else 0,
-            self.listener()["state"],
-            self.lease_view() is not None,
+            listener["state"],
+            # The header reads Live only while a watcher waits, and a wait inside the listen
+            # grace leaves state and lease unchanged.
+            listener["waiters"] > 0,
+            listener["lease"] is not None,
         )
 
     def watched(self):
@@ -929,17 +1099,22 @@ class Hub(LoopbackWatcher):
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             release_user_holds(q, r)
-            derived, changed, waits = derive_states(q, r)
+            derived, changed, waits, changed_by = derive_states(q, r)
+            chains = supersede_chains(q)
             # exporters imports server at module top
             from exporters import latest_decision
 
             for x in q.get("questions") or []:
+                if isinstance(x, dict) and x.get("id") in chains:
+                    x["supersedesChain"] = chains[x["id"]]
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
                     if x["id"] in changed:
                         x["upstreamChanged"] = changed[x["id"]]
                     if x["id"] in waits:
                         x["upstreamStale"] = waits[x["id"]]
+                    if x["id"] in changed_by:
+                        x["changedBy"] = changed_by[x["id"]]
                     x["answered"] = bool(
                         (latest_decision(x, r.get("responses", {})) or {}).get(
                             "decision"
@@ -969,6 +1144,8 @@ class Hub(LoopbackWatcher):
             "session": self.session,
             "instance": self.instance,
             "api": API,
+            # The build this process started from; the page compares it with the one stamped in it.
+            **self.build,
         }, stale
 
     def record(self, msg):
@@ -1014,6 +1191,26 @@ class Hub(LoopbackWatcher):
             r = load_json(self.responses, EMPTY_RESPONSES)
             for k, v in EMPTY_RESPONSES.items():
                 r.setdefault(k, json.loads(json.dumps(v)))
+            if kind == "proposal":
+                check_proposal(qs[qid], alt, text, r["events"])
+            elif kind in DECISIONS and proposal_answer(qs[qid], r["events"]) in (
+                "pending",
+                "decline",
+            ):
+                raise ValueError(
+                    "a proposed question takes no decision: accept or edit the proposal first"
+                )
+            elif (
+                kind in ("accept", "hedged")
+                and qs[qid].get("proposed")
+                and not qs[qid].get("recommendation")
+            ):
+                raise ValueError(
+                    "no recommendation to accept yet: Claude writes it after the proposal's "
+                    "accept or edit"
+                )
+            if kind in DECISIONS:
+                check_retired(qs, qs[qid])
             event = {
                 "seq": r["seq"] + 1,
                 "id": qid,
@@ -1066,13 +1263,17 @@ class Hub(LoopbackWatcher):
                         }
                     )
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
-            if kind in WITH_ALT and qid:
+            if kind in WITH_ALT and qid and kind != "proposal":
                 check_alt(qs[qid], kind, alt)
             if kind in DECISIONS - {"reopen"}:
                 release_user_holds(doc, r)
-                waits = open_prereqs(doc, r, qs[qid])
-                if waits and self.frontier_lock() == "hard":
+                waits, lock = open_prereqs(doc, r, qs[qid]), self.frontier_lock()
+                if waits and lock == "hard":
                     raise Conflict({"error": "blocked", "waitsOn": waits})
+                # An upstream answer changed: the question waits on Claude's revise or reconfirm.
+                by = derive_states(doc, r)[3].get(qid) if lock != "off" else None
+                if by:
+                    raise Conflict({"error": "upstream-changed", "changedBy": by})
                 # The page's Answer anyway names the open prerequisites; keep the ones still open.
                 ahead = [p for p in waits if p in (ahead or [])]
                 if ahead:
@@ -1207,10 +1408,15 @@ class Handler(LoopbackHandler):
     def route_get(self, url, query):
         hub = self.hub
         if url.path in ("/", "/index.html"):
+            # The page carries the build on disk now; /api/state carries the one this process
+            # started from, so a page newer than its server can tell.
+            build = page_build()
             html = (
                 (HERE / "index.html")
                 .read_text(encoding="utf-8")
                 .replace("%%TOKEN%%", hub.token)
+                .replace("%%PLUGIN_VERSION%%", build["pluginVersion"])
+                .replace("%%SOURCE_HASH%%", build["sourceHash"])
             )
             return self.send(200, html.encode("utf-8"), "text/html")
         if url.path in QUESTION_SHAPE:

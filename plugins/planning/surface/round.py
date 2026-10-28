@@ -2,7 +2,11 @@
 
 python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also follow the command)
   add             add a question (from --file JSON or flags)
-  add-round       add several groups, questions and visuals from one JSON file, in one write;
+  add-round       add several groups, questions and visuals from one JSON file, in one write; a round
+                  with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
+                  open: [ids]}) the page pins above its first question; meta.kind "sweep"
+                  marks a sweep round, and a question's `reconciles` names the earlier
+                  questions whose answers it reconciles;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
   group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
@@ -13,6 +17,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
   archive         archive off-path questions with a reason (the server derives their state)
+  reconfirm       clear upstream-changed questions that stand as asked after an upstream answer
+                  changed (a revise clears the mark too)
   apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
                   watcher holds the lease
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
@@ -21,12 +27,19 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   bump            bump the file rev (and one question's rev with --id)
   validate        check questions.json and responses.json against the shipped schemas
   export-ledger   write the interview ledger (decision tree and open-question register);
-                  --ledger F merges into F's register, --diff F prints what that would change
-  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows
+                  --ledger F merges into F's register, --diff F prints what that would change;
+                  --recap writes the confirmation recap instead (with --ledger F it needs no data
+                  dir and saves its rows beside F; --changed lists only the rows changed since)
+  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows;
+                  --into PLAN replaces PLAN's `## Brief` section in place instead of writing --out
   export-report   write one self-contained HTML report
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
+                  export-ledger --diff does; records meta.ledgerSync for the page header and logs
+                  an Activity line when the rows that disagree change; exit 1 when any does
+                  (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
                   (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
   resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
@@ -34,7 +47,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
                   check-open-questions verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
-  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
+  ensure-running  start the page server for the data dir, or reuse the running one; prints its URL.
+                  A running server whose recorded plugin version or source hash differs from this
+                  plugin's is restarted on its port (a stderr line says so)
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
                   posted, and clear its session files but the port
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it;
@@ -43,7 +58,9 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
   status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
-                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+                   commitments[]}], open[], archived[], superseded[], proposed[], waiting[{id, short, hold,
+                   waitsOn}]}],
+                   upstreamChanged[{id, changedBy[]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -58,6 +75,8 @@ whose alternative may not repeat or contain the recommendation).
 add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
 independent; `--depends none` on the flags) or names a question still open in its own round; with
 the requireDepends setting on, both refuse.
+add, add-round and apply warn when one write supersedes three or more questions one for one, and
+point to revise, which keeps a question's id, thread and answer. archive clears any hold.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -104,10 +123,13 @@ from server import (  # noqa: E402
     NAME,
     SCHEMA_VERSION,
     Settings,
+    chain_end,
     check_alt,
+    derive_states,
     is_handled,
     load_json,
     open_prereqs,
+    proposal_answer,
     rebuild_responses,
     release_user_holds,
     repo_root,
@@ -147,7 +169,9 @@ LOGGED_OPS = {
     "revise",
     "add",
     "add-round",
+    "propose",
     "archive",
+    "reconfirm",
     "replace-visual",
     "archive-visual",
     "record-terminal",
@@ -159,12 +183,30 @@ LOGGED_OPS = {
     "finish",
 }
 BASIS_SENTENCES = 3
+RESTATE_SENTENCES = 3
+# One write superseding this many questions one for one is a re-issue `revise` should do (G6).
+MASS_SUPERSEDE = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
     r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
     re.IGNORECASE,
 )
+# A criterion that opens on a request to the user ("Say add both, add one, or neither.").
+ASKS_USER_LEAD = re.compile(r"^(?:say|choose)\b", re.IGNORECASE)
+# A restated line's bullet or number, checkbox, AC<N> id and EARS tag, ahead of its text.
+CRITERION_LEAD = re.compile(
+    r"^(?:[-*+]\s+|[0-9]+[.)]\s+)?(?:\[[ xX]\]\s*)?(?:AC[0-9]+\s*:\s*)?(?:\[[\w-]+\]\s*)?"
+)
+# The TLDR labels the --brief gate reads; a restated TLDR line above them must not wear one.
+GATE_LABEL = re.compile(r"^(?:Restatement|Page title):")
+TLDR_BULLETS = 5
+VISUAL_REF = re.compile(
+    r"\b(?:the|this|that|these|those)\s+(?:[\w-]+\s+)?"
+    r"(?:table|visual|diagram|chart|figure|matrix|mockup|wireframe|sketch)s?\b",
+    re.IGNORECASE,
+)
+FACTS_TABLE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
@@ -401,11 +443,12 @@ def set_aside_own(r, doc, q):
         )
 
 
-def add_question(doc, q, repoint=False, latest=None):
+def add_question(doc, q, repoint=False, latest=None, earlier=None):
     """Validate and append one question; returns (the questions whose rev must bump, notes about
     the dependents of a question it supersedes). `latest` is the newest round before the write
-    began (default: now), so questions added in one write date against the same round. Exits
-    before any write."""
+    began (default: now), so questions added in one write date against the same round; `earlier`
+    is the question ids that existed before it (default: now), which `reconciles` may name.
+    Exits before any write."""
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             name = q.get("id") or (
@@ -445,6 +488,7 @@ def add_question(doc, q, repoint=False, latest=None):
     for ref in [q.get("followUpOf"), q.get("supersedes"), *q.get("dependsOn", [])]:
         if ref and ref not in known:
             sys.exit(f"unknown reference in {q['id']}: {ref}")
+    check_reconciles(q, known if earlier is None else earlier)
     if q.get("supersedes"):
         old_short = find(doc, q["supersedes"]).get("short")
         if " ".join(str(old_short or "").split()).casefold() == " ".join(
@@ -496,6 +540,25 @@ def add_question(doc, q, repoint=False, latest=None):
         touched += moved
     doc["questions"].append(q)
     return touched, notes
+
+
+def check_reconciles(q, known):
+    """Refuse a `reconciles` that is not a list of question ids already in the register: the
+    earlier answers the page shows beside a question that reconciles them."""
+    ids = q.get("reconciles")
+    if ids is None:
+        return
+    if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
+        sys.exit(
+            f"refused: {q['id']} reconciles is a list of the earlier question ids it "
+            'reconciles, such as ["Q1"]'
+        )
+    missing = [i for i in dict.fromkeys(ids) if i not in known]
+    if missing:
+        sys.exit(
+            f"refused: {q['id']} reconciles {', '.join(missing)}, not in the register; name "
+            "earlier questions only (nothing was written)"
+        )
 
 
 def require_depends(d):
@@ -652,6 +715,21 @@ def warn_rec_asks(qid, rec):
         )
 
 
+def warn_rec_visual(doc, q, rec, commits):
+    """Warn when a recommendation points at a table or visual and has no commitments while the
+    file holds a visual or the question's facts a table: the Brief carries the recommendation and
+    its commitments, never a visual or the facts."""
+    shown = any(not v.get("archived") for v in doc.get("visuals") or []) or (
+        FACTS_TABLE.search(q.get("facts") or "")
+    )
+    if shown and not commits and VISUAL_REF.search(CODE_SPAN.sub("", str(rec or ""))):
+        warn(
+            f"{q['id']} recommendation refers to a table or visual and has no commitments; the "
+            "Brief carries only the recommendation and its commitments, so write that content "
+            "(the criteria, the rows) into one of them"
+        )
+
+
 BASIS_LABEL = re.compile(
     r"^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b"
     r"|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$",
@@ -664,6 +742,17 @@ LOCAL_FILE_REF = re.compile(
 )
 FIELD_LINK = re.compile(r"https?://|\]\(")
 FIELD_INLINE_CONTENT = re.compile(r"^\s*(?:>|[-*+]\s|\d+[.)]\s)", re.MULTILINE)
+# What lets a reader check the claims in facts: a link, a `file:line` (a file name with an
+# extension, then a line number), or the `judgment` label for a claim with no source, which
+# opens a line or follows a sentence break, `(` or ` - `, never a word ("a judgment call").
+FACTS_REFERENCE = re.compile(
+    r"https?://|\]\("
+    r"|(?<![\w.-])(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.[A-Za-z]\w*:[0-9]+\b"
+    r"|(?:^|[.!?;:(\[]|\s-)\s*\**judgment\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+# The `Checked against:` line facts opens with cites constraint ids, not the source of a claim.
+CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.MULTILINE)
 
 
 def basis_label(basis):
@@ -686,12 +775,24 @@ def warn_bare_file_ref(qid, field, text):
         )
 
 
+def warn_unreferenced_facts(qid, facts):
+    """Warn when a facts field holding more than its `Checked against:` line carries no link,
+    file:line or judgment label, so no claim in it can be checked."""
+    rest = CHECKED_AGAINST.sub("", facts or "")
+    if rest.strip() and not FACTS_REFERENCE.search(rest):
+        warn(
+            f"{qid} facts carries no link, file:line or judgment label; cite the source of "
+            "each factual claim, or label a claim with none Judgment"
+        )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, facts with no reference, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
         warn_branch_source_links(q["id"], q.get("facts"))
+        warn_unreferenced_facts(q["id"], q.get("facts"))
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -701,6 +802,7 @@ def lint_questions(doc, qs):
                 f"break (budget {REC_BUDGET}, R12)"
             )
         warn_rec_asks(q["id"], rec)
+        warn_rec_visual(doc, q, rec, q.get("commits"))
         basis = (q.get("basis") or "").strip()
         n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
         if n > BASIS_SENTENCES:
@@ -725,6 +827,21 @@ def lint_questions(doc, qs):
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
                         "file; spell it out or use the question's id"
                     )
+    warn_mass_supersede(qs)
+
+
+def warn_mass_supersede(qs):
+    """Warn when one write supersedes MASS_SUPERSEDE or more questions one for one: a re-issued
+    round starts each question over under a new id, where `revise` keeps the id, thread and
+    answer (G6)."""
+    pairs = [f"{q['supersedes']} by {q['id']}" for q in qs if q.get("supersedes")]
+    if len(pairs) >= MASS_SUPERSEDE:
+        shown = ", ".join(pairs[:5]) + (f" and {len(pairs) - 5} more" if len(pairs) > 5 else "")
+        warn(
+            f"this write supersedes {len(pairs)} questions one for one ({shown}); "
+            "to reword a question or change its recommendation, alternatives or commitments, "
+            "use revise <id>, which keeps its id, thread and answer"
+        )
 
 
 def group_members(doc, gid):
@@ -775,6 +892,8 @@ def put_group(doc, g):
 
 
 META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
+# add-round's meta may also carry `kind`, stored on the round: a sweep round reconciles earlier answers.
+ROUND_KINDS = ("sweep",)
 
 
 def set_meta(doc, m):
@@ -825,11 +944,144 @@ def op_add(d, doc, a):
     return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
+def op_propose(d, doc, a):
+    """Add a question the user approves before it is asked: `id`, `title`, `short`, optional
+    `group` and `fromSeq` (the Ask it answers). It carries no recommendation, alternatives or
+    commitments, and `proposed` makes the server derive it `proposed`, so the page offers only
+    Accept, Edit and Not this, and the exports leave it out until the user accepts or edits it."""
+    q = {"id": a.id, "short": a.short, "title": a.title}
+    for req, gloss in REQUIRED_FIELDS:
+        if not q.get(req):
+            sys.exit(f"refused: propose {a.id or 'a question'} missing {req} ({gloss})")
+    checked_short(a.id, a.short)
+    capped(f"{a.id} title", a.title, LINE_CAP)
+    if any(x.get("id") == a.id for x in doc["questions"]):
+        sys.exit(f"duplicate id: {a.id} (refused; nothing was written)")
+    if a.group is not None:
+        if a.group not in {g["id"] for g in doc["groups"]}:
+            sys.exit(f"unknown group in {a.id}: {a.group} (add it with: round.py group)")
+        q["group"] = a.group
+    if a.fromSeq is not None:
+        events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
+        if not any(e.get("seq") == a.fromSeq and e.get("kind") == "ask" for e in events):
+            sys.exit(f"refused: propose {a.id} fromSeq {a.fromSeq} names no ask event")
+    newest = doc["questions"][-1] if doc["questions"] else {}
+    q["stage"] = newest.get("stage", "interview")
+    q["round"] = max(
+        [x.get("round", 1) for x in doc["questions"] if x.get("stage") == q["stage"]]
+        or [1]
+    )
+    at = now()
+    q["proposed"] = {"at": at, **({} if a.fromSeq is None else {"fromSeq": a.fromSeq})}
+    asked = "" if a.fromSeq is None else f" from your ask (#{a.fromSeq})"
+    q["history"] = [
+        {"at": at, "by": "claude", "kind": "propose", "text": f"Proposed{asked}."}
+    ]
+    doc.pop("finished", None)
+    doc["questions"].append(q)
+    return [q], f"proposed {a.id}"
+
+
+def require_accepted(d, q, what):
+    """Refuse `what` on a proposed question until the user accepts or edits the proposal."""
+    answer = proposal_answer(
+        q, load_json(d / "responses.json", EMPTY_RESPONSES).get("events")
+    )
+    if answer in ("pending", "decline"):
+        sys.exit(
+            f"refused: {q['id']} is a proposal the user "
+            f"{'declined' if answer == 'decline' else 'has not accepted yet'}; {what} waits "
+            "on their Accept or Edit"
+        )
+
+
+def require_on_path(doc, q):
+    """Refuse an answer on a question off the path, as the server's check_retired answers 409:
+    superseded, naming the end of its supersededBy chain (chain_end), wins over archived."""
+    if q.get("supersededBy"):
+        qs = {x["id"]: x for x in doc["questions"]}
+        sys.exit(f"refused: {q['id']} is superseded; answer {chain_end(qs, q)} instead")
+    if q.get("archived"):
+        sys.exit(f"refused: {q['id']} is archived")
+
+
+def checked_round_restate(restate):
+    """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
+    `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
+    if not isinstance(restate, dict):
+        sys.exit(
+            "refused: a round with questions needs a restate: "
+            '{"text": "<=3 sentences: what is decided, which branches are open, what this '
+            'round turns on", "decided": [ids], "open": [ids]} (G7)'
+        )
+    extra = sorted(set(restate) - {"text", "decided", "open"})
+    if extra:
+        sys.exit(f"refused: unknown restate keys {extra} (known: text, decided, open)")
+    text = restate.get("text")
+    if not isinstance(text, str) or not text.strip():
+        sys.exit("refused: restate needs a non-empty text (G7)")
+    text = capped("restate text", text.strip(), TEXT_CAP)
+    n = len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
+    if n > RESTATE_SENTENCES:
+        sys.exit(
+            f"refused: restate text has {n} sentences; the limit is {RESTATE_SENTENCES} (G7)"
+        )
+    out = {"text": text}
+    for key in ("decided", "open"):
+        ids = restate.get(key)
+        if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
+            sys.exit(f"refused: restate {key} is a list of question ids (G7)")
+        out[key] = list(dict.fromkeys(ids))
+    return out
+
+
+def round_kind(meta, questions):
+    """(the meta to merge, the round's kind): `meta.kind` describes this round, not the
+    interview, so it is taken out of the meta merge and stored on the round's entry."""
+    if not isinstance(meta, dict) or "kind" not in meta:
+        return meta, None
+    kind = meta["kind"]
+    if kind not in ROUND_KINDS:
+        sys.exit(
+            f"refused: meta.kind {kind!r} is not a round kind (known: {', '.join(ROUND_KINDS)})"
+        )
+    if not questions:
+        sys.exit("refused: meta.kind marks a round with questions; this one adds none")
+    rest = {k: v for k, v in meta.items() if k != "kind"}
+    return rest or None, kind
+
+
+def store_round_restate(doc, qs, restate, kind=None):
+    """Record the restate, and the kind when given, for the round the new questions open,
+    replacing an earlier one for it; with no kind given, the earlier entry's kind stays."""
+    known = {q["id"] for q in doc["questions"]}
+    for key in ("decided", "open"):
+        unknown = [i for i in restate[key] if i not in known]
+        if unknown:
+            sys.exit(f"refused: restate {key} names unknown questions: {', '.join(unknown)}")
+    first = qs[0]
+    entry = {
+        "round": first.get("round", 1),
+        "stage": first.get("stage", "interview"),
+        "at": now(),
+        "restate": restate,
+    }
+    slot = (entry["round"], entry["stage"])
+    old = [r for r in doc.get("rounds") or [] if (r.get("round"), r.get("stage")) == slot]
+    # A later write to the same round that names no kind keeps the round's earlier one.
+    kind = kind or next((r["kind"] for r in old if r.get("kind")), None)
+    if kind:
+        entry["kind"] = kind
+    rounds = [r for r in doc.get("rounds") or [] if r not in old]
+    doc["rounds"] = [*rounds, entry]
+
+
 def op_add_round(d, doc, a):
-    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
+    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...], "restate": {...}}: meta, groups, then questions in file order; a round with questions needs its restate. `meta.kind` ("sweep") is stored on the round, not merged into meta."""
+    restate = checked_round_restate(a.restate) if a.questions else None
     doc.pop("finished", None)
     before = newest_round(doc)
-    meta = a.meta
+    meta, kind = round_kind(a.meta, a.questions)
     if meta is not None:
         old = doc["meta"].get("title")
         if "title" in meta and old and meta["title"] != old and not a.replaceTitle:
@@ -844,16 +1096,20 @@ def op_add_round(d, doc, a):
             sys.exit("a group needs an id")
         put_group(doc, g)
     touched, notes = [], []
+    earlier = {x["id"] for x in doc["questions"]}
     for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
-        t, n = add_question(doc, q, a.repoint, before)
+        t, n = add_question(doc, q, a.repoint, before, earlier)
         touched += t
         notes += n
     check_depends(d, doc, a.questions or [])
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
+    if restate:
+        store_round_restate(doc, a.questions, restate, kind)
+        a.needsAnswer = True
     warn_stale_summaries(doc, a.questions or [])
     warn_stage(doc, a.questions or [])
     if meta is not None:
@@ -1033,6 +1289,7 @@ def op_reply(d, doc, a):
             "rec; use revise --alt"
         )
     if a.rec:
+        require_accepted(d, q, "a recommendation")
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
         require_alt_review(a.id, a.alt, a.keepAlternatives)
@@ -1045,9 +1302,11 @@ def op_reply(d, doc, a):
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
         set_aside_own(snapshot, doc, q)
-        q["previousRecommendation"] = q.get("recommendation", "")
+        if q.get("recommendation") or not q.get("proposed"):
+            # An accepted proposal's first recommendation revises nothing.
+            q["previousRecommendation"] = q.get("recommendation", "")
+            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["recommendation"] = a.rec
-        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["contentRev"] = (q.get("contentRev") or 0) + 1
         if alts is not None:
             q["alternatives"] = alts
@@ -1112,6 +1371,8 @@ def op_revise(d, doc, a):
         for i, c in enumerate(commits, 1):
             capped(f"revise commitment {i}", c, LINE_CAP)
     affects = parse_affects(a.affects)
+    if a.rec is not None or a.alt is not None or commits is not None:
+        require_accepted(d, q, "a recommendation, alternatives or commitments")
     if a.rec is not None:
         require_affects(a.id, affects)
         require_alt_review(a.id, a.alt, a.keepAlternatives)
@@ -1130,6 +1391,7 @@ def op_revise(d, doc, a):
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     warn_branch_source_links(a.id, a.facts)
+    warn_unreferenced_facts(a.id, a.facts)
     changed = []
     for field, val in (
         ("title", a.title),
@@ -1142,9 +1404,11 @@ def op_revise(d, doc, a):
             changed.append(field)
     if a.rec is not None:
         set_aside_own(snapshot, doc, q)
-        q["previousRecommendation"] = q.get("recommendation", "")
+        if q.get("recommendation") or not q.get("proposed"):
+            # An accepted proposal's first recommendation revises nothing.
+            q["previousRecommendation"] = q.get("recommendation", "")
+            q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["recommendation"] = a.rec
-        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         changed.append("recommendation")
         warn_rec_asks(a.id, a.rec)
     if alts is not None:
@@ -1157,6 +1421,8 @@ def op_revise(d, doc, a):
             "seq", 0
         )
         changed.append("commitments")
+    if a.rec is not None or commits is not None:
+        warn_rec_visual(doc, q, q.get("recommendation"), q.get("commits"))
     moved = None
     if deps is not None and deps != (q.get("dependsOn") or []):
         moved = f"{', '.join(q.get('dependsOn') or []) or 'none'} -> {', '.join(deps) or 'none'}"
@@ -1189,13 +1455,13 @@ def op_revise(d, doc, a):
             or "Revised "
             + ", ".join(changed)
             + (" (alternatives kept)." if kept else "."),
+            "changed": list(changed),
         }
         if affects is not None:
             line["affects"] = affects
         if a.rec is not None:
             line["alternatives"] = "kept" if kept else "rewritten"
             line["pageSeq"] = snapshot.get("seq", 0)
-            line["rev"] = doc["rev"] + 1
         lines.append(line)
     if moved:
         lines.append(
@@ -1212,6 +1478,8 @@ def op_revise(d, doc, a):
             {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
         )
         changed.append(f"group ({regroup})")
+    for line in lines:  # a revision clears the question's upstream-changed mark (server.derive_states)
+        line.update(reviewSeq=snapshot.get("seq", 0), rev=doc["rev"] + 1)
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
@@ -1239,6 +1507,8 @@ def op_note_reply(d, doc, a):
 
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
+    require_accepted(d, q, "an answer")
+    require_on_path(doc, q)
     capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "hedged":
         if not (a.text or "").strip():
@@ -1284,18 +1554,59 @@ def op_record_terminal(d, doc, a):
 
 
 def op_archive(d, doc, a):
-    """Record why a question left the path; the server derives its archived state."""
+    """Record why a question left the path; the server derives its archived state. Any hold on it
+    is cleared, as `wait --clear` clears one (the setAside stamps stay), so an archived question
+    carries no `waiting` hold (G6)."""
     if not (a.why or "").strip():
         sys.exit("archive needs --why")
     capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
     for q in qs:
+        held = q.get("waiting")
+        label = HOLD_LABELS.get(q.get("waitingBy"), HOLD_LABELS["claude"])
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            q.pop(key, None)
+        if held:
+            q.setdefault("history", []).append(
+                {"at": at, "by": "claude", "text": f"No longer {label}."}
+            )
         q["archived"] = {"why": a.why, "at": at}
         q.setdefault("history", []).append(
             {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
         )
     return qs, f"archived {', '.join(a.ids)}"
+
+
+def op_reconfirm(d, doc, a):
+    """Record that upstream-changed questions stand as asked after the answers they depend on
+    changed: a history line with `reviewSeq` (the page's seq now), which the server reads as
+    clearing the mark. Refuses a question that is not upstream-changed."""
+    why = capped("reconfirm why", (a.why or "").strip(), LINE_CAP)
+    if not why:
+        sys.exit("refused: reconfirm needs a why")
+    ids = list(dict.fromkeys(a.ids or []))
+    qs = [find(doc, qid) for qid in ids]
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    by = derive_states(doc, r)[3]
+    idle = [qid for qid in ids if qid not in by]
+    if idle:
+        sys.exit(
+            f"refused: {', '.join(idle)} not upstream-changed; nothing to reconfirm"
+        )
+    at = now()
+    for q in qs:
+        q.setdefault("history", []).append(
+            {
+                "at": at,
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": f"Reconfirmed after {', '.join(by[q['id']])} changed: {why}",
+                "reviewSeq": r.get("seq", 0),
+                "rev": doc["rev"] + 1,
+            }
+        )
+    return qs, f"reconfirmed {', '.join(ids)}"
 
 
 def op_bump(d, doc, a):
@@ -1492,6 +1803,7 @@ def op_confirm_commitments(d, doc, a):
 
 
 RESTATE_SECTIONS = (
+    "tldr",
     "problem",
     "goal",
     "workSize",
@@ -1502,6 +1814,42 @@ RESTATE_SECTIONS = (
     "deferred",
     "planningOwned",
 )
+
+
+def restated_lines(s, key):
+    """A restate section's non-blank lines, each without its bullet, checkbox, AC<N> id or tag,
+    its whitespace runs one space as the export writes them."""
+    text = s.get(key) if isinstance(s.get(key), str) else ""
+    return [
+        CRITERION_LEAD.sub("", " ".join(x.split()), count=1)
+        for x in text.splitlines()
+        if x.strip()
+    ]
+
+
+def check_restated_lines(s):
+    """Refuse an acceptance line that asks the user something (the Brief would carry a question
+    as a criterion) and a tldr line wearing a label the --brief gate reads; warn on a tldr over
+    the Brief template's bullet budget."""
+    for line in restated_lines(s, "acceptance"):
+        if rec_asks_user(line) or ASKS_USER_LEAD.match(line):
+            sys.exit(
+                f"refused: restate acceptance line asks the user something ({line!r}); a "
+                "criterion states a checkable outcome, so ask the question on the page (the "
+                "coverage prompt as a note-reply with needsAnswer) and restate once it is answered"
+            )
+    tldr = restated_lines(s, "tldr")
+    for line in tldr:
+        if GATE_LABEL.match(line):
+            sys.exit(
+                f"refused: restate tldr line {line!r} opens with a label the --brief gate reads "
+                "in the TLDR (Restatement:, Page title:); reword it"
+            )
+    if len(tldr) > TLDR_BULLETS:
+        warn(
+            f"restate tldr has {len(tldr)} lines; the Brief's TLDR holds at most {TLDR_BULLETS} "
+            "scope bullets, so ask the user which items to defer"
+        )
 
 
 def op_restate(d, doc, a):
@@ -1519,6 +1867,7 @@ def op_restate(d, doc, a):
         sys.exit("refused: restate needs at least one non-empty section")
     for k, v in s.items():
         capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
+    check_restated_lines(s)
     kept = exporters.restatement_revs(doc)
     rev = max((r["rev"] for r in kept), default=0) + 1
     doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
@@ -1662,11 +2011,12 @@ def cmd_add(d, a):
 
 def cmd_add_round(d, a):
     spec = read_input(a.file, "round file", as_json=True)
-    a.meta, a.groups, a.questions, a.visuals = (
+    a.meta, a.groups, a.questions, a.visuals, a.restate = (
         spec.get("meta"),
         spec.get("groups"),
         spec.get("questions"),
         spec.get("visuals"),
+        spec.get("restate"),
     )
     if a.check:
         doc = load(d)
@@ -1737,6 +2087,10 @@ OP_ARGS = {
         },
     ),
     "add": (op_add, {"question": None, "repoint": False}),
+    "propose": (
+        op_propose,
+        {"id": None, "title": None, "short": None, "group": None, "fromSeq": None},
+    ),
     "add-round": (
         op_add_round,
         {
@@ -1745,6 +2099,8 @@ OP_ARGS = {
             "groups": None,
             "questions": None,
             "visuals": None,
+            "restate": None,
+            "needsAnswer": False,
             "repoint": False,
             "replaceTitle": False,
         },
@@ -1758,6 +2114,7 @@ OP_ARGS = {
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
+    "reconfirm": (op_reconfirm, {"ids": None, "why": None}),
     "replace-visual": (op_replace_visual, {"visual": None}),
     "archive-visual": (op_archive_visual, {"ids": None, "why": None}),
     "record-terminal": (
@@ -1884,7 +2241,7 @@ def apply_ops_file(d, name, claimed):
         lines.append(f"{op['op']}: {msg}")
         if op["op"] in LOGGED_OPS:
             logged.append((op["op"], msg, t))
-        asks = asks or (op["op"] == "note-reply" and args.needsAnswer)
+        asks = asks or (op["op"] in ("note-reply", "add-round") and args.needsAnswer)
     summarize(doc, logged, asks)
     lint_questions(doc, added)
     for op in spec["ops"]:
@@ -1921,12 +2278,18 @@ def cmd_status(d, a):
     }
     for q in doc["questions"]:
         dec = effective(q, resp)
+        prop = proposal_answer(q, r.get("events"))
         state = (
             "archived"
-            if q.get("archived")
+            if q.get("archived") or prop == "decline"
+            else "proposed"
+            if prop == "pending"
+            # before the decision, as export-ledger reads it: a superseded answer counts nowhere
+            else "superseded"
+            if q.get("supersededBy")
             else "waiting"
-            if q.get("waiting") and not q.get("supersededBy")
-            else dec or ("superseded" if q.get("supersededBy") else "open")
+            if q.get("waiting")
+            else dec or "open"
         )
         label = exporters.hold_label(q)
         rows.setdefault(q.get("group"), []).append(
@@ -1944,9 +2307,10 @@ def cmd_status(d, a):
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
         superseded = [i for i, _, st, _ in items if st == "superseded"]
+        proposed = [f"{i} {s}" for i, s, st, _ in items if st == "proposed"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
-        live = len(items) - len(archived) - len(superseded)
+        live = len(items) - len(archived) - len(superseded) - len(proposed)
         answered = live - len(opened) - len(waits)
         confirm = [
             (i, s, pending_commits[i])
@@ -1958,6 +2322,7 @@ def cmd_status(d, a):
             + (f"; {len(archived)} archived" if archived else "")
             + (f"; {len(superseded)} superseded" if superseded else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
+            + (f"; proposed, awaiting the user: {', '.join(proposed)}" if proposed else "")
         )
         lines.extend(waits)
         lines.extend(
@@ -1968,13 +2333,14 @@ def cmd_status(d, a):
                 "id": gid,
                 "title": title,
                 "total": len(items),
-                "closed": len(items) - len(opened) - len(waits),
+                "closed": len(items) - len(opened) - len(waits) - len(proposed),
                 "live": live,
                 "answered": answered,
                 "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
                 "superseded": superseded,
+                "proposed": [i for i, _, st, _ in items if st == "proposed"],
                 "waiting": [
                     {"id": i, "short": s, "hold": hold[i][0], "waitsOn": hold[i][1]}
                     for i, s, st, _ in items
@@ -1982,6 +2348,16 @@ def cmd_status(d, a):
                 ],
             }
         )
+    by = derive_states(doc, r)[3]
+    data["upstreamChanged"] = [
+        {"id": q["id"], "changedBy": by[q["id"]]}
+        for q in doc["questions"]
+        if q["id"] in by
+    ]
+    lines.extend(
+        f"upstream changed: {u['id']} ({', '.join(u['changedBy'])} changed); revise or reconfirm it"
+        for u in data["upstreamChanged"]
+    )
     data["meta"] = None
     if doc["questions"]:
         stamp = doc["meta"].get("setInRound")
@@ -2090,12 +2466,14 @@ def cmd_doctor(d, a):
     ]
     has_page = (d / "questions.json").is_file()
     doc = load(d) if has_page else {"questions": [], "meta": {}}
-    resp = load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    resp = r.get("responses", {})
     live = [
         q
         for q in doc["questions"]
         if not q.get("archived")
         and not q.get("supersededBy")
+        and proposal_answer(q, r.get("events")) in (None, "accept", "edit")
         and not effective(q, resp)
     ]
     for label, absent in (
@@ -2200,10 +2578,21 @@ def cmd_export(d, a):
     if a.what == "brief":
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
+        if a.into and Path(a.into).exists():
+            # newline="" both ways, so a CRLF file keeps its endings outside the Brief.
+            plan = read_input(a.into, "plan", newline="")
+            merged = exporters.merge_brief(plan, text, a.into)
+            # A temp file renamed over PLAN.md, so a failed write never leaves it cut short.
+            tmp = Path(f"{a.into}.tmp")
+            tmp.write_text(merged, encoding="utf-8", newline="")
+            os.replace(tmp, a.into)
+            print(f"replaced the ## Brief section of {a.into}")
+            return
     else:
         text = exporters.export_report(d)
-    write_text(a.out, text)
-    print(f"wrote {a.out}")
+    out = getattr(a, "into", None) or a.out
+    write_text(out, text)
+    print(f"wrote {out}")
 
 
 def report_notes(notes, kinds):
@@ -2215,7 +2604,30 @@ def report_notes(notes, kinds):
         sys.exit(1)
 
 
+def last_recap_path(ledger):
+    """The file beside the ledger that holds the last recap's rows, one per ledger, overwritten by
+    each recap: `<ledger stem>.last-recap.json`."""
+    return Path(ledger).with_suffix(".last-recap.json")
+
+
+def read_last_recap(path):
+    """The rows the last recap saved at path, or None when there is none yet (the first
+    confirmation) or the file cannot be read, so the recap lists every row."""
+    if not path.exists():
+        return None
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))["rows"]
+        if isinstance(rows, dict) and all(isinstance(v, str) for v in rows.values()):
+            return rows
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    warn(f"cannot read the last recap {path}; listing every row")
+    return None
+
+
 def cmd_export_ledger(d, a):
+    if a.diff and (a.recap or a.changed):
+        sys.exit("export-ledger --diff writes nothing, so it takes no --recap or --changed")
     if a.diff:
         text = read_input(a.diff, "ledger")
         report_notes(
@@ -2225,9 +2637,16 @@ def cmd_export_ledger(d, a):
         return
     if not a.out:
         sys.exit("export-ledger needs --out (or --diff LEDGER)")
+    if a.changed and not (a.recap and a.ledger):
+        sys.exit("export-ledger --changed needs --recap and --ledger")
     text = read_input(a.ledger, "ledger") if a.ledger else None
     if a.recap:
-        recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text)
+        if d is None:
+            # Read alone, a ledger with no register (or two) would give an empty recap.
+            exporters.check_ledger(text, a.ledger)
+        state = last_recap_path(a.ledger) if a.ledger else None
+        since = read_last_recap(state) if a.changed else None
+        recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text, since)
         write_text(a.out, recap)
         print(f"wrote {a.out}")
         if not fits:
@@ -2235,13 +2654,65 @@ def cmd_export_ledger(d, a):
                 f"refused: the compact recap is {len(recap)} characters; the restate cap is "
                 f"{TEXT_CAP}"
             )
-        if text is not None:
+        if state:
+            rows = exporters.recap_state(exporters.recap_rows(d, text))
+            write_text(state, json.dumps({"rows": rows}, indent=2, ensure_ascii=False) + "\n")
+        if d is not None and text is not None:
             report_notes(exporters.merged_register(d, text)[2], ("conflict",))
         return
     write_text(a.out, exporters.export_ledger(d, text))
     print(f"wrote {a.out}")
     if text is not None:
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
+
+
+def cmd_ledger_check(d, a):
+    """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
+    does, and record the result in meta.ledgerSync for the page header. A change in which rows
+    disagree adds an Activity Log line; exit 1 when any row does."""
+    with sidecar_lock(d):
+        doc = load(d)
+        ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
+        if not ledger:
+            print("no ledger to check: the page was not seeded from one")
+            return
+        notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
+        drift = [line for kind, line in notes if kind in ("change", "conflict")]
+        # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
+        rows = list(
+            dict.fromkeys(
+                (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
+                for line in drift
+            )
+        )
+        was = doc["meta"].get("ledgerSync") or {}
+        if was.get("rows") != rows or was.get("rev") != doc["rev"]:
+            if rows and was.get("rows") != rows:
+                log_activity(
+                    doc,
+                    capped_text(
+                        f"Ledger out of sync, {len(rows)} "
+                        f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
+                        LINE_CAP,
+                    ),
+                    [],
+                )
+            doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+            save(d, doc)
+    for line in drift:
+        print(line)
+    print(
+        f"{len(rows)} rows out of sync with {ledger}"
+        if rows
+        else f"ledger in sync, rev {doc['rev']}"
+    )
+    if rows:
+        sys.exit(1)
+
+
+def capped_text(text, cap):
+    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
+    return text if len(text) <= cap else text[: cap - 1] + "…"
 
 
 def write_synced_ledger(d, ledger):
@@ -2441,6 +2912,17 @@ def cmd_ensure_running(d, a):
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
         settings, _ = Settings(repo_root(d)).resolve(d, layers)
+        stale = live and bridge.stale_build(s)
+        if stale:
+            # A server started before a plugin update runs the old code: start this build in its
+            # place, on the same port, with the same user file. No finish is posted and none is
+            # cleared, so the interview goes on and open tabs read a restart.
+            end_server(d, s, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
+            print(
+                f"restarted the page server: {stale}; reload the page and re-arm the watcher",
+                file=sys.stderr,
+            )
+            live = False
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
@@ -2448,7 +2930,8 @@ def cmd_ensure_running(d, a):
             if a.port is None:
                 ports.append(settings["port"]["value"])
             port = next((p for p in ports if p and bridge.port_free(p)), 0)
-            clear_finished(d)
+            if not stale:
+                clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
             s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
@@ -2458,8 +2941,8 @@ def cmd_ensure_running(d, a):
                 sys.exit(
                     f"the server did not start within {START_SECONDS} s (data dir {d})"
                 )
-        if user and s.get("userSettings") != user:
-            s["userSettings"] = user
+        if layers and s.get("userSettings") != layers:
+            s["userSettings"] = layers
             write_private(
                 d / bridge.session_files(NAME)[0], json.dumps(s, indent=2) + "\n"
             )
@@ -2513,13 +2996,18 @@ def cmd_stop(d, a):
             return
         watcher = (bridge.watcher_lease(d, NAME) or {}).get("pid")
         finish_on_stop(d)
-        end_watcher(d, watcher)
-        os.kill(s["pid"], signal.SIGTERM)
-        deadline = time.monotonic() + START_SECONDS
-        while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
-            time.sleep(0.05)
-        bridge.clear_session(d, NAME)
+        end_server(d, s, watcher)
     print(f"stopped {s['pid']}")
+
+
+def end_server(d, s, watcher):
+    """End the lease's watcher and the running server `s` records, then clear the session files."""
+    end_watcher(d, watcher)
+    os.kill(s["pid"], signal.SIGTERM)
+    deadline = time.monotonic() + START_SECONDS
+    while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
+        time.sleep(0.05)
+    bridge.clear_session(d, NAME)
 
 
 def cmd_lease(d, a):
@@ -2788,6 +3276,15 @@ def main(argv=None):
     s.set_defaults(fn=write_op(op_archive, "archive"))
 
     s = sub.add_parser(
+        "reconfirm", help="clear upstream-changed: the questions stand as asked"
+    )
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.add_argument(
+        "--why", required=True, help="why each still stands after the upstream change"
+    )
+    s.set_defaults(fn=write_op(op_reconfirm, "reconfirm"))
+
+    s = sub.add_parser(
         "apply",
         help="run a list of ops from one JSON file, one write",
         description="Run a list of ops from one JSON file, as one atomic write.\n\n"
@@ -2815,7 +3312,15 @@ def main(argv=None):
     s.set_defaults(fn=cmd_validate)
 
     s = sub.add_parser("export-brief", help="write the brief export")
-    s.add_argument("--out", required=True, help="output file")
+    dest = s.add_mutually_exclusive_group(required=True)
+    dest.add_argument("--out", help="output file")
+    dest.add_argument(
+        "--into",
+        metavar="PLAN",
+        help="replace this PLAN.md's `## Brief` section in place, up to the next `#` or `##` "
+        "heading, and leave every other byte as it was, text above the section's first "
+        "subheading included; a missing file gets the whole export",
+    )
     s.add_argument(
         "--ledger",
         help="number the questions as this ledger's register does and carry the deferred and "
@@ -2846,9 +3351,27 @@ def main(argv=None):
         action="store_true",
         help="write the confirmation gate's compact recap instead of the ledger: one line per "
         "live question, withdrawn rows collapsed into one line, long answers cut to fit the "
-        "restate cap",
+        "restate cap. With --ledger it reads the ledger alone when --dir is absent or does not "
+        "exist, and saves its rows beside the ledger (<ledger stem>.last-recap.json)",
+    )
+    s.add_argument(
+        "--changed",
+        action="store_true",
+        help="with --recap and --ledger: list only the rows changed since the last recap saved "
+        "beside the ledger, plus one count per status for the rest; every row when none is saved",
     )
     s.set_defaults(fn=cmd_export_ledger)
+
+    s = sub.add_parser(
+        "ledger-check",
+        help="compare the page with its ledger as export-ledger --diff does, record the result "
+        "for the page header, and log the rows that disagree; exit 1 when any does",
+    )
+    s.add_argument(
+        "--ledger",
+        help="the ledger to compare with (default: the one import-ledger seeded the page from)",
+    )
+    s.set_defaults(fn=cmd_ledger_check)
 
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
@@ -2948,6 +3471,16 @@ def main(argv=None):
     if a.cmd == "revise" and a.commit == ["none"]:
         a.commit = []
     if a.fn in (cmd_supersede, cmd_resolve):
+        a.fn(None, a)
+        return
+    if (
+        a.fn is cmd_export_ledger
+        and a.recap
+        and a.ledger
+        and not a.diff
+        and not (a.dir and Path(a.dir).is_dir())
+    ):
+        # The terminal lane has no page data: its recap reads the ledger alone.
         a.fn(None, a)
         return
     if not a.dir:

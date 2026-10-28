@@ -24,6 +24,18 @@
       "description": "Blocks writes containing high-confidence secret or credential patterns. On by default.",
       "default": true
     },
+    "secret_pattern_detection_allowed_roots": {
+      "type": "string",
+      "title": "Secret-pattern-detection allowed roots",
+      "description": "Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": ""
+    },
+    "secret_pattern_detection_skip_gitignored": {
+      "type": "boolean",
+      "title": "Secret-pattern-detection skips gitignored files",
+      "description": "When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": false
+    },
     "hardcoded_path_check_enabled": {
       "type": "boolean",
       "title": "Hardcoded-path-check guard",
@@ -135,7 +147,7 @@
     "block_convention_gate_enabled": {
       "type": "boolean",
       "title": "Block-convention-violation guard",
-      "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
+      "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in docs/conventions/source-control.yaml, or for one release in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
       "default": true
     },
     "git_hooks_notice_enabled": {
@@ -164,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.58.0"
+  "version": "0.61.0"
 }

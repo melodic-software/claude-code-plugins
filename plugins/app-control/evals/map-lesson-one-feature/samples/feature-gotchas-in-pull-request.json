@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The lesson goes in the `## Gotchas` section of .claude/skills/control-clockwork/features/weekly-timesheet-export/README.md: wait for the Export button to enable before clicking it. Nothing goes in the hub or another feature. It is doc drift, so the outcome is changed, and it ships as a commit on control-skill-upkeep/control-clockwork through one pull request.",
+      "why": "one feature's Gotchas, changed outcome, upkeep branch and one pull request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The lesson goes in the `## Gotchas` of .claude/skills/control-clockwork/features/weekly-timesheet-export/README.md and also in the hub's `## Gotchas` in SKILL.md so every drive sees it. Outcome changed; it ships on control-skill-upkeep/control-clockwork in one pull request.",
+      "why": "also copies a one-feature lesson into the hub"
+    }
+  ]
+}

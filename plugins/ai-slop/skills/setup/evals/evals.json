@@ -18,12 +18,12 @@
       "id": 2,
       "name": "apply-writes-team-layer-only-with-confirmation",
       "prompt": "/ai-slop:setup apply — user asks to exempt docs/style-guide.md from the em-dash rule",
-      "expected_output": "A diff of .claude/ai-slop.json adding docs/style-guide.md to em_dash_allowed_paths is shown and explicitly confirmed before writing. The user-global and .local.json layers are named as self-service options, never written by the skill.",
+      "expected_output": "A diff of docs/conventions/ai-slop.yaml adding docs/style-guide.md to em_dash_allowed_paths is shown and explicitly confirmed before writing. The personal ai-slop.local.yaml layer is named as a self-service option, never written by the skill.",
       "files": [],
       "narration": true,
       "expectations": [
         "Shows the proposed team-layer diff and waits for explicit confirmation before writing",
-        "Writes ONLY .claude/ai-slop.json, never the user-global or local overlay layers",
+        "Writes ONLY docs/conventions/ai-slop.yaml, never the user-global or personal overlay layers",
         "Adds the exemption under em_dash_allowed_paths rather than excluded_paths (the file should still be scanned by other rules)"
       ]
     },
@@ -43,8 +43,8 @@
     {
       "id": 4,
       "name": "comment-key-is-not-drift",
-      "prompt": "/ai-slop:setup check — the repo's .claude/ai-slop.json carries a _comment key recording why rule-em-dash is disabled.",
-      "expected_output": "The rationale key is reported as a documented annotation, not flagged as an unknown key. JSON has no comment syntax and the Keys table lists _comment for exactly this purpose, so a config that records its reasoning is conforming.",
+      "prompt": "/ai-slop:setup check — the repo still keeps its older JSON team file, which carries a _comment key recording why rule-em-dash is disabled.",
+      "expected_output": "The rationale key is reported as a documented annotation, not flagged as an unknown key. JSON has no comment syntax and the skill allows _comment in a legacy JSON file for exactly this purpose, so a config that records its reasoning is conforming. The skill also offers to carry the values into docs/conventions/ai-slop.yaml with the text as YAML comments.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -57,7 +57,7 @@
       "id": 5,
       "name": "disabling-a-rule-records-its-reason",
       "prompt": "/ai-slop:setup apply — user asks to disable rule-em-dash repo-wide because the house style uses em dashes deliberately.",
-      "expected_output": "The team-layer diff adds rule-em-dash to disabled_rules AND records the reason in _comment, with the measured scale of the exemption named. The trade-off is stated plainly: disabling turns the rule off for new files too, where em_dash_allowed_paths would not.",
+      "expected_output": "The team-layer diff adds rule-em-dash to disabled_rules AND records the reason as a YAML comment above it, with the measured scale of the exemption named. The trade-off is stated plainly: disabling turns the rule off for new files too, where em_dash_allowed_paths would not.",
       "files": [],
       "narration": true,
       "expectations": [

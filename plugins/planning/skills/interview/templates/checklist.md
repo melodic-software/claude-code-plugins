@@ -34,7 +34,7 @@ One line: what the user disclosed at intake about where they start (SKILL.md Sta
 
 Each `Commits you to:` part of a recommendation is a row of its own with `(part of Q<N>)` in the question field, numbered right after its headline when asked with it, and at the next free id when registered after later ids exist. Resolution rules: `context/loop.md` "Commitment rows"; late numbering: "Commitment rows written after later ids exist". On the page surface, the parts are the question's `commits` entries instead (see `context/loop.md` "Commitment parts on the page"). The page exports each row's resolution as named fields and every older grammar still imports (`context/surface.md` "Start and stop").
 
-Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions; keep every live row unfenced.
+Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions; keep every live row unfenced and in this section, above any heading (a sub-heading ends the section, and the gate fails a row outside it).
 
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
 - Q2 | open | round 1 | What content format? |

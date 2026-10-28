@@ -40,7 +40,7 @@
 // that is not one of the repository's work-class labels is not applied. When
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
-// the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
+// the verdict or the issue body (edges.mjs textBlockers) names; an edge GitHub answers 403, 429 or 5xx for is missed,
 // named in the summary and an annotation, the edges the run wrote are
 // deleted again, and a ready verdict then lands
 // without `status: ready` and is not admitted, so the hourly triage sweep runs
@@ -52,9 +52,10 @@
 // keeps under another id than models.issue-dimensions maps fails the run and
 // leaves the issue's labels as they are.
 //
-// Issue text can only refuse: a line the model quotes is prefixed `> ` and
-// matches nothing, a duplicated, missing or unknown value writes no fields, and
-// an escalated run writes only needs-decision and its reasons; model text
+// Issue text can only refuse or hold back: a line the model quotes is prefixed
+// `> ` and matches nothing, a duplicated, missing or unknown value writes no
+// fields, the body's blockers add only edges to open issues, and an escalated
+// run writes only needs-decision, its reasons and those edges; model text
 // reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
@@ -84,12 +85,10 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
-import { parseBlockedBy, writeEdges } from "./edges.mjs";
+import { admit, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
-// The lanes App's one comment saying why the verdict holds the issue.
-export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 const LANE_BOT = "github-actions[bot]";
 const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -106,11 +105,6 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
-const FLAGS = new Set(["intent", "security", "cost"]);
-const EARLIER = "(an earlier verdict)";
-// The reason a hold stays when no App verdict comment says whether an earlier
-// verdict flagged; the comment carries it, so a later run reads it the same.
-export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -201,10 +195,6 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 
 // The writes the verdict calls for, given the issue's labels and its current
 // field values ({fieldId: {option, setter}}). Pure.
-// Whether an account id (a REST number, a GraphQL databaseId, or a string
-// either way) is the lanes App's; never for an unknown id or App.
-const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
-
 export function planWrites(
   verdict,
   { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [] },
@@ -314,29 +304,7 @@ export function planWrites(
   return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions };
 }
 
-// The lanes App's own earlier verdict comment, if any.
-export const ownVerdict = (comments, appId) =>
-  comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
-
-// The flags the lanes App's earlier verdict comment listed: only known flags
-// from a `- flagged: ` reason line. null when no App verdict comment exists
-// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
-export function earlierFlags(comments, appId) {
-  const own = ownVerdict(comments, appId);
-  const lines = String(own?.body ?? "").split("\n");
-  if (!own || lines.includes(`- ${UNRECORDED}`)) {
-    return null;
-  }
-  return [
-    ...new Set(
-      lines
-        .filter((line) => line.startsWith("- flagged: "))
-        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
-        .map((flag) => flag.trim())
-        .filter((flag) => FLAGS.has(flag)),
-    ),
-  ];
-}
+export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
 // it has none.
@@ -468,7 +436,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // dispatches intake on an issue with no `status:` label, runs it again.
   // writeEdges deletes the edges this run wrote when any misses, so
   // work-unblock never reads a partial set; the re-run writes them all.
-  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
+  // The body's own `Blocked by` and `Depends on` lines count too, since
+  // the model's line can leave them out (#8994); an escalated verdict
+  // writes them, so a label added by hand later still finds the edge.
+  const named = verdict.untrusted || labels.includes(UNTRUSTED) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
+  const blockers = [...new Set([...verdict.blockedBy, ...named.numbers])];
+  const edges = blockers.length > 0 ? await writeEdges({ github, repository, number, blockers }) : null;
+  if (named.dropped > 0) {
+    log(`::warning title=apply-verdict::#${number}'s body names ${named.dropped} blocker(s) past the first ${MAX_TEXT_BLOCKERS}; no edge is written for them`);
+  }
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
   const remove = waits ? [...plan.remove, READY] : plan.remove;
@@ -480,9 +456,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // A ready verdict's comment names admission's outcome, so it goes after; a
   // failed one stops neither the reword nor the summary.
   let reasonsError = null;
+  const refused = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission);
+      await sayReasons(github, repository, base, comments, appId, plan, admission, refused);
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
@@ -507,7 +484,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
     try {
-      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions });
+      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
@@ -572,13 +549,30 @@ const edgeSummary = (edges, problem) =>
 
 const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} not written (GitHub answered ${status})`);
 const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${number} written and not deleted (GitHub answered ${status})`);
+const forbidden = (missed = [], undeleted = []) => [...missed, ...undeleted].some(({ status }) => status === 403);
+
+// What a 403 on a blocked-by edge means and how to grant the permission, for
+// the annotation and the issue comment. GitHub has no separate dependencies
+// permission: the blocked-by endpoints take the Issues repository permission,
+// at write to add or delete an edge
+// (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps,
+// read 2026-10-26). Label writes take Issues or Pull requests write; while
+// intake-triage.yml grants this job pull-requests: read, labels that landed
+// rule the permission in, so the 403 was a rate limit. An added permission
+// takes effect once each account the App is installed on approves it
+// (https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration,
+// read 2026-10-26).
+export const FORBIDDEN_EDGE =
+  "a 403 is a rate limit when this run's label writes landed, since this token makes them through the same grant, and intake's next run writes the edge; otherwise the lanes App lacks the Issues repository permission at write, which no re-run fixes. To grant it, the App's owner sets Issues to Read and write under Repository permissions on the App's Permissions & events settings page, then the owner of the account it is installed on approves the updated permissions";
 
 // The annotation for missed edges, or null. A 403 is a missing permission,
 // which no re-run fixes, or a rate limit: it fails the job, after every write.
 // Either way a ready verdict waits without `status: ready` for the sweep. An
 // edge the run wrote and could not delete after a miss is a partial set
 // work-unblock reads: when that blocker closes first, it can admit the issue.
-export function missedAnnotation(missed = [], undeleted = []) {
+// A verdict that is not ready admits nothing and holds no `status: ready`
+// back, so its missed edges only warn.
+export function missedAnnotation(missed = [], undeleted = [], ready = true) {
   if (missed.length === 0) {
     return null;
   }
@@ -588,10 +582,16 @@ export function missedAnnotation(missed = [], undeleted = []) {
       ? [`${undeletedEdges(undeleted).join("; ")}, so work-unblock can admit the issue when that blocker closes before intake runs again`]
       : []),
   ].join("; ");
-  return [...missed, ...undeleted].some(({ status }) => status === 403)
+  if (!ready) {
+    return {
+      fail: false,
+      line: `::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: ${edges}; the verdict's labels are written, and work-unblock, which reads only native edges, does not see ${undeleted.length ? "the blockers not written" : "these blockers"}`,
+    };
+  }
+  return forbidden(missed, undeleted)
     ? {
         fail: true,
-        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
+        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; ${FORBIDDEN_EDGE}. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
       }
     : {
         fail: false,
@@ -607,7 +607,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
   admission?.outcome === "refused"
-    ? NEEDS_DECISION
+    ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
       : admission?.outcome === EDGE_MISSING
@@ -618,7 +618,9 @@ const settled = (admission) =>
 // issue; a later ready verdict marks it settled, naming the status admission
 // left. None is posted for a ready verdict that stays ready and never held;
 // one admission moved or did not finish gets the record a later run reads.
-async function sayReasons(github, repository, base, comments, appId, plan, admission) {
+// A missing edge GitHub answered 403 for names the permission (refused); a
+// 429 or 5xx does not, since the sweep's re-run writes it.
+async function sayReasons(github, repository, base, comments, appId, plan, admission, refused) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
   if (plan.ready && !own && after === null) {
@@ -626,10 +628,12 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
   }
   const body = plan.ready
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
-        after === NEEDS_DECISION
-          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+        admission?.outcome === "refused"
+          ? `admission moved the issue to \`${after}\`; its comment says why.`
           : after === WAITS
-            ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
+            ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.${
+                refused ? ` GitHub answered 403 for an edge, and ${FORBIDDEN_EDGE}.` : ""
+              }`
             : after
               ? "admission did not finish, so the issue's status is not settled."
             : `the issue is at \`${READY}\`.`
@@ -717,7 +721,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const missed = missedAnnotation(result.missed, result.undeleted);
+      const missed = missedAnnotation(result.missed, result.undeleted, result.plan?.ready);
       if (missed) {
         console.log(missed.line);
         if (missed.fail) {

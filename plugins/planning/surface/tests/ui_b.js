@@ -8,7 +8,7 @@ async page => {
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
   try {
   await page.waitForTimeout(800); // SSE brings the external revise
-  ok("revised text is on screen", /Changed by Claude/.test(await page.textContent(".recbox")));
+  ok("revised text is on screen", /Changed by Claude/.test(await page.textContent("#choices .choice.rec")));
   const n0 = (await events()).length;
   await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   ok("stale contentRev gets a 409 and nothing is saved", (await events()).length === n0 && !(await page.$eval("#conflict", el => el.hidden)));

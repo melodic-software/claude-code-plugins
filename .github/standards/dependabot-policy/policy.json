@@ -68,6 +68,15 @@
         "reviewed": "2026-10-18",
         "basis": ".github/actions/resolve-config/action.yml:159 installs this lockfile and :160 runs resolve-config.mjs, whose resolve.mjs:8 loads yaml to parse the lane config inside credentialed CI lanes; in pr-merge.yml:210-215 its output sets the permissions the lane token is minted with at :261, so a hijacked release can widen that token.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/plugins/harness-ops/skills/control-claude-code/driver",
+        "dependency": "@microsoft/tui-test",
+        "reviewed": "2026-10-24",
+        "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs:245 installs this lockfile on the user's machine, :420-422 load the engine and its per-platform native binary (package-lock.json:22-30) into the session holder and start claude in it after :87 clears the API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       }
     ],
     "excludeSemverMajor": true,

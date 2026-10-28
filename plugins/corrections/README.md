@@ -8,9 +8,9 @@ mistake it targets and to pass on the current code.
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
 | `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
-| `/corrections:codify group [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by mistake, each group's count next to the threshold; writes nothing |
+| `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
 
-`codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
+`codify` counts at `recurrence.min_occurrences` occurrences (default 2, at most 1000; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
@@ -21,6 +21,7 @@ unproven.
 |---|---|
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences` and the layer that set it, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
+| `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
 
 ## prove-check
 
@@ -54,5 +55,84 @@ Run `scripts/prove-check.test.sh` to exercise it against a fixture repository.
 
 ## Configuration
 
-No `userConfig`. `note` writes findings-buffer rows, under `.work/buffer/` at the repository root by
-default, gitignored. No network.
+`note` writes findings-buffer rows, under `.work/buffer/` at the repository root by default,
+gitignored. No network.
+
+The two `findings_buffer_adapter_*` options bind one repository's own findings-buffer adapter, in
+user scope, where a repository cannot write. `buffer.sh` reads them from your user settings and
+managed settings only, never from the environment or a session's `--settings` file, so the
+environment-variable column and the `--settings` route in the generated block below do not apply
+to them. A plugin loaded outside the plugin cache (`--plugin-dir`) has no user settings to read,
+so there only managed settings can set them.
+`findings_buffer_adapter_repository` is that
+repository's git common directory (`git rev-parse --path-format=absolute --git-common-dir` in its
+main checkout) and `findings_buffer_adapter_path` the adapter directory relative to the checkout
+root. The binding applies in that repository's main checkout and its worktrees, and in no other
+repository, even one with the same layout, and wins over the repository's own binding file. The
+adapter must resolve inside the current checkout, outside any repository nested in it. The
+repository's `findings-buffer.yaml` and `findings-buffer.local.yaml` still name only adapters the
+plugin ships. See `tools/findings-buffer/CONTRACT.md` "Core".
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `findings_buffer_adapter_repository` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_REPOSITORY` | Git common directory (git rev-parse --path-format=absolute --git-common-dir) of the one repository whose own findings-buffer adapter you trust. Applies in that repository's checkout and worktrees only. Unset: only adapters the plugin ships run. |
+| `findings_buffer_adapter_path` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_PATH` | That repository's adapter directory, relative to the checkout root, holding executable append.sh and read.sh and a capabilities.json with schema_version 1.x. Set both options or neither. A path out of the checkout or into a nested repository is refused. |
+
+### How to set these
+
+Three supported routes:
+
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure corrections@<marketplace>`.
+2. **Headless.** Repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install corrections@<marketplace> -s <scope> --config findings_buffer_adapter_repository=<value>
+   ```
+
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "corrections@<marketplace>": {
+         "options": {
+           "findings_buffer_adapter_repository": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->

@@ -47,22 +47,31 @@ from detector output; the skill resolves the destination and the producer-contra
 
 ## Configuration
 
-`.claude/ai-slop.json`, resolved per the config-cascade convention (user-global, team, local
-overlay; later layers refine earlier ones per key):
+The team layer is `docs/conventions/ai-slop.yaml` and the personal layer is
+`docs/conventions/ai-slop.local.yaml` (gitignored), validated by the plugin's
+[`schemas/ai-slop.schema.json`](schemas/ai-slop.schema.json) and resolved per the config-cascade
+convention (user-global, team, personal; later layers refine earlier ones per key). The convention
+home is the one the repository binds in its instruction file, `docs/conventions` by default. The
+older JSON files (the same names with a `.json` extension, under `.claude/`) are read only when
+the YAML beside them is absent, for one release; `/ai-slop:setup` writes the YAML.
 
-```json
-{
-  "excluded_paths": ["docs/legacy/**"],
-  "em_dash_allowed_paths": ["docs/style-guide.md"],
-  "rule_allowed_paths": { "rule-ai-vocabulary": ["docs/marketing/**"] },
-  "vocab_add": ["utilize"],
-  "vocab_remove": ["landscape"],
-  "phrase_add": ["chef.s kiss architecture"],
-  "phrase_remove": ["(the|my) honest take"],
-  "disabled_rules": ["rule-emoji-formatting"],
-  "thresholds": { "ai_vocabulary": 3.0, "copulative_avoidance": 4.0 }
-}
+```yaml
+excluded_paths: ["docs/legacy/**"]
+em_dash_allowed_paths: ["docs/style-guide.md"]
+rule_allowed_paths:
+  rule-ai-vocabulary: ["docs/marketing/**"]
+vocab_add: ["utilize"]
+vocab_remove: ["landscape"]
+phrase_add: ["chef.s kiss architecture"]
+phrase_remove: ["(the|my) honest take"]
+disabled_rules: ["rule-emoji-formatting"]
+thresholds:
+  ai_vocabulary: 3.0
+  copulative_avoidance: 4.0
 ```
+
+`--show-config` ends each effective value with `[layer: <file>]`, the layer that supplied it, or
+`[layer: default]` when none did.
 
 `phrase_add`/`phrase_remove` tune the model-era phrase roster (`rule-model-era-phrases`, the
 catalog's "Model-era additions" section). Fragments are whole EREs: spaces allowed,

@@ -23,6 +23,31 @@ async page => { // answer controls: radios by keyboard, a withheld question, pas
   ok("the Pending filter's empty state says what Pending means", /No questions match this filter\. Pending means waiting on research/.test(pendingEmpty), pendingEmpty.replace(/\s+/g, " ").slice(0, 200));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
+  // #9719: ledger drift and unticked commitments show while the interview runs
+  ok("a data dir without meta.ledgerSync shows no ledger line", await page.evaluate(() => document.getElementById("ledgerLine").hidden));
+  const withLedger = sync => route => route.fetch().then(async res => {
+    const body = await res.json();
+    body.questions.meta = Object.assign({}, body.questions.meta, {ledgerSync: sync});
+    body.questions.questions.forEach(q => { if (q.id === "E1") q.commits = ["Cache the lockfile", "Prune weekly"]; });
+    body.responses.responses = Object.assign({}, body.responses.responses, {E1: {decision: "accept", updatedAt: "2026-01-01T00:00:00Z", seq: 1}});
+    await route.fulfill({response: res, json: body});
+  });
+  await page.route("**/api/state", withLedger({rev: 7, rows: ["Q2"]}));
+  await nudgeVisible();
+  const drifted = await until(() => /^Ledger: 1 row out of sync$/.test(document.getElementById("ledgerLine").textContent), 8000);
+  ok("a ledger that disagrees on one row reads Ledger: 1 row out of sync in the header", drifted && !(await page.evaluate(() => document.getElementById("ledgerLine").hidden)), await text("#ledgerLine"));
+  const chip = await text('.rail-list .qbtn[data-q="E1"] .chip.s-accept');
+  ok("an accepted row with two unticked commitments reads Accepted, 2 to confirm on the rail", chip === "Accepted, 2 to confirm", chip);
+  const meterTitle = await page.getAttribute("#assumeCount", "title");
+  ok("the meter's to-confirm count names the accepted row and its unticked commitments", /E1 accepted, 2 to confirm/.test(meterTitle || ""), meterTitle);
+  await page.unroute("**/api/state");
+  await page.route("**/api/state", withLedger({rev: 8, rows: []}));
+  await nudgeVisible();
+  const matched = await until(() => /^Ledger in sync, rev 8$/.test(document.getElementById("ledgerLine").textContent), 8000);
+  ok("a ledger that matches reads Ledger in sync, rev 8", matched, await text("#ledgerLine"));
+  await page.unroute("**/api/state");
+  await nudgeVisible(); await page.waitForTimeout(400);
+
   // arrow keys move through the Decide radios without dropping focus
   await pick("E1");
   await page.focus('#choices input[value="1"]');

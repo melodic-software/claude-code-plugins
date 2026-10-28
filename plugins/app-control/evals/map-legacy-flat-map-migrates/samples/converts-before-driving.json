@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Switch to control-skill-upkeep/control-clockwork-web, git mv the legacy files into .claude/skills/control-clockwork-web/ and rewrite them uncommitted; then the source wave and the live pass run against control-clockwork-web through /app-control:drive.",
+      "why": "converts first and drives the converted control skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the source wave and drive start-a-timer from .claude/skills/feature-map through /app-control:drive, then write .claude/skills/control-clockwork-web/ on control-skill-upkeep/control-clockwork-web.",
+      "why": "drives the legacy map before converting it"
+    }
+  ]
+}

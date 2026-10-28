@@ -653,8 +653,8 @@ is as instructive as how it is found.
 
 **1. A skill body against the user's global CLAUDE.md: cross-layer, conditional, safety-bearing.**
 `~/.claude/CLAUDE.md` carries "Ask questions inline; never use the `AskUserQuestion` tool unless
-explicitly asked to use it", resident in every session. Against it,
-`plugins/repo-hygiene/skills/clean/SKILL.md` stated "**Mandatory gate:** show dry-run output →
+explicitly asked to use it", resident in every session. Against it, the body of
+`/repo-hygiene:clean` stated "**Mandatory gate:** show dry-run output →
 `AskUserQuestion` → only then `--apply`". Measure the corpus at any commit rather than quoting a
 figure that drifts:
 

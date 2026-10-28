@@ -11,14 +11,6 @@
     "songwriting:meter-prosody",
     "songwriting:co-write"
   ],
-  "competitor_dirs": {
-    "songwriting:song-form": "plugins/songwriting/skills/song-form",
-    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
-    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
-    "songwriting:workflow": "plugins/songwriting/skills/workflow",
-    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
-    "songwriting:co-write": "plugins/songwriting/skills/co-write"
-  },
   "queries": [
     {
       "id": "pos-train-01",

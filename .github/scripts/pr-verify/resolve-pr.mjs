@@ -42,6 +42,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
@@ -93,7 +94,7 @@ const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       parent { number repository { nameWithOwner } body lastEditedAt author { ...actor } editor { ...actor }
-        comments(first: 100) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } } }
+        comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } } }
     }
   }
 }
@@ -211,7 +212,7 @@ async function pullsOfCommit(github, repository, head) {
 // pull request's head branch (write-verdict.mjs headRefDigest), which doubles
 // the lookups. Once write-verdict writes only digest names, the digest-free
 // lookups are needed only until the last artifact named that way expires
-// (90-day retention), and then go. Given `issues`, this PR's linked issue
+// (write-verdict.mjs retentionDays), and then go. Given `issues`, this PR's linked issue
 // numbers, it looks up only this PR's FAIL names with `-i` and those issues
 // (write-verdict.mjs artifactName), so the caller reads the issues only for a
 // head the names without them leave unjudged; issues no name carries (over
@@ -223,6 +224,8 @@ async function pullsOfCommit(github, repository, head) {
 // the gate decides: the earlier FAIL stays tied and refuses the head.
 // A counted FAIL answers `fail`; this PR's counted passes answer only their
 // runs' start times (`passes`), which `specChanged` weighs against the spec.
+// The FAIL names come first: a counted FAIL alone decides, so the passes are
+// looked up only when none is found.
 async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
@@ -233,8 +236,9 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
   const names =
     issues === undefined
       ? [
-          ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
+          ...named(number, "fail"),
           ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
+          ...["pass", "pass-notes"].flatMap((verdict) => named(number, verdict)),
         ]
       : suffix
         ? named(number, "fail")
@@ -287,8 +291,8 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // request, so nothing the App posts once a lane run has the issue becomes
 // spec (`specText`). Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
-// filed in a size split, whose lines are its listed-human parent's task-list
-// lines, `taskList` being admission's `task-list` (admit.mjs splitChildBody).
+// filed in a size split, under the split-child trust rule, `taskList` being
+// admission's `task-list` (admit.mjs splitChildBody, its one home).
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
@@ -438,12 +442,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   if (fail) {
     return skip("already-judged");
   }
-  // This PR's FAIL is named with the issues it records, read only now.
   const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
-  const issues = specRead.linkedIssues.map((issue) => issue.number);
-  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
-    return skip("already-judged");
-  }
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
@@ -451,19 +450,33 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   // A person is a kind human id on the trusted list, not a GitHub User: a
   // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
   // A body someone else edited is not the author's intent, unless a trusted
-  // person did it; an editor GitHub cannot name is someone else.
+  // person did it; an editor GitHub cannot name is someone else. The title
+  // follows the same rule through its latest rename (titleRenamers, shared
+  // with select-trusted-text, which keeps a title only when every renamer is
+  // listed).
   const { bodyEditor, bodyEditedAt, ...spec } = specRead;
+  const byAuthorOrPerson = (id) => Number.isSafeInteger(id) && (id === pull.user?.id || humans.has(id));
   const bodyIsIntent =
     (humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id)) &&
-    (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
-  if (spec.linkedIssues.length === 0 && bodyIsIntent) {
+    (bodyEditor === null || byAuthorOrPerson(bodyEditor));
+  const titleIsIntent = async () => {
+    const renamers = await titleRenamers(github, repository, pull.number);
+    return renamers.length === 0 || byAuthorOrPerson(renamers.at(-1)?.databaseId);
+  };
+  if (spec.linkedIssues.length === 0 && bodyIsIntent && (await titleIsIntent())) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
   // A pass judged before the spec last changed is one the gate refuses, so
-  // the head is judged again against the spec as it is now.
+  // the head is judged again against the spec as it is now. A pass that still
+  // stands decides as a FAIL would, so the FAIL named with this PR's issues
+  // (read only now: the name records them) is looked up only past it.
   if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
+    return skip("already-judged");
+  }
+  const issues = spec.linkedIssues.map((issue) => issue.number);
+  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");
   }
   return {

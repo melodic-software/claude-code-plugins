@@ -36,6 +36,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
+import ranking_signals  # noqa: E402  (sibling module; a rank orders review only)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -215,6 +216,20 @@ PROTECTED_TARGET_HINT = (
 )
 
 
+MOUNT_POINT_TARGET_HINT = (
+    "Pass --root-children to list a mount point's immediate children read-only (a tmpfs /tmp, "
+    "for example). The mount is never walked; scan an admitted child directory as its own target."
+)
+
+
+MOUNT_POINT_CHILDREN_NOTE = (
+    "This target is a mount point, so the engine only lists its immediate children and never "
+    "walks it. Scan an admitted child directory as its own target; loose files are reported "
+    "here only. A mount-point target never yields a snapshot, so nothing under it can reach "
+    "preview or removal through this listing."
+)
+
+
 def emit(payload: dict[str, Any], code: int = 0) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return code
@@ -238,6 +253,7 @@ def scan_complete_payload(
     """
     entries = snapshot["entries"]
     hinted = sum(1 for entry in entries if entry.get("hints"))
+    ranking = snapshot.get("review_ranking") or {}
     payload = {
         "status": "scan-complete",
         "target": str(target),
@@ -246,6 +262,11 @@ def scan_complete_payload(
         "entries": len(entries),
         "hinted_entries": hinted,
         "unhinted_entries": len(entries) - hinted,
+        "ranked_entries": ranking.get("ranked_entries", 0),
+        "unranked_entries": ranking.get("unranked_entries", len(entries)),
+        "entries_by_signal": ranking.get(
+            "entries_by_signal", dict.fromkeys(ranking_signals.SIGNALS, 0)
+        ),
         "empty_directory_count": snapshot["empty_directory_count"],
         "empty_file_count": snapshot["empty_file_count"],
         "target_logical_bytes": snapshot["target_logical_bytes"],
@@ -2801,6 +2822,7 @@ def scan_tree(
         truncated.append(".")
     repositories = sorted(set(repositories))
     stdlib_shadowing: list[dict[str, Any]] = []
+    review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
         apply_rules(
@@ -2815,6 +2837,9 @@ def scan_tree(
         )
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
+        # Last, after rules and in-flight refs have ticked or unticked: the
+        # rank reads recorded fields only and nothing downstream reads it.
+        review_ranking = ranking_signals.annotate(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2879,6 +2904,8 @@ def scan_tree(
         "children_rollup": rollup_rows,
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
+    if review_ranking is not None:
+        payload["review_ranking"] = review_ranking
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = "partial" if unknown_paths else "exact"
@@ -5565,8 +5592,21 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError(
                     "--root-children on an OS-managed target requires a volume-root target"
                 )
-            if mounted and not is_volume_root(target):
-                raise HygieneError("mount points are not valid audit targets")
+            mount_point_target = mounted and not volume_root
+            if mount_point_target and not root_children_mode:
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": "mount points are not valid audit targets",
+                        "hint": MOUNT_POINT_TARGET_HINT,
+                    },
+                    2,
+                )
+            if mount_point_target and selected_root_children:
+                raise HygieneError(
+                    "a mount-point target lists its immediate children only; "
+                    "scan an admitted child directory as its own target"
+                )
             policy = load_policy(
                 Path(args.policy).expanduser().absolute() if args.policy else None,
                 Path(args.project_dir).expanduser().absolute()
@@ -5599,8 +5639,43 @@ def main(argv: list[str] | None = None) -> int:
                     target,
                     policy,
                     known_mounts,
-                    strict_volume_root=volume_root,
+                    strict_volume_root=volume_root or mount_point_target,
                 )
+                if mount_point_target:
+                    listing = {
+                        "status": "root-children-selection-required",
+                        "target": str(target),
+                        "mount_point_target": True,
+                        "admitted_children": admitted,
+                        "skipped_children": skipped,
+                        "root_children_skipped": root_children_skipped_reason_counts(
+                            skipped
+                        ),
+                        "os_autoclean": advisory,
+                        "note": MOUNT_POINT_CHILDREN_NOTE,
+                    }
+                    if not args.quiet:
+                        return emit(listing, 0)
+                    # A busy /tmp lists tens of thousands of entries; the file
+                    # carries no snapshot schema, so preview refuses it.
+                    write_json(output_path, listing)
+                    kinds: dict[str, int] = {}
+                    for item in admitted:
+                        kind = str(item.get("kind", "unknown"))
+                        kinds[kind] = kinds.get(kind, 0) + 1
+                    summary = {
+                        key: value
+                        for key, value in listing.items()
+                        if key not in {"admitted_children", "skipped_children"}
+                    }
+                    return emit(
+                        {
+                            **summary,
+                            "admitted_kinds": dict(sorted(kinds.items())),
+                            "listing_path": str(output_path),
+                        },
+                        0,
+                    )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
                 # distinction; non-zero exits stay reserved for failures.
@@ -5713,8 +5788,11 @@ def main(argv: list[str] | None = None) -> int:
                             "entries minus hinted_entries: every "
                             "inventoried entry no hint judged, left to "
                             "positional review. Hints are discovery "
-                            "signals, never cleanup verdicts."
-                            + home_note                        ),
+                            "signals, never cleanup verdicts. "
+                            "ranked_entries counts entries a review signal "
+                            "reached; review_rank orders review only."
+                            + home_note
+                        ),
                         {
                             "root_children_mode": True,
                             "root_children_selected": resolved_children,
@@ -5798,7 +5876,13 @@ def main(argv: list[str] | None = None) -> int:
                                 "judged is left to positional review, so hint "
                                 "coverage reads as a rate, not a bare count. "
                                 "Hints are discovery signals, never cleanup "
-                                "verdicts. children_rollup carries one row per "
+                                "verdicts. ranked_entries counts entries a "
+                                "review signal reached (discovery hint, "
+                                "sibling-mtime cluster, size collision); each "
+                                "entry's review_rank names its signals, and an "
+                                "unranked entry has a null position. The rank "
+                                "orders review only and never changes "
+                                "eligibility. children_rollup carries one row per "
                                 "immediate child; its logical_bytes, entry_count "
                                 "and newest_mtime_ns are exact where walked is "
                                 "true and null where it is false, never 0. "

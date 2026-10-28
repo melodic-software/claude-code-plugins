@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: security-review-cost-hold-regex-narrowed
+context:
+  scaffold_script: scaffold.sh

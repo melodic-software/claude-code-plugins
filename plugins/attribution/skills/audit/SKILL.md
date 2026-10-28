@@ -110,8 +110,9 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
    (it compares two concrete texts and nothing else), so a repository that tuned
    `separation.min_containment` or `separation.min_span_words` silently gets the bundled 0.3 and
    15 unless this step forwards them, and those constants decide fix eligibility. Read
-   `.separation` once per run from the three cascade layers with `jq` (user-global, then team,
-   then the local overlay, later winning), add `--min-containment` and `--min-span-words` to every
+   `.separation` once per run from the layers a detector's `--show-config` lists, later winning:
+   `jq` for a `.json` layer, the file's `separation:` mapping for a `.yaml` one. Add
+   `--min-containment` and `--min-span-words` to every
    invocation, and report the two values you used beside the fingerprint evidence so a reader can
    tell a below-threshold verdict from a differently-configured one.
 
@@ -234,8 +235,9 @@ in, so a copy carried to another checkout is refused (exit 3) rather than resume
 
 ## Configuration
 
-`.claude/attribution.json` per the config-cascade convention; keys and layers are documented in
-the plugin README and managed by `/attribution:setup`. Each detector's `--show-config` names the
+`<home>/attribution.yaml` and `<home>/attribution.local.yaml` per the config-cascade convention,
+each falling back to its `.claude/` JSON file only when the YAML is absent; keys and layers are
+documented in the plugin README, and `/attribution:setup` manages the YAML files. Each detector's `--show-config` names the
 layer supplying every effective value. The accuracy dials (`nomination_passes`,
 `judge_lens_diversity`, `review_agents`, `deep_research_on_exhaustion`) and the budgets are
 tunable per repo; the gates bind fix eligibility and release readiness only, and never filter

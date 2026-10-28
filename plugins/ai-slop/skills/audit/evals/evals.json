@@ -113,7 +113,7 @@
     {
       "id": 9,
       "name": "declined-exemptions-are-named-with-their-cause",
-      "prompt": "/ai-slop:audit — the consuming repo's .claude/ai-slop.json disables rule-em-dash and excludes two paths, and three more files carry in-file ignore markers.",
+      "prompt": "/ai-slop:audit — the consuming repo's docs/conventions/ai-slop.yaml disables rule-em-dash and excludes two paths, and three more files carry in-file ignore markers.",
       "expected_output": "The report states which rules were disabled, names each declined file with its cause (excluded glob vs file marker), and gives the per-rule declined counts from the detector's Summary rows — so an exemption is always visible as a decision, never as an absence of findings.",
       "files": [],
       "narration": true,

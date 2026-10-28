@@ -6,9 +6,6 @@
   "competitors": [
     "bugs:write"
   ],
-  "competitor_dirs": {
-    "bugs:write": "plugins/bugs/skills/write"
-  },
   "queries": [
     {
       "id": "pos-train-01",

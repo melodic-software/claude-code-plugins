@@ -69,8 +69,13 @@ const runScript = async (script, env, blocks) => {
   }
   return threw?.message ?? failed.join("; ");
 };
+const dirs = [];
+process.on("exit", () => {
+  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+});
 const runActTurns = async (lane, wf, messages) => {
   const dir = mkdtempSync(join(tmpdir(), "act-turns-"));
+  dirs.push(dir);
   const execution = join(dir, "execution.json");
   writeFileSync(execution, JSON.stringify(messages));
   const blocks = [];

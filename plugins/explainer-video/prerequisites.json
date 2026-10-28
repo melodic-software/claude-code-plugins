@@ -17,7 +17,7 @@
       "for": ["hook:install-python-deps.sh", "skill:produce", "skill:check"],
       "detect": {
         "any": ["python3.13", "python3.12", "python3", "python"],
-        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
+        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12", "below": "3.14" }
       },
       "degrade": "Without Python 3.12 or 3.13 ManimCE is not installed and /explainer-video:produce cannot render. Python 3.14 is not supported.",
       "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3.13" },

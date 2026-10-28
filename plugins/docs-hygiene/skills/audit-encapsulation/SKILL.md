@@ -1,5 +1,5 @@
 ---
-description: "Audit skill-encapsulation violations; remediation runs only behind an explicit `fix FILE:LINE`. External citations reaching into private surfaces inside `.claude/skills/X/` or `plugins/PLUGIN/skills/X/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into SKILL', 'check skill boundaries', 'public API drift', or before refactoring a skill."
+description: "Audit skill-encapsulation violations; remediation runs only behind an explicit `fix FILE:LINE`. External citations reaching into private surfaces inside `.claude/skills/X/` or `plugins/*/skills/X/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into SKILL', 'check skill boundaries', 'public API drift', or before refactoring a skill."
 argument-hint: "[detect|sweep|fix <file>:<line>|file-issues]"
 user-invocable: true
 disable-model-invocation: false
@@ -112,7 +112,7 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 
 | Filter | Hit shape | Why legal |
 |--------|-----------|-----------|
-| **Self-citation** | A skill cites its own internals. Absolute (`.claude/skills/<X>/...` / `plugins/.../skills/<X>/...`), bare `skills/<X>/...`, or a `../` cite that resolves into the same skill | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
+| **Self-citation** | A skill cites its own internals. Absolute (`.claude/skills/<X>/...` / `plugins/<plugin>/skills/<X>/...`), bare `skills/<X>/...`, or a `../` cite that resolves into the same skill | Intra-skill progressive disclosure (per `context/public-surface-contract.md`) |
 | **KIND-1 meta-prose** | A rule or doc describing the encapsulation contract itself, OR documenting skill internals as a worked example / historical narrative / empirically-verified quirk | Self-referential explanatory prose, not citation |
 | **KIND-2 forced-cite** | Another tool's semantics structurally require a verbatim path (a path-scoped rule trigger, a watch-glob, a drift-gate comparing against a vendored copy) | Citation IS the structural contract |
 | **KIND-3 self-test** | This skill's / a hook's own regression fixtures embed literal violation strings | Exercise the filter; not real citations |

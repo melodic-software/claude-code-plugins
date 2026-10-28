@@ -4,8 +4,10 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { VERDICT_MARKER } from "./apply-verdict.mjs";
+import { TARGETS } from "../apply-patch/apply-patch.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -15,6 +17,7 @@ const APP = 337595936;
 const humans = new Set([HUMAN]);
 const READY = "status: ready";
 const NEEDS_DECISION = "status: needs-decision";
+const CONFIRMED = "status: confirmed";
 
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
@@ -116,13 +119,13 @@ describe("decide", () => {
       }
     });
 
-    test("admit() reads the authors and refuses an App-only spec to status: needs-decision", async () => {
+    test("admit() reads the authors and parks an App-only spec at status: confirmed, as no person must answer it", async () => {
       const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
       const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
-      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC], status: CONFIRMED });
       const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
-      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
+      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [CONFIRMED] });
     });
   });
 
@@ -209,7 +212,7 @@ describe("decide", () => {
     ],
   ];
   for (const [name, input, reason] of refusals) {
-    test(`refuses for a person on ${name}`, () => {
+    test(`refuses on ${name}`, () => {
       const result = decide(facts(input));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join("; "), reason);
@@ -338,6 +341,158 @@ describe("decide", () => {
     const text = refusalText("Size large is not one of small, medium");
     assert.match(text, /^Not admitted to the issue lane: Size large is not one of small, medium\. /);
     assert.doesNotMatch(text, /agent-ready/);
+  });
+
+  // A standing recurring item links to its schedule row by `[Maintenance] {title}`.
+  describe("a recurring item whose schedule row needs an operator", () => {
+    const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
+    const recurring = issueOf({ title: "[Maintenance] Re-run the ablation", labels: [{ name: READY }, { name: "recurring" }] });
+    const CONFIRM = "its recurring schedule row ablation needs an operator's confirmation (requires_operator_confirmation)";
+
+    test("is refused when its row sets requires_operator_confirmation", () => {
+      const schedule = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
+      assert.deepEqual(decide(facts({ issue: recurring, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
+    });
+
+    test("is admitted when its row has no such flag, or no row matches its title", () => {
+      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [{ ...row("other"), title: "Something else" }], []]) {
+        assert.deepEqual(decide(facts({ issue: recurring, schedule: { items } })), { verdict: "admit", reasons: [] }, JSON.stringify(items));
+      }
+    });
+
+    test("is refused when the schedule could not be read", () => {
+      for (const schedule of [null, undefined, { rows: [] }]) {
+        const result = decide(facts({ issue: recurring, schedule }));
+        assert.equal(result.verdict, "refuse", String(schedule));
+        assert.match(result.reasons.join(), /recurring-schedule\.json could not be read/);
+      }
+      // Without the recurring label nothing is read.
+      assert.deepEqual(decide(facts({ schedule: null })), { verdict: "admit", reasons: [] });
+    });
+
+    test("readSchedule answers null for a missing or malformed file and reads the default branch's schedule", () => {
+      assert.equal(readSchedule(fileURLToPath(new URL("./no-such-schedule.json", import.meta.url))), null);
+      assert.equal(readSchedule(fileURLToPath(new URL("./admit.mjs", import.meta.url))), null);
+      assert.ok(Array.isArray(readSchedule().items));
+    });
+  });
+
+  // apply-patch refuses these paths on the issue row (patch-rules.json), so a
+  // run for a criterion that names one ends at patch-protected-path.
+  describe("a criterion naming a path the issue lane cannot push", () => {
+    const withCriteria = (...lines) => issueOf({ body: ["## Problem", "", "Basis: `.github/workflows/a.yml:3`", "", "## Done when", "", ...lines].join("\n") });
+    const pushReason = (path) => `a criterion names ${path}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
+
+    const refused = [
+      // #9398's criterion.
+      ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
+      ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
+      ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+    ];
+    for (const [line, path] of refused) {
+      test(`refuses, with no hold, on ${line}`, () => {
+        const issue = withCriteria(line);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
+    test("refuses on a path a criterion wraps onto an indented continuation line", () => {
+      const issue = withCriteria("- [ ] Update the permissions in", "  .github/workflows/a.yml for the new job.");
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+    });
+
+    test("admits a criterion whose nested bullet cites a protected path as evidence", () => {
+      for (const bullet of ["  - Basis: .github/workflows/pr-require-checks.yml:40", "  * see .github/CODEOWNERS", "  1. .gitmodules lists it"]) {
+        const issue = withCriteria("- [ ] The job times out at 3 minutes.", bullet);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] }, bullet);
+      }
+    });
+
+    const admitted = [
+      // #9137's shape.
+      "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
+      "- [ ] `plugins/x/cases/y/settings.json` sets the model.",
+      "- [ ] settings.json keeps its key.",
+      "- [ ] pr-require-checks.yml is unchanged.",
+      "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
+    ];
+    for (const line of admitted) {
+      test(`admits ${line}`, () => {
+        const issue = withCriteria(line);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+      });
+    }
+
+    test("reads the row apply-patch pushes an issue lane patch under", () => {
+      assert.equal(PATCH_ROW, TARGETS.issue.row(""));
+    });
+
+    test("turns an otherwise admissible issue into a refusal that parks at status: confirmed", () => {
+      const issue = withCriteria("- [ ] Line 3 says nineteen.", "- [ ] `.gitmodules` drops the old submodule.");
+      const result = decide(facts({ issue }));
+      assert.equal(decide(facts({ issue: withCriteria("- [ ] Line 3 says nineteen.") })).verdict, "admit");
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, undefined);
+      assert.deepEqual(result.reasons, [pushReason(".gitmodules")]);
+    });
+  });
+
+  // rule-admit.sh's fixed checks: its charge words, read from one definition,
+  // and its body-edited-after-the-verdict refusal.
+  describe("a charge word in the title or body", () => {
+    const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
+
+    test("refuses and holds for a person, naming each word once", () => {
+      for (const [issue, words] of [
+        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku"],
+        [issueOf({ title: "chore: raise the Actions spending limit" }), "spending limit"],
+      ]) {
+        const result = decide(facts({ issue }));
+        assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, true);
+        assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
+      }
+    });
+
+    test("an issue that names no charge is still admitted", () => {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
+    });
+
+    // rule-admit.test.sh shows the script reads the same file.
+    test("reads the pattern from the one definition rule-admit.sh reads", () => {
+      const shared = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
+      assert.equal(chargePattern().source, new RegExp(shared.cost).source);
+      assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
+    });
+  });
+
+  describe("a body edited after the triage verdict", () => {
+    const at = (writtenAt) => ({ ...VERDICT, writtenAt });
+    const editedAt = (lastEditedAt) => ({ ...humanSpec(issueOf()), editor: USER(HUMAN), lastEditedAt });
+    const EDITED = "its body was edited after the triage verdict, which judged the body as it stood before";
+
+    test("refuses at status: confirmed, as no person must answer it", () => {
+      const result = decide(facts({ verdict: at("2026-10-22T12:05:00Z"), spec: editedAt("2026-10-22T12:06:00Z") }));
+      assert.deepEqual(result, { verdict: "refuse", reasons: [EDITED] });
+    });
+
+    test("a body never edited, or edited before the verdict, is still admitted", () => {
+      for (const spec of [humanSpec(issueOf()), editedAt("2026-10-22T12:04:59Z"), editedAt("2026-10-22T12:05:00Z")]) {
+        assert.deepEqual(decide(facts({ verdict: at("2026-10-22T12:05:00Z"), spec })), { verdict: "admit", reasons: [] });
+      }
+    });
+
+    test("a verdict time that does not parse refuses; the sweep, which passes none, is not judged on it", () => {
+      assert.deepEqual(decide(facts({ verdict: at("soon"), spec: humanSpec(issueOf()) })).reasons, [EDITED]);
+      assert.equal(decide(facts({ spec: editedAt("2026-10-22T12:06:00Z") })).verdict, "admit");
+    });
+
+    test("admit() reads the edit time and parks the issue at status: confirmed", async () => {
+      const fake = fakeGitHub({ spec: editedAt("2026-10-22T12:06:00Z") });
+      const result = await admit({ ...goArgs(fake), verdict: at("2026-10-22T12:05:00Z"), status: async () => assert.fail("a refusal reads no status") });
+      assert.deepEqual(result, { outcome: "refused", reasons: [EDITED], status: CONFIRMED });
+      assert.ok(!writes(fake.calls).some((line) => line.includes(AGENT_READY)), "no agent-ready label");
+    });
   });
 
   test("skips an issue already agent-ready, or without status: ready", () => {
@@ -581,6 +736,17 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
+  // A manual re-dispatch skips intake-reenter, so the parked status comes off here.
+  test("adds agent-ready and lifts a parked status: confirmed beside status: ready", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "admitted");
+    assert.deepEqual(writes(fake.calls), [
+      `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`,
+      `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(CONFIRMED)} undefined`,
+    ]);
+  });
+
   // refine.mjs starts the size split only from this exact wait comment.
   test("the Size Large wait comment admit() posts is the one refine.mjs splits on", async () => {
     const fake = fakeGitHub();
@@ -633,6 +799,8 @@ describe("admit", () => {
         admission_reason: "search-incomplete",
       },
     ],
+    // On a failed queued read check-wip-cap leaves admissions open, room null.
+    ["check-wip-cap could not read the queued count", { ...open, admission_room: null, admission_basis: "fail-open" }],
   ];
   for (const [name, status] of full) {
     test(`defers, never agent-ready, when ${name}`, async () => {
@@ -643,7 +811,7 @@ describe("admit", () => {
     });
   }
 
-  test("a refusal swaps status: ready for needs-decision and posts the reason", async () => {
+  test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),
     });
@@ -651,14 +819,14 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done.length, 3);
-    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
     assert.match(done[2], /no trusted-human acceptance criteria/);
   });
 
-  test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
+  test("a Windows-host done-when item stays out of the lane: needs-decision, which refine splits from, and a recommended split, never agent-ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
@@ -669,8 +837,25 @@ describe("admit", () => {
     assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
   });
 
-  test("a refusal whose needs-decision write fails keeps status: ready, so admission-deferred never stands alone", async () => {
-    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(NEEDS_DECISION);
+  test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+  });
+
+  test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.match(result.reasons.join(), /no trusted-human acceptance criteria/);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
+
+  test("a refusal whose status: confirmed write fails keeps status: ready, so admission-deferred never stands alone", async () => {
+    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(CONFIRMED);
     const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: DEFERRED }] }), failOn });
     await assert.rejects(() => go(fake), /failed with status 500/);
     assert.ok(!writes(fake.calls).some((call) => call.startsWith("DELETE ")), writes(fake.calls).join("\n"));
@@ -832,7 +1017,7 @@ describe("admit", () => {
 
   test("an incomplete or failed older-deferred search defers rather than admits", async () => {
     assert.equal((await go(fakeGitHub({ older: "incomplete" }))).outcome, "deferred");
-    const failed = fakeGitHub({ failOn: (method, path) => path.startsWith("/search/issues?") });
+    const failed = fakeGitHub({ failOn: (_method, path) => path.startsWith("/search/issues?") });
     assert.equal((await go(failed)).outcome, "deferred");
   });
 
@@ -879,6 +1064,35 @@ describe("unrunnableCriteria", () => {
     ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
     ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
+    // Done-when items from the concise-skills rollout issues (#6584, #6602, #6615).
+    ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /paid eval/],
+    ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /paid eval/],
+    [
+      "before and after trigger rates",
+      "The PR body carries the before and after trigger rates from held-out probes (`measure-invocation.sh emit-plugin-eval`, run with `--ablation none` on each target model).",
+      /paid eval/,
+    ],
+    ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /paid eval/],
+    ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /paid eval/],
+    // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
+    ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
+    ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
+    ["a named Claude Code version", "A recorded probe answers questions 1 to 3 on a named Claude Code version.", /Claude Code CLI/],
+    ["the probe's version", "The monitor guidance states the `-p` behavior with the probe's Claude Code version.", /Claude Code CLI/],
+    ["a measured result", "The verified-mechanics row is updated with the measured result and the Claude Code version.", /Claude Code CLI/],
+    ["a plugin install", "`claude plugin install testing@melodic-software` exits 0.", /Claude Code CLI/],
+    // A comment-only deliverable (#6636).
+    ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
+    ["no file changed", "No file is changed.", /comment instead/],
+    ["a result recorded in a comment on this issue", "The script's output is recorded in a comment on this issue.", /comment instead/],
+    ["a comment on this issue listing a result (#9735)", "A comment on this issue lists the machines done.", /comment instead/],
+    ["a comment on this issue starting with a heading (#7556)", "A comment on this issue starting `Probe result:` records the Cursor version.", /comment instead/],
+    // Live CLI items the corpus diff flagged (#7135, #9930).
+    ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
+    ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install core@melodic-software` both exit 0.", /Claude Code CLI/],
+    ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
+    ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
+    ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -907,6 +1121,38 @@ describe("unrunnableCriteria", () => {
     ["a lane host at a sentence end", "The page matches https://code.claude.com."],
     ["GitHub at a sentence end", "Check the repository at https://github.com."],
     ["a subdomain of a wildcard host", "Confirm the step matches https://docs.example.org/en/actions.", ["*.example.org"]],
+    ["a no-spend trigger probe check", "`bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/tdd/probes` exits 0."],
+    ["a dry-run plugin eval", "`/evals:plugin-eval` dry-run reports the cost estimate."],
+    ["measure-invocation's own test", "`bash scripts/run-test-file.sh plugins/skill-quality/scripts/measure-invocation.test.sh` exits 0, with a new case."],
+    ["a static skill check", "`/skill-quality:check plugins/improvement` on the PR head reports no FAIL that the run on main does not."],
+    ["an eval suite validation", "`/evals:validate` passes on `plugins/improvement`'s eval suite at the PR head."],
+    ["before and after named as text", "`plugins/review/README.md` states that a PR changing a lane's prompt, model or effort cites a before and after score."],
+    ["a headless browser run", "The page makes no network request when opened from `file://` (verified in a browser network panel or a headless run)."],
+    ["a probe as one source among docs", "Default, range, and subagent reach are established from docs or a recorded probe."],
+    ["claude --version in code", "`precompute.sh` emits a notice when `claude --version` is a newer minor, using fixture strings."],
+    ["a path under .claude", "`.claude/settings.json` denies the new command."],
+    ["a script posting a comment", "work-unblock posts a comment on the issue saying why."],
+    ["a code comment", "A code comment in `admit.mjs` explains the new kind."],
+    ["a PR body line", "The PR body says which items moved."],
+    ["a file change limit", "No file outside `plugins/tdd` is changed."],
+    ["a file change limit worded as no file is changed outside", "No file is changed outside `plugins/tdd`."],
+    ["a file change limit under a path", "No file is changed under .github/."],
+    ["a script posting a comment on this issue", "work-unblock posts a comment on this issue saying why."],
+    ["claude plugin install shown in a README", "The README's install section shows `claude plugin install testing@melodic-software`."],
+    ["claude plugin install named in a file", "The marketplace.json entry installs with `claude plugin install x`."],
+    ["measure-invocation score", "`bash plugins/skill-quality/scripts/measure-invocation.sh score plugins/tdd/probes` exits 0."],
+    ["measure-invocation compare", "`measure-invocation.sh compare baseline.json treatment.json` reports the delta."],
+    ["measure-invocation emit-plugin-eval", "`measure-invocation.sh emit-plugin-eval plugins/tdd/probes evals/` writes the cases."],
+    ["an edit to a claude -p call", "The wrapper's `claude -p` call passes `--max-turns 30`."],
+    ["an edit to a headless Claude Code step", "The headless Claude Code step in the workflow keeps its `--allowedTools` list."],
+    ["a script posting its refusal as a comment on this issue", "The refusal is posted as a comment on this issue with the item numbers."],
+    ["a script recording in a comment on this issue", "refine.mjs records the split in a comment on this issue."],
+    ["an option measure-invocation accepts", "`measure-invocation.sh` accepts a `--probes-dir` flag."],
+    ["a README documenting measure-invocation", "`plugins/skill-quality/README.md` documents `measure-invocation.sh`."],
+    ["an edit to measure-invocation with its test", "`measure-invocation.sh` handles an empty probe set, with a case in `measure-invocation.test.sh`."],
+    ["plugin-eval named in docs", "The `/evals:plugin-eval` section names the cost ceiling."],
+    ["a subject-first comment a script posts", "A comment on this issue names each refused item."],
+    ["a named script's result posted as a comment on this issue", "work-unblock's result is posted as a comment on this issue."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {
@@ -1000,11 +1246,6 @@ describe("size split sub-issues", () => {
   const parentSpec = (author = USER(HUMAN)) => ({ ...written(author, { body: PARENT_BODY }), comments: [] });
   const childBody = (lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."], parent = PARENT) =>
     `${splitChildHeader(parent, 1, 2)}\n${lines.join("\n")}`;
-  const childSpec = ({ body = childBody(), author = APP_ACTOR, editor = null, parent = parentSpec(), appId = APP } = {}) => ({
-    ...written(author, { body, editor }),
-    comments: [],
-    splitParent: { number: PARENT, spec: parent, appId },
-  });
   const childIssue = (body = childBody()) => issueOf({ user: { id: APP }, body });
   const NO_SPEC =
     "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
@@ -1013,6 +1254,7 @@ describe("size split sub-issues", () => {
   // shape them: a trusted child is admitted at its Size, Large included; an
   // untrusted one is refused at Small and at Large.
   const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
   // admissionFacts sets splitParent only for a native parent in this
   // repository, with the lanes App id it was given (none when null).
   const vectorSpec = ({ child, parent, ...rest }) => {
@@ -1025,7 +1267,7 @@ describe("size split sub-issues", () => {
       editor: actorOf(child.editor),
       comments: [],
       ...(here
-        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId } }
+        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments.map(commentOf) }, appId } }
         : {}),
     };
   };
@@ -1072,9 +1314,27 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ subIssues: [subIssues[1]] })), { verdict: "admit", reasons: [] });
   });
 
+  test("a parent with an open sub-issue waits on it instead of refusing for a mechanical reason or a pending split", () => {
+    const subIssues = [{ number: 8, state: "open" }];
+    const noCriteria = { ...humanSpec(issueOf({ body: "Make the README better." })) };
+    assert.deepEqual(decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: noCriteria, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+    assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+  });
+
+  test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {
+    const result = decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: humanSpec(issueOf({ body: "Make the README better." })), pulls: [41], subIssues: [{ number: 8, state: "open" }] }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["open pull request #41 is for it", "sub-issue #8 is open"], pulls: [41] });
+  });
+
+  test("a parent with an open sub-issue still refuses for a person when a hold applies", () => {
+    const result = decide(facts({ verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" }, subIssues: [{ number: 8, state: "open" }] }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, true);
+  });
+
   // fakeGitHub answers one issue's text; these reads add the parent's text,
   // sub-issue lists and other issues by number.
-  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {} }) => {
+  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {}, events = {} }) => {
     const github = async (method, path, body) => {
       if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
         fake.calls.push({ method, path, body });
@@ -1085,6 +1345,11 @@ describe("size split sub-issues", () => {
       if (method === "GET" && sub) {
         fake.calls.push({ method, path, body });
         return subIssues[sub[1]] ?? [];
+      }
+      const linked = /^\/repos\/o\/r\/issues\/(\d+)\/events/.exec(path);
+      if (method === "GET" && linked && linked[1] !== "7") {
+        fake.calls.push({ method, path, body });
+        return events[linked[1]] ?? [];
       }
       const read = /^\/repos\/o\/r\/issues\/(\d+)(\/comments)?(\?|$)/.exec(path);
       if (method === "GET" && read && read[1] !== "7") {
@@ -1115,15 +1380,20 @@ describe("size split sub-issues", () => {
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
     const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
-    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN } });
-    for (const [comments, expected] of [
+    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
+    // A split made by hand: a listed human linked each sub-issue.
+    const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+    for (const [comments, expected, links = []] of [
       [[record], "admitted"],
       [[], "waiting"],
+      [[], "admitted", [link(31), link(32)]],
+      [[], "waiting", [link(31), link(32, 4242)]],
     ]) {
       const fake = withIssues(fakeGitHub({ blockers: [blocker] }), {
         issues: { [PARENT]: blocker, 31: closedChild(31), 32: closedChild(32) },
         comments: { [PARENT]: comments },
         subIssues: { [PARENT]: [closedChild(31), closedChild(32)] },
+        events: { [PARENT]: links },
       });
       assert.equal((await go(fake)).outcome, expected);
     }
@@ -1147,5 +1417,140 @@ describe("untrustedHold", () => {
   });
   test("an issue never labeled is not held", () => {
     assert.equal(untrustedHold({ labels: [{ name: "agent-ready" }], events: [event("labeled", 5, "agent-ready")], humans, isApp }), false);
+  });
+});
+
+// A parent's status: needs-decision blocks its Features only while a decision
+// is open: a person set the label, or the newest refinement on the parent asks
+// questions no later Decision recorded comment answers.
+describe("a Feature under a parent at status: needs-decision", () => {
+  const PARENT = 9;
+  const feature = issueOf({ type: { name: "Feature" } });
+  const parentIssue = (labels = [NEEDS_DECISION]) => ({
+    number: PARENT,
+    state: "open",
+    repository_url: "https://api.github.com/repos/o/r",
+    user: { id: HUMAN },
+    labels: labels.map((name) => ({ name })),
+  });
+  const setBy = (id) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id } }];
+  const output = (exact) => ({
+    exact,
+    outcome: "Ship the epic's parts.",
+    criteria: exact ? ["Line 3 says nineteen."] : [],
+    dependencies: [],
+    related: [],
+    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment" }],
+    sources: [],
+    split: [],
+  });
+  const refinement = (exact) => ({
+    id: 40,
+    node_id: "IC_40",
+    user: { id: APP },
+    performed_via_github_app: null,
+    created_at: "2026-10-21T00:00:00Z",
+    body: render(validateOutput(output(exact), new Set())),
+  });
+  const decision = {
+    id: 41,
+    node_id: "IC_41",
+    user: { id: HUMAN },
+    performed_via_github_app: null,
+    created_at: "2026-10-22T00:00:00Z",
+    body: "**Decision recorded.** Part A first.",
+  };
+  // fakeGitHub answers the Feature; this answers the parent's events, comments and
+  // the comment editor read select-trusted-text sends.
+  const withParent = ({ labels, events = setBy(APP), comments = [], failOn } = {}) => {
+    const fake = fakeGitHub({ issue: feature, parent: parentIssue(labels), failOn });
+    const github = async (method, path, body) => {
+      if (failOn?.(method, path, body)) {
+        fake.calls.push({ method, path, body });
+        throw new Error(`${method} ${path} failed with status 500`);
+      }
+      if (method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/events`)) {
+        fake.calls.push({ method, path, body });
+        return events;
+      }
+      if (method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/comments`)) {
+        fake.calls.push({ method, path, body });
+        return comments;
+      }
+      if (method === "POST" && path === "/graphql" && body.query.includes("nodes(ids")) {
+        fake.calls.push({ method, path, body });
+        return { data: { nodes: body.variables.ids.map((id) => ({ id, lastEditedAt: null, editor: null })) } };
+      }
+      return fake.github(method, path, body);
+    };
+    return { github, calls: fake.calls };
+  };
+  const read = (fake, what) => fake.calls.some((call) => call.method === "GET" && call.path.startsWith(`/repos/o/r/issues/${PARENT}/${what}`));
+  const refusedForParent = (result) => result.outcome === "refused" && result.reasons.some((reason) => /parent/.test(reason));
+
+  test("is admitted when the lanes App set the label and no refinement asks anything", async () => {
+    const fake = withParent();
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.ok(read(fake, "events"), "the parent's events were read");
+  });
+
+  test("is refused when a person set the label", async () => {
+    const fake = withParent({ events: setBy(HUMAN) });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "events"), "the parent's events were read");
+  });
+
+  test("is refused when the parent's newest refinement is not exact and no decision followed it", async () => {
+    const fake = withParent({ comments: [refinement(false)] });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "comments"), "the parent's comments were read");
+  });
+
+  test("is admitted once a listed human's Decision recorded comment follows that refinement", async () => {
+    const fake = withParent({ comments: [refinement(false), decision] });
+    assert.equal((await go(fake)).outcome, "admitted");
+  });
+
+  test("is refused when the only decision predates the newest not-exact refinement, and admitted under an exact one", async () => {
+    const earlier = { ...decision, created_at: "2026-10-20T00:00:00Z" };
+    assert.ok(refusedForParent(await go(withParent({ comments: [earlier, refinement(false)] }))));
+    assert.equal((await go(withParent({ comments: [refinement(true)] }))).outcome, "admitted");
+  });
+
+  const verdict = (flag) => ({
+    id: 39,
+    node_id: "IC_39",
+    user: { id: APP },
+    performed_via_github_app: null,
+    created_at: "2026-10-20T00:00:00Z",
+    body: [VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", `- flagged: ${flag}`].join("\n"),
+  });
+
+  test("is refused when the lanes App's newest verdict on the parent flags security, with no refinement", async () => {
+    assert.ok(refusedForParent(await go(withParent({ comments: [verdict("security")] }))));
+  });
+
+  test("is refused while the parent's intent verdict has no refinement and no later decision, and admitted after one", async () => {
+    assert.ok(refusedForParent(await go(withParent({ comments: [verdict("intent")] }))));
+    assert.equal((await go(withParent({ comments: [verdict("intent"), decision] }))).outcome, "admitted");
+  });
+
+  test("is admitted when the parent's only verdict holds nothing and no refinement exists", async () => {
+    const holdsNothing = {
+      ...verdict("intent"),
+      body: [VERDICT_MARKER, "The latest triage verdict holds nothing: admission moved the issue to needs-decision; its comment says why."].join("\n"),
+    };
+    assert.equal((await go(withParent({ comments: [holdsNothing] }))).outcome, "admitted");
+  });
+
+  test("is refused when the parent also carries needs-human", async () => {
+    const fake = withParent({ labels: [NEEDS_DECISION, "needs-human"] });
+    assert.ok(refusedForParent(await go(fake)));
+  });
+
+  test("is refused when the parent's events cannot be read", async () => {
+    const fake = withParent({ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/events`) });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "events"), "the parent's events read was tried");
   });
 });

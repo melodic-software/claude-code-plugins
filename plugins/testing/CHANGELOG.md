@@ -3,6 +3,95 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.5] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.1.4] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [1.1.3] - 2026-10-27
+
+### Changed
+
+- `/testing:audit`'s cannot-fail scan runs its per-file rule engine on every core in a whole-tree scan, or on `$CANT_FAIL_SCAN_JOBS` files at a time, then reads the results in scan order, so findings, counts, the coverage block and exit codes are those of a serial run. A `--file` scan, which the edit hooks run, is unchanged. On this repository's 1372 test files a four-job scan takes a third of the serial time (31 s against 93 s).
+
+## [1.1.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- A `/testing:write` invocation probe set (`probes/write.json`), weighted toward feature requests
+  that ask for tests in passing: the k36-cart-total natural-phrasing case fired the skill in 0 of
+  16 runs.
+
+### Fixed
+
+- The k36 `refactor-after-green` grader now reads a Bash command with a double quote before the
+  redirect or `sed -i`, such as `sed -i "s/a/b/" cart.py` or `printf "x" > cart.py`, with
+  samples for both and for two quoted near-misses.
+- The k36 `no-zero-assertion` grader now says why it approximates the `/testing:audit` scan: no
+  `claude plugin eval` grader type runs a script, and the scaffold runs before Claude starts.
+
+## [1.1.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [1.0.3] - 2026-10-27
+
+### Changed
+
+- The judge calibration sweep (`metrics.sh --sweep`) now runs Haiku at `low`, `medium` and `high` beside the Sonnet and Opus arms, and `calibration.md` records the Claude Haiku 5.5 result: `low` and `high` are significantly less accurate, and `medium` changed its verdict on 26 of 78 rows across three runs against 7 of 78 for the shipped `sonnet` `medium` default. Haiku stays out of the judge: `judge-lib.sh` no longer walks to it or accepts it as the fallback, and tests pin that. This round's sweep files sit in `sweep-haiku-5-5/`, apart from the older-prompt arms (#6286).
+
+## [1.0.2] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [1.0.1] - 2026-10-25
+
+### Fixed
+
+- **`/testing:check-visual-parity` route 1 says how to run the suite and what a run with no verdict means.** It runs the repository's visual suite through the repository's own entry point (its documented test command or runner script) and names that command in the report. A state the run did not compare (a build, install or browser-launch error, or no baseline image) has no verdict: the environment failure is reported with its last lines, and the state takes the gap report and never moves to another route. A new eval case covers a suite run that fails before comparing ([#10105](https://github.com/melodic-software/claude-code-plugins/issues/10105)).
+
+## [1.0.0] - 2026-10-25
+
+### Changed
+
+- `/testing:run-e2e` reads the app's control skill (`.claude/skills/control-<app>/`) as its feature map: the hub's Ready replaces the doctor, before the first drive and after a failed step; the hub's driving tool replaces the recorded driver; `Attended runs only.` stops an unattended run. The per-entry-point report line is unchanged. A legacy testing-format map is not read: the run warns and names `/app-control:map refresh <path>`.
+
+**Migration.** Run `/app-control:map refresh <path>` on each legacy map, at `.claude/skills/feature-map/` or wherever `feature_map_dir` pointed; it converts the map in its upkeep pull request. Then delete any `feature_map_dir` line. The scheduled `feature-map-upkeep` routine is now `control-skill-upkeep`, running `/app-control:map refresh`; its pull requests use `control-skill-upkeep/control-<slug>` branches, and open `feature-map-upkeep/*` branches are superseded (refresh lists them and adopts none). The first app-control refresh re-does every map, since no clean pass is recorded for a control skill yet.
+
+### Removed
+
+- `/testing:map-features`, `/testing:refresh-feature-map` and the plugin's `reference/feature-map.md`. An app's feature map is now its control skill, which `/app-control:map` writes (`create`), checks (`check`) and keeps current (`refresh`).
+- The `feature_map_dir` key. `/testing:run-e2e` no longer resolves it, `/testing:setup apply` drops the line when it rewrites `docs/conventions/testing.yaml` and names the dropped value with the conversion command, and the schema no longer lists it. A leftover line still never stops a test scan.
+
+## [0.33.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [0.33.0] - 2026-10-25
+
+### Added
+
+- `/testing:cleanup <repository root>` prints a plan instead of refusing: one batch per test project (a C# project's folder, else each test file's folder), ordered by finding count from one audit run. Each chosen batch then runs through the unchanged single-folder steps with its own diff and approval, the next one starting only after the previous is committed. A project of kind `live` or `operational` is marked and skipped; it runs only when you name it, and then only in cannot-fail-only mode, which runs no test. Outside C# every kind is `unknown`, so the plan asks which projects reach live or shared environments, and an unattended run starts no `unknown`-kind batch ([#6043](https://github.com/melodic-software/claude-code-plugins/issues/6043)).
+
 ## [0.32.0] - 2026-10-24
 
 ### Added

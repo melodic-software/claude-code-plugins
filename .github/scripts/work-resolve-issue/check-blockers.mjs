@@ -28,9 +28,9 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { blockersOf, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { blockersOf, closedByTrusted, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -57,7 +57,9 @@ export async function main({ env = process.env, github, log = console.log, write
     const issue = await client("GET", base);
     held = untrustedHold({ labels: issue?.labels, events: await paginate(client, `${base}/events`), humans, isApp: (actor) => actor?.id === appId });
     if (!held) {
-      const trusted = async (blocker) => isTrustedClose(client, repository, await client("GET", `/repos/${repository}/issues/${blocker}`), humans);
+      // The same close admission counts (admit.mjs closedByTrusted), so a split
+      // parent the lanes App closed does not hold an issue admission let through.
+      const trusted = closedByTrusted({ github: client, repository, humans, appId });
       pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
     }
   } catch (error) {

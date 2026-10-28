@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Doc drift. I would commit on control-skill-upkeep/control-clockwork. The report names `feature-map-upkeep/claude-skills-feature-map` (local and origin), found and not adopted.",
+      "why": "names the legacy branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Doc drift. I would commit on control-skill-upkeep/control-clockwork and open one pull request.",
+      "why": "never reports the legacy branch"
+    },
+    {
+      "answer": "An old feature-map-upkeep/claude-skills-feature-map-v2 branch exists.",
+      "why": "names a different branch"
+    }
+  ]
+}

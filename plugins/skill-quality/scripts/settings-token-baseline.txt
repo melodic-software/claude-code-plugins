@@ -14,5 +14,3 @@
 #
 # Format: `<repo-relative path> <hit count>`, optionally followed by `# note`.
 # Blank lines and `#` lines are ignored.
-
-plugins/evals/skills/plugin-eval/SKILL.md 1

@@ -241,6 +241,7 @@ breath. One coverage check is exempt; a round that happens to contain one is not
 Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
 synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
 is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
+The prompt is never itself a criterion. On the page surface it is a Notes question the user answers there, the restate refuses an acceptance line that asks the user something, and a prompt still unanswered at export lands in the Brief's `### Captured assumptions` as `- asked in Notes, not answered: <the prompt>` ([`context/surface.md`](context/surface.md) "Confirmation gate").
 
 ### Non-interactive runs skip the ask and say so
 
@@ -264,9 +265,9 @@ non-interactive, so never read an environment variable to decide this.
 ### EARS tags, when the convention selects them
 
 Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
-degrade, emit criteria exactly as today: `- <testable criterion>`, untagged, byte-comparable in
-shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
-bracketed pattern prefix on that same plain-bullet form:
+degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
+in shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
+bracketed pattern prefix after its id on that same plain-bullet form:
 
 | Tag | Pattern |
 |---|---|
@@ -277,8 +278,8 @@ bracketed pattern prefix on that same plain-bullet form:
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
-- [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
+- AC1: [event-driven] WHEN the upload completes, the manifest is rewritten
+- AC2: [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
 The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
@@ -291,7 +292,7 @@ owed a sixth pattern.
 Where the tags travel: they land in the Brief's `### Acceptance criteria`, and a consumer that
 publishes the Brief verbatim as a tracker container body carries them with it. They do not reach
 per-slice criteria, which are freshly authored by whatever decomposes the work, because a vertical
-slice owns everything it grades.
+slice owns everything it grades; a slice keeps only the criterion's id.
 
 ### Resolution ladder for `acceptance_criteria_format`
 
@@ -375,6 +376,8 @@ On the page surface, Step 3's confirmation gate runs on the page: post the resta
 
 **Re-ground open recommendations before they are shown.** On resume, and before a queued round is shown, check each open recommendation: its `Basis:` cites a source read this session or a constraint row, and it does not rest on an artifact the constraint ledger now excludes. A consequential one that fails gets a research dispatch before the user sees it, or is shown marked "not yet researched". When the user adds a constraint mid-interview, write the `confirmed` row at once and re-check every open recommendation's `Checked against:` line against it; revise the ones it changes and say which.
 
+**Check each draft round against earlier answers before it is shown.** Every round after the first, before it is asked inline or posted with `add-round`, gets a contradiction pass: a fresh-context non-fork sub-agent runs only the assumption sweep's contradiction category over the draft round and the register's `answered` rows ([`context/assumption-sweep.md`](context/assumption-sweep.md) "Pre-round contradiction pass"). Fix each contradiction in the draft before the round goes out: revise the recommendation so it holds with the earlier answer or constraint, or, for an earlier answer, ask one question that names both sides. A question that weighs earlier answers, whether it comes from this pass or the sweep, lists their `Q<N>` ids as the answers it reconciles; a round of sweep items is labeled a sweep round, per that file's "Disposition".
+
 **Composed artifacts are candidates.** A design from explore or research output, or read from an existing implementation, is a candidate, never a recommendation, until re-derived against the constraint ledger: check it against every row, recommend only what survives, and name the rows on its `Checked against:` line. A research or exploration brief dispatched mid-interview carries the constraint ledger verbatim.
 
 **Label evidence by when it was true.** When a recommendation rests on historical evidence (past metrics, merged PRs, an existing implementation) and the survey finds a recent process change or cannot tell, label each finding `past`, `current`, or `intended` before a recommendation rests on it. A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out. State or ask any currency you cannot establish; past-only evidence never alone grounds a recommendation.
@@ -394,13 +397,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 ```
 
-Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**: `auto` routing to synthesize-directly with no open decision. `lock` always writes its problem row, so its register gates. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against; it also exits 1 with `brief=unconfirmed` while the Brief is stamped `Restatement: UNCONFIRMED`, and a Brief edit after a Confirm needs a new `restate` and a fresh Confirm.
+Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**: `auto` routing to synthesize-directly with no open decision. `lock` always writes its problem row, so its register gates. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against; it also exits 1 with `brief=unconfirmed` while the Brief is stamped `Restatement: UNCONFIRMED`. The gate reads only that stamp, so it cannot see a Brief edited after a Confirm: after such an edit, post a new `restate`, get a fresh Confirm and export again.
 
 **One thing is not a question for this purpose: the acceptance-criteria coverage prompt.** It carries no decision, writes no register row, and asking it does not by itself make a register exist or bring this gate into scope, so a synthesize-directly run whose only question was the coverage prompt still skips the gate. Read it narrowly. It exempts that one prompt, never a real question asked in the same round or the same session: any other question still writes its row at ask-time and still brings the gate into scope. See "Acceptance-criteria capture".
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).
 
-**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register`, shaped `Q<N> <status>: <question text> (<resolution>)`, generated from the register on disk, never from the transcript, so it survives a compaction. Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
+**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register`, shaped `Q<N> <status>: <question text> (<resolution>)`, generated from the register on disk, never from the transcript, so it survives a compaction. Generate it with `bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" export-ledger --recap --ledger <memory_dir>/<topic-slug>/interview-checklist.md --out <memory_dir>/<topic-slug>/recap.md`, which reads the ledger alone, so the terminal lane, with no page data, passes no `--dir`. Paste the contents of `recap.md` verbatim in place of a recap of your own: no paraphrased or hand-shortened line, and no HTML or collapsible block, which the terminal shows as raw tags. Each recap saves its rows beside the ledger (`interview-checklist.last-recap.json`, overwritten each time). After the first confirmation, add `--changed`: the recap then lists only the rows changed since the last recap, plus one line counting the rest by status. The page lane's `restate` keeps the full recap ([`context/surface.md`](context/surface.md) "Confirmation gate"). Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
@@ -438,7 +441,7 @@ land (for example a repo-sweep step commit). Skip the Step 4 `--brief` cross-che
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
-**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <memory_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, and that the Brief carries all nine template headings (TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria, Captured assumptions, Out-of-scope, Deferred questions); the Step 3 run could not check either because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired or a template heading: fix the Brief, do not retire the row. Exit 1 with `brief=unconfirmed` means the Brief is stamped `Restatement: UNCONFIRMED`: the user confirms the latest `restate`, then the Brief is exported again. A Brief edit after a Confirm needs a new `restate` and a fresh Confirm. A general session writes no Brief and skips this.
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <memory_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, and that the Brief carries all nine template headings (TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria, Captured assumptions, Out-of-scope, Deferred questions); the Step 3 run could not check either because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired or a template heading: fix the Brief, do not retire the row. Exit 1 with `brief=unconfirmed` means the Brief is stamped `Restatement: UNCONFIRMED`: the user confirms the latest `restate`, then the Brief is exported again. The gate reads only the stamp and cannot see a Brief edited after a Confirm; after such an edit, post a new `restate`, get a fresh Confirm and export again. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite: that note is the Brief's only history (Step 1).
 
@@ -480,7 +483,7 @@ Read [`context/routing.md`](context/routing.md) at entry and at every round boun
 ## Next
 
 - Contract locked: /planning:design, which records a one-line early exit when no design question is open.
-- A branch defers to another person's decision, or quickly accepted answers want a fresh-context check: /planning:questionnaire or /planning:audit-answers.
+- Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 

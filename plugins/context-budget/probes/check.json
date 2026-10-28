@@ -8,11 +8,6 @@
     "context-budget:audit",
     "context-budget:setup"
   ],
-  "competitor_dirs": {
-    "context-guard:check": "plugins/context-guard/skills/check",
-    "context-budget:audit": "plugins/context-budget/skills/audit",
-    "context-budget:setup": "plugins/context-budget/skills/setup"
-  },
   "queries": [
     {
       "id": "pos-train-01",

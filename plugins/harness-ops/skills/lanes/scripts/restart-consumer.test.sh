@@ -29,6 +29,8 @@
 #   - the morning-brief issue-discovery literals are byte-identical in both files
 #   - print-schedule emits schtasks create + delete lines and mutates nothing,
 #     and substitutes a passed --data-dir into the offline form
+#   - every scheduled `claude -p` passes --permission-mode auto, and
+#     --permission-prompts none only from the CLI version that accepts it
 #   - argument validation exit codes
 #
 # PATH-stubs `claude` and `gh`, and injects the session list, the telemetry, and
@@ -65,6 +67,10 @@ STUBS="$TMP/stubs"
 mkdir -p "$STUBS"
 cat >"$STUBS/claude" <<'SH'
 #!/usr/bin/env bash
+if [[ "${1:-}" == --version ]]; then
+  [[ -n "${CLAUDE_STUB_VERSION:-}" ]] && echo "$CLAUDE_STUB_VERSION (Claude Code)"
+  exit 0
+fi
 echo '[]'
 SH
 # The gh stub is loud-by-default: reaching it means a test forgot an injection
@@ -100,7 +106,12 @@ case "$*" in
   esac
   ;;
 *"loop-lane telemetry running per-lane status in:title"*) printf '%s\n' "${GH_SEARCH_RESULT:-[]}" ;;
-*"Lane telemetry in:title"*) printf '%s\n' "${GH_TITLE_RESULT:-[]}" ;;
+# The exact-title lookup reads REST search: GH_TITLE_RESULT is its items, and
+# GH_TITLE_INCOMPLETE its incomplete_results.
+*"Lane telemetry in:title"*)
+  jq -cn --argjson i "${GH_TITLE_RESULT:-[]}" --argjson c "${GH_TITLE_INCOMPLETE:-false}" \
+    '{total_count: ($i | length), incomplete_results: $c, items: $i}'
+  ;;
 "api user"*)
   [[ -n "${GH_USER_FAIL:-}" ]] && exit 1
   if [[ "$*" == *".type"* ]]; then
@@ -403,6 +414,26 @@ assert_not_contains "the scheduled command never defaults to read-only check" "$
 assert_contains "print-schedule offers the non-Windows form" "$OUT" "cron form"
 assert_contains "print-schedule states that registering is the operator's" "$OUT" "OPERATOR action"
 
+# The unattended reader states its permission posture rather than inheriting
+# the user's defaultMode; --permission-prompts none only where the CLI takes it.
+OUT="$(CLAUDE_STUB_VERSION=2.1.259 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_eq "every scheduled claude -p passes explicit auto and no prompts" "4" \
+  "$(grep -c -- 'run.\{0,2\} --permission-mode auto --permission-prompts none --output-format text' <<<"$OUT")"
+for v in 2.2.0 10.0.0; do
+  OUT="$(CLAUDE_STUB_VERSION=$v bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+  assert_contains "CLI $v gets --permission-prompts none" "$OUT" "--permission-prompts none"
+done
+OUT="$(CLAUDE_STUB_VERSION=2.0.999 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_not_contains "CLI 2.0.999 never gets --permission-prompts" "$OUT" "--permission-prompts"
+OUT="$(CLAUDE_STUB_VERSION=2.1.258 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_contains "a CLI below the floor still gets explicit auto" "$OUT" 'run" --permission-mode auto --output-format text'
+assert_not_contains "a CLI below the floor never gets --permission-prompts" "$OUT" "--permission-prompts"
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_not_contains "an unreadable CLI version omits --permission-prompts" "$OUT" "--permission-prompts"
+assert_eq "the --permission-prompts floor matches lane-launcher.sh" \
+  "$(grep '^PERMISSION_PROMPTS_MIN_VERSION=' "$(dirname "$SCRIPT")/lane-launcher.sh")" \
+  "$(grep '^PERMISSION_PROMPTS_MIN_VERSION=' "$SCRIPT")"
+
 # --- 14. Argument validation --------------------------------------------------
 bash "$SCRIPT" bogus --repo "$REPO" >/dev/null 2>&1
 assert_eq "an unknown action exits 3" "3" "$?"
@@ -557,6 +588,24 @@ RC=$?
 assert_contains "a failed comment read is its own decision" "$OUT" "| work | api-error |"
 assert_not_contains "a failed comment read is never reported as no-state" "$OUT" "| work | no-state |"
 assert_eq "an unreadable lane state exits 5" "5" "$RC"
+
+# An unbound lane resolves its issue through REST search. A degraded search
+# answers a false empty with incomplete_results true: that is api-error too.
+UNBOUND="$TMP/lanes-unbound.json"
+printf '{"prompt_dir": ".work/lanes", "lanes": [{"name": "work", "prompt": "work.md"}]}\n' >"$UNBOUND"
+run_unbound() {
+  bash "$SCRIPT" check --config "$UNBOUND" --repo "$REPO" --data-dir "$TMP/data-unbound" \
+    --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+    --agents-json "$AGENTS_NONE" 2>&1
+}
+OUT="$(GH_LOG="$TMP/gh-unbound.log" GH_TITLE_INCOMPLETE=true run_unbound)"
+RC=$?
+assert_contains "an incomplete title search is api-error" "$OUT" "| work | api-error |"
+assert_not_contains "an incomplete title search is never no-telemetry" "$OUT" "| work | no-telemetry |"
+assert_eq "an incomplete title search exits 5" "5" "$RC"
+assert_contains "the title lookup reads REST search" "$(cat "$TMP/gh-unbound.log")" "api --method GET search/issues"
+OUT="$(GH_LOG="$TMP/gh-unbound-ok.log" run_unbound)"
+assert_contains "a complete empty title search is no-telemetry" "$OUT" "| work | no-telemetry |"
 
 # --- 19. The consumer's own telemetry upsert ---------------------------------
 # All four issue-resolution paths of upsert_own_telemetry, which every case above
@@ -976,6 +1025,30 @@ assert_eq "nothing launched without an identity" "" "$(cat "$LAUNCH_LOG")"
 OUT="$(run_network --app-slug 'Bad Slug')"
 RC=$?
 assert_eq "an invalid --app-slug is rejected" "3" "$RC"
+
+# The lanes skill always passes the rendered lane_app_slug option (#8002); unset,
+# it arrives empty or as the literal placeholder, and either reads as no slug.
+# shellcheck disable=SC2016 # the literal, unexpanded placeholder is the input
+PLACEHOLDER_SLUG='${user_config.lane_app_slug}'
+for UNSET_SLUG in "$PLACEHOLDER_SLUG" ''; do
+  : >"$LAUNCH_LOG"
+  OUT="$(GH_USER_LOGIN=lane-app GH_USER_TYPE=Bot GH_COMMENTS_JSON="$(comments_json 'lane-app[bot]' true)" run_network --app-slug "$UNSET_SLUG")"
+  assert_not_contains "slug '$UNSET_SLUG' is not refused" "$OUT" "must be a GitHub App slug"
+  assert_contains "slug '$UNSET_SLUG' reads the Bot login plus [bot], as with no slug" "$(cat "$LAUNCH_LOG")" "restart work"
+  : >"$LAUNCH_LOG"
+  OUT="$(GH_USER_FAIL=1 GH_COMMENTS_JSON="$(comments_json stub-user true)" run_network --app-slug "$UNSET_SLUG")"
+  RC=$?
+  assert_eq "slug '$UNSET_SLUG' with a failed gh api user leaves no identity, exit 4" "4" "$RC"
+  assert_contains "slug '$UNSET_SLUG' with no identity names the fix" "$OUT" "pass --app-slug"
+  assert_eq "slug '$UNSET_SLUG' with no identity launches nothing" "" "$(cat "$LAUNCH_LOG")"
+  OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug "$UNSET_SLUG" 2>&1)"
+  assert_not_contains "slug '$UNSET_SLUG' does not reach the scheduled command" "$OUT" "--app-slug"
+done
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug="$PLACEHOLDER_SLUG" 2>&1)"
+assert_not_contains "--app-slug=<placeholder> does not reach the scheduled command" "$OUT" "--app-slug"
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug 2>&1)"
+RC=$?
+assert_eq "--app-slug with no value at all is still rejected" "3" "$RC"
 
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug lane-app 2>&1)"
 assert_contains "a passed --app-slug survives into the scheduled command" "$OUT" "--app-slug lane-app"

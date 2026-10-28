@@ -35,7 +35,7 @@ and which change set counts as "what the container shipped." The last is the har
 
 Every other mode in this skill reviews one branch against one base. A container is not a branch.
 Its work landed as many merges over days or weeks, and this repo **squash-merges by default**
-([`source-control/skills/pull-request/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/pull-request/SKILL.md)),
+(`/source-control:pull-request`),
 so there is no merge commit, no second parent, and
 no ancestry linking the shipped squash commits back to the branches that produced them.
 
@@ -231,9 +231,8 @@ keyword**. Two very different things produce that, and they must not be collapse
 - The sub-item genuinely shipped no code. Investigation and decision items are closed by a recorded
   comment and produce none by design, and a container's journey routinely contains them.
 - The sub-item shipped code under a PR that referenced it as `Refs #N` rather than `Closes #N`.
-  That is a **sanctioned** opt-out, not an oversight: `work-items`' own
-  [`work/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/skills/work/SKILL.md)
-  records that "the closing-keyword
+  That is a **sanctioned** opt-out, not an oversight:
+  `/work-items:work` records that "the closing-keyword
   linkage is the authoritative signal … so an intentional `Refs #N` opt-out does not exclude its
   issue." It is the normal shape whenever one PR advances several items but closes only the
   spin-offs it fully resolves.
@@ -380,8 +379,7 @@ Write the findings artifact to the findings location (SKILL.md "Shared inputs") 
 artifact that survives is the one on the tracker item. The close-out verdict
 goes as a comment on the container itself, alongside the shipping-PR links the close ritual
 records. That ritual
-([`work-items/skills/decompose/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/skills/decompose/SKILL.md),
-"Container lifecycle", ship ritual) owns the close; this mode produces the verdict it gates on and closes nothing itself.
+(`/work-items:decompose`, "Container lifecycle", ship ritual) owns the close; this mode produces the verdict it gates on and closes nothing itself.
 
 ## Provider degradation: stated, not papered over
 

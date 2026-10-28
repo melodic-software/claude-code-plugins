@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Request a whole review of a lane pull request's head when the only thing
-holding it is findings on its review chain that an incremental review cannot
-clear (`LaneEvidence.whole_review_clears`).
+"""Request a whole review of a lane or adopted pull request's head when the
+only thing holding it is findings on its review chain that an incremental
+review cannot clear (`LaneEvidence.whole_review_clears`).
 
 A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
@@ -48,7 +48,7 @@ RECORD_RE = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
     re.MULTILINE,
 )
-# Whole reviews a lane pull request may request; past that a person decides.
+# Whole reviews a pull request may request; past that a person decides.
 MAX_TOGGLES = 2
 # A lane conversion to draft this long after a record belongs to its toggle.
 CONVERT_WINDOW = timedelta(minutes=10)
@@ -270,6 +270,22 @@ def _converter(node_id: str) -> tuple[str, datetime] | None:
         return None
 
 
+def toggled(node_id: str, identity: str, stamps: Sequence[datetime]) -> list[datetime]:
+    """The record times in `stamps` whose toggle `identity` made: its newest
+    conversion to draft (server time, which editing the reasons comment
+    cannot move) falls within `CONVERT_WINDOW` after them. Empty when the
+    conversion is unread or another actor's."""
+    try:
+        converted = _converter(node_id) if stamps else None
+    except (RuntimeError, ValueError, OSError):
+        converted = None
+    if converted is None or _login(converted[0]) != _login(identity):
+        return []
+    return [
+        at for at in stamps if at - CONVERT_SKEW <= converted[1] <= at + CONVERT_WINDOW
+    ]
+
+
 def recover(
     repo: str,
     identity: str,
@@ -317,14 +333,7 @@ def recover(
         ]
         newest = max(reasons, key=lambda c: str(c.get("created_at")), default=None)
         stamps = [at for _, at in records((newest or {}).get("body"))]
-        if not stamps:
-            continue
-        converted = _converter(node_id)
-        if converted is None or _login(converted[0]) != _login(identity):
-            continue
-        if not any(
-            at - CONVERT_SKEW <= converted[1] <= at + CONVERT_WINDOW for at in stamps
-        ):
+        if not toggled(node_id, identity, stamps):
             continue
         out.append({"pr": number, "head": head, "ready": _graphql(READY, node_id)})
     return out

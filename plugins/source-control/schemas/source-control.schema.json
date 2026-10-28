@@ -12,6 +12,82 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "sync_stale_base": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, push-branch.sh merges the pull request's base into a branch that is behind it on overlapping paths just before it pushes, using the repository's scripts/check-stale-base-overlap.sh as the overlap rule when the checkout has one. A merge, never a rebase; a conflict aborts it and pushes nothing (exit 4). --sync-stale-base and --no-sync-stale-base override it for one push."
+    },
+    "dialect": {
+      "type": "string",
+      "minLength": 1,
+      "default": "posix-ere",
+      "description": "The regex dialect subject_pattern and pr_title_pattern are written in, for a reader that needs to know it. The guardrails convention gate enforces posix-ere only: any other value turns its enforcement off with a diagnostic. Unset means posix-ere."
+    },
+    "subject_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The commit-subject convention: the literal keyword Conventional Commits, or one anchored regex. Exactly one value, never a list; several accepted shapes are alternation inside the one regex. Unset falls through to the repository's own CLAUDE.md, rules or commit-msg hook, then the bundled Conventional Commits default."
+    },
+    "type_list": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "The commit type vocabulary. Meaningful only when subject_pattern is Conventional-Commits-shaped; a list inherited from a lower layer is dropped when the effective subject_pattern is a custom regex. A closed list: the winning layer's list is taken whole."
+    },
+    "pr_title_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The pull-request title shape: an anchored regex, or the deferral marker spelled exactly Same as `subject_pattern`. (capital S, backticked key, trailing period)."
+    },
+    "trailer_policy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The attribution-trailer template /source-control:commit appends, or none. Unset applies the skill's default trailer."
+    },
+    "pr_body_attribution": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The attribution line /source-control:pull-request create appends to the PR body, or none. Unset applies the default Generated with Claude Code line. Separate from trailer_policy on purpose: a commit trailer and a PR-body line are different surfaces."
+    },
+    "pr_body_required_sections": {
+      "description": "The PR-body section scaffold /source-control:pull-request create drafts and pre-checks before gh pr create: a list of H2 headings, or one keyword. briefing drafts Why, What changed, Scope, Tradeoffs, Risk and Verification and requires Why, What changed, Scope and Verification. summary-test-plan requires Summary and Test plan. none requires nothing. Unset falls through to briefing. A closed list: the winning layer's list is taken whole, never unioned.",
+      "oneOf": [
+        { "enum": ["briefing", "summary-test-plan", "none"] },
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      ]
+    },
+    "babysit_loop_stop_mode": {
+      "enum": ["standing", "drain"],
+      "default": "standing",
+      "description": "The /source-control:babysit-loop lane's stop shape: standing keeps watching, drain stops once the target repository has no open pull requests and no open issues (exclusions: the babysit-loop skill's Stop modes). An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_stop_mode section of .claude/source-control.md."
+    },
+    "babysit_loop_tier": {
+      "enum": ["safe", "worker", "autopilot"],
+      "default": "safe",
+      "description": "The babysit-prs tier the loop lane runs, the named preset over the autonomy dimensions. Never widens the merge dimension. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_tier section of .claude/source-control.md."
+    },
+    "babysit_loop_merge": {
+      "enum": ["human-only", "c2-mechanical", "c3-autonomous", "full-autonomy"],
+      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate reads both and takes the lower, so a raise needs both files while the legacy file exists."
+    },
+    "babysit_loop_grace_window_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "The loop lane's concurrency-safety activity grace window, in minutes. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_grace_window_minutes section of .claude/source-control.md."
+    },
+    "branch_issue_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "A POSIX ERE /source-control:pull-request create uses to parse the work-item reference from the branch name; its last capture group holds the reference, an issue number or a tracker key. At most 200 characters, every repetition bound at most 16, no quantifier on a group that already holds one, no backreference. Unset falls through to the deprecated userConfig value, then the built-in <type>/<N>-<slug> convention."
+    },
     "pre_ready": {
       "type": "array",
       "maxItems": 5,

@@ -7,10 +7,6 @@
     "animation:learn-style",
     "animation:produce"
   ],
-  "competitor_dirs": {
-    "animation:learn-style": "plugins/animation/skills/learn-style",
-    "animation:produce": "plugins/animation/skills/produce"
-  },
   "queries": [
     {
       "id": "pos-train-01",

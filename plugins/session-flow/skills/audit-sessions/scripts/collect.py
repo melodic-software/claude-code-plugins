@@ -319,8 +319,8 @@ class SessionScan:
         self.unknown_subtypes: Counter = Counter()
         self.census: dict[str, Counter] = {}
         self.bucket = ""
-        self.usage_seen: dict[tuple[str, str], tuple] = {}
-        self.usage_split: set[tuple[str, str]] = set()
+        self.usage_peak: dict[tuple[str, str], tuple] = {}
+        self.usage_last: dict[tuple[str, str], tuple[str, tuple]] = {}
         self.friction = friction_scan.FrictionScan()
 
     def add(self, record: dict, side: str) -> None:
@@ -378,19 +378,25 @@ class SessionScan:
             self.last_kind = "assistant"
 
     def _usage_invariant(self, message: dict, side: str) -> None:
-        """Count a message whose streamed records disagree on input or cache usage, once.
-
-        Dedup keeps the last record's usage, which is sound only while streaming rewrites
-        nothing but output tokens; the drift guard's invariant canary reads this count.
-        """
+        """Track each streamed message's peak and last input and cache usage for `usage_regressions`."""
         usage = message.get("usage")
         if not isinstance(usage, dict) or not isinstance(message.get("id"), str):
             return
         group = (side, message["id"])
-        signature = tuple(usage.get(k) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
-        if self.usage_seen.setdefault(group, signature) != signature and group not in self.usage_split:
-            self.usage_split.add(group)
-            self.census[self.bucket]["invariant:usage_split"] += 1
+        values = tuple(_number(usage.get(k)) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+        self.usage_peak[group] = tuple(map(max, self.usage_peak.get(group, values), values))
+        self.usage_last[group] = (self.bucket, values)
+
+    def usage_regressions(self) -> None:
+        """Count each message whose last record is below an earlier one on input or cache usage.
+
+        Dedup keeps the last record's usage. Streaming may raise input and cache counts on later
+        records, since the API's message_delta usage is cumulative, so the last record is right
+        only while no earlier one exceeds it; the drift guard's invariant canary reads this count.
+        """
+        for group, (bucket, values) in self.usage_last.items():
+            if any(value < peak for value, peak in zip(values, self.usage_peak[group])):
+                self.census[bucket]["invariant:usage_regress"] += 1
 
     def _tool_use(self, block: dict) -> None:
         # Streaming can repeat a block in a later record; the id counts it once.
@@ -699,6 +705,7 @@ def build_record(
     suppressed = redactor.fail_closed
     scrub = Scrubber(redactor, excerpt_chars)
     time_block = scan.time_block()  # counts the invariant, so call it once per session
+    scan.usage_regressions()  # likewise
     # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
     # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {

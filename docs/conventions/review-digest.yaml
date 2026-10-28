@@ -1,0 +1,12 @@
+# Team layer of the review-digest concern. Keys, defaults and layers: docs/conventions/review-digest.md.
+# Schema: plugins/review/schemas/review-digest.schema.json. These are the shipped defaults, so this
+# repository runs on them; a test holds the file equal to the skill's own defaults.
+digest_policy: offer
+max_files: 5
+max_changed_lines: 200
+blast_radius: [HIGH, CRITICAL]
+risk_paths:
+  - ".github/workflows/**"
+  - "**/hooks/**"
+  - "**/migrations/**"
+opt_in_label: explain-change

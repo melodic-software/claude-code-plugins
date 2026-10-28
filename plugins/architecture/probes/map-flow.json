@@ -8,11 +8,6 @@
     "architecture:map-components",
     "architecture:map-dependencies"
   ],
-  "competitor_dirs": {
-    "architecture:map-events": "plugins/architecture/skills/map-events",
-    "architecture:map-components": "plugins/architecture/skills/map-components",
-    "architecture:map-dependencies": "plugins/architecture/skills/map-dependencies"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -6,12 +6,12 @@
 // reason reads `not ready`; a blocker loses CR, LF and backticks and keeps 300
 // characters) and the row shapes the gate step writes; counts are by hand.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main, normalizeReason, summarize } from "./sweep-summary.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const row = (pr, fields = {}) => ({
   pr,
@@ -71,8 +71,8 @@ test("drops the PR number, run list or free text a reason ends with", () => {
 
 test("keeps a reason that names no PR as it is", () => {
   assert.equal(
-    normalizeReason("ineligible:class-missing"),
-    "ineligible:class-missing",
+    normalizeReason("ineligible:untrusted-provenance"),
+    "ineligible:untrusted-provenance",
   );
   assert.equal(
     normalizeReason("prefilter:do-not-merge"),
@@ -311,7 +311,7 @@ test("blockers lose CR, LF and backticks and keep 300 characters", () => {
 });
 
 test("main reads the run's files and writes the artifact", () => {
-  const dir = mkdtempSync(join(tmpdir(), "sweep-summary-"));
+  const dir = tempDir("sweep-summary-");
   try {
     const path = (name) => join(dir, name);
     writeFileSync(
@@ -353,7 +353,7 @@ test("main reads the run's files and writes the artifact", () => {
 });
 
 test("main writes an empty sweep when the gate left no summary", () => {
-  const dir = mkdtempSync(join(tmpdir(), "sweep-summary-"));
+  const dir = tempDir("sweep-summary-");
   try {
     const to = join(dir, "out.json");
     main({

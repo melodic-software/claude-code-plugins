@@ -3318,9 +3318,10 @@ rdt_brace_rec() {
 # `<<-'EOF'`) gets no expansion from the shell that reads the command, but it
 # is still the stdin of the command it feeds, and `bash <<'EOF'`, `cat <<'EOF' |
 # sh` or `bash -c "$(cat <<'EOF' …)"` run it. So it is skipped (#6625) only
-# where it is plainly data: the whole command is one `cat` or
-# `gh pr|issue|api|release` line with no pipe, list operator, redirection,
-# substitution or grouping (rdt_hd_plain, rdt_hd_reader), its opener at top
+# where it is plainly data: the whole command is one `cat`,
+# `gh pr|issue|api|release` or `git commit|tag -F -` line with no pipe, list
+# operator, redirection, substitution or grouping (rdt_hd_plain,
+# rdt_hd_reader), its opener at top
 # level with a plain word in quotes, and nothing but the body after it. Every
 # other body is scanned on its own, with bodies taken in
 # the order their openers appear, as bash reads them. An opener is recognized
@@ -3376,17 +3377,36 @@ rdt_hd_plain() {
 }
 
 # rdt_hd_reader <prefix>: true when the command ahead of a heredoc opener only
-# reads its stdin as data: `cat`, or a `gh` command that takes a body. A
-# shell, an interpreter, `git` (an alias can be `!sh`), `tee` (it writes a
-# file) and every launcher stay out.
+# reads its stdin as data: `cat`, a `gh` command that takes a body, or
+# `git commit` or `git tag` with `-F -`. A shell, an interpreter, any other
+# `git` word (an alias can be `!sh`), a git global option ahead of the
+# subcommand, `tee` (it writes a file) and every launcher stay out. `commit`
+# and `tag` are exempt because git ignores an alias that hides a built-in
+# command (git-config(1), `alias.*`).
 rdt_hd_reader() {
   local -a hr_words
+  local -i j
   read -r -a hr_words <<<"$1"
   case "${hr_words[0]:-}" in
   cat) return 0 ;;
   gh)
     case "${hr_words[1]:-}" in
     pr | issue | api | release) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  git)
+    # The words are split on blanks alone, so a quote or backslash could join
+    # `-F -` into one argument; past `--` both are paths.
+    [[ "$1" == *[\'\"\\]* ]] && return 1
+    case "${hr_words[1]:-}" in
+    commit | tag)
+      for ((j = 2; j + 1 < ${#hr_words[@]}; j++)); do
+        [[ "${hr_words[j]}" == -- ]] && return 1
+        [[ "${hr_words[j]}" == -F && "${hr_words[j + 1]}" == - ]] && return 0
+      done
+      return 1
+      ;;
     *) return 1 ;;
     esac
     ;;

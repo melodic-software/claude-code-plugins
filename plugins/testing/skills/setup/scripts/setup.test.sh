@@ -261,22 +261,28 @@ block_md='# Testing\n\n```yaml config\npaths:\n  exclude: [old]\n```\n'
 printf '%b' "$block_md" >"$G/docs/conventions/testing.md"
 printf 'e2e_driver: run\npixel_tolerance:\n  pixels: 2\n  reason: "fonts: hinting differs"\npaths:\n  exclude: [old]\nreuse_running_instance: false\nfeature_map_dir: docs/map\n' >"$G/docs/conventions/testing.yaml"
 run_g --exclude 'yaml/**'
-assert_eq "testing.yaml in use: apply rewrites it and keeps the run-e2e keys and the pixel_tolerance map" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+assert_eq "testing.yaml in use: apply rewrites it, keeps the run-e2e keys and the pixel_tolerance map, and drops the retired feature_map_dir" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
 paths:
   exclude: ['yaml/**']
 e2e_driver: run
 pixel_tolerance:
   pixels: 2
   reason: \"fonts: hinting differs\"
-reuse_running_instance: false
-feature_map_dir: docs/map" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+reuse_running_instance: false" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 assert_eq "and the docs block it shadows is untouched" "$(printf '%b' "$block_md")" "$(cat "$G/docs/conventions/testing.md")"
+assert_contains "and names the dropped feature_map_dir value and the conversion command" "$out" \
+  "setup: dropped the retired feature_map_dir line (docs/map); convert a legacy map there with /app-control:map refresh <path>"
 printf 'browser_driver: pw-alt\npaths:\n  exclude: [old]\n' >"$G/docs/conventions/testing.yaml"
 run_g --exclude 'yaml/**'
+assert_not_contains "a testing.yaml with no feature_map_dir line draws no such note" "$out" "feature_map_dir"
 assert_eq "testing.yaml in use: apply keeps the browser_driver line" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
 paths:
   exclude: ['yaml/**']
 browser_driver: pw-alt" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+printf 'feature_map_dir: docs/\033[31mred\npaths:\n  exclude: [old]\n' >"$G/docs/conventions/testing.yaml"
+run_g --exclude 'yaml/**'
+assert_contains "the note for a value holding control bytes still names the value" "$out" "feature_map_dir line (docs/[31mred)"
+assert_not_contains "with its ESC byte stripped" "$out" $'\033'
 printf 'tdd_refactor_step: off\npaths:\n  exclude: [old]\nfirst_test: unit\n' >"$G/docs/conventions/testing.yaml"
 run_g --exclude 'yaml/**'
 assert_eq "testing.yaml in use: apply keeps the write keys" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).

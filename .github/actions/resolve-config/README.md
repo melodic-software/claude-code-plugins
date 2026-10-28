@@ -116,8 +116,8 @@ earlier resolve read. A value counts only when its latest setter is a listed hum
 trusted-actor list or the lanes App, and a field with no counted value reads as small, medium or
 known; an option no entry maps fails the step (`unmapped-dimension`); an applying slot becomes
 `research-first`, `probe-first` or `split-required` in that order
-([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
-gains the config path and the trusted-actor list.
+([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
+to the config's own list, with nothing added.
 
 The lane's slots are its leaves: each composite is replaced by its children, depth first in list
 order. A leaf is enabled only when the lane, every slot on its path and its own slot are; it must

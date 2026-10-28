@@ -10,13 +10,6 @@
     "overengineering:justify",
     "discipline:reason-dont-recite"
   ],
-  "competitor_dirs": {
-    "planning:brainstorm": "plugins/planning/skills/brainstorm",
-    "discovery:research": "plugins/discovery/skills/research",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "overengineering:justify": "plugins/overengineering/skills/justify",
-    "discipline:reason-dont-recite": "plugins/discipline/skills/reason-dont-recite"
-  },
   "queries": [
     {
       "id": "pos-train-01",

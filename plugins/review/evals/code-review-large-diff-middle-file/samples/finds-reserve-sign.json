@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: src/services/product-service.js - reserveStock checks that enough stock exists and then writes `product.stockLevel + quantity`, so a reservation raises the stock level. Use `product.stockLevel - quantity`.",
+      "why": "names the file, function and sign error"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No blocking findings. The services share one in-memory pattern and the utils are well covered.",
+      "why": "missed the defect"
+    },
+    {
+      "answer": "Non-blocking: src/services/product-service.js - findBySku returns an empty array for a blank string instead of null.",
+      "why": "a different problem in the same file"
+    }
+  ]
+}

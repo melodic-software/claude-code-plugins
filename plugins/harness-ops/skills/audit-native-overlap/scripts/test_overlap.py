@@ -754,6 +754,18 @@ class SelfCheckTests(unittest.TestCase):
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("`defer`" in problem for problem in problems))
 
+    def test_docs_markers_are_drawn_from_the_recorded_markers(self):
+        row = deep_copy(BASE_ROW)
+        row["native"]["docs_markers"] = ["gated"]
+        self.assertEqual(overlap.validate_row(row, 0), [])
+        for docs_markers in (["hidden"], "gated", ["unknown"]):
+            row["native"]["docs_markers"] = docs_markers
+            problems = overlap.validate_row(row, 0)
+            self.assertTrue(
+                any("`native.docs_markers`" in problem for problem in problems),
+                (docs_markers, problems),
+            )
+
     def test_marketplace_plugin_rejects_suggest(self):
         row = deep_copy(MARKETPLACE_ROW)
         row["integration"] = "suggest"

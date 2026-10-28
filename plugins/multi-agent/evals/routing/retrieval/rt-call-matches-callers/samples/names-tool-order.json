@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "grade_tool_used\ngrade_tool_order\n",
+      "why": "both callers"
+    },
+    {
+      "answer": "- `grade_tool_used`\n- `grade_tool_order` (through its nested `first` helper)\n",
+      "why": "names the nested helper too"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "grade_tool_used\nfirst\n",
+      "why": "names the nested helper, not the top-level function"
+    }
+  ]
+}

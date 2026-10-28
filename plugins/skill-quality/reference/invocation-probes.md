@@ -50,7 +50,10 @@ From a session, `/skill-quality:check measure-invocation` is the same script.
 One JSON file per skill under `probes/` (not `probes/baselines/`):
 
 - `skill`, `plugin`, `skill_dir` (repo-relative directory holding `SKILL.md`)
-- `competitors[]` and `competitor_dirs` (how the floor finds rival listings)
+- `competitors[]`: rival `plugin:skill` ids. The floor reads each rival's listing from
+  `plugins/<plugin>/skills/<skill>`, derived from the id, and fails the skill when that directory
+  holds no `SKILL.md`. An optional `competitor_dirs` map of id to directory overrides the derived path, for a
+  rival outside this repository's `plugins/` tree.
 - `queries[]`: `id`, `split` (`train` or `validation`), `expect_trigger`, `request`
 
 Target: roughly 20 labeled queries, both polarities, both splits. `validate`
@@ -59,17 +62,23 @@ FAILs under 8, WARNs outside 16–24.
 ## Seed set
 
 CI has no live `harness-ops:audit-skill-visibility` starvation report. The seed
-is two skills chosen for competitor density, not for a claimed starvation rank:
+is two skills chosen for competitor density, not for a claimed starvation rank. Each
+probe file sits in its own plugin's `probes/` directory, so no probe file holds a path
+into another plugin:
 
-- `skill-quality:check` against `playbooks:skill-authoring` (check vs write)
-- `mcp-tools:audit` against `mcp-tools:audit-posture` (tool design vs supply chain)
+- `skill-quality:check` against `playbooks:skill-authoring` (check vs write), in
+  `plugins/skill-quality/probes/`
+- `mcp-tools:audit` against `mcp-tools:audit-posture` (tool design vs supply chain), in
+  `plugins/mcp-tools/probes/`
 
 Replace the seed when a starvation report is in hand. Fleet-wide description
 rewrites stay attended and are not filed from this harness.
 
 ## Baseline (2026-10-01, listing-overlap)
 
-Committed at `probes/baselines/listing-overlap.json`. Positive trigger rate is 1.0
+Committed beside each seed probe set, at `probes/baselines/listing-overlap.json` in that
+plugin; `compare` needs a baseline over the same skill set as the score it reads, so
+compare a plugin's score against that plugin's baseline. Positive trigger rate is 1.0
 on both skills and both splits: current descriptions already contain the request
 nouns the seed positives use, even with no positive copying four or more
 consecutive listing words. False-trigger rates are the gap the floor can see:
@@ -104,8 +113,8 @@ today.
 
 ## Outside the marketplace checkout
 
-The shipped seed probes name skills of this marketplace checkout (`plugins/mcp-tools/...`,
-`plugins/skill-quality/...`) through repo-relative `skill_dir` values. In a plugin-cache install
+The shipped seed probes name skills of this marketplace checkout (`plugins/skill-quality/...`
+here, `plugins/mcp-tools/...` in the `mcp-tools` plugin) through repo-relative `skill_dir` values. In a plugin-cache install
 none of those paths exist, and `score` stops with exit 2 and says so. Pass your own probes
 directory (same JSON shape, `skill_dir` relative to your repo root or absolute), or set
 `MEASURE_INVOCATION_REPO_ROOT` to the repo root the probes name. When only some probe files

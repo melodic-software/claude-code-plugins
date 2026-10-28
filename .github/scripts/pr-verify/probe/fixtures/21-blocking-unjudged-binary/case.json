@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nThe pack hook needs the `sk-pack` tool, and a contributor without it installed gets a hook error.\n\n## Fix\n\nShip a prebuilt `sk-pack` in `plugins/sample-kit/bin/` and say in the README that the hook runs it from there.\n\n## Done when\n\n- [ ] `plugins/sample-kit/bin/sk-pack` is in the repository and executable.\n- [ ] The README names where the hook finds `sk-pack`."
+  },
+  "pr": {
+    "title": "feat(sample-kit): ship a prebuilt sk-pack for the pack hook",
+    "body": "Adds the prebuilt `sk-pack` binary and documents where the pack hook finds it."
+  }
+}

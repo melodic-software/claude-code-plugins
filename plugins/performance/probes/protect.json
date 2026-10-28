@@ -9,12 +9,6 @@
     "verification:measure",
     "performance:climb"
   ],
-  "competitor_dirs": {
-    "review:ratchet": "plugins/review/skills/ratchet",
-    "performance:verify": "plugins/performance/skills/verify",
-    "verification:measure": "plugins/verification/skills/measure",
-    "performance:climb": "plugins/performance/skills/climb"
-  },
   "queries": [
     {
       "id": "pos-train-01",

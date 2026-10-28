@@ -2,8 +2,8 @@
 // lanes App's merged pull requests per hour over the rolling window times the
 // target lead time (pr-pipeline.yaml `wip`), rounded up and at least 1, with
 // limits.wip-cap when the merged count cannot be read. Only open lane PRs that
-// are not held count against it; a held one (needs-human, do-not-merge, or a
-// body line exactly "Hold: a human merges this") counts against the held
+// are not held count against it; a held one (needs-human or do-not-merge in
+// any case, or a body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
 // pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
@@ -11,14 +11,14 @@
 // 2026-10-21). A read that fails keeps the last known pause, or with none
 // fails open (owner decision 2026-10-21, #8804).
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
 import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const AUTHOR = "author:app/melodic-automation-lanes";
@@ -83,6 +83,18 @@ test("each hold signal holds a PR: needs-human, do-not-merge, or the exact hold 
   assert.equal(isHeld(pr({ labels: ["do-not-merge"] })), true);
   assert.equal(isHeld(pr({ body: "Refs: #8211\nHold: a human merges this\n\n## Summary" })), true);
   assert.equal(isHeld(pr({ body: "Refs: #8211\r\nHold: a human merges this\r\n" })), true);
+});
+
+// pr-merge's holdReason matches hold labels ignoring case, so the WIP count
+// does too; the body line stays exact.
+test("a hold label holds a PR in any case", () => {
+  assert.equal(isHeld(pr({ labels: ["Needs-Human"] })), true);
+  assert.equal(isHeld(pr({ labels: ["Do-Not-Merge"] })), true);
+  assert.equal(isHeld(pr({ labels: ["DO-NOT-MERGE"] })), true);
+});
+
+test("a label with a missing or non-string name is no hold and does not throw", () => {
+  assert.equal(isHeld({ labels: [null, {}, { name: null }, { name: 7 }, { name: ["needs-human"] }] }), false);
 });
 
 test("near misses do not hold a PR", () => {
@@ -473,7 +485,7 @@ const BASE_FILES = [
   ".github/CODEOWNERS",
 ];
 async function runMain(answers, extraEnv = {}, config) {
-  const dir = mkdtempSync(join(tmpdir(), "check-wip-cap-"));
+  const dir = tempDir("check-wip-cap-");
   const base = join(dir, "base");
   mkdirSync(base);
   if (config !== undefined) {
@@ -488,12 +500,13 @@ async function runMain(answers, extraEnv = {}, config) {
   writeFileSync(output, "");
   writeFileSync(summary, "");
   const logs = [];
-  const { github } = searchApi(answers);
+  const { github, paths } = searchApi(answers);
   await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
-  return { capped: value("capped"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), summary: readFileSync(summary, "utf8"), logs };
+  return { capped: value("capped"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), summary: readFileSync(summary, "utf8"), logs, paths };
 }
+
 
 test("main publishes the status as one flat JSON object in the output, the step summary and the log", async (t) => {
   const { capped, wip, summary, logs } = await runMain({ open: [pr(), pr({ labels: ["needs-human"], ageHours: 30 })], merged: 36, admitted: 2 });
@@ -565,7 +578,7 @@ const pastConfig = () =>
 const unsetConfig = () =>
   readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1""');
 function stateFile(prior) {
-  const path = join(mkdtempSync(join(tmpdir(), "check-wip-cap-state-")), "state.json");
+  const path = join(tempDir("check-wip-cap-state-"), "state.json");
   if (prior !== undefined) {
     writeFileSync(path, JSON.stringify(prior));
   }
@@ -737,4 +750,75 @@ test("a queued read that fails keeps the run's read basis and leaves admissions 
   assert.equal(result.wip.pause_basis, "read");
   assert.equal(result.admissionOpen, "true");
   assert.equal(result.wip.admission_basis, "fail-open");
+});
+
+// pick-slot reads only `capped`, which the open listing and the merged count
+// decide; the admitted count, the queued listing, its pull request reads and
+// its blocker reads feed admission-open alone. With WIP_READS=pause the check
+// makes those two searches and nothing else, whatever the queue holds.
+const queuedIssues = (n) => Array.from({ length: n }, (_, i) => ({ number: 500 + i }));
+
+test("pause reads make exactly two searches however many issues are queued", async () => {
+  const lanePrs = [pr({ number: 1, body: "edited by a person" }), pr({ number: 2, body: "Closes #500" })];
+  for (const n of [0, 19, 40]) {
+    const answers = { open: lanePrs, merged: 24, admitted: 9, queued: queuedIssues(n), heads: { 1: "work-resolve-issue/issue-501-1-1" } };
+    const full = await runMain(answers, {}, pastConfig());
+    const paused = await runMain(answers, { WIP_READS: "pause" }, pastConfig());
+    assert.equal(paused.paths.length, 2, paused.paths.join("\n"));
+    assert.deepEqual(
+      paused.paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com").searchParams.get("q")),
+      [`repo:${REPO} is:pr is:open ${AUTHOR}`, `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`],
+    );
+    // Full reads: four searches, one pull request read when issues are queued,
+    // and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
+    const named = n === 0 ? 0 : 2;
+    assert.equal(full.paths.length, 4 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
+  }
+});
+
+test("pause reads decide capped, the pause reason and its basis as full reads do", async () => {
+  const cases = [
+    { open: [pr()], merged: 24 },
+    { open: Array.from({ length: 13 }, () => pr()), merged: 24 },
+    { open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"], ageHours: 30 })), merged: 24 },
+    { open: [...Array.from({ length: 13 }, () => pr()), ...Array.from({ length: 10 }, () => pr({ body: "Hold: a human merges this" }))], merged: 24 },
+    { open: Array.from({ length: 13 }, () => pr()), merged: failed },
+    { open: failed, merged: 24 },
+    { open: [pr()], merged: 24, incomplete: true },
+  ];
+  for (const [i, answers] of cases.entries()) {
+    for (const prior of [undefined, { paused: true, pause_reason: "wip" }, { paused: false, pause_reason: null }]) {
+      for (const config of [pastConfig(), undefined]) {
+        const full = await runMain({ ...answers, admitted: 50, queued: queuedIssues(5) }, { WIP_STATE: stateFile(prior) }, config);
+        const paused = await runMain({ ...answers, admitted: 50, queued: queuedIssues(5) }, { WIP_STATE: stateFile(prior), WIP_READS: "pause" }, config);
+        const label = `case ${i}, prior ${JSON.stringify(prior)}, ${config === undefined ? "missing" : "past"} config`;
+        assert.equal(paused.capped, full.capped, label);
+        for (const field of ["paused", "pause_reason", "pause_basis", "countable_lane_prs", "held_lane_prs", "wip_cap", "wip_over", "held_over", "held_alarm"]) {
+          assert.deepEqual(paused.wip[field], full.wip[field], `${label}: ${field}`);
+        }
+      }
+    }
+  }
+});
+
+test("pause reads say the admission counts were not read, and leave admissions open", async () => {
+  const { admissionOpen, wip } = await runMain({ open: [pr()], merged: 24, admitted: 50, queued: queuedIssues(60) }, { WIP_READS: "pause" }, pastConfig());
+  assert.equal(admissionOpen, "true");
+  assert.equal(wip.admission_basis, "not-read");
+  assert.equal(wip.admitted_lane_prs_window, null);
+  assert.equal(wip.queued_issues, null);
+  assert.equal(wip.admission_over, false);
+  assert.equal(wip.queued_over, false);
+});
+
+test("pick-slot and the hourly state save read only what the pause needs; admitting jobs read everything", () => {
+  const action = yamlAt(".github/actions/check-wip-cap/action.yml");
+  assert.equal(action.inputs.reads.default, "full");
+  assert.equal(action.runs.steps.find((step) => step.id === "check").env.WIP_READS, "${{ inputs.reads }}");
+  const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
+  assert.equal(pickSlot.steps.find(usesWip).with?.reads, "pause");
+  // Only capped leaves pick-slot; nothing downstream reads admission-open or wip from it.
+  assert.deepEqual(Object.keys(pickSlot.outputs).filter((key) => /wip|admission/.test(pickSlot.outputs[key])), ["capped"]);
+  const saver = yamlAt(".github/workflows/work-unblock.yml").jobs["wip-state"];
+  assert.equal(saver.steps.find(usesWip).with?.reads, "pause");
 });

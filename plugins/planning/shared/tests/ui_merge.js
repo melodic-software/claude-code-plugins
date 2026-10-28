@@ -97,8 +97,9 @@ async function main() {
     ok("  and neither joined again nor asked for a name", twinJoins.length === 0 && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))),
       `${twinJoins.length} joins`);
     await twin.reload();
-    await twin.waitForTimeout(2500);
-    ok("  reloaded, it still shows the notice and asks for no name", (await twin.evaluate(banner)).includes(NOTICE) && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))) && twinJoins.length === 0,
+    const noticeAgain = await until(twin, n => (document.querySelector(".vf-banner:not([hidden])")?.textContent || "").includes(n), NOTICE, 10000);
+    await twin.waitForTimeout(2500); // two polls, for a join or name dialog that would come after the notice
+    ok("  reloaded, it still shows the notice and asks for no name", noticeAgain && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))) && twinJoins.length === 0,
       `${await twin.evaluate(banner)} | ${twinJoins.length} joins`);
     ok("  and the owner's people list does not get Admin 2 back", await owner.evaluate(() => window.Core.snapshot().people.every(p => p.name !== "Admin 2")));
 
