@@ -699,6 +699,32 @@ class LowRatedShapes(_Finding):
         )
         self.assertCharge(wf)
 
+    def test_a_step_edited_while_it_loses_its_timeout_counts(self):
+        leg = (
+            "      - name: {name}\n"
+            "        uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n{timeout}          prompt: x\n"
+        )
+        cap = "          leg-timeout-minutes: 10\n"
+        checkout = "      - uses: actions/checkout@v4\n"
+        for before, after in (
+            # Renamed in place.
+            (leg.format(name="Review", timeout=cap), leg.format(name="Review PR", timeout="")),
+            # Renamed, with a step deleted before it.
+            (checkout + leg.format(name="Review", timeout=cap),
+             leg.format(name="Review PR", timeout="")),
+            # Moved behind a step it used to precede, then renamed.
+            (leg.format(name="Review", timeout=cap) + checkout,
+             checkout + leg.format(name="Review PR", timeout="")),
+        ):  # fmt: skip
+            with self.subTest(before=before, after=after):
+                wf = _file(
+                    WORKFLOW,
+                    patch=_patch("-          leg-timeout-minutes: 10"),
+                    contents=(_jobs("30", steps=before), _jobs("30", steps=after)),
+                )
+                self.assertCharge(wf)
+
     def test_model_settings_on_a_model_step_are_reported(self):
         for line in (
             "+          ANTHROPIC_MODEL: claude-opus",

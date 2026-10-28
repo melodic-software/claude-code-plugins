@@ -1252,18 +1252,56 @@ def _timeouts(
 _ITEM_KEYS = frozenset({"id", "name", "uses", "run"})
 
 
-def _item_ids(
+def _items(
     entries: list[tuple[tuple[str, ...], str]],
-) -> dict[tuple[str, ...], tuple[tuple[str, str], ...]]:
-    """Each list item's identity by its indexed path: its own `id`, `name`,
-    `uses` (its ref dropped) and `run` values, so a step that shifts into a
-    deleted step's index does not read as that step."""
-    found: dict[tuple[str, ...], dict[str, str]] = {}
+) -> dict[tuple[str, ...], tuple[tuple[tuple[str, str], ...], set[tuple[str, ...]]]]:
+    """Each innermost list item by its indexed path: its identity (its own
+    `id`, `name`, `uses` with its ref dropped, and `run` values) and the
+    timeout keys below it, by unindexed path."""
+    ids: dict[tuple[str, ...], dict[str, str]] = {}
+    keys: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
     for path, value in entries:
-        if len(path) > 1 and path[-2].startswith("[") and path[-1] in _ITEM_KEYS:
-            ident = value.split("@", 1)[0] if path[-1] == "uses" else value
-            found.setdefault(path[:-1], {})[path[-1]] = ident
-    return {p: tuple(sorted(d.items())) for p, d in found.items()}
+        at = [i for i, s in enumerate(path) if s.startswith("[")]
+        if not at:
+            continue
+        item = path[: at[-1] + 1]
+        ids.setdefault(item, {})
+        key = path[-1]
+        if len(path) == len(item) + 1 and key in _ITEM_KEYS:
+            ids[item][key] = value.split("@", 1)[0] if key == "uses" else value
+        if _is_timeout(path, value):
+            keys.setdefault(item, set()).add(_unindexed(path[len(item) :]))
+    return {p: (tuple(sorted(d.items())), keys.get(p, set())) for p, d in ids.items()}
+
+
+def _item_drops(base: list, head: list) -> Counter[tuple[str, ...]]:
+    """Timeout keys the head drops from list items it keeps, by unindexed
+    path. Items match by identity count, not index, and one counts as deleted
+    only as far as its list shrinks and its identity is gone, taken first
+    from items without the key: a step renamed, edited or moved while it
+    loses its timeout still counts, and a step shifting into a deleted one's
+    index does not."""
+    lists: dict[tuple[str, ...], tuple[list, list]] = {}
+    for side, entries in ((0, base), (1, head)):
+        for item, found in _items(entries).items():
+            lists.setdefault(_unindexed(item[:-1]), ([], []))[side].append(found)
+    drops: Counter[tuple[str, ...]] = Counter()
+    for where, (olds, news) in lists.items():
+        deleted = max(0, len(olds) - len(news))
+        surplus = Counter(i for i, _ in olds) - Counter(i for i, _ in news)
+        for key in set().union(*(k for _, k in olds)):
+            spare = sum(
+                min(n, sum(i == ident and key not in k for i, k in olds))
+                for ident, n in surplus.items()
+            )
+            lost = (
+                sum(key in k for _, k in olds)
+                - sum(key in k for _, k in news)
+                - max(0, deleted - spare)
+            )
+            if lost > 0:
+                drops[where + ("[]",) + key] += lost
+    return drops
 
 
 def _path_timeouts(base: str, head: str) -> list[str]:
@@ -1275,20 +1313,15 @@ def _path_timeouts(base: str, head: str) -> list[str]:
     old, new = _timeouts(base_entries), _timeouts(head_entries)
     keys = {p for p, _ in head_entries}
     parents = {p[:i] for p in keys for i in range(len(p))}
-    old_ids, new_ids = _item_ids(base_entries), _item_ids(head_entries)
-    # A timeout key the head drops from a job or step it keeps: the same
-    # index holding the same item, not another step shifted into it.
-    dropped = Counter(
-        _unindexed(p)
+    # A timeout key the head drops from a job it keeps, or from a list item
+    # it keeps.
+    dropped = _item_drops(base_entries, head_entries) + Counter(
+        p
         for p, v in base_entries
         if _is_timeout(p, v)
         and p not in keys
         and p[:-1] in parents
-        and all(
-            old_ids.get(p[: i + 1]) == new_ids.get(p[: i + 1])
-            for i, s in enumerate(p)
-            if s.startswith("[")
-        )
+        and not any(s.startswith("[") for s in p)
     )
     found = []
     for path in sorted(set(old) | set(new)):
