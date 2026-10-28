@@ -18,6 +18,7 @@ between releases and a version-less measurement cannot be re-verified or aged ou
 - [The surface table](#the-surface-table)
 - [First-party measurements](#first-party-measurements)
 - [Subagent visibility, re-measured on 2.1.268](#subagent-visibility-re-measured-on-21268)
+- [Write and Edit inside a subagent, measured on 2.1.312](#write-and-edit-inside-a-subagent-measured-on-21312)
 - [The three gaps that constrain the rubric](#the-three-gaps-that-constrain-the-rubric)
 - [Glob semantics and their budgets](#glob-semantics-and-their-budgets)
 - [Re-verification](#re-verification)
@@ -32,8 +33,8 @@ whether a move is safe.
 | Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc)* | Re-read from disk and re-injected *(doc)* | **Yes** for general-purpose and custom subagents *(doc, measured)*; **No** for Explore, Plan, and an agent whose definition sets `omitClaudeMd` *(doc)*; a fork inherits the parent conversation *(doc)* |
 | `@import` from root `CLAUDE.md` | Session start, inlined *(doc)* | With its parent *(inferred)* | With its parent, so as the row above *(doc, measured)* |
 | Unscoped `.claude/rules/*.md` | Session start, priced as `.claude/CLAUDE.md` *(doc)* | Re-injected *(doc)* | **Yes**, with the same exceptions as root `CLAUDE.md` *(doc)*; supersedes the **No** measured on 2.1.238 |
-| Path-scoped rule (`paths:`) | When Read, Write or Edit targets a matching file, on 2.1.288 and later *(doc)*; on Read only before 2.1.288 *(changelog 2.1.288, measured 2.1.268)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*; Write and Edit inside a subagent unmeasured |
-| Nested `CLAUDE.md` | On Read of a file in that subtree *(doc, measured)*; also when Write or Edit creates or changes a file there, on 2.1.288 and later *(changelog 2.1.288)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*; Write and Edit inside a subagent unmeasured |
+| Path-scoped rule (`paths:`) | When Read, Write or Edit targets a matching file, on 2.1.288 and later *(doc)*; on Read only before 2.1.288 *(changelog 2.1.288, measured 2.1.268)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*, and on a matching Write or Edit there, after the tool runs *(measured 2.1.312)* |
+| Nested `CLAUDE.md` | On Read of a file in that subtree *(doc, measured)*; also when Write or Edit creates or changes a file there, on 2.1.288 and later *(changelog 2.1.288, measured 2.1.312)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*, and on a Write or Edit there, after the tool runs *(measured 2.1.312)* |
 | `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
 | Bare nested `AGENTS.md` (no shim), with a `CLAUDE.md` on its path | **Never** *(doc, measured 2.1.238 and 2.1.278)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
 | Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)*; the changelog (2.1.290) and the memory page differ on any other trigger *(source conflict, record below)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
@@ -170,9 +171,8 @@ triggering tool result, so their presence is read straight off the transcript.
 
 Two boundaries this measurement does **not** cross, stated so nothing generalizes past them:
 
-- It covers the `Read` tool. Release 2.1.288 added the `Write` and `Edit` triggers after this run,
-  so whether they fire inside a subagent, and when a `Write`-triggered surface arrives relative to
-  the write, is not measured here; see the write-trigger gap below.
+- It covers the `Read` tool. Release 2.1.288 added the `Write` and `Edit` triggers after this run;
+  [the 2.1.312 measurement](#write-and-edit-inside-a-subagent-measured-on-21312) covers them.
 - It covers deferred surfaces. The **unscoped**-rule row rests on the sub-agents page instead,
   which lists project rules among the CLAUDE.md files a non-fork subagent loads; this repository
   has no unscoped rule to re-measure it with.
@@ -197,6 +197,41 @@ deferred loads.
   nothing. Any of these obliges re-running the three steps above and refreshing this record with
   the outcome, drift or no drift.
 
+## Write and Edit inside a subagent, measured on 2.1.312
+
+**The repro.** A scratch git repository outside this checkout, with a root `CLAUDE.md`, two
+path-scoped rules (`paths: ws/**` and `paths: es/**`), and nested `CLAUDE.md` files in `wn/` and
+`en/`, each carrying a canary token. A throwaway settings file passed with `--settings` logged every
+`InstructionsLoaded` payload, plus `PreToolUse` and `PostToolUse` for Read, Write and Edit. Two
+headless runs each dispatched one general-purpose subagent: one wrote `ws/new.txt` and `wn/new.txt`
+with no Read, the other edited the existing `es/target.txt` and `en/target.txt` with no Read.
+
+1. **Write and Edit both fire both surfaces inside the subagent.** Each of the four tool calls was
+   followed by one `InstructionsLoaded` record: `path_glob_match` for the rules, `nested_traversal`
+   for the nested `CLAUDE.md` files, with `trigger_file_path` naming the written or edited file. No
+   Read ran in either subagent.
+2. **The load comes after the tool runs.** Each record follows that call's `PostToolUse`, and the
+   subagent saw the canary in a system reminder after the Write or Edit result, never before it.
+   This is what makes the write-trigger gap a timing gap.
+3. **The records carry the subagent's identity.** Every load triggered in the subagent carried its
+   `agent_id`, `agent_type: general-purpose` and `effort` (`{"level":"medium"}`); the main
+   session's `session_start` loads carried none.
+
+### Verification record
+
+The rubric relies on what this probe observed on Claude Code 2.1.312: a Write or an Edit inside a
+general-purpose subagent loads a matching path-scoped rule and a nested `CLAUDE.md` after the tool
+runs, and the `InstructionsLoaded` record names the subagent.
+
+- **Pointer**: the first-party probe above, two headless runs on the harness reported by
+  `claude --version` as `2.1.312 (Claude Code)`, reported in
+  <https://github.com/melodic-software/claude-code-plugins/issues/6758>.
+- **As of**: 2026-10-27
+- **Recheck trigger**: the consuming repository's Claude Code minor version moves past 2.1.312; or
+  a release note touches the Write or Edit triggers, subagent context, or `InstructionsLoaded`
+  input fields; or a real session observes a covered Write or Edit inside a subagent that injects
+  nothing.
+
 ## The three gaps that constrain the rubric
 
 Each gap is a place where a naive migration silently loses coverage. The rubric's hard rules exist
@@ -219,12 +254,11 @@ than erases, which is why the hard-deny class below is not also delegated to it.
 **The write-trigger gap.** Before 2.1.288 a path-scoped rule fired on a Read of a matching file and
 on nothing else, so **creating a new file did not fire it** *(changelog 2.1.288)*. From 2.1.288 a
 Write or Edit to a matching path fires it too *(doc; pointer in the surface-table record)*. What
-remains is timing: the surfaces this plugin has observed arrive appended to the triggering tool
-result, so a `Write`-triggered rule most likely arrives after the file is written *(inferred, not
-measured)*, too late to govern the creation it exists for. Content that governs the *creation* of
-files, such as scaffolding templates, "every new component must…", and file-header requirements,
-is therefore still served badly by a path-scoped rule no matter how clean its glob looks, on any
-CLI below 2.1.288 and, until the timing is measured, on 2.1.288 and later. *Closed by:* routing
+remains is timing: a `Write`-triggered rule arrives after the file is written *(measured 2.1.312)*,
+too late to govern the creation it exists for. Content that governs the *creation* of files, such
+as scaffolding templates, "every new component must…", and file-header requirements, is therefore
+served badly by a path-scoped rule no matter how clean its glob looks: below 2.1.288 the rule
+never fires on creation, and from 2.1.288 it fires after it. *Closed by:* routing
 creation-governing content to a directory-nested surface or leaving it always-loaded, never to
 `paths:`.
 

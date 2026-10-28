@@ -48,7 +48,7 @@ absent at the moment it was needed, not how the sentence is worded.
 
 - **Creation-governing content is denied the `paths:` destination.** Before Claude Code 2.1.288 path
   scoping triggered on Read only, so creating a new file never fired the rule. From 2.1.288 a Write
-  to a matching path fires it, but most likely after the file is written, a timing not yet measured
+  to a matching path fires it, but only after the file is written, measured on 2.1.312
   (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
   made may not be in context for the creation it exists for. It may still route to a subtree
   destination, or stay. This is a deny of one *destination*, not of the candidate. Lift or narrow it
