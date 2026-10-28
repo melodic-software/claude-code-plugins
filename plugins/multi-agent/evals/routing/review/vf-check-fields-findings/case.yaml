@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: vf-check-fields-findings
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'f1-confirmed'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F1\W+confirmed\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f2-refuted'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F2\W+refuted\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f3-refuted'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F3\W+refuted\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f4-confirmed'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F4\W+confirmed\b'
+    flags: 'im'
+    target: 'last_message'
