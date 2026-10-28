@@ -29,9 +29,12 @@ name: eval-browser-dispatch
 # the default branch; a pull request supplies only the plugin under test. The
 # changed paths come from the checked-out head's own git diff, and
 # select-plugins.mjs lets a selected plugin through only when every change is
-# allowlisted: under evals/, or markdown under skills/ or agents/ that keeps its
-# non-descriptive frontmatter and adds no shell preprocessing, in a plugin
-# whose tree holds no symlink or submodule. Anything else is refused.
+# allowlisted: an eval case file (prompt.md, case.yaml, graders/*.md,
+# samples/**/*.json) that keeps env, context and the other run keys, or
+# markdown under skills/ or agents/ that keeps its non-descriptive frontmatter
+# and adds no shell preprocessing, in a plugin whose tree holds no symlink or
+# submodule and whose cases load only the plugin itself or an unchanged
+# directory inside it. Anything else is refused.
 #
 # The credential is the maintenance role's subscription token. When the secret
 # is empty the job ends with a notice and runs nothing.

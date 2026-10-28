@@ -22,6 +22,20 @@
 //   shape frontmatter() can read and with no YAML alias in those keys, and
 //   adds or changes no `!` shell-preprocessing line or ```! block. Without --repo it cannot be read, so it
 //   is refused;
+// - every changed path under evals/ is a case file: prompt.md, case.yaml,
+//   graders/<name>.md or samples/**/<name>.json in a case directory. A
+//   scaffold script, a fixture (scaffold scripts run fixtures/ seed scripts
+//   outside the sandbox) or a stub plugin is refused;
+// - a changed prompt.md or case.yaml keeps every key outside CASE_SAFE_KEYS
+//   (env, context and its scaffold_script, growthbook_overrides and the
+//   rest), and in case.yaml every execution key outside
+//   CASE_SAFE_EXECUTION_KEYS, in a shape frontmatter() can read;
+// - every case in a selected plugin's tree at --head loads, through its
+//   `plugins:` key, only the plugin's own root or a directory inside the
+//   plugin with no changed path under it. A plugin a case loads runs its
+//   hooks outside the sandbox, and no rule above inspects another plugin or
+//   a stub directory. Without --repo the cases cannot be read, so the plugin
+//   is refused;
 // - no path is one git quoted (a leading `"`), whose real name is unknown;
 // - a selected plugin's tree at --head holds no symlink or submodule, since
 //   the loader follows a link to content no rule above inspected. Without
@@ -31,6 +45,7 @@
 // and the exit is 1. Exit 0 otherwise.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { posix } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
@@ -38,6 +53,31 @@ import { pathToFileURL } from "node:url";
 const SUITE_PATH = /^plugins\/([A-Za-z0-9._-]+)\/(?:skills|agents|evals)\//;
 const PLUGIN_PATH = /^plugins\/([A-Za-z0-9._-]+)\/(.*)$/;
 const PROSE_PATH = /^(?:skills|agents)\//;
+const SEG = "[A-Za-z0-9_-][A-Za-z0-9._-]*";
+const CASE_FILE = new RegExp(`^evals/(?:${SEG}/)+(?:prompt\\.md|case\\.yaml|graders/${SEG}\\.md|samples/(?:${SEG}/)*${SEG}\\.json)$`);
+const CASE_DEFINITION = /(?:^|\/)(?:prompt\.md|case\.yaml)$/;
+
+// prompt.md and case.yaml keys that only describe, grade or bound a case, and
+// plugins, whose every entry caseLoadRefusals checks. A change to any other
+// key (env, context, growthbook_overrides, artifact_publish, an unknown key)
+// is refused.
+export const CASE_SAFE_KEYS = new Set([
+  "allowed_tools",
+  "append_system_prompt",
+  "description",
+  "expected_outcome",
+  "graders",
+  "max_turns",
+  "model",
+  "name",
+  "plugins",
+  "runs",
+  "schema_version",
+  "tags",
+  "timeout_seconds",
+]);
+// case.yaml's execution block: every key but env.
+export const CASE_SAFE_EXECUTION_KEYS = new Set(["allowed_tools", "max_turns", "prompt", "timeout_seconds"]);
 
 // Frontmatter keys that only describe or route a skill or agent. A change to
 // any other key is refused.
@@ -164,6 +204,118 @@ export function proseRefusal(base, head) {
   return null;
 }
 
+// A case file's top-level keys as key -> text; prompt.md is read through its
+// frontmatter, case.yaml as a whole document. null when the shape cannot be
+// read.
+const caseKeys = (path, text) =>
+  path.endsWith(".md") ? frontmatter(text) : frontmatter(`---\n${String(text ?? "").replace(/^\uFEFF/, "")}\n---\n`);
+
+// The execution block's own keys, read the same way after removing its
+// two-space indent; null when a line is not that shape.
+const executionKeys = (entry) => {
+  if (entry === undefined) {
+    return new Map();
+  }
+  const [first, ...rest] = entry.split("\n");
+  if (!/^execution:[ \t]*$/.test(first) || rest.some((line) => line.trim() !== "" && !line.startsWith("  "))) {
+    return null;
+  }
+  return frontmatter(`---\n${rest.map((line) => line.slice(2)).join("\n")}\n---\n`);
+};
+
+// Why a changed prompt.md or case.yaml is refused, or null.
+export function caseRefusal(path, base, head) {
+  if (head === null) {
+    return null;
+  }
+  const after = caseKeys(path, head);
+  if (after === null) {
+    return "is in a shape that cannot be checked";
+  }
+  const before = (base === null ? new Map() : caseKeys(path, base)) ?? new Map();
+  const keys = [...new Set([...before.keys(), ...after.keys()])];
+  const changed = keys.filter((key) => !CASE_SAFE_KEYS.has(key) && key !== "execution" && before.get(key) !== after.get(key));
+  if (path.endsWith("case.yaml")) {
+    const run = executionKeys(after.get("execution"));
+    if (run === null) {
+      return "has an execution block in a shape that cannot be checked";
+    }
+    const was = executionKeys(before.get("execution")) ?? new Map();
+    for (const key of new Set([...was.keys(), ...run.keys()])) {
+      if (!CASE_SAFE_EXECUTION_KEYS.has(key) && was.get(key) !== run.get(key)) {
+        changed.push(`execution.${key}`);
+      }
+    }
+  } else if (after.has("execution") && before.get("execution") !== after.get("execution")) {
+    changed.push("execution");
+  }
+  if (changed.length) {
+    return `changes ${changed.join(", ")}`;
+  }
+  const aliased = keys.filter((key) => !CASE_SAFE_KEYS.has(key) && ALIAS.test(after.get(key)?.slice(key.length + 1) ?? ""));
+  if (aliased.length) {
+    return `uses a YAML alias in ${aliased.join(", ")}`;
+  }
+  return null;
+}
+
+// The `plugins:` entries of a case's key text: [] with no key, null for any
+// shape but a one-line flow list of double-quoted strings with no escapes.
+export function casePlugins(entry) {
+  if (entry === undefined) {
+    return [];
+  }
+  const list = /^plugins:[ \t]*\[(.*)\][ \t]*$/.exec(entry);
+  if (!list || entry.includes("\n")) {
+    return null;
+  }
+  const items = list[1].trim() === "" ? [] : list[1].split(",").map((item) => item.trim());
+  return items.every((item) => /^"[^"\\]+"$/.test(item)) ? items.map((item) => item.slice(1, -1)) : null;
+}
+
+// `<case>: <reason>` for each case in a selected plugin's tree at the head
+// whose `plugins:` key loads something outside the plugin, or a directory
+// inside it that the pull request changes. tree(plugin) and read() as in
+// linkRefusals and refusals.
+export function caseLoadRefusals(paths, plugins, tree = () => undefined, read = () => undefined) {
+  const out = [];
+  for (const plugin of plugins) {
+    const entries = tree(plugin);
+    if (entries === undefined) {
+      continue; // linkRefusals refuses an unread tree.
+    }
+    for (const { path } of entries) {
+      if (!CASE_DEFINITION.test(path)) {
+        continue;
+      }
+      const text = read("head", path);
+      if (text === undefined || text === null) {
+        out.push(`${path}: cannot be read to check what it loads`);
+        continue;
+      }
+      const keys = caseKeys(path, text);
+      const loads = keys === null ? null : casePlugins(keys.get("plugins"));
+      if (loads === null) {
+        out.push(`${path}: its plugins key cannot be checked`);
+        continue;
+      }
+      const dir = posix.dirname(path);
+      for (const entry of loads) {
+        const target = posix.normalize(posix.join(dir, entry)).replace(/\/+$/, "");
+        if (target === plugin) {
+          continue;
+        }
+        if (!target.startsWith(`${plugin}/`)) {
+          out.push(`${path}: loads ${entry}, outside ${plugin}`);
+        } else if (paths.some((changed) => changed === target || changed.startsWith(`${target}/`))) {
+          out.push(`${path}: loads ${entry}, which this pull request changes`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // `<path>: <reason>` for each changed path of a selected plugin that breaks a
 // rule. read(side, path) returns the file text at "base" or "head", null when
 // absent there, or undefined when nothing can be read.
@@ -181,6 +333,24 @@ export function refusals(paths, plugins, read = () => undefined) {
     const rest = match[2];
     if (!SUITE_PATH.test(path)) {
       out.push(`${path}: outside skills/, agents/ and evals/`);
+    } else if (rest.startsWith("evals/")) {
+      if (!CASE_FILE.test(rest)) {
+        out.push(`${path}: not a case file (prompt.md, case.yaml, graders/*.md, samples/**/*.json)`);
+        continue;
+      }
+      if (!CASE_DEFINITION.test(rest)) {
+        continue;
+      }
+      const head = read("head", path);
+      const base = read("base", path);
+      if (head === undefined || base === undefined) {
+        out.push(`${path}: cannot be read to inspect`);
+        continue;
+      }
+      const reason = caseRefusal(path, base, head);
+      if (reason) {
+        out.push(`${path}: ${reason}`);
+      }
     } else if (PROSE_PATH.test(rest)) {
       if (!rest.endsWith(".md")) {
         out.push(`${path}: not markdown`);
@@ -282,7 +452,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const tree = inRepo ? gitTree(values.repo, values.head) : undefined;
   const paths = readFileSync(0, "utf8").split("\n").filter(Boolean);
   const selected = selectPlugins(paths);
-  const refused = [...refusals(paths, selected, read), ...linkRefusals(selected, tree)];
+  const refused = [...refusals(paths, selected, read), ...linkRefusals(selected, tree), ...caseLoadRefusals(paths, selected, tree, read)];
   if (refused.length) {
     console.error(`a selected plugin changes more than its suite may run with the credential:\n${refused.join("\n")}`);
     process.exitCode = 1;
