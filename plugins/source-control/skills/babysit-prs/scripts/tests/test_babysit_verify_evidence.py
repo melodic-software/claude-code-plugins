@@ -2988,6 +2988,9 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
+        sleep = mock.patch.object(ve, "_listing_sleep")
+        self.sleep = sleep.start()
+        self.addCleanup(sleep.stop)
         # The base: a pass at the head (run 1) and three older artifacts,
         # read 10 minutes ago.
         self.base_at = LISTED_AT - timedelta(minutes=10)
@@ -3100,11 +3103,10 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(reader.listing_mode, "full")
-        # The incremental first page, read `INCREMENTAL_READS` times, then
-        # the whole listing's own check.
-        self.assertEqual(
-            (fake.pages(), fake.full_listings()), (ve.INCREMENTAL_READS + 1, 1)
-        )
+        # The incremental first page, read three times with a 15 s and a 30 s
+        # wait between, then the whole listing's own check.
+        self.assertEqual((fake.pages(), fake.full_listings()), (3 + 1, 1))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
         # A 429, a rate-limit 403 or a timeout on the first incremental page
@@ -3146,6 +3148,7 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
                 # The failed page, then the whole listing and its top-up, two
                 # pages down to 900; no second read on the carried base.
                 self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
+                self.sleep.assert_not_called()
 
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
         # The first read's live count is one more than its pages hold, as
@@ -3165,6 +3168,78 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual((fake.pages(), fake.full_listings()), (4, 0))
+
+    def misses_then_reads(self, misses: int) -> tuple[FakeGitHub, str]:
+        """GitHub's live count one more than the pages hold on the first
+        `misses` incremental reads, then right; the judge's stderr."""
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        rest, off = fake.rest, [len(self.base) + 2] * misses
+
+        def reads_off(args: list[str], *rest_args: Any) -> Any:
+            first = any(a.endswith("&page=1") for a in args)
+            if first:
+                fake.live_total = off.pop() if off else None
+            return rest(args, *rest_args)
+
+        fake.rest = reads_off  # type: ignore[method-assign]
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        return fake, stderr.getvalue()
+
+    def test_a_miss_that_outlasts_one_read_is_read_again_after_a_wait(self) -> None:
+        # Two misses, then the third read holds the count: three reads of two
+        # pages, a 15 s and a 30 s wait between them, and no whole listing.
+        fake, _ = self.misses_then_reads(2)
+        self.assertEqual((fake.pages(), fake.full_listings()), (6, 0))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def test_each_miss_prints_its_counts_on_stderr(self) -> None:
+        # Read 1: pages (1100, 1000) and (900, 800), 900 created before the
+        # overlap, so 4 fresh and the base's 700 kept: 5 listed against a
+        # live count of 6, the base read 10 min before GitHub's Date (12:00:05).
+        _, stderr = self.misses_then_reads(1)
+        lines = [
+            line
+            for line in stderr.splitlines()
+            if line.startswith("babysit-listing-miss ")
+        ]
+        self.assertEqual(len(lines), 1, stderr)
+        self.assertEqual(
+            json.loads(lines[0].removeprefix("babysit-listing-miss ")),
+            {
+                "stage": "incremental",
+                "listed": 5,
+                "total_count": 6,
+                "fresh": 4,
+                "kept": 1,
+                "pages": 2,
+                "base_age_seconds": 605,
+            },
+        )
+
+    def test_a_read_that_holds_the_count_prints_no_miss(self) -> None:
+        _, stderr = self.misses_then_reads(0)
+        self.assertNotIn("babysit-listing-miss", stderr)
+        self.sleep.assert_not_called()
+
+    def test_no_wait_runs_past_the_reads_timeout(self) -> None:
+        # The reads' deadline is 0 + 300 s. After the first miss (clock 3 s)
+        # the 15 s wait fits; after the second (clock 271 s) 29 s are left,
+        # short of the 30 s wait, so a whole listing follows at once.
+        clock = iter([0.0, 1.0, 2.0, 3.0, 260.0, 261.0, 271.0])
+        with mock.patch.object(
+            ve, "_listing_clock", side_effect=lambda: next(clock, 300.0)
+        ):
+            self.write_carry(self.base)
+            fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+            fake.live_total = len(self.base) + 2
+            reader, _ = self.judge(fake)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+        self.assertEqual(reader.listing_mode, "full")
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
         for delta in (-1, 1):
