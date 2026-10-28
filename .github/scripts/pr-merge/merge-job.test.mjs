@@ -61,6 +61,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Record the re-run",
       "Send a red full run to the demotion alert",
       "Record the alert sent",
+      "Log the API budget at the end",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -1896,7 +1897,11 @@ test("the alert send runs after the re-run while the lane is live, and stops aft
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
   );
   const names = list.map((s) => s.name);
-  assert.deepEqual(names.slice(-2), ["Send a red full run to the demotion alert", "Record the alert sent"]);
+  assert.deepEqual(names.slice(-3), [
+    "Send a red full run to the demotion alert",
+    "Record the alert sent",
+    "Log the API budget at the end",
+  ]);
 });
 
 // The scheduled job's cover read, run with .base at this checkout (the rate

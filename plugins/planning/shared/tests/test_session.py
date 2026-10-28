@@ -817,6 +817,14 @@ class TestOwnerMerge(SessionCase):
             self.s.resolve(secret="a secret nobody was given")
         self.assertEqual(ctx.exception.code, "unknown-session")
 
+    def test_a_request_resolved_just_before_a_merge_into_the_owner_is_told_so_too(self):
+        pid = self.s.resolve(secret=self.twin_secret)  # the server resolves a request, then takes the lock again to act
+        self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
+        for read in (lambda: self.act("heartbeat", pid, {}), lambda: self.s.snapshot(pid), lambda: self.act("chat", pid, {"text": "Hi"})):
+            with self.assertRaises(session.DomainError) as ctx:
+                read()
+            self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "merged-into-owner"))
+
     def test_a_guest_merged_into_a_guest_keeps_working_as_the_kept_person(self):
         self.act("merge_people", HOST, {"from": self.twin, "to": self.ann})
         self.assertEqual(self.s.resolve(secret=self.twin_secret), self.ann)

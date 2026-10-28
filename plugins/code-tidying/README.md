@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under the shared PR scope budget
 shipped as [`reference/pr-scope-budget.md`](reference/pr-scope-budget.md).
 
-Six skills, one capability:
+Seven skills, one capability:
 
 - **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
@@ -50,6 +50,13 @@ Six skills, one capability:
   sweep a repository that never had one. `in-place` (repo mode) runs on the
   current branch with no new branch or PR and leaves the edits staged, or
   `in-place=commit` makes one commit.
+- **`/code-tidying:tidy-diff`**. Tidies one change's own lines before its
+  commit, scoped by a file-and-line list the caller writes (no branch or base
+  ref, so it runs on a detached head): a behavior-preserving simplify pass and
+  proven class-A comment deletions on code, then `/docs-hygiene:write-for-agents`
+  or `write-for-humans` and `/ai-slop:audit fix` on markdown, within an
+  optional turn budget. It stages and commits nothing. The issue lane runs it
+  on a small single-area change before its one push.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported

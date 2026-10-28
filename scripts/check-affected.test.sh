@@ -47,7 +47,7 @@ printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
 # The real Node package runner, over one registered fixture package.
 mkdir -p "$repo/scripts/lib"
-cp "$SELF_DIR/lib/read-list.sh" "$repo/scripts/lib/"
+cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"

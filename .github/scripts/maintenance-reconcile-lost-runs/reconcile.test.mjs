@@ -1188,9 +1188,12 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
   // The pull requests whose spec was read.
   const specReads = [];
   const prefilterReads = [];
+  // The reconciler's own pass reads (passStarts), which page nothing.
+  const passReads = [];
   const wrap = (github) => async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
-    const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(?:&page=1)?$/.exec(apiPath);
+    const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(&page=1)?$/.exec(apiPath);
+    if (named && !named[2]) passReads.push(apiPath);
     if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
     if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
     if (apiPath === "/graphql" && !body.variables) {
@@ -1205,7 +1208,7 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     }
     return github(method, apiPath, body);
   };
-  return { setup: { pulls: [pr(number)], runs: [checks, judged], github: wrap }, specReads, prefilterReads };
+  return { setup: { pulls: [pr(number)], runs: [checks, judged], github: wrap }, specReads, prefilterReads, passReads };
 }
 
 async function withTrustedList(fn) {
@@ -1233,25 +1236,71 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
 
 test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
   await withTrustedList(async (env) => {
+    // The checks run was created at 18:59:43 and the pass started at 19:30.
+    // [options, full reads, pre-filter reads, pass artifact reads: pass and
+    // pass-notes, each with and without the head-ref digest]
     const cases = {
-      // An issue not updated since the pass: the pre-filter skips the full read.
-      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 1],
-      "never edited": [{ edited: null }, [], 1],
+      // Touched after the checks run but not after the pass: the pass is read,
+      // and the second pre-filter skips the full read.
+      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 2, 4],
+      // Untouched since the checks run: the first pre-filter skips the pass read.
+      "never edited": [{ edited: null }, [], 1, 0],
       // An issue updatedAt after the pass with no spec time after it (as a
       // label change might leave it): the full read runs, and specChanged
       // still says no.
-      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 1],
-      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0],
-      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 0],
+      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 2, 4],
+      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0, 0],
+      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 1, 4],
     };
-    for (const [label, [options, read, prefiltered]] of Object.entries(cases)) {
-      const { setup, specReads, prefilterReads } = specChanged(options);
+    for (const [label, [options, read, prefiltered, artifacts]] of Object.entries(cases)) {
+      const { setup, specReads, prefilterReads, passReads } = specChanged(options);
       const { code, reruns } = await reconcile({ ...setup, env });
       assert.equal(code, 0, label);
       assert.deepEqual(reruns, [], label);
       assert.deepEqual(specReads, read, label);
       assert.equal(prefilterReads.length, prefiltered, label);
+      assert.equal(passReads.length, artifacts, label);
     }
+  });
+});
+
+test("a spec edited after a pass is caught when a label or body edit started a newer checks run after the edit", async () => {
+  await withTrustedList(async (env) => {
+    // Pass at 19:30 from checks run 601, spec edited at 19:45, then a newer
+    // passed checks run 602 at 19:50 that pr-verify skips as already judged.
+    const { setup, specReads } = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const newer = { ...run(602, sha(1), { conclusion: "success", created: "2026-10-19T19:50:00Z" }), repository: { full_name: REPO } };
+    const { code, reruns } = await reconcile({ ...setup, runs: [...setup.runs, newer], env });
+    assert.equal(code, 0);
+    assert.deepEqual(specReads, [1]);
+    assert.deepEqual(reruns, [602]);
+  });
+});
+
+test("passed heads whose spec nobody touched since their checks ran cost one GraphQL query and no pass reads", async () => {
+  await withTrustedList(async (env) => {
+    const numbers = [1, 2, 3, 4, 5];
+    const untouched = { updatedAt: "2026-10-19T00:00:00Z", lastEditedAt: null, repository: { nameWithOwner: REPO } };
+    const reads = [];
+    const wrap = (github) => async (method, apiPath, body) => {
+      reads.push(`${method} ${apiPath}`);
+      if (apiPath.includes("/actions/artifacts?")) return { artifacts: [] };
+      if (apiPath === "/graphql") {
+        const node = prefilterIssue(body.query, untouched);
+        return { data: { repository: Object.fromEntries(numbers.map((_, i) => [`p${i}`, { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [node] } }])) } };
+      }
+      return github(method, apiPath, body);
+    };
+    const runs = numbers.map((n) => run(600 + n, sha(n), { conclusion: "success" }));
+    const { code, reruns } = await reconcile({ pulls: numbers.map((n) => pr(n)), runs, github: wrap, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    const count = (part) => reads.filter((r) => r.includes(part)).length;
+    assert.equal(count("/actions/artifacts?"), 0);
+    assert.equal(count("POST /graphql"), 1);
+    // The pulls page, one run listing per head, nine pr-verify status
+    // listings, one intake listing and the one pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 9 + 1 + 1);
   });
 });
 
