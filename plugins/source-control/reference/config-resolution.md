@@ -218,6 +218,17 @@ reads the file itself, through a script where the key names one below.
   `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
   default level (the two give the same result) and a substituted `draft` as the `userConfig`
   level.
+- `sync_stale_base`: `true` or `false`, whether
+  [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
+  base into a branch behind it on overlapping paths just before it pushes (the script header
+  holds the base, overlap, signing and skip rules, and exit 4 for a conflict). Resolution, lowest
+  first: the default, `false`; `sync_stale_base` in `docs/conventions/source-control.yaml` at the
+  base repository's default branch, as the clone last fetched it, with no network read (without
+  `--pr`, the forge is asked for the base repository only when a fetched remote turns it on);
+  `--sync-stale-base` or `--no-sync-stale-base` on the call. No `userConfig` option. Neither the
+  setting nor the overlap script is read from the branch being pushed: a head must not switch on a
+  step that runs a script, or choose that script. A file the parser rejects, or another value,
+  reads as `false`. A lane push never syncs.
 - `dialect`: the regex dialect `subject_pattern` and `pr_title_pattern` are written in, default
   `posix-ere`. No skill here reads it. The guardrails enforcement resolver does, and any other value
   turns its enforcement off with a diagnostic; see the
