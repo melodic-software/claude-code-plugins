@@ -175,6 +175,12 @@ export function spoken(item) {
   return [];
 }
 
+// The first of `entries` ({ user, at }) a person wrote after `since`: an
+// account GitHub marks Bot is not a person; an unknown author, or a time that
+// does not parse, counts as one. The one rule for "a person spoke since the
+// label", whatever source the entries come from.
+export const personSince = (entries, since) => entries.find(({ user, at }) => !(at <= since) && user?.type !== "Bot");
+
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
 // when gateSource reads a lane escalation, no person has commented since the
 // label went on, and no escalation since then is `activity`'s own, so one
@@ -189,7 +195,7 @@ export function laneEscalationAllows({ timeline, label, head, isLanesApp, activi
   // As clear-escalations.mjs keeps the label: a person who commented or
   // reviewed since it went on may want the lanes to wait. An unknown author
   // counts as a person.
-  if (timeline.flatMap(spoken).some(({ user, at }) => !(at <= since) && user?.type !== "Bot")) {
+  if (personSince(timeline.flatMap(spoken), since) !== undefined) {
     return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));

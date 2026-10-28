@@ -32,7 +32,7 @@ const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10
 // One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], author, evidence = () => null, numbers = [7] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, evidence = () => null, numbers = [7] }) {
   const calls = [];
   const reads = [];
   const verify = async (pull, rung) => {
@@ -60,6 +60,13 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
+    }
+    const [, thread, kindOf] = /^\/repos\/[^/]+\/[^/]+\/pulls\/(\d+)\/(comments|reviews)(?:\?since=[^&]*)?$/.exec(route) ?? [];
+    if (method === "GET" && numbers.includes(Number(thread))) {
+      if (threadsFail === kindOf) {
+        throw new Error(`GET ${path}: 502`);
+      }
+      return path.endsWith("page=1") ? (kindOf === "comments" ? reviewComments : reviews) : [];
     }
     if (method === "POST" || method === "DELETE") {
       return null;
@@ -146,6 +153,26 @@ test("a person's comment, review, or review comment after the label keeps it", a
     await run(w);
     assert.deepEqual(w.writes(), [], spoke.event);
   }
+});
+
+// GitHub's timeline carries no event for a reply inside an existing review
+// thread: on #10526 and #10533 every reply-only review a person submitted is
+// absent from issues/<n>/timeline (no `reviewed`, no `line-commented`), while
+// pulls/<n>/comments lists the reply and pulls/<n>/reviews its review.
+const BOT_THREAD = { id: 101, user: ACTIONS_BOT, body: "Finding.", pull_request_review_id: 201, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T09:00:00Z" };
+const reply = (user, at, updatedAt = at) => ({ id: 102, user, body: "Wait on this.", pull_request_review_id: 202, in_reply_to_id: 101, created_at: at, updated_at: updatedAt });
+const BOT_REVIEW = { id: 201, user: ACTIONS_BOT, state: "COMMENTED", body: "**claude-review**: 1 inline finding(s)", submitted_at: "2026-10-18T09:00:00Z" };
+const replyReview = (user, at) => ({ id: 202, user, state: "COMMENTED", body: "", submitted_at: at });
+
+test("a person's reply inside a bot's review thread after the label keeps it, though the timeline shows none", async () => {
+  const w = world({
+    timeline: [reviewed(ACTIONS_BOT, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()],
+    reviewComments: [BOT_THREAD, reply(OWNER, "2026-10-18T12:00:00Z")],
+    reviews: [BOT_REVIEW, replyReview(OWNER, "2026-10-18T12:00:00Z")],
+  });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), logs.join("\n"));
 });
 
 test("an AI review or another bot's comment after the label does not keep it", async () => {
@@ -787,4 +814,84 @@ test("labels past the read cap are read on a later run", async () => {
     }
   }
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
+});
+
+const threadReads = (w) => w.calls.filter((call) => /\/pulls\/7\/(comments|reviews)/.test(call.path));
+const inlineTimeline = () => [reviewed(ACTIONS_BOT, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+
+test("a person's inline reply after a pr-merge label keeps it from coming off as head-moved", async () => {
+  const w = world({ timeline: mergeEscalated(verifyBody(OLD)), reviewComments: [BOT_THREAD, reply(OWNER, "2026-10-18T12:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a person's review submitted after the label keeps it, with no review comment", async () => {
+  const w = world({ timeline: inlineTimeline(), reviews: [BOT_REVIEW, { ...replyReview(OWNER, "2026-10-18T12:00:00Z"), body: "Wait for me." }] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a person's review comment edited after the label keeps it; one written and left before it does not", async () => {
+  const edited = world({ timeline: inlineTimeline(), reviewComments: [reply(OWNER, "2026-10-18T09:30:00Z", "2026-10-18T12:00:00Z")] });
+  await run(edited);
+  assert.deepEqual(edited.writes(), []);
+  const before = world({ timeline: inlineTimeline(), reviewComments: [reply(OWNER, "2026-10-18T09:30:00Z")], reviews: [replyReview(OWNER, "2026-10-18T09:30:00Z")] });
+  await run(before);
+  assert.equal(before.writes().at(-1)?.method, "DELETE");
+});
+
+test("a bot's inline reply or review after the label does not keep it", async () => {
+  const w = world({
+    timeline: inlineTimeline(),
+    reviewComments: [BOT_THREAD, reply(CODEX_BOT, "2026-10-18T12:00:00Z")],
+    reviews: [BOT_REVIEW, replyReview(CLAUDE_BOT, "2026-10-18T12:00:00Z")],
+  });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("an inline reply by an unknown author, or at a time that does not parse, keeps it", async () => {
+  for (const spoke of [reply(null, "2026-10-18T12:00:00Z"), reply(OWNER, "not a time")]) {
+    const w = world({ timeline: inlineTimeline(), reviewComments: [spoke] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], JSON.stringify(spoke.user));
+  }
+});
+
+test("a failed review comment or review read keeps the label", async () => {
+  for (const kind of ["comments", "reviews"]) {
+    const w = world({ timeline: inlineTimeline(), threadsFail: kind });
+    const { code } = await run(w);
+    assert.equal(code, 1, kind);
+    assert.deepEqual(w.writes(), [], kind);
+  }
+});
+
+test("the thread reads run once each, since the label, and only when the timeline alone would clear", async () => {
+  const clears = world({ timeline: inlineTimeline() });
+  await run(clears);
+  assert.deepEqual(
+    threadReads(clears).map((call) => call.path),
+    [`/repos/${REPO}/pulls/7/comments?since=2026-10-18T10:00:00Z&per_page=100&page=1`, `/repos/${REPO}/pulls/7/reviews?per_page=100&page=1`],
+  );
+  const spoke = world({ timeline: [...inlineTimeline(), commented(OWNER, "Wait.", "2026-10-18T12:00:00Z")] });
+  await run(spoke);
+  assert.deepEqual(threadReads(spoke), []);
+  const holds = world({ timeline: inlineTimeline(), mainFiles: [{ filename: ".github/workflows/ci.yml" }] });
+  await run(holds);
+  assert.deepEqual(threadReads(holds), []);
+});
+
+test("a workflow-staged keep line names main's SHA and the first workflow file it changes", async () => {
+  for (const [file, named] of [
+    [{ filename: ".github/workflows/pr-merge.yml" }, ".github/workflows/pr-merge.yml"],
+    [{ filename: "docs/old.yml", previous_filename: ".github/workflows/old.yml" }, ".github/workflows/old.yml"],
+  ]) {
+    const w = world({ timeline: inlineTimeline(), mainFiles: [{ filename: "README.md" }, file, { filename: ".github/workflows/later.yml" }] });
+    const { logs } = await run(w);
+    assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes ${named}`), logs.join("\n"));
+  }
+  const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
+  const { logs } = await run(cut);
+  assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
 });
