@@ -790,6 +790,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
+  const tickRows = () => commitRows().filter(r => !r.on && ["accept", "own"].includes(stateOf(r.q))); // what Tick these and confirm ticks; a hedged accept's condition is still open
+  function acceptTally(){ // the live answers, and those that took the recommendation as it stood
+    const all = S.doc.questions.filter(q => live(q) && isAnswered(stateOf(q))).sort(byIdCmp);
+    return {all, acc: all.filter(q => stateOf(q) === "accept")};
+  }
+  const noteOf = q => String((decisionOf(q) || {}).text || "").trim();
+  const auditSent = q => { let ev = null; for (const e of events()) if (e.id === q.id && DEC.has(e.kind) && !e.withdrawn && (!ev || e.seq > ev.seq)) ev = e; return !!(ev && ev.auditSeq); }; // its live accept came from an accept-audit
+  function auditSplit(acc){ // [what the agents check sends, "id (why)" for each it leaves out]
+    const why = q => noteOf(q) ? "it carries a note, which the check does not send" : afterAnswer(q) ? "Claude changed it after your answer" : auditSent(q) ? "already sent for checking" : "";
+    return [acc.filter(q => !why(q)), acc.filter(why).map(q => q.id + " (" + why(q) + ")")];
+  }
   const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
   function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
     const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
@@ -1591,6 +1602,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const rows = USECT.filter(([k]) => sec(old, k) !== sec(r, k)).map(([k, t]) => "<h5>" + t + '</h5><div class="diff">' + wordDiff(sec(old, k), sec(r, k), /^/m) + "</div>");
     return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + esc(old.rev) + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
   }
+  function preConfirmHtml(){ // the accept tally, the agents-check offer on an all-accept run, and what Tick these and confirm ticks
+    const {all, acc} = acceptTally(), [send, left] = auditSplit(acc), rows = tickRows();
+    let h = all.length ? '<p id="acceptTally">' + acc.length + " of " + all.length + " answers accepted as recommended</p>" : "";
+    if (all.length && acc.length === all.length) h += '<p class="kbd" id="auditOffer">Every answer took the recommendation. Agents can check them before you confirm. <button type="button" class="tbtn small" data-auditaccepted="1" data-submit="1"' + (S.api >= 2 && send.length ? "" : " disabled") + ">Have agents check these answers</button>" +
+      (left.length ? " Left out: " + esc(left.join(", ")) + "." : "") + "</p>";
+    if (rows.length) h += '<div id="uTick"><p class="kbd">Not ticked yet on your accepted and own answers; Tick these and confirm ticks them:</p><ul>' + rows.map(r => "<li>" + refHtml(r.q.id) + " " + inline(r.c) + "</li>").join("") + "</ul></div>";
+    return h;
+  }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box
     const r = S.doc.restatement;
     if (!r) return '<section class="blk"><h4>Shared understanding</h4><p class="empty">Claude has not restated the shared understanding yet.</p></section>';
@@ -1599,8 +1618,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         (na ? '<p class="kbd" id="uCommit">Confirming the understanding does not tick commitments. ' + ("The " + na + (na === 1 ? " unticked commitment becomes a named risk" : " unticked commitments become named risks")) + " in the Brief unless you tick " + (na === 1 ? "it" : "them") + '. <button type="button" class="tbtn small" data-toconfirm="">Open the commitment list</button></p>' : "")
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
       : reDiffHtml() + (wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
-      : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
-        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
+      : '<div class="ustate">' + preConfirmHtml() + '<textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
+        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button>' + (tickRows().length ? '<button class="act" data-understand="tick" data-submit="1">Tick these and confirm</button>' : "") + '<button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
         '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>");
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
@@ -2210,6 +2229,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!r) return;
     if (alt === "off" && !text) { S.uMsg = "Say what is off first."; renderSummary(); if ($("offText")) $("offText").focus(); return; }
     if (S.api < 2 || S.busy) return;
+    if (alt === "tick") { // one confirm per listed commitment, then the Confirm; a failed tick stops before the Confirm
+      for (const x of tickRows()) if (!confirmed(x.q).has(String(x.i)) && !(await confirmCommit(x.q.id, x.i))) { S.uMsg = "Could not tick " + x.q.id + ", so the understanding is not confirmed."; renderSummary(); return; }
+      alt = "confirm";
+    }
     S.busy = true;
     try {
       const {res, data} = await post({kind: "confirm-understanding", alt, text: alt === "off" ? text : "", contentRev: r.rev});
@@ -2218,6 +2241,22 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (!res.ok) throw new Error(data.error || res.status);
       S.uMsg = ""; S.offDraft = ""; await refresh();
     } catch (e) { S.busy = false; if (!e.quiet) { S.uMsg = "Not sent (" + e.message + ")."; renderSummary(); } }
+  }
+  async function auditAccepted(){ // one accept-audit event over the accepted answers auditSplit lets through, so agents check an all-accept run
+    const [qs] = auditSplit(acceptTally().acc);
+    if (!qs.length || S.api < 2 || S.busy) return;
+    if (closed()) { toast(closedWhy(), true); return; }
+    if (wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
+    const last = qs[qs.length - 1];
+    S.busy = true;
+    try {
+      const {res, data} = await post({kind: "accept-audit", alt: (last.stage || "") + ":" + (last.round || 1), items: qs.map(q => ({id: q.id, contentRev: crev(q)}))});
+      S.busy = false;
+      const sk = (data.skipped || []).map(x => x.id);
+      await refresh().catch(() => {});
+      toast(res.ok ? "Sent " + (data.accepted || []).length + " answers for agents to check." + (sk.length ? " Skipped " + sk.join(", ") + ": changed or not eligible." : "") : "Not sent (" + (data.error || res.status) + ")." + (sk.length ? " Skipped " + sk.join(", ") + "." : ""), !res.ok || sk.length > 0);
+      renderAll();
+    } catch (e) { S.busy = false; if (!e.quiet) toast("Not sent (" + e.message + ").", true); }
   }
   function challenge(i){
     const q = Q[S.sel], c = q && (q.commits || [])[i]; if (c === undefined) return;
@@ -2416,6 +2455,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
+    if (t.closest("[data-auditaccepted]")) { auditAccepted(); return; }
     const nt = t.closest("#needToast button");
     if (nt) { if (nt.dataset.notify) { enableNotify(); return; } S.need = null; renderNeedToast(); if (nt.dataset.ntgo) goTo(nt.dataset.ntgo); return; }
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
