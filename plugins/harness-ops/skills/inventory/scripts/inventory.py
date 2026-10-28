@@ -600,7 +600,7 @@ def build_brace_map(s: str) -> BraceMap:
             # elsewhere it is a minified name, as in `${of/1000}`.
             word = s[i:j]
             of_ident = word == "of" and not (
-                prev_sig in "]}" or (prev_word and prev_word not in _REGEX_KEYWORDS)
+                prev_sig in ("]", "}") or (prev_word and prev_word not in _REGEX_KEYWORDS)
             )
             prev_word = "" if of_ident else word
             prev_sig = s[j - 1]
