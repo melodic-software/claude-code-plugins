@@ -75,12 +75,12 @@ case "$1 $2" in
     ;;
   "repo view") echo "example-org/app" ;;
   "pr view")
-    if [[ " $* " == *" baseRefName "* ]]; then
+    if [[ " $* " == *" baseRefName,url "* ]]; then
       [[ -n ${PB_PR_BASE:-} ]] || {
         echo "no pull requests found for branch \"$3\"" >&2
         exit 1
       }
-      echo "$PB_PR_BASE"
+      echo "$PB_PR_BASE ${PB_PR_BASE_REPO:-example-org/app}"
     elif [[ " $* " == *" -R "* ]]; then
       printf '%s\n' "${PB_PR_HEAD_REPO:-example-org/app}" feat/b
     else
@@ -99,7 +99,7 @@ for a in "\$@"; do
     pwd -P >"$LOG/push.cwd"
     exit 0
   fi
-  if [[ (\$a == push || \$a == ls-remote) && -n \${PB_GITHUB_ROOT:-} ]]; then
+  if [[ (\$a == push || \$a == ls-remote || \$a == fetch) && -n \${PB_GITHUB_ROOT:-} ]]; then
     exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=ssh://git@github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=git@github.com:" "\$@"
@@ -750,29 +750,85 @@ for args in "--sync-stale-base --no-sync-stale-base" "--sync-stale-base --sync-s
 done
 
 # The pull request's base, not the default branch: a PR based on 'stack',
-# which is current, merges nothing even though trunk moved on c.txt.
+# which is current, merges nothing even though trunk moved on c.txt. The base
+# is fetched from the remote that is the PR's base repository.
 wc=$(sync_clone sync-stacked yes)
 git -C "$wc" push -q origin HEAD:refs/heads/stack 2>/dev/null
+git -C "$wc" remote set-url origin https://github.com/sync-stacked/origin.git
 set_line "$wc" c.txt 1 branch-one
 advance_base sync-stacked c.txt 10 base-ten
-PB_PR_BASE=stack sync_run "$wc"
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=sync-stacked/origin sync_run "$wc"
 check "sync, stacked PR: exit 0" "$RC" "0"
-check "sync, stacked PR: fetched its base" "$(grep -c 'refs/heads/stack:' "$LOG/fetch.log")" "1"
+check "sync, stacked PR: fetched its base" "$(grep -c 'origin +refs/heads/stack:' "$LOG/fetch.log")" "1"
 check "sync, stacked PR: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+# A PR whose base repository no remote fetches skips the sync and still pushes.
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=elsewhere/app sync_run "$wc"
+check "sync, base repository with no remote: exit 0" "$RC" "0"
+check "sync, base repository with no remote: says why" "$(grep -c 'no remote fetches the base repository elsewhere/app' "$LOG/err")" "1"
+check "sync, base repository with no remote: nothing fetched" "$(fetched)" "none"
+check "sync, base repository with no remote: pushed" "$(pushed sync-stacked)" "$OLD_TIP"
 
-# The repository's own overlap rule wins when the checkout has one: a
-# scripts/check-stale-base-overlap.sh that passes (exit 0) means no merge,
-# though git sees an overlap.
-wc=$(sync_clone sync-repo-rule yes)
-mkdir -p "$wc/scripts"
+# --pr on a head that fetches from a fork: the base is fetched from the remote
+# that is the PR's base repository (upstream), never the fork's same-named
+# branch, and the fork's stale trunk is not what gets merged.
+wc=$(sync_clone sync-fork yes)
+git init -q --bare "$WORKDIR/sync-fork/upstream.git"
+git -C "$wc" push -q "$WORKDIR/sync-fork/upstream.git" HEAD:refs/heads/trunk 2>/dev/null
+git -C "$WORKDIR/sync-fork/upstream.git" symbolic-ref HEAD refs/heads/trunk
+git -C "$wc" remote add upstream https://github.com/sync-fork/upstream.git
+git -C "$wc" remote set-url origin https://github.com/sync-fork/origin.git
+PB_GITHUB_ROOT="$WORKDIR" git -C "$wc" fetch -q upstream
+set_line "$wc" c.txt 1 branch-one
+up="$WORKDIR/sync-fork/up"
+git clone -q -b trunk "$WORKDIR/sync-fork/upstream.git" "$up" 2>/dev/null
+git -C "$up" config user.email up@example.com
+git -C "$up" config user.name Up
+set_line "$up" c.txt 10 upstream-ten
+git -C "$up" push -q origin trunk 2>/dev/null
+fork_stub="$WORKDIR/sync-fork/bin"
+mkdir -p "$fork_stub"
+# shellcheck disable=SC2016 # the stub body expands when it runs, not here.
+printf '#!/usr/bin/env bash\n[[ "$1" == api ]] && echo example-user && exit 0\necho "%s sync-fork/origin sync-fork/upstream trunk"\n' "$BRANCH" >"$fork_stub/gh"
+chmod +x "$fork_stub/gh"
+PATH="$fork_stub:$PATH" PB_GITHUB_ROOT="$WORKDIR" sync_run "$wc" --pr 50
+check "sync, fork head: exit 0" "$RC" "0"
+check "sync, fork head: fetched the base from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
+check "sync, fork head: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-fork/upstream.git" rev-parse trunk)"
+
+# Nothing the pushed head holds decides the step or runs in it. A head that
+# turns sync_stale_base on, where the base's config does not, fetches nothing.
+wc=$(sync_clone sync-head-config no)
+mkdir -p "$wc/docs/conventions"
+echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
+git -C "$wc" add -A
+git -C "$wc" commit -q -m "head turns it on"
+set_line "$wc" c.txt 1 branch-one
+advance_base sync-head-config c.txt 10 base-ten
+sync_run "$wc"
+check "sync, head-only config: exit 0" "$RC" "0"
+check "sync, head-only config: nothing fetched" "$(fetched)" "none"
+check "sync, head-only config: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+
+# The overlap rule is the base's scripts/check-stale-base-overlap.sh: it runs
+# with --check and the fetched base, and its pass (exit 0) means no merge
+# though git sees an overlap. The head's edited copy, which would merge and
+# leave a marker, is never run.
+wc=$(make_clone sync-repo-rule)
+printf '%s\n' 1 2 3 4 5 6 7 8 9 10 >"$wc/c.txt"
+mkdir -p "$wc/docs/conventions" "$wc/scripts"
+echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
 printf '#!/usr/bin/env bash\necho "$*" >"%s/rule.argv"\nexit 0\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
-git -C "$wc" add scripts
-git -C "$wc" commit -q -m "repo rule"
+git -C "$wc" add -A
+git -C "$wc" commit -q -m "shared with the base rule"
+git -C "$wc" push -q origin HEAD:refs/heads/trunk 2>/dev/null
+printf '#!/usr/bin/env bash\ntouch "%s/head-rule-ran"\nexit 1\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
+git -C "$wc" commit -q -am "head edits the rule"
 set_line "$wc" c.txt 1 branch-one
 advance_base sync-repo-rule c.txt 10 base-ten
 sync_run "$wc"
 check "sync, repo rule: exit 0" "$RC" "0"
-check "sync, repo rule: called with --check and the fetched base" "$(cat "$LOG/rule.argv" 2>/dev/null)" "--check origin/trunk"
+check "sync, repo rule: the base's copy ran with --check and the fetched base" "$(cat "$LOG/rule.argv" 2>/dev/null)" "--check origin/trunk"
+check "sync, repo rule: the head's copy did not run" "$([[ -e $LOG/head-rule-ran ]] && echo ran || echo none)" "none"
 check "sync, repo rule: its pass means no merge" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
 
 # Uncommitted edits to tracked files: the sync is skipped, the push goes on.

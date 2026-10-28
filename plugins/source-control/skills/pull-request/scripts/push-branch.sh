@@ -76,17 +76,21 @@
 # that refuses a stale base with overlapping paths does not bounce a push that
 # waited in a rate gate while the base moved. The base is the PR's base branch
 # (--pr's own read, else `gh pr view <branch>`), or the fetch remote's default
-# branch when the branch has no PR yet; it is fetched from the fetch remote.
-# The overlap rule is the checkout's scripts/check-stale-base-overlap.sh
-# --check <remote>/<base> when that file exists (exit 1 merges, 0 does not,
-# anything else skips), else paths changed on both sides since the merge-base.
+# branch when the branch has no PR yet. It is fetched from the remote whose URL
+# is the PR's base repository on github.com (the fetch remote when there is no
+# PR); with no such remote the step is skipped. Nothing the pushed head holds
+# decides the step or runs in it: the overlap rule is the base ref's
+# scripts/check-stale-base-overlap.sh (with the base's scripts/ beside it),
+# run as --check <remote>/<base> (exit 1 merges, 0 does not, anything else
+# skips), else paths changed on both sides since the merge-base.
 # The merge is `git merge --no-edit`, never a rebase, signed when
 # commit.gpgsign is true (git's own setting) or HEAD is signed (-S). It is
 # skipped, with a note, when the base cannot be read or fetched, the branch is
 # checked out in no worktree, tracked files have uncommitted edits, or a merge
 # is in progress. A conflict aborts the merge and exits 4 without pushing.
-# On: sync_stale_base: true in the checkout's tracked
-# docs/conventions/source-control.yaml, or --sync-stale-base; --no-sync-stale-base
+# On: sync_stale_base: true in docs/conventions/source-control.yaml at the
+# base repository's default branch, as this clone last fetched it, or
+# --sync-stale-base; --no-sync-stale-base
 # turns it off. Off by default. A lane (below) never syncs. --check never syncs.
 #
 # Exit: 0 pushed (or --check passed); 1 refused or the push failed; 4 the
@@ -188,6 +192,32 @@ remote_default() {
   local out
   out=$(git ls-remote --symref "$1" HEAD 2>/dev/null) || return 0
   sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}"
+}
+
+# github_repo_of <url>: the owner/repo a github.com URL (https, ssh:// or
+# scp-style) names, or nothing.
+github_repo_of() {
+  local url="${1%/}"
+  url="${url%.git}"
+  case "${url,,}" in
+    https://github.com/*) echo "${url:19}" ;;
+    ssh://git@github.com/*) echo "${url:21}" ;;
+    git@github.com:*) echo "${url:15}" ;;
+    *) ;;
+  esac
+}
+
+# remote_of_repo <owner/repo>: the first remote whose fetch URL is that
+# github.com repository, or nothing.
+remote_of_repo() {
+  local r repo
+  for r in $(git remote); do
+    repo=$(github_repo_of "$(git remote get-url "$r" 2>/dev/null)")
+    if [[ -n "$repo" && "${repo,,}" == "${1,,}" ]]; then
+      echo "$r"
+      return 0
+    fi
+  done
 }
 
 # worktree_of <branch>: the worktree that has <branch> checked out, or nothing.
@@ -308,15 +338,7 @@ PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
 if [[ -n "${HEAD_REPO:-}" ]]; then
   URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null)
   while IFS= read -r URL; do
-    URL="${URL%/}"
-    URL="${URL%.git}"
-    URL_REPO=""
-    case "${URL,,}" in
-      https://github.com/*) URL_REPO="${URL:19}" ;;
-      ssh://git@github.com/*) URL_REPO="${URL:21}" ;;
-      git@github.com:*) URL_REPO="${URL:15}" ;;
-      *) ;;
-    esac
+    URL_REPO=$(github_repo_of "$URL")
     if [[ -z "$URL_REPO" || "${URL_REPO,,}" != "${HEAD_REPO,,}" ]]; then
       echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO' on github.com (https://github.com/, ssh://git@github.com/ or git@github.com:); not pushing" >&2
       exit 1
@@ -329,37 +351,51 @@ FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
 sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" >&2; }
 
 # sync_stale_base <checkout>: the sync-stale-base step of the header. Returns
-# 0 to push; exits 4 on a conflict.
+# 0 to push; exits 4 on a conflict. Nothing the pushed head holds decides
+# whether it runs or is run by it: the setting is read from the base
+# repository's default branch and the overlap script from the base ref.
 sync_stale_base() {
-  local wd="$1" root="" on="$SYNC" base="${PR_BASE_REF:-}" out ref rc mb tip paths_base paths_head overlap sign=()
-  [[ -n "$wd" ]] && root=$(git -C "$wd" rev-parse --show-toplevel 2>/dev/null)
-  if [[ -z "$on" && -n "$root" ]] &&
-    git -C "$root" ls-files --error-unmatch -- docs/conventions/source-control.yaml >/dev/null 2>&1; then
-    on=$(bash "$CONVENTION_KEY" value "$root" sync_stale_base) ||
-      echo "push-branch.sh: docs/conventions/source-control.yaml does not parse; sync_stale_base read as false" >&2
+  local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
+  local tmp out ref rc mb tip paths_base paths_head overlap default sign=()
+  [[ "$on" != false ]] || return 0
+  if [[ -n "$base_repo" ]]; then
+    remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
   fi
-  [[ "$on" == true ]] || return 0
-  [[ -n "$root" ]] || {
+  if [[ -z "$on" ]]; then
+    [[ -n "$remote" ]] || return 0
+    default=$(git symbolic-ref --short "refs/remotes/$remote/HEAD" 2>/dev/null)
+    default="${default#"$remote"/}"
+    [[ -n "$default" ]] || default=$(remote_default "$remote")
+    out=$(git show "refs/remotes/$remote/$default:docs/conventions/source-control.yaml" 2>/dev/null) || return 0
+    tmp=$(mktemp -d) || return 0
+    mkdir -p "$tmp/docs/conventions" && printf '%s\n' "$out" >"$tmp/docs/conventions/source-control.yaml"
+    on=$(bash "$CONVENTION_KEY" value "$tmp" sync_stale_base) ||
+      echo "push-branch.sh: $remote/$default:docs/conventions/source-control.yaml does not parse; sync_stale_base read as false" >&2
+    rm -rf "$tmp"
+    [[ "$on" == true ]] || return 0
+  fi
+  [[ -n "$wd" ]] || {
     sync_skip "'$BRANCH' is checked out in no worktree"
     return 0
   }
-  [[ -n "$FETCH_REMOTE" ]] || {
-    sync_skip "no fetch remote resolves for '$BRANCH'"
-    return 0
-  }
   if [[ -z "$PR" ]]; then
-    if out=$(gh pr view "$BRANCH" --json baseRefName -q .baseRefName 2>&1); then
-      base="${out//$'\r'/}"
+    if out=$(gh pr view "$BRANCH" --json baseRefName,url -q '.baseRefName + " " + (.url | split("/")[3:5] | join("/"))' 2>&1); then
+      read -r base base_repo <<<"${out//$'\r'/}"
+      remote=$(cd "$wd" && remote_of_repo "$base_repo")
     elif [[ "$out" == *"no pull requests found"* ]]; then
       base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
     fi
   fi
+  [[ -n "$remote" ]] || {
+    sync_skip "no remote fetches the base repository ${base_repo:-of $BRANCH}"
+    return 0
+  }
   [[ -n "$base" ]] || {
     sync_skip "the base branch of '$BRANCH' could not be read"
     return 0
   }
-  ref="$FETCH_REMOTE/$base"
-  git -C "$wd" fetch --quiet "$FETCH_REMOTE" "+refs/heads/$base:refs/remotes/$ref" || {
+  ref="$remote/$base"
+  git -C "$wd" fetch --quiet "$remote" "+refs/heads/$base:refs/remotes/$ref" || {
     sync_skip "git fetch of $ref failed"
     return 0
   }
@@ -371,12 +407,17 @@ sync_stale_base() {
     sync_skip "a merge is in progress in $wd"
     return 0
   }
-  if [[ -f "$root/scripts/check-stale-base-overlap.sh" ]]; then
-    (cd "$wd" && bash "$root/scripts/check-stale-base-overlap.sh" --check "$ref") >&2
+  if git -C "$wd" cat-file -e "$ref:scripts/check-stale-base-overlap.sh" 2>/dev/null; then
+    # The base's copy of the repository's rule (and the libraries beside it),
+    # never the pushed head's.
+    tmp=$(mktemp -d) || return 0
+    git -C "$wd" archive "$ref" -- scripts | tar -x -C "$tmp"
+    (cd "$wd" && bash "$tmp/scripts/check-stale-base-overlap.sh" --check "$ref") >&2
     rc=$?
+    rm -rf "$tmp"
     ((rc != 0)) || return 0
     ((rc == 1)) || {
-      sync_skip "scripts/check-stale-base-overlap.sh exited $rc"
+      sync_skip "the base's scripts/check-stale-base-overlap.sh exited $rc"
       return 0
     }
   else
