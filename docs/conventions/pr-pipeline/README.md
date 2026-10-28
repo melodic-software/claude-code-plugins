@@ -251,15 +251,17 @@ step judges the threads as above.
 
 A lane escalation's human-gated label does not stop the other fixers that could clear its cause.
 `resolve-conflicts`, `fix-ci` and `fix-docs` work a PR carrying the label when `gate-source.mjs`
-reads it as a lane escalation (the conditions below), no person has commented since the label went
-on (they may want the lanes to wait, as `clear-escalations.mjs` reads it), and no escalation since
-then names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
-writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency-*`
-`review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
-(`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
-`fix-ci-context`) read it; anything else, a person's label included, holds the PR as
-`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. When they work past the
-label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
+reads it as a lane escalation (the conditions below), no person has commented, reviewed or replied
+in a review thread since the label went on (they may want the lanes to wait; GitHub's timeline
+shows no reply inside an existing review thread, so the PR's review comments and reviews are read
+too, and a failed read holds it), and no escalation since then names a reason of the activity's
+own, read from the `- Reason:` line `report-escalation.sh` writes (`ci-fix-*` is `fix-ci`'s,
+`feedback-*` `address-feedback`'s, `dependency-*` `review-dependency`'s, any other
+`resolve-conflicts`'s). Their dispatchers and base-code jobs (`resolve-conflicts-select` and
+`pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`, `fix-ci-context`) read it; anything
+else, a person's label included, holds the PR as `awaiting-human`, and `do-not-merge` holds it in
+their `labels-absent`. When they work past the label, the write runner lifts only the human-gated
+hold for that push. That verdict is read once,
 before the model turn: a person who comments, or a hold that lands, while the run works does not
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
