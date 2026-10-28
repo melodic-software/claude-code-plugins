@@ -333,6 +333,8 @@ class HighReasonTests(unittest.TestCase):
                 (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
                 (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+                (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
+                (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
             ),
         )  # fmt: skip
         self.assertEqual(
@@ -372,6 +374,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
             (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
+            (".github/scripts/work-resolve-issue/stop-routes.json", ".github/scripts/work-resolve-issue/stop-routes.json"),
+            (".github/scripts/work-resolve-issue/stop-routes.mjs", ".github/scripts/work-resolve-issue/stop-routes.mjs"),
         ]  # fmt: skip
         unreviewed = (
             _lane("claude-review"),
@@ -1241,6 +1245,8 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
             ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+            ".github/scripts/work-resolve-issue/stop-routes.json",
+            ".github/scripts/work-resolve-issue/stop-routes.mjs",
         ):
             with self.subTest(path):
                 unreviewed = (
@@ -1318,12 +1324,12 @@ class LanePathFloorTests(unittest.TestCase):
         result = score(_lane_input((_edit(SKILL, FRONT, after),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pipeline_caps_edit_still_holds_as_cost(self):
+    def test_a_pipeline_caps_edit_holds_on_the_floor_and_reports_cost(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
         self.assertEqual(
             _codes(score(_lane_input(files))),
-            ("cost-review-required", "high-path:docs/conventions/pr-pipeline.yaml"),
+            ("high-path:docs/conventions/pr-pipeline.yaml", "cost-finding"),
         )
 
 
@@ -1746,10 +1752,15 @@ class ReviewFlagClassTests(unittest.TestCase):
         )  # fmt: skip
 
     def test_cost_flag_holds(self):
-        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
-        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        result = score(_input(files=(_file("infra/main.tf"),)))
         self.assertEqual(_codes(result), ("cost-review-required",))
         self.assertTrue(holds(result))
+
+    def test_subscription_spend_is_reported_and_does_not_hold(self):
+        patch = "@@ -1,1 +1,2 @@\n on: push\n+  claude_args: --model opus"
+        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        self.assertEqual(_codes(result), ("cost-finding",))
+        self.assertFalse(holds(result))
 
     def test_trust_gate_flag_holds(self):
         widened = _edit(ACTORS, BASE_ACTORS, _actors(_KYLE, _BOT, '{ "id": 3 }'))
@@ -1802,7 +1813,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 23)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 25)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

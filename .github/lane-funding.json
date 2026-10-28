@@ -37,7 +37,8 @@
       "category": "intake",
       "lanes": [
         { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY", "INTAKE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "claude-code-action", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY"] },
+        { "id": "refine-issue-subscription", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {

@@ -457,9 +457,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-- The design is finished: /planning:design-handoff gates it and writes it into PLAN.md's `## Design` for /planning:plan.
-- A name is still undecided: /naming:name-it-better.
-- A resolved decision is worth keeping: /architecture:record-decision.
+/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design`, which
+/planning:plan reads.
 
 ## Relationship to other skills
 
@@ -468,6 +467,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | `/planning:interview` | **Before.** Locks the brief (scope + constraints); design explores the solution space within them |
 | `/domain-driven-design:curate-language` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
+| `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
+| `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
 | `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what SHOULD exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Gathers external facts; deferred research items can run in parallel |

@@ -189,6 +189,25 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
+test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
+  withDir((dir) => {
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
+    assert.ok(block, "ci-status emits its notices in one block");
+    const out = execFileSync("bash", ["-c", block[1]], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+    });
+    assert.equal(
+      out,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "::notice title=api-calls::github-token=2 not-modified=1\n",
+    );
+    // With no reading, no line, as the action skips a token with none.
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    assert.equal(execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }), "");
+  }));
+
 // The shell port of the rate guard decides every shared vector as
 // rate-guard.mjs does.
 test("api_budget_classify decides every rate-guard vector", () => {
@@ -615,6 +634,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
+    "pr-merge.yml": { "post-merge-dispatch": "github-token" },
+    "intake-reenter.yml": { reenter: "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -670,6 +691,10 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
   assert.ok(block, "ci-status sets API_BUDGET_SH as a block scalar");
   const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
   assert.equal(carried, readFileSync(LIB, "utf8"));
+});
+
+test("ci-status emits the api-calls notice beside its api-budget notice", () => {
+  assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
 });
 
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
