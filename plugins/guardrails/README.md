@@ -115,8 +115,8 @@ hooks) under the check-placement convention's contract
 (`docs/conventions/check-placement/README.md` in the marketplace repository): local
 scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
 committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
-`main` branch (`git-hooks/lefthook-remote.yml`), refetched daily: whoever can merge to that
-`main` runs code in every such clone within a day, with its user's privileges and git
+`main` branch (`git-hooks/lefthook-remote.yml`), refetched hourly: whoever can merge to that
+`main` runs code in every such clone within an hour, with its user's privileges and git
 credentials. With husky or plain hooks it commits copies under
 `.githooks/guardrails/`. A clone whose fetched remote no longer parses (every commit and
 `lefthook install` then fail with a YAML error) recovers, once the fix is on `main`, with
