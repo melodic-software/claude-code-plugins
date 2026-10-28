@@ -2478,7 +2478,10 @@ design (owner decision 2026-10-22, #8966), and the issues it labels still count 
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
-`admission-open` is `false` only while new admissions pause.
+`admission-open` is `false` only while new admissions pause. A job that reads only `capped`
+(pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
+open listing and the merged count, and leaves the admission fields null with `admission_basis`
+`not-read`.
 
 | Field | Meaning |
 |---|---|
@@ -2501,7 +2504,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` or `search-incomplete` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
-| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`. |
+| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `not-read` under `reads: pause`. |
 
 ## Adoption
 
