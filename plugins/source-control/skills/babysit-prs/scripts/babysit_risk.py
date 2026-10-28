@@ -72,9 +72,18 @@ caller verified, clears it.
 A workflow patch that gains a `_SECRET_REF` rates HIGH as
 `secret-exposure-review`, and one that gains a `_MODEL_ACTION` or a
 `_MODEL_PACKAGE` run rates HIGH as `agent-surface-review`, each counted
-against the lines it removes so a move or repin is not new. They widen what a
-credential or an agent can reach, so both are a person's (`PERSON_CODES`)
-and no cost decision clears them.
+against the lines it removes so a move or repin is not new; the secrets
+reference is also read from the head text against the base text, so a
+workflow with no patch is not skipped. A workflow whose token gains a write
+scope rates HIGH as `permission-widening-review`: its base and head text are
+parsed and each job's write scopes compared (a job left with no
+`permissions:` of its own or at the top level runs on the repository default
+and counts as a gain; an added file compares against none; unread text, a
+repeated key or an alias holds), with net-added `write` lines as a raw-text
+backstop. One that gains a `pull_request_target` or `workflow_run` trigger
+rates HIGH as `privileged-trigger-review`, read the same two ways. They widen
+what a credential, an agent or a write token can reach, so all four are a
+person's (`PERSON_CODES`) and no cost decision clears them.
 
 Spend that draws only on a subscription or prepaid credit is the MED
 `cost-finding`, reported and never held: a workflow patch that adds a
@@ -215,8 +224,15 @@ class RiskResult:
 #   effect-grants.json included), the rate guard, every pr-merge script,
 #   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
 #   compute the review's clear condition), the pipeline config, and
-#   scripts/sync-hold-floor.py, which writes this table's copies.
-# - `enforcement`: the pr-merge and ci-status workflows, the rest of the
+#   scripts/sync-hold-floor.py, which writes this table's copies; and every
+#   workflow that holds a credential a review cannot be trusted to judge: the
+#   review callers and pr-review-main.yml (the review itself), and each
+#   workflow whose token can write, that names a secret other than
+#   GITHUB_TOKEN or that mints a lane token (pr-merge, ci-status and
+#   pr-unblock among them). A workflow outside this list that gains a write
+#   scope, a privileged trigger or a secret holds by its patch instead
+#   (`_workflow_privilege_reasons`, `secret-exposure-review`).
+# - `enforcement`: the rest of the
 #   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
 #   closures and requires them here), and the scripts that act on a
@@ -275,8 +291,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-    (".github/workflows/pr-require-checks.yml", "enforcement"),
-    (".github/workflows/pr-merge.yml", "enforcement"),
+    (".github/workflows/pr-require-checks.yml", "gate"),
+    (".github/workflows/pr-merge.yml", "gate"),
     ("docs/conventions/pr-pipeline.yaml", "gate"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
@@ -301,9 +317,33 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
     (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
-    (".github/workflows/pr-unblock.yml", "enforcement"),
+    (".github/workflows/pr-unblock.yml", "gate"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
+    (".github/workflows/dependabot-fragments.yml", "gate"),
+    (".github/workflows/eval-browser-dispatch.yml", "gate"),
+    (".github/workflows/intake-reenter.yml", "gate"),
+    (".github/workflows/intake-triage.yml", "gate"),
+    (".github/workflows/maintenance-audit-lane-runs.yml", "gate"),
+    (".github/workflows/maintenance-delete-stale-branches.yml", "gate"),
+    (".github/workflows/maintenance-file-claude-code-release-issues.yml", "gate"),
+    (".github/workflows/maintenance-file-upstream-drift-issues.yml", "gate"),
+    (".github/workflows/maintenance-monitor-signals.yml", "gate"),
+    (".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"),
+    (".github/workflows/post-merge-demotion-alert.yml", "gate"),
+    (".github/workflows/post-merge-test-mutation.yml", "gate"),
+    (".github/workflows/pr-feedback-dispatch.yml", "gate"),
+    (".github/workflows/pr-refine.yml", "gate"),
+    (".github/workflows/pr-review-hosted.yml", "gate"),
+    (".github/workflows/pr-review-main.yml", "gate"),
+    (".github/workflows/pr-review-security-hosted.yml", "gate"),
+    (".github/workflows/pr-run-activity-read.yml", "gate"),
+    (".github/workflows/pr-run-activity-write.yml", "gate"),
+    (".github/workflows/pr-unblock-dispatch.yml", "gate"),
+    (".github/workflows/pr-verify.yml", "gate"),
+    (".github/workflows/release-publish-plugins.yml", "gate"),
+    (".github/workflows/work-resolve-issue.yml", "gate"),
+    (".github/workflows/work-unblock.yml", "gate"),
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
@@ -975,6 +1015,163 @@ def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
     return [f"retention raised to {n}" for n in new if n > top]
 
 
+PERMISSION_WIDENING_CODE = "permission-widening-review"
+PRIVILEGED_TRIGGER_CODE = "privileged-trigger-review"
+# Triggers that run the default branch's copy with a write token on another
+# event's behalf.
+PRIVILEGED_TRIGGERS = frozenset({"pull_request_target", "workflow_run"})
+# A job with no `permissions:` of its own or at the top level runs on the
+# repository default, which this module cannot see, so it may write.
+_DEFAULT_TOKEN = "repository-default"
+# Raw-text backstops on comment-stripped lines, so a parser difference
+# between PyYAML and GitHub's cannot hide a gain: a write grant, and a
+# privileged trigger in a trigger's shape (a key, a list item, or a name on
+# an `on:` line), never a `github.event.workflow_run` expression.
+_WRITE_TEXT = re.compile(
+    r"\b(?:id-token|[a-z-]+)\s*:\s*['\"]?write\b|\bwrite-all\b", re.IGNORECASE
+)
+_TRIGGER_KEY = re.compile(
+    r"^\s*(?:-\s*)?['\"]?(pull_request_target|workflow_run)['\"]?\s*(?::|,|$)"
+)
+_ON_LINE = re.compile(r"^\s*['\"]?on['\"]?\s*:(.*)$")
+_TRIGGER_NAME = re.compile(r"(?<![.\w-])(pull_request_target|workflow_run)(?![.\w-])")
+
+
+def _trigger_tokens(line: str) -> list[str]:
+    key = _TRIGGER_KEY.match(line)
+    if key:
+        return [key[1]]
+    on = _ON_LINE.match(line)
+    return _TRIGGER_NAME.findall(on[1]) if on else []
+
+
+def _code_lines(lines: list[str]) -> list[str]:
+    """Lines with YAML comments dropped: a whole-line comment, or the text
+    after ` #`."""
+    return [
+        line.split(" #", 1)[0] for line in lines if not line.lstrip().startswith("#")
+    ]
+
+
+def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
+    """(job:scope write grants, triggers) of workflow text, None when it
+    does not read as one mapping with a `jobs` mapping and a readable `on`.
+    An absent side (None) and an empty document are the empty workflow. A
+    repeated key, an anchor or an alias is unreadable, since GitHub's parser
+    could read it otherwise."""
+    if text is None:
+        return set(), set()
+    try:
+        import yaml
+    except ImportError:
+        return None
+
+    class _Strict(yaml.SafeLoader):
+        pass
+
+    def mapping(loader: Any, node: Any) -> dict[Any, Any]:
+        seen: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if str(key).casefold() in (str(k).casefold() for k in seen):
+                raise ValueError("repeated key")
+            seen[key] = loader.construct_object(value_node, deep=True)
+        return seen
+
+    _Strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+    try:
+        for event in yaml.parse(text, Loader=_Strict):
+            if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
+                return None
+        data = yaml.load(text, Loader=_Strict)  # noqa: S506 - SafeLoader subclass
+    except Exception:  # noqa: BLE001 - unreadable holds
+        return None
+    if data is None:
+        # An empty document runs nothing.
+        return set(), set()
+    if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
+        return None
+    # PyYAML reads a plain `on` key as the YAML 1.1 bool; GitHub reads "on".
+    on = data.get("on", data.get(True))
+    if on is None:
+        triggers: set[str] = set()
+    elif isinstance(on, str):
+        triggers = {on}
+    elif isinstance(on, list):
+        triggers = {str(t) for t in on}
+    elif isinstance(on, dict):
+        triggers = {str(t) for t in on}
+    else:
+        return None
+
+    def writes(perm: Any) -> set[str] | None:
+        if perm is None:
+            return None
+        if perm == "read-all" or perm == {}:
+            return set()
+        if perm == "write-all":
+            return {"*"}
+        if not isinstance(perm, dict):
+            return {"?"}
+        return {
+            str(scope).casefold()
+            for scope, level in perm.items()
+            if level not in ("read", "none")
+        }
+
+    top = writes(data.get("permissions"))
+    grants: set[str] = set()
+    for name, job in data["jobs"].items():
+        own = writes(job.get("permissions")) if isinstance(job, dict) else {"?"}
+        scopes = own if own is not None else top
+        for scope in scopes if scopes is not None else {_DEFAULT_TOKEN}:
+            grants.add(f"{name}:{scope}")
+    return grants, {t.casefold() for t in triggers}
+
+
+def _workflow_privilege_gains(
+    f: _File, raw: Any, patch: Any
+) -> tuple[list[str], list[str]]:
+    """(permission widenings, privileged triggers gained) of one changed
+    workflow: its base text against its head text (an added file against
+    none), and its patch's net-added lines as a backstop. Unreadable text
+    holds as a widening."""
+    contents = getattr(raw, "contents", None)
+    if getattr(raw, "contents_error", None) is not None or not (
+        isinstance(contents, tuple) and len(contents) == 2
+    ):
+        return ["contents unreadable"], []
+    base = _workflow_privileges(contents[0])
+    head = _workflow_privileges(contents[1])
+    if base is None or head is None or contents[1] is None:
+        return ["unreadable, malformed, a repeated key or an alias"], []
+    widened = sorted(head[0] - base[0])
+    triggers = sorted((head[1] - base[1]) & PRIVILEGED_TRIGGERS)
+    lines = _patch_lines(patch)
+    if lines is not None:
+        added, removed = (_code_lines(side) for side in lines)
+        widened += [f"added line {m}" for m in _net_added(_WRITE_TEXT, added, removed)]
+        gained = Counter(t for line in added for t in _trigger_tokens(line))
+        gained.subtract(t for line in removed for t in _trigger_tokens(line))
+        triggers += sorted(t for t, n in gained.items() if n > 0 and t not in triggers)
+    return widened, triggers
+
+
+def _text_secret_gains(raw: Any) -> list[str]:
+    """Secrets references a workflow's head text gains over its base text
+    (comment-stripped), so a change with no patch, or one a cost branch
+    skips, is still read. Unread text gains nothing here: the patch check
+    and `_workflow_privilege_gains` hold it."""
+    contents = getattr(raw, "contents", None)
+    if not (isinstance(contents, tuple) and len(contents) == 2):
+        return []
+    base, head = contents
+    if not isinstance(head, str):
+        return []
+    before = _code_lines(base.split("\n")) if isinstance(base, str) else []
+    return _net_added(_SECRET_REF, _code_lines(head.split("\n")), before)
+
+
 def _cost_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
@@ -987,7 +1184,24 @@ def _cost_reasons(
     (`agent-surface-review`) is a security change, HIGH and a person's, which
     the cost decision does not clear."""
     charges, spends, secrets, agents = [], [], [], []
+    widenings: list[str] = []
+    privileged: list[str] = []
+    secret_files: set[str] = set()
     for f, raw in zip(files, raw_files):
+        # Before any branch below can skip the file: no cost decision clears
+        # a widening.
+        if f.status != "removed" and any(is_workflow_path(p) for p in f.paths):
+            widened, triggers = _workflow_privilege_gains(
+                f, raw, getattr(raw, "patch", None)
+            )
+            if widened:
+                widenings.append(f"{f.path}: {'; '.join(widened)}")
+            if triggers:
+                privileged.append(f"{f.path}: adds {', '.join(triggers)}")
+            gained = _text_secret_gains(raw)
+            if gained:
+                secrets.append(f"{f.path}: new secrets reference {', '.join(gained)}")
+                secret_files.add(f.path)
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
             charges.append(f"{f.path}: infrastructure as code")
             continue
@@ -1028,7 +1242,7 @@ def _cost_reasons(
                 elif _COST_WORKFLOW_LINE.search(s):
                     spend.append(s.strip())
             secret = _net_added(_SECRET_REF, added, removed)
-            if secret:
+            if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
             agent = [
                 f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
@@ -1065,6 +1279,14 @@ def _cost_reasons(
         reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
     if agents:
         reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
+    if widenings:
+        reasons.append(
+            Reason(PERMISSION_WIDENING_CODE, Risk.HIGH, "; ".join(widenings))
+        )
+    if privileged:
+        reasons.append(
+            Reason(PRIVILEGED_TRIGGER_CODE, Risk.HIGH, "; ".join(privileged))
+        )
     return reasons
 
 
@@ -1262,6 +1484,8 @@ PERSON_CODES = frozenset(
         COST_CODE,
         SECRET_EXPOSURE_CODE,
         AGENT_SURFACE_CODE,
+        PERMISSION_WIDENING_CODE,
+        PRIVILEGED_TRIGGER_CODE,
         FILES_CAPPED_CODE,
     }
 )

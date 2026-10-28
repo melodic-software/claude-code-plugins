@@ -253,8 +253,9 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // compute the review's clear condition, the rate guard, and
 // scripts/sync-hold-floor.py, which writes this list) and
 // the config the token broker loads (resolve-config, effect-grants.json
-// included, and the pipeline config); `enforcement`, the pr-merge and
-// ci-status workflows, the other modules the
+// included, and the pipeline config), and every workflow holding a write
+// token, a secret or a lane token, the review workflows among them;
+// `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
 // and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
@@ -310,8 +311,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
-  [".github/workflows/pr-require-checks.yml", "enforcement"],
-  [".github/workflows/pr-merge.yml", "enforcement"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
   ["docs/conventions/pr-pipeline.yaml", "gate"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
@@ -336,9 +337,33 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
   [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
-  [".github/workflows/pr-unblock.yml", "enforcement"],
+  [".github/workflows/pr-unblock.yml", "gate"],
   [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
+  [".github/workflows/dependabot-fragments.yml", "gate"],
+  [".github/workflows/eval-browser-dispatch.yml", "gate"],
+  [".github/workflows/intake-reenter.yml", "gate"],
+  [".github/workflows/intake-triage.yml", "gate"],
+  [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-delete-stale-branches.yml", "gate"],
+  [".github/workflows/maintenance-file-claude-code-release-issues.yml", "gate"],
+  [".github/workflows/maintenance-file-upstream-drift-issues.yml", "gate"],
+  [".github/workflows/maintenance-monitor-signals.yml", "gate"],
+  [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/post-merge-demotion-alert.yml", "gate"],
+  [".github/workflows/post-merge-test-mutation.yml", "gate"],
+  [".github/workflows/pr-feedback-dispatch.yml", "gate"],
+  [".github/workflows/pr-refine.yml", "gate"],
+  [".github/workflows/pr-review-hosted.yml", "gate"],
+  [".github/workflows/pr-review-main.yml", "gate"],
+  [".github/workflows/pr-review-security-hosted.yml", "gate"],
+  [".github/workflows/pr-run-activity-read.yml", "gate"],
+  [".github/workflows/pr-run-activity-write.yml", "gate"],
+  [".github/workflows/pr-unblock-dispatch.yml", "gate"],
+  [".github/workflows/pr-verify.yml", "gate"],
+  [".github/workflows/release-publish-plugins.yml", "gate"],
+  [".github/workflows/work-resolve-issue.yml", "gate"],
+  [".github/workflows/work-unblock.yml", "gate"],
   // END hold-floor HOLD_PATH_CLASSES
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a

@@ -20,6 +20,8 @@ from babysit_risk import (
     AGENT_SURFACE_CODE,
     COST_CODE,
     COST_FINDING_CODE,
+    PERMISSION_WIDENING_CODE,
+    PRIVILEGED_TRIGGER_CODE,
     SECRET_EXPOSURE_CODE,
     Risk,
     holding,
@@ -138,7 +140,7 @@ class CostHold(_Finding):
 
 
 MODEL_WORKFLOW = (
-    "jobs:\n  judge:\n    steps:\n"
+    "permissions: {}\njobs:\n  judge:\n    steps:\n"
     "      - uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@abc\n"
 )
 
@@ -254,7 +256,13 @@ class ModelSpendDetections(_Finding):
     def test_a_raised_timeout_on_an_unread_workflow(self):
         raised = _patch("+    timeout-minutes: 45")
         wf = _file(WORKFLOW, patch=raised, contents=None)
-        self.assertReported(_cost([wf], public=True))
+        result = _cost([wf], public=True)
+        self.assertIn(COST_FINDING_CODE, _codes(result))
+        self.assertNotIn(COST_CODE, _codes(result))
+        # Unread text cannot show the token did not widen: a person's hold.
+        self.assertIn(
+            PERMISSION_WIDENING_CODE, [r.code for r in person_reasons(holding(result))]
+        )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
     def test_a_raised_artifact_retention_holds_unless_public(self):
@@ -503,7 +511,7 @@ class SecurityAndCostHolds(_Finding):
         self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_raised_timeout_on_a_claude_code_base_action_workflow(self):
-        head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+        head = "permissions: {}\njobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
         wf = self._wf(
             "-    timeout-minutes: 30",
             "+    timeout-minutes: 45",
@@ -548,6 +556,117 @@ class SecurityAndCostHolds(_Finding):
     def test_an_unlisted_base_tree_fails_closed(self):
         result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)
         self.assertIn(COST_CODE, _codes(result))
+
+
+def _workflow(perms: str, job_perms: str = "", on: str = "on: push\n") -> str:
+    """Workflow text: `perms` at the top level, `job_perms` on its one job."""
+    return f"{on}{perms}jobs:\n  build:\n{job_perms}    runs-on: ubuntu-24.04\n"
+
+
+READ_ONLY = _workflow("permissions:\n  contents: read\n")
+
+
+class WorkflowPrivilegeHolds(_Finding):
+    """A workflow change that widens its token or adds a privileged trigger is
+    a person's hold (owner direction 2026-10-28: an AI review alone must not
+    clear it), and no cost decision clears it."""
+
+    def _change(self, base, head, patch="", status="modified", **kw):
+        wf = _file(WORKFLOW, status=status, patch=patch, contents=(base, head))
+        return _cost([wf], public=True, **kw)
+
+    def assertHeld(self, result, code):
+        self.assertIn(code, [r.code for r in person_reasons(holding(result))])
+
+    def assertNotHeld(self, result, code):
+        self.assertNotIn(code, _codes(result))
+
+    def test_a_scope_raised_to_write_holds(self):
+        head = _workflow("permissions:\n  contents: write\n")
+        self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_write_all_and_a_flow_mapping_grant_hold(self):
+        for head in (
+            _workflow("permissions: write-all\n"),
+            _workflow("permissions: { contents: read, issues: write }\n"),
+            _workflow("permissions: {}\n", "    permissions:\n      id-token: write\n"),
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_dropping_the_permissions_block_holds(self):
+        # The job then runs on the repository default, which may write.
+        self.assertHeld(
+            self._change(READ_ONLY, _workflow("")), PERMISSION_WIDENING_CODE
+        )
+
+    def test_a_new_workflow_that_writes_holds_and_a_read_only_one_does_not(self):
+        added = self._change(
+            None, _workflow("permissions:\n  pull-requests: write\n"), status="added"
+        )
+        self.assertHeld(added, PERMISSION_WIDENING_CODE)
+        quiet = self._change(None, _workflow("permissions: read-all\n"), status="added")
+        self.assertNotHeld(quiet, PERMISSION_WIDENING_CODE)
+        self.assertNotHeld(quiet, PRIVILEGED_TRIGGER_CODE)
+
+    def test_lowering_or_keeping_a_scope_does_not_hold(self):
+        writes = _workflow("permissions:\n  contents: write\n")
+        self.assertNotHeld(self._change(writes, READ_ONLY), PERMISSION_WIDENING_CODE)
+        same = writes.replace("on: push\n", "on: push\nname: renamed\n")
+        self.assertNotHeld(self._change(writes, same), PERMISSION_WIDENING_CODE)
+
+    def test_an_added_privileged_trigger_holds(self):
+        for on in (
+            "on: pull_request_target\n",
+            "on: [push, workflow_run]\n",
+            "on:\n  push:\n  workflow_run:\n    workflows: [ci]\n",
+        ):
+            with self.subTest(on=on):
+                head = _workflow("permissions: {}\n", on=on)
+                base = _workflow("permissions: {}\n")
+                self.assertHeld(self._change(base, head), PRIVILEGED_TRIGGER_CODE)
+
+    def test_an_existing_trigger_its_expressions_and_comments_do_not_hold(self):
+        on = "on:\n  workflow_run:\n    workflows: [ci]\n"
+        base = _workflow("permissions: {}\n", on=on)
+        patch = _patch(
+            "+    if: github.event.workflow_run.conclusion == 'success'",
+            "+# pull_request_target would run the base copy; we do not use it",
+        )
+        result = self._change(base, base, patch=patch)
+        self.assertNotHeld(result, PRIVILEGED_TRIGGER_CODE)
+        self.assertNotHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_an_added_trigger_line_holds_even_when_the_text_reads_alike(self):
+        # The raw-text backstop: the patch adds the trigger whatever the text.
+        base = _workflow("permissions: {}\n")
+        result = self._change(base, base, patch=_patch("+  pull_request_target:"))
+        self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+        result = self._change(base, base, patch=_patch("+      issues: write"))
+        self.assertHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_unreadable_text_holds(self):
+        for head in (
+            "on: push\non: pull_request\njobs: {}\n",
+            "x: &a 1\ny: *a\njobs: {}\n",
+            "on: push\njobs: [1]\n",
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_a_cost_decision_or_a_skipped_cost_branch_does_not_clear_it(self):
+        head = _workflow("permissions: write-all\n", on="on: pull_request_target\n")
+        for kw in ({"cost_decision": DECISION}, {"pulumi_dirs": None}):
+            with self.subTest(kw=kw):
+                result = self._change(READ_ONLY, head, **kw)
+                self.assertHeld(result, PERMISSION_WIDENING_CODE)
+                self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+
+    def test_a_secret_the_head_text_gains_holds_without_a_patch(self):
+        head = READ_ONLY + "    env:\n      K: ${{ secrets.DEPLOY_KEY }}\n"
+        wf = _file(WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head))
+        result = _cost([wf], public=True, cost_decision=DECISION)
+        self.assertHeld(result, SECRET_EXPOSURE_CODE)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from babysit_risk import (
     holding,
     holds,
     normalize_path,
+    person_reasons,
     score,
 )
 
@@ -282,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 27, "enforcement": 42},
+            {"trust": 5, "gate": 54, "enforcement": 39},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -383,9 +384,10 @@ class HighReasonTests(unittest.TestCase):
             "package.json",
             "plugins/foo/package-lock.json",
             "plugins/foo/requirements.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-review-security-hosted.yml",
-            ".github/workflows/work-resolve-issue.yml",
+            # Workflows with no write token, secret or lane token; one that
+            # holds any is a `gate` path.
+            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
                 codes = _codes(score(_input(files=(_file(path),))))
@@ -1293,8 +1295,8 @@ class LanePathFloorTests(unittest.TestCase):
             "package.json",
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
@@ -1710,7 +1712,7 @@ class TrustGateTests(unittest.TestCase):
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/scripts/pr-merge/gate.mjs",
-            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/pr-test-windows.yml",
             ".github/standards/trusted-actors/README.md",
             "plugins/foo/trusted-actors/trusted-actors.json",
         ):
@@ -1783,6 +1785,67 @@ def _floor_sample(glob):
     return glob.removeprefix("**/").replace("**", "x.mjs")
 
 
+_REPO = pathlib.Path(__file__).resolve().parents[6]
+
+
+def _credentialed(text: str) -> bool:
+    """Whether workflow text holds a credential a review cannot judge itself:
+    a write scope (top level or any job), a secret other than GITHUB_TOKEN,
+    or a lane token, read independently of babysit_risk."""
+    import re
+
+    import yaml
+
+    data = yaml.safe_load(text)
+    perms = [data.get("permissions")] + [
+        job.get("permissions") for job in (data.get("jobs") or {}).values()
+    ]
+    writes = any(
+        p == "write-all" or (isinstance(p, dict) and "write" in p.values())
+        for p in perms
+    )
+    code = "\n".join(
+        line.split(" #")[0]
+        for line in text.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    secrets = {m.casefold() for m in re.findall(r"secrets\.([A-Za-z0-9_]+)", code)} - {
+        "github_token"
+    }
+    return writes or bool(secrets) or "request-lane-token" in code
+
+
+class CredentialedWorkflowsAreGate(unittest.TestCase):
+    """Owner direction 2026-10-28: a review cannot be trusted to judge the
+    workflows that hold its own credential or one it cannot see. Each
+    workflow with a write token, a secret or a lane token, and the review
+    workflows, is a `gate` path, held for a person; the rest are not floor
+    paths and the main-run review clears them."""
+
+    def test_every_credentialed_workflow_holds_for_a_person(self):
+        gate = {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+        found = sorted((_REPO / ".github/workflows").glob("*.yml"))
+        self.assertGreater(len(found), 20)
+        for wf in found:
+            path = wf.relative_to(_REPO).as_posix()
+            review = wf.stem.startswith("pr-review")
+            with self.subTest(path):
+                held = path in gate
+                self.assertEqual(held, review or _credentialed(wf.read_text()))
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(
+                    f"high-path:{path}"
+                    in [r.code for r in person_reasons(result.reasons)],
+                    held,
+                )
+
+    def test_the_review_workflows_are_gate(self):
+        gate = {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+        for name in ("pr-review-hosted", "pr-review-security-hosted", "pr-review-main"):
+            with self.subTest(name):
+                self.assertIn(f".github/workflows/{name}.yml", gate)
+
+
 class ReviewClearedFloorTests(unittest.TestCase):
     """Owner decision Q26 option B: an `enforcement` floor path holds as
     `review-path:` until the security lane's review is bound to the head with
@@ -1794,7 +1857,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 39)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

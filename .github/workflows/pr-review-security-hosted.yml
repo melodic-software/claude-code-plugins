@@ -280,6 +280,30 @@ jobs:
         .github/workflows/pr-unblock.yml
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        .github/workflows/dependabot-fragments.yml
+        .github/workflows/eval-browser-dispatch.yml
+        .github/workflows/intake-reenter.yml
+        .github/workflows/intake-triage.yml
+        .github/workflows/maintenance-audit-lane-runs.yml
+        .github/workflows/maintenance-delete-stale-branches.yml
+        .github/workflows/maintenance-file-claude-code-release-issues.yml
+        .github/workflows/maintenance-file-upstream-drift-issues.yml
+        .github/workflows/maintenance-monitor-signals.yml
+        .github/workflows/maintenance-reconcile-lost-runs.yml
+        .github/workflows/post-merge-demotion-alert.yml
+        .github/workflows/post-merge-test-mutation.yml
+        .github/workflows/pr-feedback-dispatch.yml
+        .github/workflows/pr-refine.yml
+        .github/workflows/pr-review-hosted.yml
+        .github/workflows/pr-review-main.yml
+        .github/workflows/pr-review-security-hosted.yml
+        .github/workflows/pr-run-activity-read.yml
+        .github/workflows/pr-run-activity-write.yml
+        .github/workflows/pr-unblock-dispatch.yml
+        .github/workflows/pr-verify.yml
+        .github/workflows/release-publish-plugins.yml
+        .github/workflows/work-resolve-issue.yml
+        .github/workflows/work-unblock.yml
         plugins/review/skills/security-review/**
         plugins/review/evals/security-review-*/**
       # END hold-floor hold-paths
