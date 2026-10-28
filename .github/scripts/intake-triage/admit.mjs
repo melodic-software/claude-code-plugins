@@ -169,6 +169,21 @@ export function operatorConfirmation({ schedule, labels, title }) {
 // with blockerDone or stillBlocking.
 export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
 
+// An issue's open sub-issues: an umbrella's work is its sub-issues' (owner
+// Q93), so the issue lane waits while one is open. `issue` is a REST issue
+// read (one issue or a listing), whose `sub_issues_summary { total, completed }`
+// (https://docs.github.com/en/rest/issues/issues#get-an-issue) costs no call;
+// only an issue with `total > completed` lists its sub-issues
+// (https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues), since
+// the docs do not say whether `completed` counts a close as not planned. A
+// read with no usable summary lists them too, so a missing field never lets
+// an umbrella run.
+export async function openSubIssues(github, base, issue) {
+  const { total, completed } = issue?.sub_issues_summary ?? {};
+  const none = Number.isSafeInteger(total) && Number.isSafeInteger(completed) && total <= completed;
+  return none ? [] : (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed");
+}
+
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
@@ -1157,8 +1172,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
-    // Listed only when the issue read counts any.
-    subIssues: (issue.sub_issues_summary?.total ?? 0) > 0 ? await paginate(github, `${base}/sub_issues`) : [],
+    subIssues: await openSubIssues(github, base, issue),
     events: await paginate(github, `${base}/events`),
     // Only a visibility that reads public skips the cost_private charge
     // words; a failed read counts the repository as private.

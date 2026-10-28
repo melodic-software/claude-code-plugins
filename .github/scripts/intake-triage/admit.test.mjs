@@ -39,6 +39,7 @@ const issueOf = (overrides = {}) => ({
   body: BODY,
   user: { id: HUMAN },
   type: { name: "Task" },
+  sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 },
   labels: [{ name: READY }, { name: "work-class: mechanical" }],
   ...overrides,
 });
@@ -1415,6 +1416,11 @@ describe("size split sub-issues", () => {
   test("admit() waits on an open sub-issue the issue read counts", async () => {
     const issue = issueOf({ sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } });
     const fake = withIssues(fakeGitHub({ issue }), { subIssues: { 7: [{ number: 8, state: "open" }] } });
+    assert.deepEqual(await go(fake), { outcome: "waiting", reasons: ["sub-issue #8 is open"] });
+  });
+
+  test("admit() lists sub-issues and waits when the issue read has no summary", async () => {
+    const fake = withIssues(fakeGitHub({ issue: issueOf({ sub_issues_summary: undefined }) }), { subIssues: { 7: [{ number: 8, state: "open" }] } });
     assert.deepEqual(await go(fake), { outcome: "waiting", reasons: ["sub-issue #8 is open"] });
   });
 
