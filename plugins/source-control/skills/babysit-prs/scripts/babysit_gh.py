@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
 
+import babysit_run_cache as run_cache
 from babysit_util import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
     dig,
@@ -2279,6 +2280,116 @@ def fetch_review_threads(
     return threads
 
 
+# A completed lane run's attempts, saved in the pr-merge run cache
+# (babysit_run_cache.py) by run, attempt and lane, and carried to the next
+# run by .github/scripts/pr-merge/carry-run-cache.mjs, which bounds them and
+# checks the same key and format.
+LANE_RUN_SECTION = "lane-run"
+CARRIED_LANE_RUN_SECTION = "carried-lane-run"
+LANE_RUN_FORMAT = "v1"
+# What `babysit_review_evidence.bind()` reads of an attempt, a job and an
+# annotation; a saved attempt keeps only these. A change to what bind() reads
+# changes LANE_RUN_FORMAT, so no record saved without the new field is used.
+LANE_ATTEMPT_FIELDS = (
+    "id",
+    "run_attempt",
+    "status",
+    "conclusion",
+    "head_sha",
+    "run_started_at",
+)
+LANE_JOB_FIELDS = (
+    "id",
+    "name",
+    "conclusion",
+    "head_sha",
+    "run_id",
+    "run_attempt",
+    "started_at",
+    "completed_at",
+)
+LANE_ANNOTATION_FIELDS = ("annotation_level", "title", "message")
+
+
+def _pick(record: Mapping[str, Any], fields: Iterable[str]) -> dict[str, Any]:
+    return {k: record[k] for k in fields if k in record}
+
+
+def _slim_job(job: Mapping[str, Any]) -> dict[str, Any]:
+    out = _pick(job, LANE_JOB_FIELDS)
+    if "annotations" in job:
+        out["annotations"] = [
+            _pick(a, LANE_ANNOTATION_FIELDS) if isinstance(a, Mapping) else a
+            for a in job["annotations"]
+        ]
+    return out
+
+
+def lane_run_key(repo: str, run_id: int, attempt: int, job_suffix: str) -> str:
+    return f"{repo}|{run_id}|{attempt}|{job_suffix}|{LANE_RUN_FORMAT}"
+
+
+def lane_run_value(latest: Mapping[str, Any], attempts: list[dict[str, Any]]) -> Any:
+    """What a completed run's attempts are saved as: each attempt with only
+    the fields bind() reads, and the latest attempt's `updated_at`."""
+    return {
+        "updated_at": latest.get("updated_at"),
+        "attempts": [
+            {
+                **_pick(a, LANE_ATTEMPT_FIELDS),
+                "jobs": [_slim_job(j) for j in a["jobs"]],
+            }
+            for a in attempts
+        ],
+    }
+
+
+def carried_lane_attempts(
+    item: Mapping[str, Any], value: Any
+) -> list[dict[str, Any]] | None:
+    """The attempts a saved `value` holds for the listed run `item`, or None
+    when it does not match what the listing shows now: the run completed at
+    the attempt saved, with the same `updated_at` and the same fields bind()
+    reads of its latest attempt, which is the listing's record itself, and
+    every saved job names this run, its attempt and the listed head."""
+    run_id = item.get("id")
+    count = item.get("run_attempt")
+    if (
+        item.get("status") != "completed"
+        or not isinstance(count, int)
+        or isinstance(count, bool)
+        or not isinstance(value, dict)
+        or not isinstance(item.get("updated_at"), str)
+        or value.get("updated_at") != item.get("updated_at")
+    ):
+        return None
+    attempts = value.get("attempts")
+    if not isinstance(attempts, list) or len(attempts) != count:
+        return None
+    for n, attempt in enumerate(attempts, 1):
+        if (
+            not isinstance(attempt, dict)
+            or attempt.get("id") != run_id
+            or attempt.get("run_attempt") != n
+            or not isinstance(attempt.get("jobs"), list)
+            or not all(
+                isinstance(job, dict)
+                and job.get("run_id") == run_id
+                and job.get("run_attempt") == n
+                and job.get("head_sha") == item.get("head_sha")
+                for job in attempt["jobs"]
+            )
+        ):
+            return None
+    latest = attempts[-1]
+    if any(
+        (k in latest) != (k in item) or latest.get(k) != item.get(k)
+        for k in LANE_ATTEMPT_FIELDS
+    ):
+        return None
+    return [*attempts[:-1], {**item, "jobs": latest["jobs"]}]
+
+
 def collect_lane_runs(
     repo: str,
     number: int,
@@ -2296,16 +2407,30 @@ def collect_lane_runs(
     creation time, bounds the listing to runs created since: GitHub labels a
     reused branch's older runs with whichever pull request is open on it now,
     so without the bound a long-lived branch reads every earlier pull
-    request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
-    from a fresh `GET actions/runs/{id}` taken after the listing, and that
-    response stands in for its latest attempt, so only earlier attempts are
-    read from `attempts/{n}`; each attempt
+    request's runs. A value that is not a UTC timestamp leaves it unbounded.
+    A run the listing shows completed is taken from the run cache when an
+    earlier pr-merge run saved its attempts (`CARRIED_LANE_RUN_SECTION`,
+    which carry-run-cache.mjs checks and bounds; `carried_lane_attempts`: the same
+    attempt, `updated_at` and latest-attempt fields as the listing shows now);
+    the listing's record stands in for its latest attempt. Any other kept
+    run's attempt count comes from a fresh `GET actions/runs/{id}` taken after
+    the listing, and that response stands in for its latest attempt, so only
+    earlier attempts are read from `attempts/{n}`; each attempt
     carries its jobs, and each lane job its check run's annotations, as does
-    the succeeded `kill-switch` job of an attempt with no lane job. Any read
+    the succeeded `kill-switch` job of an attempt with no lane job. A run read
+    so whose latest attempt completed is saved for the next read. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
     RUN_SEARCH_CAP, which may be missing runs. `env_overrides` applies to
     every read, all of them GETs.
+
+    A completed attempt's record, jobs and annotations do not change, so a
+    saved one decides as a fresh read would. The run cache saves them only
+    within one pr-merge run; carry-run-cache.mjs carries them to the next only
+    from a scheduled or hand-started run of main's pr-merge.yml whose head is
+    on main, so writing a carried entry needs code running in that run, which
+    already holds the lanes App token. A carried entry the listing does not
+    match, or that is malformed, is read again from GitHub.
     """
     env = env_overrides
 
@@ -2352,6 +2477,21 @@ def collect_lane_runs(
             run_id = item.get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
                 raise RuntimeError(f"{workflow} run without an id")
+            listed = item.get("run_attempt")
+            if item.get("status") == "completed" and isinstance(listed, int):
+                # Only the section carry-run-cache.mjs checked and bounded:
+                # a lane-run section the run cache starts with is never read.
+                saved = carried_lane_attempts(
+                    item,
+                    run_cache.get(
+                        CARRIED_LANE_RUN_SECTION,
+                        lane_run_key(repo, run_id, listed, job_suffix),
+                        None,
+                    ),
+                )
+                if saved is not None:
+                    runs.append({**item, "attempts": saved})
+                    continue
             latest = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
             count = latest.get("run_attempt")
             if not isinstance(count, int) or isinstance(count, bool) or count < 1:
@@ -2382,6 +2522,12 @@ def collect_lane_runs(
                             f"job {job.get('id')} annotations",
                         )
                 attempts.append({**attempt, "jobs": jobs})
+            if latest.get("status") == "completed":
+                run_cache.put(
+                    LANE_RUN_SECTION,
+                    lane_run_key(repo, run_id, count, job_suffix),
+                    lane_run_value(latest, attempts),
+                )
             runs.append({**item, "attempts": attempts})
     return runs
 
