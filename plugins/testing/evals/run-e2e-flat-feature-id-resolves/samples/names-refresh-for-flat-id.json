@@ -7,6 +7,10 @@
     {
       "answer": "cart | changed: shop/cart/basket.py | control skill not refreshed (app-control not installed); name app-control:map refresh \"cart\".",
       "why": "quoted id"
+    },
+    {
+      "answer": "Run /app-control:map refresh cart.",
+      "why": "id at the end of a sentence"
     }
   ],
   "fail": [

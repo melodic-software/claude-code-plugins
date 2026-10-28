@@ -26,7 +26,7 @@ graders:
     arm: both
   - name: names-refresh-for-grouped-id
     type: regex
-    pattern: 'app-control:map refresh[ `"]+billing/export(?![\w./-])'
+    pattern: 'app-control:map refresh[ `"]+billing/export(?!\.?[\w/-])'
     arm: both
   - name: reports-readme-entry-points
     type: llm

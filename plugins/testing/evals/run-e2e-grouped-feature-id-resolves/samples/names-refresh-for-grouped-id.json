@@ -7,6 +7,10 @@
     {
       "answer": "billing/export | changed: shop/billing/export/csv.py | control skill not refreshed (app-control not installed). Run app-control:map refresh `billing/export`.",
       "why": "backticked id"
+    },
+    {
+      "answer": "Run /app-control:map refresh billing/export.",
+      "why": "id at the end of a sentence"
     }
   ],
   "fail": [

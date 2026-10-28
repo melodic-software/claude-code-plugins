@@ -19,7 +19,7 @@ graders:
     arm: both
   - name: names-refresh-for-flat-id
     type: regex
-    pattern: 'app-control:map refresh[ `"]+cart(?![\w./-])'
+    pattern: 'app-control:map refresh[ `"]+cart(?!\.?[\w/-])'
     arm: both
   - name: reports-flat-entry-points
     type: llm
