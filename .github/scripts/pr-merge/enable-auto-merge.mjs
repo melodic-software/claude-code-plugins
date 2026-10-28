@@ -1360,11 +1360,13 @@ export async function main({ env = process.env, github, actions, verify, room, s
           continue;
         }
         // Its slot stays counted: a lost answer may hide an arm that landed,
-        // and the next run counts it from autoMergeRequest.
+        // and the next run counts it from autoMergeRequest. A causeless error
+        // (undici's bare "fetch failed") is named, since its message alone does
+        // not say what threw.
         if (action === "arm" && transient(error)) {
           skippedArms.push(`#${pull.number}`);
           networkArms += 1;
-          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}`);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}${error?.cause ? "" : ` (${errorLabel(error)})`}`);
           continue;
         }
         failed += 1;
