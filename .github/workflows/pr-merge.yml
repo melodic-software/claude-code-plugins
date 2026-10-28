@@ -37,8 +37,11 @@ name: pr-merge
 # One exception to the switch: when the merge queue lands any PR on main,
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
-# merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so when it ends red the same job sends its run id and head SHA to
+# merges nothing; at most one per 30 minutes, and a merge that cap skips gets
+# its run of main's tip from the post-merge-dispatch job on the next scheduled
+# run while the lane is live. That run raises no workflow_run event
+# (GITHUB_TOKEN started it), so when it ends red the post-merge-dispatch job
+# on the next scheduled run while the lane is live sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
 # re-run fails too. A red run this workflow dispatched gets its one re-run
@@ -108,7 +111,9 @@ jobs:
   # fail on a GitHub 5xx, nor after its gate loop, which can take many
   # minutes. It reads with this job's own token, so the merge job's Actions
   # token stays read-only. It also starts the one re-run of a red full run the
-  # lane dispatched, which the lanes App cannot start. Same mechanics as
+  # lane dispatched, which the lanes App cannot start, starts main's tip when
+  # no full run covers it and none started within the cap, and sends a red
+  # full run to post-merge-demotion-alert.yml. Same mechanics as
   # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
   # post-merge check trusts. Not on pull_request_target, whose dispatch the
   # check does not trust; that event's merge job still runs the check.
@@ -121,13 +126,18 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # read lane merges and their merge-queue entries
-      actions: write # read full runs and their records; start pr-require-checks.yml on main and re-run a red lane-dispatched run
+      actions: write # read full runs and their records; start pr-require-checks.yml on main, re-run a red lane-dispatched run, and send a red one to post-merge-demotion-alert.yml
       checks: read # read a failed full run's annotations
       issues: read # read the demotion records the merge floor depends on
     outputs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
-      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.dispatch.outputs.stop || steps.rerun.outputs.stop }}
+      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget). The full-run dispatch's own
+    # `gh api -i` POST leaves none.
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -288,15 +298,67 @@ jobs:
           if-no-files-found: error
 
       # The same body as dispatch-full-run's step of this name; see there.
+      # It runs whether or not the post-merge check did, while the lane is
+      # live: a merge the cap skipped gets its run here. With the kill switch
+      # or report-only on, this job reads and sends nothing that spends API or
+      # starts a run; dispatch-full-run's push
+      # carve-out still starts a run per merge outside the cap. A read stopped
+      # on a rate limit stops the step red, as the alert step's, and its stop
+      # is the job's rate-limited output: nothing after it calls GitHub.
+      - name: Read main's full-run cover
+        id: cover
+        if: steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TIP: ${{ github.sha }}
+          CAP_MINUTES: 30
+        run: |
+          set -euo pipefail
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
+          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
+            --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
+            cat "$RUNNER_TEMP/cover-stderr" >&2
+            stop=$(rate_stop_from "$RUNNER_TEMP/cover-stderr" "the read of main's full runs")
+            if [ -n "$stop" ]; then
+              echo "::error title=GitHub rate limit::the read of main's full runs was rate limited ($stop); nothing more is sent"
+              echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+              echo "stop=$stop" >>"$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "::warning::the read of main's full runs failed; no cap applies to this run"
+            exit 0
+          fi
+          since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
+          recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
+          if [ -n "$recent" ]; then
+            echo "::notice::a full run of main was started at $recent, within $CAP_MINUTES minutes; the first push or scheduled pr-merge run after that window starts one for main's tip"
+            echo "capped=true" >>"$GITHUB_OUTPUT"
+          fi
+          if ! jq -e --arg tip "$TIP" 'any(.[]; .sha == $tip)' <<<"$runs" >/dev/null; then
+            echo "uncovered=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # The same body as dispatch-full-run's step of this name; see there.
+      # It also starts main's tip when no full run covers it and none started
+      # within the cap, and starts nothing within the cap.
       # WAIT_CAP: of the 15 minutes, the whole job took 97-127 s on the last
       # ten scheduled runs read on 2026-10-23 (the post-merge check 81-111 s
       # of it). Add 180 s here, the re-run step's POST waits (up to 30 s) and
-      # read-back sleeps (up to 170 s) and about 20 s of reads and uploads:
-      # about 9 minutes, which leaves 6 for slow reads. A timeout after the re-run POST would leave
+      # read-back sleeps (up to 170 s), the alert send's waits (up to 30 s)
+      # and about 30 s of reads and uploads: about 9.5 minutes, which leaves
+      # 5 for slow reads. A timeout after the re-run POST would leave
       # its attempt 2 unrecorded, so the cap gives way, not the timeout.
       - name: Start the full CI run on main
         id: dispatch
-        if: steps.post-merge.outputs.needs-dispatch == 'true'
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && steps.mode.outputs.live == 'true'
+          && steps.cover.outputs.rate-limited != 'true'
+          && steps.cover.outputs.capped != 'true'
+          && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -379,7 +441,7 @@ jobs:
             waited=$((waited + wait))
           done
           if [ -z "$id" ]; then
-            echo "::warning::no full CI run started for $what after $try attempt(s): $why; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule"
+            echo "::warning::no full CI run started for $what after $try attempt(s): $why; the next scheduled pr-merge run starts one for main's tip"
             exit 0
           fi
           echo "started run $id"
@@ -409,6 +471,7 @@ jobs:
         id: rerun
         if: >-
           !cancelled()
+          && steps.cover.outputs.rate-limited != 'true'
           && steps.dispatch.outputs.rate-limited != 'true'
           && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
           && steps.post-merge.outputs.lane-rerun != ''
@@ -500,6 +563,150 @@ jobs:
           path: ${{ runner.temp }}/rerun.json
           retention-days: 90
           if-no-files-found: error
+
+      # A full run GITHUB_TOKEN started raises no workflow_run event, so
+      # post-merge-demotion-alert.yml hears of a red one only from here. Each
+      # scheduled or hand-started run sends the oldest red pr-require-checks.yml
+      # dispatch on main that github-actions[bot] started within
+      # LOOKBACK_HOURS and no earlier run sent, by its run id and head SHA
+      # (which keys the alert's concurrency group), and records it as
+      # pr-merge-alerted-<id>; one run per job, so a send costs one alert job,
+      # and a second red run goes on the next run. Red is attempt 1 concluding
+      # in babysit_postmerge.py's FAILED_CONCLUSIONS, except a run the
+      # concurrency group replaced before it started (cancelled, no job). Any
+      # merge, whoever merged, as dispatch-full-run starts the run, but only
+      # while the lane is live: with the kill switch or report-only on this
+      # job reads and sends nothing, and a red run is sent on the first run
+      # after both clear, within LOOKBACK_HOURS. A rate limit stops the step red, as the re-run step's, and
+      # one the cover read stopped on skips it; any other failed read or send
+      # sends nothing more and leaves the run to the next one. LOOKBACK_HOURS:
+      # a red run is sent within 15 minutes of its end; 6 hours outlasts a day
+      # of missed schedules many times over (judgment).
+      - name: Send a red full run to the demotion alert
+        id: alert
+        if: >-
+          !cancelled()
+          && steps.kill.outputs.proceed == 'true'
+          && steps.mode.outputs.live == 'true'
+          && steps.post-merge.outputs.code != '75'
+          && steps.cover.outputs.rate-limited != 'true'
+          && steps.dispatch.outputs.rate-limited != 'true'
+          && steps.rerun.outputs.rate-limited != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          LOOKBACK_HOURS: 6
+        run: |
+          set -euo pipefail
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
+          err=$RUNNER_TEMP/alert-stderr
+          stopped() {
+            local stop
+            cat "$err" >&2
+            stop=$(rate_stop_from "$err" "$1")
+            [ -n "$stop" ] || return 0
+            echo "::error title=GitHub rate limit::$1 was rate limited ($stop); nothing more is sent"
+            echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+            echo "stop=$stop" >>"$GITHUB_OUTPUT"
+            exit 1
+          }
+          since=$(date -u -d "@$(($(date +%s) - LOOKBACK_HOURS * 3600))" +%Y-%m-%dT%H:%M:%SZ)
+          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D$since&per_page=100" \
+            --jq '.workflow_runs | sort_by(.id) | .[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main") | [.id, .run_attempt, .status, (.conclusion // "none"), .head_sha] | @tsv' 2>"$err"); then
+            stopped "the listing of main's full runs"
+            echo "::warning::the listing of main's full runs failed; the next run sends any red one"
+            exit 0
+          fi
+          while IFS=$'\t' read -r id attempt status conclusion sha; do
+            [[ $id =~ ^[1-9][0-9]{0,14}$ && $sha =~ ^[0-9a-f]{40}$ ]] || continue
+            if [ "$attempt" != 1 ]; then
+              if ! state=$(gh api "repos/$REPO/actions/runs/$id/attempts/1" --jq '.status + " " + (.conclusion // "none")' 2>"$err"); then
+                stopped "the read of run $id attempt 1"
+                echo "::warning::the read of run $id attempt 1 failed; the next run tries again"
+                continue
+              fi
+              read -r status conclusion <<<"$state"
+            fi
+            [ "$status" = completed ] || continue
+            [[ $conclusion =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] || continue
+            if [ "$conclusion" = cancelled ]; then
+              if ! jobs=$(gh api "repos/$REPO/actions/runs/$id/attempts/1/jobs?per_page=1" --jq .total_count 2>"$err"); then
+                stopped "the jobs read of run $id"
+                echo "::warning::the jobs read of run $id failed; the next run tries again"
+                continue
+              fi
+              if [ "$jobs" = 0 ]; then
+                echo "run $id was replaced before it started: no signal"
+                continue
+              fi
+            fi
+            # Already sent only when pr-merge.yml's own post-merge-dispatch on
+            # main uploaded the record (_Context.lane_alerted, the sender rule
+            # of the dispatch and re-run records): a same-name artifact any
+            # other run uploads is no record. 0 sent, 4 not sent, 75 a rate
+            # limit. Only 4 sends: 1 (a crash), 3 (a failed read) and any other
+            # code leave the run to the next run, so a broken check never sends
+            # the same run again each tick.
+            code=0
+            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$REPO" --branch main --lane-alerted "$id" </dev/null >/dev/null 2>"$err" || code=$?
+            case $code in
+              0) continue ;;
+              4) ;;
+              75)
+                stopped "the record read of run $id"
+                echo "::error title=GitHub rate limit::the record read of run $id was rate limited (an unrecorded pool until its reset); nothing more is sent"
+                echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                echo "stop=an unrecorded pool until its reset" >>"$GITHUB_OUTPUT"
+                exit 1
+                ;;
+              *)
+                cat "$err" >&2
+                echo "::warning::the record read of run $id failed (exit $code); the next run tries again"
+                continue
+                ;;
+            esac
+            # As the dispatch: at most three sends, sent again after a capped
+            # full-jitter wait only when gh's error shows the request never
+            # left. A rate limit is never sent again.
+            for try in 1 2 3; do
+              if gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
+                -f ref=main -f "inputs[run-id]=$id" -f "inputs[head-sha]=$sha" >/dev/null 2>"$err"; then
+                echo "sent run $id ($conclusion) to post-merge-demotion-alert.yml"
+                echo "{\"alerter_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/alerted.json"
+                echo "run-id=$id" >>"$GITHUB_OUTPUT"
+                exit 0
+              fi
+              stopped "the send of run $id to post-merge-demotion-alert.yml"
+              if [ "$try" = 3 ] || ! grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$err"; then
+                break
+              fi
+              wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+              echo "::notice::attempt $try: the connection failed before the send; waiting ${wait}s, then sending again"
+              sleep "$wait"
+            done
+            echo "::warning::could not send run $id to post-merge-demotion-alert.yml after $try attempt(s); the next run tries again"
+            exit 0
+          done <<<"$runs"
+
+      - name: Record the alert sent
+        if: "!cancelled() && steps.alert.outputs.run-id != ''"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
+          path: ${{ runner.temp }}/alerted.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   merge:
     # On the schedule and a hand-started run it waits for post-merge-dispatch
@@ -596,6 +803,27 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
 
       # The off switch, checked before anything else.
       - name: Check the kill switch
@@ -1671,6 +1899,27 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
 
+      # The review-evidence binding reads a changed workflow file with PyYAML
+      # (babysit_review_evidence.readonly_workflow); without it no workflow
+      # change clears, so a failed install warns and the job goes on. The
+      # interpreter is the repository's pinned one, whose wheels the
+      # requirements file hashes; only the PyYAML entry is installed.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
+            exit 1
+          }
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -1958,15 +2207,17 @@ jobs:
   # that failed. A lane merge can get a second run from it when it checks the
   # merge before the push dispatch's run exists.
   #
-  # BURSTS COLLAPSE HERE, NOT IN pr-require-checks.yml. Push jobs share one
-  # group without `cancel-in-progress`, so one runs while one waits; a newer
-  # push replaces the waiting job, which is cancelled before it dispatches
-  # anything. The running job holds the group until the run it started
-  # finishes, so the waiting one dispatches main's tip then, which contains
-  # every merge it replaced. A pending pr-require-checks run is never
-  # cancelled: babysit_postmerge.py and post-merge-demotion-alert.yml both
-  # count a cancelled full run as red. Every other event takes a group of its
-  # own and does not wait.
+  # BURSTS COLLAPSE IN TWO PLACES. This job starts no run while one of main
+  # started within the cap (the cover step), and pr-require-checks.yml holds
+  # main's dispatches in one group with no `queue` key: one runs, one waits,
+  # and a newer one replaces the waiting one before it starts. A running full
+  # run is never cancelled: babysit_postmerge.py and
+  # post-merge-demotion-alert.yml both count a cancelled full run as red, and
+  # skip a replaced one (cancelled, no job). Push jobs share one group without
+  # `cancel-in-progress`, so two pushes never read the cover at once. The job
+  # ends once it dispatches: post-merge-dispatch sends a red run to
+  # post-merge-demotion-alert.yml on the next scheduled run. Every other event
+  # takes a group of its own and does not wait.
   # A lanes App pull request whose refusal the lanes clear shows it as a
   # failing pr-merge/unarmed commit status on its head once the refusal has
   # stood merge.risk-escalation-minutes, never the human-gated label, and a
@@ -2015,12 +2266,58 @@ jobs:
       group: ${{ github.event_name == 'push' && 'pr-merge-verify-main' || format('pr-merge-dispatch-{0}', github.run_id) }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    # A push job waits for the full run, whose longest lane is capped at 16
-    # minutes, plus time in the runner queue.
-    timeout-minutes: 45
+    # One read and up to three POSTs, whose waits WAIT_CAP bounds.
+    timeout-minutes: 10
     permissions:
-      actions: write # start pr-require-checks.yml on main, read its status, and send a red one to post-merge-demotion-alert.yml
+      actions: write # read main's full runs and start pr-require-checks.yml on main
     steps:
+      # At most one full run of main per CAP_MINUTES, each of main's tip,
+      # covering every merge since the last. The step reads the newest
+      # pr-require-checks.yml dispatches on main that github-actions[bot]
+      # started, skipping a cancelled one (replaced before it started, or
+      # cancelled later, which reads red): capped=true when one was created
+      # within CAP_MINUTES, uncovered=true when none is at TIP. A failed read
+      # sets neither, so the run dispatches as it would with no cap, except a
+      # read refused for a rate limit, which stops the step red with
+      # rate-limited=true and sends nothing more. This job has no checkout of
+      # the shared guard, so the match is the pattern rate-stop.bash's
+      # rate_stop_from reads; post-merge-dispatch's copy of this step sources
+      # that guard. A merge the cap skips is covered by the next push after
+      # the window or, while the lane is live, by post-merge-dispatch on the
+      # next scheduled run, whose dispatch starts main's tip once nothing
+      # covers it, whoever merged. CAP_MINUTES: the efficiency plan of 2026-10-26
+      # (item 5, owner decision): 116 runs a day at a median 84.1 runner-min
+      # become at most 48.
+      - name: Read main's full-run cover
+        id: cover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TIP: ${{ github.sha }}
+          CAP_MINUTES: 30
+        run: |
+          set -euo pipefail
+          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
+            --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
+            cat "$RUNNER_TEMP/cover-stderr" >&2
+            if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/cover-stderr"; then
+              echo "::error title=GitHub rate limit::the read of main's full runs was rate limited; nothing more is sent"
+              echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "::warning::the read of main's full runs failed; no cap applies to this run"
+            exit 0
+          fi
+          since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
+          recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
+          if [ -n "$recent" ]; then
+            echo "::notice::a full run of main was started at $recent, within $CAP_MINUTES minutes; the first push or scheduled pr-merge run after that window starts one for main's tip"
+            echo "capped=true" >>"$GITHUB_OUTPUT"
+          fi
+          if ! jq -e --arg tip "$TIP" 'any(.[]; .sha == $tip)' <<<"$runs" >/dev/null; then
+            echo "uncovered=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # At most three POSTs. Any 429, or a 403 with a retry-after, remaining
       # 0, or a message naming a rate limit, is never sent again:
       # GitHub may ban an integration that keeps calling while limited, so the
@@ -2036,15 +2333,13 @@ jobs:
       # second run would have no record. The waits sum to
       # at most WAIT_CAP seconds; one that does not fit is not taken. A
       # dispatch that still fails sets no run id and ends green with a
-      # warning: nothing is recorded or waited on. The post-merge-dispatch
-      # job's check on the next scheduled run starts the run only for a lane
-      # merge; any other merge waits for the next push or pr-require-checks'
-      # own schedule.
-      # WAIT_CAP: 45 minutes, less the wait step's 39, its alert send's
-      # waits (up to 30 s) and about 1 for the reads and uploads, leaves
-      # 4.5; 180 s of it.
+      # warning: nothing is recorded. The post-merge-dispatch job on the next
+      # scheduled run starts one for main's tip, which covers the merge.
+      # WAIT_CAP: of the 10 minutes, about 1 goes to the cover read and the
+      # record upload; 180 s of the rest.
       - name: Start the full CI run on main
         id: dispatch
+        if: steps.cover.outputs.rate-limited != 'true' && steps.cover.outputs.capped != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -2127,7 +2422,7 @@ jobs:
             waited=$((waited + wait))
           done
           if [ -z "$id" ]; then
-            echo "::warning::no full CI run started for $what after $try attempt(s): $why; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule"
+            echo "::warning::no full CI run started for $what after $try attempt(s): $why; the next scheduled pr-merge run starts one for main's tip"
             exit 0
           fi
           echo "started run $id"
@@ -2145,73 +2440,6 @@ jobs:
           path: ${{ runner.temp }}/dispatched.json
           retention-days: 90
           if-no-files-found: error
-
-      # Holds the push group until the run finishes, so a burst of merges
-      # waits here as one pending job. One REST read every three minutes, 13
-      # over 39 minutes; the run's result is the merge job's post-merge
-      # check's to judge, not this job's.
-      # A red run raises no workflow_run event (this token started it), so
-      # this step sends its id and head SHA (which keys the alert's
-      # concurrency group) to post-merge-demotion-alert.yml, which waits
-      # for a re-run before it files or reports anything. Red is any
-      # conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS: a cancel on
-      # a time-budget overrun is red too. Every merge is a push to main, so
-      # every merge's run passes here.
-      - name: Wait for the full run to finish
-        if: github.event_name == 'push' && steps.dispatch.outputs.run-id != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ steps.dispatch.outputs.run-id }}
-        run: |
-          set -euo pipefail
-          # Each read after the first is conditional on the last ETag: a 304
-          # (gh exits 1) means the run is as last read, still going.
-          cond=()
-          for _ in $(seq 13); do
-            sleep 180
-            if ! out=$(gh api -i "repos/$REPO/actions/runs/$RUN_ID" "${cond[@]}" 2>"$RUNNER_TEMP/wait-stderr"); then
-              cat "$RUNNER_TEMP/wait-stderr" >&2
-              # A read refused for a rate limit, a bare 429 included, is never
-              # retried. This job has no checkout of the shared guard, so the
-              # match is the pattern rate-stop.bash's rate_stop_from reads.
-              if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/wait-stderr"; then
-                echo "::error title=GitHub rate limit::the read of run $RUN_ID was rate limited; nothing more is sent"
-                exit 1
-              fi
-              continue
-            fi
-            etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
-            cond=()
-            [ -z "$etag" ] || cond=(-H "If-None-Match: $etag")
-            state=$(sed '1,/^\r\?$/d' <<<"$out" | jq -r '.status + " " + .head_sha + " " + (.conclusion // "")') || continue
-            read -r status head_sha conclusion <<<"$state"
-            if [ "$status" = completed ]; then
-              echo "run $RUN_ID completed: $conclusion"
-              [[ "$conclusion" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] || exit 0
-              # As the dispatch: at most three sends, sent again after a capped
-              # full-jitter wait only when gh's error shows the request never
-              # left. A rate limit is never sent again.
-              for try in 1 2 3; do
-                gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
-                  -f ref=main -f "inputs[run-id]=$RUN_ID" -f "inputs[head-sha]=$head_sha" >/dev/null 2>"$RUNNER_TEMP/alert-stderr" && exit 0
-                cat "$RUNNER_TEMP/alert-stderr" >&2
-                if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/alert-stderr"; then
-                  echo "::error title=GitHub rate limit::the send of run $RUN_ID to post-merge-demotion-alert.yml was rate limited; nothing more is sent"
-                  exit 1
-                fi
-                if [ "$try" = 3 ] || ! grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$RUNNER_TEMP/alert-stderr"; then
-                  break
-                fi
-                wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
-                echo "::notice::attempt $try: the connection failed before the send; waiting ${wait}s, then sending again"
-                sleep "$wait"
-              done
-              echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml after $try attempt(s); the next scheduled full run reports a red that lasts"
-              exit 1
-            fi
-          done
-          echo "::warning::run $RUN_ID did not finish within 39 minutes; releasing the group"
 
   # Each candidate the gate judged shows its verdict on its head as one
   # `pr-merge / gate` check run: neutral, titled with the top refusal, or

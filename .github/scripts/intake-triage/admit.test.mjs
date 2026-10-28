@@ -770,6 +770,17 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
+  // A manual re-dispatch skips intake-reenter, so the parked status comes off here.
+  test("adds agent-ready and lifts a parked status: confirmed beside status: ready", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "admitted");
+    assert.deepEqual(writes(fake.calls), [
+      `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`,
+      `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(CONFIRMED)} undefined`,
+    ]);
+  });
+
   // refine.mjs starts the size split only from this exact wait comment.
   test("the Size Large wait comment admit() posts is the one refine.mjs splits on", async () => {
     const fake = fakeGitHub();

@@ -37,7 +37,8 @@
 //      moved head it escalates feedback-not-landed, and beside a patch, a
 //      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
-//      disposition), feedback-not-landed, feedback-partial (posting stopped
+//      disposition; the round marker names each such thread),
+//      feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
 //      or a reason adjudicate-feedback.mjs settleDisputes gives for an
 //      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
@@ -509,6 +510,20 @@ function staleRunOf(readArtifact) {
   }
 }
 
+// The round marker's lines naming each kept thread with no disposition (its
+// id and root comment), which report-escalation.sh copies into the
+// feedback-incomplete escalation: at most 20, then how many more.
+const UNDISPOSED_SHOWN = 20;
+export const undisposedLines = (undisposed = []) =>
+  undisposed.length === 0
+    ? []
+    : [
+        "",
+        "Kept review threads with no disposition:",
+        ...undisposed.slice(0, UNDISPOSED_SHOWN).map(({ id, comment }) => `- \`${id}\` (root comment ${comment})`),
+        ...(undisposed.length > UNDISPOSED_SHOWN ? [`- and ${undisposed.length - UNDISPOSED_SHOWN} more`] : []),
+      ];
+
 export async function publish(args) {
   const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
   const staleRun = staleRunOf(args.readArtifact);
@@ -537,7 +552,12 @@ export async function publish(args) {
       const round = roundLine(rounds, maxRounds + FRESH_FIXER_ROUNDS);
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished ${round} on ${headSha}.`].join("\n"),
+        [
+          ROUND_MARKER,
+          ...(runLine ? [runLine] : []),
+          `pr-unblock / address-feedback finished ${round} on ${headSha}.`,
+          ...undisposedLines(result?.undisposed),
+        ].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
@@ -596,11 +616,14 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason, posted: [] };
     }
     // Every kept thread needs its disposition: one left out would stay open
-    // with no reply, and the head's check run stops another dispatch.
+    // with no reply, and the head's check run stops another dispatch. The
+    // round marker names each one left out, for the escalation.
     if (replies.length !== run.threads.length) {
-      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition`);
+      const disposed = new Set(replies.map((reply) => reply.thread));
+      const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));
+      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
       escalationReason = "feedback-incomplete";
-      return { escalationReason, posted: [] };
+      return { escalationReason, posted: [], undisposed };
     }
     const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
     const now = new Map(kept.map((thread) => [thread.id, thread]));

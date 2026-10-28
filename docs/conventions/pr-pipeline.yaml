@@ -328,6 +328,32 @@ activities:
     web-access:
       enabled: true
       domains: any
+    # Tidies the run's own change before its last check run, so the PR reaches
+    # review already tidied, with no extra push or review round (#8485). Only
+    # a change within the cutoffs is tidied in the run; the cutoffs are a
+    # starting value for the lane baseline to retune. The runner allows the
+    # entry and the passes and no other skill.
+    tidy:
+      entry: code-tidying:tidy-diff
+      passes:
+        - docs-hygiene:write-for-agents
+        - docs-hygiene:write-for-humans
+        - ai-slop:audit
+      turn-share: 25
+      cutoffs:
+        max-files: 10
+        max-lines: 300
+        max-areas: 1
+        shared-paths:
+          - .github/
+          - .claude/
+          - .claude-plugin/
+          - scripts/
+          - lib/
+          - docs/conventions/
+          - docs/standards/
+          - AGENTS.md
+          - CLAUDE.md
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
@@ -988,11 +1014,11 @@ merge:
   # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B). Its `trust`
   # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
   # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
-  # guard, every pr-merge script, pr-merge.yml, pr-require-checks.yml, this
-  # file, babysit_merge*, babysit_risk.py, babysit_review_evidence.py) wait
-  # for a person. Its `enforcement` globs (the other modules the floored
-  # scripts import and the rest of the Python that decides the holds) wait
-  # for a clean security review bound to the head instead.
+  # guard, every pr-merge script, this file, babysit_merge*, babysit_risk.py,
+  # babysit_review_evidence.py) wait for a person. Its `enforcement` globs
+  # (pr-merge.yml and pr-require-checks.yml, by owner direction 2026-10-27;
+  # the other modules the floored scripts import; the rest of the Python that
+  # decides the holds) wait for a clean security review bound to the head.
   # It holds whatever `high-path-floor` says. `high-path-floor:
   # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The

@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.117.3] - 2026-10-28
+
+### Changed
+
+- `/planning:draft-goal-condition` gains a `## Next` section: `/implementation:implement` when an approved plan runs in this session under the armed goal, `/session-flow:continue-in-background` when the run goes on while the person is away, `/work-items:decompose` when the lever routed to multi-window work, and `/planning:interview` when the intent was too vague to draft.
+- The planning skills' `## Next` sections name only the next step. `/planning:questionnaire` leaves `/planning:interview`'s and `/planning:prd`'s `## Next`, since it runs beside the next step; prd's hand-off now says so, in the interview's words. `/naming:name-it-better` and `/architecture:record-decision` leave `/planning:design`'s `## Next` for its relationship table, marked **During.** `/architecture:record-decision` also leaves `/planning:design-handoff`'s `## Next`: its hand-off already offers the ADR and now says the offer runs beside the next step.
+- Each `## Next` bullet names one skill: `/planning:prd`'s splits its combined bullet, `/planning:wayfind`'s gives each map destination its own bullet and drops the general `/session-flow:workflow` fallback to stay within four, and `/planning:setup`'s line drops its backticks to match its siblings. `/planning:brainstorm` routes to `/planning:design` only once the contract is locked, in line with `/session-flow:workflow`'s stage order.
+
+## [0.117.2] - 2026-10-27
+
+### Fixed
+
+- Shared interview: `share.sh stop` and `restart` now ask the server to shut down through its control listener before ending it, so the server writes the usage summaries it holds on every OS. On Windows the stop used to end the process at once, losing every held summary; a one-on-one session there recorded no usage counts at all. A server that refuses or does not exit within 15 seconds is still force-ended.
+
 ## [0.117.1] - 2026-10-27
 
 ### Changed
