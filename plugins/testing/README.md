@@ -18,7 +18,7 @@ skills cover it.
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `/testing:audit` judge pass: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
-The feature map `/testing:run-e2e` drives entry point by entry point is the app's control skill, which `/app-control:map` writes and keeps current.
+The feature map `/testing:run-e2e` drives entry point by entry point is the app's control skill, which `/app-control:map` writes and keeps current. When the app-control plugin is installed and the app has a control skill, run-e2e hands launching, operating and capturing to `/app-control:drive` and judges what it recorded; otherwise it offers `/app-control:map create` or suggests installing app-control, and drives the app itself when the person declines or no one is present. testing does not depend on app-control.
 
 | Workflow | Launched by | What it does |
 |---|---|---|
@@ -94,7 +94,7 @@ before a verdict is shown. `/source-control:pull-request` prep runs it when this
 installed and enabled, and otherwise reports
 `judge pass not run: testing plugin not installed or not enabled`. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
-`/testing:run-e2e` reads four optional keys. `recording` (`video | gif | off`, default `off`) and
+`/testing:run-e2e` reads these optional keys only when it drives the app itself; a run through `/app-control:drive` takes its tools from the control skill. `recording` (`video | gif | off`, default `off`) and
 `browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.
 `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
@@ -182,9 +182,9 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Adds an advisory note when an edit removes tests or assertions, adds a skip or changes an expected value, and, only with rules test-weaken-block: error, denies an added skip or removed test block that adds no test-change: marker; it never asks, and is off by default. |
-| `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
-| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
-| `browser_driver` | string | `"playwright-cli"` | `CLAUDE_PLUGIN_OPTION_BROWSER_DRIVER` | The command name of the one browser tool a /testing:run-e2e playwright drive uses (letters, digits, . _ -). playwright-cli by default. The run stops, naming this setting, when the command is not on PATH; it never switches tools. A repository's docs/conventions/testing.yaml wins. |
+| `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). Applies only when run-e2e drives itself; a run through /app-control:drive takes its tools from the control skill. A repository's docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. Applies only when run-e2e drives itself, not to a run through /app-control:drive. docs/conventions/testing.yaml wins. |
+| `browser_driver` | string | `"playwright-cli"` | `CLAUDE_PLUGIN_OPTION_BROWSER_DRIVER` | The command name of the one browser tool a /testing:run-e2e playwright drive uses (letters, digits, . _ -). playwright-cli by default. The run stops, naming this setting, when the command is not on PATH; it never switches tools. Applies only when run-e2e drives itself, not to a run through /app-control:drive. A repository's docs/conventions/testing.yaml wins. |
 | `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 

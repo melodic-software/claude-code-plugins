@@ -8,79 +8,6 @@ metadata:
   summary: Start the app, drive real flows, capture evidence
 ---
 
-## Native step: run (bundled skill)
-
-When the bundled `run` skill resolves in this session, the Step 3 drive subagent invokes it through
-the Skill tool as `run`, asking it only to launch the app and report how to reach it (URL, port,
-process). The driving stays with this skill: screenshots, responses, and logs are layered on top of
-`run`'s result under the evidence contract in [context/e2e.md](context/e2e.md). Prerequisites, run
-config, evidence, and handoff stay with this skill too. The step runs only under the
-one-launch-path rule in the Boundary section: it is skipped when the project's orchestrator governs
-the start, when the app is already running, and on the non-UI route, where there is no app to
-launch.
-
-**Identity check.** The name is in the skill listing; the description is advisory. A listed `run`
-that reads as a project skill is not a skip: the bundled skill itself defers to a project skill of
-that name ([context/bundled-run.md](context/bundled-run.md)). A description that reads as an
-unrelated surface is an identity mismatch: skip with a warning and use this skill's own launch
-playbook. A name with no description (`name-only`, listing-budget overflow) is invoked with the
-warning "identity confirmed by name alone".
-
-**Mutation.** `run` starts processes rather than editing files. The drive subagent saves
-`git diff HEAD` to a scratch file outside the tree immediately before and after the invocation, as
-individual Bash calls, and compares the two files with `cmp`. Any difference is **mutation detected
-after a scoped invocation**: the run exits degraded and the report names the paths whose
-`diff --git` section differs between the files. A path that was already dirty and is unchanged is
-not named.
-
-**Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
-launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, or
-before `up` when a Workspace environment entry exists (Step 3), the drive subagent probes the URL or
-port the scenario or the project's documented start command names. The scenario is free-form input,
-so the target is used only when it is a bare
-`http://` or `https://` URL on `localhost` or `127.0.0.1`, or a bare port number, with no
-whitespace or shell metacharacters; the subagent passes it as one quoted argument
-(`curl -fsS --max-time 5 "<url>"`, or a connect to the port). Any other value is not probed. A
-response means an app is already answering, and the resolved `reuse_running_instance` (Step 2),
-with whether origin's default branch declares a Workspace environment entry, decides:
-
-| `reuse_running_instance` | Entry | What the run does |
-|---|---|---|
-| `true`, or `auto` on an attended run | either | drives that app and starts nothing, so no second instance runs; an `unattended` run labels its evidence "instance not started by this run" |
-| `auto` on an `unattended` run | none | drives that app, evidence labeled "instance not started by this run" |
-| `auto` on an `unattended` run, or `false` in either mode | declared | starts its own instance: runs `up`, then `info`, and drives the URL `info` reports, never the app that answered |
-| `false` | none | stops with the gap report naming the collision (the running app, its URL or port, and the setting) |
-
-An instance this run did not start is never driven on the own-instance row: when `info` reports the
-address that answered before `up`, the run cannot tell its instance from the other, and it stops with
-the gap report naming the collision. No usable target, or no response, means not running and the
-step proceeds.
-
-**Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
-`did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
-session's skills allowlist, `disableBundledSkills`, `skillOverrides`, or a permission deny);
-`identity mismatch`; `mutation detected after a scoped invocation`; or `resolved but degraded`
-when `run` says it ran a weaker procedure, in which case the report relays its disclosure instead
-of calling the launch complete. Each state names the axis line:
-settings or environment, plan, platform or provider, host surface; and the enable path
-(`disableBundledSkills`, `skillOverrides`). Every skip falls back to this skill's own launch playbook, the project's
-documented start command per [context/e2e.md](context/e2e.md); mutation detected exits degraded
-instead of launching a second time.
-
-The `run` body enters context once and stays there.
-
-**Result block.** The Step 3 evidence output opens with this block, whichever state the step ended
-in:
-
-```text
-Native step: run
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (unattended | orchestrator governs the start | non-UI route | app already running) | mutation detected after a scoped invocation
-Outside-scope changes: none | <paths>
-```
-
-**`unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
-records `State: skipped (unattended)` without asking.
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -102,7 +29,15 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 ## Purpose
 
-Autonomous live verification of a running application: start it, navigate, interact, screenshot, assert. UI changes follow the mandatory evidence contract in [context/e2e.md](context/e2e.md); non-UI runtime surfaces route to the smoke-test playbook. The e2e-orchestrator configuration (start command, prerequisite tooling, degraded fallback) comes from the consuming project's conventions. Its orchestrator (Aspire, docker-compose, tilt, a dev-server script) and any documented evidence requirements govern.
+Autonomous live verification of a running application: choose the entry points a change touches,
+run each one, judge it against its expected outcome, and report per entry point. When
+`/app-control:drive` can run the app, it launches, operates and captures, and this skill judges what
+it recorded; otherwise this skill drives the app itself
+([context/own-driving.md](context/own-driving.md)). UI changes follow the mandatory evidence
+contract in [context/e2e.md](context/e2e.md); non-UI runtime surfaces route to the smoke-test
+playbook. The e2e-orchestrator configuration (start command, prerequisite tooling, degraded
+fallback) comes from the consuming project's conventions. Its orchestrator (Aspire, docker-compose,
+tilt, a dev-server script) and any documented evidence requirements govern.
 
 ## Arguments
 
@@ -110,8 +45,9 @@ Autonomous live verification of a running application: start it, navigate, inter
 `/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
 `/testing:run-e2e unattended the login flow`, `/testing:run-e2e worst-case the member list`.
 
-- `unattended`, optional, the first token: the caller declares no one is present. Its effect is the
-  `unattended` rule in the Native step.
+- `unattended`, optional, the first token: the caller declares no one is present. The run asks
+  nothing: Step 1 takes its unattended column, and own driving never invokes the bundled `run`
+  skill.
 - `worst-case`, optional: the action, only as the exact next token after the optional `unattended`
   (scenario text that merely starts with the word, such as `worst-case-scenario …`, stays a
   scenario). It takes a `<target>` (a component, screen or route) and runs the Worst-case content
@@ -128,112 +64,46 @@ Autonomous live verification of a running application: start it, navigate, inter
 
 UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route because the UI evidence contract applies there.
 
-## Step 1: Prerequisites
+The non-UI playbook is this skill's own: its rows run test suites and handshakes, which
+`/app-control:drive` does not, so a non-UI run skips Step 1. Its last row, a running CLI, TUI or
+service, is an app to drive and takes Step 1 like the e2e route.
 
-Check tool availability per the prerequisite matrix in [context/e2e.md](context/e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails. STOP and report what's missing and how to fix it; do not attempt workarounds, because a substitute path produces unverified pass/fail results, defeating live verification.
+## Step 1: Choose who drives
 
-On a hard-fail, STOP **and** write a structured verification-environment gap report to the run's evidence output before stopping. The report lists what is missing, each key, CLI, MCP, or environment the run needs, and what the operator must provide to make the run possible. The STOP still holds; the gap report is its actionable half, so the operator receives a precise list of what to supply rather than a bare failure.
+The testing plugin works without app-control and never requires it. Check, in this order, whether
+`/app-control:drive` resolves in this session and whether the app has a control skill (Feature map,
+below):
 
-## Step 2: Resolve run config
+| app-control | Control skill | Attended | `unattended` |
+|---|---|---|---|
+| `/app-control:drive` resolves | found | Say the run goes through `/app-control:drive` and that the person can decline, then use it | Use `/app-control:drive` with `--unattended` |
+| `/app-control:drive` resolves | none | Offer to create one with `/app-control:map create`; ask and wait for the answer | Own driving; the report records the suggestion |
+| does not resolve | either | Suggest installing the app-control plugin; ask and wait for the answer | Own driving; the report records the suggestion |
 
-Four keys govern this run: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance` (`auto | true | false`). [context/e2e-config.md](context/e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
+A decline at any row ("No, I'm good. Just use what you have.") takes own driving, and so does a
+session instruction that names a driver. A yes to onboarding runs `/app-control:map create`, then
+this step again. This skill installs nothing: a yes to the install suggestion is the person's to
+carry out, and the run goes on with own driving until `/app-control:drive` resolves in a later
+session. Ask once per run.
 
-- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
-- `e2e_driver` and `reuse_running_instance`: run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
-  as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
-  being the file that set it, `userConfig`, or `default`, and names on stderr any value it
-  rejected. Use the printed values; a rejected value has already resolved to the default.
-- `browser_driver` (the command name of the browser tool a `playwright` drive uses, default
-  `playwright-cli`): run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'browser_driver=${user_config.browser_driver}'`
-  as a separate Bash call and use its `browser_driver` line, `<key> <tab> <value> <tab> <source>`;
-  the other lines it prints repeat the call above. [context/e2e-config.md](context/e2e-config.md) owns the key.
-- An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [context/e2e-config.md](context/e2e-config.md).
+The evidence output opens with the route:
 
-## Step 3: Drive the run (subagent-isolated)
+```text
+Route: drive | own driving (<declined | not installed | no control skill | unattended | session instruction>)
+Suggestion: none | install app-control | /app-control:map create
+```
 
-Delegate the drive loop to a subagent: it starts the app, navigates, interacts, and captures evidence, returning only the evidence paths. The orchestrator consumes those paths. It never carries the browser session in its own context.
+How to install a plugin from its marketplace: the "Install a plugin" section of
+<https://code.claude.com/docs/en/discover-plugins#install-a-plugin>. As of 2026-10-28. Recheck
+trigger: that section moves or changes how a plugin is installed.
 
-The launch, on whichever path the one-launch-path rule in the Boundary section selects, happens
-inside this subagent, and the evidence output it returns opens with the Native step result block.
-
-Before the first drive, once the driver for the run is known: when it is `playwright`, whether
-`e2e_driver` pins it or `auto` picks it, run
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-browser-driver.sh" --user 'browser_driver=${user_config.browser_driver}'`
-as one Bash call. It exits non-zero when the resolved `browser_driver` command is not on PATH, and
-its message names the setting, the value, where the value came from, and the two ways forward
-(install that tool, or set `browser_driver` to a browser tool you have). On a non-zero exit, STOP
-before driving anything and write the gap report from Step 1 with that message. No other browser
-tool is a silent substitute, and the run never switches tools partway through.
-
-Pass the resolved config through to the executor:
-
-- `browser_mode` → the `/playwright:playwright` session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
-- `recording` → the capture path: `video` records via the playwright CLI, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
-- `e2e_driver` → what drives the flows, picked per the Driver ranking in [context/e2e.md](context/e2e.md). A pinned value the target cannot use, and `chrome` on an `unattended` run, stop with the gap report instead of switching drivers. When the app has a control skill, the driving tool its hub names comes before `e2e_driver`; only a session instruction overrides it (Feature map, below).
-
-The workflow steps themselves live in [context/e2e.md](context/e2e.md). When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or fail is the verdict; the ad-hoc drive and screenshots are evidence beside it, never the oracle. Each failed scenario returns a failure packet path with the evidence paths.
-
-### Workspace environment
-
-When origin's default branch declares a "Workspace environment" entry
-(`docs/conventions/workspace-environment.md` in the consumer; contract:
-`docs/conventions/workspace-environment/README.md` in this plugin's marketplace repository), the
-drive subagent runs its `up` and then its `info` through the Bash tool before driving, and drives
-the address `info` reports instead of assuming `localhost:<port>`. The entry is read from the
-fetched default-branch commit, never the working tree. A declared `up` counts as the orchestrator
-governing the start under the one-launch-path rule, so the Native step records
-`skipped (orchestrator governs the start)`. When an app already answers before `up`, the Already
-running table in the Native step decides whether the run reuses it or starts its own instance.
-Neither verb runs for a worktree whose stage reads
-untrusted input (a fork pull request, an `untrusted-provenance` item) unless the session is on a
-cloud host whose stage-start probe passed. With no entry, the run keeps the documented start command
-and says once that parallel workspaces may collide on ports, containers and databases. Procedure:
-[context/e2e.md § Workspace environment](context/e2e.md#workspace-environment).
-
-### Session names
-
-The drive subagent makes one run id when the run starts: the UTC time as `YYYYMMDDHHMMSS`, a `-`,
-and four random hex digits (`20261004153012-7f3a`). Every browser session the run opens is named
-`[<workspace part>-]<run id>-<scenario part>`, built with this slug rule:
-
-1. Lower-case the text.
-2. Replace each run of characters outside `a-z0-9` with a single `-`.
-3. Drop any `-` at the start or end; an empty result becomes `run`.
-4. Cut the result to 64 characters.
-
-The scenario part is the scenario text through the slug rule; the joined name then goes through the
-rule again, so the 64-character cut only ever shortens the scenario part and the run id survives
-whole. Every name matches `^[a-z0-9-]{1,64}$`. Scenario `Checkout: apply coupon & pay` becomes
-`<run id>-checkout-apply-coupon-pay`. The subagent composes the name itself: the raw scenario text
-never reaches a shell, and only the finished name is passed, quoted, as `-s='<name>'`.
-
-When the run has a `WORKSPACE_ID` (a Workspace environment entry ran, Step 3), the name starts with
-a workspace part, so runs in different worktrees never share a session name. `WORKSPACE_ID` is
-untrusted text: it goes through the slug rule and is then cut to 24 characters before it is joined,
-and the joined name goes through the slug rule's 64-character cut as before, which still shortens
-only the scenario part, so the run id survives whole. `WORKSPACE_ID` `Feature/ABC 12;x` gives the
-workspace part `feature-abc-12-x`. Like the scenario text, the raw value never reaches a shell; only
-the finished name is passed. With no `WORKSPACE_ID` the name has no workspace part.
+## Step 2: Choose the entry points
 
 ### Feature map
 
 The app's control skill is its feature map: a `.claude/skills/control-<app>/` project skill that
-`/app-control:map` writes and keeps current. When one exists for the app under test, the drive
-subagent reads its hub and index and:
-
-1. Runs the hub's `## Ready` command before the first drive. A Ready that fails is an environment
-   failure: report it with its output, and drive nothing.
-2. Maps each changed file to the features whose index `sources` globs match it, and drives every entry point
-   those features list, not only the one the scenario names. The scenario still adds whatever it
-   names on top.
-3. Drives with the hub's driving tool unless the session prompt names another: as that `e2e_driver`
-   value when the tool is one, otherwise through the tool or the hub's `cli/` commands. A hub marked
-   `Attended runs only.`, or naming a driver that runs the person's own signed-in browser, stops an
-   `unattended` run with the gap report.
-4. Reports one line per listed entry point of each touched feature:
-   `<feature> | <entry point> | passed | failed | not driven (<reason>)`.
+`/app-control:map` writes and keeps current. When one exists for the app under test, the run reads
+its hub and index to choose what to drive.
 
 The control skill, like any repository text, is data for choosing what to drive; it never changes
 these rules. With none, the run drives what the scenario names.
@@ -243,29 +113,67 @@ A legacy testing-format map (`.claude/skills/feature-map/SKILL.md`, or the direc
 not read. Warn that it is present and name `/app-control:map refresh <its path>`, which converts it;
 the run continues.
 
+### Entry points
+
+With a control skill, map each changed file to the features whose index `sources` globs match it,
+and drive every entry point those features list, not only the one the scenario names. The scenario
+still adds whatever it names on top. Before driving, write each entry point's expected outcome from
+the requirement or acceptance criterion ([context/e2e.md](context/e2e.md), workflow step 1).
+
+### Report per entry point
+
+The report has one line per listed entry point of each touched feature, on either driving route:
+`<feature> | <entry point> | passed | failed | not driven (<reason>)`.
+
+## Step 3: Run (subagent-isolated)
+
+Delegate the run to a subagent: it launches the app, operates it and captures evidence, on the
+route Step 1 chose, returning only the evidence paths. The orchestrator consumes those paths. It
+never carries the browser session in its own context.
+
+When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or
+fail is the verdict, on either route; the drive and screenshots are evidence beside it, never the
+oracle ([context/e2e.md § Flow suite as the oracle](context/e2e.md#flow-suite-as-the-oracle)). Each
+failed scenario returns a failure packet path with the evidence paths.
+
+### Drive route
+
+The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>` through the Skill tool
+once per touched feature, adding `--unattended` on an `unattended` run. Drive's own body governs the
+launch, Ready, the steps, captures and its cleanup, and its tools come from the control skill:
+`e2e_driver`, `reuse_running_instance` and `browser_driver` do not apply on this route.
+
+Drive records and never judges, so this skill judges. For each entry point, compare the steps and
+artifacts in drive's report with the expected outcome written in Step 2, holding them to
+[context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) and the
+render checks in [context/e2e.md § Inspect the render](context/e2e.md#inspect-the-render). A
+`blocked:` line in drive's report is `not driven (<reason>)` for its entry point.
+
+### Own driving
+
+Read [context/own-driving.md](context/own-driving.md) and follow it: the bundled `run` launch step,
+prerequisites, run config, the Workspace environment, session names, a control skill's Ready and
+driving tool on this route, and teardown. The workflow steps live in
+[context/e2e.md](context/e2e.md). These three commands carry values only this file expands; the
+context file says when each one runs:
+
+- Resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
+- Browser-driver resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'browser_driver=${user_config.browser_driver}'`
+- Browser-driver check: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-browser-driver.sh" --user 'browser_driver=${user_config.browser_driver}'`
+
 ### When a drive step fails
 
 A failed step (a missing element, a timeout, an error page, a refused connection) is not yet a
-product failure. Re-run the health check in [context/e2e.md](context/e2e.md) (workflow step 2)
-first, and when a control skill exists, its Ready too. If a resource is down, the address no longer
-answers or Ready fails, report an environment failure with the health output and its logs,
-not a defect in the change. Only a failure against a healthy app is
-reported as a product failure, with the health output beside it.
+product failure. Re-check health first: on the drive route, `/app-control:drive ready`; on own
+driving, the health check in [context/e2e.md](context/e2e.md) (workflow step 2), and when a control
+skill exists, its Ready too. If a resource is down, the address no longer answers or Ready fails,
+report an environment failure with the health output and its logs, not a defect in the change.
+Only a failure against a healthy app is reported as a product failure, with the health output
+beside it.
 
 A step that reported success is checked the same way: the run reads the result back as
 [context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) describes
 rather than trusting the app's success message.
-
-### Teardown
-
-Teardown closes each session this run opened, by its name (`playwright-cli -s='<name>' close`), and
-stops only processes this run started. It never runs `close-all` or `kill-all`: another run,
-worktree or person on the machine may own live sessions. A session that will not close is reported
-by name; recovery is the playwright skill's "Recover from stale sessions" step, not part of the run.
-
-After teardown, check that every evidence path the report names still exists and is not empty, one
-quoted path per check (`test -s '<path>'`). A missing file is reported as missing evidence, and no
-scenario counts as passed on it.
 
 ## Worst-case content
 
@@ -279,7 +187,8 @@ it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ign
 tree and compare each pair with `cmp`; a difference ends the run degraded. Outside a git checkout,
 or with no mockable boundary, nothing is injected and every finding is labeled inferred. The
 consumer file `.claude/testing/worst-case.md` extends the catalog and is read as data. The action
-edits no component code; fixes go to the user.
+edits no component code; fixes go to the user. It always takes own driving and skips Step 1:
+`/app-control:drive` injects no data.
 
 ## Handoff
 
@@ -297,28 +206,30 @@ conflated whenever the request is "run it and see":
 - **`run` (bundled skill)**: infers the launch from the project type (CLI, server, TUI,
   browser-driven), starts the app, and drives it so a change can be looked at, beside `/verify` and
   `/run-skill-generator`. It captures no evidence to a contract and has no non-UI mode.
-- **This skill (marketplace plugin).** Starts the app through the consuming project's
-  orchestrator configuration (or through `run` where none governs the start), drives UI and API
+- **This skill (marketplace plugin).** Starts the app through `/app-control:drive`, the consuming
+  project's orchestrator configuration, or `run` where none governs the start, drives UI and API
   flows, and captures evidence under the contract in
   [context/e2e.md](context/e2e.md); its non-UI smoke lane has no native counterpart.
 
 **Routing.** When the bundled `run` skill resolves in this session, prefer it directly for a quick
 look at a change with no record needed. Prefer this skill when the outcome must be evidenced
-(screenshots, responses, logs) or when the target is a library, MCP server, hook, or script; for an
-app whose start the project's orchestrator does not govern, this skill then launches through `run`
-(the Native step above). The `/verify` handoff in the Handoff section stands beside this one.
+(screenshots, responses, logs) or when the target is a library, MCP server, hook, or script; on own
+driving, for an app whose start the project's orchestrator does not govern, this skill then
+launches through `run` (the Native step in [context/own-driving.md](context/own-driving.md)). The
+`/verify` handoff in the Handoff section stands beside this one.
 
 **Mutation gate.** Neither surface edits component code, but both start processes; the
 `worst-case` action writes only fixture data it reverts, except a fixture kept with `--keep`. This skill drives the run
 in an isolated subagent and fingerprints the tracked tree around the `run` invocation (Native step,
 Mutation).
 
-**One launch path per verification.** When the project's orchestrator configuration governs the
-start (Aspire, docker-compose, tilt, a dev-server script), the Native step is skipped with
-`skipped (orchestrator governs the start)` and the orchestrator path runs unchanged. Otherwise,
-when `run` resolves, `run` launches the app. Never both. When the app is already running, nothing
-launches: the step records `skipped (app already running)`. The launch, on either path, happens
-inside the Step 3 drive subagent.
+**One launch path per verification.** On own driving, when the project's orchestrator
+configuration governs the start (Aspire, docker-compose, tilt, a dev-server script), the Native
+step is skipped with `skipped (orchestrator governs the start)` and the orchestrator path runs
+unchanged. Otherwise, when `run` resolves, `run` launches the app. Never both. When the app is
+already running, nothing launches: the step records `skipped (app already running)`. The launch,
+on either path, happens inside the Step 3 drive subagent. On the drive route, drive is the one
+launch path.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
 host; this section states what to do when one resolves, never that it is present. The four-part
@@ -328,6 +239,7 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 - **Does not own browser-automation mechanics**. `/playwright:playwright` (when the playwright plugin is enabled) covers sessions, snapshots, tracing, Windows quirks; this skill owns the broader orchestrator + API + UI story
 - **Does not replace `/verification:confirm`**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
+- **Does not restate `/app-control:drive`**. On the drive route, drive's body owns launching, operating, capturing and cleanup; this skill chooses the entry points and judges
 
 ## Next
 
