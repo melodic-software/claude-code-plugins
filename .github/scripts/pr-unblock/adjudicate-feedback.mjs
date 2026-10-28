@@ -69,7 +69,7 @@ const LISTED_BADGE = /^\*\*<sub><sub>!\[P([0-3]) Badge\]\(https:\/\/img\.shields
 // finding, whose badge is a priority the bot picks itself and marks no
 // security class. A false match only sends the finding to a person.
 const SECURITY_CLASS =
-  /\b(?:security|secrets?|credentials?|tokens?|api[ _-]?keys?|passwords?|private[ _-]keys?|injection|xss|csrf|ssrf|privilege|permissions?|authentication|authenticated?|authori[sz]ation|authori[sz]ed?|exfiltrat\w*|leak(?:s|ed|ing|age)?)\b/i;
+  /\b(?:security|secrets?|credential\w*|tokens?|api[ _-]?keys?|passwords?|private[ _-]keys?|inject\w*|xss|csrf|ssrf|rce|privilege\w*|permissions?|authentic\w*|authori[sz]\w*|exfiltrat\w*|leak\w*|vulnerab\w*|exploit\w*|traversal|sanitiz\w*|escap\w*|untrusted|malicious)\b/i;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);

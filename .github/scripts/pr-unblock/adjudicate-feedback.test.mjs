@@ -467,6 +467,10 @@ const tokenExposure = "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-y
 test("a listed review bot's P2 finding that names a security class is never adjudicated; one that names none still is", () => {
   assert.equal(adjudicable(listedThread("PRRT_s", tokenExposure).comments), false);
   assert.deepEqual(disputes(fileOf(listedThread("PRRT_s", tokenExposure)), incorrect("PRRT_s")).slots, []);
+  for (const title of ["Lets a contributor escalate privileges", "User input is injected into the shell command", "Path traversal in file read"]) {
+    const body = tokenExposure.replace("Step writes GITHUB_TOKEN to the job log", title).replace("echoes the token", "reads it");
+    assert.equal(adjudicable(listedThread("PRRT_i", body).comments), false, title);
+  }
   assert.equal(adjudicable(listedThread("PRRT_2", badged("P2", "yellow")).comments), true);
   // The code lane's own finding keeps its path whatever its words.
   assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", body: "The token is logged." }]), true);
