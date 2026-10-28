@@ -16,6 +16,7 @@
   "check-failed": { "route": "retry", "why": "a check the runner ran on the branch failed or could not be read, so the next run continues the branch" },
   "required-undone": { "route": "retry", "why": "the run left a required check undone, so the next run continues the branch" },
   "pr-head-moved": { "route": "retry", "why": "the PR opened at a head other than the tip the runner checked, a race, not a finding about the issue" },
+  "closed-by-open-pr": { "route": "retry", "why": "an open PR the lanes App or a listed human opened already closes the issue, a race with the earlier-work check, not a finding about the issue; while it stays open the next run stops before any model turn" },
   "turn-cap-spent": { "route": "fail", "why": "the run reached its turn cap with no restart left" },
   "retry-spent": { "route": "fail", "why": "the lane has retried this issue as many times as limits.stop-retries allows" },
   "pushback": { "route": "hold", "why": "the issue leaves a decision open, an intent question only a person answers" },
