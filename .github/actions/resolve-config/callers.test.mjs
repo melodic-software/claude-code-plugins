@@ -6855,7 +6855,14 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
 // The read runner's model job uploads nothing (the test above). The write
 // runner's skill job holds id-token: write while the skill can rewrite any
 // file a later step would run, so no step runs staged code after it there.
-const TRANSCRIPT_EXEMPT = new Set(["pr-run-activity-read.yml#run", "pr-run-activity-write.yml#run"]);
+// The mutation audit's mutants run as the runner user, so a later step there
+// runs only with an empty env and absolute paths, and an upload holds the
+// runtime token.
+const TRANSCRIPT_EXEMPT = new Set([
+  "pr-run-activity-read.yml#run",
+  "pr-run-activity-write.yml#run",
+  "post-merge-test-mutation.yml#audit",
+]);
 const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
 const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
 
@@ -6888,5 +6895,5 @@ test("every model leg is followed by a sealed transcript upload of its own execu
       }
     }
   }
-  assert.ok(legs >= 14, `only ${legs} model legs found`);
+  assert.ok(legs >= 13, `only ${legs} model legs found`);
 });
