@@ -92,7 +92,7 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section changes its deadline or its re-arm notice, or a release note names a Monitor input.
 
-   A single-prompt `-p` run uses the same arming call and re-arms on the deadline notice as above.
+   A single-prompt `-p` run accepts the arming call's `timeout_ms` and clamps it to the non-interactive cap rather than rejecting it (Claude Code 2.1.312, [#6877 probe](https://github.com/melodic-software/claude-code-plugins/issues/6877)), so the same arming call and re-arm rule apply.
 
    - **Pointer**: the `-p` probe result (Claude Code 2.1.312), in [Claude Code releases, Probes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code.md#probes); the run is on [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877).
    - **As of**: 2026-10-28
