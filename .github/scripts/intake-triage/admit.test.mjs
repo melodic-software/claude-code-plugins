@@ -853,6 +853,15 @@ describe("admit", () => {
     });
   }
 
+  // With wip.pause-from empty check-wip-cap leaves admissions open with room
+  // null even over the queued cap, so clearing it removes intake's cap.
+  test("adds agent-ready over the queued cap when wip.pause-from is empty", async () => {
+    const fake = fakeGitHub();
+    const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
+    assert.equal(result.outcome, "admitted");
+    assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+  });
+
   test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),

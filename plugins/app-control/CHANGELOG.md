@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-28
+
+### Added
+
+- The control-skill contract has a size budget: 16,000 characters for the hub and 4,000 for each feature file, counted the way `/skill-quality:check listing-budget` counts. `/app-control:map check` reports a file over its budget with the new `size-budget` rule, and `/app-control:map create` reports any it wrote as a warning that stops nothing.
+
+## [0.16.1] - 2026-10-28
+
+### Fixed
+
+- `/app-control:map refresh` switches back to the branch it started on after every pass, not only between control skills in a multi-skill pass. A one-feature refresh called from `/testing:run-e2e` or `/verification:confirm` on a ticket branch no longer leaves the caller on `control-skill-upkeep/*`. From a detached HEAD, such as a CI checkout, it returns to the starting commit.
+
 ## [0.16.0] - 2026-10-27
 
 ### Added

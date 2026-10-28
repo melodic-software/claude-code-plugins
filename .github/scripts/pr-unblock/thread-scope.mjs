@@ -3,7 +3,27 @@
 // kept-threads rule, and mirrored by the review-thread tool
 // (feedback-thread.sh), which reads the pr_paths prPathsOf wrote. It imports
 // nothing, so the write runner's copy of it beside apply-patch.mjs's needs no
-// other file.
+// other file. It also holds the Lane-Thread trailer that binds a fix commit
+// to the kept threads it fixes: apply-patch.mjs writes it, publish-feedback.mjs
+// reads it.
+
+// A review thread's GraphQL node id, as the select job keeps it.
+export const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
+const THREAD_TRAILER = "Lane-Thread: ";
+
+// The trailer lines naming `ids`, one per thread.
+export const threadTrailerLines = (ids) => ids.map((id) => `${THREAD_TRAILER}${id}`);
+
+// The thread ids a commit message's Lane-Thread lines name, each a line of
+// its own.
+export const threadsNamed = (message) =>
+  new Set(
+    String(message ?? "")
+      .split("\n")
+      .map((line) => line.replace(/\r$/, ""))
+      .filter((line) => line.startsWith(THREAD_TRAILER))
+      .map((line) => line.slice(THREAD_TRAILER.length)),
+  );
 
 // Under .github/workflows/, which the lane token has no permission to push.
 export function isProtectedPath(path) {

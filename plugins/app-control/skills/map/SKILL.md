@@ -144,6 +144,8 @@ placed per Lessons below.
   followed;
 - the output of `git check-ignore -v <control skill dir>/config/local.json`; when it matches
   nothing, the create failed;
+- each `size-budget` line `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" "<control skill dir>"`
+  prints, as a warning that stops nothing (budgets in the contract's "Size budget");
 - each discovery row with `found` and its source, or the answer and who gave it; a secret found
   during discovery as the file and key that hold it, never its value;
 - each credential as its variable name, layer and `set` or `unset`, never its value;
@@ -202,8 +204,9 @@ conversion moves out of.
    directory, from the default branch, merged into and never rebased; open or update one pull
    request. List every local and remote `feature-map-upkeep/*` branch and report each one by
    name, never adopting it.
-7. **Return.** With several control skills, switch back to the branch the pass started on after
-   each one's step 6, before the next starts.
+7. **Return.** After each control skill's step 6, switch back to where the pass started, the branch
+   or, from a detached HEAD, the commit (refresh.md § Return to the starting branch): before the
+   next skill starts, and before the pass reports, so a caller resumes where it was.
 
 ## Lessons
 

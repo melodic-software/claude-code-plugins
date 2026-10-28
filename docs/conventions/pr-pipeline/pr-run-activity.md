@@ -70,6 +70,7 @@ permissions, and passes no App key.
 | `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and, with the scan refusal marker, decide whether missing replies are a `no-model-turn` skip |
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt and its thread file's SHA-256 |
+| `patch-replies-attempt`, `patch-replies-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the read file's `feedback-attempt` and `feedback-sha256` outputs, which name the scanned replies whose `VALID` threads the commit's `Lane-Thread` lines name and bind their bytes |
 | `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict that lifts the human-gated hold of this push: the review-threads select job's `fix-requested`, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head` when another lane's escalation put the label on |
 | `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
 | `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
@@ -384,8 +385,7 @@ read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sourc
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
-activity's models profile (`--max-turns`, `--model` unless the model is `default`, `--effort` when
-set), with its `settings-json` as the action's `settings`
+activity's models profile (`--model`, `--max-turns`, `--effort` when set), with its `settings-json` as the action's `settings`
 ([README.md, Models](README.md#models)). The
 plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
 directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
@@ -703,7 +703,7 @@ Every job after the calls takes its inputs from the third call when it ran, else
 the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
-   route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
+   route resolves an alias and the skill is advisory. While sudo
    still works it applies ci-workflows' Claude managed settings, then isolates the runner.
 2. `collect-base-activity` (launcher `run-claude-cli`) stages the skill's plugin, the CI context,
    a scratch directory and the prompt file; after the head checkout the run job copies them to
@@ -1003,7 +1003,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
    human-gated hold unless the select job reported `fix-requested`, and commits with the
-   `Lane-Activity: pr-unblock/address-feedback` trailer. An empty patch (every reply needs no fix)
+   `Lane-Activity: pr-unblock/address-feedback` trailer followed by one `Lane-Thread: <thread id>`
+   line for each kept thread a `VALID` reply names. It reads those replies from the same call's
+   scan job artifact (`patch-replies-attempt`), downloaded before the mint and failed red unless
+   its SHA-256 is the scan job's (`patch-replies-sha256`); a reply naming a thread the select job
+   did not keep adds no line. An empty patch (every reply needs no fix)
    runs no push job, and `report-escalation` does not need it: a patch that does not land leaves
    no fix commit, which the reply job escalates.
 5. The reply job runs whenever the select job proceeded, so a round whose model or push job
@@ -1042,14 +1046,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
+     signature, whose `Lane-Thread` lines must name each `VALID` thread, and which must change
+     each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
      line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. With no such
      commit in the range and no patch written this round, as on a retry after a round whose fix
      landed but whose replies did not post, each `VALID` thread's fix is instead the newest
      earlier commit on the PR of the same kind (the lanes App's, the push job's trailer,
-     `web-flow`, `valid`), committed after the thread's newest comment by the reviewer, the
-     verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
+     `web-flow`, `valid`) whose `Lane-Thread` lines name the thread, committed after the
+     thread's newest comment by the reviewer, the verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
      skill's directory, and a line the reply's evidence cites in a file no later commit on the PR
      changed, and that no lane reply already names as a fix. Otherwise it posts no reply and escalates `feedback-not-landed`: a push
      that was superseded, refused, escalated or held made no such commit;
@@ -2133,11 +2138,19 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
   unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
-  three of its own: the compare failed, the runner's checks for that tip are missing or any did
-  not pass, or the leak scan `run-checks` ran on the branch (its `scan` word in the checks
-  record) is missing or not `clean`. The summary never decides the hold or reaches a status:
+  two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
+  `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
+  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
+  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
+  them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
+- Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none
+  open from the branch, `report-outcome` reads the issue's open closing PRs again, with the same
+  trust rule as `issue-prior`: a closing keyword can land on another PR while the model runs. When
+  one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
+  routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
+  fails the job and opens no PR.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
