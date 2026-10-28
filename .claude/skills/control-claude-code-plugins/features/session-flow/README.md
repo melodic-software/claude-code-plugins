@@ -19,7 +19,7 @@ The skills of `plugins/session-flow`. Each one is driven with `<plugin-dir>` set
 - `reconcile`: Retire finished off-thread work and square the task ledger.
 - `retro`: Structured session retrospective with codified learnings.
 - `running-retro`: In-flight retro checkpoint appended to a running ledger.
-- `setup`: Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's ... No plain-words entry.
+- `setup`: Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's docs/conventions/session-flow.yaml after confirmation. No plain-words entry.
 - `show-options`: Lay out the skills that fit this moment as a ranked, nothing-hidden menu.
 - `tidy-work`: Report, normalize, and clean stale .work memory items. No plain-words entry.
 - `workflow`: Navigate the staged dev workflow and suggest the next stage.

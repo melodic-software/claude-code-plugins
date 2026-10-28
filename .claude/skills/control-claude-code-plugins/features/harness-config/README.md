@@ -12,7 +12,7 @@ The skills of `plugins/harness-config`. Each one is driven with `<plugin-dir>` s
 - `audit-permission-state`: Report the permission rules actually in effect and what auto mode drops.
 - `audit-prompting-postures`: Find posture guidance the prompting guide says a component needs but does not carry.
 - `draft-auto-mode-rules`: Interview and draft a paste-ready autoMode block, never writing settings.
-- `setup`: Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the ... No plain-words entry.
+- `setup`: Verify harness-config's readiness for this repository. No plain-words entry.
 - `unhobble`: Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns.
 
 ## Sub-features

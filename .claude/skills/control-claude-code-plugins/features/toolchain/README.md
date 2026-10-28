@@ -7,7 +7,7 @@ The skills of `plugins/toolchain`. Each one is driven with `<plugin-dir>` set to
 - `check`: Build, test, and lint changed files across detected ecosystems.
 - `check-prerequisites`: Report whether the tools toolchain declares resolve. Never installs.
 - `lint`: Polyglot lint and format checks without a full build.
-- `setup`: Report (check, the default) or write (apply) this repository's tracked .claude/ecosystems/ECOSYSTEM.yaml build, test ... No plain-words entry.
+- `setup`: Report or write this repository's tracked .claude/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. No plain-words entry.
 
 ## Sub-features
 

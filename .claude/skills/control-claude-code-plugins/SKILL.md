@@ -38,9 +38,10 @@ has nothing to stop.
 
 ## Gotchas
 
-- The driver launches Claude Code with `--restricted`, which removes the tools that run commands or
-  code: a skill step that needs Bash stops there. Record that step; never drop the flag. The
-  driving tool's `skills/invoke` Gotchas hold the pointer.
+- The driver launches Claude Code with `--restricted`. A skill step that needs a tool that launch
+  removes stops there: record the step and its entry point, and never drop the flag. Which tools it
+  removes: the `--restricted` row of <https://code.claude.com/docs/en/cli-reference#cli-flags> (as
+  of 2026-10-28; recheck when that row changes which tools it removes).
 - A Parts line marked `No slash command.` or `No plain-words entry.` names the entry points that
   skill lacks.
 

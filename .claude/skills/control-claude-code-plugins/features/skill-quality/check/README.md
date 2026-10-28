@@ -15,9 +15,9 @@ none
 
 ## Entry points
 
-- `/skill-quality:check check <skill-or-root>` as the `logs` prompt, in print mode | not driven: the restricted launch removes Bash, which every action runs
-- `/skill-quality:check check <skill-or-root>`, typed at the prompt of the terminal session | not driven: the restricted launch removes Bash, which every action runs
-- A request in plain words to lint a skill, typed at the prompt | not driven: the restricted launch removes Bash, which every action runs
+- `/skill-quality:check check <skill-or-root>` as the `logs` prompt, in print mode | not driven: every action runs Bash, absent from the tools of the restricted launch in the init event of the 2026-10-28 `discipline/tighten-your-output` proof run (pointer: hub Gotchas)
+- `/skill-quality:check check <skill-or-root>`, typed at the prompt of the terminal session | not driven: every action runs Bash, absent from the tools of the restricted launch in the init event of the 2026-10-28 `discipline/tighten-your-output` proof run (pointer: hub Gotchas)
+- A request in plain words to lint a skill, typed at the prompt | not driven: every action runs Bash, absent from the tools of the restricted launch in the init event of the 2026-10-28 `discipline/tighten-your-output` proof run (pointer: hub Gotchas)
 - The same skill in Claude Desktop | not driven: terms
 
 ## Reset
@@ -30,5 +30,5 @@ No step runs: every entry point is `not driven`.
 
 ## Gotchas
 
-- Run the action's script under `plugins/skill-quality/scripts/` directly instead; dropping the
-  driver's `--restricted` flag to reach Bash is not an option.
+- Run the action's script under `plugins/skill-quality/scripts/` directly instead; never drop the
+  driver's `--restricted` flag to reach Bash.

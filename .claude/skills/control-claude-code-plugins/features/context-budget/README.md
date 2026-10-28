@@ -6,7 +6,7 @@ The skills of `plugins/context-budget`. Each one is driven with `<plugin-dir>` s
 
 - `audit`: Measure the startup context payload per item and ledger every lever's real delta.
 - `check`: Report whether node resolves for the context-budget hooks. Never installs.
-- `setup`: Check-only setup: verifies node, the Claude Code CLI and the optional Agent SDK for context-budget, reports the ... No plain-words entry.
+- `setup`: Check-only setup: verifies node, the Claude Code CLI and the optional Agent SDK for context-budget, reports the settings-write-ask toggle, and prints each remediation without installing or writing anything. No plain-words entry.
 
 ## Sub-features
 

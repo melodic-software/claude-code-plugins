@@ -5,7 +5,7 @@ The skills of `plugins/firecrawl`. Each one is driven with `<plugin-dir>` set to
 ## Parts
 
 - `firecrawl`: Scrape, search, crawl, or parse web pages when WebFetch is blocked.
-- `setup`: Verify the firecrawl plugin's runtime prerequisites for this machine, the firecrawl-cli binary and FIRECRAWL_API_KEY ... No plain-words entry.
+- `setup`: Verify the firecrawl plugin's runtime prerequisites for this machine, the firecrawl-cli binary and FIRECRAWL_API_KEY auth, respecting the plugin's lazy-install design. No plain-words entry.
 - `update`: Maintainer-facing drift-check and upstream sync for the firecrawl plugin's wrapper skill. No plain-words entry.
 
 ## Sub-features

@@ -10,7 +10,7 @@ The skills of `plugins/instruction-placement`. Each one is driven with `<plugin-
 - `delta`: Report only what moved since the last placement audit.
 - `migrate`: Move a repository's instruction content to AGENTS.md behind an operator gate.
 - `realign`: Apply accepted placement findings behind a per-item human gate.
-- `setup`: Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its ... No plain-words entry.
+- `setup`: Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. No plain-words entry.
 
 ## Sub-features
 

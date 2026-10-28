@@ -5,7 +5,7 @@ The skills of `plugins/rate-limit-guard`. Each one is driven with `<plugin-dir>`
 ## Parts
 
 - `check`: Report whether node resolves and whether the rate-limit-guard mod can load. Never installs.
-- `setup`: Verify the rate-limit-guard plugin on this machine: node, whether its mod runs in this session, the snapshot file's ... No plain-words entry.
+- `setup`: Verify the rate-limit-guard plugin on this machine. No plain-words entry.
 
 ## Sub-features
 

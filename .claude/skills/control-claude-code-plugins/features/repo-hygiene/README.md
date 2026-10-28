@@ -5,7 +5,7 @@ The skills of `plugins/repo-hygiene`. Each one is driven with `<plugin-dir>` set
 ## Parts
 
 - `clean`: Clean caches, build artifacts, stale branches, and stashes per repo.
-- `setup`: Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the ... No plain-words entry.
+- `setup`: Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. No plain-words entry.
 
 ## Sub-features
 

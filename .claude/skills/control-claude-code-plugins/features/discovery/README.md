@@ -8,9 +8,9 @@ The skills of `plugins/discovery`. Each one is driven with `<plugin-dir>` set to
 - `check`: Report whether node resolves and the WebFetch truncation hook is registered. Never installs.
 - `explore`: Explore code, history, tests, and config before changing anything.
 - `read-docs`: Read an upstream docs page through the shared lookup and cache.
-- `report`: The return contract every agent a plugin skill dispatches reports in: problems first, one fenced block, every claim ... No slash command.
+- `report`: The return contract every agent a plugin skill dispatches reports in. No slash command.
 - `research`: Multi-source external research with source tiers and a coverage ledger.
-- `setup`: Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to ... No plain-words entry.
+- `setup`: Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting, and write the repository's docs/conventions/discovery.yaml after confirmation. No plain-words entry.
 - `trace-intent`: Reconstruct why a thing was built this way, from evidence outside the code.
 
 ## Sub-features

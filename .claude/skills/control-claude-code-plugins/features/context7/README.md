@@ -6,7 +6,7 @@ The skills of `plugins/context7`. Each one is driven with `<plugin-dir>` set to 
 
 - `check`: Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs.
 - `lookup`: Look up current library docs, API references, and examples via Context7.
-- `setup`: Check or configure Context7 for lookups: the ctx7 CLI, CONTEXT7_API_KEY auth and the Context7 MCP server, with a CLI ... No plain-words entry.
+- `setup`: Check or configure Context7 for lookups: the ctx7 CLI, CONTEXT7_API_KEY auth and the Context7 MCP server, with a CLI install on request. No plain-words entry.
 
 ## Sub-features
 

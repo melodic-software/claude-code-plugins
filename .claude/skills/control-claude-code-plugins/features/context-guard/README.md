@@ -5,7 +5,7 @@ The skills of `plugins/context-guard`. Each one is driven with `<plugin-dir>` se
 ## Parts
 
 - `check`: Report whether node and jq resolve and whether the context-guard mod can load. Never installs.
-- `setup`: Verify the context-guard plugin on this machine: jq, node, whether its mod runs in this session, this session's ... No plain-words entry.
+- `setup`: Verify the context-guard plugin on this machine. No plain-words entry.
 
 ## Sub-features
 

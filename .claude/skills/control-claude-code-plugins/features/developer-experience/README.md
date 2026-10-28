@@ -6,7 +6,7 @@ The skills of `plugins/developer-experience`. Each one is driven with `<plugin-d
 
 - `audit-tools`: Inventory a repository's developer tooling and report findings, read-only by default.
 - `build-cli`: Build, extend, port or review a team's command-line tools against the CLI contract.
-- `setup`: Record a repository's developer tooling conventions as current fact and point AGENTS.md at them; check reports drift ... No plain-words entry.
+- `setup`: Record a repository's developer tooling conventions as current fact and point AGENTS.md at them; check reports drift, apply converges. No plain-words entry.
 
 ## Sub-features
 

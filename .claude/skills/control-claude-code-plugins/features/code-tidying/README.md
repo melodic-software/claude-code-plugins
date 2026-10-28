@@ -8,7 +8,7 @@ The skills of `plugins/code-tidying`. Each one is driven with `<plugin-dir>` set
 - `audit-dead-code`: Whole-repo dead-code hunt across four labeled lanes with adjudicated candidates.
 - `batch-simplify`: Batch-run simplification across changed files, or a whole repository, by ecosystem.
 - `dissolve-comments`: Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep.
-- `setup`: Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes and the optional ... No plain-words entry.
+- `setup`: Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes and the optional HARD-exclusion overrides file. No plain-words entry.
 - `tidy`: Proactively hunt one lane for safe structural tidyings and ship a structure-only PR.
 - `tidy-diff`: Tidy one change's own lines before its commit, scoped by a file-and-line list.
 

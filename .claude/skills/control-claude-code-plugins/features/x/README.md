@@ -4,7 +4,7 @@ The skills of `plugins/x`. Each one is driven with `<plugin-dir>` set to `plugin
 
 ## Parts
 
-- `read`: Read an X (formerly Twitter) post, note tweet, or X Article as Markdown without an X API key, by routing the URL ...
+- `read`: Read an X post, note tweet, or X Article as Markdown without an X API key, by routing the URL through third-party converters.
 
 ## Sub-features
 

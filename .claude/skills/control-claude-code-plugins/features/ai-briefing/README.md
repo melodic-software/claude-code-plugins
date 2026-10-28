@@ -4,8 +4,8 @@ The skills of `plugins/ai-briefing`. Each one is driven with `<plugin-dir>` set 
 
 ## Parts
 
-- `generate`: Build a source-backed AI industry briefing from official vendor publications, configured RSS feeds, GitHub releases ...
-- `setup`: Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX ... No plain-words entry.
+- `generate`: Build a source-backed AI industry briefing from official vendor publications, configured RSS feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs.
+- `setup`: Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. No plain-words entry.
 
 ## Sub-features
 

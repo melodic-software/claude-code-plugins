@@ -5,7 +5,7 @@ The skills of `plugins/computer-use`. Each one is driven with `<plugin-dir>` set
 ## Parts
 
 - `diagnose`: Resolve computer-use capture, input, and screenshot symptoms to a cause.
-- `setup`: Verify the computer-use plugin's prerequisites and report the environment settings that end a screen-control session ... No plain-words entry.
+- `setup`: Verify the computer-use plugin's prerequisites and report the environment settings that end a screen-control session mid-run. No plain-words entry.
 
 ## Sub-features
 

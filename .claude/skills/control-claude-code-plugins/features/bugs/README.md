@@ -5,7 +5,7 @@ The skills of `plugins/bugs`. Each one is driven with `<plugin-dir>` set to `plu
 ## Parts
 
 - `scan`: Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only.
-- `setup`: Check where /bugs:write --file reports land and check or write the tracked docs/conventions/bugs.yaml lanes and filing ... No plain-words entry.
+- `setup`: Check where /bugs:write --file reports land and check or write the tracked docs/conventions/bugs.yaml lanes and filing posture /bugs:scan reads. No plain-words entry.
 - `write`: Turn an informal bug description into a structured 5-field report, read-only.
 
 ## Sub-features

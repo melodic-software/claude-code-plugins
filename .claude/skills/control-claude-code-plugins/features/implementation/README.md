@@ -6,7 +6,7 @@ The skills of `plugins/implementation`. Each one is driven with `<plugin-dir>` s
 
 - `implement`: Execute approved plans with TDD, incremental validation, and green commits.
 - `implement-dispatch`: Orchestrate worker subagents to execute an approved plan.
-- `report`: The return contract every agent a plugin skill dispatches reports in: problems first, one fenced block, every claim ... No slash command.
+- `report`: The return contract every agent a plugin skill dispatches reports in. No slash command.
 
 ## Sub-features
 

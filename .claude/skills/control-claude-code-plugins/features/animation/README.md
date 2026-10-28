@@ -8,7 +8,7 @@ The skills of `plugins/animation`. Each one is driven with `<plugin-dir>` set to
 - `learn-style`: Measure a traced clip into a style pack and check new scenes against it.
 - `produce`: Brief, boards, approval gate, shots, render, and pack review.
 - `rotoscope`: Trace, render, measure and fit a 1:1 replica of a reference animation.
-- `setup`: Check-only PASS/FAIL report of the animation plugin's prerequisites (ffmpeg, Node, Chromium, numpy, opencv); installs ... No plain-words entry.
+- `setup`: Check-only PASS/FAIL report of the animation plugin's prerequisites (ffmpeg, Node, Chromium, numpy, opencv); installs nothing. No plain-words entry.
 
 ## Sub-features
 

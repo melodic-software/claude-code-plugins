@@ -6,7 +6,7 @@ The skills of `plugins/user-experience`. Each one is driven with `<plugin-dir>` 
 
 - `evaluate`: Plan and run UX evaluations, fair-choice checks and measure selection, evidence-labeled.
 - `plan-user-research`: Plan user research and write its instruments, evidence-labeled.
-- `setup`: Verify or configure the user-experience plugin for this repository: check probes node and the claude CLI, resolves the ... No plain-words entry.
+- `setup`: Verify or configure the user-experience plugin for this repository. No plain-words entry.
 - `shape`: Detect the app's stage and the project's own evidence, then chain the UX jobs in order.
 - `structure`: Shape user flows, information architecture and content structure, evidence-labeled.
 - `synthesize`: Synthesize research data into labeled themes, insights, needs, personas or jobs.

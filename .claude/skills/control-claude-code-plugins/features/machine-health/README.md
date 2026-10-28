@@ -4,7 +4,7 @@ The skills of `plugins/machine-health`. Each one is driven with `<plugin-dir>` s
 
 ## Parts
 
-- `audit`: Audits local workstation health and emits a findings report: runs OS-specific checks (disk, OS updates, security ...
+- `audit`: Audits local workstation health and emits a findings report.
 - `setup`: Configure the machine-health plugin for this machine. No plain-words entry.
 
 ## Sub-features

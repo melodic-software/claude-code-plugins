@@ -5,7 +5,7 @@ The skills of `plugins/autonomy`. Each one is driven with `<plugin-dir>` set to 
 ## Parts
 
 - `check`: Report whether node and jq resolve for the autonomy hooks. Never installs.
-- `setup`: Configure the autonomy plugin for this repository: discover the adopting org's state (role homes, substrate ... No plain-words entry.
+- `setup`: Configure the autonomy plugin for this repository. No plain-words entry.
 
 ## Sub-features
 

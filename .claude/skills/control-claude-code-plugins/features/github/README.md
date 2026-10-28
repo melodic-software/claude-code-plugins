@@ -6,7 +6,7 @@ The skills of `plugins/github`. Each one is driven with `<plugin-dir>` set to `p
 
 - `advise`: Design and set up GitHub settings and admin areas grounded in live gh state.
 - `audit`: Read-only audit of GitHub org and repo settings, drift, and cost signals.
-- `setup`: Verify the github plugin's prerequisites (gh CLI present and authenticated, credential-modality picture, consumer ... No plain-words entry.
+- `setup`: Verify the github plugin's prerequisites and write the consumer's .claude/github/ config. No plain-words entry.
 
 ## Sub-features
 

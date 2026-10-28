@@ -16,7 +16,7 @@ The skills of `plugins/discipline`. Each one is driven with `<plugin-dir>` set t
 - `reuse-or-replace`: Reuse the established way or openly replace it, never a silent second way.
 - `script-the-deterministic-work`: Script counting, diffing, and transforms instead of eyeballing them.
 - `scrutinize-dont-coast`: Re-examine your own recent output through a fresh-context pass.
-- `setup`: Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research's fan-out verification ... No plain-words entry.
+- `setup`: Validate the discipline plugin's configuration, explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. No plain-words entry.
 - `sweep-all`: Batch every discipline corrector into one audited re-anchor pass.
 - `tighten-your-output`: Tighten prose and code. Fewer words, no semantic loss.
 - `use-your-skills`: Map the task to available skills and invoke them instead of reinventing.

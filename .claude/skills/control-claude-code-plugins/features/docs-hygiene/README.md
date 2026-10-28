@@ -11,7 +11,7 @@ The skills of `plugins/docs-hygiene`. Each one is driven with `<plugin-dir>` set
 - `compress`: Tighten markdown by dropping flavor while preserving every directive.
 - `extract-ssot`: Deduplicate repeated prose into one named source of truth.
 - `rename-references`: Sweep stale references after renames, including forms grep misses.
-- `setup`: Verify that markdownlint-cli2, the lint gate /docs-hygiene:compress requires, resolves and runs for this repository ... No plain-words entry.
+- `setup`: Verify that markdownlint-cli2, the lint gate /docs-hygiene:compress requires, resolves and runs for this repository, and validate the compress_articles setting. No plain-words entry.
 - `write-for-agents`: Authoring-time doctrine for agent-consumed markdown.
 - `write-for-humans`: Authoring-time doctrine for human-read documentation.
 

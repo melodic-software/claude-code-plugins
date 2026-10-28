@@ -5,7 +5,7 @@ The skills of `plugins/attribution`. Each one is driven with `<plugin-dir>` set 
 ## Parts
 
 - `audit`: Find prose copied from external sources and convert it into pointers.
-- `setup`: Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the ... No plain-words entry.
+- `setup`: Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home and its gitignored local overlay. No plain-words entry.
 
 ## Sub-features
 

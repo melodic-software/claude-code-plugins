@@ -4,7 +4,7 @@ The skills of `plugins/kindle-dedrm`. Each one is driven with `<plugin-dir>` set
 
 ## Parts
 
-- `manage`: Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns ...
+- `manage`: Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only).
 - `setup`: Verify and provision the Kindle for PC 2.8.0 + Calibre DeDRM workflow (Windows only, personal-use, books the user owns). No plain-words entry.
 
 ## Sub-features

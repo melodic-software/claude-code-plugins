@@ -5,9 +5,9 @@ The skills of `plugins/docs-naming`. Each one is driven with `<plugin-dir>` set 
 ## Parts
 
 - `audit-file-names`: Inventory a doc tree's file names and plan the renames with their references.
-- `generate-file-name-gate`: Emit the file-name gate into a consuming repository: a standalone bash checker plus its own test suite, with the casing ...
+- `generate-file-name-gate`: Emit the file-name gate into a consuming repository.
 - `realign-file-names`: Apply a file-name rename plan, one acceptance per file.
-- `setup`: Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration ... No plain-words entry.
+- `setup`: Verify or configure the docs-naming file-name skills for this repository. No plain-words entry.
 
 ## Sub-features
 

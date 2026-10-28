@@ -11,7 +11,7 @@ The skills of `plugins/code-metrics`. Each one is driven with `<plugin-dir>` set
 - `audit-suppressions`: Suppressions with their rule ids and reasons, no verdict.
 - `audit-type-debt`: Typed-code percentage per file and per lane, with no standard behind it.
 - `principles`: What each code measure can and cannot tell you.
-- `setup`: Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration ... No plain-words entry.
+- `setup`: Verify or configure the code-metrics plugin for this repository. No plain-words entry.
 
 ## Sub-features
 

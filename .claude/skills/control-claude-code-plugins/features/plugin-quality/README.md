@@ -5,8 +5,8 @@ The skills of `plugins/plugin-quality`. Each one is driven with `<plugin-dir>` s
 ## Parts
 
 - `audit`: Behavioral audit of a plugin component ending in a maintainer work item.
-- `report`: The return contract every agent a plugin skill dispatches reports in: problems first, one fenced block, every claim ... No slash command.
-- `setup`: Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the ACTING account, the context-guard ... No plain-words entry.
+- `report`: The return contract every agent a plugin skill dispatches reports in. No slash command.
+- `setup`: Verify the plugin-quality plugin's prerequisites on this machine. No plain-words entry.
 
 ## Sub-features
 

@@ -6,7 +6,7 @@ The skills of `plugins/work-items`. Each one is driven with `<plugin-dir>` set t
 
 - `attend-queue`: Drive escalations to resolution; list held PRs and post-merge failures; hand intake to triage.
 - `decompose`: Break a plan into vertical-slice work items with dependencies.
-- `onboard-adapter`: Generate a consumer-owned adapter for a tracker this plugin does not bundle: interview for the provider's shape, probe ...
+- `onboard-adapter`: Generate a consumer-owned adapter for a tracker this plugin does not bundle.
 - `scan-todos`: Sweep source comments for TODO and FIXME markers, resolve or file each.
 - `setup`: Verify and configure the work-items plugin for this repo. No plain-words entry.
 - `ship`: Route and run a spec container's macro journey. Status, execution shape, next step.
