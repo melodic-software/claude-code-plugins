@@ -2485,8 +2485,6 @@ jobs:
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
             const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH } = process.env;
-            // The one findSecret label that warns instead of blocking.
-            const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
               let stat;
@@ -2515,7 +2513,7 @@ jobs:
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
               fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
-              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              const { WARN_ONLY, scanLeak, changedBytes } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
               // git with no global or system config, in a fresh bare repository
               // that borrows at most the checkout's objects and nothing else
               // from its .git (collect-patch.sh runs the same way).
@@ -2556,11 +2554,12 @@ jobs:
               if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
               if (replies) {
                 core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
-                // adjudicate-feedback's gate: an INCORRECT reply, or a line
-                // that is not JSON, which the adjudicator's own checks refuse.
+                // adjudicate-feedback's gate: a reply that leaves its thread
+                // open (adjudicate-feedback.mjs DISPUTED), or a line that is
+                // not JSON, which the adjudicator's own checks refuse.
                 const disputed = replies.toString('utf8').split('\n').filter((line) => line.trim() !== '').some((line) => {
                   try {
-                    return JSON.parse(line)?.disposition === 'INCORRECT';
+                    return ['INCORRECT', 'UNCERTAIN', 'VALID-defer'].includes(JSON.parse(line)?.disposition);
                   } catch {
                     return true;
                   }
@@ -2580,116 +2579,16 @@ jobs:
                 }
                 core.setOutput('dependency-verdict', ['merge', 'fix', 'close', 'escalate'].includes(value) ? value : '');
               }
-              // A credential format blocks and asks for rotation. The one broad
-              // label, an assignment that may be a test fixture, only warns, and
-              // only on a plain line. Each line is judged on its own: every
-              // blocking pattern on the raw line, then findSecret (which adds the
-              // gate's normalized copy). When findSecret names the assignment,
-              // its matches are blanked and the line read again, and each match
-              // is read again with its = and : blanked. A line whose assignment
-              // sits beside markup or escapes the gate folds (a tag, an entity,
-              // a doubled backslash: publish-gate.mjs normalize(), lines 60-66),
-              // or whose assignment only the folded copy shows, blocks under its
-              // own label: blanking cannot be trusted there. findSecret on the
-              // whole text runs too, and any credential label from it blocks.
-              const HIDDEN = 'assignment hidden by markup or escapes';
-              const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
-              const warnOne = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.replace('g', ''));
-              const warnAll = warnPattern && new RegExp(warnPattern.source, `${warnPattern.flags.replace('g', '')}g`);
-              const folds = (line) => /<[^<>]*>/.test(line) || /&#?\w+;/.test(line) || line.includes('\\\\');
-              const credential = (label) => ({ block: label, credential: true });
-              const classifyLine = (line) => {
-                const raw = blocking.find(([, re]) => re.test(line));
-                if (raw) return credential(raw[0]);
-                const first = findSecret(line);
-                if (!first) return {};
-                if (first[0] !== WARN_ONLY || !warnPattern) return credential(first[0]);
-                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
-                if (again && again[0] !== WARN_ONLY) return credential(again[0]);
-                for (const [match] of line.matchAll(warnAll)) {
-                  const inside = findSecret(match.replace(/[:=]/g, ' '));
-                  if (inside && inside[0] !== WARN_ONLY) return credential(inside[0]);
-                }
-                if (again || folds(line) || !warnOne.test(line)) return { block: HIDDEN, credential: false };
-                return { warn: true };
-              };
-              const classify = (text) => {
-                let warn = false;
-                for (const line of text.split(/\r?\n/)) {
-                  const result = classifyLine(line);
-                  if (result.block) return result;
-                  warn ||= Boolean(result.warn);
-                }
-                const whole = findSecret(text);
-                if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
-                return { warn };
-              };
-              // Two more passes, on credential formats only (owner ruling Q37),
-              // each blocking with the label and the rotation line:
-              // - UTF-16LE: the text with its NUL bytes removed, so a token
-              //   written two bytes a character reads as one. #8532 reads a
-              //   NUL as a space to keep line numbers (b9e9475b3a); here it is
-              //   removed, since a space between every character would split
-              //   the token again.
-              // - Split lines: each pair of adjacent lines joined with no
-              //   separator, counting only a match that straddles the join of
-              //   a pattern neither line matches alone, so a token cut across
-              //   two lines is caught and nothing a single line holds is
-              //   judged twice. The OpenAI key pattern (any sk- and 20 token
-              //   characters) and the R2 key pair pattern (a 32-hex and a
-              //   64-hex token on one line) are left out of this pass: joining
-              //   a line that ends in an sk- word to the next line's first
-              //   word matches the first, adjacent md5 and sha256 lines match
-              //   the second, and a false block fails fix-ci closed and asks
-              //   for a rotation. In the patch the pair is hunk
-              //   lines with their +, - or space prefix removed and the file
-              //   headers dropped, or a token split inside an added hunk
-              //   would join as "...ab+cd..." and never match.
-              const straddles = (left, right) => {
-                const joined = left + right;
-                for (const [label, re] of blocking) {
-                  if (label === 'OpenAI key' || label === 'R2 key pair' || re.test(left) || re.test(right)) continue;
-                  for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
-                    if (match.index < left.length && match.index + match[0].length > left.length) return label;
-                  }
-                }
-                return null;
-              };
-              const credentialIn = (text) => {
-                for (const line of text.split(/\r?\n/)) {
-                  const raw = blocking.find(([, re]) => re.test(line));
-                  if (raw) return raw[0];
-                }
-                const found = findSecret(text);
-                return found && found[0] !== WARN_ONLY ? found[0] : null;
-              };
-              const HUNK_HEADER = /^(?:\+\+\+|---) /;
-              const deeper = (text, diff) => {
-                const plain = text.replace(/\0/g, '');
-                if (plain !== text) {
-                  const label = credentialIn(plain);
-                  if (label) return label;
-                }
-                let lines = plain.split(/\r?\n/);
-                if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
-                for (let i = 0; i + 1 < lines.length; i += 1) {
-                  const label = straddles(lines[i], lines[i + 1]);
-                  if (label) return label;
-                }
-                return null;
-              };
-              // Each source has a kind, which names no model-chosen text.
+              // The gate's scanLeak: per-line credential formats, the warn-only
+              // assignment, then the UTF-16LE and split-line passes. A
+              // credential format blocks and asks for rotation; the one broad
+              // label only warns, on a plain line. Each source has a kind,
+              // which names no model-chosen text.
               const warned = new Set();
-              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1')), diff = false) => {
+              const judge = (kind, bytes, diff = false) => {
                 if (hit || !bytes) return;
-                const { block, credential: format, warn } = how(bytes);
-                if (block) {
-                  hit = { label: block, credential: format };
-                  return;
-                }
-                const deep = deeper(bytes.toString('latin1'), diff);
-                if (deep) hit = { label: deep, credential: true };
+                const { block, credential: format, warn } = scanLeak(bytes, { diff });
+                if (block) hit = { label: block, credential: format };
                 else if (warn) warned.add(kind);
               };
               judge('the reply', reply);
@@ -2698,7 +2597,7 @@ jobs:
               judge('the verdict', verdict);
               judge('the outcome', outcome);
               judge('lane.json', lane);
-              judge('the patch', patch, undefined, true);
+              judge('the patch', patch, true);
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -2724,12 +2623,7 @@ jobs:
                 } catch {
                   hit = { label: 'the patch does not apply to the head', credential: false };
                 }
-                const fields = made ? apply(['diff-tree', '-r', '-z', '--no-renames', HEAD_SHA, made]).toString('latin1').split('\0') : [];
-                for (let i = 0; i + 1 < fields.length; i += 2) {
-                  const [, mode, , sha] = fields[i].replace(/^:/, '').split(' ');
-                  judge('the patch', Buffer.from(fields[i + 1], 'latin1'));
-                  if (/^(100644|100755|120000)$/.test(mode)) judge('the patch', apply(['cat-file', 'blob', sha]));
-                }
+                if (made) for (const bytes of changedBytes(apply, HEAD_SHA, made)) judge('the patch', bytes);
               }
               if (!hit) {
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);

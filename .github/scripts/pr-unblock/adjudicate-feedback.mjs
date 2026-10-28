@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // adjudicate-feedback.mjs: the pr-unblock lane's adjudication of a disputed
-// review finding, one an address-feedback round answered INCORRECT. A
+// review finding, one an address-feedback round answered INCORRECT, UNCERTAIN
+// or VALID-defer (DISPUTED): any reply that leaves the thread open. A
 // fresh-context model sees the whole review comment, the locations both the
 // reviewer and the lane cited and those files at the head, never the lane's
 // reasoning, and returns a verdict as structured output; this file stages its
@@ -10,7 +11,7 @@
 //            with the job's read-only token, before any model turn: reads the
 //            select job's threads.json and the scan job's replies.jsonl, each
 //            checked against the SHA-256 its writer recorded, and for each
-//            INCORRECT reply on an adjudicable thread no adjudication has
+//            DISPUTED reply on an adjudicable thread no adjudication has
 //            stood before and no trusted person directed (up to MAX_THREADS)
 //            writes
 //            <OUT_DIR>/<slot>/: finding.json (path, line, head, and the
@@ -24,7 +25,7 @@
 //            entry per indexed thread; an absent or malformed verdict is
 //            null. Outputs `sha256`.
 //
-// settleDisputes is publish-feedback.mjs's INCORRECT branch: after the lane's
+// settleDisputes is publish-feedback.mjs's DISPUTED branch: after the lane's
 // replies are posted it applies each verdict (adjudicationReplies, fixed text
 // only) and returns the round's escalation reason.
 
@@ -39,6 +40,13 @@ import { createGitHubApi, FINDING_STANDS, need, SHA } from "./address-feedback.m
 // model step per slot. A thread past it is not adjudicated, and the round
 // escalates feedback-unadjudicated.
 export const MAX_THREADS = 3;
+// The dispositions that leave a thread open, each one an adjudicator judges
+// on an adjudicable thread instead of a person. Only an INCORRECT reply (the
+// lane asserted, with evidence, that the finding does not hold) can be
+// resolved by a lane verdict; on UNCERTAIN or VALID-defer only a reviewer or
+// human verdict settles it, so a model never closes a thread the lane did not
+// dispute (settleDisputes).
+export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"]);
 export const VERDICTS = ["lane", "reviewer", "human"];
 export const QUESTIONS = ["intent", "design", "security"];
 // The first line of each adjudication reply the lanes App posts: this, or
@@ -122,7 +130,7 @@ function readChecked(path, expected, what) {
   return text;
 }
 
-// The slots to adjudicate: each INCORRECT reply whose thread the select job
+// The slots to adjudicate: each DISPUTED reply whose thread the select job
 // kept, is adjudicable, no adjudication has stood and no trusted person
 // directed, in reply order, one slot per thread. Returns [{thread, finding,
 // evidence, cited, paths}] and the threads past MAX_THREADS.
@@ -134,7 +142,7 @@ export function disputes(threadFile, repliesText, repository = "") {
   for (const line of repliesText.split("\n").filter((row) => row.trim() !== "")) {
     const reply = JSON.parse(line);
     const thread = kept.get(reply?.thread);
-    if (reply?.disposition !== "INCORRECT" || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
+    if (!DISPUTED.includes(reply?.disposition) || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
       continue;
     }
     seen.add(thread.id);
@@ -266,23 +274,30 @@ export function adjudicationReply(verdict, evidence, headSha) {
         FINDING_STANDS,
         "**pr-unblock / adjudicate-feedback: the finding stands**",
         "",
-        `${seen} and found that the finding holds. The next address-feedback round fixes it; another INCORRECT reply on this thread is not accepted and hands the pull request to a person.`,
+        `${seen} and found that the finding holds. The next address-feedback round fixes it; a round that leaves this thread open again ends the lane in a failing status.`,
         "",
         evidenceLine(evidence),
       ].join("\n");
 }
 
 // The round's escalation reasons, most urgent first; one round records one.
+// A reason escalation-routes.json holds for a person outranks every reason it
+// routes to a failing status, so a question for a person is never lost.
 const ORDER = [
-  "feedback-partial",
-  "feedback-unadjudicated",
   "feedback-question-security",
   "feedback-question-intent",
   "feedback-question-design",
   "feedback-disputed",
   "feedback-uncertain",
+  "feedback-partial",
+  "feedback-unadjudicated",
+  "feedback-stood-open",
+  "feedback-verifier-open",
   "",
 ];
+
+// Whether a thread is a pr-verify verifier note (threadAuthors tags it).
+const verifierNote = (comments) => comments?.[0]?.author === "verifier";
 
 // The reply job's skip reason for a round that left a finding standing with
 // the PR head where the select job read it: no review run follows to start
@@ -290,21 +305,28 @@ const ORDER = [
 // head again.
 export const FINDING_STANDS_SKIP = "finding-stands";
 
-// publish-feedback.mjs's INCORRECT branch, after the lane's replies posted:
+// publish-feedback.mjs's DISPUTED branch, after the lane's replies posted:
 // - a thread an adjudication stood before (stood) that this round left open
-//   is the cap: feedback-disputed, and no second adjudication;
-// - an INCORRECT thread a trusted person directed (directed) is theirs:
+//   is the cap: feedback-stood-open, and no second adjudication;
+// - a DISPUTED thread a trusted person directed (directed) is theirs:
 //   feedback-disputed, and no adjudication;
-// - an INCORRECT thread that is not adjudicable (a CRITICAL or
-//   security-review finding, a verifier note, or one of unknown lane) goes to
-//   a person: feedback-disputed, and any verdict for it is ignored;
-// - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
+// - a DISPUTED pr-verify verifier note: feedback-verifier-open (pr-verify's
+//   own FAIL holds the merge, and it judges the next head afresh);
+// - any other DISPUTED thread that is not adjudicable (a CRITICAL or
+//   security-review finding, or one of unknown lane) goes to a person:
+//   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
+//   and any verdict for it is ignored;
+// - a DISPUTED thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
-// - lane: the fixed reply, then the thread is resolved;
-// - reviewer: the fixed FINDING_STANDS reply; when the head did not move
-//   this round (`pushed` false) and nothing escalates, the round skips
-//   FINDING_STANDS_SKIP.
+// - lane: on an INCORRECT reply, the fixed reply, then the thread is
+//   resolved; on an UNCERTAIN or VALID-defer reply (the lane could not tell,
+//   or agreed the finding holds) no reply, the thread stays open (the
+//   ruleset's thread resolution still holds the merge), and
+//   feedback-unadjudicated;
+// - reviewer: the fixed FINDING_STANDS reply, which the next round reads as
+//   a finding to fix; when the head did not move this round (`pushed`
+//   false) and nothing escalates, the round skips FINDING_STANDS_SKIP.
 // A thread that changed, a moved head or a failed write stops here as
 // feedback-partial. Returns {escalationReason, skipReason}.
 export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
@@ -317,24 +339,30 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
   };
   const byThread = new Map(replies.map((reply) => [reply.thread, reply]));
   for (const { thread, disposition } of posted) {
-    if (stood(now.get(thread)?.comments)) {
+    const comments = now.get(thread)?.comments;
+    if (stood(comments)) {
       if (disposition !== "VALID") {
         log(`${thread}: the finding stood at adjudication and this round left it open (${disposition})`);
-        raise("feedback-disputed");
+        raise("feedback-stood-open");
       }
       continue;
     }
-    if (disposition !== "INCORRECT") {
+    if (!DISPUTED.includes(disposition)) {
       continue;
     }
-    if (directed(now.get(thread)?.comments)) {
+    if (directed(comments)) {
       log(`${thread}: a trusted person directed this thread; it goes back to them, not to an adjudicator`);
       raise("feedback-disputed");
       continue;
     }
-    if (!adjudicable(now.get(thread)?.comments)) {
+    if (verifierNote(comments)) {
+      log(`${thread}: a pr-verify note left open (${disposition}); pr-verify judges the next head`);
+      raise("feedback-verifier-open");
+      continue;
+    }
+    if (!adjudicable(comments)) {
       log(`${thread}: not a non-CRITICAL code-review finding; it goes to a person, not to an adjudicator`);
-      raise("feedback-disputed");
+      raise(disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain");
       continue;
     }
     const verdict = verdicts.get(thread);
@@ -346,6 +374,14 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
     if (verdict.verdict === "human") {
       log(`${thread}: the adjudicator found a ${verdict.question} question`);
       raise(`feedback-question-${verdict.question}`);
+      continue;
+    }
+    // Only an INCORRECT reply is the lane disputing the finding with
+    // evidence. On UNCERTAIN or VALID-defer a lane verdict alone would let one
+    // model turn close a finding no one disputed, so the thread stays open.
+    if (verdict.verdict === "lane" && disposition !== "INCORRECT") {
+      log(`${thread}: a lane verdict settles only an INCORRECT reply, not ${disposition}; left open`);
+      raise("feedback-unadjudicated");
       continue;
     }
     try {

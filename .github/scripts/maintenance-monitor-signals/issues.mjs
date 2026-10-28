@@ -15,6 +15,7 @@ export const SIGNALS = [
   "6 report-only audit",
   "8 throughput",
   "9 lane stop",
+  "10 stalled lane stop",
 ];
 export const LOG_ONLY = new Set(["7 platform incident"]);
 const MUTED = new Set(["not_planned", "duplicate"]);
@@ -118,6 +119,7 @@ const SOURCES = {
   "pr-merge sweep": ["5 held PRs", "8 throughput"],
   "lane merges": ["8 throughput"],
   "lane stops": ["9 lane stop"],
+  "stalled stops": ["10 stalled lane stop"],
   audits: ["6 report-only audit"],
   "githubstatus.com": [],
 };

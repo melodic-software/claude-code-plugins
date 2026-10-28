@@ -2,9 +2,10 @@
 // review lanes' hold marker (docs/conventions/pr-pipeline/README.md, "Review-lane
 // holds"), and from GitHub's GraphQL LabeledEvent and UnlabeledEvent shapes.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
+import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -49,6 +50,37 @@ test("a hold marker text a person wrote is not read", () => {
 test("another lane's marker on a lanes App comment since the label is unknown", () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), commented(APP, "<!-- babysit-merge-risk -->\nRisk.", "2026-10-18T10:02:00Z")];
   assert.equal(source(timeline), "unknown");
+});
+
+test("report-escalation.sh's lane-stopped comment, posted or edited since the label, leaves a lane escalation workable", () => {
+  const timeline = [
+    label("labeled", APP, "2026-10-18T10:00:00Z"),
+    escalation(),
+    { ...commented(APP, "<!-- pr-unblock:lane-stopped activity=fix-ci -->\nStopped.", "2026-10-18T09:00:00Z"), updated_at: "2026-10-18T10:30:00Z" },
+  ];
+  assert.equal(source(timeline), "lane-escalation");
+  // Only that marker's exact shape is known.
+  const odd = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), commented(APP, "<!-- pr-unblock:lane-stopped activity=Fix_CI -->", "2026-10-18T10:30:00Z")];
+  assert.equal(source(odd), "unknown");
+});
+
+// The write runner's escalation enum (pr-run-activity-write.yml, its first
+// step) is the list of reasons a run may hand report-escalation.sh; the
+// routing table must route each one, and route nothing else.
+test("escalation-routes.json routes every reason the write runner accepts, each to one activity and one route", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-run-activity-write.yml", import.meta.url), "utf8");
+  const block = workflow.slice(workflow.indexOf("case $ESCALATION_REASON in"), workflow.indexOf("patch-empty | patch-invalid"));
+  const accepted = [...block.matchAll(/(?<=^|[\s|])([a-z]+(?:-[a-z]+)+)(?=\s*(?:\||\)))/gm)].map((match) => match[1]);
+  assert.ok(accepted.length > 30, `read ${accepted.length} reasons from the enum`);
+  assert.deepEqual([...new Set(accepted)].sort(), Object.keys(ROUTES).sort());
+  for (const [reason, entry] of Object.entries(ROUTES)) {
+    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci"].includes(entry.activity), reason);
+    assert.ok(["hold", "fail"].includes(entry.route), reason);
+    assert.equal(escalationActivity(reason), entry.activity);
+    assert.equal(escalationRoute(reason), entry.route);
+  }
+  assert.equal(escalationActivity("bogus"), null);
+  assert.equal(escalationRoute("constructor"), null);
 });
 
 test("address-feedback's own round records since the escalation leave it workable", () => {

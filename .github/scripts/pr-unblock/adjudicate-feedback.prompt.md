@@ -1,8 +1,8 @@
 # Adjudicate one disputed review finding
 
-A review lane posted a finding on a pull request. The lane that fixes findings answered that the
-finding is incorrect and cited locations in the code as its evidence. You decide which side the
-code supports. You see the whole review comment, the locations each side cited and the files at
+A review lane posted a finding on a pull request. The lane that fixes findings left it open: it
+answered that the finding is incorrect, that it could not tell, or that the fix belongs elsewhere,
+and may have cited locations in the code as its evidence. You decide which side the code supports. You see the whole review comment, the locations each side cited and the files at
 the pull request head. You do not see the fixing lane's reasoning. No one can answer a question,
 and you change nothing: your structured output is the only result, and a script acts on it.
 
