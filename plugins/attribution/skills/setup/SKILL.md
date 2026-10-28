@@ -3,7 +3,7 @@ description: "Set up and maintain this repository's attribution audit configurat
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(test:*)"]
 ---
 
 ## Repository context. Gather first
@@ -20,7 +20,11 @@ invocation:
   no team layer or overlay.
 - Layers in effect, `"${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh" --show-config`.
   Its `Config layers` list names every layer file the detectors read. A `.claude/` JSON file in
-  that list is a layer still on its fallback, and a layer named nowhere in the list is absent.
+  that list is a layer still on its fallback. The list does not decide absence: a YAML layer that
+  does not parse is left out of it, named on stderr, and shadows its JSON fallback, which is left
+  out too. A team layer or overlay is absent only when `test -f "<root>/<home>/attribution.yaml"`
+  (or `attribution.local.yaml`) fails. A YAML layer that exists but is not listed is unparseable:
+  report it, and never overwrite it or carry its JSON fallback over it without the operator's choice.
 
 Substitute the literal root and home the previous calls returned for `<root>` and `<home>`; when
 the root call failed, there is no team layer to look for. `apply` creates `<home>` when it is
