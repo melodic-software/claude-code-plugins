@@ -65,7 +65,7 @@ Two independent axes. **Work** answers whether removal would destroy a commit an
 | `superseded` | `superseded` | Not landed, but a MERGED PR carried this branch's NAME, probably a draft the base moved past. **Treat exactly as `stranded`**: the match is on the name, so a name reused after that merge carries new commits that are still the only copy |
 | `unknown` | `UNKNOWN` | No base resolved, or a probe failed. **Treat exactly as `stranded`**: the engine reports `?` rather than `no` precisely so an ambiguity is never read as safe |
 | `in-progress` | `in-progress` | A merge, rebase, cherry-pick, or revert is paused here. Nothing is unpushed, but the conflict resolutions in the working tree are not recorded anywhere and the sequencer state dies with the directory |
-| `dirty` | `dirty` | Uncommitted edits with nothing unpushed, **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
+| `dirty` | `dirty` | Uncommitted edits with nothing unpushed, uncommitted edits on a branch whose commits a merged PR's exact head proves landed (method `merged-pr-head-exact`), **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
 | `notgit` | `notgit` | Path is not a work-tree root. Probing it with `git -C` reports the *containing* repository's clean state |
 
 **Any risk value not in this table maps to `unknown`.** The mapping is closed on the safe side only: a value this file does not recognize is one it cannot vouch for, and the fail-closed rule that governs the engine governs its consumers too.
