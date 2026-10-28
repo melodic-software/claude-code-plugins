@@ -3539,6 +3539,9 @@ def assess_unattended(
         shared=shared,
         share=share,
         stop_when_closed=stop_when_closed,
+        runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+            repo, answer, branch
+        ),
     )
     return score_unattended(repo, number, policy, self_logins)
 
