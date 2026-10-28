@@ -717,6 +717,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    // The repository activity for one ref, newest first (contents read).
+    listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];

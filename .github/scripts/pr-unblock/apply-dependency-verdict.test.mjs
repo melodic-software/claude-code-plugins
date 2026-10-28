@@ -95,9 +95,23 @@ const appCommit = (files, overrides = {}) => ({
   files,
 });
 
+// Each commit pushed on its own by its author, Dependabot's first creating the
+// branch, newest first as the activity API lists it.
+const pusherOf = (item) =>
+  item.commit?.author?.name === "dependabot[bot]"
+    ? { login: "dependabot[bot]", id: 49699333, type: "Bot" }
+    : item.author?.id === APP
+      ? { login: "lanes[bot]", id: APP, type: "Bot" }
+      : { login: "github-actions[bot]", id: 41898282, type: "Bot" };
+const pushedOneByOne = (commits) =>
+  commits
+    .map((item, i) => ({ activity_type: i ? "push" : "branch_creation", before: i ? commits[i - 1].sha : "0".repeat(40), after: item.sha, actor: pusherOf(item) }))
+    .reverse();
+
 // `texts` maps `${ref}:${path}` to a file's text, else BEFORE at HEAD and
 // AFTER anywhere else; `modes` maps a path to its tree entry, else a regular
-// file; `details` maps a sha to its commit with files.
+// file; `details` maps a sha to its commit with files; `activity` is the head
+// branch's push history.
 function fakeApi({
   head = HEAD,
   state = "open",
@@ -113,10 +127,11 @@ function fakeApi({
   texts = {},
   modes = {},
   config = CONFIG,
+  activity = pushedOneByOne(commits),
 } = {}) {
   // State persists across calls, so a second apply() is a re-run.
-  const calls = { comments: [], closed: [], issues: [] };
-  const pull = { number: 7, state, head: { sha: head }, commits: commits.length, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
+  const calls = { comments: [], closed: [], issues: [], activity: [] };
+  const pull = { number: 7, state, head: { sha: head, ref: "dependabot/npm_and_yarn/x-2.0.0" }, commits: commits.length, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
   const api = {
     calls,
     pull,
@@ -126,6 +141,10 @@ function fakeApi({
     compare: async () => compare,
     listPullFiles: async () => files,
     listPullCommits: async () => commits,
+    listActivity: async (ref) => {
+      calls.activity.push(ref);
+      return activity;
+    },
     getCommit: async (sha) => {
       if (!details[sha]) throw new Error(`GET commit ${sha} returned 404`);
       return details[sha];
@@ -659,6 +678,21 @@ test("a merge verdict on a lanes App commit with a plain version bump in package
   const api = mergeWith([modified("package.json"), modified("package-lock.json")]);
   assert.deepEqual(await go(api, mergeRun()), { escalationReason: "", skipReason: "" });
   assert.match(api.calls.comments[0], /verdict=merge/);
+  assert.deepEqual(api.calls.activity, ["refs/heads/dependabot/npm_and_yarn/x-2.0.0"]);
+});
+
+test("a merge verdict on a lanes App push carrying a Dependabot-authored commit under its tip is refused", async () => {
+  const mid = "c".repeat(40);
+  const forged = { ...dependabotCommit(mid), parents: [{ sha: HEAD }] };
+  const app = { ...appCommit([modified("package.json")]), parents: [{ sha: mid }] };
+  const texts = { [`${mid}:package.json`]: BEFORE["package.json"] };
+  const branch = (activity) => fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), forged, app], details: { [FIX]: app }, texts, activity });
+  const dependabot = { login: "dependabot[bot]", id: 49699333, type: "Bot" };
+  const lane = { login: "lanes[bot]", id: APP, type: "Bot" };
+  const created = { activity_type: "branch_creation", before: "0".repeat(40), after: HEAD, actor: dependabot };
+  await refused(branch([{ activity_type: "push", before: HEAD, after: FIX, actor: lane }, created]), "the App pushed Dependabot's commit");
+  const own = [{ activity_type: "push", before: mid, after: FIX, actor: lane }, { activity_type: "push", before: HEAD, after: mid, actor: dependabot }, created];
+  assert.equal((await go(branch(own), mergeRun())).escalationReason, "", "each commit in its own author's push");
 });
 
 test("a merge verdict admits the version-bump commit and refuses any other unproven commit", async () => {

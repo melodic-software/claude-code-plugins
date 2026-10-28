@@ -607,6 +607,10 @@ TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 LATE = "2026-01-02T18:00:00Z"
 NEW = "1" * 40
+# A base commit a merge of the base names as its second parent.
+MAIN = "5" * 40
+# The base branch's tip commit, which its full ref resolves to.
+_TIP = "3" * 40
 # The decided head OLD, then NEW pushed before the decision; HEAD carries
 # OLD's net change.
 SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
@@ -722,6 +726,67 @@ CARRIES = {
         "compares": SAME,
         "activity": SINCE[:1],
     },
+    "a non-merge commit since with the same net change": {
+        "runs": [_run(OLD)],
+        "compares": {
+            OLD: {"files": [TF]},
+            HEAD: {
+                "files": [TF],
+                "commits": [
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}]},
+                ],
+                "total_commits": 2,
+            },
+        },
+    },
+    "a merge of a branch other than the base": {
+        "runs": [_run(OLD)],
+        "compares": {
+            OLD: {"files": [TF]},
+            HEAD: {
+                "files": [TF],
+                "commits": [
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": NEW, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": NEW}]},
+                ],
+                "total_commits": 3,
+            },
+        },
+    },
+    "a merge that also edits a file": {
+        "runs": [_run(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
+    },
+    "a force push that rewrote the decided head": {
+        "runs": [_run(OLD)],
+        "compares": {
+            OLD: {"files": [TF]},
+            HEAD: {
+                "files": [TF],
+                "commits": [
+                    {"sha": NEW, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": NEW}, {"sha": MAIN}]},
+                ],
+                "total_commits": 2,
+            },
+        },
+    },
+    "a history longer than the compare lists": {
+        "runs": [_run(OLD)],
+        "compares": {
+            OLD: {"files": [TF]},
+            HEAD: {
+                "files": [TF],
+                "commits": [
+                    {"sha": OLD, "parents": [{"sha": MAIN}]},
+                    {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
+                ],
+                "total_commits": 251,
+            },
+        },
+    },
     "a patchless pure rename": {
         "runs": [_run(OLD)],
         "compares": {
@@ -736,8 +801,21 @@ CARRIES = {
 }
 
 
+def _history(sha: str, answer: Any) -> Any:
+    """`answer` (a compare of base...sha) with the commits a history of base
+    merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+    HEAD of the base for HEAD, the head alone for any other."""
+    if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
+        return answer
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
+    if sha == HEAD:
+        commits.append({"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]})
+    return answer | {"commits": commits, "total_commits": len(commits)}
+
+
 def _answers(heads: dict[str, Any]) -> dict[str, Any]:
-    return {r["sha"]: {"files": [TF]} for r in heads["runs"]} | heads["compares"]
+    answers = {r["sha"]: {"files": [TF]} for r in heads["runs"]} | heads["compares"]
+    return {sha: _history(sha, answer) for sha, answer in answers.items()}
 
 
 def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
@@ -763,6 +841,9 @@ import { costDecision } from %s;
 const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
+  const tip = "3".repeat(40);
+  if (method === "GET" && path.startsWith("/repos/o/r/git/ref/heads/")) return { object: { sha: tip } };
+  if (method === "GET" && path.endsWith(`...${tip}`)) return { status: path.includes(`/compare/${"5".repeat(40)}...`) ? "ahead" : "diverged" };
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
     if (!(sha in answers)) throw new Error("no such commit");
@@ -828,6 +909,11 @@ def py_decision(
         return {"node": {"lastEditedAt": comment["edited"]}}
 
     def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        if "/git/ref/heads/" in endpoint:
+            return 200, {"object": {"sha": _TIP}}
+        if endpoint.endswith(f"...{_TIP}"):
+            parent = endpoint.split("/compare/", 1)[1].split("...")[0]
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
@@ -912,6 +998,128 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             self.assertEqual(answers[case], _link(7), case)
         for case in set(CARRIES) - carried:
             self.assertIsNone(answers[case], case)
+
+
+NODE_CARRY = """
+import { baseMergeCarry, fromRest, liftsOf } from %s;
+const [lifts, carries, from] = JSON.parse(process.argv[1]);
+console.log(JSON.stringify([
+  lifts.map((reviews) => liftsOf(reviews.map(fromRest), new Set([1, 3])).map(({ login, sha }) => [login, sha])),
+  carries.map(([then, now, inBase]) => baseMergeCarry(then, now, from, inBase)),
+]));
+"""
+_OLD = "c" * 40
+_BASE_SHA = "5" * 40
+_HELD = ".github/actions/resolve-config/live-config.test.mjs"
+_PATCH = {"filename": _HELD, "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
+_DOC = {"filename": "docs/a.md", "status": "modified", "patch": "+x"}
+_LIFTED = "2026-10-27T23:26:14Z"
+
+
+def _moved(*commits: tuple[str, list[str]]) -> dict[str, Any]:
+    return {
+        "commits": [
+            {"sha": sha, "parents": [{"sha": p} for p in parents]}
+            for sha, parents in commits
+        ],
+        "total_commits": len(commits),
+    }
+
+
+_THEN = {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]))}
+_MERGED = _moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD, _BASE_SHA]))
+_OTHER = "e" * 40
+_REWRITTEN = "f" * 40
+# REST reviews: whose approval stands, as (login, sha).
+LIFT_CASES = {
+    "an approval of an earlier head": [_review("APPROVED", sha=_OLD, at=_LIFTED)],
+    "an approval by an untrusted account": [_review("APPROVED", 2, _OLD, _LIFTED)],
+    "an approval by a bot": [_review("APPROVED", 1, _OLD, _LIFTED, "Bot")],
+    "an approval then changes requested on another head": [
+        _review("APPROVED", sha=_OLD, at=_LIFTED),
+        _review("CHANGES_REQUESTED", sha="d" * 40, at="2026-10-27T23:40:00Z"),
+    ],
+    "a dismissed approval": [_review("DISMISSED", sha=_OLD, at=_LIFTED)],
+    "an approval dismissed after a newer approval": [
+        _review("APPROVED", sha=_OLD, at=_LIFTED),
+        _review("DISMISSED", sha=_HEAD, at="2026-10-27T23:40:00Z"),
+    ],
+    "a comment after an approval": [_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")],
+    "two people": [_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)],
+}  # fmt: skip
+_IN_BASE = [_BASE_SHA]
+_HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "@@ -1 +1 @@\n-x\n+y"}
+# (then, now, in_base): whether the approval at _OLD carries to _HEAD, given
+# the merged parents the base holds.
+CARRY_CASES = {
+    "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE),
+    "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE),
+    "a merge that rewrites scripts/helper.sh": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_PATCH, _HELPER | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
+    "a merge that adds a file the base touched": (_THEN, {"files": [_PATCH, _DOC], **_MERGED}, _IN_BASE),
+    "a base merge after which the base holds a hold path's change": (
+        {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/b.mjs"}], **_moved((_OLD, [_BASE_SHA]))},
+        {"files": [_PATCH], **_MERGED},
+        _IN_BASE,
+    ),
+    "a merge of a parent the base does not hold": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA, _BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
+    "a merge read with no base answers": (_THEN, {"files": [_PATCH], **_MERGED}, []),
+    "an evil merge": (_THEN, {"files": [_PATCH | {"patch": "+evil"}], **_MERGED}, _IN_BASE),
+    "a merge that adds a hold path": (_THEN, {"files": [_PATCH, _PATCH | {"filename": ".github/actions/resolve-config/c.mjs"}], **_MERGED}, _IN_BASE),
+    "a rename off a hold path": (_THEN, {"files": [_PATCH, _DOC | {"status": "renamed", "previous_filename": _HELD.replace("live", "old")}], **_MERGED}, _IN_BASE),
+    "a non-merge commit": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_HEAD, [_OLD]))}, _IN_BASE),
+    "a merge of another branch": (_THEN, {"files": [_PATCH], **_moved((_OLD, [_BASE_SHA]), (_OTHER, [_BASE_SHA]), (_HEAD, [_OLD, _OTHER]))}, _IN_BASE),
+    "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE),
+    "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE),
+    "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheCarriedLiftIsTheGates(unittest.TestCase):
+    def test_both_readers_carry_the_same_lifts(self) -> None:
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                NODE_CARRY % json.dumps(MODULE.as_uri()),
+                json.dumps(
+                    [list(LIFT_CASES.values()), list(CARRY_CASES.values()), _OLD]
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        lifts, carries = json.loads(proc.stdout)
+        for (name, reviews), js in zip(LIFT_CASES.items(), lifts, strict=True):
+            with self.subTest(name):
+                self.assertEqual(
+                    [list(x) for x in policy.lifts_of(reviews, {1, 3})], js
+                )
+        for (name, (then, now, in_base)), js in zip(
+            CARRY_CASES.items(), carries, strict=True
+        ):
+            with self.subTest(name):
+                self.assertEqual(
+                    policy.base_merge_carry(then, now, _OLD, set(in_base)), js
+                )
+        # The rule's answers: a trusted person's newest review approves a
+        # commit (a dismissed approval never counts); it carries over merges of
+        # base commits alone that leave the whole net change the same.
+        self.assertEqual(
+            dict(zip(LIFT_CASES, lifts, strict=True)),
+            dict.fromkeys(LIFT_CASES, [])
+            | {
+                "an approval of an earlier head": [["u1", _OLD]],
+                "a comment after an approval": [["u1", _OLD]],
+                "two people": [["u1", _OLD], ["u3", _HEAD]],
+            },
+        )
+        self.assertEqual(
+            {name for name, js in zip(CARRY_CASES, carries, strict=True) if js},
+            {"a base merge", "a base merge with a non-hold file unchanged"},
+        )
 
 
 if __name__ == "__main__":
