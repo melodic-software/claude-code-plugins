@@ -382,15 +382,19 @@ still exist and keep one for removal only when all of these hold:
 - the path holds no `'` and no control character, so it goes inside single quotes literally.
 
 List every other candidate for the user with the condition it failed, and remove nothing for it.
-Remove exactly the kept ones by literal path, each single-quoted; the loop checks the symlink and
-layout conditions again and skips a path that fails them:
+Remove exactly the kept ones by literal path, each single-quoted. The loop checks the symlink,
+location, name and layout conditions again itself, so a selection mistake cannot reach `chmod -R`
+or `rm -rf`. It opens the sandbox directory before the layout test, since a kept sandbox can be one
+the test cannot read, and it prints each skipped path with the reason:
 
 ```bash
-for d in '<sandbox>' '<sandbox>'; do if [ -L "$d" ] || [ ! -d "$d/out" ] || [ ! -d "$d/sealed" ]; then echo "skipped: $d"; continue; fi; chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
+t=$(realpath "${TMPDIR:-/tmp}"); for d in '<sandbox>' '<sandbox>'; do r=$(realpath "$d"); if [ -L "$d" ] || [ ! -d "$d" ] || [ "$(dirname "$r")" != "$t" ]; then echo "skipped (not a directory directly under $t): $d"; continue; fi; case $(basename "$r") in claude-eval-*) ;; *) echo "skipped (not named claude-eval-*): $d"; continue;; esac; if ! chmod u+rwx "$r"; then echo "skipped (chmod cannot open it): $d"; continue; fi; if [ ! -d "$r/out" ] || [ ! -d "$r/sealed" ]; then echo "skipped (no out/ and sealed/): $d"; continue; fi; chmod 700 "$r/sealed"; chmod -R u+rwx "$r"; rm -rf "$r"; done
 ```
 
-Then check each path: one the loop did not print as skipped and that still exists was refused,
-since the loop's exit status is only the last `rm`'s. Remove nothing else: never a glob over
+Then check each path. A `chmod cannot open it` skip is a path left behind that needs the
+`sudo rm -rf` fallback below; any other skip is a deliberate refusal, so remove nothing for it. A
+path the loop did not print as skipped that still exists was left behind too, since the loop's
+exit status is only the last `rm`'s. Remove nothing else: never a glob over
 `<tmp>/claude-eval-*`, which also holds other runs' sandboxes, and nothing for a `tracePath` with
 no `claude-eval-*` directory on it. A run
 without `--keep-temp` has none left to remove; say so. When the removal is refused (a declined
