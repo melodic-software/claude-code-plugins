@@ -107,18 +107,17 @@ const setupSkills = pluginFiles.filter((path) =>
 // surface, not a claim it may assert: "A plugin with even one writable owned
 // artifact takes the narrow-write shape instead." Tracked consumer config is
 // the writable artifact class this repo already registers, in the Implementers
-// table of docs/conventions/config-cascade/README.md, a signal that lives
+// table of docs/contracts/config-cascade/README.md, a signal that lives
 // OUTSIDE the setup skill whose claim is being checked, which is the whole
 // point. Reading ownership out of the declaring skill's own prose would let a
 // plugin certify itself, and would misread the carve-out's own second surface,
 // whose conforming `check` prints the exact settings edit it may not write.
-const configCascadeRegistry = join(
-  root,
-  "docs",
-  "conventions",
-  "config-cascade",
-  "README.md",
-);
+// The contract moved from docs/conventions/, which keeps a stub; the old path
+// is read only when the new one is absent.
+const configCascadeRegistry = [
+  join(root, "docs", "contracts", "config-cascade", "README.md"),
+  join(root, "docs", "conventions", "config-cascade", "README.md"),
+].find((path) => existsSync(path)) ?? join(root, "docs", "contracts", "config-cascade", "README.md");
 
 // The plugin names in that table's first column, or null when the table cannot
 // be read. Null is a recorded failure, never a quiet pass: a check that
