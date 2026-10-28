@@ -3398,7 +3398,9 @@ const SAMPLE_ASSIGNMENT = `${"pass"}word = "${"hunter"}2-zz9"`;
 test("the reuse-scan step scans what the branch changes and records its word and tip", () => {
   const clean = runReuseScan({ "notes.md": "a plain change\n" });
   assert.deepEqual({ scan: clean.scan, tip: clean.tip }, { scan: "clean", tip: clean.tip });
-  assert.equal(runReuseScan({ "notes.md": `key ${SAMPLE_KEY}\n` }).scan, "found", "a credential format");
+  const keyed = runReuseScan({ "notes.md": `key ${SAMPLE_KEY}\n` });
+  assert.equal(keyed.scan, "found", "a credential format");
+  assert.match(keyed.stderr, /scan-reuse: Anthropic key; rotate this credential/);
   assert.equal(runReuseScan({ "notes.md": `${SAMPLE_ASSIGNMENT}\n` }).scan, "found", "a plain assignment, which the read runner only warns on");
   assert.equal(runReuseScan({ "blob.bin": Buffer.concat([Buffer.from([0, 1, 0]), Buffer.from(SAMPLE_KEY), Buffer.from([0])]) }).scan, "found", "a binary file");
   assert.equal(runReuseScan({ [`${SAMPLE_KEY}.txt`]: "x\n" }).scan, "found", "a credential-format file name");

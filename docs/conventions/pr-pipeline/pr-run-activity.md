@@ -1542,7 +1542,7 @@ Recorded, not fixed:
   text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
   commits on the branch it resumes. Those commits were scanned when their run made them, against
-  the pattern list of that day, unless the branch predates issue-mode scanning. A reused branch's
+  the pattern list of that day, unless the branch predates issue-mode scanning (GAPS X5). A reused branch's
   commits are scanned again at reuse: `run-checks` runs the same `scanLeak` on the diff from the
   branch's merge base with the default branch tip and on every file that diff makes, and
   `report-outcome` holds the PR on any result but clean. A plain `password or secret assignment`,

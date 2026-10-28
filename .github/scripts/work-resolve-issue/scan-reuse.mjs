@@ -10,8 +10,9 @@
 //   scan-reuse.mjs <repository> <base-tip> <tip>
 // Prints one word: clean; found, for a credential format, an assignment
 // hidden by markup or escapes, or a plain password or secret assignment;
-// failed, when the scan did not finish. Never the match. Exit 0 unless the
-// arguments are wrong.
+// failed, when the scan did not finish. On stderr, the label, and for a
+// credential format the read runner's rotation line; never the match. Exit 0
+// unless the arguments are wrong.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -34,8 +35,8 @@ export function scanBranch(git, base, tip) {
     ...[...changedBytes(git, mergeBase, tip)].map((bytes) => [bytes, false]),
   ];
   for (const [bytes, diff] of sources) {
-    const { block, warn } = scanLeak(bytes, { diff });
-    if (block) return { result: "found", label: block };
+    const { block, credential, warn } = scanLeak(bytes, { diff });
+    if (block) return { result: "found", label: credential ? `${block}; rotate this credential` : block };
     if (warn) return { result: "found", label: "password or secret assignment" };
   }
   return { result: "clean", label: "" };
