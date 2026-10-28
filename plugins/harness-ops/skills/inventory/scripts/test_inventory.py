@@ -719,6 +719,12 @@ class TestNameLocality(unittest.TestCase):
             self.assertEqual(skills, {}, extra)
             self.assertEqual(notes["unresolved_dynamic_names"], ["t.name"], extra)
 
+    def test_a_helper_reassigning_its_parameter_stays_unresolved(self) -> None:
+        src = self._HELPER.replace("function h(t,r){", "function h(t,r){t=g;")
+        skills, notes = self._skills(self.HEAD + src)
+        self.assertEqual(skills, {})
+        self.assertEqual(notes["unresolved_dynamic_names"], ["t.name"])
+
     def test_a_loop_over_a_literal_table_is_enumerated(self) -> None:
         src = (
             self.HEAD

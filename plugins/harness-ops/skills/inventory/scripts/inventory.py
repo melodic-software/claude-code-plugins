@@ -3163,7 +3163,8 @@ def _argument_object(
     receives: `function h(t,r){...}` whose module names `h` only in that
     declaration and one call `h(c)`, with `c={...}` in scope there. None when
     `ident` is not that function's parameter; False when it is but the call
-    is not that one plain shape (exported, passed around, called twice)."""
+    is not that one plain shape (exported, passed around, called twice) or
+    the body assigns `ident` before `at`."""
     body = _function_block(src, braces, at)
     if body is None:
         return None
@@ -3174,6 +3175,12 @@ def _argument_object(
     params = [p.strip() for p in head.group(2).split(",")] if head else []
     if ident not in params:
         return None
+    name = re.escape(ident)
+    if re.search(
+        r"(?<![\w$.])" + name + r"\s*[-+*/%&|^?]*=(?![=>])",
+        _mask_strings(src[body[0] : at]),
+    ):
+        return False
     fn, k = head.group(1), params.index(ident)
     lo, hi = _chunk_span(src, at)
     refs = {
