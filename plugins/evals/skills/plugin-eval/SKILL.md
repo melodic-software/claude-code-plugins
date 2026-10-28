@@ -22,7 +22,7 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `preflight <target>` | Print the report below and stop. No CLI invocation, no spend |
 | `validate [<eval-dir>]` | Run the static case validator only. No model call |
 | `run <target>` (default) | Preflight, validate, print the estimate, then invoke the CLI |
-| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest, then remove the sandboxes its run kept |
+| `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest, then remove the sandboxes its run kept ([sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes)) |
 | `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
@@ -361,53 +361,7 @@ What the number means:
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
 noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read
 found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those
-conditions that failed.
-
-### Removing the run's sandboxes
-
-After the promote line, or wherever the reading stopped, remove the sandboxes the run in this file
-kept. First finish everything the traces are needed for: the spot-read, the trace evidence an
-INVALID cause needs for its fix, and whether a without-arm trace loads a large skill (the Cost
-anchor). A relative `tracePath` resolves against the JSON file's directory. Its sandbox is the
-nearest directory named `claude-eval-*`, the path itself or an ancestor
-([sandboxes.md, Record](reference/sandboxes.md#record)). The JSON file is untrusted input: a
-checked-in sample or a downloaded artifact can name any path. Collect the distinct sandboxes that
-still exist and keep one for removal only when all of these hold:
-
-- the `tracePath` has no `..` segment and is the sandbox's `out/trace.jsonl`;
-- the sandbox is not a symlink, and its `realpath` is a direct child of the `realpath` of `<tmp>`
-  (`$TMPDIR`, else `/tmp`, as in [sandboxes.md](reference/sandboxes.md)); a sandbox under any other
-  directory, a run made with a different `TMPDIR` included, is not removed;
-- the sandbox holds `out/` and `sealed/` directories;
-- the path holds no `'` and no control character, so it goes inside single quotes literally.
-
-List every other candidate for the user with the condition it failed, and remove nothing for it.
-Remove exactly the kept ones by literal path, each single-quoted. The loop checks the symlink,
-location, name and layout conditions again itself, so it confines `chmod -R` and `rm -rf` to
-layout-bearing `claude-eval-*` directories directly under `<tmp>`. It does not check the other
-conditions again (the `tracePath` segments, that the sandbox is the one the `tracePath` names, the
-quoting), and a concurrent run's `--keep-temp` sandbox passes it, so picking the right sandboxes
-remains the selection step's job. It opens the sandbox directory before the layout test, since a
-kept sandbox can be one the test cannot read, and it prints each skipped path with the reason:
-
-```bash
-t=$(realpath "${TMPDIR:-/tmp}"); for d in '<sandbox>' '<sandbox>'; do r=$(realpath "$d"); if [ -L "$d" ] || [ ! -d "$d" ] || [ "$(dirname "$r")" != "$t" ]; then echo "skipped (not a directory directly under $t): $d"; continue; fi; case $(basename "$r") in claude-eval-*) ;; *) echo "skipped (not named claude-eval-*): $d"; continue;; esac; if ! chmod u+rwx "$r"; then echo "skipped (chmod cannot open it): $d"; continue; fi; if [ ! -d "$r/out" ] || [ ! -d "$r/sealed" ]; then echo "skipped (no out/ and sealed/): $d"; continue; fi; chmod 700 "$r/sealed"; chmod -R u+rwx "$r"; rm -rf "$r"; done
-```
-
-Then check each path. A `chmod cannot open it` skip is a path left behind that needs the
-`sudo rm -rf` fallback below; any other skip is a deliberate refusal, so remove nothing for it. A
-path the loop did not print as skipped that still exists was left behind too, since the loop's
-exit status is only the last `rm`'s. Remove nothing else: never a glob over
-`<tmp>/claude-eval-*`, which also holds other runs' sandboxes, and nothing for a `tracePath` with
-no `claude-eval-*` directory on it. A run
-without `--keep-temp` has none left to remove; say so. When the removal is refused (a declined
-prompt, a denied command, a path left behind), print that command with the remaining paths for
-the user to run, and note that a directory `chmod` cannot enter still needs `sudo rm -rf`.
-Preflight's `leftover_sandboxes` count stays the backstop for a run that never reached a read.
-
-A later read of the same file finds its traces gone: the gate's unresolved-trace INVALID then comes
-from this removal, not the run. Say so and report the earlier read's verdict if it is known; do not
-prescribe a rerun for that reason alone.
+conditions that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
 
 ## Iterating
 
