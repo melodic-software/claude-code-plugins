@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "2. /app-control:map refresh cart/total",
+      "why": "refresh with the path-derived id"
+    },
+    {
+      "answer": "| 1 | `app-control:map` | `refresh cart/total` |",
+      "why": "table with skill and arguments in separate cells"
+    },
+    {
+      "answer": "Skill(skill: \"app-control:map\", args: \"refresh cart/total\")",
+      "why": "Skill tool call shape"
+    },
+    {
+      "answer": "```\nSkill: app-control:map\nargs:  refresh cart/total\n```",
+      "why": "skill and args on separate lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lessons listed: /app-control:map refresh <feature> \"<lesson>\".",
+      "why": "the existing lessons placeholder, no touched feature"
+    },
+    {
+      "answer": "Then /app-control:map refresh checkout.",
+      "why": "the untouched feature"
+    },
+    {
+      "answer": "Skill: app-control:map\nargs: refresh\n\nI also changed src/cart/total.ts.",
+      "why": "no feature id after refresh"
+    },
+    {
+      "answer": "1. /app-control:map check\n(no refresh cart/total needed)",
+      "why": "check instead of refresh"
+    }
+  ]
+}

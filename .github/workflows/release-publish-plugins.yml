@@ -139,6 +139,14 @@ jobs:
             echo "Merged release pull request #$PR_NUMBER at $HEAD_SHA."
           fi
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   build:
     needs: [merge]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
@@ -324,3 +332,11 @@ jobs:
             printf '\n%s\n' "$line" >>"$body"
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
