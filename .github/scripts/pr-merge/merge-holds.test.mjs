@@ -911,7 +911,14 @@ const HELD_PATCH = { filename: HELD, status: "modified", patch: "@@ -1 +1 @@\n-a
 const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs", status: "modified", patch: "@@ -1 +1 @@\n-c\n+d" };
 const ON_OLD = "2026-10-27T23:00:00Z";
 const LIFTED_AT = "2026-10-27T23:26:14Z";
-const review = (state, commit, at, id = 5, type = "User") => ({ user: { login: id === 5 ? "owner-person" : "someone", id, type }, state, commit_id: commit, submitted_at: at });
+const review = (state, commit, at, id = 5, type = "User") => ({ id: 41, user: { login: id === 5 ? "owner-person" : "someone", id, type }, state, commit_id: commit, submitted_at: at });
+// GitHub's dismissal of review 41 as stale when `commit` was pushed (no message).
+const staleDismissal = (commit, message = null) => ({
+  event: "review_dismissed",
+  actor: { id: 2, login: "lanes[bot]" },
+  created_at: "2026-10-27T23:32:35Z",
+  dismissed_review: { review_id: 41, state: "approved", dismissal_message: message, dismissal_commit_id: commit },
+});
 const unlabel = (at, { id = 5, app = null, event = "unlabeled", label = "needs-human" } = {}) => ({
   event,
   label: { name: label },
@@ -978,6 +985,11 @@ test("a label removal or an approval of an earlier head lifts a hold path over a
   for (const [name, world] of Object.entries({
     "an unlabel on the earlier head": liftWorld({ events: [unlabel(LIFTED_AT)] }),
     "an approval of the earlier head": liftWorld({ reviews: [review("APPROVED", OLD, LIFTED_AT)] }),
+    // #10224: the base merge's push dismissed the owner's approval as stale.
+    "an approval GitHub dismissed as stale when the merge was pushed": liftWorld({
+      reviews: [review("DISMISSED", OLD, "2026-10-27T23:31:57Z")],
+      events: [unlabel(LIFTED_AT), staleDismissal(HEAD)],
+    }),
     // #10224: the base brought one hold-path file's change, so H' no longer changes it.
     "a merge after which the base holds one of its files": liftWorld({
       events: [unlabel(LIFTED_AT)],
@@ -1021,6 +1033,9 @@ test("no adversarial history, actor or timing carries a lift to the head", async
       compares: { [OLD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [MAIN] }], total_commits: 1 }, [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } },
     },
     "an approval later dismissed": { reviews: [review("DISMISSED", OLD, LIFTED_AT)] },
+    "an approval a person dismissed with a message": { reviews: [review("DISMISSED", OLD, LIFTED_AT)], events: [staleDismissal(HEAD, "not this")] },
+    "an approval dismissed by a commit the branch never held": { reviews: [review("DISMISSED", OLD, LIFTED_AT)], events: [staleDismissal("9".repeat(40))] },
+    "a stale approval followed by a dismissal by hand": { reviews: [review("DISMISSED", OLD, LIFTED_AT), { ...review("DISMISSED", OLD, "2026-10-27T23:40:00Z"), id: 42 }], events: [staleDismissal(HEAD)] },
     "an approval followed by a request for changes on another head": { reviews: [review("APPROVED", OLD, LIFTED_AT), review("CHANGES_REQUESTED", "8".repeat(40), "2026-10-27T23:40:00Z")] },
     "a label removal followed by the same person adding it back": { events: [unlabel(LIFTED_AT), unlabel("2026-10-27T23:30:00Z", { event: "labeled" })] },
     "an approval by a person off the trusted-actor list": { reviews: [review("APPROVED", OLD, LIFTED_AT, 77)] },

@@ -1373,8 +1373,10 @@ whose every change since is a merge of the base that changes no hold path beyond
 not send the pull request back to them:
 
 - Each trusted person's newest deciding act counts (`liftsOf`): an approving review lifts its
-  commit; a request for changes, a dismissal, or that person adding the label back takes the lift
-  back. A label removal counts only made directly by that person, not through an App, and binds
+  commit, and so does an approval GitHub dismissed as stale when a push moved the head (a
+  `review_dismissed` event with no message whose dismissal commit the branch was pushed to); a
+  request for changes, a dismissal by a person, or that person adding the label back takes the
+  lift back. A label removal counts only made directly by that person, not through an App, and binds
   to the head the branch held then, read from its push history (the repository activity API, one
   page): the newest push before the removal (`headAt`). A push within 60 seconds before the
   removal, a full page or an unreadable history binds no head.

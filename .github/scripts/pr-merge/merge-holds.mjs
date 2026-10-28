@@ -223,6 +223,7 @@ export function vetoers(items) {
 
 // One REST issue comment, review or review comment as a vetoers item.
 export const fromRest = (row) => ({
+  id: row?.id,
   login: String(row?.user?.login ?? ""),
   userId: row?.user?.id,
   state: row?.state,
@@ -810,18 +811,29 @@ export function headAt(activity, at) {
 }
 
 // Each trusted person's lift standing now, as { login, sha, at }: their
-// newest deciding act (babysit_merge_policy has no reader of it). A review
+// newest deciding act (babysit_merge_policy.lifts_of). A review
 // (REST, fromRest shape) that approves, requests changes or was dismissed
-// decides, an APPROVED one lifting its commit; a `labeled` or `unlabeled`
+// decides, an APPROVED one lifting its commit, as does an approval GitHub
+// dismissed as stale on a push (a `review_dismissed` event with no message
+// whose dismissal commit is in `pushed`, the branch's pushed heads), which
+// still approves the commit it reviewed; a `labeled` or `unlabeled`
 // event (REST issue events) of `label`, made directly and not through an
 // App, decides, an `unlabeled` one lifting the head at its time (sha null,
 // headAt binds it). Only ids in `humans` count, and an unlabel through an App
 // counts for nothing, as ci-status's review-lane lift step reads it.
-export function liftsOf(reviews, events, humans, label) {
+export function liftsOf(reviews, events, humans, label, pushed = new Set()) {
+  // Approvals GitHub dismissed as stale when a push moved the head: no
+  // message, and the commit that dismissed it is one the branch was pushed to.
+  const stale = new Set(
+    (events ?? [])
+      .filter((e) => e?.event === "review_dismissed" && e.dismissed_review?.state === "approved" && e.dismissed_review.dismissal_message == null && pushed.has(e.dismissed_review.dismissal_commit_id))
+      .map((e) => e.dismissed_review.review_id),
+  );
   const acts = [];
   for (const r of reviews ?? []) {
     if (r?.isUser && humans.has(r.userId) && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) {
-      acts.push({ id: r.userId, login: r.login, at: r.at, lift: r.state === "APPROVED", sha: /^[0-9a-f]{40}$/.test(String(r.commitId)) ? r.commitId : null });
+      const lift = r.state === "APPROVED" || (r.state === "DISMISSED" && stale.has(r.id));
+      acts.push({ id: r.userId, login: r.login, at: r.at, lift, sha: /^[0-9a-f]{40}$/.test(String(r.commitId)) ? r.commitId : null });
     }
   }
   for (const e of typeof label === "string" && label ? (events ?? []) : []) {
@@ -848,16 +860,15 @@ export function liftsOf(reviews, events, humans, label) {
 // over base merges on the hold paths `keep` (baseMergeCarry against the base
 // branch `base`). An unlabel binds to the head branch `branch`'s head at its
 // time (headAt). Reads: the reviews, the issue events, one page of the
-// branch's push history when an unlabel lifts, and two compares per carried
-// head. A read that fails lifts nothing: the caller keeps the exact-head
+// branch's push history, and two compares per carried head. A read that fails lifts nothing: the caller keeps the exact-head
 // approvals it read (pathLifters).
 export async function liftersOf(github, repo, { number, head, base, branch }, humans, label, keep) {
   try {
     if (!BRANCH.test(String(base)) || !BRANCH.test(String(branch))) return { lifters: [], exact: [] };
     const reviews = (await pages(github, `/repos/${repo}/pulls/${number}/reviews`)).map(fromRest);
-    const events = typeof label === "string" && label ? await pages(github, `/repos/${repo}/issues/${number}/events`) : [];
-    const lifts = liftsOf(reviews, events, humans, label);
-    let activity;
+    const events = await pages(github, `/repos/${repo}/issues/${number}/events`);
+    const activity = await github("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
+    const lifts = liftsOf(reviews, events, humans, label, new Set((pushMoves(activity) ?? []).map((m) => m.after)));
     const compares = new Map();
     const compare = async (sha) => {
       if (!compares.has(sha)) compares.set(sha, await github("GET", `/repos/${repo}/compare/${base}...${sha}`));
@@ -868,7 +879,6 @@ export async function liftersOf(github, repo, { number, head, base, branch }, hu
     for (const lift of lifts) {
       let sha = lift.sha;
       if (sha === null) {
-        activity ??= await github("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
         sha = headAt(activity, lift.at);
       }
       if (sha === head) exact.add(lift.login);

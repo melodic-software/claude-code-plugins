@@ -994,7 +994,7 @@ NODE_CARRY = """
 import { baseMergeCarry, fromRest, headAt, liftsOf } from %s;
 const [lifts, heads, carries, from] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify([
-  lifts.map(([reviews, events, label]) => liftsOf(reviews.map(fromRest), events, new Set([1, 3]), label).map(({ login, sha, at }) => [login, sha, at])),
+  lifts.map(([reviews, events, label]) => liftsOf(reviews.map(fromRest), events, new Set([1, 3]), label, new Set([from])).map(({ login, sha, at }) => [login, sha, at])),
   heads.map(([activity, at]) => headAt(activity, at)),
   carries.map(([then, now, keep]) => baseMergeCarry(then, now, from, keep)),
 ]));
@@ -1020,6 +1020,20 @@ def _event(
         "actor": {"id": user, "login": f"u{user}"},
         "performed_via_github_app": app,
         "created_at": at,
+    }
+
+
+def _dismissal(commit: str, message: str | None = None) -> dict[str, Any]:
+    """GitHub's dismissal of review 41 when `commit` was pushed, or a
+    person's, which carries a message."""
+    return {
+        "event": "review_dismissed",
+        "dismissed_review": {
+            "review_id": 41,
+            "state": "approved",
+            "dismissal_message": message,
+            "dismissal_commit_id": commit,
+        },
     }
 
 
@@ -1049,6 +1063,9 @@ LIFT_CASES = {
         "needs-human",
     ),
     "a dismissed approval": ([_review("DISMISSED", sha=_OLD)], [], "needs-human"),
+    "an approval dismissed as stale on a push": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal(_OLD)], "needs-human"),
+    "an approval dismissed with a message": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal(_OLD, "no")], "needs-human"),
+    "an approval dismissed by a commit never pushed": ([_review("DISMISSED", sha=_OLD) | {"id": 41}], [_dismissal("9" * 40)], "needs-human"),
     "an approval after an unlabel": ([_review("APPROVED", sha=_OLD, at="2026-10-27T23:40:00Z")], [_event()], "needs-human"),
 }  # fmt: skip
 # (activity, at): the head at a lift.
@@ -1112,7 +1129,10 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
         ):
             with self.subTest(name):
                 self.assertEqual(
-                    [list(x) for x in policy.lifts_of(reviews, events, {1, 3}, label)],
+                    [
+                        list(x)
+                        for x in policy.lifts_of(reviews, events, {1, 3}, label, {_OLD})
+                    ],
                     js,
                 )
         for (name, (activity, at)), js in zip(HEAD_CASES.items(), heads, strict=True):
@@ -1133,6 +1153,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                 "an unlabel",
                 "an approval of an earlier head",
                 "an approval after an unlabel",
+                "an approval dismissed as stale on a push",
             },
         )
         self.assertEqual(

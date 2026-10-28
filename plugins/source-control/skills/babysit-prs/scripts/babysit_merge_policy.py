@@ -2557,38 +2557,66 @@ def base_merge_carry(
 LIFT_RACE = timedelta(seconds=60)
 
 
-def head_at(activity: Any, at: Any) -> str | None:
-    """The head the branch held at `at`, from one newest-first page of its
-    push history: the newest push before `at`; None when there is none, the
-    page is not a list, fills a page or holds a push time that does not
-    parse, or a push landed within LIFT_RACE before `at`
-    (merge-holds.mjs `headAt`)."""
-    when = parse_timestamp(at)
-    if not is_json_array(activity) or len(activity) >= 100 or when is None:
+def push_moves(activity: Any) -> list[tuple[str, datetime]] | None:
+    """The pushes of one newest-first page of a branch's push history, as
+    (after, made): each entry moving the branch to a commit. None when the
+    page is not a list, fills a page, or a push time does not parse
+    (merge-holds.mjs `pushMoves`)."""
+    if not is_json_array(activity) or len(activity) >= 100:
         return None
-    before: list[tuple[str, datetime]] = []
+    moves: list[tuple[str, datetime]] = []
     for move in activity:
         after = str(json_object(move).get("after") or "")
         if re.fullmatch(r"[0-9a-f]{40}", after) and after != "0" * 40:
             made = parse_timestamp(json_object(move).get("timestamp"))
             if made is None:
                 return None
-            if made <= when:
-                before.append((after, made))
+            moves.append((after, made))
+    return moves
+
+
+def head_at(activity: Any, at: Any) -> str | None:
+    """The head the branch held at `at`, from one newest-first page of its
+    push history: the newest push before `at`; None when there is none, the
+    page is not a list, fills a page or holds a push time that does not
+    parse, or a push landed within LIFT_RACE before `at`
+    (merge-holds.mjs `headAt`)."""
+    when, moves = parse_timestamp(at), push_moves(activity)
+    if moves is None or when is None:
+        return None
+    before = [(after, made) for after, made in moves if made <= when]
     if not before or any(made > when - LIFT_RACE for _, made in before):
         return None
     return max(before, key=lambda move: move[1])[0]
 
 
 def lifts_of(
-    reviews: Sequence[Any], events: Sequence[Any], humans: Collection[int], label: Any
+    reviews: Sequence[Any],
+    events: Sequence[Any],
+    humans: Collection[int],
+    label: Any,
+    pushed: Collection[str] = (),
 ) -> list[tuple[str, str | None, str]]:
     """Each trusted person's lift standing now, as (login, sha, at): their
     newest deciding act (merge-holds.mjs `liftsOf`). A REST review that
     approves, requests changes or was dismissed decides, an APPROVED one
-    lifting its commit; a `labeled` or `unlabeled` REST issue event of
+    lifting its commit, as does an approval GitHub dismissed as stale on a
+    push (a `review_dismissed` event with no message whose dismissal commit
+    is in `pushed`, the branch's pushed heads); a `labeled` or `unlabeled`
+    REST issue event of
     `label` made directly, not through an App, decides, an `unlabeled` one
     lifting the head at its time (sha None, `head_at` binds it)."""
+    stale = set()
+    for event in events:
+        event = json_object(event)
+        dismissed = json_object(event.get("dismissed_review"))
+        if (
+            event.get("event") == "review_dismissed"
+            and dismissed.get("state") == "approved"
+            and dismissed.get("dismissal_message") is None
+            and dismissed.get("dismissal_commit_id") in pushed
+        ):
+            stale.add(dismissed.get("review_id"))
     acts: list[dict[str, Any]] = []
     for row in reviews:
         row = json_object(row)
@@ -2605,7 +2633,8 @@ def lifts_of(
                 "id": uid,
                 "login": str(user.get("login") or ""),
                 "at": str((row.get("created_at") if at is None else at) or ""),
-                "lift": state == "APPROVED",
+                "lift": state == "APPROVED"
+                or (state == "DISMISSED" and row.get("id") in stale),
                 "sha": sha if re.fullmatch(r"[0-9a-f]{40}", sha) else None,
                 "unlabel": False,
             }
@@ -2686,16 +2715,18 @@ def carried_lifters(
     owner, name = _split_repo(repo)
     label = human_gated_at(repo, base.get("sha"))
     try:
-        events = (
-            _paginated(
-                f"repos/{owner}/{name}/issues/{pr.get('number')}/events?per_page=100",
-                "issue events",
-            )
-            if label
-            else []
+        events = _paginated(
+            f"repos/{owner}/{name}/issues/{pr.get('number')}/events?per_page=100",
+            "issue events",
         )
+        ref = quote(f"refs/heads/{branch}", safe="")
+        status, activity = _get(
+            f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100"
+        )
+        if status != 200:
+            raise PolicyReadError("the head branch's push history is unreadable")
+        pushed = {after for after, _ in push_moves(activity) or ()}
         lifters: set[str] = set()
-        activity: Any = None
         compares: dict[str, Any] = {}
 
         def compare(each: str) -> Any:
@@ -2708,17 +2739,8 @@ def carried_lifters(
                 compares[each] = answer
             return compares[each]
 
-        for login, lifted, at in lifts_of(reviews, events, humans, label):
+        for login, lifted, at in lifts_of(reviews, events, humans, label, pushed):
             if lifted is None:
-                if activity is None:
-                    ref = quote(f"refs/heads/{branch}", safe="")
-                    status, activity = _get(
-                        f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100"
-                    )
-                    if status != 200:
-                        raise PolicyReadError(
-                            "the head branch's push history is unreadable"
-                        )
                 lifted = head_at(activity, at)
             if lifted is not None and (
                 lifted == sha
