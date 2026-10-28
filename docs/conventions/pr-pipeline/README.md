@@ -235,7 +235,9 @@ keeps the threads, `address-feedback` (the model job, `read`, on the read runner
 subscription fallback) answers them and hands on a patch and its replies,
 `apply-feedback-patch` (a script job with no model, `mutate-branch`) pushes the patch, and
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
-pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
+thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
+its one marker in place when it reviews the pushed fix.
 
 The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
 `github-actions[bot]` on a comment whose last non-blank line is a review lane's
