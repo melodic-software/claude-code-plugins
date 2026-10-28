@@ -105,9 +105,10 @@ Two further shapes, both first seen in 2.1.284:
 - **Descriptor member.** `let t=c;ps({name:t.name,description:t.description,...})` with
   `c={name:o,...}` and `o="slides"` (`registerSlidesSkill`). The identifier is followed through
   `a=b` aliases to its object literal by the same nearest-preceding rule; that object's `name` and
-  description stand in for the registration's member reads. From 2.1.312 the registration sits in
-  `function h(t,r){ps({name:t.name,...})}` and the module calls `h(f)`: a parameter is followed to
-  its argument only when the module names `h` in nothing but that declaration and that one call.
+  description stand in for the registration's member reads. When the registration sits in
+  `function h(t,r){ps({name:t.name,...})}` and the module calls `h(f)`, a parameter is followed to
+  its argument only when the module names `h` in nothing but that declaration and that one call,
+  and the body assigns no new value to the parameter before the registration.
 - **Loop over a literal table.** ``for(let{kind:e,description:n}of Qi)ps({name:`artifact-${e}`,...})``
   with `Qi=[{kind:"report",...},...]`. When the table binding is an array of object literals, each
   row is expanded into its own skill and `bundled_skill_notes.rosters_resolved` records the table
@@ -155,10 +156,7 @@ text desynced the reader, swallowed 21 MB into one brace pair, and left 15 of 15
 resolved with every canary missing.
 
 A `/` starts a regex after a spread (`[.../^[\\/]{2}/.test(e)]`) and after the `of` of a for-of
-head (`x of`, `] of`); any other `of` is a minified name, so `${of/1000}` divides. In 2.1.312 both
-shapes were read the other way, brace pairs opened at 9.0 MB and 12.9 MB closed near the end of the
-55.7 MB source, and every binding read inside them looked function-local: the tool, workflow and
-plugin canaries went missing.
+head (`x of`, `] of`); any other `of` is a minified name, so `${of/1000}` divides.
 
 A call to the registrar identifier whose object carries no `name:` is another module's function
 sharing the minified name, not a registration; it is counted in `same_identifier_calls_skipped` and
