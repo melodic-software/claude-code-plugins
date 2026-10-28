@@ -96,7 +96,11 @@
 // native the gate never lists it: a `<!-- babysit-merge-risk -->` comment,
 // edited in place while it is a lane's, posted anew when it becomes a
 // person's, and left alone while the reason and head are unchanged
-// (refusalWrites). The
+// (refusalWrites). A hold path or cost hold is never the only reason named:
+// an unarmed one is read by the verifier too, and every reason a person
+// clears goes in the one comment, one per line and sorted, so one lift
+// answers them all; a run whose verifier read did not come never narrows a
+// person's comment that already names its reasons. The
 // comment is the record; only a cause a person must clear
 // (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
@@ -568,6 +572,22 @@ function sinceAt(body, head) {
   return match && match[1] === head ? match[2] : undefined;
 }
 
+// A person's reasons as one refusal reason: one per line, each once, sorted,
+// so the same set always renders the same comment.
+export const personReason = (reasons) => [...new Set(reasons.map(String))].sort().join("\n");
+
+// The reason lines of a person's refusal comment `body` at `head` as
+// refusalBody renders them, or null when it is not one.
+function personReasons(body, head, label) {
+  const lines = String(body ?? "").split("\n");
+  const open = lines.indexOf("```text");
+  const reasons = open < 0 ? [] : lines.slice(open + 1, -1);
+  return open >= 0 && refusalBody(true, reasons.join("\n"), head, label) === body ? reasons : null;
+}
+
+// A reason as the comment's fenced block carries it.
+const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
+
 export function refusalBody(person, reason, head, label, since = null) {
   const who = person
     ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
@@ -578,7 +598,7 @@ export function refusalBody(person, reason, head, label, since = null) {
     `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. ${who}`,
     "",
     "```text",
-    String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''"),
+    fenced(reason),
     "```",
     ...(person || since === null ? [] : [laneSince(head, since)]),
   ].join("\n");
@@ -616,7 +636,10 @@ function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
 // when this write made the comment a person's, so a label a person removed
 // stays off until the reason or the head changes. Returns what it wrote, or
 // null when the comment already says this.
-export function refusalWrites(pull, comments, { clears, reason, comment }, { bot, label, now = Date.now() }) {
+// A `partial` person's refusal (decide's, without the verifier's answer) that
+// the standing person's comment at the head already covers, every reason of
+// it there, is that comment: a read that did not come never narrows it.
+export function refusalWrites(pull, comments, { clears, reason, comment, partial = false }, { bot, label, now = Date.now() }) {
   // The gate's own marked comment (the queue-ejection one): edited in place,
   // with no label, as babysit_merge.upsert_marker_comment writes it.
   if (typeof comment === "string") {
@@ -632,7 +655,8 @@ export function refusalWrites(pull, comments, { clears, reason, comment }, { bot
   // request carrying it never gets here: holdReason holds it): the label
   // goes back on unless a person removed it after the comment last changed,
   // which the caller reads from the timeline (`liftedSince`).
-  if (prior?.body === body) {
+  const standing = partial && body === person ? personReasons(prior?.body, pull.headRefOid, label) : null;
+  if (prior?.body === body || (standing !== null && fenced(reason).split("\n").every((line) => standing.includes(line)))) {
     return body === person ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
   }
   // An escalation to a person posts a new comment: an edit notifies no one
@@ -963,12 +987,23 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   // (`lifters`) as ci-status lifts it; a listing or check that could not run
   // is a lane's, which the next run reads again.
   const pathHeld = pathHoldKind(detail.files, holdPaths);
-  if (pathHeld !== null && !(pathHeld.kind === "hold-path" && detail.lifters?.length > 0)) {
-    return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: pathHeld.kind === "hold-path" ? "person" : "lane" };
+  if (pathHeld !== null && pathHeld.kind !== "hold-path") {
+    return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: "lane" };
   }
-  const costHeld = costHold(detail.files, detail.costDecision);
-  if (costHeld !== null) {
-    return { action: armed ? "disarm" : "none", reason: costHeld, clears: "person" };
+  // A hold path and a cost hold are both a person's, and so is a verifier
+  // refusal or risk hold the gate marks so (verifyClears): every one of them
+  // goes in one refusal, so one lift answers them all rather than each lift
+  // exposing the next. An unarmed one waits for the verifier read to add its
+  // reasons (`fold`, what stands without them); an armed one is disarmed at
+  // once and the next reader run reads them.
+  const reasons = [...(pathHeld !== null && !(detail.lifters?.length > 0) ? [pathHeld.reason] : []), ...[costHold(detail.files, detail.costDecision)].filter(Boolean)];
+  if (reasons.length > 0) {
+    const read = "verify" in detail;
+    const clears = read ? verifyClears(detail.verify, pull.headRefOid) : null;
+    const held = { action: armed ? "disarm" : "none", reason: personReason(clears === "person" ? [...reasons, verifyHold(detail.verify, pull.headRefOid)] : reasons), clears: "person" };
+    // `partial`: the verifier's answer is not in it.
+    const partial = clears === null && !(read && verifyHold(detail.verify, pull.headRefOid) === null) ? { partial: true } : {};
+    return !read && !armed ? { action: "verify", reason: "its verifier verdict is not read yet", fold: { ...held, partial: true } } : { ...held, ...partial };
   }
   // A hold a person set, read whole: `withdraw` marks a decided outcome,
   // whose run may withdraw a lane's failing status.
@@ -1186,6 +1221,10 @@ export async function main({ env = process.env, github, actions, verify, room, s
       let clears;
       let comment;
       let withdraw;
+      // A person's hold that waits on the verifier to add its reasons (decide's
+      // `fold`), and whether the refusal lacks the verifier's answer.
+      let fold = null;
+      let partial;
       let detail = null;
       let decided = false;
       // Whether the verdict decided on is a kept answer.
@@ -1217,7 +1256,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
           detail = null;
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${describe(error)}`);
         }
-        ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
+        ({ action, reason, clears, comment, withdraw, partial, fold = null } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
       // Past the budget, under serve with an answers file, an unarmed pull
       // request is answered only from a kept refusal, which reads no more
@@ -1263,7 +1302,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
           console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
         }
         if (!decided) {
-          ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+          ({ action, reason, clears, comment, withdraw, partial } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
         }
         // A kept answer that holds nothing: read in full once, never armed on.
         if (!decided && action === "verify") {
@@ -1277,6 +1316,11 @@ export async function main({ env = process.env, github, actions, verify, room, s
           }
         }
         cached = evidence?.cached === true;
+      }
+      // A person's hold whose verifier read did not come (no time left, not
+      // a reader run, a cache-only miss) stands with the reasons it has.
+      if (fold !== null && stopped === null && clears === undefined) {
+        ({ action, reason, clears, partial } = fold);
       }
       // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {
@@ -1302,7 +1346,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
         if (reads && write && withdraw === true && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
           statuses.push({ sha: pull.headRefOid, state: "success", description: "its lanes refusal no longer stands" });
         }
-        await note(pull, detail, { clears, reason, comment, cached });
+        await note(pull, detail, { clears, reason, comment, cached, partial });
         continue;
       }
       if (!write) {
@@ -1310,7 +1354,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
           roomHeld.set(pull.number, "report-only");
         }
         console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
-        await note(pull, detail, { clears, reason });
+        await note(pull, detail, { clears, reason, partial });
         continue;
       }
       if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid)) {
@@ -1373,7 +1417,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
         continue;
       }
       if (action === "disarm") {
-        await note(pull, detail, { clears, reason });
+        await note(pull, detail, { clears, reason, partial });
       }
     }
     // One warning (and an error while a disarm failed) and their summary

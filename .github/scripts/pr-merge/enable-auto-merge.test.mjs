@@ -28,6 +28,7 @@ import {
   decide,
   liftedByPerson,
   READER_EVENTS,
+  personReason,
   refusalBody,
   refusalWrites,
   main,
@@ -538,6 +539,95 @@ test("a changed refusal edits the one comment instead of posting another", async
   const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } });
   const { notes } = await run([moved]);
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+// #10224: the owner lifted a hold path, and the next run re-labeled it for a
+// risk-score cost hold that had stood all along behind the first. Every
+// reason a person clears goes in one refusal, so one lift answers them all.
+const RISK = "cost-review-required: infra/main.tf changes a cost path";
+const RISK_REASON = `pr-merge's gate holds it on its risk score (${RISK})`;
+const RISK_HELD = { refusal: null, head: HEAD, ineligible: null, reviews: RISK, reviewsPerson: true, queue: UNEJECTED };
+const BOTH = `${HOLD_PATH_REASON}\n${RISK_REASON}`;
+
+test("a held hold path and a person's risk hold are one refusal naming both", async () => {
+  const { code, writes, notes, verified } = await run([pull(1, { files: [{ filename: "docs/held.md" }], verdict: RISK_HELD })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, [1]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(BOTH) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // A hold path and a cost path with a lane's verifier refusal: the two
+  // person reasons, and not the lane's.
+  const files = [{ filename: "infra/main.tf" }, { filename: "docs/held.md" }];
+  const mixed = await run([pull(2, { files, verdict: MISSING })]);
+  assert.deepEqual(mixed.notes, [
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(`${HOLD_PATH_REASON}\n${COST_REASON}`) } },
+    { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an approval that lifts only the hold path re-holds once for what remains, and nothing once that clears", async () => {
+  const approved = (overrides) => pull(1, { files: [{ filename: "docs/held.md" }], ...overrides });
+  const reviews = [reviewed("APPROVED")];
+  const rest = await run([approved({ verdict: RISK_HELD, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
+  assert.deepEqual(rest.writes, []);
+  assert.deepEqual(rest.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(RISK_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // The person removes the label again with the set unchanged: it stays off.
+  const stays = await run(
+    [approved({ verdict: RISK_HELD, discussion: { reviews, comments: [lanesSaid(personNote(RISK_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })],
+    trustedKyle(),
+  );
+  assert.deepEqual(stays.notes, []);
+  // Nothing remains: it arms, and no label goes on.
+  const clear = await run([approved({ verdict: PASSED, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
+  assert.deepEqual(clear.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(clear.notes, []);
+});
+
+test("the same reason set in another order is no change", async () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const held = (files) => decide(pull(1), options, { ...detail(), files, verify: MISSING }).reason;
+  assert.equal(held(["infra/main.tf", ".github/CODEOWNERS"]), "it changes .github/CODEOWNERS, a hold path\nit changes infra/main.tf, a cost path");
+  assert.equal(held([".github/CODEOWNERS", "infra/main.tf"]), held(["infra/main.tf", ".github/CODEOWNERS"]));
+  assert.equal(personReason([RISK_REASON, HOLD_PATH_REASON]), personReason([HOLD_PATH_REASON, RISK_REASON, RISK_REASON]));
+  const standing = [lanesSaid(personNote(BOTH))];
+  const writes = refusalWrites(pull(1), standing, { clears: "person", reason: personReason([RISK_REASON, HOLD_PATH_REASON]) }, { bot: LANES.login, label: "needs-human" });
+  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
+});
+
+test("a person's hold whose verifier read did not come is noted with what it has, and never narrows a standing comment", async () => {
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  let calls = 0;
+  const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + CACHE_ONLY_WINDOW_MS + 1);
+  const files = [{ filename: "docs/held.md" }];
+  const fresh = await run([pull(1, { files, verdict: RISK_HELD })], {}, { now: late });
+  assert.deepEqual(fresh.verified, []);
+  assert.deepEqual(fresh.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // A standing comment that already names the hold path, with more, stands;
+  // a person's removal of its label still holds.
+  calls = 0;
+  const kept = await run([pull(1, { files, verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })], {}, { now: late });
+  assert.deepEqual(kept.notes, []);
+  // A verifier read that failed is the same.
+  const failed = await run([pull(1, { files, verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(failed.verified, [1]);
+  assert.deepEqual(failed.notes, []);
+  // An armed one is disarmed at once, with no verifier read.
+  const armed = await run([pull(2, { files, verdict: RISK_HELD, autoMergeRequest: {} })]);
+  assert.deepEqual(armed.verified, []);
+  assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(armed.notes, [
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
+  ]);
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
