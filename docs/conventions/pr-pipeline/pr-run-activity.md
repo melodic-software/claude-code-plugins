@@ -449,7 +449,8 @@ that imports `vitest` under `npx --no-install vitest run <absolute path>` from t
 directory inside the checkout holding a `package.json`, so the package's locked vitest runs, first
 running `npm ci --ignore-scripts` there once when it has a `package-lock.json` and no
 `node_modules`; all
-without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
+without `GH_TOKEN` or `GITHUB_TOKEN`, with git reading a fixed test config in place of the host's
+(`scripts/lib/test-git-env.sh`). It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
 wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
 refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
