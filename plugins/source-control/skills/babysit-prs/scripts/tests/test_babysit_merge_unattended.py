@@ -652,7 +652,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         sha = "a" * 40
         answers = {
             "repos/owner/repo": {"default_branch": "main"},
-            "repos/owner/repo/commits/main": {"sha": sha},
+            "repos/owner/repo/git/ref/heads/main": {"object": {"sha": sha}},
             f"repos/owner/repo/contents?ref={sha}": [],
         }
         calls: list[list[str]] = []
@@ -903,8 +903,8 @@ class Unattended(unittest.TestCase):
         return read
 
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
-        if endpoint == "repos/owner/repo/commits/main":
-            return 200, {"sha": self.main_head}
+        if endpoint == "repos/owner/repo/git/ref/heads/main":
+            return 200, {"object": {"sha": self.main_head}}
         # A test's own patch of `policy._get` answers the rest; the real reader
         # would reach GitHub, so a read nothing answers raises instead.
         if self._outer_get is _REAL_GET:

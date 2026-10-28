@@ -4300,14 +4300,13 @@ def _default_branch(repo: str, *, shared: bool = False) -> str:
 
 def _default_branch_head(repo: str, branch: str | None = None) -> tuple[str, str]:
     """The default branch's name (`branch` when already read) and its head
-    SHA."""
+    SHA, read by its full ref (`base_tip`)."""
     owner, name = _split_repo(repo)
     branch = branch or _default_branch(repo)
-    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
-    sha = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
-        raise PolicyReadError(f"{repo}: the head of {branch} could not be read")
-    return branch, sha
+    try:
+        return branch, base_tip(owner, name, branch)
+    except PolicyReadError:
+        raise PolicyReadError(f"{repo}: the head of {branch} could not be read") from None
 
 
 MAX_IN_FLIGHT_SECTION = "max-in-flight"
@@ -4336,10 +4335,10 @@ def _run_max_in_flight(
         return cached, "default-branch"
     owner, name = _split_repo(repo)
     if head is None:
-        status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
-        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if not isinstance(head, str):
-        return base.max_in_flight, "base"
+        try:
+            head = base_tip(owner, name, branch)
+        except PolicyReadError:
+            return base.max_in_flight, "base"
     if head == base.base_sha:
         config = base
     else:
@@ -5215,8 +5214,10 @@ def shared_refusal(
     refusal = _shared_age_refusal(shared, age)
     if refusal:
         return refusal
-    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
-    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    try:
+        head: str | None = base_tip(owner, name, branch)
+    except PolicyReadError:
+        head = None
     if head != shared.main_sha:
         counted = {
             json_object(m).get("number")
@@ -5462,10 +5463,10 @@ def assess(
     owner, name = _split_repo(repo)
     head = None
     if share is not None and reuse is None:
-        status, payload = _get(
-            f"repos/{owner}/{name}/commits/{quote(default, safe='')}"
-        )
-        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+        try:
+            head = base_tip(owner, name, default)
+        except PolicyReadError:
+            head = None
     demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
