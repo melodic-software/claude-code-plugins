@@ -1757,6 +1757,9 @@ jobs:
         timeout-minutes: 15
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # The job's own token reads a fix-ci stop's head runs and checks
+          # (actions: read, checks: read); the lane token holds neither.
+          CHECKS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json

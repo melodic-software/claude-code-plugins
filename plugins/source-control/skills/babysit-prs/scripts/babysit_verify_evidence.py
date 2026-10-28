@@ -1388,18 +1388,29 @@ class Reader:
             run_cache.note(self._humans_at)
         return self._humans or frozenset()
 
+    def _tip(self, branch: str) -> str:
+        """`branch`'s tip SHA (`merge_policy.base_tip`), so no tag of the same
+        name stands in for it; `_Unreadable` when it does not resolve."""
+        owner, _, name = self.repo.partition("/")
+        try:
+            return merge_policy.base_tip(owner, name, branch)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+
     def _read_trusted_list(self) -> None:
-        """Read the trusted list at the branch once: its human ids, and every
-        login's id (`_lane_app_id`), each shared by the run's gate processes."""
+        """Read the trusted list at the branch's tip once: its human ids, and
+        every login's id (`_lane_app_id`), each shared by the run's gate
+        processes."""
         key = f"{self.repo}@{self.branch}"
         at = run_cache.now()
+        tip = self._tip(self.branch)
         listing = json_object(
             _read(
                 [
                     "api",
                     "-H",
                     "Accept: application/vnd.github.raw",
-                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
+                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={tip}",
                 ],
                 "trusted-actor list",
             )
@@ -1458,13 +1469,14 @@ class Reader:
                 self._task_list_value, at = shared
             else:
                 at = run_cache.now()
+                tip = self._tip(default)
                 rules = json_object(
                     _read(
                         [
                             "api",
                             "-H",
                             "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={default}",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={tip}",
                         ],
                         "admission rules",
                     )
@@ -2598,8 +2610,9 @@ def _answer_key(
             "r": name,
             "n": args.number,
             "h": args.head,
-            "ta": f"{args.branch}:{TRUSTED_ACTORS_PATH}",
-            "ar": f"{args.branch}:{ADMISSION_RULES_PATH}",
+            # By full ref: a bare name resolves as git does, a tag first.
+            "ta": f"refs/heads/{args.branch}:{TRUSTED_ACTORS_PATH}",
+            "ar": f"refs/heads/{args.branch}:{ADMISSION_RULES_PATH}",
         },
     )
     pull = json_object(repository.get("pullRequest"))
