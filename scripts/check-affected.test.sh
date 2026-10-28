@@ -67,6 +67,11 @@ jobs:
         with:
           config: _typos.toml
           exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/**
+      - name: Machine paths
+        id: machine_paths
+        with:
+          exclude: >-
+            other/**
 YAML
 chmod +x "$repo"/scripts/*.sh
 # A typos stand-in on every run's PATH, so a typos on the machine never sees the
@@ -185,16 +190,30 @@ check "a missing typos is a skip, not a failure" \
 # with the files it exempts is judged by it.
 pre_typos="$(git_test_config "$repo" rev-parse HEAD)"
 workflow="$repo/.github/workflows/pr-require-checks.yml"
-sed -i.bak 's|exclude: .*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
+sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-exclude
 run STUB_TYPOS=1 -- --base base
 check "typos takes an exclusion the branch adds to the workflow" \
   '[[ $ERR == *"--exclude plugins/*/tools/*/vendor/** --exclude legacy/samples/** "* ]]'
-sed -i.bak 's|exclude: .*|exclude:|' "$workflow" && rm -f "$workflow.bak"
+sed -i.bak 's|exclude: plugins/.*|exclude:|' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-no-globs
 run -- --base base
 check "a workflow typos step with no exclude globs fails typos closed" \
   '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"no exclude globs"* && $ERR != *"typos ran"* ]]'
+# The scan stops at the end of the typos step, so the next step's exclude is
+# never read as typos'.
+sed -i.bak '/^ *exclude:$/d' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-no-exclude
+run -- --base base
+check "a typos step with no exclude fails closed, not reading the next step's" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"no exclude globs"* && $ERR != *"typos ran"* ]]'
+sed -i.bak 's|config: _typos.toml|&\
+          exclude: >-\
+            folded/**|' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-folded
+run -- --base base
+check "a folded typos exclude is refused with a message" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"block scalar"* && $ERR != *"typos ran"* ]]'
 git_test_config "$repo" rm -q .github/workflows/pr-require-checks.yml
 git_test_config "$repo" commit -q -m typos-no-workflow
 run -- --base base
@@ -476,7 +495,7 @@ check "an in-place run scans with the merge-base's patterns file, not the branch
 git_test_config "$repo" reset -q --hard HEAD~1
 
 # typos reads its exclusions from the checked tree's workflow, which is data.
-sed -i.bak 's|exclude: .*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
+sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-exclude
 RC=0
 ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" STUB_TYPOS=1 bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?

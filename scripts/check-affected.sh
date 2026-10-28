@@ -420,9 +420,17 @@ typos_check() {
     echo "typos: $workflow is missing, so its typos step's exclude globs cannot be read"
     return 1
   fi
+  # The scan covers only the typos step: its keys sit at the indent of its
+  # `id: typos` line, and the first non-blank line indented less ends the step.
   while IFS= read -r g; do excludes+=(--exclude "$g"); done < <(
-    awk '/id: typos$/ { t = 1 } t && /^ +exclude: / { sub(/^ +exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$workflow"
+    awk 'ind { match($0, /^ */); if (NF && RLENGTH < ind) exit }
+      /^ *(- )?id: typos$/ { match($0, /^ *(- )?/); ind = RLENGTH; next }
+      ind && /^ *exclude: / { sub(/^ *exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$workflow"
   )
+  if [[ "${excludes[1]-}" == ['>|']* ]]; then
+    echo "typos: $workflow writes its typos step's exclude as a YAML block scalar (${excludes[1]}); write the globs on the exclude: line itself"
+    return 1
+  fi
   if ((${#excludes[@]} == 0)); then
     echo "typos: $workflow has no exclude globs on its typos step (id: typos)"
     return 1
