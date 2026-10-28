@@ -1413,14 +1413,18 @@ ISSUES_BY_AUTHOR = (
     "repository(owner:$o,name:$r){issues(first:100,after:$c,filterBy:{createdBy:$a}){"
     "pageInfo{hasNextPage endCursor} nodes{number body lastEditedAt}}}}"
 )
-DEMOTION_RECORD = (
-    "query PolicyDemotionRecord($o:String!,$r:String!,$n:Int!){"
-    "repository(owner:$o,name:$r){issue(number:$n){number state body createdAt "
-    "author{__typename login} "
+DEMOTION_FIELDS = (
+    "number state body createdAt author{__typename login} "
     "userContentEdits(first:100){totalCount nodes{editedAt deletedAt editor{__typename login} diff}} "
     "timelineItems(itemTypes:[CLOSED_EVENT],last:1){nodes{... on ClosedEvent{"
-    "createdAt actor{__typename login} closer{__typename}}}}}}}"
+    "createdAt actor{__typename login} closer{__typename}}}}"
 )
+DEMOTION_RECORD = (
+    "query PolicyDemotionRecord($o:String!,$r:String!,$n:Int!){"
+    f"repository(owner:$o,name:$r){{issue(number:$n){{{DEMOTION_FIELDS}}}}}}}"
+)
+# `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
+DEMOTION_BATCH = 20
 
 
 @dataclass(frozen=True)
@@ -1462,6 +1466,28 @@ def _candidate_issues(owner: str, name: str, filer: str) -> list[int]:
         if not isinstance(cursor, str) or not cursor:
             raise PolicyReadError(f"issues by {filer}: a next page with no cursor")
     raise PolicyReadError(f"issues by {filer}: more than {ISSUES_PAGE_LIMIT} pages")
+
+
+def _demotion_records(owner: str, name: str, numbers: list[int]) -> dict[int, Any]:
+    """`DEMOTION_RECORD`'s issue for each of `numbers` that one aliased query
+    returned; an issue it left out or answered with no number is absent, and
+    a failed query answers none, so the caller reads those one at a time."""
+    aliases = " ".join(f"i{n}:issue(number:{n}){{...d}}" for n in numbers)
+    query = (
+        "query PolicyDemotionRecords($o:String!,$r:String!){"
+        f"repository(owner:$o,name:$r){{{aliases}}}}} "
+        f"fragment d on Issue{{{DEMOTION_FIELDS}}}"
+    )
+    try:
+        data = _graphql(query, f"issues #{numbers[0]}+", o=owner, r=name)
+    except PolicyReadError:
+        return {}
+    repository = json_object(data.get("repository"))
+    return {
+        n: issue
+        for n in numbers
+        if is_json_object(issue := repository.get(f"i{n}")) and issue.get("number") == n
+    }
 
 
 def _record_hold(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | None:
@@ -1529,7 +1555,9 @@ def read_demotion(
     body carries the demotion marker now or in any revision, so stripping the
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
-    ever edited it. Any read failure holds it off.
+    ever edited it. Any read failure holds it off. Records are read
+    `DEMOTION_BATCH` to a query (`_demotion_records`), and one the batch did
+    not return is read on its own, so the answer is the per-issue read's.
     """
     owner, name = _split_repo(repo)
     filers = [DEMOTION_FILER, *([agent_identity.strip()] if agent_identity else [])]
@@ -1548,11 +1576,19 @@ def read_demotion(
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
         )
-        for number in candidates:
-            data = _graphql(
-                DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number
-            )
-            issue = json_object(json_object(data.get("repository")).get("issue"))
+        batch: dict[int, Any] = {}
+        for i, number in enumerate(candidates):
+            if i % DEMOTION_BATCH == 0:
+                batch = _demotion_records(
+                    owner, name, candidates[i : i + DEMOTION_BATCH]
+                )
+            if number in batch:
+                issue = batch[number]
+            else:
+                data = _graphql(
+                    DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number
+                )
+                issue = json_object(json_object(data.get("repository")).get("issue"))
             if not issue:
                 raise PolicyReadError(f"issue #{number} returned nothing")
             revisions = [
