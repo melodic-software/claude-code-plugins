@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import functools
 import json
 import os
 import pathlib
@@ -68,6 +69,9 @@ class LaneRunCarryTests(unittest.TestCase):
                 "id": 21,
                 "name": "kill-switch",
                 "conclusion": "success",
+                "head_sha": sha,
+                "run_id": run_id,
+                "run_attempt": 1,
                 "steps": [{"name": "Set up job"}],
             },
             {
@@ -228,7 +232,55 @@ class LaneRunCarryTests(unittest.TestCase):
                     self.assertEqual(len(reads), 4)
                     self.assertEqual(self.decide(runs, sha), self.decide(cold, sha))
 
+    def saved(self, section: str, value: Any) -> pathlib.Path:
+        key = gh.lane_run_key(REPO, self.run["id"], 1, "claude-review-status")
+        path = self.dir / f"{section}.json"
+        entry = {"at": "2026-10-28T00:00:00+00:00", "value": value}
+        path.write_text(json.dumps({section: {key: entry}}), encoding="utf-8")
+        return path
 
+    def test_a_forged_passing_lane_in_the_uncarried_section_never_binds(self) -> None:
+        # Only carry-run-cache.mjs's checked carried-lane-run is served: a
+        # lane-run section handed to a gate as it starts is read past.
+        self.annotations = []
+        cold, _ = self.collect(None)
+        sha = self.run["head_sha"]
+        self.assertFalse(self.decide(cold, sha)[0].bound)
+        forged = copy.deepcopy(gh.lane_run_value(self.run, cold[0]["attempts"]))
+        forged["attempts"][0]["jobs"][1]["annotations"] = [
+            {
+                "annotation_level": "notice",
+                "title": "claude-lane-review-complete",
+                "message": (
+                    f"claude-lane-review-complete lane=claude-review sha={sha} "
+                    "findings=0 inline=0 scope=whole"
+                ),
+            }
+        ]
+        runs, reads = self.collect(self.saved(gh.LANE_RUN_SECTION, forged))
+        self.assertEqual(len(reads), 4)
+        self.assertFalse(self.decide(runs, sha)[0].bound)
+
+    def test_a_saved_job_the_listed_run_disagrees_with_is_read_fresh(self) -> None:
+        cold, _ = self.collect(None)
+        sha = self.run["head_sha"]
+        good = gh.lane_run_value(self.run, cold[0]["attempts"])
+        for field, wrong in (
+            ("head_sha", "0" * 40),
+            ("run_id", 1),
+            ("run_attempt", 2),
+        ):
+            for job in (0, 1):
+                with self.subTest(field=field, job=job):
+                    forged = copy.deepcopy(good)
+                    forged["attempts"][0]["jobs"][job][field] = wrong
+                    path = self.saved(gh.CARRIED_LANE_RUN_SECTION, forged)
+                    runs, reads = self.collect(path)
+                    self.assertEqual(len(reads), 4)
+                    self.assertEqual(self.decide(runs, sha), self.decide(cold, sha))
+
+
+@functools.cache
 def bind_corpus() -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
     """Every `bind()` call the review-evidence suite makes, with its runs as
     they were passed."""

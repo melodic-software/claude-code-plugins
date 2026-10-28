@@ -2350,7 +2350,8 @@ def carried_lane_attempts(
     """The attempts a saved `value` holds for the listed run `item`, or None
     when it does not match what the listing shows now: the run completed at
     the attempt saved, with the same `updated_at` and the same fields bind()
-    reads of its latest attempt, which is the listing's record itself."""
+    reads of its latest attempt, which is the listing's record itself, and
+    every saved job names this run, its attempt and the listed head."""
     run_id = item.get("id")
     count = item.get("run_attempt")
     if (
@@ -2371,7 +2372,13 @@ def carried_lane_attempts(
             or attempt.get("id") != run_id
             or attempt.get("run_attempt") != n
             or not isinstance(attempt.get("jobs"), list)
-            or not all(isinstance(job, dict) for job in attempt["jobs"])
+            or not all(
+                isinstance(job, dict)
+                and job.get("run_id") == run_id
+                and job.get("run_attempt") == n
+                and job.get("head_sha") == item.get("head_sha")
+                for job in attempt["jobs"]
+            )
         ):
             return None
     latest = attempts[-1]
@@ -2402,7 +2409,8 @@ def collect_lane_runs(
     so without the bound a long-lived branch reads every earlier pull
     request's runs. A value that is not a UTC timestamp leaves it unbounded.
     A run the listing shows completed is taken from the run cache when an
-    earlier read of it saved its attempts (`carried_lane_attempts`: the same
+    earlier pr-merge run saved its attempts (`CARRIED_LANE_RUN_SECTION`,
+    which carry-run-cache.mjs checks and bounds; `carried_lane_attempts`: the same
     attempt, `updated_at` and latest-attempt fields as the listing shows now);
     the listing's record stands in for its latest attempt. Any other kept
     run's attempt count comes from a fresh `GET actions/runs/{id}` taken after
@@ -2471,14 +2479,16 @@ def collect_lane_runs(
                 raise RuntimeError(f"{workflow} run without an id")
             listed = item.get("run_attempt")
             if item.get("status") == "completed" and isinstance(listed, int):
-                key = lane_run_key(repo, run_id, listed, job_suffix)
-                saved = None
-                for section in (LANE_RUN_SECTION, CARRIED_LANE_RUN_SECTION):
-                    saved = carried_lane_attempts(
-                        item, run_cache.get(section, key, None)
-                    )
-                    if saved is not None:
-                        break
+                # Only the section carry-run-cache.mjs checked and bounded:
+                # a lane-run section the run cache starts with is never read.
+                saved = carried_lane_attempts(
+                    item,
+                    run_cache.get(
+                        CARRIED_LANE_RUN_SECTION,
+                        lane_run_key(repo, run_id, listed, job_suffix),
+                        None,
+                    ),
+                )
                 if saved is not None:
                     runs.append({**item, "attempts": saved})
                     continue
