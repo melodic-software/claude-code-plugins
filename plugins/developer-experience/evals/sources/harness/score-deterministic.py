@@ -262,7 +262,7 @@ def score_s1(out, meta):
     token_env = ("TARNQUILL_FORGE_TOKEN" in joined
                  and re.search(r"GetEnvironmentVariable\(", joined) is not None)
     if built:
-        rc_t, _, _ = tq_run(["branch", "start", *chosen, "--dry-run", "--token", "probe-value"])
+        rc_t, _, _ = tq_run(["branch", "start", *chosen, "--dry-run", "--token", "x" * 8])
         token_flag_accepted = rc_t == 0
         help_lists_flag = re.search(r"--(forge-)?token\b", help_text) is not None
     else:
