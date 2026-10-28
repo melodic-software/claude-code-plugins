@@ -920,12 +920,13 @@ the rules that only tighten in
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
-    which scope each lane token, `.github/actions/check-trusted-trigger/**`,
+    which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
+    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
     `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`
     and `**/.gitmodules`.
   - `gate`, a person merges it: the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
-    `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
+    `.github/scripts/pr-merge/`,
     `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own

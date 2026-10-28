@@ -247,13 +247,12 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // The narrow floor every hold path check adds to the configured globs, each
 // glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
 // option B): `trust`, what mints and scopes lane tokens and judges triggers
-// (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
-// and submodules; `gate`, the merge gate's own code (every pr-merge script,
-// babysit_merge*, babysit_risk.py and babysit_review_evidence.py, which
-// compute the review's clear condition, the rate guard, and
-// scripts/sync-hold-floor.py, which writes this list) and
-// the config the token broker loads (resolve-config, effect-grants.json
-// included, and the pipeline config); `enforcement`, the pr-merge and
+// (request-lane-token, resolve-config with the rule files the token broker
+// loads, the pipeline config, check-trusted-trigger, check-kill-switch), code
+// owners and submodules; `gate`, the merge gate's own code (every pr-merge
+// script, babysit_merge*, babysit_risk.py and babysit_review_evidence.py,
+// which compute the review's clear condition, the rate guard, and
+// scripts/sync-hold-floor.py, which writes this list); `enforcement`, the pr-merge and
 // ci-status workflows, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
@@ -312,7 +311,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
   [".github/workflows/pr-require-checks.yml", "enforcement"],
   [".github/workflows/pr-merge.yml", "enforcement"],
-  ["docs/conventions/pr-pipeline.yaml", "gate"],
+  ["docs/conventions/pr-pipeline.yaml", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.json", "enforcement"],

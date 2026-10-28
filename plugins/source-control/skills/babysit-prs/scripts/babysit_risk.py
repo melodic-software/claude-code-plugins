@@ -217,13 +217,14 @@ class RiskResult:
 # - `trust`: what mints and scopes lane tokens and judges triggers
 #   (request-lane-token, resolve-config, which the token broker runs from
 #   main in its signer process with effect-grants.json, lane-rules.json and
-#   activity-rules.json, check-trusted-trigger, check-kill-switch, whose
-#   writeOutputs both of those write their verdicts through), code owners
-#   and submodules.
+#   activity-rules.json, the pipeline config, whose activity `effect:`
+#   values and lane slots the broker reads, check-trusted-trigger,
+#   check-kill-switch, whose writeOutputs both of those write their verdicts
+#   through), code owners and submodules.
 # - `gate`: the merge gate's own code: the rate guard, every pr-merge script,
 #   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
-#   compute the review's clear condition), the pipeline config, and
-#   scripts/sync-hold-floor.py, which writes this table's copies.
+#   compute the review's clear condition), and scripts/sync-hold-floor.py,
+#   which writes this table's copies.
 # - `enforcement`: the pr-merge and ci-status workflows, the rest of the
 #   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
@@ -290,7 +291,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
     (".github/workflows/pr-require-checks.yml", "enforcement"),
     (".github/workflows/pr-merge.yml", "enforcement"),
-    ("docs/conventions/pr-pipeline.yaml", "gate"),
+    ("docs/conventions/pr-pipeline.yaml", "trust"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),

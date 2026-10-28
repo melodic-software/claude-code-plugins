@@ -282,7 +282,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 6, "gate": 26, "enforcement": 43},
+            {"trust": 7, "gate": 25, "enforcement": 43},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1897,6 +1897,9 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         ".github/actions/resolve-config/lane-rules.json",
         ".github/actions/resolve-config/activity-rules.json",
     )
+    # Its activities' `effect:` values and lane slots decide what the broker
+    # mints, so it is token scope too.
+    PIPELINE = "docs/conventions/pr-pipeline.yaml"
 
     def _score(self, path, security, reviewed=_UNSET, **changes):
         lanes = (_lane("claude-review"), *security)
@@ -1928,6 +1931,11 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             _codes(result), ("high-path:.github/actions/resolve-config/**",)
         )
         self.assertEqual(result.reasons[0].detail, ", ".join(self.TOKEN_SCOPE))
+        self.assertTrue(holds(result))
+
+    def test_the_pipeline_config_holds_for_a_person_after_a_clean_review(self):
+        result = self._score(self.PIPELINE, (_lane("claude-security-review"),))
+        self.assertIn(f"high-path:{self.PIPELINE}", _codes(result))
         self.assertTrue(holds(result))
 
     def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
