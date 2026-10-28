@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
-import { main, publish, renderReply } from "./publish-feedback.mjs";
+import { main, publish, renderReply, undisposedLines } from "./publish-feedback.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -429,6 +429,57 @@ test("an empty or partial reply set posts nothing and escalates feedback-incompl
     assert.deepEqual(api.resolved(), []);
     assert.equal(api.markers().length, 1);
   }
+});
+
+// #8218's round 1 on 9c0a446 (2026-10-18): the select job kept one claude[bot]
+// thread on lib/session-bridge/session_bridge.py, root comment 4306751638, and
+// the model recorded no disposition for it. Its node id is not public, so
+// PRRT_8218 stands in for it.
+const RUN_8218 = { version: 1, head_sha: GATED, threads: [{ id: "PRRT_8218", path: "lib/session-bridge/session_bridge.py", comment_ids: [4306751638] }] };
+
+test("feedback-incomplete names each kept thread with no disposition in the round marker and the log", async () => {
+  const cases = [
+    [RUN_8218, "", [{ id: "PRRT_8218", comment: 4306751638 }]],
+    [RUN, lines(reply()), [{ id: "PRRT_b", comment: 200 }]],
+  ];
+  for (const [runJson, repliesText, undisposed] of cases) {
+    const api = fakeApi();
+    const logged = [];
+    const result = await publish({
+      api,
+      pr: 42,
+      headSha: NOW,
+      headRef: "feature",
+      appId: APP,
+      modelRun: "5000-1",
+      reviewerId: REVIEWER,
+      readArtifact: () => ({ runText: JSON.stringify(runJson), repliesText }),
+      fileExists: exists,
+      log: (line) => logged.push(line),
+    });
+    assert.equal(result.escalationReason, "feedback-incomplete");
+    assert.deepEqual(result.undisposed, undisposed);
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(
+      api.markers()[0][2],
+      [
+        `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 1 of max 3 on ${NOW}.`,
+        "",
+        "Kept review threads with no disposition:",
+        ...undisposed.map(({ id, comment }) => `- \`${id}\` (root comment ${comment})`),
+      ].join("\n"),
+    );
+    assert.ok(logged.some((line) => line.endsWith(`none for ${undisposed.map(({ id }) => id).join(", ")}`)), logged.join("\n"));
+  }
+});
+
+test("the round marker names at most 20 threads with no disposition, then how many more", () => {
+  const undisposed = Array.from({ length: 23 }, (_, n) => ({ id: `PRRT_${n}`, comment: n + 1 }));
+  const shown = undisposedLines(undisposed);
+  assert.equal(shown.at(-2), "- `PRRT_19` (root comment 20)");
+  assert.equal(shown.at(-1), "- and 3 more");
+  assert.deepEqual(undisposedLines([]), []);
 });
 
 // Owner decision 2026-10-24: a disputed finding goes to an adjudicator, not
@@ -1099,7 +1150,7 @@ test("renderReply fences the note longer than any backtick run in it", () => {
 });
 
 test("main writes the escalation and skip reason files and refuses a symlinked artifact", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  const dir = tempDir("publish-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const replies = join(dir, "replies");
   const ws = join(dir, "ws");
@@ -1306,7 +1357,7 @@ test("a fix commit must be committed by web-flow with a valid signature", async 
 });
 
 test("main: a missing replies.jsonl writes the no-model-turn skip and no escalation; a missing run.json still escalates", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  const dir = tempDir("publish-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const replies = join(dir, "replies");
   mkdirSync(replies);
@@ -1396,7 +1447,7 @@ test("lineChanged reads a patch's new-side hunks", async () => {
 // collect-base-activity runs a script activity from a copy of its own
 // directory under $RUNNER_TEMP, so every import must resolve inside it.
 test("the script loads from a copy of its own directory alone", async () => {
-  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  const copy = tempDir("base-script-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
     const module = await import(pathToFileURL(join(copy, "publish-feedback.mjs")).href);
@@ -1404,4 +1455,82 @@ test("the script loads from a copy of its own directory alone", async () => {
   } finally {
     rmSync(copy, { recursive: true, force: true });
   }
+});
+
+// A pass-only round (address-feedback.mjs select with VERIFY_PASS_HEAD):
+// run.json lists the stale fail-note threads, and no model ran.
+const NOTE = "<!-- pr-verify:fail-note -->\nThe pr-verify verifier failed head.";
+const noteThread = (id, { resolved = false, commit = GATED, author = ACTIONS_BOT, body = NOTE } = {}) => ({
+  id,
+  isResolved: resolved,
+  comments: { totalCount: 1, nodes: [{ databaseId: 1 }] },
+  root: { nodes: [{ author: { databaseId: author }, body, originalCommit: { oid: commit } }] },
+});
+const staleRun = (ids, head = NOW) => JSON.stringify({ version: 1, head_sha: head, pr_paths: [], threads: [], stale_notes: ids });
+const staleApi = (threads, { failOn = [], moved = false } = {}) => {
+  const calls = [];
+  return {
+    calls,
+    resolved: () => calls.filter((call) => call[0] === "resolve").map((call) => call[1]),
+    listThreads: async () => threads,
+    readBranch: async () => (moved ? PUSHED : NOW),
+    resolveThread: async (id) => {
+      calls.push(["resolve", id]);
+      if (failOn.includes(id)) throw new Error("POST https://api.github.com/graphql returned 502");
+      return true;
+    },
+    listIssueComments: async () => assert.fail("a pass-only round posts no round marker"),
+    createIssueComment: async () => assert.fail("a pass-only round posts no round marker"),
+    replyToComment: async () => assert.fail("a pass-only round posts no reply"),
+  };
+};
+
+test("a pass-only round resolves each listed fail-note thread still open from an earlier head, and posts nothing", async () => {
+  const api = staleApi([
+    noteThread("PRRT_old"),
+    noteThread("PRRT_also_old"),
+    noteThread("PRRT_now", { commit: NOW }),
+    noteThread("PRRT_done", { resolved: true }),
+    noteThread("PRRT_reviewer", { author: REVIEWER }),
+    noteThread("PRRT_plain", { body: "finding" }),
+  ]);
+  const result = await run(api, null, staleRun(["PRRT_old", "PRRT_also_old", "PRRT_now", "PRRT_done", "PRRT_reviewer", "PRRT_plain"]));
+  assert.deepEqual(api.resolved(), ["PRRT_old", "PRRT_also_old"]);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a pass-only round re-run with nothing left open resolves none and succeeds", async () => {
+  const api = staleApi([noteThread("PRRT_old", { resolved: true })]);
+  const result = await run(api, null, staleRun(["PRRT_old"]));
+  assert.deepEqual(api.resolved(), []);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a failed resolve does not stop the others from being tried, and fails the job after them", async () => {
+  const api = staleApi([noteThread("PRRT_a"), noteThread("PRRT_b"), noteThread("PRRT_c")], { failOn: ["PRRT_a"] });
+  await assert.rejects(run(api, null, staleRun(["PRRT_a", "PRRT_b", "PRRT_c"])), /PRRT_a/);
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b", "PRRT_c"]);
+});
+
+test("a pass-only round resolves nothing once the head moved past the passing one", async () => {
+  for (const [api, runText] of [
+    [staleApi([noteThread("PRRT_old")], { moved: true }), staleRun(["PRRT_old"])],
+    [staleApi([noteThread("PRRT_old")]), staleRun(["PRRT_old"], GATED.replace(/a/g, "e"))],
+  ]) {
+    const result = await run(api, null, runText);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(result.escalationReason, "");
+  }
+});
+
+test("a malformed stale_notes list reads as a malformed run.json", async () => {
+  const api = fakeApi();
+  const result = await run(api, null, JSON.stringify({ version: 1, head_sha: NOW, threads: [], stale_notes: ["not a thread"] }));
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("a pass-only round skips pass-only, so the dispatcher can tell its reply check from a round's", async () => {
+  const result = await run(staleApi([noteThread("PRRT_old")]), null, staleRun(["PRRT_old"]));
+  assert.equal(result.skipReason, "pass-only");
 });

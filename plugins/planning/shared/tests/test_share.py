@@ -108,6 +108,17 @@ class TestEnsureRunning(Running):
         self.assertEqual((out["guestUrl"], out["resumed"]), (self.first["guestUrl"], True))
         self.assertEqual((self.session_record()["pid"], tunnel.read(self.d)["pid"]), (pid, cf))
 
+    def test_a_server_from_another_build_is_restarted_on_its_ports(self):
+        s = self.session_record()
+        (self.d / ".shared-session.json").write_text(json.dumps({**s, "pluginVersion": "0.0.0-old"}), encoding="utf-8")
+        cf = tunnel.read(self.d)["pid"]
+        code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+        self.assertIn("restarted the shared server: it runs 0.0.0-old", err)
+        now = self.session_record()
+        self.assertNotEqual(now["pid"], s["pid"])
+        self.assertEqual((now["port"], now["pluginVersion"], tunnel.read(self.d)["pid"]), (s["port"], s["pluginVersion"], cf))
+
     def test_the_owner_link_is_private_and_carries_the_token_in_the_fragment(self):
         link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
         self.assertRegex(link, r"^http://127\.0\.0\.1:\d+/#owner=[A-Za-z0-9_-]{43}$")
@@ -157,6 +168,51 @@ class TestStopStatusUrl(Running):
         self.assertIsNotNone(tunnel.alive(self.d))
         code, out, _ = share(self.d, "ensure-running")
         self.assertEqual((code, out["guestUrl"], out["resumed"]), (0, self.first["guestUrl"], True))
+
+    def test_stop_writes_a_one_guest_sessions_held_counts(self):
+        """#9069: a one-on-one session's counts are held until shutdown, and on Windows a TERM ends the process before
+        it runs; stop asks the server to shut down first, so they are written on every OS."""
+        guest = self.join("Ann")
+        summary = {"kind": "summary", "message": "pv=0a1b2c3d gap=5 use:vf-chat=2", "ua": "safari phone"}
+        self.assertEqual(call(self.guest_port(), "POST", "/api/client-log", summary, guest)[0], 200)
+        code, out, err = share(self.d, "stop")
+        self.assertEqual((code, "server" in out["stopped"]), (0, True), err)
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn(' summary-batch summaries=0 dropped=1 counts={"use:vf-chat":2} data=[]', log)
+
+    def test_stop_server_lets_the_server_exit_before_any_force_end(self):
+        """The shutdown route, not a TERM: by the time the fallback runs, the server has exited of itself."""
+        s, real, seen = self.session_record(), detached.stop, []
+
+        def stop(pid, marker, *args, **kwargs):
+            seen.append(detached.alive(pid, marker))
+            return real(pid, marker, *args, **kwargs)
+
+        with mock.patch.object(share_cli.detached, "stop", side_effect=stop):
+            self.assertTrue(share_cli.stop_server(self.d.resolve(), s))
+        self.assertEqual(seen, [False])
+        self.assertIsNone(share_cli.bridge.ping(s["port"]))
+
+    def test_stop_server_force_ends_a_server_whose_shutdown_request_fails(self):
+        s, real, seen = self.session_record(), detached.stop, []
+
+        def stop(pid, marker, *args, **kwargs):
+            seen.append(detached.alive(pid, marker))
+            return real(pid, marker, *args, **kwargs)
+
+        refused = share_cli.Refused(2, "the server did not answer")
+        with mock.patch.object(share_cli, "call", side_effect=refused), mock.patch.object(share_cli.detached, "stop", side_effect=stop):
+            self.assertTrue(share_cli.stop_server(self.d.resolve(), s))
+        self.assertEqual(seen, [True])
+        self.assertFalse(detached.alive(s["pid"], share_cli.SERVER_MARKER))
+        self.assertIsNone(share_cli.bridge.ping(s["port"]))
+
+    def test_the_shutdown_route_is_only_on_the_control_listener_and_needs_its_token(self):
+        s = self.session_record()
+        self.assertNotEqual(call(self.guest_port(), "POST", "/api/shutdown", {})[0], 200)
+        self.assertEqual(call(self.guest_port(), "POST", "/api/shutdown", {}, {"X-Shared-Token": s["token"]})[0], 404)
+        self.assertEqual(call(s["port"], "POST", "/api/shutdown", {})[0], 403)
+        self.assertTrue(share_cli.bridge.running(self.d.resolve(), s))
 
     def test_status_reports_round_people_queue_and_lease(self):
         self.join("Ann")
@@ -384,6 +440,20 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(out["summaries"]["dropped"], 0)
         self.assertEqual((out["latency"]["/api/vote"]["actions"], out["latency"]["/api/vote"]["rollbacks"]), (1, 0))
         self.assertEqual(out["reconnect"]["count"], 0)
+
+    def test_the_text_prints_the_sections_the_host_health_panel_shows(self):
+        """README "Logs", "Host Health": the panel shows summary_sections; the plain text is those sections, a titled
+        one's lines indented under it. Expected titles and lines are the ones test_text_reads_the_same_counts reads."""
+        out = share_cli.summarize([])
+        sections = share_cli.summary_sections(out)
+        self.assertEqual([x["title"] for x in sections], [
+            "", "Top errors:", "Refusals by route and code (the server's own entries):", "Network failures and unanswered actions:",
+            "Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:", "", "Layout anomalies by device:", "",
+            "Feature use, taps by component:", "Rage taps (three quick taps on one control) by component:", "Dead taps (a tap that changed nothing on the page) by component:"])
+        self.assertEqual((sections[1]["lines"], sections[4]["lines"]), (["none"], ["none", "Rollback rate: 0 of 0 actions (-)"]))
+        text = share_cli.summary_text(out)
+        self.assertIn("\n\nTop errors:\n  none\n\nRefusals by route and code", text)
+        self.assertIn("\n  none\n  Rollback rate: 0 of 0 actions (-)\n\nReconnect gaps after the page shows again: 0, 0 over 10 s, worst - ()\n\nLayout", text)
 
     def test_an_empty_log_summarizes_to_nothing(self):
         code, out, err = share(tmpdir(self), "logs", "--summary", "--json")

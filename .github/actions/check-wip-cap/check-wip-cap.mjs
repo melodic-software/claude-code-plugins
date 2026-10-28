@@ -8,7 +8,7 @@
 // The cap is the merged count per hour times wip.target-lead-time-hours,
 // rounded up and at least wip.min-cap (limits.wip-cap when the merged count
 // cannot be read). Only open PRs that are not held count against it. A held PR (label
-// needs-human or do-not-merge, or a body line exactly HOLD_LINE) counts
+// needs-human or do-not-merge in any case, or a body line exactly HOLD_LINE) counts
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
@@ -29,6 +29,10 @@
 // incomplete_results: true closes admissions whatever wip.pause-from says. A
 // failed queued read without that flag leaves admissions open.
 //
+// With `pauseOnly` (WIP_READS=pause) it makes only the open listing and the
+// merged count, the two reads the run pause depends on, and leaves the
+// admission fields unread (`admission_basis` `not-read`, admissions open).
+//
 // As the action's step it writes `capped` (the run pause), `admission-open`,
 // `wip` (the status as one flat JSON object) and `state-saved` (`true` when a
 // read that succeeded wrote its status to WIP_STATE), and the status to the
@@ -41,6 +45,7 @@
 //                       sets limits and wip (resolve-config's wipFromBase)
 //   LANES_BOT_LOGIN     the lanes App bot login (default melodic-automation-lanes[bot])
 //   WIP_STATE           the last known state file (optional), read then rewritten
+//   WIP_READS           `pause` for the pause reads alone; anything else reads all
 //   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -66,8 +71,10 @@ const MAX_PAGES = 10;
 // The most blocker-list reads one check makes for queued issues.
 export const BLOCKER_READS = 30;
 
+// A hold label matches in any case, as pr-merge's holdReason matches it; the
+// body line matches exactly.
 export const isHeld = (pr) =>
-  (pr?.labels ?? []).some((label) => HOLD_LABELS.has(label?.name)) ||
+  (pr?.labels ?? []).some((label) => typeof label?.name === "string" && HOLD_LABELS.has(label.name.toLowerCase())) ||
   String(pr?.body ?? "")
     .split(/\r?\n/)
     .includes(HOLD_LINE);
@@ -85,7 +92,8 @@ const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 // read fails. `searchIncomplete` is whether any answer said incomplete_results
 // true, which a degraded search answers with a false empty. Reads run one at a time, and
 // none starts once `remaining()` (the last x-ratelimit-remaining seen) is 0 or less.
-export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null }) {
+// `pauseOnly` stops after the open listing and the merged count.
+export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
   let searchIncomplete = false;
@@ -141,6 +149,9 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     issue: namedIssue(pr),
   })))?.items ?? null;
   const merged = await count(`repo:${repo} is:pr is:merged ${author} merged:>=${since}`);
+  if (pauseOnly) {
+    return { open, merged, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete, pauseOnly };
+  }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
   const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
   const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
@@ -180,7 +191,7 @@ const round = (value, places) => (value === null ? null : Number(value.toFixed(p
 
 // The status as one flat object; the field names are a published contract
 // (README.md, WIP cap).
-export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false }, { limits, wip, now }) {
+export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false, pauseOnly = false }, { limits, wip, now }) {
   const window = wip["merge-rate-window-hours"];
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
@@ -214,7 +225,7 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
   // may be false empties.
   const room = searchIncomplete
     ? 0
-    : !pausing || queuedTotal === null
+    : !pausing || queuedTotal === null || pauseOnly
       ? null
       : truncated
         ? 0
@@ -254,14 +265,14 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
     admission_open: room === null || room > 0,
     admission_reason: room === 0 ? (searchIncomplete ? "search-incomplete" : "queued") : null,
     admission_room: room,
-    admission_basis: searchIncomplete ? "search-incomplete" : queuedTotal === null ? "fail-open" : "read",
+    admission_basis: searchIncomplete ? "search-incomplete" : pauseOnly ? "not-read" : queuedTotal === null ? "fail-open" : "read",
   };
 }
 
 // The status from the lanes App's PRs in `repo`, for the issue lane's check
 // and work-unblock's sweep alike.
-export async function checkWip(github, { repo, bot, now, limits, wip, remaining }) {
-  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining });
+export async function checkWip(github, { repo, bot, now, limits, wip, remaining, pauseOnly = false }) {
+  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining, pauseOnly });
   return wipStatus(reads, { limits, wip, now });
 }
 
@@ -343,7 +354,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
-    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
+    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause" })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now });
   const readError = configError || read.countable_lane_prs === null;
   const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));

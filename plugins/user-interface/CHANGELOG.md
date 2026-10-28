@@ -3,6 +3,31 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.8.5] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.8.4] - 2026-10-26
+
+### Fixed
+
+- `scripts/lib/yaml-subset.mjs` reads an empty sequence item (`-` alone) as `null` when the next line is another item at the same indent, instead of nesting the following items under it.
+- A quoted key may hold a doubled `''` in single quotes or a `\"` escape in double quotes; such a key no longer fails with `expected a mapping entry`.
+
+## [0.8.3] - 2026-10-26
+
+### Changed
+
+- The bundled config cascade (`scripts/lib/config-cascade.mjs`) now enforces a schema `maximum`, as it already did `minimum`.
+
 ## [0.8.2] - 2026-10-25
 
 ### Changed

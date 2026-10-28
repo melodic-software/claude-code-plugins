@@ -3,6 +3,43 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-10-28
+
+### Added
+
+- **`scripts/quote-check.sh` checks each mechanics quote against its docs section** ([#9697](https://github.com/melodic-software/claude-code-plugins/issues/9697)). It reads only `context/mechanics-sources.tsv` and takes no arguments. Each page is fetched once through `scripts/fetch-docs.sh --cache`, and the section the URL's anchor names is taken with `scripts/docs-cache.sh slice`. It prints one line per record: `verified <id>`; `drift <id> <url>`, followed by the stored quote and the section's closest sentence; or `unverified <id> as of <as_of>` when the page could not be read fresh. It exits 0 whatever the results are. `QUOTE_CHECK_FIXTURE_DIR` points it at local page snapshots, so `scripts/quote-check.test.sh` covers the verified, drift and unverified cases without touching the network.
+
+## [0.26.8] - 2026-10-28
+
+### Changed
+
+- **The loading-mechanics record cites the docs by pointer record** ([#9696](https://github.com/melodic-software/claude-code-plugins/issues/9696)). Each docs-backed cell of the surface table in `context/verified-mechanics.md` now names a record id (`MS-<n>`) instead of a bare *(doc)* marker. The new `context/mechanics-sources.tsv` holds one row per record: the section URL with its anchor, the sentence quoted from that section, and the date it was read. A new "Pointer records" table says what each record decides and when to recheck it. Every measured result now carries the CLI version it ran on, including four that had none. `context/routing-rubric.md` names record ids where it prices a move instead of restating the docs.
+- **Cells the docs re-read changed.** The memory page now says a nested `CLAUDE.md` loads on a Read, Write or Edit in its subtree. The skill listing is rebuilt and re-injected after compaction on 2.1.304 and later. A subagent that skips the CLAUDE.md hierarchy (Explore, Plan, `omitClaudeMd`) still loads a nested `CLAUDE.md` or a matching path-scoped rule when it works with files there. A bare nested `AGENTS.md` beside a `CLAUDE.md` never loads only under the default **Project instructions** setting. That a bare nested `AGENTS.md` reloads when its subtree is touched again is now marked inferred, since no docs sentence states it.
+
+## [0.26.7] - 2026-10-28
+
+### Fixed
+
+- A git-hook entry installed before its manifest listed an asset now reads `stale` rather than `modified` in `verify` and `plan`, so `copy` refreshes it and adds the asset without `--force`. Deleting an asset the install's stamp covers still reads `modified`.
+
+## [0.26.6] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.26.5] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.26.4] - 2026-10-26
+
+### Added
+
+- The git-hook installer's shared plan (`lib/git-hooks/install.mjs plan --scope shared`, plain hooks, `core.hooksPath` not yet `.githooks`) returns a `shared-entries` decision before `hooks-path`, listing what setting `core.hooksPath` would also run that this plugin did not install: `<event>.d/` markers other than its own, any `.githooks/*.pre-checks` hook, any other hook file there that is not the dispatcher, and every tracked file under `.githooks/local/` ([#7613](https://github.com/melodic-software/claude-code-plugins/issues/7613)). Setup shows the list and sets `core.hooksPath` only on the user's yes. With none present the plan is unchanged.
+
 ## [0.26.3] - 2026-10-25
 
 ### Changed

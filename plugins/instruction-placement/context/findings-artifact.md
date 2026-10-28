@@ -122,6 +122,13 @@ as `—` rather than omitted, so a diff between runs stays aligned.
 - **Cost:** ~34 always-loaded lines released; not inherited by a subagent and announced nowhere, so
   it arrives only on a `.cs` read or through the index; returns after compaction only when a `.cs`
   file is read again
+- **Mechanics:** MS-5 verified: "A path-scoped rule loads when Claude uses the Read, Write, or Edit
+  tool on a matching file."; MS-7 verified: "Nested CLAUDE.md files in subdirectories and rules
+  with `paths:` frontmatter load again on demand."; MS-9 unverified as of 2026-10-27: "Path-scoped
+  rules and nested CLAUDE.md files load into message history when Claude reads, writes, or edits
+  their trigger file, so compaction summarizes them away with everything else."; MS-16 verified:
+  "For Explore, Plan, and subagents with `omitClaudeMd`, a subdirectory's `CLAUDE.md` and matching
+  path-scoped rules still load when the subagent works with files there."
 - **Confidence:** high
 ```
 
@@ -134,6 +141,12 @@ heading parse, which does not track fenced blocks and frontmatter the way the de
 divergent parse there produces a well-formed entry whose constituents hash to their own key, so
 nothing reports it malformed and `delta` simply never matches it. The decline would vanish with no
 error, which is the one failure mode this record's durability exists to prevent.
+
+**`Mechanics` is written by `audit` from the run's `quote-check.sh` result,** one entry per docs
+record the destination's surface-table row cites, under the same fields-may-be-added rule. Each
+entry carries the record id, its result and its stored quote; a record that was not read fresh
+carries "unverified as of <date>". `realign` re-checks exactly the records it names, and a finding
+with no `Mechanics` field at all came from an audit that predates the field.
 
 `Status` moves `pending` → `accepted` | `declined` | `applied` | `blocked`, and back along exactly
 one arc, `accepted` → `pending`. **Every forward move is written by `realign` and by nothing else**,

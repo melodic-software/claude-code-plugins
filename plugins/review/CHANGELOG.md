@@ -3,6 +3,54 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.3] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.2] - 2026-10-27
+
+### Fixed
+
+- `/review:security-review` rates a finding CRITICAL (the one severity that holds a pull request for a person) only when it shows who reaches the change, what security impact they get, and that no existing control stops it, each with file and line.
+  - Touching a trust control, a gate file or a hold path no longer counts as a severity by itself.
+  - A widening of who is trusted, of what a token may do, of untrusted reach or of the kill switch still meets the bar by itself, unless a cited control blocks it.
+  - A weakened merge hold, such as one that guards only spend, has to show a security impact like any other finding.
+  - A finding that rests on a configuration value quotes the line it read. A marketplace entry with `"defaultEnabled": false` is therefore read as opt-in (IMPORTANT), not default-on.
+  - Every CRITICAL candidate now gets a refute pass that looks for a blocking control.
+  - A finding the review cannot settle stays CRITICAL.
+
+## [1.6.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
+## [1.5.0] - 2026-10-26
+
+### Changed
+
+- `/review:security-review` rates a trust-control change CRITICAL unless the diff shows it keeps or narrows the control: widening who passes the trusted-trigger check, widening the lanes App token's scope, leaving the kill switch unable to stop a lane, or changing code or rules the token broker loads into its signer process, the pipeline config included. Such a widening is reported even where zizmor's permission-widening deferral would apply. A change that weakens, narrows or removes a merge hold, or widens another trust, untrusted-text or isolation action under `.github/actions/`, is CRITICAL too; widening is judged from the code alone, and a change the lane cannot judge is CRITICAL.
+- A `manifest <field>: flag` on a key that installs or runs code (`hooks`, `mcpServers`, `lspServers`, `monitors`, `experimental.monitors`, `dependencies`) or in `marketplace.json` on a plugin entry added, removed or renamed, an entry's `source` or the marketplace `name` is CRITICAL, so it sets the `critical-security` hold; other manifest flags stay IMPORTANT.
+
+### Removed
+
+- The `trust-gate` hold class: a trusted path with no CRITICAL finding sets no hold.
+
 ## [1.4.0] - 2026-10-25
 
 ### Changed

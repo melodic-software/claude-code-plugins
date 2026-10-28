@@ -3,8 +3,7 @@
 // ignores run numbers, SHAs and times, model text cannot plant a marker, and
 // one digest issue holds the open findings, rewritten only when they change.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
@@ -24,8 +23,9 @@ import {
   renderEntry,
   validateFinding,
 } from "./findings.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
-const base = mkdtempSync(join(tmpdir(), "lane-sweep-base-"));
+const base = tempDir("lane-sweep-base-");
 after(() => rmSync(base, { recursive: true, force: true }));
 mkdirSync(join(base, "scripts"));
 writeFileSync(join(base, "scripts", "gate.sh"), "#!/usr/bin/env bash\necho   'one'\nexit 1\n");

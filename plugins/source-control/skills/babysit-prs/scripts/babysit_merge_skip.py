@@ -46,10 +46,11 @@ when it is one of `SKIPPABLE` at the listed head and its gate process wrote
 nothing that failed and has no review re-run still due, carries a skipped
 candidate's record forward with its skip count raised and its judgment time
 kept, and keeps an unreached candidate's record. The store is the
-`skip-unchanged` section of the file pr-merge.yml saves with actions/cache;
-any job in the default branch's cache scope can write that, so a forged
-record can only repeat a refusal, for at most `max-minutes` from the time it
-names, which may not be in the future.
+`skip-unchanged` section of the file pr-merge.yml carries to the next run as
+the pr-merge-run-cache artifact of a scheduled or hand-started run on main
+(.github/scripts/pr-merge/carry-run-cache.mjs). Even so, a forged record can
+only repeat a refusal, for at most `max-minutes` from the time it names, which
+may not be in the future.
 """
 
 from __future__ import annotations
@@ -108,12 +109,14 @@ MAIN_PATHS = (
 # run, which changes the check rollup); any other, a re-run still due
 # included, gates again.
 STABLE_RERUNS = (
-    "failure class is not rate-limit",
+    "failure class is not ",
     "already re-run on this head",
     "not a GitHub Actions job",
     "the job ran on another head",
     "the job named by details_url",
     "job conclusion is",
+    "left to a person: ",
+    "attempt 1 concluded ",
 )
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 KEY_RE = re.compile(r"[0-9a-f]{64}")

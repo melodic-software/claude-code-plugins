@@ -23,9 +23,9 @@
 // once, and an error line names the reset. A second rate limit after the wait
 // is returned as it is, and the latch refuses what follows. Either response it
 // gives up on carries rateLimited: true, so a caller can defer its work
-// instead of failing. A GET answered 5xx
-// is first sent again by retryServerErrors, so only its last answer reaches
-// the above.
+// instead of failing. A GET or GraphQL query
+// answered 5xx is first sent again by retryServerErrors, so only its last
+// answer reaches the above; serverFailure tells a caller it still failed.
 
 import { retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch, resetLabel, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -127,3 +127,8 @@ export function budgetedFetch({
 
   return { fetch: wrapped, counts, summary };
 }
+
+// Whether a thrown read error is a GitHub 5xx that outlasted retryServerErrors:
+// an outage, so a dispatcher skips that PR for a later run instead of failing.
+// A rate limit is never one.
+export const serverFailure = (error) => error?.rateLimited !== true && error?.status >= 500;

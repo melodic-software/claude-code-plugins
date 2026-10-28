@@ -12,6 +12,17 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "sync_stale_base": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, push-branch.sh merges the pull request's base into a branch that is behind it on overlapping paths just before it pushes, using the repository's scripts/check-stale-base-overlap.sh as the overlap rule when the checkout has one. A merge, never a rebase; a conflict aborts it and pushes nothing (exit 4). --sync-stale-base and --no-sync-stale-base override it for one push."
+    },
+    "dialect": {
+      "type": "string",
+      "minLength": 1,
+      "default": "posix-ere",
+      "description": "The regex dialect subject_pattern and pr_title_pattern are written in, for a reader that needs to know it. The guardrails convention gate enforces posix-ere only: any other value turns its enforcement off with a diagnostic. Unset means posix-ere."
+    },
     "subject_pattern": {
       "type": "string",
       "minLength": 1,
@@ -50,6 +61,26 @@
           "items": { "type": "string", "minLength": 1 }
         }
       ]
+    },
+    "babysit_loop_stop_mode": {
+      "enum": ["standing", "drain"],
+      "default": "standing",
+      "description": "The /source-control:babysit-loop lane's stop shape: standing keeps watching, drain stops once the target repository has no open pull requests and no open issues (exclusions: the babysit-loop skill's Stop modes). An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_stop_mode section of .claude/source-control.md."
+    },
+    "babysit_loop_tier": {
+      "enum": ["safe", "worker", "autopilot"],
+      "default": "safe",
+      "description": "The babysit-prs tier the loop lane runs, the named preset over the autonomy dimensions. Never widens the merge dimension. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_tier section of .claude/source-control.md."
+    },
+    "babysit_loop_merge": {
+      "enum": ["human-only", "c2-mechanical", "c3-autonomous", "full-autonomy"],
+      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate reads both and takes the lower, so a raise needs both files while the legacy file exists."
+    },
+    "babysit_loop_grace_window_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "The loop lane's concurrency-safety activity grace window, in minutes. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_grace_window_minutes section of .claude/source-control.md."
     },
     "branch_issue_pattern": {
       "type": "string",

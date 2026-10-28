@@ -52,6 +52,9 @@ jobs:
     concurrency:
       group: selection-audit-trace
       cancel-in-progress: false
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,7 +82,7 @@ jobs:
             .github/requirements-ci.txt
             plugins/animation/requirements.txt
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
@@ -96,7 +99,8 @@ jobs:
       - name: Install locked test toolchains
         run: |
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
@@ -144,7 +148,7 @@ jobs:
             ${{ runner.temp }}/selection-audit/*.md
             ${{ runner.temp }}/selection-audit/*.tsv
             ${{ runner.temp }}/selection-audit/logs/
-          retention-days: 30
+          retention-days: 7
 
   audit-failed-suite-selection:
     if: >-
@@ -173,4 +177,4 @@ jobs:
         with:
           name: selection-red-replay-${{ github.event.workflow_run.id }}
           path: ${{ runner.temp }}/red-replay/report.md
-          retention-days: 30
+          retention-days: 7

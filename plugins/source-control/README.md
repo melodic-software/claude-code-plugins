@@ -184,9 +184,10 @@ the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
 where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
-`pr-contract` composite step (the SHA-pinned
-`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>` form, or
-ci-workflows' own local `./.github/actions/pr-contract`). A body the hook
+contract composite step, at its current path `pr-require-checks/check-contract`
+or its old path `pr-contract` (the SHA-pinned
+`melodic-software/ci-workflows/.github/actions/<path>@<sha>` form, or
+ci-workflows' own local `./.github/actions/<path>`). A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
@@ -334,6 +335,21 @@ third time, and a block message that names a configured root reads the
 numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
 fails when a gate feeds its payload to a reader by here-string.
 
+### `worktree-remove-gate`
+
+A `WorktreeRemove` hook. When Claude Code removes a worktree the `WorktreeCreate` gate created
+(a `--worktree` session exit, `ExitWorktree`, a background-session delete, a
+`claude remote-control` cleanup), it hands the removal to this hook instead of running git.
+The hook runs `scripts/reap-project-plugin-records.sh` for the worktree, so its project- and
+local-scope plugin install records go with it, then removes the worktree with plain
+`git worktree remove`. It leaves the worktree on disk and exits non-zero for uncommitted or
+untracked changes (so `ExitWorktree` with `discard_changes: true` cannot discard them), an
+operation in progress, a detached HEAD holding commits no ref holds, submodules, a lock whose
+reason names another session, or a reap that exits non-zero; `/source-control:worktree cleanup`
+then handles it. The branch is kept. Subagent and workflow-agent worktrees never reach it: Claude Code keeps
+them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove), as of
+2026-10-26), so `/source-control:worktree cleanup` removes them.
+
 ## Works in any repo
 
 - **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
@@ -365,6 +381,9 @@ fails when a gate feeds its payload to a reader by here-string.
   says the native binary ships or uses Node). Without `node` the hooks do
   not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
   whether `node` resolves.
+- **The `claude` CLI** on the hooks' `PATH`, for `worktree-remove-gate`: it reaps install records
+  through `claude plugin uninstall`, and without the CLI it refuses, so a worktree Claude Code
+  removes stays on disk until `/source-control:worktree cleanup` removes it.
 
 ## Install
 
@@ -591,8 +610,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure source-control@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure source-control@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -600,18 +619,12 @@ Three supported routes:
    claude plugin install source-control@<marketplace> -s <scope> --config pr_body_linkage_gate_enabled=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -628,13 +641,11 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 

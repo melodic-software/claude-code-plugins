@@ -158,9 +158,10 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
-| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
+| `comment-hygiene` | `bash scripts/check-comment-hygiene.sh origin/main <files>` | In-repo wrapper; fetches the pinned `check-comment-markers` action's own patterns library at the SHA `origin/main`'s workflow pins, so it needs network. File paths are relative to the repository root. |
+| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). `scripts/check-affected.sh` runs the same scan on the changed files without a `ci-workflows` checkout. |
 
-`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, `machine-specific-paths` and the whole-repo scanners included. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
+`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `machine-specific-paths`, `plugin-options-docs`, `changelog-parity`, `comment-hygiene` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, the whole-repo scanners included. Its `machine-specific-paths` check repeats the composite's scan and exemptions over `plugins/guardrails/lib/path-detection/machine-path-patterns.sh`, the copy of the patterns file the composite sources, with the `exclude:` pathspecs of the workflow step; `scripts/check-affected-gates.test.sh` fails when those pathspecs differ. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
 `scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
@@ -171,7 +172,7 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 - **As of:** `ci-workflows` v0.58.0 (`5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c`), the pin in
   `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-21: the `contract-only` default is unchanged.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
-  contract.
+  contract, its scan or its exemptions, which `scripts/check-affected.sh` repeats.
 
 #### Running `machine-specific-paths` locally
 
@@ -189,6 +190,19 @@ checkout.
 
 The script uses `git grep` in the current directory: it scans tracked files only, so `git add -N`
 or commit a new file before running. Exit 0 is clean, exit 1 means findings.
+
+### Artifact retention
+
+Every `actions/upload-artifact` step in `.github/workflows/` and `.github/actions/` sets
+`retention-days`, and the value equals its artifact family's row in
+[`.github/artifact-retention.json`](.github/artifact-retention.json). A new upload needs a row:
+the name or `<literal prefix>*`, `retention-days` (1 to 89, or `max` for 90), `readers` (each a
+repository path, then what reads it and how far back) and the `reason` that length is needed. A
+`max` row also names its `max-reader`, the reader that needs 90 days. Keep the shortest retention
+the readers need: an upload with no `retention-days` keeps its artifact 90 days, and every kept
+artifact lengthens the listing the pr-verify evidence reader pages through.
+`scripts/check-artifact-retention.sh` enforces this in `lint-repo` and states how a name maps to a
+family.
 
 ### The check-script contract
 

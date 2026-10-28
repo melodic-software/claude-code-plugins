@@ -28,7 +28,7 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 |---|---|---|
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
-| `group [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by mistake and shows each group's count next to the threshold | [actions/group.md](actions/group.md) |
+| `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 
 An action runs only when the first word of `$ARGUMENTS` is exactly `note` or `group`, unquoted.
 Anything else, including a quoted description that starts with "note" or "group", is the default

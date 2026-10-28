@@ -9,7 +9,7 @@ async page => { // an open tab shows every change Claude applies without a reloa
   const rail = async id => (await page.textContent('.rail-list .qbtn[data-q="' + id + '"]').catch(() => "")) || "";
   const alts = () => page.$$eval(".alt", els => els.map(e => e.textContent.replace(/\s+/g, " ").trim()).join(" | "));
   const until = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 6000}).then(() => true).catch(() => false);
-  const recIs = (want) => until(w => (document.querySelector(".recbox") || {}).textContent.includes(w), want);
+  const recIs = (want) => until(w => (document.querySelector("#choices .choice.rec") || {}).textContent.includes(w), want);
   try {
   if (PHASE === 1) {
     await page.setViewportSize({width: 1400, height: 860});
@@ -24,14 +24,14 @@ async page => { // an open tab shows every change Claude applies without a reloa
     ok("Q3 shows Sent to Claude after the page's accept", await until(() => /Sent/.test(document.querySelector('.rail-list .qbtn[data-q="Q3"]').textContent)), await rail("Q3"));
     await page.click('.rail-list .qbtn[data-q="Q1"]'); await page.waitForTimeout(200);
     await page.fill("#note", "half typed thought"); await page.waitForTimeout(200);
-    ok("Q1 starts on its first recommendation with a note typed", /Every push starts it/.test(await text(".recbox")) && (await page.inputValue("#note")) === "half typed thought");
+    ok("Q1 starts on its first recommendation with a note typed", /Every push starts it/.test(await text("#choices .choice.rec")) && (await page.inputValue("#note")) === "half typed thought");
   }
   if (PHASE === 2) {
-    ok("a reply with rec shows the new recommendation in the open tab", await recIs("tagged releases"), await text(".recbox"));
+    ok("a reply with rec shows the new recommendation in the open tab", await recIs("tagged releases"), await text("#choices .choice.rec"));
     ok("the typed note is kept when a reply changes the recommendation", (await page.inputValue("#note")) === "half typed thought");
   }
   if (PHASE === 3) {
-    ok("revise --rec with --alt shows the new recommendation in the open tab", await recIs("every push on main and every tag"), await text(".recbox"));
+    ok("revise --rec with --alt shows the new recommendation in the open tab", await recIs("every push on main and every tag"), await text("#choices .choice.rec"));
     ok("revise --alt shows the new alternatives in the open tab", /Only on tags/.test(await alts()), await alts());
     ok("the typed note is kept when revise changes the recommendation and alternatives", (await page.inputValue("#note")) === "half typed thought");
   }

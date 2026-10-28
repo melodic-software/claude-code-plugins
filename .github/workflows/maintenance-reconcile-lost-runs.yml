@@ -31,9 +31,21 @@ name: maintenance-reconcile-lost-runs
 # issue edit or a new spec comment), so pr-verify judges the head again
 # instead of leaving it at verify:spec-changed.
 #
-# An intake-label-needs-triage run an issue event started whose first attempt
-# failed (a rate limit, most often) left the issue without its floor label;
-# its failed jobs are re-run once, taking no place under the cap.
+# A lanes App pull request whose newest pr-require-checks run failed, on its
+# first attempt, only in ci-status, which noted that the lanes kill switch was
+# on, has that ci-status re-run, recorded as above, by the first run after the
+# switch is lifted, whatever the run's age; it takes a place under the cap. A
+# run at a later attempt is left to a person.
+#
+# An intake-triage run an issue event started whose first attempt failed only
+# in its intake-label-needs-triage job (a rate limit, most often) left the
+# issue without its floor label; its failed jobs are re-run once, taking no
+# place under the cap. A run where any other job failed is left alone, so no
+# triage or broker job runs again. When that failure kept the issue from a
+# status label, the hourly triage sweep in maintenance-audit-lane-runs.yml
+# re-dispatches intake and adds needs-triage after 2 dispatches leave it
+# untriaged; otherwise, and once a dispatch triages it, the issue stays without
+# the floor label.
 #
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact

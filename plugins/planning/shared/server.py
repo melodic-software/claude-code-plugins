@@ -15,7 +15,8 @@ No secret travels on this command line: the control token and the owner token co
   `<img>` or a frame sends no header.
 - Control listener (`--control-port`): session_bridge's `LoopbackHandler` with NAME `shared`
   (token header `X-Shared-Token`), for `share.sh`, `watch.sh` and `wake.sh` only, never tunneled.
-  It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
+  It adds `POST /api/ops` (Claude's ops), `GET /api/status` and `POST /api/shutdown`, which
+  `share.sh stop` asks first so the server's own shutdown runs on every OS.
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
@@ -62,6 +63,7 @@ import detached  # noqa: E402  (beside this file; sys.path is set just above)
 import liveserve  # noqa: E402
 import session  # noqa: E402
 import session_bridge  # noqa: E402
+import share as share_cli  # noqa: E402  (state() has a local named share)
 import tunnel  # noqa: E402
 from session import DomainError  # noqa: E402
 
@@ -259,6 +261,7 @@ LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
+HEALTH = "/api/owner/health"  # owner: share.sh logs --summary on the page (App.health)
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
@@ -762,6 +765,9 @@ class ControlHandler(session_bridge.LoopbackHandler):
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path == "/api/live/stop":
             return self.stop_lives(msg)
+        if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
+            self.send(200, {"ok": True})  # answered before the shutdown starts, so share.py reads it
+            return app.quit.set()
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
         try:
@@ -1027,6 +1033,9 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.static("proto.html", "text/html")
             if url.path == "/api/state":
                 return self.state()
+            if url.path == HEALTH:
+                self.authorize("owner")
+                return self.send(200, {"ok": True, **self.app.health()})
             if url.path in GET_ROUTES:
                 auth, method = GET_ROUTES[url.path]
                 pid = self.authorize(auth)
@@ -1279,6 +1288,7 @@ class App:
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
+        self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
         self.live_starter = LIVE_STARTER
@@ -1358,6 +1368,12 @@ class App:
         finally:
             with self._chunk_lock:
                 self._chunk_readers.discard(pid)
+
+    def health(self):
+        """GET /api/owner/health (README "Logs", "Host Health"): what `share.sh logs --summary --json` gives for the whole
+        kept log, and the sections its plain text prints."""
+        s = share_cli.summarize(share_cli.log_lines(self.dir))
+        return {"summary": s, "sections": share_cli.summary_sections(s)}
 
     def hold_summary(self, message, ua, sender=None):
         """Keep a usage summary for the next batch: its count tokens (COUNT_TOKEN) added to the batch's counts, the
@@ -1601,11 +1617,10 @@ def main(argv=None):
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     app.serve()
-    done = threading.Event()
     with contextlib.suppress(ValueError):  # signals only reach the main thread
-        signal.signal(signal.SIGTERM, lambda *_: done.set())
+        signal.signal(signal.SIGTERM, lambda *_: app.quit.set())
     try:
-        while not done.wait(1.0):
+        while not app.quit.wait(1.0):
             pass
     except KeyboardInterrupt:
         pass

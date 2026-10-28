@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.5] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.13.4] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.13.3] - 2026-10-25
 
 ### Changed

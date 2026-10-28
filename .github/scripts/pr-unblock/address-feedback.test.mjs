@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -89,6 +90,7 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
         path: "src/a.js",
         line: 5,
         review_commit: HEAD,
+        is_outdated: false,
         root_comment_id: 100,
         comments: [{ id: 100, author: "reviewer", body: "finding 100" }],
       },
@@ -423,6 +425,13 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
+test("a kept thread's is_outdated is true only when GitHub reports isOutdated true", async () => {
+  for (const [isOutdated, expected] of [[true, true], [false, false], [undefined, false], ["true", false]]) {
+    const result = await run(fakeApi({ threads: [thread("PRRT_1", [100], { isOutdated })] }));
+    assert.equal(result.file.threads[0].is_outdated, expected, String(isOutdated));
+  }
+});
+
 // #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the
 // owner's fix request, all on a review of an earlier head.
 for (const [label, overrides] of [
@@ -454,7 +463,7 @@ for (const [label, overrides] of [
 }
 
 test("trustedHumansFrom reads only the people on the list", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -839,7 +848,7 @@ test("injection-shaped finding text is carried as data and changes no decision",
 });
 
 test("main select writes outputs and the thread file; escalation writes no thread file", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(
@@ -972,6 +981,39 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     calls.map((call) => call.auth),
     ["Bearer tok", "Bearer tok"],
   );
+});
+
+// A read, a GraphQL query and a write that repeats to the same state survive
+// one dropped socket; an issue and a mutation are sent once.
+test("createGitHubApi sends reads, GraphQL queries and repeatable writes again after a dropped socket, and an issue or a mutation once", async () => {
+  const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  const threads = { data: { repository: { pullRequest: { reviewThreads: { nodes: [{ id: "T" }], pageInfo: { hasNextPage: false } } } } } };
+  const script = [dropped(), { number: 42 }, dropped(), threads, dropped(), { state: "closed" }, dropped(), {}, dropped(), dropped()];
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method ?? "GET"} ${url}`);
+    const answer = script.shift();
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return new Response(JSON.stringify(answer), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://api/graphql", fetch, sleep: async () => {} });
+  assert.deepEqual(await api.getPull(42), { number: 42 });
+  assert.deepEqual(await api.listThreads(42), [{ id: "T" }]);
+  assert.deepEqual(await api.closePull(42), { state: "closed" });
+  await api.updateRef("heads/x", "a".repeat(40), false);
+  await assert.rejects(api.createIssue({ title: "t" }), TypeError);
+  await assert.rejects(api.resolveThread("T"), TypeError);
+  const twice = (line) => [line, line];
+  assert.deepEqual(sent, [
+    ...twice("GET https://api/repos/o/r/pulls/42"),
+    ...twice("POST https://api/graphql"),
+    ...twice("PATCH https://api/repos/o/r/pulls/42"),
+    ...twice("PATCH https://api/repos/o/r/git/refs/heads/x"),
+    "POST https://api/repos/o/r/issues",
+    "POST https://api/graphql",
+  ]);
 });
 
 // #8116's thread PRRT_kwDOTCGFQM6tojDu: the reviewer bot's finding on
@@ -1110,4 +1152,64 @@ test("a leading or trailing _ that belongs to the name is kept; only a matched _
   };
   const result = await run(named([[101, HUMAN, body]], { trees }).api);
   assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
+});
+
+// pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at
+// the PR's head; the select job then lists only the stale fail-note threads.
+test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
+  const dir = tempDir("address-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const OLD = "b".repeat(40);
+  const note = (id, commit = OLD, resolved = false) => ({
+    id,
+    isResolved: resolved,
+    comments: { totalCount: 1, nodes: [{ databaseId: 1 }] },
+    root: { nodes: [{ author: { databaseId: 41898282 }, body: `${VERIFY_NOTE_MARKER}\nfailed`, originalCommit: { oid: commit } }] },
+  });
+  const env = (name, extra = {}) => ({
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, `${name}.out`),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, `${name}.json`),
+    RUN_FILE: join(dir, `${name}.run.json`),
+    TRUSTED_ACTORS: join(dir, "absent.json"),
+    VERIFY_PASS_HEAD: HEAD,
+    DISPATCHER_RUN_ID: "5000",
+    ...extra,
+  });
+  const api = (threads) => ({ listThreads: async () => threads });
+  const out = (name) => (existsSync(join(dir, `${name}.out`)) ? readFileSync(join(dir, `${name}.out`), "utf8") : "");
+
+  await main(["select"], env("pass"), { api: api([note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)]), log: () => {} });
+  assert.equal(out("pass"), "resolve-only=true\n");
+  assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
+
+  // None stale, or the PR moved past the passing head: nothing to do, and no
+  // output, so neither a model job nor a neutral check runs.
+  await main(["select"], env("none"), { api: api([note("PRRT_now", HEAD)]), log: () => {} });
+  assert.equal(out("none"), "");
+  assert.equal(existsSync(join(dir, "none.run.json")), false);
+  await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
+  assert.equal(out("moved"), "");
+
+  // Only a dispatcher sends a pass head.
+  await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
+  await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+test("scanRefusal reads a patch and an output marker together as output, in either order", () => {
+  for (const [base, rungUp] of [["patch", "output"], ["output", "patch"]]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(scanRefusal({ dir, read: "success" }), "output", `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });

@@ -3,6 +3,103 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-10-27
+
+### Added
+
+- `scripts/build_capture_script.py`, with `scripts/build_capture_script.test.sh` beside it, builds the shown capture script for `/app-control:drive`. It checks the launch record's pid, uid, start time and command line hash against `/proc` and the caller's uid, resolves a wrapper's one child with `--child`, or binds a pid the person names with `--attach-pid`. It writes the script to a new file and prints each checked process and the script. The script reads `starttime` from the fields after the last `)` of `/proc/<pid>/stat`, rechecks every pid before the recorder and again after it exits, and deletes the capture and exits 3 on a difference. An elevated recorder that writes a `<file>` writes it into a new directory the elevated user makes; the script copies it to the capture path as the user running it, so the captured process cannot redirect the elevated write through a symlink.
+
+### Changed
+
+- `/app-control:drive` runs a pid-bound capture's recorder only through the built script and shows the builder's full output before the yes. A `cpu` or `heap` recorder that takes a pid now gets the same binding and recheck as `threads`. An elevated attach records the attached pid's uid, start time and hash when its script is shown, and the script rechecks them.
+- **Breaking on hosts other than Linux:** a `cpu` or `heap` capture whose recorder takes a pid, and an elevated attach, now record `blocked: pid binding covers Linux only, not <platform>` on macOS, Windows and any other host that is not Linux, since the binding reads the Linux process table.
+
+### Fixed
+
+- On macOS and Windows a `threads` capture records `blocked: pid binding covers Linux only, not <platform>`. Before, it was blocked with no reason named. An unattended capture whose launch record holds an invalid pid now records `blocked: launched process no longer matches` before `blocked: capture needs elevation`.
+
+## [0.15.0] - 2026-10-27
+
+### Added
+
+- The control-skill contract's hang (`threads`) row now names an all-thread dump command for JVM (`jcmd` `Thread.print`), .NET (`dotnet-stack report`) and Linux native (`gdb` `thread apply all bt`), each against the launched `<pid>`, and reads n/a for Node.js. Each new tool has a manual pointer with an as-of date and a recheck trigger. Go stays "not yet": its goroutine dump is served on the app's own endpoint, which drive's pid binding cannot hold to the launched process.
+
+## [0.14.1] - 2026-10-27
+
+### Fixed
+
+- `/app-control:drive` names how to get `python3` for the integrated-app pin check: app-control now declares it in `prerequisites.json`, and drive runs the bundled checker for the install command when it is missing.
+
+## [0.14.0] - 2026-10-27
+
+### Added
+
+- The `app-control:source-reader` agent, whose tool list holds Read, Grep and Glob only, for the `/app-control:map refresh` source wave.
+
+### Fixed
+
+- `/app-control:map refresh` sends its source wave through `app-control:source-reader`, so a subagent reading app source can no longer edit, write or run anything; before, the read-only limit was only an instruction in its prompt. When the agent does not resolve, the pass is blocked rather than sent through another agent. Each prompt now opens with the untrusted-content framing and quotes every repository value inside the item-content-trust fence. The working-tree tripwire is named a backstop, and the report states what it cannot see: writes under `.git/`, to ignored paths and outside the checkout.
+
+## [0.13.0] - 2026-10-27
+
+### Added
+
+- `/app-control:drive`'s `report.json` gains `secrets_mark`: one entry per raw capture, and per report file once it holds a command line, with its path, the "may hold secrets; do not commit" mark and whether the run directory sits unignored in a git working tree.
+
+### Changed
+
+- `/app-control:drive`'s Pid binding rules move to the `drive/reference/pid-binding.md` spoke with only their links adjusted; the hub's launch row, `threads` capture row, `threads` rule and cleanup rule link it.
+
+### Removed
+
+- The control-skill contract's manual pointers for dotnet-stack, GDB `thread apply all` and `GOTRACEBACK`, since no `threads` row names those tools. The dotnet-trace and dotnet-gcdump pointers stay.
+
+## [0.12.2] - 2026-10-27
+
+### Fixed
+
+- `/app-control:map refresh` takes a listed pull request as the upkeep pull request only when it is from the repository itself. A fork's pull request on a same-named branch makes the outcome blocked and is named in the report, and the pass pushes nothing.
+
+## [0.12.1] - 2026-10-27
+
+### Added
+
+- Eval cases for a plugin control skill found only through a manifest path: a plugin eval case with a skills-folder plugin whose `commands` map points `control-shop` at a file outside `commands/`, and skill eval cases with a listed plugin whose `commands` path names a non-default folder beside a stale `commands/` file, and one whose `skills` path names an extra folder; and a plugin eval case where a skills-folder plugin's control skill, the repository's only one, is used as a project control skill when no app is named.
+
+### Fixed
+
+- `/app-control:drive` now finds a plugin's control skill at a path the plugin's manifest names. For each listed plugin it searches the skill and command files the plugin loads from its default folders and its manifest's `skills` and `commands` keys, located as the manifest reference says, keeps or drops a `commands` map entry's `source` file by the entry's key, and reads no path outside the plugin folder. A plugin kept in the repository's skills folder is searched the same way and stays a project control skill, so it still beats an installed plugin's control skill for the same app. Before, such a control skill was missed and drive fell back to its no-control-skill recipe.
+
+## [0.12.0] - 2026-10-27
+
+### Added
+
+- The control-skill contract gains an "Environments" section. Environment entries (`url`, dependency `services`, `extends`, a `writes` policy per write of `never`, `attended` or `unattended`, and `production: true`) come only from `config/defaults.json` committed at HEAD. The local, environment-variable and flag layers may select an environment by name, never add or redefine one; the driver CLI refuses such a layer with exit 4. An entry that extends a production entry stays production.
+- The contract gains an "Integrated apps" section: a system whose pages a journey crosses, such as a separate identity server, gets its own control skill, and its steps are included by reference as `<app>:<path>`. The `checkouts.<app>` setting holds the path of another repository's local checkout; when it is unset or wrong, the run stops before launching and names the setting and the repository to clone. Committed config pins each such app by commit SHA in `pins.<app>`; the run stops before launching, and again before each included `cli:` call, that app's launch and its Ready, unless the checkout holds that commit, its HEAD and its control skill folder match it byte for byte (no index flags, filter attributes, replace refs, fsmonitor or inherited `GIT_*` variables, no symlink out of the folder; CRLF is the only normalization) and the folder holds no untracked or ignored file other than its `config/local.json`; that app's config and floors are read at the pin. `/app-control:drive` runs this check with the bundled, tested `scripts/verify_pin.py`. An unset pin tells the person to commit `pins.<app>`, for example through `/app-control:map`, which writes a pin only for a commit on the default branch of the hub line's repository URL. An included `cli:` step runs the owning app's `cli/` with that app's config, a minimal environment holding that app's credential variables (never the hub's own or a loader or interpreter variable), `--environment` set to the mapped environment (checked against its `--json`), and `--kind` set to the include's kind. An included step runs under the owning app's committed floors, enforced by its CLI; the including control skill can tighten it only through the include's `kind` or by leaving it out. A driver CLI writes nothing inside its control-skill folder, so the untracked-file check does not stop a second run, turns bytecode off itself, and loads code only from that folder plus dependencies pinned with integrity hashes by a lockfile there, installed outside the folder into a new directory for each run.
+- `<environment url>` and `<<service> service url>` placeholders in Launch and Ready are filled as one argument, validated as an http(s) URL with no shell metacharacters, and run without a shell; a `.cmd` or `.bat` program is refused.
+- `report.json`'s `launch` is a list with one entry per launched app, and cleanup stops each. A capture binds to the entry whose `app` is the app of the control skill owning the Capture row it uses; more than one such entry is `blocked:`, naming the apps.
+- `## Capture` can hold one row per tier (such as browser and server). `/app-control:drive capture` records each tier's row with its own tool, and the tier is part of the artifact name.
+- `/app-control:drive ready` checks each dependency service of the selected environment: that it answers, and, where the app shows its target, that the app sends to it. `report.json`'s `ready` gains `environment` and `services`.
+- `/app-control:map create` asks for each related system's repository and for which environment is production. It writes environment entries and an Integrated apps hub line, and writes nothing into another checkout except the objects and `FETCH_HEAD` that the Pin rule's fetch writes.
+
+### Changed
+
+- **Breaking: a new Write grants floor covers every write, in every environment.** Every write command takes `--step <id>`, the step's unprefixed id (or the command name without a steps file). The CLI binds the key to the step's `cli:` command at HEAD (or the command of that name), refuses a command whose non-reserved arguments differ, and applies the strictest committed grant among every key bound to that command; a missing or unknown id, an unlisted one, `never`, or `attended` without `--attended` exits 4. A write to an environment not marked production that ran before without a grant is now refused until committed `writes` lists its key. External systems take a `systems` entry per environment, committed only.
+- **Breaking: step ids are unique across all of a control skill's own steps files**, not only within one run, and no step id equals a `cli/` command name. A repeated id stops the run before anything starts.
+- **Breaking: every driver CLI command accepts `--kind write` and `--kind send`**, which only tighten: the command is then held to that kind's floors as well as its own. A CLI that rejects the flag fails every step an include marks with a `kind`.
+- The Production floor now states that `--yes` needs `--attended`, so no config turns on an unattended production write.
+
+## [0.11.0] - 2026-10-26
+
+### Added
+
+- The control-skill contract gains a "Steps files" section: a feature may keep its Drive steps in a machine-readable file whose format stays the project's choice. Step ids are unique after includes expand and use letters, digits, `-` and `_` only; a repeated or malformed id stops the run before anything starts. Includes stay inside the control skill's own directory. An include can carry `prefix` (one file included twice with unique ids), `with` (parameter values for that include only; an undeclared name stops the run), `kind` (added to every included step, never removed) and `finally` (steps that run after a failure, where a write's reset goes). An optional step whose target is absent is recorded as skipped, with no retry or wait.
+- `/app-control:drive` reads a feature's steps file as data: it expands includes and checks ids before launching, reports each step by id, records an absent optional step as `skipped: optional`, and runs the finally steps after the others, failed or not. Each such step in `report.json` carries its `id`, an `outcome` and, for a finally step, `finally: true`.
+
+### Fixed
+
+- `/app-control:drive` and `/app-control:map` name each reference file they send the model to by its full plugin path, so a run reads it directly and does not search the plugin directory for it.
+
 ## [0.10.0] - 2026-10-25
 
 ### Added

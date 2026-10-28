@@ -93,9 +93,27 @@ def refusal(
     evidence: object = None,
     config: policy.PipelineConfig = CONFIG,
 ) -> str | None:
+    held = held_by(files, evidence, config)
+    return None if held is None else held[0]
+
+
+def held_by(
+    files: tuple[ChangedFile, ...] = (DOC,),
+    evidence: object = None,
+    config: policy.PipelineConfig = CONFIG,
+    reviews: object = (),
+    humans: frozenset[int] = frozenset(),
+) -> tuple[str, bool] | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
+    read = reviews if isinstance(reviews, Exception) else None
     with (
+        mock.patch.object(
+            ve,
+            "fetch_paginated_api",
+            side_effect=read,
+            return_value=None if read else list(reviews),
+        ),
         mock.patch.object(policy, "changed_files", return_value=(files, True)),
         mock.patch.object(policy, "with_contents", side_effect=lambda repo, pr, f: f),
         mock.patch.object(policy, "pulumi_dirs_at", return_value=()),
@@ -108,7 +126,68 @@ def refusal(
             return_value=None if effect else (evidence, []),
         ),
     ):
-        return ve.lane_risk_refusal(REPO, 41, PR, config, 7)
+        return ve.lane_risk_refusal(REPO, 41, PR, config, 7, humans=lambda: humans)
+
+
+# A path on the floor (babysit_risk.HIGH_FLOOR), held as `high-path:` until a
+# trusted person approves the head, as ci-status lifts it (merge-holds.mjs
+# pathLifters). Kyle (id 5) is trusted, id 9 is not.
+FLOORED = dataclasses.replace(DOC, path=".github/actions/resolve-config/resolve.mjs")
+COST = dataclasses.replace(DOC, path="infra/main.tf")
+TRUSTED = frozenset({5})
+
+
+def review(
+    state: str, *, user: int = 5, sha: str = HEAD, at: str = "2026-10-26T16:41:00Z"
+) -> dict[str, object]:
+    return {
+        "user": {"id": user, "login": f"user{user}", "type": "User"},
+        "state": state,
+        "commit_id": sha,
+        "submitted_at": at,
+    }
+
+
+class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
+    def test_a_floor_path_approved_at_the_head_holds_nothing(self) -> None:
+        self.assertIsNone(
+            held_by((DOC, FLOORED), reviews=[review("APPROVED")], humans=TRUSTED)
+        )
+
+    def test_a_floor_path_holds_for_a_person_without_that_approval(self) -> None:
+        later = "2026-10-26T17:20:00Z"
+        cases = {
+            "no review": [],
+            "an older head": [review("APPROVED", sha="c" * 40)],
+            "an untrusted approver": [review("APPROVED", user=9)],
+            "changes requested since": [
+                review("APPROVED"),
+                review("CHANGES_REQUESTED", at=later),
+            ],
+            "the review list did not read": RuntimeError("reviews: HTTP 502"),
+        }
+        for name, reviews in cases.items():
+            with self.subTest(name):
+                held = held_by((DOC, FLOORED), reviews=reviews, humans=TRUSTED)
+                self.assertEqual(
+                    held,
+                    (
+                        "high-path:.github/actions/resolve-config/**: "
+                        ".github/actions/resolve-config/resolve.mjs",
+                        True,
+                    ),
+                )
+        # The trusted list that did not read lifts nothing either.
+        self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[review("APPROVED")]))
+
+    def test_the_approval_lifts_no_unsafe_path_or_cost_hold(self) -> None:
+        approved = [review("APPROVED")]
+        unsafe = held_by((FLOORED, SYMLINK), reviews=approved, humans=TRUSTED)
+        cost = held_by((FLOORED, COST), reviews=approved, humans=TRUSTED)
+        self.assertEqual(unsafe and unsafe[0].split(":", 2)[:2], ["high-path", "**"])
+        self.assertNotIn("resolve-config", str(unsafe))
+        self.assertEqual(str(cost and cost[0]).split(":")[0], "cost-review-required")
+        self.assertNotIn("high-path", str(cost))
 
 
 class LaneRiskRefusal(unittest.TestCase):
@@ -153,6 +232,24 @@ class LaneRiskRefusal(unittest.TestCase):
         )
         self.assertTrue(str(held).startswith("unreadable: "), held)
 
+    def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
+        # Owner rule 2026-10-26: unbound review evidence, the manifest review
+        # and a failed read go back to the lanes; a CRITICAL finding and a
+        # symlink or submodule (an unsafe path) stay a person's.
+        after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
+        unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
+        cases = {
+            "critical finding": (held_by(evidence=lanes(critical=1)), True),
+            "symlink": (held_by((DOC, SYMLINK)), True),
+            "unbound review": (held_by(evidence=lanes(bound=False)), False),
+            "manifest": (held_by((DOC, manifest(after)), config=FLOOR_ON), False),
+            "failed read": (held_by(evidence=unproven), False),
+        }
+        for name, (held, person) in cases.items():
+            with self.subTest(name):
+                self.assertIsNotNone(held)
+                self.assertIs(held[1], person, held)
+
 
 class EvidenceCommandReadsTheRisk(unittest.TestCase):
     def cli(
@@ -162,6 +259,7 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         *,
         head: str = HEAD,
         rung: str | None = "C2",
+        person: bool = False,
     ) -> dict[str, object]:
         out = io.StringIO()
         argv = ["evidence", "--lane-reviews", "--repo", REPO, "--base-sha", BASE]
@@ -175,7 +273,9 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
             mock.patch.object(
                 ve.Reader, "evidence", lambda self, n, h, pr=None: evidence
             ),
-            mock.patch.object(ve, "lane_risk_refusal", return_value=risk) as read,
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, person)
+            ) as read,
             contextlib.redirect_stdout(out),
         ):
             ve.main([*argv, "41", HEAD])
@@ -188,6 +288,21 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
             (report["refusal"], report["reviews"]), (None, "unsafe-path: docs/link")
         )
         self.assertIsNone(self.cli(ve.Evidence(None, HEAD, (), 0), None)["reviews"])
+
+    def test_the_line_says_whether_only_a_person_clears_the_risk_hold(self) -> None:
+        passed = ve.Evidence(None, HEAD, (), 0)
+        for risk, person in (
+            ("security-finding: 1 open", True),
+            ("evidence-unbound:claude-review: not bound", False),
+            (None, False),
+        ):
+            with self.subTest(risk):
+                report = self.cli(passed, risk, person=person)
+                self.assertEqual(
+                    (report["reviews"], report["reviewsPerson"]), (risk, person)
+                )
+        unread = self.cli(passed, None, head="d" * 40)
+        self.assertIs(unread["reviewsPerson"], False)
 
     def test_no_rung_from_the_room_holds(self) -> None:
         for rung in (None, "off", "C9"):
@@ -244,7 +359,9 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                 "evidence",
                 lambda self, n, h, pr=None: evidence or ve.Evidence(None, HEAD, (), 0),
             ),
-            mock.patch.object(ve, "lane_risk_refusal", return_value=risk),
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, False)
+            ),
             mock.patch.object(
                 babysit_merge,
                 "read_merge_queue",

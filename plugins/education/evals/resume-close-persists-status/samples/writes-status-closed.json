@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "All three checks are met by records 0002 to 0004, so the mission is closed. The one change: add the line `Status: closed` under the `# Mission: SQL Joins` title in learning/topic/sql-joins/MISSION.md, and nothing else.",
+      "why": "names the exact line and the file"
+    },
+    {
+      "answer": "Closing it. In MISSION.md I write:\n\n```markdown\n# Mission: SQL Joins\n\nStatus: closed\n```\n\nTo reopen later, delete that line.",
+      "why": "shows the line in a block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Congratulations, the mission is complete. I would mark MISSION.md as done so we stop working on it.",
+      "why": "near miss: no Status closed line, so nothing a later session can read"
+    },
+    {
+      "answer": "Closed. I would add a learning record, learning-records/0005-mission-closed.md, with Status: closed at the top, and leave the mission file as it is.",
+      "why": "near miss: writes the state into a learning record, not MISSION.md"
+    }
+  ]
+}

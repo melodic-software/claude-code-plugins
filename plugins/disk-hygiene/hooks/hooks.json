@@ -1,5 +1,5 @@
 {
-  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, and hands /disk-hygiene:clean the guard's interpreter and data root when it expands.",
+  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, hands /disk-hygiene:clean the guard's interpreter and data root when it expands, and warns a resumed session that the clean skill's guard is no longer registered.",
   "hooks": {
     "SessionStart": [
       {
@@ -10,6 +10,17 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /disk-hygiene:check DISK_HYGIENE_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /disk-hygiene:check DISK_HYGIENE_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking whether /disk-hygiene:clean ran before this resume..."
           }
         ]
       }
@@ -151,6 +162,10 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "clean-invoked",
               "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/engine_context.py",
               "--plugin-root",
               "${CLAUDE_PLUGIN_ROOT}"

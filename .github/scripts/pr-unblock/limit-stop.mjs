@@ -3,6 +3,9 @@
 // it is the gate's completed neutral skip for an untrusted trigger, or a run
 // the usage limit stopped whose limit has reset: the lane's next trigger then
 // dispatches it again, at most `limits.limit-stops-per-head` times on one head.
+// A run whose credential was refused (class `auth`, a 401) is a limit stop
+// too: the next run on the same credential fails the same way, so the head
+// waits `fallback-reset` hours instead of spending its stops at once.
 //
 // A limit stop is read only from a failed run's lane record, which
 // report-check-run writes from runner-computed outputs. The record is the first
@@ -38,19 +41,39 @@ function summaryRecord(run) {
   return { failureClass: match[3] ?? "", resets: match[4] ?? "" };
 }
 
-// When the limit that stopped the failed `run` resets (epoch ms), or null when
-// its lane record does not mark it a limit stop. The stated reset is held
+// The lane record classes that stop a run until a reset.
+const STOP_CLASSES = new Set(["rate-limit", "auth"]);
+
+// The failed `run`'s limit stop as { failureClass, resetsAt } (epoch ms), or
+// null when its lane record does not mark it one. The stated reset is held
 // within the limits' clamp after the run ended.
-export function limitResetsAt(run, limits = LIMIT_DEFAULTS) {
+export function limitStop(run, limits = LIMIT_DEFAULTS) {
   const ended = Date.parse(run.completed_at ?? "");
   if (!Number.isFinite(ended) || run.conclusion !== "failure") {
     return null;
   }
   const summary = summaryRecord(run);
-  if (summary?.failureClass !== "rate-limit") {
+  if (!STOP_CLASSES.has(summary?.failureClass)) {
     return null;
   }
-  return clampReset(summary.resets ? Date.parse(summary.resets) : null, ended, limits);
+  return { failureClass: summary.failureClass, resetsAt: clampReset(summary.resets ? Date.parse(summary.resets) : null, ended, limits) };
+}
+
+// When the limit that stopped the failed `run` resets (epoch ms), or null when
+// it is no limit stop.
+export const limitResetsAt = (run, limits = LIMIT_DEFAULTS) => limitStop(run, limits)?.resetsAt ?? null;
+
+// The limit stop among `runs` that has not reset by `now` and resets last, or
+// null: what a dispatcher names when it skips a head that waits on one.
+export function pendingStop(runs, { now, limits = LIMIT_DEFAULTS }) {
+  let pending = null;
+  for (const run of runs) {
+    const stop = limitStop(run, limits);
+    if (stop && now < stop.resetsAt && !(pending?.resetsAt >= stop.resetsAt)) {
+      pending = stop;
+    }
+  }
+  return pending;
 }
 
 const untrustedSkip = (run) =>

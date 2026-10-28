@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, limitResetsAt, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
 
 const HOUR = 3_600_000;
 const ENDED = "2026-10-17T10:00:00Z";
@@ -32,6 +32,26 @@ test("a record ending in the models and profile tokens is still read", () => {
 test("a stated reset is held between one hour and seven days after the run ended", () => {
   assert.equal(limitResetsAt(posted(`${LIMIT} resets=2026-10-01T00:00:00Z`)), ended + HOUR);
   assert.equal(limitResetsAt(posted(`${LIMIT} resets=2027-01-01T00:00:00Z`)), ended + 7 * 24 * HOUR);
+});
+
+// A 401 fails every run on that credential until a person re-sets it, so it
+// waits like a usage limit that states no reset, and counts toward the cap.
+test("a refused credential (class auth) is a limit stop that resets fallback-reset hours after the run ended", () => {
+  const AUTH = "lane=pr-unblock activity=resolve-conflicts class=auth turns=1";
+  assert.equal(limitResetsAt(posted(AUTH)), ended + 5 * HOUR);
+  const stops = [1, 2, 3].map((id) => posted(AUTH, { id }));
+  assert.equal(anyHandles(stops.slice(0, 1), { now: ended + 5 * HOUR - 1, failuresRetry: true }), true);
+  assert.equal(anyHandles(stops.slice(0, 2), { now: ended + 5 * HOUR, failuresRetry: true }), false);
+  assert.equal(anyHandles(stops, { now: ended + 5 * HOUR, failuresRetry: true }), true);
+});
+
+test("pendingStop names the unreset stop that resets last, and nothing once all have reset", () => {
+  const auth = posted("lane=pr-unblock activity=resolve-conflicts class=auth", { id: 1 });
+  const limit = posted(LIMIT_LINE, { id: 2 });
+  assert.deepEqual(pendingStop([limit, auth], { now: ended }), { failureClass: "auth", resetsAt: ended + 5 * HOUR });
+  assert.deepEqual(pendingStop([limit, auth], { now: ended + 4 * HOUR }), { failureClass: "auth", resetsAt: ended + 5 * HOUR });
+  assert.equal(pendingStop([limit, auth], { now: ended + 5 * HOUR }), null);
+  assert.equal(pendingStop([run()], { now: ended }), null);
 });
 
 test("another class, or a failed run with no summary record, is no limit stop", () => {

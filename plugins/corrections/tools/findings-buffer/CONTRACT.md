@@ -1,8 +1,9 @@
 # Findings buffer contract
 
 A findings buffer is an append-only pool of observations that unattended scanners write and nobody
-fixes on sight. A person reads the grouped view of the pool later. The buffer stores rows and
-returns them; it does not interpret them.
+fixes on sight. A person reads the grouped view of the pool later, through the reader
+`scripts/group-findings.mjs` or `/corrections:codify group`. The buffer stores rows and returns
+them; it does not interpret them.
 
 This contract follows the shape of the tracker seam
 (`plugins/work-items/tools/work-item-tracker/CONTRACT.md`): two verbs per adapter, a
@@ -92,7 +93,7 @@ only an adapter that keeps rows on the machine until routing to a hosted sink ex
 
 | Adapter | Storage |
 |---|---|
-| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append together with a `.work/buffer/.gitignore` holding `*`, so rows never reach git. Both verbs refuse (exit `2`, nothing stored) when `.work`, `.work/buffer`, the lock or `findings.jsonl` is a symlink, or the buffer resolves outside the repository. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`, or where `flock` is absent (macOS) a `.work/buffer/.lockdir` directory holding the holder's pid. The holder removes that directory on exit, and on HUP, INT or TERM, while its pid file still holds the holder's pid. There is no automatic takeover: on a host without `flock`, an appender killed with SIGKILL (or a power loss) leaves the directory behind, and every later append exits `1` naming it (at once when its pid is no longer running) until an operator removes it. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
+| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append together with a `.work/buffer/.gitignore` holding `*`, so rows never reach git. Both verbs refuse (exit `2`, nothing stored) when `.work`, `.work/buffer`, the lock or `findings.jsonl` is a symlink, or the buffer resolves outside the repository. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`; where `flock` is absent (macOS), perl's `flock` on the same file when perl calls flock(2) itself (`$Config{d_flock}`); where neither is available, a `.work/buffer/.lockdir` directory holding the holder's pid. A flock(2) lock ends when every process holding it has exited, so an appender killed with SIGKILL holds up no later append. The holder removes the `.lockdir` directory on exit, and on HUP, INT or TERM, while its pid file still holds the holder's pid. That directory has no automatic takeover: on a host with neither, an appender killed with SIGKILL (or a power loss) leaves it behind, and every later append exits `1` naming it (at once when its pid is no longer running) until an operator removes it. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
 
 ## Core
 

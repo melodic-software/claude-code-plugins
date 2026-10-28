@@ -442,12 +442,12 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
 const noticeShows = (st: State, surface: string) =>
   st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// The module's band row: 5h <x>% | 7d <y>%.
+// The module's band row: rate-limit-guard: 5h <x>% | 7d <y>%, led by the plugin's name so the row says whose it is.
 export const bandText = (reading: Reading | undefined) =>
-  WINDOWS.map(({ kind, short }) => {
+  `rate-limit-guard: ${WINDOWS.map(({ kind, short }) => {
     const limit = reading?.get(kind)
     return `${short} ${limit === undefined ? '-' : `${limit.percentUsed}%`}`
-  }).join(' | ')
+  }).join(' | ')}`
 
 // What /rate-limit-guard with no argument prints.
 async function statusText($: EngineInterface, st: State, cfg: Config) {

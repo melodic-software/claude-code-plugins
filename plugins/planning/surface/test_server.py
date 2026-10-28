@@ -153,6 +153,37 @@ class ServerCase(unittest.TestCase):
         return run_round(self.dir, *args)
 
 
+class TestBuild(ServerCase):
+    """The server reports the plugin version and source hash it started from, and the page carries
+    the build on disk, so a page newer than its server can tell (gap G10)."""
+
+    def test_state_reports_the_plugin_version_and_source_hash(self):
+        from session_bridge import plugin_build
+
+        manifest = HERE.parent / ".claude-plugin" / "plugin.json"
+        st = self.state()
+        self.assertEqual(
+            st["pluginVersion"],
+            json.loads(manifest.read_text(encoding="utf-8"))["version"],
+        )
+        self.assertRegex(st["sourceHash"], r"^[0-9a-f]{64}$")
+        self.assertEqual(st["sourceHash"], plugin_build(HERE)["sourceHash"])
+
+    def test_the_session_file_and_the_page_carry_the_same_build(self):
+        st = self.state()
+        s = session(self.dir)
+        self.assertEqual(
+            (s["pluginVersion"], s["sourceHash"]), (st["pluginVersion"], st["sourceHash"])
+        )
+        code, page, _ = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn(
+            f'<meta name="interview-build" content="{st["pluginVersion"]} {st["sourceHash"]}">',
+            page,
+        )
+        self.assertNotIn("%%", page.split("<style>", 1)[0])
+
+
 class TestApi(ServerCase):
     """The prototype API suite, one check per method, in order (the checks share one server's state)."""
 
@@ -1508,6 +1539,28 @@ class TestStateFallback(unittest.TestCase):
         self.assertFalse(hub.read_state()[1])
 
 
+class TestSignatureWaiter(unittest.TestCase):
+    """A waiter arriving or leaving inside the listen grace, lease held, still changes the
+    signature, so the open page gets the frame that turns its header Live or back to working."""
+
+    def test_a_waiter_inside_the_grace_changes_the_signature(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-sig-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        with hub.cond:
+            hub.claim("w1")
+            hub.lease["inflight"] -= 1
+        hub.last_wait = time.time()
+        before = hub.signature()
+        hub.waiters = 1
+        self.assertEqual(hub.listener()["state"], "listening")
+        self.assertNotEqual(hub.signature(), before)
+        hub.waiters = 0
+        self.assertEqual(hub.signature(), before)
+
+
 class TestEventStreamCap(ServerCase):
     """At most MAX_STREAMS event streams at once: one more is 503 until a stream closes."""
 
@@ -1799,6 +1852,45 @@ class TestQuestionShapeFlags(WaitCase):
         raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
         self.assertNotIn("restates", raw)
         self.assertNotIn('"withheld"', raw)
+
+
+class TestSupersedeChain(WaitCase):
+    """G6: a question re-issued twice carries its whole supersede chain, derived in memory, so the
+    page can show every earlier id and count carried rounds from the first."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("Q5", round=2, stage="interview", supersededBy="Q35"),
+            question("Q35", round=4, stage="interview", supersedes="Q5", supersededBy="Q61"),
+            question("Q61", round=5, stage="interview", supersedes="Q35"),
+            question("L1", round=1, supersedes="L2"),
+            question("L2", round=1, supersedes="L1"),
+            question("U1", round=3, supersedes="nope"),
+        )
+
+    def test_a_three_link_chain_lists_both_earlier_questions_first_asked_first(self):
+        self.assertEqual(
+            self.q("Q61")["supersedesChain"],
+            [
+                {"id": "Q5", "round": 2, "stage": "interview"},
+                {"id": "Q35", "round": 4, "stage": "interview"},
+            ],
+        )
+        self.assertEqual(
+            self.q("Q35")["supersedesChain"], [{"id": "Q5", "round": 2, "stage": "interview"}]
+        )
+        self.assertNotIn("supersedesChain", self.q("Q5"))
+
+    def test_a_cycle_or_an_unknown_id_ends_the_walk(self):
+        self.assertEqual(self.q("L1")["supersedesChain"], [{"id": "L2", "round": 1}])
+        self.assertNotIn("supersedesChain", self.q("U1"))
+
+    def test_the_chain_stays_out_of_the_file(self):
+        self.q("Q61")
+        raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
+        self.assertNotIn("supersedesChain", raw)
 
 
 class TestConfirm(WaitCase):
@@ -2537,6 +2629,56 @@ class TestArchivedPrerequisiteIsMet(OpsCase):
         self.assertEqual(code, 200, data)
         self.assertEqual(data["accepted"], ["B", "C"])
         self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
+
+
+class TestOffPathQuestionTakesNoDecision(OpsCase):
+    """#9715: a decision on a superseded question is 409 superseded, `by` naming the end of its
+    supersededBy chain, and one on an archived question is 409 archived; nothing is written. Ask
+    still saves, and accept-audit leaves a superseded question out."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("Q59", supersededBy="Q60"),
+            question("Q60", supersededBy="Q61"),
+            question("Q61"),
+            question("Q62", archived=gone),
+            question("Q63", archived=gone, supersededBy="Q60"),
+        )
+
+    def test_1_a_decision_is_409_and_names_the_end_two_hops_away(self):
+        decisions = (
+            ("accept", {}),
+            ("alt", {"alt": "a"}),
+            ("own", {"text": "Mine."}),
+            ("defer", {}),
+            ("hedged", {"text": "If it holds."}),
+            ("reopen", {}),
+        )
+        for kind, extra in decisions:
+            code, data = self.post({"id": "Q59", "kind": kind, **extra})
+            self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q63", "kind": "accept", "contentRev": 0})
+        self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q62", "kind": "accept"})
+        self.assertEqual((code, data), (409, {"error": "archived"}))
+        events = self.state()["responses"]["events"]
+        self.assertFalse(any(e.get("id") in ("Q59", "Q62", "Q63") for e in events))
+
+    def test_2_ask_still_saves_and_the_end_takes_the_decision(self):
+        code, data = self.post({"id": "Q59", "kind": "ask", "text": "Why replace it?"})
+        self.assertEqual(code, 200, data)
+        self.decide("Q61")
+
+    def test_3_accept_audit_leaves_a_superseded_question_out(self):
+        items = [{"id": "Q60", "contentRev": 0}]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        skipped = [{"id": "Q60", "reason": "ineligible"}]
+        self.assertEqual(
+            (code, data), (409, {"error": "nothing accepted", "skipped": skipped})
+        )
 
 
 class TestFrontierLockConfirm(OpsCase):
@@ -3609,6 +3751,74 @@ class TestSettleBurstCap(unittest.TestCase):
         r, took = self.settle_with(range(1, 1000), deadline=time.time() + 1.2)
         self.assertGreater(r["seq"], 1)
         self.assertLess(took, 1.2 + 0.3)
+
+
+class TestProposal(OpsCase):
+    """#9694: a proposed question is `proposed` until a proposal event answers it: accept or edit
+    make it `open`, decline makes it `archived`, and no decision lands on it before then."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_1_a_proposed_question_takes_no_decision(self):
+        self.apply_ops(
+            {"op": "propose", "id": "P1", "short": "Pause", "title": "Pause on failure?"},
+            {"op": "propose", "id": "P2", "short": "Pager", "title": "Page on-call?"},
+            {"op": "propose", "id": "P3", "short": "Scope", "title": "One region?"},
+        )
+        self.assertEqual(
+            self.states(),
+            {"A": "open", "P1": "proposed", "P2": "proposed", "P3": "proposed"},
+        )
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_2_accept_makes_it_open_and_a_second_answer_is_refused(self):
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P1"], "open")
+        # Claude has written no recommendation yet, so there is nothing to accept.
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "proposal answered")
+        self.assertEqual(self.states()["P1"], "open")
+
+    def test_3_decline_archives_it(self):
+        code, data = self.post({"id": "P2", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P2"], "archived")
+        code, data = self.post({"id": "P2", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_4_an_edit_needs_its_wording(self):
+        for text in (" ", "Every region?\nOr one?"):
+            code, data = self.post({"id": "P3", "kind": "proposal", "alt": "edit", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.states()["P3"], "proposed")
+        code, data = self.post(
+            {"id": "P3", "kind": "proposal", "alt": "edit", "text": "Every region?"}
+        )
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P3"], "open")
+
+    def test_5_only_a_proposed_question_takes_a_proposal(self):
+        code, data = self.post({"id": "A", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "maybe"})
+        self.assertEqual(code, 400, data)
+
+    def test_6_the_log_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("state" in q for q in doc["questions"]))
 
 
 if __name__ == "__main__":

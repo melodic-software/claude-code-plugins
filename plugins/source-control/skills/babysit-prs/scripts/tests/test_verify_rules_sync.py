@@ -171,6 +171,9 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         f"{BASE}-I7": None,
         f"{BASE}-i7,8": None,
         f"{BASE}-extra": None,
+        f"pr-verify-41-{SHA}-pass": set(),
+        f"pr-verify-41-{SHA}-pass-notes": set(),
+        f"pr-verify-41-{SHA}-pass-notes-{DIGEST}": set(),
         f"pr-verify-41-{SHA}-pass-i7": None,
         f"pr-verify-41-{SHA}-pass-notes-i7": None,
         f"pr-verify-41-{SHA}-pass-{DIGEST}-i7": None,
@@ -198,13 +201,19 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
     def test_every_script_reader_takes_the_same_names(self) -> None:
         # The gate (`verdict_name`), the resolver (`isVerdictName`, the
         # pattern it checks names against; `judged` builds exact names and
-        # reads none) and the notes poster (`isFailName`).
+        # reads none) and the notes poster (`readVerdict`, given a verdict
+        # file that records what the name names).
         notes = RESOLVER.parents[1] / "pr-unblock/verify-notes.mjs"
         script = (
-            f"import {{ isVerdictName }} from {json.dumps(RESOLVER.as_uri())};"
-            f" import {{ isFailName }} from {json.dumps(notes.as_uri())};"
+            f"import {{ isVerdictName, NAME }} from {json.dumps(RESOLVER.as_uri())};"
+            f" import {{ readVerdict }} from {json.dumps(notes.as_uri())};"
             " const names = JSON.parse(process.argv[1]);"
-            " console.log(JSON.stringify(names.map((n) => [isVerdictName(n), isFailName(n)])));"
+            " const reads = (n) => { const m = NAME.exec(n); if (!m) return false;"
+            " const issues = (m[4] ? m[4].split('.') : []).map((number) => ({ number: Number(number) }));"
+            " const text = JSON.stringify({ verdict: m[3], pr: Number(m[1]), head_sha: m[2], head_ref: 'feat/x',"
+            " linked_issues: issues, summary: 's', notes: [] });"
+            " try { readVerdict(n, text); return true; } catch { return false; } };"
+            " console.log(JSON.stringify(names.map((n) => [isVerdictName(n), reads(n)])));"
         )
         proc = subprocess.run(
             ["node", "--input-type=module", "-e", script, json.dumps(list(self.NAMES))],
@@ -224,9 +233,10 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(resolver_takes, issues is not None)
                 self.assertEqual(notes_take, issues is not None)
 
-    def test_pr_feedback_dispatch_selects_the_same_fail_names(self) -> None:
-        # Its listing keeps every FAIL-shaped name; its strict filter keeps
-        # the ones the readers take, and any other fails the run.
+    def test_pr_feedback_dispatch_selects_the_same_names(self) -> None:
+        # Its listing keeps every verdict-shaped name, a pass's included; its
+        # strict filter keeps the ones the readers take, and any other fails
+        # the run.
         if not shutil.which("jq"):
             self.skipTest("jq not installed")
         workflow = (
@@ -247,14 +257,13 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             )
             return json.loads(proc.stdout)
 
-        fail_shaped = [n for n in names if "-pass" not in n]
         listed = jq(
             f"[{listing[0]}]",
             {"artifacts": [{"expired": False, "name": n} for n in names]},
         )
         # Any digits for the number, so an 11-digit one is listed and fails
         # the strict filter, as the gate holds on it.
-        self.assertEqual(listed, fail_shaped)
+        self.assertEqual(listed, names)
         self.assertEqual(
             jq(f"[.[] | {strict[0]}]", names),
             [n for n, issues in self.NAMES.items() if issues is not None],

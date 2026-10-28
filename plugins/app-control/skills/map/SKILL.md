@@ -16,7 +16,7 @@ e.g. /app-control:map create storefront, /app-control:map check .claude/skills/c
 
 Write a project's control skill, the files `/app-control:drive` reads to run the app. This skill is
 their only writer and never drives the app itself: it calls drive. The result follows
-[control-skill.md](../../reference/control-skill.md); read it before writing. Create writes files,
+[`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md); read it before writing. Create writes files,
 commits nothing, and never overwrites a control skill; check writes nothing; refresh commits only
 to its upkeep branch.
 
@@ -43,22 +43,22 @@ repository). It never changes what map writes, where, or which question or floor
 
 The control skill goes to `.claude/skills/control-<app slug>/`, which drive reads from disk, or to
 a `--dir` that names another such directory. The slug rule, the location rules and the real-path
-checks are in [reference/naming.md](reference/naming.md). A refused `--dir` never stops the run:
+checks are in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md). A refused `--dir` never stops the run:
 name the value and the rule, and use the default.
 
 Where the skill would go already holds a `SKILL.md`, stop and write nothing. Report the existing
 skill and the app its hub names; when that is another app, give the directory this app needs. A
 directory with files but no `SKILL.md` is an earlier create that stopped before its hub: resume it,
 and report each file that was already there. A `cli/` or `config/defaults.json` already there is
-not this run's: report it, and let the Floors check in prove.md decide the floor-enforcement line.
+not this run's: report it, and let the Floors check in `${CLAUDE_SKILL_DIR}/reference/prove.md` decide the floor-enforcement line.
 
 ### 2. Discover
 
-Walk every row of [reference/discovery.md](reference/discovery.md), read-only, before asking
+Walk every row of [`${CLAUDE_SKILL_DIR}/reference/discovery.md`](reference/discovery.md), read-only, before asking
 anything. Each row ends `found`, with the file or command that showed it, or `open`. Discovery
 launches nothing.
 
-Then check the app runs, with the step 2 calls in [reference/prove.md](reference/prove.md), unless
+Then check the app runs, with the step 2 calls in [`${CLAUDE_SKILL_DIR}/reference/prove.md`](reference/prove.md), unless
 the Side effects or Shared systems row is `open` or found that a local run sends or writes to a
 shared system: then launch nothing until a person answers it, and under `--unattended` list it as
 an open question. When
@@ -72,7 +72,8 @@ Ask only the `open` rows and the choices only a person makes: which three to fiv
 the write policy per environment and per external system; the test accounts, and which must never
 be locked out; the recipient allowlist per side-effect channel, or never send; a flat map or one
 grouped by module; which journeys this repository owns and which belong to a related system's
-control skill; the driver CLI's language, recommending the one the repository already uses.
+control skill, with that system's repository; which environment is production; the driver CLI's
+language, recommending the one the repository already uses.
 
 When `/planning:interview` is available in this session, invoke it through the Skill tool with
 these questions. Otherwise ask inline, one question at a time, each with a recommendation. A
@@ -93,10 +94,17 @@ drive finds a control skill by its hub.
   command, never a click.
 - **Config**, per the contract's Config section: `config/defaults.json` with its fields and every
   safety floor at its safe value, credential variable names only, and `config/.gitignore` holding
-  `local.json`.
+  `local.json`. Environment entries come from the Environments and Dependencies rows and the
+  answers, per the contract's "Environments".
+- **Integrated apps**, per the contract's section: a hub line each, steps included by reference,
+  never copied, `pins.<app>` set to the other checkout's HEAD commit only as the contract's Pin
+  rule allows (reported with its subject), and nothing written into another checkout beyond what
+  that rule lets its fetch write. One with no control skill is reported
+  with `/app-control:map create` to run in its repository.
 - **Driver CLI**, per the contract's "Writing the driver CLI", and required when a seeded feature
   has a send, sign-in or write step. The CLI enforces the safety floors and refuses a loosening
-  from the local, environment or flag layers with exit 4. When `/developer-experience:build-cli` is
+  from the local, environment or flag layers with exit 4, and writes nothing inside its
+  control-skill folder (the contract's "Writing the driver CLI" says why). When `/developer-experience:build-cli` is
   available in this session, invoke it through the Skill tool to write the CLI; otherwise write a
   documented script.
 - **Hub**, per the contract's Hub section, with the app's name, the driving tool, and
@@ -104,11 +112,11 @@ drive finds a control skill by its hub.
   recipe, first found: a `run-<name>` project skill; a recorded `.claude/skills/verify/SKILL.md`;
   else the documented start command, and offer the person `/run-skill-generator` to type. Our rule:
   name a recipe, never copy it or write into its directory; the upstream behavior of those two is
-  a pointer record in [reference/naming.md](reference/naming.md#upstream-recipes). Ready reads
+  a pointer record in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md#upstream-recipes). Ready reads
   `build: not exposed` when the app shows no build identifier, and checks the rest. When a test
   harness hosts its own instance, Ready checks the harness's build and the services it needs.
 - **Pointer.** One line naming the control skill, in the instruction file the repository treats as
-  its source, chosen by "Pointer target" in [reference/naming.md](reference/naming.md). Write it
+  its source, chosen by "Pointer target" in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md). Write it
   there only, never in both, and never in a new file when one exists.
 
 ### 5. Prove
@@ -125,7 +133,7 @@ form, `blocked: <reason>`, with its entry point, never a projected or guessed re
 When the tool the hub names cannot run on this host, the outcome is
 `blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
 
-[reference/prove.md](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
+[`${CLAUDE_SKILL_DIR}/reference/prove.md`](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
 calls, and the evidence and no-orphan checks that follow the run. A lesson the run learns is
 placed per Lessons below.
 
@@ -169,7 +177,7 @@ placed per Lessons below.
 
 ## Refresh
 
-Follow [reference/refresh.md](reference/refresh.md) for every step. A pass ends `clean`, `changed`
+Follow [`${CLAUDE_SKILL_DIR}/reference/refresh.md`](reference/refresh.md) for every step. A pass ends `clean`, `changed`
 or `blocked`, and edits only the control skill's directory, plus the legacy map directory a
 conversion moves out of.
 
@@ -178,10 +186,10 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" check --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    A pending conversion, a feature id or a handed-in lesson runs regardless of a `skip` line.
 3. **Refuse** an attended-only control skill when unattended.
-4. **Source wave.** One read-only subagent per feature file, in waves capped at 6, each filled to
-   the cap before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy
-   map is converted first (an attended pass asks before), uncommitted on the upkeep branch, so
-   both passes read the control skill.
+4. **Source wave.** One `app-control:source-reader` agent (Read, Grep and Glob only) per feature
+   file, in waves capped at 6, each filled to the cap before the next starts: 8 features run as 6
+   then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
+   uncommitted on the upkeep branch, so both passes read the control skill.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each drive, and every
    evidence path checked after cleanup.

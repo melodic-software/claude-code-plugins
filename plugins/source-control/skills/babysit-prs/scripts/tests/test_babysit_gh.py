@@ -26,6 +26,10 @@ class GhCaptureTests(unittest.TestCase):
     `env_overrides` onto the inherited environment for that call alone
     (`babysit_util.run_command`); with none the child inherits it as is."""
 
+    def setUp(self) -> None:
+        # The limits are read before the subprocess seam is faked.
+        gh.warm_rate_guard()
+
     def capture(self, **kwargs: Any) -> tuple[Any, Any]:
         failed = subprocess.CompletedProcess(["gh"], 1, "", "gh: boom (HTTP 502)")
         with (

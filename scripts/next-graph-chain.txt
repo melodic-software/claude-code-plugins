@@ -8,7 +8,7 @@ planning:brainstorm | entry: diverges a rough problem before any scope; /session
 planning:prd
 planning:interview
 planning:wayfind
-planning:questionnaire
+planning:questionnaire | entry: /planning:interview and /planning:prd recommend it beside the next step, not in place of it, so no successor section names it
 planning:audit-answers
 planning:design
 planning:design-handoff

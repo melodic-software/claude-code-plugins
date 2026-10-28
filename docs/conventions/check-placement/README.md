@@ -246,7 +246,12 @@ clone runs `git config core.hooksPath .githooks` once; setup does it as a D1 dec
 entries under a plain-shared repository go to `.githooks/local/<event>.d/`, excluded through
 `git rev-parse --git-path info/exclude`. A teammate who never runs that command gets no hooks, so
 for a team with non-Claude authors, recommend lefthook or husky: both install the hooks from
-committed config through their own install step.
+committed config through their own install step. Setting `core.hooksPath` also activates what
+others put under `.githooks/`, so before the `hooks-path` decision `plan` returns
+`{kind: "shared-entries", files}` listing each `<event>.d/` marker other than one of the plugin's
+own entries naming its script, each `*.pre-checks` hook, each other hook file (a name with no dot
+that is not the dispatcher) and each tracked file under `.githooks/local/`; with none present it
+returns no such decision.
 
 **Committed hook config runs the checked-out branch's code.** Lefthook and husky read their config,
 and plain shared hooks read `.githooks/`, from the branch that is checked out. Once a clone has

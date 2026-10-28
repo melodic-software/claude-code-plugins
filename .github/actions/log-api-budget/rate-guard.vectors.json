@@ -240,6 +240,61 @@
       "name": "a retry-after that would put the reset past 12 digits stops at the largest 12-digit second",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": { "retry-after": "999999999999" }, "body": {} },
       "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 999999999999, "pool": "*" }
+    },
+    {
+      "name": "limit-cap 1000 under a header limit of 5000: 950 used leaves 50 of the planned 1000, under the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "limit-cap 1000 under a header limit of 5000: 500 used leaves 500 planned, over the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4500", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "a header limit of 500 under limit-cap 1000 plans to 500: 40 left is under the floor",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "500", "x-ratelimit-remaining": "40", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "past the planned 1000 with header remaining left: low, but no stop, which reads the header",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "header remaining 0 under limit-cap 1000 still stops the resource until x-ratelimit-reset",
+      "limit_cap": 1000,
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792749000", "x-ratelimit-resource": "core" },
+        "body": []
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792749000, "pool": "core" }
     }
   ],
   "stop_files": [

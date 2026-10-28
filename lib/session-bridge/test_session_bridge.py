@@ -174,6 +174,14 @@ class TestPort(unittest.TestCase):
         self.assertEqual(relay.unhandled(relay.read_log()), [])
         self.assertEqual(relay.listener()["state"], "idle")
 
+    def test_the_relay_line_puts_the_note_before_the_events(self):
+        relay = sb.ChannelRelay(
+            tempfile.gettempdir(), "toy", ["bash", "toy.sh"], None, "w"
+        )
+        relay.write_log({"seq": 1, "events": [{"seq": 1, "text": "hi"}]})
+        raw = sb.dumps_line(relay.take())
+        self.assertLess(raw.index('"note":'), raw.index('"events":'))
+
     def test_names_follow_the_app_name(self):
         self.assertEqual(
             sb.session_files("interview"),
@@ -221,11 +229,59 @@ class TestSessionFiles(BridgeCase):
         self.assertIn(f"PORT={self.port}\n", env)
         self.assertIn(f"TOKEN={self.hub.token}\n", env)
 
+    def test_session_file_and_ping_carry_the_build_taken_at_start(self):
+        build = sb.plugin_build()
+        self.assertEqual(set(build), {"pluginVersion", "sourceHash"})
+        self.assertRegex(build["sourceHash"], r"^[0-9a-f]{64}$")
+        s = json.loads((self.dir / ".toy-session.json").read_text(encoding="utf-8"))
+        self.assertEqual({k: s[k] for k in build}, build)
+        _, ping, _ = self.request("GET", "/api/ping", token=False)
+        self.assertEqual({k: ping[k] for k in build}, build)
+        self.assertIsNone(sb.stale_build(s))
+
     @unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")
     def test_session_files_are_owner_only(self):
         for f in sb.session_files("toy"):
             mode = stat.S_IMODE((self.dir / f).stat().st_mode)
             self.assertEqual(mode, 0o600, f)
+
+
+class TestBuild(unittest.TestCase):
+    """plugin_build reads a plugin copy's manifest version and hashes its non-test .py files;
+    stale_build says why a recorded build is not that one."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="sb-build-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / ".claude-plugin").mkdir()
+        self.manifest = self.tmp / ".claude-plugin" / "plugin.json"
+        self.manifest.write_text('{"name": "p", "version": "1.2.3"}', encoding="utf-8")
+        self.app = self.tmp / "app"
+        self.app.mkdir()
+        (self.app / "a.py").write_text("A = 1\n", encoding="utf-8")
+        (self.app / "test_a.py").write_text("T = 1\n", encoding="utf-8")
+
+    def test_version_and_hash_of_the_source_only(self):
+        build = sb.plugin_build(self.app)
+        self.assertEqual(build["pluginVersion"], "1.2.3")
+        (self.app / "test_a.py").write_text("T = 2\n", encoding="utf-8")
+        (self.app / "notes.txt").write_text("x", encoding="utf-8")
+        self.assertEqual(sb.plugin_build(self.app), build)
+        (self.app / "a.py").write_text("A = 2\n", encoding="utf-8")
+        self.assertNotEqual(sb.plugin_build(self.app)["sourceHash"], build["sourceHash"])
+
+    def test_no_manifest_reads_as_no_version(self):
+        self.manifest.unlink()
+        self.assertIsNone(sb.plugin_build(self.app)["pluginVersion"])
+
+    def test_stale_build_names_the_recorded_and_installed_versions(self):
+        build = sb.plugin_build(self.app)
+        self.assertIsNone(sb.stale_build(dict(build, pid=1), self.app))
+        why = sb.stale_build(dict(build, pluginVersion="1.2.2"), self.app)
+        self.assertIn("1.2.2", why)
+        self.assertIn("1.2.3", why)
+        self.assertIn("source", sb.stale_build(dict(build, sourceHash="0" * 64), self.app))
+        self.assertIn("records none", sb.stale_build({"pid": 1, "port": 2}, self.app))
 
 
 class TestGuards(BridgeCase):
@@ -291,6 +347,20 @@ class TestLongPoll(BridgeCase):
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertTrue(self.hub.read_log()["events"][0]["deliveredAt"])
         self.assertEqual(self.hub.listener()["state"], "listening")
+
+    def test_the_wait_answer_puts_the_note_before_the_events(self):
+        self.hub.append("hi")
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request(
+                "GET",
+                "/api/wait?after=handled&timeout=1",
+                headers={self.header: self.hub.token},
+            )
+            raw = conn.getresponse().read().decode("utf-8")
+        finally:
+            conn.close()
+        self.assertLess(raw.index('"note":'), raw.index('"events":'))
 
     def test_a_quiet_wait_times_out_with_no_events(self):
         code, body, _ = self.request("GET", "/api/wait?after=handled&timeout=1")

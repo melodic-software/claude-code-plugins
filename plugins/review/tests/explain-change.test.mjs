@@ -727,7 +727,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   /** A fresh page and data dir; `sidecar` seeds the data dir. */
   const setup = (pageData = sample, sidecar = null) => {
     n += 1;
-    const dir = mkdtempSync(join(tmpdir(), "explain-hosted-"));
+    const dir = mkdtempSync(join(scratch, "explain-hosted-"));
     const page = join(dir, "page.html");
     writeFileSync(page, buildDigest(pageData));
     const data = join(scratch, `data-${n}`);

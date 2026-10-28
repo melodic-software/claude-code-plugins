@@ -6,8 +6,9 @@ Generated view over the native-overlap store. The block between the markers belo
 **Never hand-edit it.** Verdicts, evidence, and recheck triggers are edited in the store; this
 file is output.
 
-Every verdict here is a human's. Rows are recorded per overlap between a native Claude Code surface
-and a component in this repository, and each one carries the observable event that obliges
+Every verdict here was written by a person or by a session acting on the owner's recorded
+direction, never by an unattended run. Rows are recorded per overlap between a native Claude Code
+surface and a component in this repository, and each one carries the observable event that obliges
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See [`docs/conventions/native-references/`](conventions/native-references/README.md).
 
@@ -457,12 +458,13 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)
   - invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)
+  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction sets no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row), so `native.docs_markers` lists gated and the changelog's native-drift pass does not compare it
+  - 2.1.296 recheck (2026-10-25, item #6885): the 2.1.265..2.1.296 changelog apply's native-drift pass extracted skill-doctor with model-invocation-disabled and no gated flag; the docs pointers below, reread, still state the same version and feature-flag gate, so gated stands
   - detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30
-  - docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
+  - docs pointers (read 2026-10-25, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
   - our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction of the installed native build; every lane ok, overall degraded only because 2.1.285 differs from the validated 2.1.287, so counts are floors) (2026-10-02)
-- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-02)
+- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-25)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -689,7 +691,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup by default and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
+- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup either way and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
 - **Integration:** `suggest`
 - **Native surface:** `design` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -900,7 +902,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `prototype` → `prototype:explore-directions`
 
-- **Verdict:** `defer`: Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants on the real stack. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `defer`: Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants as a local HTML mockup by default, or on the real stack on request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
 - **Integration:** `route`
 - **Native surface:** `prototype` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -1165,7 +1167,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `ClaudeDesign` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants on the real stack or as a local HTML mockup and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
+- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants as a local HTML mockup by default, or on the real stack on request, and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
 - **Integration:** `route`
 - **Native surface:** `ClaudeDesign` (built-in tool; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -1307,7 +1309,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `playground` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (real header, real data, real routes) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.
+- **Verdict:** `complementary`: Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (a local mockup in the app's own look by default, or the real header, data and routes on request) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.
 - **Integration:** `route`
 - **Native surface:** `playground` (first-party marketplace plugin; markers: none)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -1338,7 +1340,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ## Dismissed
 
-Pairs a human ruled are not an overlap. `detect` suppresses each one until either side's fingerprint changes, then lists it again flagged "resurfaced: description changed".
+Pairs ruled not an overlap by a person or a session acting on the owner's recorded direction, never by an unattended run. `detect` suppresses each one until either side's fingerprint changes, then lists it again flagged "resurfaced: description changed".
 
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|

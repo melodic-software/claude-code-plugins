@@ -1,0 +1,9 @@
+steps:
+  - id: open-billing
+    action: goto /billing
+  - id: press-export
+    action: click button "Export"
+  - id: check-download
+    action: expect download invoices.csv
+  - include: add-note.yaml
+    kind: write

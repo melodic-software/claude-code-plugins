@@ -36,6 +36,10 @@ async page => {
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
+    // #7970: with no stored choice a wide screen opens the side panels pinned; these phases were written for the overlay, so they store Unpin first
+    await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
+    if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
+    await page.click("#flyClose"); await page.waitForTimeout(150);
     // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
     const fresh = await page.context().newPage();
     await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
@@ -213,6 +217,14 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
     const dBan = await banners();
     ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
+    // #9715: archived D0 takes no decision: its choices, Save and Reopen are off, Ask still works, and a primary Go to names the end of its supersededBy chain
+    const archOff = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
+    await page.click("#note"); await page.keyboard.type("Why was this replaced?"); await page.waitForTimeout(150);
+    const askOn = await page.$eval('#talkRow [data-act="ask"]', el => !el.disabled);
+    ok("#9715: an archived question shows disabled decision choices, an enabled Ask and a primary Go to D1", archOff.radios.length > 0 && archOff.radios.every(Boolean) && archOff.save && !archOff.reopen && askOn && archOff.go.length === 1 && archOff.go[0] === "Go to D1|D1|true", JSON.stringify(archOff) + " ask " + askOn);
+    await page.click("#talkRow [data-clear]"); await page.waitForTimeout(100);
+    await page.click('#decideRow button[data-go="D1"]'); await page.waitForTimeout(200);
+    ok("#9715: Go to D1 opens D1", await sel() === "D1", await sel());
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     const xBan = await banners();
     ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
@@ -615,7 +627,9 @@ async page => {
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
     // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
     const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
-    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 20000, polling: 200}).then(() => true).catch(() => false);
+    // The pill already reads working from the lease, so wait for the bridge's reading state first.
+    for (const end = Date.now() + 20000; Date.now() < end && (await state()).listener.state !== "reading";) await page.waitForTimeout(200);
+    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000, polling: 200}).then(() => true).catch(() => false);
     const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
     const st = await state();
     ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
@@ -633,6 +647,23 @@ async page => {
     const sh = await tab.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent, line: document.getElementById("workLine").textContent}));
     ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
+  }
+  if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"}); await page.waitForTimeout(300);
+    if (await sel() !== "D1") await page.click('.qbtn[data-q="D1"]');
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    const ev = (await events()).filter(e => e.id === "D1");
+    ok("#9715: the page answers D1 and the meter counts it", ev.length === 1 && ev[0].kind === "accept" && await page.textContent("#meterText") === "1 of 1 answered", JSON.stringify(ev) + " " + await page.textContent("#meterText"));
+  }
+  if (PHASE === 8) { // the same server after the shell superseded the answered D1 with D2 and ran export-ledger
+    const ledger = JSON.parse('__LEDGER__');
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D2"]', {state: "attached"});
+    const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
+    ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

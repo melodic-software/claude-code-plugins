@@ -3,15 +3,17 @@
 // with a failed claim before planning, stamps each kept one with its
 // fingerprint, and writes them into one rolling digest issue.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { createBudget } from "./collect.mjs";
 import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
 import { planDigest } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const finding = (over = {}) => ({
   slice: "D",
@@ -44,10 +46,29 @@ test("the judge's output keeps at most three well-formed findings", () => {
   assert.deepEqual(parseJudgeOutput('{"findings": 3}').dropped, [{ index: null, reason: "unparsable" }]);
 });
 
+test("write-findings reads the launcher's structured-output file, and an empty path as unparsable", (t) => {
+  const dir = tempDir("lane-sweep-write-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const script = fileURLToPath(new URL("./write-findings.mjs", import.meta.url));
+  const write = (file) => {
+    const out = join(dir, "out", "findings.json");
+    const run = spawnSync(process.execPath, [script], {
+      env: { PATH: process.env.PATH, STRUCTURED_OUTPUT_FILE: file, UNIT_ID: "d1", FINDINGS_PATH: out },
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    return JSON.parse(readFileSync(out, "utf8"));
+  };
+  const structured = join(dir, "structured.json");
+  writeFileSync(structured, JSON.stringify({ findings: [finding()] }));
+  assert.deepEqual(write(structured), { unit: "d1", findings: [finding()], dropped: [] });
+  assert.deepEqual(write(""), { unit: "d1", findings: [], dropped: [{ index: null, reason: "unparsable" }] });
+});
+
 test("a finding with any failed claim is dropped before planning", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  const base = tempDir("lane-sweep-file-");
   writeFileSync(join(base, "a.yml"), "if: true\n");
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const dir = tempDir("lane-sweep-findings-");
   t.after(() => {
     rmSync(base, { recursive: true, force: true });
     rmSync(dir, { recursive: true, force: true });
@@ -90,16 +111,16 @@ const aUnit = () => ({
 });
 
 function writeUnits(units) {
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  const dir = tempDir("lane-sweep-units-");
   for (const unit of units) writeFileSync(join(dir, `${unit.id}.json`), JSON.stringify(unit));
   return dir;
 }
 
 // One finding per unit through prepareItems; returns what survived and what was dropped.
 function prepareOne(t, unitData, over) {
-  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  const base = tempDir("lane-sweep-file-");
   writeFileSync(join(base, "a.yml"), "if: true\n");
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const dir = tempDir("lane-sweep-findings-");
   const units = writeUnits([unitData]);
   t.after(() => {
     for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
@@ -156,9 +177,9 @@ test("a unit whose data lists no jobs binds the workflow but not the job", (t) =
 });
 
 test("a finding whose unit file is missing is dropped", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  const base = tempDir("lane-sweep-file-");
   writeFileSync(join(base, "a.yml"), "if: true\n");
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const dir = tempDir("lane-sweep-findings-");
   const units = writeUnits([]);
   t.after(() => {
     for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
@@ -167,6 +188,19 @@ test("a finding whose unit file is missing is dropped", (t) => {
   writeFileSync(join(dir, "findings-d1", "findings.json"), JSON.stringify({ unit: "d1", findings: [finding()] }));
   const { items, dropped } = prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
   assert.equal(items.length, 0);
+  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "unit-unreadable" }]);
+});
+
+test("a lone findings artifact downloaded straight into the directory is read", (t) => {
+  const base = tempDir("lane-sweep-file-");
+  writeFileSync(join(base, "a.yml"), "if: true\n");
+  const dir = tempDir("lane-sweep-findings-");
+  const units = writeUnits([]);
+  t.after(() => {
+    for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
+  });
+  writeFileSync(join(dir, "findings.json"), JSON.stringify({ unit: "d1", findings: [finding()] }));
+  const { dropped } = prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
   assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "unit-unreadable" }]);
 });
 
@@ -182,10 +216,10 @@ test("a dropped line renders the title and reason inert on one line", () => {
 });
 
 test("prepareItems is complete only when every unit has a parsed findings file", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  const base = tempDir("lane-sweep-file-");
   writeFileSync(join(base, "a.yml"), "if: true\n");
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
-  const units = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  const dir = tempDir("lane-sweep-findings-");
+  const units = tempDir("lane-sweep-units-");
   t.after(() => {
     for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
   });
@@ -206,9 +240,9 @@ test("prepareItems is complete only when every unit has a parsed findings file",
 });
 
 test("prepareItems is not complete when the collector read part of a window or stopped early", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
-  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
-  const out = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  const base = tempDir("lane-sweep-file-");
+  const dir = tempDir("lane-sweep-findings-");
+  const out = tempDir("lane-sweep-units-");
   t.after(() => {
     for (const d of [base, dir, out]) rmSync(d, { recursive: true, force: true });
   });

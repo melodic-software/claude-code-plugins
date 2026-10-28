@@ -8,9 +8,9 @@ mistake it targets and to pass on the current code.
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
 | `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
-| `/corrections:codify group [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by mistake, each group's count next to the threshold; writes nothing |
+| `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
 
-`codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
+`codify` counts at `recurrence.min_occurrences` occurrences (default 2, at most 1000; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
@@ -21,6 +21,7 @@ unproven.
 |---|---|
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences` and the layer that set it, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
+| `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
 
 ## prove-check
 
@@ -89,8 +90,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure corrections@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure corrections@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -98,18 +99,12 @@ Three supported routes:
    claude plugin install corrections@<marketplace> -s <scope> --config findings_buffer_adapter_repository=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -126,13 +121,11 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 

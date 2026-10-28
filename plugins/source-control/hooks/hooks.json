@@ -1,5 +1,5 @@
 {
-  "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, and a `git worktree add` target against the nesting invariant.",
+  "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, a `git worktree add` target against the nesting invariant, and a harness-removed worktree's uncommitted work and plugin install records before its removal.",
   "hooks": {
     "SessionStart": [
       {
@@ -110,6 +110,22 @@
             ],
             "timeout": 60,
             "statusMessage": "Placing the worktree at the external root..."
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-remove-gate.sh"
+            ],
+            "timeout": 300,
+            "statusMessage": "Reaping the worktree's plugin install records and removing it..."
           }
         ]
       }

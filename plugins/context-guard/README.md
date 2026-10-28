@@ -139,8 +139,8 @@ the band and toast state, and where `zones.json` lives and whether it is present
 Claude reads that reply, as it reads any command's output, so the continuation route and this
 README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
 the session, and a bare `band` toggles it. The band row is off by default; `context_guard_band`
-turns it on. It shows `ctx <n>% (<zone>)` above the prompt, with `-` in place of the figure before
-the first response. Claude can
+turns it on. It shows `context-guard: <zone> <n>%` above the prompt, the zone first so a cut row still
+shows it, and `context-guard: -` before the first response. Claude can
 call `mcp__context-guard__status` for the exact figures from the last API response, the zone,
 whether a compaction degraded the evidence, and the bands. Where the session
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
@@ -436,8 +436,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure context-guard@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure context-guard@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -445,18 +445,12 @@ Three supported routes:
    claude plugin install context-guard@<marketplace> -s <scope> --config context_guard_hooks_enabled=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -473,13 +467,11 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 

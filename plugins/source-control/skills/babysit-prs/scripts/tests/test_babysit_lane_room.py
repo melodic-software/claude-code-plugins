@@ -13,17 +13,29 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest import mock
+from urllib.parse import unquote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy  # noqa: E402
 import babysit_postmerge as pm  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
+
+# CheckCodeUnchanged builds git fixtures: clear any ambient git environment
+# first (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 REPO = "example-org/example-repo"
 IDENTITY = "agent-lanes[bot]"
@@ -43,6 +55,7 @@ PENDING = {
         {"number": 5, "verified": False, "mergedAt": "2026-10-01T00:00:00Z"}
     ],
     "excusesExpireAt": None,
+    "outstandingSince": None,
 }
 STALE_NOW = FLOOR + timedelta(minutes=3)
 
@@ -131,8 +144,12 @@ class LaneRoom(unittest.TestCase):
         fresh_floor: datetime = NEW_FLOOR,
         head_error: Exception | None = None,
         fresh_demotion: policy.Demotion | None = None,
+        code_unchanged: bool = True,
     ) -> policy.LaneRoom:
         seen: dict[str, object] = {}
+        reads = mock.Mock(
+            return_value=fresh_demotion or policy.Demotion(False, None, ())
+        )
 
         def in_flight(repo: str, **kwargs: object) -> policy.InFlight:
             seen.update(kwargs)
@@ -168,11 +185,7 @@ class LaneRoom(unittest.TestCase):
                 return_value=("main", head),
             ),
             mock.patch.object(policy, "permission_reader"),
-            mock.patch.object(
-                policy,
-                "read_demotion",
-                return_value=fresh_demotion or policy.Demotion(False, None, ()),
-            ),
+            mock.patch.object(policy, "read_demotion", reads),
             mock.patch.object(policy, "merged_since_floor", return_value=fresh_floor),
         ):
             kwargs = {"post_merge": post_merge} if post_merge is not None else {}
@@ -183,10 +196,32 @@ class LaneRoom(unittest.TestCase):
                 answer if answer is not None else shared(),
                 lane_rung_cap=cap,
                 now=now,
+                code_unchanged=code_unchanged,
                 **kwargs,  # type: ignore[arg-type]
             )
-        self.seen = seen
+        self.seen, self.reads = seen, reads
         return result
+
+    def test_an_answer_from_other_check_code_is_read_again_never_kept(self) -> None:
+        # The report was computed by check code main has since changed: the
+        # room reads it afresh, even where it would reuse or keep it.
+        for name, kwargs in {
+            "reusable": {},
+            "demotion reads the same": self.DEMOTION_CHANGED,
+        }.items():
+            with self.subTest(name):
+                recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+                room = self.room(
+                    shared(),
+                    post_merge=recheck.post_merge,
+                    code_unchanged=False,
+                    **kwargs,  # type: ignore[arg-type]
+                )
+                self.assertEqual((room.refusal, room.unreadable), (None, None))
+                self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+        # With no check to read it again: unreadable.
+        room = self.room(shared(), code_unchanged=False)
+        self.assertEqual(room.unreadable, "post-merge answer code-changed")
 
     def test_a_clear_lane_counts_its_merges_in_flight_against_the_cap(self) -> None:
         room = self.room()
@@ -239,17 +274,16 @@ class LaneRoom(unittest.TestCase):
             (room.refusal, room.unreadable, room.count, room.cap), (None, None, 5, 5)
         )
 
-    # The gate's reuse refusals other than unverified-stale (shared_refusal):
-    # past SHARED_MAX_AGE (a re-run job reads the run's first report), from
-    # the future, and a demotion record filed or changed since, inside the
-    # two minutes the gate reuses a pending answer for.
+    # Reuse refusals the room reads afresh (shared_refusal): past
+    # SHARED_MAX_AGE (a re-run job reads the run's first report) and from the
+    # future.
     UNUSABLE = {
         "stale": dict(now=FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)),
         "future": dict(now=FLOOR - timedelta(seconds=1)),
-        "demotion changed": dict(
-            demotion_changed=True, now=FLOOR + timedelta(minutes=1)
-        ),
     }
+    # A demotion record filed or changed since, inside the two minutes the
+    # gate reuses a pending answer for.
+    DEMOTION_CHANGED = dict(demotion_changed=True, now=FLOOR + timedelta(minutes=1))
 
     def test_an_answer_the_gate_would_not_reuse_is_read_again(self) -> None:
         # The gate reads afresh on any refusal (assess); so does the room,
@@ -287,34 +321,99 @@ class LaneRoom(unittest.TestCase):
         self.assertEqual(len(recheck.asked), 1)
         runs.assert_not_called()
 
-    def test_a_demotion_read_again_holds_the_room_off(self) -> None:
+    def test_a_no_op_demotion_edit_keeps_the_answer(self) -> None:
+        # Triage editing an issue the lane opened refuses the answer as
+        # `demotion-changed`; a demotion read alone that finds it unchanged
+        # keeps it, so the room does not pay the full post-merge check.
         recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        answer = shared()
         room = self.room(
+            answer,
             post_merge=recheck.post_merge,
-            fresh_demotion=policy.Demotion(True, "record-open", (8,)),
-            **self.UNUSABLE["demotion changed"],  # type: ignore[arg-type]
+            **self.DEMOTION_CHANGED,  # type: ignore[arg-type]
         )
-        self.assertEqual(room.refusal, "rung-off:demotion")
+        self.assertEqual(
+            (room.refusal, room.unreadable, room.count, room.cap), (None, None, 2, 5)
+        )
+        self.assertEqual(recheck.asked, [], "no full post-merge check")
+        self.reads.assert_called_once()
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        # Counted from the kept answer: its floor and its verified merges.
+        self.assertEqual(self.seen["merged_since"], FLOOR)
+        self.assertIs(self.seen["verified"], answer.gate.verified)
+
+    def test_a_demotion_that_moved_reads_the_answer_again(self) -> None:
+        # Active, the rung is off; inactive with other records or another
+        # clear, the floor may differ. Either way the full read runs.
+        cases = {
+            "active": (
+                policy.Demotion(True, "record-open", (8,)),
+                "rung-off:demotion",
+            ),
+            "another record": (policy.Demotion(False, None, (9,)), None),
+            # The same records with another clear or newest record: the
+            # keep binds every field, not the record numbers alone.
+            "another clear": (
+                policy.Demotion(False, None, (), cleared_at=NEW_FLOOR),
+                None,
+            ),
+            "another newest record": (
+                policy.Demotion(False, None, (), newest_created=NEW_FLOOR),
+                None,
+            ),
+        }
+        for name, (demotion, refusal) in cases.items():
+            with self.subTest(name):
+                recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+                room = self.room(
+                    post_merge=recheck.post_merge,
+                    fresh_demotion=demotion,
+                    **self.DEMOTION_CHANGED,  # type: ignore[arg-type]
+                )
+                self.assertEqual((room.refusal, room.unreadable), (refusal, None))
+                self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+
+    def test_an_answer_bound_to_other_self_logins_is_read_with_none(self) -> None:
+        # The room binds no self logins, so a fresh read uses none and the
+        # in-flight count excludes none: not the answer's own.
+        answer = replace(shared(), self_logins=frozenset({"lane-self[bot]"}))
+        recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        room = self.room(answer, post_merge=recheck.post_merge)
+        self.assertEqual((room.refusal, room.unreadable), (None, None))
+        self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        self.assertEqual(self.seen["self_logins"], frozenset())
 
     def test_an_unusable_answer_with_no_fresh_read_is_unreadable(self) -> None:
         cases = {
-            "no check": None,
-            "check raises": Recheck(error=RuntimeError("runs 502")).post_merge,
-            "check unreadable": Recheck(
-                policy.PostMergeGate("runs-unreadable", {"readable": False}, None)
-            ).post_merge,
+            "no check": (None, self.UNUSABLE["stale"], "stale"),
+            "no check, demotion changed": (
+                None,
+                self.DEMOTION_CHANGED,
+                "demotion-changed",
+            ),
+            "check raises": (
+                Recheck(error=RuntimeError("runs 502")).post_merge,
+                self.UNUSABLE["stale"],
+                "stale",
+            ),
+            "check unreadable": (
+                Recheck(
+                    policy.PostMergeGate("runs-unreadable", {"readable": False}, None)
+                ).post_merge,
+                self.UNUSABLE["stale"],
+                "stale",
+            ),
         }
-        for name, post_merge in cases.items():
+        for name, (post_merge, kwargs, reason) in cases.items():
             with self.subTest(name):
                 room = self.room(
                     post_merge=post_merge,
-                    **self.UNUSABLE["demotion changed"],  # type: ignore[arg-type]
+                    **kwargs,  # type: ignore[arg-type]
                 )
                 self.assertIsNone(room.refusal)
                 self.assertTrue(
-                    str(room.unreadable).startswith(
-                        "post-merge answer demotion-changed"
-                    ),
+                    str(room.unreadable).startswith(f"post-merge answer {reason}"),
                     room.unreadable,
                 )
                 self.assertFalse(self.seen, "no in-flight read")
@@ -340,6 +439,7 @@ class LaneRoom(unittest.TestCase):
             (room.refusal, room.unreadable),
             (None, "post-merge answer new-merge:#7"),
         )
+        self.assertFalse(self.seen, "no in-flight read after an unusable answer")
         # Bound as the gate binds a candidate at the default branch head.
         self.assertEqual(
             {
@@ -574,7 +674,9 @@ class LaneRoom(unittest.TestCase):
                 answer = kwargs.pop("answer", shared())
                 if name == "no answer":
                     with mock.patch.object(policy, "in_flight") as flight:
-                        room = policy.lane_room(REPO, None, lane_rung_cap="")
+                        room = policy.lane_room(
+                            REPO, None, lane_rung_cap="", code_unchanged=True
+                        )
                     flight.assert_not_called()
                 else:
                     room = self.room(answer, **kwargs)  # type: ignore[arg-type]
@@ -631,10 +733,16 @@ class PendingRunsUnchanged(unittest.TestCase):
         ]
         answer, calls = self.unchanged(rows)
         self.assertTrue(answer)
-        # One listing call, of runs on main created since merge #5.
-        self.assertEqual(len(calls), 1)
-        self.assertIn("branch=main", calls[0][1])
-        self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", calls[0][1])
+        # One listing per verifying workflow, of runs on main created since
+        # merge #5: every workflow's runs on main filled 152 in under two
+        # hours on 2026-10-27, past one page.
+        self.assertEqual(
+            [c[1].split("/runs?")[0].rsplit("/", 1)[1] for c in calls],
+            ["pr-require-checks.yml", "post-merge-detect-silent-revert.yml"],
+        )
+        for call in calls:
+            self.assertIn("branch=main", call[1])
+            self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", call[1])
 
     def test_the_clock_margin_is_sixty_seconds_of_skew(self) -> None:
         # computedAt is stamped before the runs are read, so the margin covers
@@ -679,6 +787,619 @@ class PendingRunsUnchanged(unittest.TestCase):
             ]
         )
 
+    def test_a_canary_still_queued_in_a_verified_window_is_listed(self) -> None:
+        # A verified merge's canary queued before the unverified merge can
+        # still turn red and fail it, so the listing reaches back to it; an
+        # answer that does not say whether one is outstanding is False.
+        queued = FLOOR - timedelta(hours=1)
+        answer, calls = self.unchanged(
+            [], report={**PENDING, "outstandingSince": queued.isoformat()}
+        )
+        self.assertTrue(answer)
+        for call in calls:
+            self.assertIn("created=%3E%3D2026-09-30T23%3A00%3A00Z", call[1])
+        unsaid = {k: v for k, v in PENDING.items() if k != "outstandingSince"}
+        self.assertEqual(self.unchanged([], report=unsaid), (False, []))
+
+
+class SettleShared(unittest.TestCase):
+    """`settle_shared`: the one reuse rule the room and the merge job's
+    `settle` read a run's post-merge answer by. The expected reasons are
+    `shared_refusal`'s, in the room's `post-merge answer <reason>` form; the
+    two keeps are the room's (an unverified-stale answer nothing moved since,
+    a demotion-changed one whose demotion reads the same)."""
+
+    VERIFIED = {
+        "readable": True,
+        "ok": True,
+        "autoMerges": [{"number": 5, "verified": True}],
+    }
+
+    def settle(
+        self,
+        answer: policy.SharedPostMerge,
+        *,
+        now: datetime = NOW,
+        head: str = MAIN,
+        lane_merges: tuple[int, ...] = (),
+        demotion_changed: bool = False,
+        fresh_demotion: policy.Demotion | None = None,
+        runs: bool | None = None,
+        keep: bool = True,
+        code_unchanged: bool = True,
+    ) -> tuple[policy.SharedPostMerge | None, str | None]:
+        merges = [{"number": n} for n in lane_merges]
+
+        def derive(pr: dict[str, object], *args: object, **kwargs: object) -> object:
+            return policy.AutoMerge(int(pr["number"]), "a" * 40, "b" * 40, None)  # type: ignore[call-overload]
+
+        self.reads = mock.Mock(
+            return_value=fresh_demotion or policy.Demotion(False, None, ())
+        )
+        self.runs = mock.Mock(return_value=runs)
+        with (
+            mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
+            mock.patch.object(policy, "_get", return_value=(200, {"sha": head})),
+            mock.patch.object(
+                policy, "_default_branch_head", return_value=("main", head)
+            ),
+            mock.patch.object(policy, "_merged_since", return_value=merges),
+            mock.patch.object(policy, "derive_auto_merge", side_effect=derive),
+            mock.patch.object(
+                policy, "_demotion_changed", return_value=demotion_changed
+            ),
+            mock.patch.object(policy, "permission_reader"),
+            mock.patch.object(policy, "read_demotion", self.reads),
+        ):
+            return policy.settle_shared(
+                REPO,
+                answer,
+                default="main",
+                base_sha=MAIN,
+                identity=IDENTITY,
+                now=now,
+                runs_unchanged=None if runs is None else self.runs,
+                keep=keep,
+                code_unchanged=code_unchanged,
+            )
+
+    def test_a_fresh_answer_at_an_unmoved_head_is_reused(self) -> None:
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(self.settle(answer), (answer, None))
+
+    def test_a_moved_head_with_no_new_lane_merge_is_reused(self) -> None:
+        # Run 40382489448: a merge landed before the merge job started, none
+        # of them the lane's, and the job's own check found the same merges.
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(self.settle(answer, head=NEW_MAIN), (answer, None))
+
+    def test_a_moved_head_with_a_lane_merge_the_answer_does_not_count_is_refused(
+        self,
+    ) -> None:
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(
+            self.settle(answer, head=NEW_MAIN, lane_merges=(5, 9)),
+            (None, "post-merge answer new-merge:#9"),
+        )
+
+    def test_an_unverified_answer_past_two_minutes_is_refused_unless_nothing_moved(
+        self,
+    ) -> None:
+        answer = shared(report=PENDING)
+        # No run check: refused, as the room refuses with no recompute.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW),
+            (None, "post-merge answer unverified-stale"),
+        )
+        # A verifying run reached a conclusion since: refused.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW, runs=False),
+            (None, "post-merge answer unverified-stale"),
+        )
+        self.runs.assert_called_once_with(answer, "main")
+        # Main moved (with no new lane merge): refused.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW, runs=True, head=NEW_MAIN),
+            (None, "post-merge answer unverified-stale"),
+        )
+        # Nothing it was read from moved: kept.
+        self.assertEqual(self.settle(answer, now=STALE_NOW, runs=True), (answer, None))
+        # Inside two minutes it needs no keep.
+        self.assertEqual(
+            self.settle(answer, now=FLOOR + timedelta(minutes=1)), (answer, None)
+        )
+
+    def test_a_changed_demotion_is_refused_unless_it_reads_the_same(self) -> None:
+        answer = shared(report=self.VERIFIED)
+        moved = policy.Demotion(False, None, (9,))
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, fresh_demotion=moved),
+            (None, "post-merge answer demotion-changed"),
+        )
+        self.assertEqual(self.settle(answer, demotion_changed=True), (answer, None))
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        # Without the keeps (the room with no check to read again), refused
+        # with no demotion read.
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, keep=False),
+            (None, "post-merge answer demotion-changed"),
+        )
+        self.reads.assert_not_called()
+
+    def test_an_answer_from_other_check_code_is_refused_before_any_keep(
+        self,
+    ) -> None:
+        # The brief's rule: a report computed by check code main has since
+        # changed never stands, even where it would be reused or kept.
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(
+            self.settle(answer, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.reads.assert_not_called()
+        pending = shared(report=PENDING)
+        self.assertEqual(
+            self.settle(pending, now=STALE_NOW, runs=True, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.runs.assert_not_called()
+
+    def test_a_stale_answer_is_refused_even_when_nothing_moved(self) -> None:
+        answer = shared(report=PENDING)
+        late = FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)
+        self.assertEqual(
+            self.settle(answer, now=late, runs=True),
+            (None, "post-merge answer stale"),
+        )
+        self.runs.assert_not_called()
+
+    def test_an_answer_past_its_quarantine_excuse_is_refused(self) -> None:
+        # `_judge` reads the same red run as a demotion once the quarantine
+        # that excused it expires, with nothing else moving.
+        def excused(until: object) -> policy.SharedPostMerge:
+            return shared(report={**self.VERIFIED, "excusesExpireAt": until})
+
+        for until in ((NOW - timedelta(seconds=1)).isoformat(), "not a time"):
+            with self.subTest(until):
+                self.assertEqual(
+                    self.settle(excused(until)),
+                    (None, "post-merge answer excuse-expired"),
+                )
+        answer = excused((NOW + timedelta(seconds=1)).isoformat())
+        self.assertEqual(self.settle(answer), (answer, None))
+
+
+SHA_PINNED = "b" * 40
+# A passing answer an earlier tick kept: one verified lane merge whose pin the
+# check read, nothing to start and no quarantine excuse.
+SETTLED = {
+    "readable": True,
+    "ok": True,
+    "hold": None,
+    "needsDispatch": False,
+    "autoMerges": [{"number": 5, "verified": True, "mergedAt": "2026-09-30T20:00:00Z"}],
+    "failures": [],
+    "reruns": [],
+    "unattributed": [],
+    "quarantines": [],
+    "warnings": [],
+    "excusesExpireAt": None,
+    "pins": {"5": SHA_PINNED},
+    "outstandingSince": None,
+}
+CONFIRM_WAIT = 40
+
+
+class IdleRefusal(unittest.TestCase):
+    """`idle_refusal`: the rest of what the post-merge check reads that can
+    change its verdict with no new lane merge, for post-merge-dispatch's
+    reuse of an earlier tick's report. Expected from the check's own rules:
+    `_judge` and `_lane_reruns` read verifying runs, quarantine issues
+    (`expired`, `demoting`) and pins (`read_pin`), and a pending merge fails
+    past `DISPATCH_DEADLINE`."""
+
+    def refusal(
+        self,
+        report: dict[str, object] = SETTLED,
+        *,
+        now: datetime = NOW,
+        runs: list[dict[str, object]] = (),  # type: ignore[assignment]
+        runs_total: int | None = None,
+        issues: list[dict[str, object]] = (),  # type: ignore[assignment]
+        pins: dict[int, str | None] | Exception | None = None,
+    ) -> str | None:
+        self.calls: list[str] = []
+
+        def read(args: list[str], label: str) -> object:
+            self.calls.append(args[1])
+            if "/actions/workflows/" in args[1]:
+                # The listing answers only runs created at or after its floor.
+                floor = datetime.fromisoformat(
+                    unquote(args[1].split("&created=")[1].split("&")[0])[2:]
+                )
+                listed = [
+                    r
+                    for r in runs
+                    if datetime.fromisoformat(str(r["created_at"])) >= floor
+                ]
+                return {
+                    "total_count": len(listed) if runs_total is None else runs_total,
+                    "workflow_runs": listed,
+                }
+            return list(issues)
+
+        self.pins = mock.Mock(
+            side_effect=pins if isinstance(pins, Exception) else None,
+            return_value={5: SHA_PINNED} if pins is None else pins,
+        )
+        with (
+            mock.patch.object(pm, "_read", side_effect=read),
+            mock.patch.object(pm, "read_pins", self.pins),
+        ):
+            return pm.idle_refusal(
+                REPO,
+                shared(report=report),
+                "main",
+                confirm_wait_minutes=CONFIRM_WAIT,
+                now=now,
+            )
+
+    def test_a_settled_report_nothing_moved_since_stands(self) -> None:
+        self.assertIsNone(self.refusal())
+        # Two run listings, one issue listing, one batched pin read.
+        runs, issues = self.calls[:2], self.calls[2:]
+        self.assertEqual(len(issues), 1)
+        self.assertIn("issues?state=all&since=2026-09-30T23:59:00Z", issues[0])
+        # Runs created since the `_lane_reruns` lookback (confirm wait plus
+        # one allowance) and one more allowance for a baseline still going.
+        lookback = FLOOR - timedelta(minutes=CONFIRM_WAIT) - 2 * pm.FULL_RUN_ALLOWANCE
+        for call in runs:
+            self.assertIn(
+                "created=%3E%3D" + lookback.strftime("%Y-%m-%dT%H%%3A%M%%3A%SZ"),
+                call,
+            )
+        self.assertEqual(list(self.pins.call_args.args[1]), [5])
+        self.assertEqual(self.pins.call_args.args[2], IDENTITY)
+
+    def test_each_unsettled_part_of_the_report_refuses_before_any_read(
+        self,
+    ) -> None:
+        cases = {
+            "not-passing": {"ok": False},
+            "hold": {"hold": "unlisted-record"},
+            "needs-dispatch": {"needsDispatch": True},
+            "reruns": {"reruns": [{"runId": 9}]},
+            "unattributed": {"unattributed": ["https://run/1/attempts/1"]},
+            "quarantines": {"quarantines": [{"suite": "x"}]},
+            "excused": {"excusesExpireAt": (NOW + timedelta(days=1)).isoformat()},
+            "lane-reruns-unread": {"warnings": ["lane-rerun-unreadable: 502"]},
+        }
+        for reason, change in cases.items():
+            with self.subTest(reason):
+                self.assertEqual(self.refusal({**SETTLED, **change}), reason)
+                self.assertEqual(self.calls, [])
+        for key, reason in (
+            ("excusesExpireAt", "excused"),
+            ("pins", "pins-unrecorded"),
+            ("outstandingSince", "outstanding-unrecorded"),
+        ):
+            with self.subTest(f"no {key}"):
+                report = {k: v for k, v in SETTLED.items() if k != key}
+                self.assertEqual(self.refusal(report), reason)
+                self.assertEqual(self.calls, [])
+
+    def test_it_leaves_the_later_jobs_their_headroom(self) -> None:
+        # Never re-stamped: the age is the original check's, and the merge
+        # and enable-auto-merge jobs settle the same report minutes later.
+        edge = FLOOR + policy.SHARED_MAX_AGE - pm.IDLE_HEADROOM
+        self.assertIsNone(self.refusal(now=edge))
+        self.assertEqual(self.refusal(now=edge + timedelta(seconds=1)), "stale-soon")
+
+    def test_a_verifying_run_that_completed_since_refuses(self) -> None:
+        since = FLOOR - policy.SINCE_CLOCK_MARGIN
+        for workflow in (
+            "pr-require-checks.yml",
+            "post-merge-detect-silent-revert.yml",
+        ):
+            with self.subTest(workflow):
+                done = run(workflow, status="completed", updated=since)
+                self.assertEqual(self.refusal(runs=[done]), "runs-changed")
+        # Finished before the report, or still running: nothing changed yet.
+        quiet = [
+            run(
+                "pr-require-checks.yml",
+                status="completed",
+                updated=since - timedelta(seconds=1),
+            ),
+            run("pr-require-checks.yml", status="in_progress", updated=NOW),
+        ]
+        self.assertIsNone(self.refusal(runs=quiet))
+        self.assertTrue(self.refusal(runs_total=101).startswith("unreadable"))
+
+    def test_an_unverified_merge_lists_runs_from_its_merge_and_ends_at_the_deadline(
+        self,
+    ) -> None:
+        merged = FLOOR - timedelta(hours=5)
+        pending = {
+            **SETTLED,
+            "autoMerges": [
+                {"number": 5, "verified": False, "mergedAt": merged.isoformat()}
+            ],
+        }
+        self.assertIsNone(self.refusal(pending))
+        self.assertIn("created=%3E%3D2026-09-30T19%3A00%3A00Z", self.calls[0])
+        late = merged + pm.DISPATCH_DEADLINE + timedelta(seconds=1)
+        with mock.patch.object(policy, "SHARED_MAX_AGE", timedelta(days=1)):
+            self.assertEqual(self.refusal(pending, now=late), "dispatch-deadline")
+
+    def test_a_canary_still_queued_at_the_report_is_listed_however_old(
+        self,
+    ) -> None:
+        # A verified merge's window holds a canary queued before the green
+        # one that verified it; `_judge` fails the merge once it turns red,
+        # however long before the `_lane_reruns` lookback it was created.
+        queued = FLOOR - timedelta(hours=4)
+        report = {**SETTLED, "outstandingSince": queued.isoformat()}
+        red = run(
+            "post-merge-detect-silent-revert.yml",
+            status="completed",
+            updated=NOW,
+            created=queued,
+        )
+        self.assertEqual(self.refusal(report, runs=[red]), "runs-changed")
+        self.assertIn("created=%3E%3D2026-09-30T20%3A00%3A00Z", self.calls[0])
+
+    def test_a_quarantine_issue_changed_since_refuses(self) -> None:
+        marked = {"number": 3, "body": "<!-- post-merge-quarantine suite=x -->\nbody"}
+        self.assertEqual(self.refusal(issues=[marked]), "quarantine-changed")
+        # A full page may hide one.
+        page = [{"number": n, "body": ""} for n in range(100)]
+        self.assertEqual(self.refusal(issues=page), "quarantine-changed")
+        # An issue without the marker, or a pull request quoting it, is not one.
+        other = [{"number": 4, "body": "triaged"}, {**marked, "pull_request": {}}]
+        self.assertIsNone(self.refusal(issues=other))
+
+    def test_a_pin_that_reads_differently_refuses(self) -> None:
+        # An edited pin reads as None, a deleted one too, a new one another SHA.
+        for pins in ({5: None}, {5: "c" * 40}):
+            with self.subTest(pins):
+                self.assertEqual(self.refusal(pins=pins), "pins-changed")
+        failed = self.refusal(pins=pm.PostMergeReadError("#5 pin: 502"))
+        self.assertEqual(failed, "unreadable: #5 pin: 502")
+
+
+class CheckCodeUnchanged(unittest.TestCase):
+    """`check_code_unchanged`: whether the check's code (the babysit-prs
+    scripts and docs/conventions/pr-pipeline.yaml) at HEAD is the code at the
+    kept commit. Expected outcomes are the brief's: the same commit or a
+    change elsewhere only allows reuse; a change in either path, a missing,
+    malformed or unknown commit, or a git failure refuses."""
+
+    def setUp(self) -> None:
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="check-code-"))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.git("init", "-q")
+        # Repo-local, as in test_prune_babysit_worktrees.py: a global
+        # commit.gpgsign would sign every fixture commit with the machine's key.
+        self.git("config", "commit.gpgsign", "false")
+        self.commits: dict[str, str] = {}
+        for name, path in (
+            ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
+            ("init", "docs/conventions/pr-pipeline.yaml"),
+            ("base", "README.md"),
+            ("elsewhere", "README.md"),
+            ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
+            ("config", "docs/conventions/pr-pipeline.yaml"),
+        ):
+            file = self.root / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(f"{name}\n")
+            self.git("add", "-A")
+            self.git("commit", "-q", "-m", name)
+            self.commits[name] = self.git("rev-parse", "HEAD").strip()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t"]
+            + list(args),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def unchanged(self, kept: str, head: str) -> bool:
+        self.git("checkout", "-q", "--detach", self.commits[head])
+        return policy.check_code_unchanged(kept, root=self.root)
+
+    def test_the_same_commit_or_a_change_elsewhere_allows_reuse(self) -> None:
+        self.assertTrue(self.unchanged(self.commits["config"], "config"))
+        self.assertTrue(self.unchanged(self.commits["base"], "elsewhere"))
+
+    def test_a_change_to_the_scripts_or_the_pipeline_config_refuses(self) -> None:
+        self.assertFalse(self.unchanged(self.commits["elsewhere"], "scripts"))
+        self.assertFalse(self.unchanged(self.commits["scripts"], "config"))
+
+    def test_a_missing_malformed_or_unknown_commit_refuses(self) -> None:
+        for kept in ("", "HEAD", "--output=x", "c" * 39, "f" * 40):
+            with self.subTest(kept):
+                self.assertFalse(self.unchanged(kept, "config"))
+
+    def test_a_guarded_path_missing_at_head_refuses(self) -> None:
+        # A diff of a path at neither commit is empty, so a renamed path
+        # would otherwise read as unchanged.
+        moved = (*policy.CHECK_CODE_PATHS, "docs/conventions/renamed.yaml")
+        with mock.patch.object(policy, "CHECK_CODE_PATHS", moved):
+            self.assertFalse(self.unchanged(self.commits["config"], "config"))
+
+    def test_the_default_root_is_this_repository(self) -> None:
+        # The brief's two paths, read from the checkout the script runs in.
+        for path in policy.CHECK_CODE_PATHS:
+            self.assertTrue((policy.CHECK_CODE_ROOT / path).exists(), path)
+        here = subprocess.run(
+            ["git", "-C", str(policy.CHECK_CODE_ROOT), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertTrue(policy.check_code_unchanged(here))
+
+    def test_a_git_failure_refuses(self) -> None:
+        kept = self.commits["config"]
+        self.git("checkout", "-q", "--detach", kept)
+        self.assertFalse(
+            policy.check_code_unchanged(kept, root=self.root / "no-such-dir")
+        )
+        with mock.patch.object(
+            policy.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 1)
+        ):
+            self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+
+class SettleCommand(unittest.TestCase):
+    def main(
+        self,
+        settled: tuple[object, str | None],
+        *,
+        code_unchanged: bool = True,
+        cfg: policy.PipelineConfig | None = None,
+        config_error: Exception | None = None,
+        code_sha: str = MAIN,
+        idle: str | None = None,
+        extra: tuple[str, ...] = (),
+    ) -> tuple[int, dict, dict]:
+        seen: dict[str, object] = {}
+        self.idle = mock.Mock(return_value=idle)
+
+        def settle(repo: str, answer: object, **kwargs: object) -> object:
+            seen.update(kwargs, repo=repo, answer=answer)
+            return settled
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
+            mock.patch.object(
+                policy, "check_code_unchanged", return_value=code_unchanged
+            ) as code,
+            mock.patch.object(policy, "_default_branch", return_value="main"),
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                side_effect=config_error,
+                return_value=cfg or config(base_sha=NEW_MAIN),
+            ) as read_config,
+            mock.patch.object(policy, "settle_shared", side_effect=settle),
+            mock.patch.object(ve.postmerge, "idle_refusal", self.idle),
+            contextlib.redirect_stdout(out),
+        ):
+            exit_code = ve.main(
+                [
+                    "settle",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--code-sha",
+                    code_sha,
+                    *extra,
+                ]
+            )
+        self.code, self.read_config = code, read_config
+        return exit_code, json.loads(out.getvalue()), seen
+
+    def test_it_exits_0_when_the_answer_stands_and_1_when_refused(self) -> None:
+        code, out, seen = self.main(("answer", None))
+        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
+        self.code.assert_called_once_with(MAIN)
+        # Bound as the room binds: the default branch head and its config's
+        # agent identity, never a recompute.
+        self.assertEqual(
+            {k: seen[k] for k in ("repo", "answer", "default", "base_sha", "identity")},
+            {
+                "repo": REPO,
+                "answer": "answer",
+                "default": "main",
+                "base_sha": NEW_MAIN,
+                "identity": IDENTITY,
+            },
+        )
+        self.assertIs(seen["code_unchanged"], True)
+        self.assertNotIn("post_merge", seen)
+        self.assertIs(seen.get("keep", True), True)
+        self.assertTrue(callable(seen["runs_unchanged"]))
+        code, out, _ = self.main((None, "post-merge answer unverified-stale"))
+        self.assertEqual(
+            (code, out),
+            (1, {"reuse": False, "reason": "post-merge answer unverified-stale"}),
+        )
+
+    def test_changed_check_code_is_refused_before_any_read(self) -> None:
+        code, out, seen = self.main(("answer", None), code_unchanged=False, code_sha="")
+        self.assertEqual(
+            (code, out),
+            (1, {"reuse": False, "reason": "post-merge answer code-changed"}),
+        )
+        self.code.assert_called_once_with("")
+        self.read_config.assert_not_called()
+        self.assertEqual(seen, {})
+
+    def test_no_agent_identity_is_refused(self) -> None:
+        code, out, seen = self.main(("answer", None), cfg=config(agent_identity=""))
+        self.assertEqual(code, 1)
+        self.assertFalse(out["reuse"])
+        self.assertEqual(seen, {})
+
+    def test_a_missing_report_or_unreadable_config_is_refused(self) -> None:
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "check_code_unchanged", return_value=True),
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/nonexistent/post-merge.json",
+                    "--code-sha",
+                    MAIN,
+                ]
+            )
+        self.assertEqual(code, 1)
+        self.assertFalse(json.loads(out.getvalue())["reuse"])
+        code, out, _ = self.main(
+            ("answer", None), config_error=policy.PolicyReadError("head 502")
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("head 502", out["reason"])
+
+    def test_an_idle_tick_also_needs_the_idle_rule(self) -> None:
+        # post-merge-dispatch's reuse of an earlier tick's report: the lane
+        # room's rule first, then `idle_refusal` on the same answer, at the
+        # default branch with the head config's confirm wait.
+        idle = ("--idle-tick",)
+        code, out, _ = self.main(("answer", None), extra=idle)
+        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
+        self.idle.assert_called_once_with(
+            REPO, "answer", "main", confirm_wait_minutes=config().confirm_wait_minutes
+        )
+        code, out, _ = self.main(("answer", None), extra=idle, idle="runs-changed")
+        self.assertEqual(
+            (code, out), (1, {"reuse": False, "reason": "idle tick runs-changed"})
+        )
+        # A report the lane room's rule refuses is never offered to it.
+        code, out, _ = self.main((None, "post-merge answer stale"), extra=idle)
+        self.assertEqual(code, 1)
+        self.idle.assert_not_called()
+        # Without the flag (the merge job's reuse of this run's report), no
+        # idle rule.
+        self.assertEqual(self.main(("answer", None), idle="runs-changed")[0], 0)
+        self.idle.assert_not_called()
+
 
 class LaneRoomCommand(unittest.TestCase):
     def test_it_prints_the_room_from_the_post_merge_report(self) -> None:
@@ -693,9 +1414,14 @@ class LaneRoomCommand(unittest.TestCase):
             lane_rung_cap: str | None,
             post_merge: object,
             runs_unchanged: object,
+            code_unchanged: bool,
         ) -> policy.LaneRoom:
             seen.append((repo, answer, lane_rung_cap))
-            hooks.update(post_merge=post_merge, runs_unchanged=runs_unchanged)
+            hooks.update(
+                post_merge=post_merge,
+                runs_unchanged=runs_unchanged,
+                code_unchanged=code_unchanged,
+            )
             return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}), rung="C2")
 
         out = io.StringIO()
@@ -704,6 +1430,9 @@ class LaneRoomCommand(unittest.TestCase):
                 ve.postmerge, "read_shared", return_value="answer"
             ) as read,
             mock.patch.object(policy, "lane_room", side_effect=room),
+            mock.patch.object(
+                policy, "check_code_unchanged", return_value=False
+            ) as checked,
             contextlib.redirect_stdout(out),
         ):
             code = ve.main(
@@ -715,10 +1444,15 @@ class LaneRoomCommand(unittest.TestCase):
                     "/tmp/x.json",
                     "--rung-cap",
                     "",
+                    "--code-sha",
+                    MAIN,
                 ]
             )
         self.assertEqual(code, 0)
         read.assert_called_once_with("/tmp/x.json")
+        # The kept report's check code, compared with this checkout's.
+        checked.assert_called_once_with(MAIN)
+        self.assertIs(hooks["code_unchanged"], False)
         self.assertEqual(seen, [(REPO, "answer", "")])
         self.assertEqual(
             json.loads(out.getvalue()),
@@ -745,6 +1479,8 @@ class LaneRoomCommand(unittest.TestCase):
                     "--postmerge-result",
                     "/nonexistent/post-merge.json",
                     "--rung-cap",
+                    "",
+                    "--code-sha",
                     "",
                 ]
             )

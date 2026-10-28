@@ -9,13 +9,23 @@
 //   node driver.mjs record stop [--session <name>]
 //   node driver.mjs stop [--session <name>]
 //   node driver.mjs doctor [--deps-dir <dir>]
+//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>]
+//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>]
 //
 // The terminal engine lives in one process, so `launch` starts a detached
 // holder that owns the session and listens on a local socket in a 0700
 // directory (on Windows, a named pipe whose random name sits in a file there);
-// every other verb sends it one request. The holder exits when Claude Code
-// does. The engine package is installed on first use from the committed
+// every other session verb sends it one request. The holder exits when Claude
+// Code does. The engine package is installed on first use from the committed
 // lockfile, never vendored.
+//
+// `ready` and `log` run Claude Code in print mode with the launch's flags and
+// environment and write its stream-json to --out. `ready` prints doctor's lines,
+// whether the session answers, and the init event's fields, stops Claude Code
+// once the init event arrives, and exits 1 unless `apiKeySource` is "none" and
+// the init event lists the plugin under test. `log` runs the prompt to the end,
+// stopping Claude Code early only when the init event names an API key. Both
+// stop Claude Code at --timeout (ready 120000, log 600000 by default).
 //
 // Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install
 // (the message carries the repair line), 5 a directory others can write.
@@ -34,11 +44,13 @@ import {
   renameSync,
   rmSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -86,6 +98,27 @@ export function buildLaunch(config, env) {
   const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1' };
   for (const name of UNSET_VARS) delete childEnv[name];
   return { argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir], env: childEnv };
+}
+
+// Print-mode flags, and the init event's key source that Ready requires to be "none".
+// Pointer: the stream-json and --verbose rows of
+// https://code.claude.com/docs/en/cli-reference#cli-flags, and the ApiKeySource
+// table under https://code.claude.com/docs/en/agent-sdk/typescript#apikeysource
+// As of: 2026-10-26. Recheck trigger: a Claude Code release changes the
+// stream-json flags or the values the init event reports in apiKeySource.
+export const PRINT_FLAGS = ['-p', '--output-format', 'stream-json', '--verbose'];
+const NO_KEY = 'none';
+const READY_PROMPT = 'Reply with the single word ok.';
+const READY_TIMEOUT_MS = 120_000;
+const LOG_TIMEOUT_MS = 600_000;
+const STOP_GRACE_MS = 5000;
+
+/** The print-mode command line: the launch's, then the stream-json flags and the prompt. */
+export function buildPrint(config, env, prompt) {
+  if (!prompt) throw new UsageError('print mode needs a prompt');
+  if (prompt.startsWith('-')) throw new UsageError('a prompt may not start with -');
+  const { argv, env: childEnv } = buildLaunch(config, env);
+  return { argv: [...argv, ...PRINT_FLAGS, prompt], env: childEnv };
 }
 
 class UsageError extends Error {
@@ -573,6 +606,164 @@ function doctor(opts) {
   return { text: lines.join('\n'), status };
 }
 
+// ---- print mode: the init event and the stream-json log ----
+
+/**
+ * Runs Claude Code in print mode, copies its stdout to `out`, and resolves with
+ * the init event (undefined when none came), the exit, and whether the run hit
+ * `timeoutMs`. Claude Code and every process it started are stopped as soon as
+ * `stopAt(init)` holds or the time is up: SIGTERM, then SIGKILL after a grace.
+ */
+function runPrint({ pluginDir, out, prompt, stopAt, timeoutMs }) {
+  const { argv, env } = buildPrint({ pluginDir }, process.env, prompt);
+  const fd = openSync(out, 'w', 0o600);
+  let open = true;
+  const closeOut = () => {
+    if (open) closeSync(fd);
+    open = false;
+  };
+  return new Promise((done, fail) => {
+    // Its own process group on POSIX, so a stop reaches a wrapper's children too.
+    const group = process.platform !== 'win32';
+    const child = spawn(argv[0], argv.slice(1), { env, detached: group, stdio: ['ignore', 'pipe', 'inherit'] });
+    const decoder = new StringDecoder('utf8');
+    let buf = '';
+    let init;
+    let timedOut = false;
+    let killTimer;
+    const send = (sig) => {
+      try {
+        if (group && child.pid) process.kill(-child.pid, sig);
+        else child.kill(sig);
+      } catch {
+        // already gone
+      }
+    };
+    const stop = () => {
+      if (killTimer) return;
+      send('SIGTERM');
+      killTimer = setTimeout(() => send('SIGKILL'), STOP_GRACE_MS);
+    };
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      stop();
+    }, timeoutMs);
+    child.stdout.on('data', (d) => {
+      if (open) {
+        try {
+          writeSync(fd, d);
+        } catch (err) {
+          closeOut();
+          stop();
+          fail(new Error(`cannot write ${out}: ${err.message}`));
+          return;
+        }
+      }
+      if (init) return;
+      buf += decoder.write(d);
+      for (let nl = buf.indexOf('\n'); nl >= 0 && !init; nl = buf.indexOf('\n')) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        try {
+          const event = JSON.parse(line);
+          if (event?.type === 'system' && event.subtype === 'init') init = event;
+        } catch {
+          // a line that is not JSON is kept in the log and skipped here
+        }
+      }
+      if (init && stopAt(init)) stop();
+    });
+    child.on('error', (err) => {
+      clearTimeout(deadline);
+      clearTimeout(killTimer);
+      closeOut();
+      fail(err.code === 'ENOENT' ? new Error('claude is not on PATH') : err);
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(deadline);
+      clearTimeout(killTimer);
+      closeOut();
+      done({ init, code, signal, timedOut });
+    });
+  });
+}
+
+function printTarget(opts, verb, defaultTimeout) {
+  const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
+  if (!pluginDir) throw new UsageError(`${verb} needs --plugin-dir <dir>`);
+  if (!opts.out) throw new UsageError(`${verb} needs --out <path.jsonl>`);
+  if (opts.timeout !== undefined && !/^[1-9]\d*$/.test(opts.timeout)) {
+    throw new UsageError('--timeout takes a whole number of milliseconds');
+  }
+  if (!existsSync(pluginDir)) throw new UsageError(`--plugin-dir ${pluginDir} does not exist`);
+  const timeoutMs = Math.min(opts.timeout === undefined ? defaultTimeout : Number(opts.timeout), MAX_TTL_S * 1000);
+  return { pluginDir, out: resolve(opts.out), timeoutMs };
+}
+
+const keyLine = (init) =>
+  init.apiKeySource === NO_KEY ? [] : [`refused: apiKeySource is ${JSON.stringify(init.apiKeySource)}, not "none"; drive nothing`];
+
+/** The name in a plugin directory's manifest, or undefined when it has none. */
+function manifestName(pluginDir) {
+  try {
+    return JSON.parse(readFileSync(join(pluginDir, '.claude-plugin', 'plugin.json'), 'utf8')).name;
+  } catch {
+    return undefined;
+  }
+}
+
+const realOrSelf = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+
+/** Whether the init event lists the plugin under test, by manifest name or by path. */
+function loaded(init, pluginDir) {
+  const name = manifestName(pluginDir);
+  const dir = realOrSelf(pluginDir);
+  return (init.plugins ?? []).some((p) => (name && p?.name === name) || (p?.path && realOrSelf(p.path) === dir));
+}
+
+async function sessionLine(session) {
+  try {
+    await request(session, 'ping');
+    return `session '${session}': running`;
+  } catch (err) {
+    if (err instanceof NoSession) return `session '${session}': not running`;
+    throw err;
+  }
+}
+
+async function ready(opts) {
+  const { pluginDir, out, timeoutMs } = printTarget(opts, 'ready', READY_TIMEOUT_MS);
+  const health = doctor(opts);
+  const lines = [health.text, await sessionLine(opts.session)];
+  const { init, timedOut } = await runPrint({ pluginDir, out, prompt: READY_PROMPT, stopAt: () => true, timeoutMs });
+  lines.push(`stream: ${out}`);
+  if (!init) {
+    lines.push(timedOut ? `init: no init event within ${timeoutMs} ms` : 'init: no init event');
+    return { text: lines.join('\n'), status: health.status || 1 };
+  }
+  const plugins = (init.plugins ?? []).map((p) => p?.name).join(', ') || 'none';
+  const hasPlugin = loaded(init, pluginDir);
+  lines.push(`claude_code_version: ${init.claude_code_version}`, `apiKeySource: ${init.apiKeySource}`, `plugins: ${plugins}`, ...keyLine(init));
+  if (!hasPlugin) lines.push(`refused: the init event does not list the plugin at ${pluginDir}; drive nothing`);
+  return { text: lines.join('\n'), status: health.status || (init.apiKeySource === NO_KEY && hasPlugin ? 0 : 1) };
+}
+
+async function log(opts, prompt) {
+  const { pluginDir, out, timeoutMs } = printTarget(opts, 'log', LOG_TIMEOUT_MS);
+  const run = await runPrint({ pluginDir, out, prompt, stopAt: (i) => i.apiKeySource !== NO_KEY, timeoutMs });
+  const ended = run.timedOut ? `stopped after ${timeoutMs} ms` : run.signal ? `stopped by ${run.signal}` : `exit ${run.code}`;
+  if (!run.init) return { text: `log: ${out} (claude ${ended}); init: no init event`, status: 1 };
+  const lines = [`log: ${out} (claude ${ended}, apiKeySource ${run.init.apiKeySource})`, ...keyLine(run.init)];
+  const clean = run.init.apiKeySource === NO_KEY && run.code === 0 && !run.timedOut;
+  return { text: lines.join('\n'), status: clean ? 0 : 1 };
+}
+
 // ---- CLI ----
 
 const OPTIONS = {
@@ -583,6 +774,7 @@ const OPTIONS = {
   ttl: { type: 'string', default: '3600' },
   timeout: { type: 'string' },
   key: { type: 'string', multiple: true },
+  out: { type: 'string' },
 };
 
 const VERBS = {
@@ -607,10 +799,12 @@ const VERBS = {
   },
   stop: (o) => request(o.session, 'stop'),
   doctor: (o) => doctor(o),
+  ready: (o) => ready(o),
+  log: (o, [prompt]) => log(o, prompt),
   serve: (o) => serve(o),
 };
 
-const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2 };
+const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1 };
 
 async function main(argv) {
   let parsed;

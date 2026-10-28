@@ -57,8 +57,9 @@ TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 # Conflicts the lane does not resolve, matched on the lower-cased path: a
 # workflow, which the lane token cannot push, submodule config and a settings
-# file.
+# file outside plugins/ (apply-patch.mjs's settings rule).
 PROTECTED_RE='^\.github/workflows/|(^|/)(\.gitmodules|settings[^/]*\.json)$'
+PLUGIN_SETTINGS_RE='^plugins/(.*/)?settings[^/]*\.json$'
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
 # line end. apply-patch.mjs's hasConflictMarkers holds the same rule.
@@ -143,7 +144,7 @@ while IFS= read -r -d '' record; do
   if [[ -z ${stages[$path]:-} ]]; then
     paths+=("$path")
     printf '%s\0' "$path" >>"$out/unmerged-paths"
-    if [[ ${path,,} =~ $PROTECTED_RE ]]; then protected=1; fi
+    if [[ ${path,,} =~ $PROTECTED_RE && ! ${path,,} =~ $PLUGIN_SETTINGS_RE ]]; then protected=1; fi
   fi
   # A gitlink or symlink side has no markers either: count it as a missing
   # side. The ancestor's (stage 1) mode does not decide whether the sides merge.

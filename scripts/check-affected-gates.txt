@@ -11,6 +11,7 @@
 # shares one runner check.
 markdown run markdown
 typos run typos
+machine-specific-paths run machine-specific-paths
 exec-bit run exec-bit
 shellcheck run shellcheck
 shell-portability-lint run shell-portability
@@ -24,12 +25,11 @@ changelog-parity-order run changelog-parity
 plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
 changed-skills run changed-skills
+comment-hygiene run comment-hygiene
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
 # or the command that runs it by hand.
-machine-specific-paths ci-only ci-workflows composite, run its entry script by hand: README.md "Running machine-specific-paths locally"
 actionlint ci-only ci-workflows composite
-comment-hygiene ci-only ci-workflows composite
 dependabot-schema ci-only ci-workflows composite: check-jsonschema
 editorconfig ci-only ci-workflows composite
 eol-renormalize ci-only ci-workflows composite
@@ -47,11 +47,11 @@ vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <b
 portability-lint ci-only scripts/check-skill-portability.sh <base>
 cant-fail-scan ci-only scripts/check-cant-fail-scan.sh <base>
 evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
-listing-budget ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 precompute-compose ci-only whole-repo scanner, scripts/check-skill-precompute-compose.sh --all
 adr-numbers ci-only whole-repo scanner, scripts/check-adr-numbers.sh --check
 app-key-references ci-only whole-repo scanner, scripts/check-app-key-references.sh --check
+artifact-retention ci-only whole-repo scanner, scripts/check-artifact-retention.sh --check
 code-metrics-config-reference ci-only whole-repo scanner, python3 scripts/check-code-metrics-config-reference.py
 code-metrics-skill-prose ci-only whole-repo scanner, python3 scripts/check-code-metrics-skill-prose.py
 config-cascade-semantics ci-only whole-repo scanner, python3 scripts/sync-config-cascade-semantics.py --check
@@ -63,7 +63,6 @@ detector-findings-crosswalk ci-only whole-repo scanner, scripts/check-detector-f
 discriminating-test-skips ci-only whole-repo scanner, scripts/check-discriminating-test-skips.sh
 docs-naming ci-only whole-repo scanner, scripts/check-docs-naming.sh --check
 docs-only-contract ci-only whole-repo scanner, scripts/check-docs-only-gate.sh --check
-drive-root-scan-noop ci-only whole-repo scanner, scripts/check-drive-root-litter.sh
 exec-form-windows-probe ci-only whole-repo scanner, scripts/check-exec-form-windows-probe.sh
 fixture-git-isolation ci-only whole-repo scanner, scripts/check-fixture-git-isolation.sh --check
 fleet-audit-doc-grammar ci-only whole-repo scanner, scripts/check-fleet-audit-doc-grammar.sh --check

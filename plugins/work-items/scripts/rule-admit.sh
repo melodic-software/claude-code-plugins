@@ -30,7 +30,8 @@
 #   4   the binding is unreadable, its rule_admission is absent or malformed, its
 #       dispatch_posture is not autonomous-enabled, or its decision table does not
 #       make every rule's class autonomous-eligible
-#   8   prerequisite missing: gh, jq or a SHA-256 tool is not on PATH
+#   8   prerequisite missing: gh, jq or a SHA-256 tool is not on PATH, or the
+#       charge-word definition beside this script (charge-words.json) is unreadable
 
 # portability-scope: the GitHub implementation of rule admission; every read is a gh call.
 set -uo pipefail
@@ -112,6 +113,12 @@ else
   err "no SHA-256 tool found (sha256sum or shasum)"
   exit 8
 fi
+# One charge-word definition, shared with intake admission (charge-words.json).
+CHARGE_WORDS="$(dirname "${BASH_SOURCE[0]}")/charge-words.json"
+COST="$(jq -er '.cost | select(type == "string" and . != "")' "$CHARGE_WORDS" 2>/dev/null)" || {
+  err "the charge-word definition '$CHARGE_WORDS' is unreadable or has no cost pattern"
+  exit 8
+}
 
 # The rules, re-checked here so a malformed binding admits nothing even when
 # its validator never ran.
@@ -157,11 +164,12 @@ GATE="$(jq -r '. as $b
 SHA="$(sha_of "$BINDING" | cut -c1-12)"
 
 # The evaluation. Inputs: $issue (REST issue), $comments (REST comments),
-# $edited (GraphQL lastEditedAt, "" when never edited), $rules, $sha, $n.
+# $edited (GraphQL lastEditedAt, "" when never edited), $rules, $sha, $n,
+# $cost (the charge-word pattern).
 # shellcheck disable=SC2016 # jq program, not shell expansion
 EVAL='
 def deny: "(\\.github|\\b(hooks?|guard(rail)?s?|permissions?|(allow|deny)[- ]?lists?|workflows?|rulesets?|codeowners|secrets?|tokens?|credentials?|pins?|pinned|pinning|sha(s|1|256)?|checksums?|admission|work-class(es)?|label-provenance|autonomy|security|merg(e|es|ed|ing)|sandbox(es|ed|ing)?|auto[- ]mode|bindings?|trust(ed|s|ing)?|ci)\\b)";
-def cost: "\\b(billing|billed|spending[- ]limits?|subscriptions?|skus?|retention|(larger|hosted|self-hosted)[- ]runners?|macos minutes|seats?|codespaces|paid (plans?|seats?)|top[- ]?ups?|auto[- ]?(renew(al|ed|ing)?s?|reload)|extra usage)\\b";
+def cost: $cost;
 def spend: "\\b(costs?|spend(ing)?|pricing|paid|quotas?)\\b";
 def claude_spend: "\\b(claude|anthropic)([ -](code|api|keys?|max|usage|credits?|evals?|models?|plugin|runs?)){0,3} (spend(ing)?|costs?|pricing|quotas?)\\b";
 def other_charge: "\\b(github|azure|aws|amazon|gcp|google|cloudflare|openai|gemini|bedrock|vertex|vercel|netlify|heroku|digitalocean|stripe|actions|copilot|lfs|storage|runners?|hosting|domains?|advanced security|providers?|vendors?|services?|plans?)\\b";
@@ -241,7 +249,7 @@ for n in "${ISSUES[@]}"; do
     continue
   }
   jq -nc --slurpfile i "$TMP/issue.json" --slurpfile c "$TMP/comments.json" --arg edited "$edited" \
-    --argjson rules "$RULES" --arg sha "$SHA" --argjson n "$n" --arg marker "$MARKER" \
+    --argjson rules "$RULES" --arg sha "$SHA" --argjson n "$n" --arg marker "$MARKER" --arg cost "$COST" \
     '$i[0] as $issue | $c[0] as $comments | '"$EVAL" 2>/dev/null ||
     refuse_row "$n" "issue data was unparsable"
 done

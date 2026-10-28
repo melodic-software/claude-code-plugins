@@ -3,6 +3,148 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.12.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [4.12.1] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [4.12.0] - 2026-10-27
+
+### Added
+
+- **`/harness-ops:plugins sync` offers to fast-forward a `directory` marketplace's checkout.**
+  When the checkout is clean, on a branch with an upstream, and only behind it, the report's
+  digest marks it `offered` and the skill asks once per marketplace. On a yes it reruns with
+  `--pull-source`: `sync-run.sh` checks the checkout again, runs `git pull --ff-only` before
+  the marketplace refresh, and the run goes on against the newer catalog, its `source:` row
+  naming the commits it moved from and to. The script refuses a dirty, detached, upstream-less,
+  ahead, diverged or current checkout with the reason and touches nothing, and a refused or
+  failed pull does not stop the run. The new `directory_source_pull` option takes `ask`
+  (default) or `never`; an autonomous or ambiguous session never asks or pulls, and the script
+  treats a set `CLAUDE_CODE_REMOTE` as `never` (#7454).
+- **The `autoUpdate: off` suggestion can be silenced.** Marketplaces named in the new
+  `quiet_auto_update_marketplaces` option render `autoUpdate: off` without the suggestion to
+  enable it; unset keeps it.
+
+### Fixed
+
+- `/harness-ops:morning-brief`: a queue count or stuck label whose search reads 0 is checked against the REST issue listing, which does not go through search ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)). When that listing reads more than 0 or fails, the label shows `count unavailable` on a `PARTIAL` line, and the Stuck section prints no all-clear.
+- `/harness-ops:lanes` restart consumer: the `Lane telemetry: <lane>` issue lookup reads REST `search/issues` and treats an answer whose `incomplete_results` is not `false` as a failed read, so the lane records `api-error` instead of `no-telemetry` when search is degraded ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)).
+
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
+## [4.11.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [4.11.1] - 2026-10-27
+
+### Changed
+
+- `audit-native-overlap` now says who writes a native-overlap verdict or dismissal: a person, or a session acting on the owner's recorded direction, and never an unattended run ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)). It used to say a person and never a run. The new wording is in the skill's statements of the rule, its `summary`, the `canonical-pairs.json` note, and these `overlap.py` texts: the view header, the generated Dismissed section's lead sentence, the `detect` report note and the `dismiss` help. A run of the skill still only recommends a verdict and never records one. The skill's evals are unchanged.
+
+## [4.11.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [4.10.4] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [4.10.3] - 2026-10-26
+
+### Changed
+
+- `context/gotchas.md` records why the user sweep stays serial: concurrent `claude plugin update` and `plugin uninstall` calls lose registry writes while exiting 0 (probe on Claude Code 2.1.310, #6309).
+
+## [4.10.2] - 2026-10-26
+
+### Fixed
+
+- `/harness-ops:changelog` `status`, `diff` and `apply` read the changelog page's current `**X.Y.Z**` release headings again instead of reporting `range: not computed`; the older `<Update label>` blocks still parse. One parser, `scripts/changelog-releases.sh`, now serves the status script, the `fetch` slice and the behavior-probes `recheck`.
+
+## [4.10.1] - 2026-10-26
+
+### Changed
+
+- **audit-performance:** the Token-leak reference now records the per-logon `ForegroundLockTimeout` workaround, applied after every logon because a third-party write-up reports that Windows resets the live value at logon; on the trial host a process that cannot take the foreground was refused the set. It also records the trial on one host and a before-baseline on build 26300.9711, where the leak still counts one token per creator.
+
+## [4.10.0] - 2026-10-26
+
+### Added
+
+- behavior-probes gains a `prints` outcome that judges the first line a slash command prints, a per-case `cli_args` list limited to allowed flags (today `--autocompact`), and `PROBE_MODEL` in a scaffold's environment. A `prints` case can name a control, and a control's own control now counts too.
+- A new `autocompact` area: four cases that run `/autocompact` with no argument and check which window wins between a project file's top-level and per-model `autoCompactWindow`, the `--autocompact` flag, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. Each case adds one element to the case it names as its control. They pass in the dry run and have not run live yet.
+
+## [4.9.0] - 2026-10-26
+
+### Added
+
+- `behavior-probes` has a `lane-permissions` area: seven cases that run the CI write lane's tool lists under `dontAsk` and check that its Read deny rules keep Grep, Glob and Read out of `/proc/*/environ` and the checkout's `.git`, with paired in-checkout Grep and Read controls.
+- `probe.py` passes a case's `allowed_tools` and `disallowed_tools` (or a shared `tool_rules` file in `cases/lib/`) as `--allowedTools` and `--disallowedTools`, with `${PROBE_WORKDIR}` substituted.
+- A `verdict_only` case saves no raw stream and no tool output text, so a failed deny leaves nothing on disk; `rejudge` keeps its row from the live run and says why.
+
+## [4.8.0] - 2026-10-26
+
+### Added
+
+- **lanes:** a new optional `lane_app_slug` option holds the GitHub App slug the lanes run `gh` under. The `consume-restarts` invocation passes it to `restart-consumer.sh` as `--app-slug`, and the `telemetry-upsert.sh` guidance passes it on every call, so an operator whose lanes write under an App installation token no longer has to type `--app-slug` on each run. The README options table lists it.
+
+### Changed
+
+- **lanes:** `restart-consumer.sh` and `telemetry-upsert.sh` read an unrendered `${user_config.lane_app_slug}` placeholder as no slug instead of refusing it with exit 3, so the always-passed option is harmless when unset. `restart-consumer.sh` also accepts an empty `--app-slug` value, which it used to refuse with exit 3, and reads it as no slug, as `telemetry-upsert.sh` already did. A bare trailing `--app-slug` with no value is still refused.
+
+## [4.7.0] - 2026-10-26
+
+### Added
+
+- **`CC_OTEL_HOT_TOTAL_MAX_MB` caps the hot OTEL store files together.** Each prune now trims
+  `cc-logs.json`, `cc-metrics.json` and `cc-traces.json` to at most 1024 MiB in total by default
+  (`0` disables), dropping the oldest lines across all three to cold first. Before this, only the
+  per-file `CC_OTEL_HOT_MAX_MB` cap applied, so three files each under it could together pass the
+  1 GiB hot budget provisioning checks. `operator-setup-retention.md` documents the knob.
+
+### Fixed
+
+- **`CC_OTEL_HOT_MAX_MB` with a leading zero** (`08`) is read as base 10 instead of failing as octal.
+
+## [4.6.1] - 2026-10-26
+
+### Fixed
+
+- **The parser reader's flow check trusts the engine's implicit lookups.** A spread of the array now trusts `@@iterator` and `next`; `slice`, `map`, `filter`, `concat`, `flat` and `flatMap` trust `constructor` and `@@species`, and `concat` trusts `@@isConcatSpreadable`; a member read used as a value trusts its key (the array's own `length` and literal elements excepted), and one whose computed key names nothing is no longer followed. A spread or value-only read of the array now reaches the sink check even when nothing mutates it, so a module patching any of those names reads the list `partial` under `--reader=parser` instead of a wrong `literal`. Fail-closed: a bundle that may write `Symbol.iterator` or `next` on an object the sink rule cannot show is no prototype (2.1.287's yallist writes `Symbol.iterator` on one) now reads every spread-built list `partial` under the parser.
+
+## [4.6.0] - 2026-10-26
+
+### Added
+
+- **control-claude-code:** the control skill `/app-control:drive` reads to run Claude Code's terminal UI with a plugin loaded. Its hub names Launch, Ready, Capture (screenshot, video, and logs as stream-json) and Cleanup, marks it for attended runs only, and never signs in or switches accounts. `config/defaults.json` holds `pluginDir`. Feature folders cover a mod's band, toast and panel, skill invocation, hook output, slash commands, the permission dialog, and Claude Desktop through `claude plugin test`; every Claude Desktop entry point is `not driven: terms`.
+- **control-claude-code driver:** two verbs that run Claude Code in print mode with the launch's flags and environment and write its stream-json to `--out`. `ready` prints doctor's lines, whether the session answers, and the init event's version, plugins and `apiKeySource`. It stops Claude Code once the init event arrives, and exits 1 unless `apiKeySource` is `none` and the init event lists the plugin under test. `log <prompt>` keeps the whole run, and stops Claude Code early when the init event names an API key. Both stop Claude Code and every process it started at `--timeout`.
+
+## [4.5.9] - 2026-10-26
+
+### Fixed
+
+- **changelog:** the native-drift pass no longer refiles a recheck item on every apply for a store row whose marker comes from the docs. A row lists such markers in the new optional `native.docs_markers`, and the pass leaves them out of the marker comparison; any other marker change still fires.
+- **audit-native-overlap:** the store self-check rejects a `native.docs_markers` entry that the row's `native.markers` does not also record.
+
 ## [4.5.8] - 2026-10-26
 
 ### Fixed

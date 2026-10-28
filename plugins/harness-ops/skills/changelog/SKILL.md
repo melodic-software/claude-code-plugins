@@ -96,7 +96,7 @@ are in scope, and hands each one to the marketplace skill that owns that stage, 
 Resolve the range, check the cap, and check version alignment:
 
 1. **Resolve the range** (first match wins):
-   - Changelog text already in conversation → the releases its `<Update label>` blocks or version headings name ARE the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
+   - Changelog text already in conversation → the releases its release markers or version headings name ARE the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
    - A range or version was given → `--range` as given
    - Otherwise → no `--range`; the default range from the read marker applies
 2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the hand-off does not run past the cap. Relay any `warn` line per "Version awareness" above
@@ -225,7 +225,7 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 Its fetch command writes this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put
 that path in place of the placeholder before running it.
 
-- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (the plugin's `fetch-docs.sh` writes the `.md` to a file; slice the release blocks locally) and display a version, a range, or the newest release. No edits
+- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (the plugin's `fetch-docs.sh` writes the `.md` to a file; slice releases locally with the plugin's `changelog-releases.sh --blocks`) and display a version, a range, or the newest release. No edits
 - **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the scope gate. Emits decision rows grouped by owner surface, each with its lens and required sentence, plus a docs-lag section, and saves its working set for `apply`. Answers "is this range worth an `apply`?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 

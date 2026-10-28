@@ -66,8 +66,9 @@
 #   --agents-json FILE   read the session list from FILE instead of
 #                        `claude agents --json` (offline / test injection).
 #   --app-slug SLUG      the GitHub App whose installation token gh runs under;
-#                        lane comments are then read from SLUG[bot]. See
-#                        WRITE IDENTITY below.
+#                        lane comments are then read from SLUG[bot]. An empty
+#                        value or an unrendered `${user_config.*}` placeholder
+#                        means no slug. See WRITE IDENTITY below.
 #   --telemetry-json FILE
 #                        read lane telemetry from FILE instead of `gh`: a JSON
 #                        object mapping lane name -> that issue's comments array,
@@ -305,7 +306,12 @@ parse_args() {
       ;;
     --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
     --app-slug)
-      check_optarg "$1" "${2:-}" || exit 3
+      # An empty value is allowed: the lanes skill always passes the rendered
+      # lane_app_slug option, which is empty when the operator left it unset.
+      if (($# < 2)) || [[ "$2" == -* ]]; then
+        err "option '$1' requires a non-option argument"
+        exit 3
+      fi
       APP_SLUG="$2"
       shift
       ;;
@@ -377,6 +383,9 @@ parse_args() {
     esac
     shift
   done
+  # An unrendered `${user_config.lane_app_slug}` placeholder means the option is
+  # unset; treat it, like an empty value, as no slug.
+  [[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
   if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
     err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
     exit 3
@@ -854,21 +863,24 @@ lane_comment_marker_matches() {
   esac
 }
 
-# `gh issue list --search` is a fuzzy full-text match, so the title is re-checked
+# The issue search is a fuzzy full-text match, so the title is re-checked
 # EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
 # unrelated comment stream. The search term deliberately omits the colon, which
 # GitHub search would read as a qualifier separator.
-# Returns 1 — never empty output — when the LIST itself failed, for the same
-# reason `lane_comment_bodies` does: empty means "no issue carries this title",
-# and coercing an API failure to it would report an unreachable forge as a
-# routine `no-telemetry` tick, leaving an unattended consumer apparently healthy
-# while it never observes that lane's request. The caller turns a non-zero
-# return into its own `api-error` decision.
+# Returns 1 — never empty output — when the search failed or its answer is not
+# marked complete (`incomplete_results` other than false; REST search reports
+# it, `gh issue list --search` does not), for the same reason
+# `lane_comment_bodies` does: empty means "no issue carries this title", and
+# coercing a failed or partial read to it would report an unreachable forge as
+# a routine `no-telemetry` tick, leaving an unattended consumer apparently
+# healthy while it never observes that lane's request. The caller turns a
+# non-zero return into its own `api-error` decision.
 resolve_issue_by_title() {
   local repo="$1" title="$2" raw
-  raw="$(gh issue list --repo "$repo" --state open --limit 100 \
-    --search "Lane telemetry in:title" --json number,title 2>/dev/null)" || return 1
-  jq -r --arg t "$title" '[ .[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
+  raw="$(gh api --method GET search/issues -f per_page=100 \
+    -f q="repo:$repo is:issue is:open Lane telemetry in:title" 2>/dev/null)" || return 1
+  jq -e '.incomplete_results == false' <<<"$raw" >/dev/null 2>&1 || return 1
+  jq -r --arg t "$title" '[ .items[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
     <<<"$raw" 2>/dev/null || return 1
 }
 
@@ -1066,7 +1078,7 @@ process_lane() {
   fi
   if [[ -z "$issue" && -z "$TELEMETRY_JSON_FILE" ]]; then
     if ! issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane")"; then
-      record "$lane" "api-error" "could not list open issues on $repo (gh issue list); telemetry issue unresolved, not restarting" null "$now"
+      record "$lane" "api-error" "could not read a complete issue search on $repo; telemetry issue unresolved, not restarting" null "$now"
       fail_lane "api-error($lane)" 5
       return 0
     fi

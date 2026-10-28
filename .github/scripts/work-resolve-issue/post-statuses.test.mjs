@@ -4,12 +4,12 @@
 // prep steps are posted as it reported them, the two lane jobs from their
 // GitHub job results, and nothing is posted without a lane branch.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main, plan } from "./post-statuses.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 const SHA = "c".repeat(40);
@@ -145,7 +145,7 @@ function fakeFetch(routes) {
 }
 
 async function withOutcome(files, run) {
-  const dir = mkdtempSync(join(tmpdir(), "statuses-"));
+  const dir = tempDir("statuses-");
   try {
     for (const [name, text] of Object.entries(files)) {
       writeFileSync(join(dir, name), text);
@@ -186,6 +186,32 @@ test("main posts each status on the lane branch's head SHA with the run as its t
         "pipeline/review": "success",
       });
       assert.ok(posted.every((c) => c.body.target_url === "https://example/o/r/actions/runs/123"));
+    },
+  );
+});
+
+// A status post repeats to the same state, so it is sent again like a read.
+test("main survives a dropped socket on the branch read and on a status post", async () => {
+  await withOutcome(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    async (dir) => {
+      const { fetch: inner, calls } = fakeFetch([
+        ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: SHA } }],
+        ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+      ]);
+      // The first send of each method fails on the network after it was made.
+      const drop = new Set(["GET", "POST"]);
+      const fetch = async (url, init = {}) => {
+        const answer = await inner(url, init);
+        if (drop.delete(init.method ?? "GET")) {
+          throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+        }
+        return answer;
+      };
+      assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
+      const contexts = calls.filter((c) => c.method === "POST").map((c) => c.body.context);
+      assert.deepEqual(contexts, ["pipeline/resolve-issue", "pipeline/resolve-issue", "pipeline/report-outcome"]);
+      assert.equal(calls.filter((c) => c.method === "GET").length, 2);
     },
   );
 });
