@@ -367,6 +367,90 @@ assert_exit "stale: a non-numeric idle window is usage (exit 2)" 2 "$?"
 CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$UNRELATED" --repo-dir "$REPO"
 assert_exit "stale: a non-worktree path is environment (exit 5)" 5 "$?"
 
+# --- stale --batch: the single-path verdicts, in one run (#10562) -------------
+
+BATCH_IN="$TEST_TMPDIR/batch-in"
+# batch_input <path>...: the NUL-delimited stdin stale --batch reads.
+batch_input() { printf '%s\0' "$@" >"$BATCH_IN"; }
+run_stale_batch() { # [args]
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" run_claim stale --batch --repo-dir "$REPO" "$@" <"$BATCH_IN"
+}
+# batch_row <output> <path>: the row stale --batch printed for <path>.
+batch_row() { printf '%s\n' "$1" | awk -F'\t' -v p="$2" '$2 == p'; }
+
+batch_paths=()
+for name in wt-st-fresh wt-st-old wt-st-none wt-st-foreign wt-st-nosess wt-st-bare; do
+  batch_paths+=("$EXT/$name")
+done
+batch_paths+=("$REPO")
+batch_input "${batch_paths[@]}" "$UNRELATED"
+run_stale_batch
+assert_exit "stale --batch: exits 0 once every row is printed" 0 "$?"
+batch_out="$OUT"
+assert_eq "stale --batch: one row per path" 8 "$(printf '%s\n' "$batch_out" | grep -c .)"
+# Every row is exactly what a single-path call exits with and prints.
+for p in "${batch_paths[@]}"; do
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" run_claim stale "$p" --repo-dir "$REPO"
+  single_rc=$?
+  assert_eq "stale --batch: ${p##*/} matches the single-path exit and line" \
+    "$single_rc"$'\t'"$p"$'\t'"$OUT" "$(batch_row "$batch_out" "$p")"
+done
+row="$(batch_row "$batch_out" "$UNRELATED")"
+assert_eq "stale --batch: an unregistered path's row exits 5" 5 "${row%%$'\t'*}"
+assert_contains "stale --batch: the unregistered row says so" "$row" "not a registered worktree"
+
+batch_input "$EXT/wt-st-old"
+run_stale_batch --idle-minutes 240
+assert_eq "stale --batch: --idle-minutes applies to every row" 1 "${OUT%%$'\t'*}"
+
+batch_input "$EXT/wt-st-old" "$EXT/wt-st-none"
+CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-such-config" HOSTNAME="$STALE_HOST" \
+  run_claim stale --batch --repo-dir "$REPO" <"$BATCH_IN"
+assert_eq "stale --batch: an unreadable transcript directory leaves both rows not provable" \
+  2 "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == 1 && $3 ~ /unreadable/' | grep -c .)"
+
+PATH="$FAILFIND_BIN:$PATH_SAVED" run_stale_batch
+assert_eq "stale --batch: a failed scan leaves both rows not provable" \
+  2 "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == 1 && $3 ~ /failed/' | grep -c .)"
+
+# One worktree list and one transcript scan per run, however many paths: stubs
+# that log each call, then hand it to the real binary.
+COUNT_BIN="$TEST_TMPDIR/count-bin"
+COUNT_LOG="$TEST_TMPDIR/count-log"
+mkdir -p "$COUNT_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'printf "find\\n" >>%q\n' "$COUNT_LOG"
+  printf 'exec %q "$@"\n' "$(command -v find)"
+} >"$COUNT_BIN/find"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the $* belongs to the generated stub, not here.
+  printf 'case " $* " in *" worktree list "*) printf "list\\n" >>%q ;; esac\n' "$COUNT_LOG"
+  printf 'exec %q "$@"\n' "$REAL_GIT"
+} >"$COUNT_BIN/git"
+chmod +x "$COUNT_BIN/find" "$COUNT_BIN/git"
+: >"$COUNT_LOG"
+batch_input "$EXT/wt-st-fresh" "$EXT/wt-st-old" "$EXT/wt-st-none"
+PATH="$COUNT_BIN:$PATH_SAVED" run_stale_batch
+assert_exit "stale --batch through the counting stubs exits 0" 0 "$?"
+assert_eq "stale --batch: one transcript scan for three lane locks" 1 "$(grep -c '^find$' "$COUNT_LOG")"
+assert_eq "stale --batch: one worktree list for three paths" 1 "$(grep -c '^list$' "$COUNT_LOG")"
+
+# Whole-run failures: before any row.
+batch_input "$EXT/wt-st-old" "$EXT/tab"$'\t'"name"
+run_stale_batch
+assert_exit "stale --batch: a path holding a tab is usage (exit 2)" 2 "$?"
+assert_silent "stale --batch: the refused run prints no row" "$OUT"
+: >"$BATCH_IN"
+run_stale_batch
+assert_exit "stale --batch: no paths is exit 0" 0 "$?"
+assert_silent "stale --batch: no paths prints no row" "$OUT"
+run_claim stale --batch "$EXT/wt-st-old" --repo-dir "$REPO" </dev/null
+assert_exit "stale --batch with a path argument is usage (exit 2)" 2 "$?"
+run_claim report --batch --repo-dir "$REPO" </dev/null
+assert_exit "--batch outside stale is usage (exit 2)" 2 "$?"
+
 # --- usage / environment ------------------------------------------------------
 
 run_claim

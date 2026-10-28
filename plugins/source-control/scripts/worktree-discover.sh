@@ -39,7 +39,10 @@
 #   worktree  <path> <repo>         each direct child of a root holding a .git
 #                                   entry, with its owning repository, or `-` when
 #                                   git cannot resolve one (worktree-root-scan.sh
-#                                   classifies those)
+#                                   classifies those); and each worktree a listed
+#                                   repository registers deeper under a root
+#                                   (nested in a subdirectory or in another
+#                                   worktree), with that repository
 # A repository that owns a worktree under a root is listed even when discovery
 # did not reach it, and its own root is resolved and scanned in turn. A path
 # holding a tab or newline cannot be a TSV field: it is skipped with a warning
@@ -280,12 +283,57 @@ while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
   done
 done
 
+# --- Registered worktrees deeper under a root --------------------------------
+# The scan sees direct children only. A worktree a repository registers further
+# down (`<root>/<group>/<name>`, or one nested in another worktree's `.work/`)
+# is listed from that repository's own registration, spelled under the root as
+# configured. git prints a registered path resolved, so each root is matched
+# both as configured and as resolved.
+root_phys=()
+for i in ${roots[@]+"${!roots[@]}"}; do
+  root_phys+=("$(cd -P -- "${roots[$i]}" 2>/dev/null && { pwd -W 2>/dev/null || pwd -P; })")
+done
+# add_registered_row <registered-path> <repo>: a row for a registered worktree
+# below a root but not directly under any root (those are the scan's, owner and
+# all), spelled under the first root that holds it.
+add_registered_row() {
+  local p="$1" i prefix rel row="" deeper=""
+  for i in ${roots[@]+"${!roots[@]}"}; do
+    for prefix in "${roots[$i]}" "${root_phys[$i]}"; do
+      [[ -n "$prefix" && "$p" == "$prefix"/* ]] || continue
+      rel="${p#"$prefix"/}"
+      [[ "$rel" == */* ]] || return 0
+      [[ -n "$deeper" ]] || deeper="${roots[$i]}/$rel"
+    done
+  done
+  [[ -n "$deeper" ]] || return 0
+  tsv_safe "$deeper" || return 0
+  row="worktree"$'\t'"$deeper"$'\t'"$2"
+  [[ $'\n'"$wt_rows" == *$'\n'"$row"$'\n'* ]] || wt_rows+="$row"$'\n'
+}
+
 for i in ${roots[@]+"${!roots[@]}"}; do
   printf 'root\t%s\t%s\n' "${roots[$i]}" "${rungs[$i]}"
 done
 for r in ${repos[@]+"${repos[@]}"}; do
-  linked="$(git -C "$r" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" || true
-  linked=$((${linked:-0} > 0 ? linked - 1 : 0))
+  # The first record is the main checkout or the bare hub; every later one is a
+  # linked worktree.
+  linked=0
+  records=0
+  while IFS= read -r -d '' line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ "$line" == "worktree "* ]] || continue
+    records=$((records + 1))
+    ((records > 1)) || continue
+    linked=$((linked + 1))
+    add_registered_row "${line#worktree }" "$r"
+  done < <(git -C "$r" worktree list --porcelain -z 2>/dev/null)
+  if ((records == 0)); then
+    # A git older than 2.36 has no `-z`: count from the line form, which cannot
+    # carry every path safely, so no deeper row comes from it.
+    linked="$(git -C "$r" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" || true
+    linked=$((${linked:-0} > 0 ? linked - 1 : 0))
+  fi
   printf 'repo\t%s\t%s\n' "$r" "$linked"
 done
 printf '%s' "$wt_rows"

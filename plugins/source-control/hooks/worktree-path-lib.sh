@@ -56,7 +56,7 @@ worktree_path_is_abs() {
 # no-op for ordinary roots. A relative input keeps an empty root and can
 # therefore collapse to the empty string; a caller that wants `.` for that case
 # supplies it. Symlink resolution of existing components is left to the caller:
-# git's own realpath at creation, `pwd -P` in the claim helper.
+# git's own realpath at creation, `cd -P` in the claim helper.
 worktree_path_normalize() {
   local input="$1" root rest seg
   if [[ "$input" == /* ]]; then

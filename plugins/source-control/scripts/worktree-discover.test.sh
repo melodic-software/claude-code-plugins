@@ -282,4 +282,19 @@ else
   skip_case "zsh not available: the status block's zsh run is not exercised"
 fi
 
+# --- Registered worktrees below a root's direct children (#10562) -------------
+# One nested in another worktree's .work/, one under a plain grouping directory
+# and owned by a repository the root scan finds.
+git -C "$A" worktree add -q -b wnest "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
+git -C "$B" worktree add -q -b wgroup "$ROOT/group/b-grouped" >/dev/null 2>&1
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+assert_exit "nested worktrees: exits 0" 0 "$RC"
+assert_eq "a worktree nested in another worktree is listed with its repository" \
+  $'worktree\t'"$ROOT/a-wt/.work/nested"$'\t'"$A" "$(rows worktree "$ROOT/a-wt/.work/nested")"
+assert_eq "a worktree under a grouping directory is listed with its repository" \
+  $'worktree\t'"$ROOT/group/b-grouped"$'\t'"$B" "$(rows worktree "$ROOT/group/b-grouped")"
+assert_eq "a direct child is still listed once" $'worktree\t'"$ROOT/a-wt"$'\t'"$A" \
+  "$(rows worktree "$ROOT/a-wt")"
+assert_eq "the grouping directory itself is not a worktree row" "" "$(rows worktree "$ROOT/group")"
+
 [[ $FAILED -eq 0 ]] || exit 1

@@ -41,10 +41,12 @@ worktree_reason_is_ours() {
 # Prints `<host> <session-id>` from a reason shaped `lane active on <host> session <sid> since`
 # (what worktree_lock_reason writes with a session). Fails for any other reason, including
 # a session-less one. The session id charset is the one worktree-claim.sh accepts, so it is
-# safe inside a file-name pattern.
+# safe inside a file-name pattern. A caller that cannot afford the subshell a
+# capture costs matches WORKTREE_REASON_LANE_RE itself and reads BASH_REMATCH[1]
+# and [2].
+WORKTREE_REASON_LANE_RE='lane active on ([^ ]+) session ([A-Za-z0-9._:-]+) since'
 worktree_reason_lane() {
-  local re='lane active on ([^ ]+) session ([A-Za-z0-9._:-]+) since'
-  [[ "$1" =~ $re ]] || return 1
+  [[ "$1" =~ $WORKTREE_REASON_LANE_RE ]] || return 1
   printf '%s %s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
 }
 
