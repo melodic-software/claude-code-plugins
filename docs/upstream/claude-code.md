@@ -138,6 +138,8 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 No change for 280-030: a 2.1.296 probe showed PreToolUse and PostToolUse hooks receive a Write sent with alias keys as the normalized `file_path` and `content`, so guards keyed on `.tool_input.file_path` see those writes.
 
+Gotcha, no upstream report (owner decision): a 2.1.312 probe ([#9886](https://github.com/melodic-software/claude-code-plugins/issues/9886), 2026-10-28) showed that an unset `userConfig` key with a manifest `default` reaches skill content as its literal `${user_config.KEY}` token, while a saved boolean `true` substitutes as `true`. [plugins manifest reference, Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) states neither case, as of 2026-10-28; recheck when that section addresses unset keys or defaults. A skill that reads a `${user_config.KEY}` token applies the key's own default when the token arrives unexpanded, as the planning interview does for its default-`true` `shared_session_open_browser`.
+
 ## Docs lag
 
 The read also found upstream pages whose text contradicted the changelog. Those pages are not

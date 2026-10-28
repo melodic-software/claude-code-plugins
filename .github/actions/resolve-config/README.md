@@ -100,7 +100,8 @@ issue in the payload (a `labels-absent` predicate reads `GET /issues/{n}` instea
 
 The file at `output-path` holds `version`, `source` (`base-path`, `config-path`), `lane` (name,
 stage, enabled, and every slot resolved), `selected` (the requested activity's slot, or null),
-`loop`, `limits` and `merge`. A slot whose activity sets `applied-by` carries it. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
+`loop`, `review-threads`, `limits` and `merge`. A slot whose activity sets `applied-by` carries it. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
+`review-threads.reviewer-ids` `[]`,
 the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#limits)),
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and

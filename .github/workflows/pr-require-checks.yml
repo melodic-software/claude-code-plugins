@@ -148,10 +148,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# and check-catalog, split from one job whose wall was 99 to 125 s over the
-# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
-# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
-# checkout included) in the 125 s run, 3 each;
+# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
+# composite schema steps it then ran plus 3 s for their pip-installed
+# replacement (those steps alone reached 121 s on a stalled uv download), 2,
+# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
+# and checkout included) in the 125 s run of the job it was split from, 3;
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
@@ -1555,11 +1556,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     # pull-requests: read lets "Resolve the queued pull request" read the
-    # queued pull request in a merge group; checks: read lets the aggregator
-    # quote a composite gate's annotations.
+    # queued pull request in a merge group.
     permissions:
       contents: read
-      checks: read
       pull-requests: read
     steps:
       - name: Check out
@@ -1572,7 +1571,8 @@ jobs:
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
       # if the module is missing rather than clearing files they never parsed,
-      # so this install is load-bearing, not convenience.
+      # so this install is load-bearing, not convenience. It also installs the
+      # check-jsonschema the manifest schema steps run.
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -1929,22 +1929,22 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
 
+      # check-jsonschema comes from the hash-locked requirements install above,
+      # not the ci-workflows action: its setup-uv download from
+      # releases.astral.sh stalled 116 s in merge group run 40676402542 and the
+      # job hit its cap, and its uvx then fetched a second CPython.
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-marketplace.json
-          files: .claude-plugin/marketplace.json
+        shell: bash scripts/run-hygiene-gate.sh marketplace-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-marketplace.json .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
-          files: plugins/*/.claude-plugin/plugin.json
+        shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
       # JSON Schema validates the ALREADY-PARSED document, so it structurally
       # cannot see a duplicate object key -- by the time a schema runs, the
@@ -2032,13 +2032,6 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
@@ -3259,13 +3252,13 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's six and the lanes-hold step's eight (in the merge
+    # review-lane step's six, the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to 1,520 under
     # the listing's caps; its wall time is unmeasured, and a cold one can reach
-    # the cap, which fails red), about four
-    # minutes, plus the cost-hold step's reads: one for most pull requests,
-    # which stop at the label events; for a lane-labeled one whose body cites a
+    # the cap, which fails red) and the pr-unblock status step's one (two in the
+    # merge queue), about four and a half minutes, plus the cost-hold step's
+    # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
     # run since the window opened, plus the base-config checkout's fetch
     # (seconds; its retries replace the contents reads' 15 s each).
@@ -4568,7 +4561,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -5002,6 +4995,65 @@ jobs:
       # reader holds it (verify:spec-changed). A record or link that does not
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      # A HEAD A PR-UNBLOCK LANE STOPPED IS HELD. A lane stop that
+      # escalation-routes.json routes `fail` ends in a failing
+      # `pr-unblock/<activity>` commit status on the head (pr-unblock.yml
+      # report-stop-status), and only ci-status is required, so this step
+      # fails while the newest status of any `pr-unblock/*` context on the
+      # head is `failure` or `error`, naming each. Newest per context, by
+      # github-actions[bot] only, as report-escalation.sh `clear` reads it:
+      # its later `success` on the same head supersedes the failure, and
+      # another account's status neither holds nor clears. On a pull request
+      # event the head is the event's; in the merge queue it is the head of
+      # the pull request named in the group's ref, read live (the ref's SHA is
+      # the group's base). A status event re-runs nothing, so a stop posted
+      # after this step passed holds at the merge queue's run. An unparsable
+      # ref, a head that is not a commit SHA, or an unreadable pull request or
+      # status list fails closed.
+      # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
+      - name: Fail a head a pr-unblock lane stopped
+        id: pr_unblock_status
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "${@:2}" && return 0
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          head=$HEAD_SHA
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+            pull=$(read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+            head=$(jq -r '.head.sha // ""' <<<"$pull") || head=
+          fi
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head '$head' is not a commit SHA."
+            exit 1
+          fi
+          # Newest first across pages, so the first row of a context is its newest.
+          rows=$(read3 "the statuses of $head" "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate \
+            --jq '.[] | select((.context | startswith("pr-unblock/")) and .creator.login == "github-actions[bot]")
+              | [.context, .state, (.description // "" | gsub("[\t\r\n]"; " "))] | @tsv') || exit 1
+          failing=$(awk -F'\t' '!seen[$1]++ && ($2 == "failure" || $2 == "error")' <<<"$rows")
+          if [ -z "$failing" ]; then
+            echo "No pr-unblock/* status fails on $head."
+            exit 0
+          fi
+          while IFS=$'\t' read -r context state description; do
+            echo "::error::'$context' is $state on $head: ${description//%/%25}. The lane that stopped clears it by running again on this head, or a new head carries none."
+          done <<<"$failing"
+          exit 1
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:

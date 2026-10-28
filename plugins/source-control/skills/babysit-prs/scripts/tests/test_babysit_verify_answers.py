@@ -182,6 +182,9 @@ class World:
         self.runs: dict[int, dict[str, Any]] = {}
         self.calls: list[list[str]] = []
         self.graphql: Callable[[str], subprocess.CompletedProcess[str]] | None = None
+        # Each `<ref>:<path>` expression's blob oid; when set, the probe's
+        # `trusted` and `admission` objects answer at the expression asked.
+        self.blobs: dict[str, str] | None = None
 
     def gh(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
@@ -190,6 +193,14 @@ class World:
             if self.graphql is not None:
                 return self.graphql(query)
             data = self.refs if query == ve.PROBE_REFS_QUERY else self.repository
+            if query == ve.PROBE_QUERY and self.blobs is not None:
+                asked = dict(a.split("=", 1) for a in args[4:] if "=" in a)
+                data = data | {
+                    alias: {"oid": self.blobs[asked[name]]}
+                    if asked[name] in self.blobs
+                    else None
+                    for alias, name in (("trusted", "ta"), ("admission", "ar"))
+                }
             return done({"data": {"repository": data}})
         run_id = int(args[1].rsplit("/", 1)[1])
         return done(self.runs[run_id])
@@ -221,8 +232,8 @@ def namespace(**overrides: Any) -> argparse.Namespace:
     return argparse.Namespace(**fields)
 
 
-def reader(world: World) -> ve.Reader:
-    r = ve.Reader(REPO, "main", now=NOW, listing_max_age=None)
+def reader(world: World, branch: str = "main") -> ve.Reader:
+    r = ve.Reader(REPO, branch, now=NOW, listing_max_age=None)
     r._artifacts, r._fetched_at = world.listing, NOW
     return r
 
@@ -233,13 +244,15 @@ def github(world: World, config: policy.PipelineConfig = CONFIG) -> Iterator[Non
         mock.patch.object(postmerge, "gh_capture", side_effect=world.gh),
         mock.patch.object(policy, "config_at", return_value=config),
         mock.patch.object(policy, "with_default_branch", side_effect=lambda r, b: b),
+        mock.patch.object(policy, "_default_branch", return_value="main"),
     ):
         yield
 
 
 def key(world: World, **overrides: Any) -> str:
     with github(world, overrides.pop("config", CONFIG)):
-        return ve._answer_key(namespace(**overrides), reader(world))[0]
+        args = namespace(**overrides)
+        return ve._answer_key(args, reader(world, args.branch))[0]
 
 
 class KeyTest(unittest.TestCase):
@@ -325,6 +338,17 @@ class KeyTest(unittest.TestCase):
             with self.subTest(row):
                 self.assertTrue(self.moved(change))
 
+    def test_the_trust_files_are_probed_by_full_branch_ref(self) -> None:
+        # A bare name resolves as git does, where a tag of the same name
+        # wins; `refs/heads/` names the branch alone.
+        world = World()
+        key(world, branch="trunk")
+        probe_args = next(
+            c for c in world.calls if f"query={ve.PROBE_QUERY}" in c
+        )
+        self.assertIn(f"ta=refs/heads/trunk:{ve.TRUSTED_ACTORS_PATH}", probe_args)
+        self.assertIn(f"ar=refs/heads/main:{ve.ADMISSION_RULES_PATH}", probe_args)
+
     def test_the_config_rung_and_base_move_the_key(self) -> None:
         same = World()
         self.assertNotEqual(
@@ -333,6 +357,36 @@ class KeyTest(unittest.TestCase):
         )
         self.assertNotEqual(key(same), key(same, rung="C1"))
         self.assertNotEqual(key(same), key(same, base_sha=OTHER))
+
+    def blobs_key(self, **blobs: str) -> str:
+        """The key for a feature base, `trusted_main`, `trusted_feature`,
+        `rules_main` and `rules_feature` naming each file's blob there."""
+        world = World()
+        oids = {
+            "trusted_main": "1" * 40,
+            "trusted_feature": "1" * 40,
+            "rules_main": "2" * 40,
+            "rules_feature": "2" * 40,
+        } | blobs
+        world.blobs = {
+            f"{ref}:{path}": oids[f"{file}_{branch}"]
+            for file, path in (
+                ("trusted", ve.TRUSTED_ACTORS_PATH),
+                ("rules", ve.ADMISSION_RULES_PATH),
+            )
+            for branch, ref in (("main", "refs/heads/main"), ("feature", "refs/heads/feature"))
+        }
+        return key(world, branch="feature")
+
+    def test_a_feature_base_keys_the_admission_rules_at_the_default_branch(
+        self,
+    ) -> None:
+        self.assertNotEqual(self.blobs_key(), self.blobs_key(rules_main="4" * 40))
+        self.assertEqual(self.blobs_key(), self.blobs_key(rules_feature="4" * 40))
+
+    def test_the_trusted_actor_probe_keeps_the_readers_branch(self) -> None:
+        self.assertNotEqual(self.blobs_key(), self.blobs_key(trusted_feature="3" * 40))
+        self.assertEqual(self.blobs_key(), self.blobs_key(trusted_main="3" * 40))
 
     def test_a_pass_run_re_attempted_or_concluded_otherwise_moves_the_key(self) -> None:
         def with_pass(**record: Any) -> str:
@@ -420,6 +474,15 @@ class KeyTest(unittest.TestCase):
                 change(world)
                 with github(world), self.assertRaises(ve._ProbeFailed):
                     ve._answer_key(namespace(), reader(world))
+        world = World()
+        with (
+            github(world),
+            mock.patch.object(
+                policy, "_default_branch", side_effect=policy.PolicyReadError("x")
+            ),
+            self.assertRaises(ve._ProbeFailed),
+        ):
+            ve._answer_key(namespace(), reader(world))
         world = World()
         with github(world):
             self.assertEqual(len(ve._answer_key(namespace(), reader(world))[0]), 64)
