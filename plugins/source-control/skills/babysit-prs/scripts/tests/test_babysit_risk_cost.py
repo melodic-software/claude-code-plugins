@@ -774,6 +774,9 @@ class LowRatedShapes(_Finding):
             ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
             # An expression still open at the end of the added lines.
             ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
+            # A quote a comment leaves open does not hide a later expression.
+            ("+# ${{ '", "+  K: ${{ secrets }}'"),
+            ("+  # ${{ '", "+  K: ${{ format('{0}{1}', secrets, 'a') }}"),
         ):
             with self.subTest(lines=lines):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))

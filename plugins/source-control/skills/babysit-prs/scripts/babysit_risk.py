@@ -1143,10 +1143,19 @@ def _logical_lines(lines: list[str]) -> list[str]:
 
 
 def _secret_refs(line: str) -> list[str]:
+    """Each `${{` starts a fresh read with no literal open, wherever it sits,
+    so a quote opened in a YAML comment or another expression cannot hide a
+    real expression's bare `secrets`; one several reads see counts once."""
     found = _SECRET_REF.findall(line)
-    for expression in _expressions(line)[0]:
-        found += _BARE_SECRETS.findall(_STRING_LITERAL.sub("''", expression))
-    return found
+    bare: dict[int, str] = {}
+    for start in (m.end() for m in re.finditer(r"\$\{\{", line)):
+        body = _expressions(line[start - 3 :])[0][0]
+        blanked = _STRING_LITERAL.sub(
+            lambda m: "'" + " " * (len(m.group()) - 2) + "'", body
+        )
+        for m in _BARE_SECRETS.finditer(blanked):
+            bare[start + m.start()] = m.group()
+    return found + list(bare.values())
 
 
 def _net_added(
