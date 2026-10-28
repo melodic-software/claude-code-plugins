@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Route: fallback (unattended). Suggestion recorded: set up a control skill with /app-control:map create.",
+      "why": "records the suggestion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Route: fallback (unattended). The run drives the order history page with playwright-cli.",
+      "why": "suggestion missing"
+    }
+  ]
+}
