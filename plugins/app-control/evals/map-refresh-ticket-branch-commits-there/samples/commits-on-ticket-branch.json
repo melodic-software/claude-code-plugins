@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Stay on feat/cart-tax and commit the README fix on feat/cart-tax; push nothing.",
+      "why": "names the ticket branch as the commit target"
+    },
+    {
+      "answer": "Commit: `feat/cart-tax`, staging only features/cart/total/README.md.",
+      "why": "backticked"
+    },
+    {
+      "answer": "Commit the correction to .claude/skills/control-shop/features/cart/total/README.md on `feat/cart-tax`.",
+      "why": "a path between the verb and the branch"
+    },
+    {
+      "answer": "Where the commit goes: feat/cart-tax (the ticket branch).",
+      "why": "label form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop from main, then switch back to feat/cart-tax.",
+      "why": "the commit goes to the upkeep branch"
+    },
+    {
+      "answer": "Commit on control-skill-upkeep/control-shop then return to feat/cart-tax",
+      "why": "upkeep commit, return named without a comma"
+    },
+    {
+      "answer": "Commit on main then switch back to feat/cart-tax",
+      "why": "the default branch"
+    },
+    {
+      "answer": "Commit on feat/cart-tax-docs.",
+      "why": "another branch"
+    }
+  ]
+}

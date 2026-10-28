@@ -22,8 +22,9 @@ A pass ends in exactly one:
 
 - **clean**: the control skill matches the app. Nothing is edited or opened, and the pass is
   recorded so the next one skips until HEAD moves.
-- **changed**: control skill files were edited, committed to the one upkeep branch for that skill,
-  and sent out through at most one pull request.
+- **changed**: control skill files were edited and committed: on the one upkeep branch for that
+  skill and sent out through at most one pull request, or, for a pass started on a ticket branch,
+  on that branch (§ Ticket branch).
 - **blocked**: the pass could not decide. The report names the blocker and what clears it.
 
 ## What a pass may edit
@@ -73,7 +74,9 @@ Return to the starting branch). With none, the outcome is **blocked**: no contro
 testing feature map.
 
 A control skill whose feature files are any flat `features/<id>.md` is due a flat-to-folder
-conversion; a legacy map is due a format conversion. Both follow Converting a legacy map.
+conversion; a legacy map is due a format conversion. Both follow Converting a legacy map. Started
+on a ticket branch (§ Ticket branch), a pass due either conversion is **blocked**: a conversion
+runs from the default branch, where it rides the upkeep pull request.
 
 ## 2. Decide whether to run
 
@@ -213,7 +216,7 @@ Then the outcome:
   pass still ship as **changed** describes, and the outcome still reads blocked.
 - Something to ship: **changed**. An attended pass shows the proposed edits and asks before writing,
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
-  goes on. Then:
+  goes on. Started on a ticket branch, follow § Ticket branch instead of these four steps. Then:
   1. **Branch.** A legacy conversion did this before step 4 and stays on that branch. The branch
      is `control-skill-upkeep/control-<slug>`, the control skill's full directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
      `control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local
@@ -249,6 +252,27 @@ Then the outcome:
      one through `/source-control:pull-request create`, in the open state that skill resolves. Without the plugin, or when the list call fails, leave the
      commit on the branch and report that a pull request still needs checking or opening, with any
      error. Done when the report holds the pull request URL or the reason there is none.
+
+### Ticket branch
+
+A pass started on a ticket branch drove the app from code the default branch may not have yet, so
+its corrections ship with that code, in the ticket's pull request, never through an upkeep pull
+request that could merge first or without it. A ticket branch is a starting branch (§ Return to the
+starting branch) other than the default branch and the control skill's upkeep branch.
+
+1. **Stay.** Switch nothing. When `git status --porcelain -- "<dir>"` prints a line not starting
+   `??` (tracked control skill files with uncommitted changes, the caller's own), the outcome is
+   **blocked** with the edits in the report unwritten: the caller commits or stashes those first.
+   Changes outside the directory are the caller's work and stay untouched.
+2. **Write**, as step 2 above.
+3. **Commit**, as step 3 above, on the ticket branch.
+4. **Hand back.** Push nothing and open no pull request: the caller's push carries the commit into
+   the ticket's pull request. The report names the commit, so the caller knows HEAD moved by a
+   commit that touches only the control skill directory.
+
+A pass started on a detached HEAD whose commit is not the default branch's tip commits nothing: the
+outcome is **blocked**, the edits go in the report unwritten, and a pass on the ticket's branch or
+on the default branch clears it.
 
 ### Return to the starting branch
 
@@ -304,4 +328,5 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting
   left to change;
-- the branch, the commit and the pull request URL, or why there is none.
+- the branch, the commit and the pull request URL, or why there is none (on a ticket branch, that
+  the ticket's pull request carries the commit).

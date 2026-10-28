@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-refresh-ticket-branch-commits-there
+description: A one-feature refresh started on a ticket branch commits its correction on that branch and opens no upkeep pull request, so the docs merge with the code they describe
+tags: [map, refresh, branch, unattended, invented]
+expected_outcome: "The reply commits the cart/total correction on feat/cart-tax, the ticket branch the pass started on, staging only the control skill file. It switches to no other branch, creates or updates no control-skill-upkeep branch, pushes nothing and opens no pull request, leaving the ticket's pull request to carry the commit. It ends on feat/cart-tax. Nothing is switched, written or committed in this session."
+execution:
+  prompt: "/app-control:map refresh cart/total --unattended. Do not read the repository, drive the app, switch branches, write or commit anything in this session; treat these as facts. The pass starts on feat/cart-tax, a ticket branch with a clean working tree; main is the default branch. /testing:run-e2e called this refresh for a feature its change touched. The repository control skill .claude/skills/control-shop/ holds features/cart/total/README.md. The source wave and live pass already ran: the cart total's handle is now labeled `Total with tax` (src/cart/total.ts:7) and works; the README still says `Total`. Nothing else differs. In order, name each branch you are on, where the commit goes, whether you push or open a pull request, and which branch you are on when the pass ends, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: commits-on-ticket-branch
+    type: regex
+    pattern: 'commit\w*[*`]*(?:\s+(?!\S*upkeep|main\b|switch|back\b|return)[\w./`*-]+){0,8}?(?:\s+(?:on|to|in))?[\s:]+[`*]*feat/cart-tax(?![\w-])'
+    flags: i
+    arm: both
+  - name: no-upkeep-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) commits the cart/total README correction on feat/cart-tax, (2) never switches to, creates or commits on control-skill-upkeep/control-shop or main, (3) pushes nothing and opens or updates no pull request, leaving the ticket's own pull request to carry the commit, and (4) ends the pass on feat/cart-tax. Naming the upkeep branch only to say it is not used is fine. FAIL if it commits on an upkeep branch or main, opens or updates any pull request, pushes, or asks anything."
