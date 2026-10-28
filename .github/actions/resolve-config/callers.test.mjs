@@ -6855,9 +6855,10 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
 // The read runner's model job uploads nothing (the test above). The write
 // runner's skill job holds id-token: write while the skill can rewrite any
 // file a later step would run, so no step runs staged code after it there.
-// The mutation audit's mutants run as the runner user, so a later step there
-// runs only with an empty env and absolute paths, and an upload holds the
-// runtime token.
+// The mutation audit's mutants run as the runner user and can rewrite code a
+// later step in that job runs, so an upload there would run tampered code
+// holding the runtime token; the token scan there runs with an empty env and
+// absolute paths for the same reason.
 const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
   "pr-run-activity-write.yml#run",
