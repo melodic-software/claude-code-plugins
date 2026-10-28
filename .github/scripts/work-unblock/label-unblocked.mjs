@@ -69,10 +69,22 @@
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
 // added again by the App, which starts the lane. An issue whose newest marker
-// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
-// restarted the same way at once, while its turn-cap markers since a person
-// last added agent-ready are within limits.turn-cap-restarts. At most
+// is `turn-cap` or `retry` (report-outcome kept agent-ready, so a restart is
+// left) is restarted the same way at once, while its markers of that outcome
+// since a person last added agent-ready are within limits.turn-cap-restarts
+// or limits.stop-retries. A funding stop (the lane's Claude capacity: a spend
+// limit, no credit or a disabled key) is restarted like a limit stop, after
+// its regain date or, with none, limits.fallback-reset hours after the stop.
+// At most
 // limits.restarts-per-run issues per run, longest-waiting first.
+//
+// Limit and funding stops past limits.limit-stops-per-issue since a person
+// last added agent-ready spend that cap, a safety limit, so the issue takes
+// the `fail` route of the issue lane's stop routes: the App posts
+// an outcome=failed marker naming the stopped run, which maintenance-monitor
+// signal 9 reports, and removes agent-ready, adding no label. It never gets
+// needs-human. A newest failed marker with agent-ready still on (a removal
+// that did not land) gets agent-ready removed.
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
@@ -101,7 +113,7 @@
 // backoff, a WIP cap skip without a per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
 // the broker passes on (its Retry-After is at most an hour), and only while
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
-// limit stop, so it never counts toward handing the issue to a person.
+// limit stop, so it never counts toward failing the issue.
 //
 // A run the token broker refused for the lanes kill switch, at broker-check's
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
@@ -323,10 +335,13 @@ const appMarkers = (comments, bot) =>
     .sort((a, b) => a.at - b.at);
 
 // The App's markers after which its removal of agent-ready is a restart.
-const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry"]);
+
+// The outcomes restarted at once, each bounded by its `limits` leaf.
+const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries" };
 
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap`, `retry` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
@@ -712,11 +727,12 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   return failed;
 }
 
-// The hand-off to a person after limits.limit-stops-per-issue limit stops. Its marker lets
-// a later sweep see the comment was posted.
-const ESCALATED = "<!-- work-unblock escalated -->";
-export const escalationComment = (stops) =>
-  `${ESCALATED}\nThe usage limit stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\`, so work-unblock no longer restarts it. To try again, remove \`${HUMAN_LABEL}\`, then remove \`${LABEL}\` and add it back: adding it starts a new run and starts the count again. Removing \`${LABEL}\` by hand also means work-unblock never adds it to this issue again when its blockers close; from then on a person adds it.`;
+// The fail route's comment after limits.limit-stops-per-issue limit and
+// funding stops. It opens with the issue lane's outcome marker, so signal 9
+// reports it and findPrior resumes the stopped run's branch (`run`, and
+// `branch=resumed` when that run kept no branch of its own) on the next run.
+export const failedComment = ({ stops, run = "", onResumed = false }) =>
+  `<!-- work-resolve-issue outcome=failed${run ? ` run=${run}` : ""}${onResumed ? " branch=resumed" : ""} -->\nThe usage limit or the lane's funding stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\` (limits.limit-stops-per-issue), so work-unblock stopped restarting it: it removed \`${LABEL}\` and added no label. This is a capacity stop, not a decision for a person. To run it again, add \`${LABEL}\`; the next run continues the stopped run's branch while it is not behind the default branch.`;
 
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
@@ -1296,21 +1312,28 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
+  // A fail route whose comment went out but whose agent-ready removal did not
+  // land. An agent-ready added after the newest marker (a person's re-add)
+  // returned through refireRefusal above, so none was added since: finish it.
+  if (marker?.outcome === "failed") {
+    return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
+  }
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a turn cap only while a restart is
-  // left, and hands the issue back otherwise; the count here bounds a forged
-  // or stale marker the same way.
-  if (marker?.outcome === "turn-cap") {
-    // Only a listed human's agent-ready resets the turn-cap count, so another
-    // labeler cannot buy restarts.
+  // report-outcome keeps agent-ready after a turn cap or a stop routed to
+  // retry only while a restart is left, and stops the issue otherwise; the
+  // count here bounds a forged or stale marker the same way.
+  const bound = CAPPED_RESTARTS[marker?.outcome];
+  if (bound) {
+    // Only a listed human's agent-ready resets the count, so another labeler
+    // cannot buy restarts.
     const humanSince = events
       .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
       .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
-    return caps > limits["turn-cap-restarts"]
-      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
+    const caps = markers.filter((item) => item.outcome === marker.outcome && item.at > humanSince).length;
+    return caps > limits[bound]
+      ? { reason: `${caps} ${marker.outcome} stops since a person last added ${LABEL}` }
       : { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";
@@ -1318,19 +1341,14 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
     return { reason: "no limit stop is its newest lane outcome" };
   }
   // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
-  // goes to a person: count both since a person last added agent-ready.
+  // spends the per-issue cap and takes the fail route: count both since a
+  // person last added agent-ready.
   const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
   if (stops >= limits["limit-stops-per-issue"]) {
-    const explained = comments.some(
-      (comment) =>
-        comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
-    );
-    return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
+    return { reason: `${stops} limit stops since a person last added ${LABEL}`, fail: { stops, run: marker.run, onResumed: marker.onResumed } };
   }
-  // A funding stop with no regain date waits for a person.
-  if (funding && marker.resets === null) {
-    return { reason: "waiting for a person to restore the lane's funding" };
-  }
+  // A funding stop with no regain date waits limits.fallback-reset, as a
+  // limit stop with no reset does (clampReset).
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
@@ -1392,18 +1410,17 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
           wipCapped,
           read,
         }));
-      const { reason, escalate, explained } = verdict;
-      if (escalate) {
-        // The comment first and the label last: the label is a hold, so a
-        // sweep after a failed comment would never come back to post it. A
-        // failed label write is retried by the next sweep, which finds the
-        // comment and adds only the label.
+      const { reason, fail } = verdict;
+      if (fail) {
+        // The fail route: the comment first and agent-ready last, so the stop
+        // is never invisible. A failed removal is retried by the next sweep,
+        // which finds the failed marker newest and removes only the label.
         const base = `/repos/${repo}/issues/${issue.number}`;
-        if (!explained) {
-          await github("POST", `${base}/comments`, { body: escalationComment(escalate) });
+        if (!fail.finish) {
+          await github("POST", `${base}/comments`, { body: failedComment(fail) });
         }
-        await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
-        console.log(`label-unblocked: #${issue.number} handed to a person: ${reason}`);
+        await github("DELETE", `${base}/labels/${LABEL}`);
+        console.log(`label-unblocked: #${issue.number} failed: ${reason}`);
         continue;
       }
       if (reason !== null) {

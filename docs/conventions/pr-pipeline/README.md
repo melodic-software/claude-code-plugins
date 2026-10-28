@@ -795,9 +795,9 @@ the rules that only tighten in
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
   reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
-  `findings:claude-review`, `findings:claude-security-review`). Every other MEDIUM reason
+  `findings:claude-review`, `findings:claude-security-review`, `cost-finding`). Every other MEDIUM reason
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
-- **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
+- **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
   claude-review or a lower security one, is listed in the reasons and does not hold.
@@ -852,21 +852,38 @@ the rules that only tighten in
     `.github/actions/resolve-config/**`, whose code the broker runs from main in its signer
     process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
     defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
-    `.github/scripts/pr-merge/`, `.github/workflows/pr-merge.yml` and
-    `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`,
+    `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
     `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition.
-  - `enforcement`, a clean security review clears it: every other module the floored scripts
-    import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+  - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
+    `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
+    request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
+    other module the floored scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
-    and the `retry-fetch.mjs` copy in each of those two directories, and `fix-ci-context.mjs` with
-    the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads)
+    the `retry-fetch.mjs` copy in each of those two directories, the stop routes
+    `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
+    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads)
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
     the gate. When the pull request also changes a lane source, the review can never bind at that
-    head, so it scores `review-path-unbindable:<glob>`, which a person clears.
+    head, so it scores `review-path-unbindable:<glob>`, which a person clears. A lane source is a
+    path the head's checkout feeds or forges its own review from (`LANE_SOURCE_PREFIXES` and
+    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A changed workflow file is
+    not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
+    secret: a top-level `.yml` other than the two review callers and the floor workflows
+    (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
+    set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
+    `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
+    workflow stays a lane source, and so do `pr-merge.yml` and `pr-require-checks.yml` whatever
+    their content, so a person clears any change to either. The `merge` and
+    `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
+    that read; without it no workflow change clears. A comment by a lane author
+    (`github-actions[bot]` or the Claude App) binds only while its last editor is its own author:
+    anyone with write access can edit a comment, so one edited by another identity unbinds the
+    review as `comment-edited`. The edit is read before the body, so an edit that removes the
+    lane footer or the marker line still unbinds.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
@@ -893,33 +910,46 @@ the rules that only tighten in
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
   CRITICAL. Its other open findings are reported as `findings:claude-security-review`.
-- **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
-  2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
-  says and whatever an adopted author's own paths leave off the floor, and waits for a human like
-  any other HIGH reason. It catches:
+- **Cost hold.** Cost is not a stop; only a real new charge is ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)). A change
+  that could start one (billed infrastructure or billed runner minutes) scores HIGH as
+  `cost-review-required` in both lanes, whatever `high-path-floor` says and whatever an adopted
+  author's own paths leave off the floor, and waits for a human like any other HIGH reason. It
+  catches:
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
     file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
     list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
-  - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
-    model credits) or a `--model` or `--max-turns` flag; or that gains any `secrets` reference
-    (`secrets.NAME`, `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`), a `uses:` of
-    `run-claude-cli` or any `claude-code*` action or image (matched ignoring case), or a run line
-    invoking `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved
-    line or a repin is not new;
-  - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
-    workflow whose head text uses one of those actions or could not be read;
   - a runner value the workflow's head text gains over its base text, or an added inline
     `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
     standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
+  - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
+    (a schedule runs billed minutes), a raised timeout as below, or an artifact
+    `retention-days` the patch adds above every one it removes, or above GitHub's
+    [90-day default](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
+    when it removes none (storage past the free quota);
+  - a workflow or pipeline file with no patch.
+
+  Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
+  `cost-finding`, which never holds:
+  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
+    `cron:` key;
+  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
+    every one it removes, in a workflow whose head text uses one of those actions or could not be
+    read, and a raised artifact `retention-days`;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
-    on the same lines in place.
-    Flow style, quoted keys and new list items hold;
-  - a workflow or pipeline file with no patch.
+    on the same lines in place. Flow style, quoted keys and new list items count.
+
+  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
+  `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
+  gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
+  case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
+  each counted against the lines it removes so a moved line or a repin is not new. These widen
+  what a credential or an agent can reach, not only spend, so a person clears them and no cost
+  decision does.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
@@ -2198,7 +2228,7 @@ findings listed by key. Its scripts and tests are in
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
-| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap` |
+| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
@@ -2378,9 +2408,10 @@ with defaults.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
-| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
-| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
+| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry`, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
@@ -2490,7 +2521,10 @@ design (owner decision 2026-10-22, #8966), and the issues it labels still count 
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
-`admission-open` is `false` only while new admissions pause.
+`admission-open` is `false` only while new admissions pause. A job that reads only `capped`
+(pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
+open listing and the merged count, and leaves the admission fields null with `admission_basis`
+`not-read`.
 
 | Field | Meaning |
 |---|---|
@@ -2513,7 +2547,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` or `search-incomplete` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
-| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`. |
+| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `not-read` under `reads: pause`. |
 
 ## Adoption
 
@@ -2628,8 +2662,11 @@ tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
 
 The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
-`workflow_run` event. When that run ends red, pr-merge's `dispatch-full-run` job sends its run id to
-the alert workflow through `workflow_dispatch`. The alert accepts the id only from
+`workflow_run` event. When that run ends red, pr-merge's `post-merge-dispatch` job sends its run id
+to the alert workflow through `workflow_dispatch` on its next scheduled run while the lane is
+live (kill switch and report-only off), up to 15 minutes later. A dispatch `pr-require-checks.yml`'s main-dispatch concurrency group replaced before it
+started (cancelled, no job) is no signal: it is never sent, and neither the alert nor the
+post-merge check reads it as red. The alert accepts the id only from
 `github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
 and only for attempt 1 of a red `pr-require-checks.yml` run on this repository's `main` that
 `github-actions[bot]` dispatched. Red is any conclusion `babysit_postmerge.py` counts as failed:

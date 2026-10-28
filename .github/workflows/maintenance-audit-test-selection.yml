@@ -99,7 +99,8 @@ jobs:
       - name: Install locked test toolchains
         run: |
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
@@ -147,7 +148,7 @@ jobs:
             ${{ runner.temp }}/selection-audit/*.md
             ${{ runner.temp }}/selection-audit/*.tsv
             ${{ runner.temp }}/selection-audit/logs/
-          retention-days: 30
+          retention-days: 7
 
   audit-failed-suite-selection:
     if: >-
@@ -176,4 +177,4 @@ jobs:
         with:
           name: selection-red-replay-${{ github.event.workflow_run.id }}
           path: ${{ runner.temp }}/red-replay/report.md
-          retention-days: 30
+          retention-days: 7

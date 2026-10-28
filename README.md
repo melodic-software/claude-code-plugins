@@ -191,6 +191,19 @@ checkout.
 The script uses `git grep` in the current directory: it scans tracked files only, so `git add -N`
 or commit a new file before running. Exit 0 is clean, exit 1 means findings.
 
+### Artifact retention
+
+Every `actions/upload-artifact` step in `.github/workflows/` and `.github/actions/` sets
+`retention-days`, and the value equals its artifact family's row in
+[`.github/artifact-retention.json`](.github/artifact-retention.json). A new upload needs a row:
+the name or `<literal prefix>*`, `retention-days` (1 to 89, or `max` for 90), `readers` (each a
+repository path, then what reads it and how far back) and the `reason` that length is needed. A
+`max` row also names its `max-reader`, the reader that needs 90 days. Keep the shortest retention
+the readers need: an upload with no `retention-days` keeps its artifact 90 days, and every kept
+artifact lengthens the listing the pr-verify evidence reader pages through.
+`scripts/check-artifact-retention.sh` enforces this in `lint-repo` and states how a name maps to a
+family.
+
 ### The check-script contract
 
 `scripts/check-*.sh` is one family with one caller-visible interface, so a CI

@@ -70,6 +70,11 @@
 #                               with the same reset and resource, else na
 #   api_budget_emit_content     the notice for the job's content-creating
 #                               writes: count and most in any 60 s
+#   api_budget_emit_calls <token>...
+#                               the hub's api-calls notice for each token with
+#                               a reading, `<token>=N not-modified=M`: N is
+#                               the job's own calls, M its 304 answers, which
+#                               GitHub does not count
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -364,6 +369,16 @@ api_budget_emit_content() {
   where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
   sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
     END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
+  return 0
+}
+
+api_budget_emit_calls() {
+  local token file
+  for token; do
+    file=${RUNNER_TEMP:-}/api-budget/$token
+    [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ && -s $file ]] || continue
+    awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
+  done
   return 0
 }
 

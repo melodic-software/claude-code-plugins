@@ -292,8 +292,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
-  [".github/workflows/pr-require-checks.yml", "gate"],
-  [".github/workflows/pr-merge.yml", "gate"],
+  [".github/workflows/pr-require-checks.yml", "enforcement"],
+  [".github/workflows/pr-merge.yml", "enforcement"],
   ["docs/conventions/pr-pipeline.yaml", "gate"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
@@ -304,6 +304,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"],
   [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
+  [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
 // person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge

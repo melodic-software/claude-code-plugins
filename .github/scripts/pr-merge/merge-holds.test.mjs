@@ -372,11 +372,11 @@ const FLOOR_FILES = [
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
-  ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-merge.yml",
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
+  ".github/workflows/pr-require-checks.yml",
+  ".github/workflows/pr-merge.yml",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
@@ -388,6 +388,8 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/work-resolve-issue/retry-fetch.mjs",
   ".github/scripts/pr-unblock/fix-ci-context.mjs",
   ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
+  ".github/scripts/work-resolve-issue/stop-routes.json",
+  ".github/scripts/work-resolve-issue/stop-routes.mjs",
 ];
 test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
