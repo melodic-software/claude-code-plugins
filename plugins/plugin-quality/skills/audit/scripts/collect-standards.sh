@@ -110,7 +110,6 @@ if [[ "$home_rc" -ne 0 ]]; then
 fi
 
 echo "convention-home: $home_out"
-HOME_DIR="$ROOT/$home_out"
 findings=0
 
 cite() {
@@ -132,26 +131,38 @@ emit_probe() {
   fi
 }
 
+# topic_rel <topic> - the topic's contract, relative to the root: the
+# marketplace contract folder docs/contracts/<topic>/README.md when present,
+# else <home>/<topic>/README.md (a convention home that still holds the topic).
+topic_rel() {
+  if [[ -f "$ROOT/docs/contracts/$1/README.md" ]]; then
+    printf 'docs/contracts/%s/README.md' "$1"
+  else
+    printf '%s/%s/README.md' "$home_out" "$1"
+  fi
+}
+
 topic_file() {
-  printf '%s/%s/README.md' "$HOME_DIR" "$1"
+  printf '%s/%s' "$ROOT" "$(topic_rel "$1")"
 }
 
 # --- invocation-mode -------------------------------------------------------
 inv_file="$(topic_file invocation-mode)"
+inv_rel="$(topic_rel invocation-mode)"
 inv_cite="$(cite "$inv_file" "The key is written")"
 base="$(basename "$COMPONENT")"
 if [[ ! -f "$inv_file" ]]; then
   emit_probe invocation-mode topic-absent - - "convention file absent"
 elif [[ -z "$inv_cite" ]]; then
-  emit_probe invocation-mode basis-missing "$home_out/invocation-mode/README.md" - "citation sentence absent"
+  emit_probe invocation-mode basis-missing "$inv_rel" - "citation sentence absent"
 elif [[ "$base" != "SKILL.md" ]]; then
-  emit_probe invocation-mode not-applicable "$home_out/invocation-mode/README.md:$inv_cite" - "not a skill file"
+  emit_probe invocation-mode not-applicable "$inv_rel:$inv_cite" - "not a skill file"
 else
   if awk 'BEGIN{f=0} /^---[[:space:]]*$/{f++; next} f==1{print} f>=2{exit}' "$COMPONENT" |
     grep -E -q '^disable-model-invocation:'; then
-    emit_probe invocation-mode aligned "$home_out/invocation-mode/README.md:$inv_cite" - "explicit disable-model-invocation"
+    emit_probe invocation-mode aligned "$inv_rel:$inv_cite" - "explicit disable-model-invocation"
   else
-    emit_probe invocation-mode finding "$home_out/invocation-mode/README.md:$inv_cite" "$COMPONENT:1" "disable-model-invocation key absent"
+    emit_probe invocation-mode finding "$inv_rel:$inv_cite" "$COMPONENT:1" "disable-model-invocation key absent"
   fi
 fi
 
@@ -177,18 +188,19 @@ exempt_plugins() {
   done
 }
 seam_file="$(topic_file seam-phrasing)"
+seam_rel="$(topic_rel seam-phrasing)"
 seam_cite="$(cite "$seam_file" "explicit installed-ness")"
 if [[ ! -f "$seam_file" ]]; then
   emit_probe seam-phrasing topic-absent - - "convention file absent"
 elif [[ -z "$seam_cite" ]]; then
-  emit_probe seam-phrasing basis-missing "$home_out/seam-phrasing/README.md" - "citation sentence absent"
+  emit_probe seam-phrasing basis-missing "$seam_rel" - "citation sentence absent"
 else
   # Exempt: the owning plugin and any manifest `dependencies` entry, one name
   # per line from the nearest plugin.json above the component.
   exempt="|$(exempt_plugins | paste -sd'|' -)|"
   # shellcheck disable=SC2016 # the backticks are the invocation token, not an expansion
   seam_out="$(
-    awk -v comp="$COMPONENT" -v conv="$home_out/seam-phrasing/README.md:$seam_cite" -v exempt="$exempt" '
+    awk -v comp="$COMPONENT" -v conv="$seam_rel:$seam_cite" -v exempt="$exempt" '
       { line[NR] = $0 }
       # An invocation token is `/ns:skill` with optional arguments, or bare `ns:skill`.
       function cross_plugin(s,    tok, ns) {
@@ -223,9 +235,9 @@ else
   if [[ -n "$seam_hits" ]]; then
     printf '%s\n' "$seam_hits"
   elif [[ "$seam_count" -gt 0 ]]; then
-    emit_probe seam-phrasing aligned "$home_out/seam-phrasing/README.md:$seam_cite" - "every cross-plugin invocation is gated or an install recipe"
+    emit_probe seam-phrasing aligned "$seam_rel:$seam_cite" - "every cross-plugin invocation is gated or an install recipe"
   else
-    emit_probe seam-phrasing not-applicable "$home_out/seam-phrasing/README.md:$seam_cite" - "no optional cross-plugin invocation"
+    emit_probe seam-phrasing not-applicable "$seam_rel:$seam_cite" - "no optional cross-plugin invocation"
   fi
 fi
 
@@ -233,11 +245,12 @@ fi
 # The convention grades file for file on `never instructions to you`. An ingest
 # signal in the frontmatter (a `tools:` list) declares a capability, not a read.
 unc_file="$(topic_file untrusted-content)"
+unc_rel="$(topic_rel untrusted-content)"
 unc_cite="$(cite "$unc_file" "DATA, never instructions")"
 if [[ ! -f "$unc_file" ]]; then
   emit_probe untrusted-content topic-absent - - "convention file absent"
 elif [[ -z "$unc_cite" ]]; then
-  emit_probe untrusted-content basis-missing "$home_out/untrusted-content/README.md" - "citation sentence absent"
+  emit_probe untrusted-content basis-missing "$unc_rel" - "citation sentence absent"
 else
   ingest_line="$(awk '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
@@ -245,36 +258,38 @@ else
     !fm && /WebFetch|curl |gh issue|gh pr|gh api/ { print NR; exit } # prereq-ok: a pattern matched against the audited file, not a command this script runs
   ' "$COMPONENT")"
   if [[ -z "$ingest_line" ]]; then
-    emit_probe untrusted-content not-applicable "$home_out/untrusted-content/README.md:$unc_cite" - "no ingest signal"
+    emit_probe untrusted-content not-applicable "$unc_rel:$unc_cite" - "no ingest signal"
   elif grep -F -q 'never instructions to you' "$COMPONENT"; then
-    emit_probe untrusted-content aligned "$home_out/untrusted-content/README.md:$unc_cite" - "framing spine present"
+    emit_probe untrusted-content aligned "$unc_rel:$unc_cite" - "framing spine present"
   else
-    emit_probe untrusted-content finding "$home_out/untrusted-content/README.md:$unc_cite" "$COMPONENT:$ingest_line" "ingest without the framing spine"
+    emit_probe untrusted-content finding "$unc_rel:$unc_cite" "$COMPONENT:$ingest_line" "ingest without the framing spine"
   fi
 fi
 
 # --- windows-path-emit -----------------------------------------------------
 win_file="$(topic_file windows-path-emit)"
+win_rel="$(topic_rel windows-path-emit)"
 win_cite="$(cite "$win_file" "path-conversion suppressor")"
 if [[ ! -f "$win_file" ]]; then
   emit_probe windows-path-emit topic-absent - - "convention file absent"
 elif [[ -z "$win_cite" ]]; then
-  emit_probe windows-path-emit basis-missing "$home_out/windows-path-emit/README.md" - "citation sentence absent"
+  emit_probe windows-path-emit basis-missing "$win_rel" - "citation sentence absent"
 else
   export_line="$(grep -n -E 'export[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)|declare[[:space:]]+-x[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)|typeset[[:space:]]+-x[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)' "$COMPONENT" | head -n 1 | cut -d: -f1 || true)"
   if [[ -n "$export_line" ]]; then
-    emit_probe windows-path-emit finding "$home_out/windows-path-emit/README.md:$win_cite" "$COMPONENT:$export_line" "exported path-conversion suppressor"
+    emit_probe windows-path-emit finding "$win_rel:$win_cite" "$COMPONENT:$export_line" "exported path-conversion suppressor"
   else
-    emit_probe windows-path-emit not-graded "$home_out/windows-path-emit/README.md:$win_cite" - "only an exported path-conversion suppressor is graded; read the component for a POSIX path handed to a Windows-native process"
+    emit_probe windows-path-emit not-graded "$win_rel:$win_cite" - "only an exported path-conversion suppressor is graded; read the component for a POSIX path handed to a Windows-native process"
   fi
 fi
 
 # --- hook-budget -----------------------------------------------------------
 hook_file="$(topic_file hook-budget)"
+hook_rel="$(topic_rel hook-budget)"
 if [[ ! -f "$hook_file" ]]; then
   emit_probe hook-budget topic-absent - - "convention file absent"
 else
-  emit_probe hook-budget not-applicable "$home_out/hook-budget/README.md" - "cost is measured, not grep-graded; the hook lens owns it"
+  emit_probe hook-budget not-applicable "$hook_rel" - "cost is measured, not grep-graded; the hook lens owns it"
 fi
 
 if [[ "$findings" -gt 0 ]]; then

@@ -7,11 +7,12 @@
 // owner decision on #8387, a bot account speaking after the label (AI review,
 // another lane) does not keep it.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 import { main, NATIVE_READS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
+import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
@@ -39,7 +40,7 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, headChecks = [], evidence = () => null, numbers = [7] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
   const calls = [];
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
@@ -71,7 +72,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return path.endsWith("page=1") ? timeline : [];
     }
     if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
-      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD }, labels: [{ name: "needs-human" }], mergeable };
+      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: [{ name: "needs-human" }], mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
@@ -92,7 +93,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { github, checks, verify, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
+  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
 }
 
 const run = async (w, env = {}) => {
@@ -100,7 +101,7 @@ const run = async (w, env = {}) => {
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify }), logs };
+    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader }), logs };
   } finally {
     console.log = original;
   }
@@ -633,6 +634,46 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
   }
 });
 
+// check-signed-commits' escalation comment, as its report job posts it with
+// GITHUB_TOKEN: SIGNED_COMMITS_HOLD on the first line. Its label write adds no
+// `labeled` event when a lane escalation already put the label on.
+const signedHold = (user, at, updatedAt = at) =>
+  commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${KEY}\``, at, updatedAt);
+
+test("check-signed-commits' marked comment keeps the label a clearing pr-unblock escalation would take off", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), signedHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: check-signed-commits holds it: a lane commit could not be verified"), logs.join("\n"));
+});
+
+test("check-signed-commits' marked comment keeps a pr-merge head-moved escalation too", async () => {
+  const w = world({ timeline: [...mergeEscalated(verifyBody(OLD)), signedHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("an unmarked bot comment, or the marker from another account, does not keep the label", async () => {
+  for (const spoke of [
+    commented(ACTIONS_BOT, "Lane commit check: these commits are not GitHub-verified.", "2026-10-18T11:00:00Z"),
+    signedHold(CODEX_BOT, "2026-10-18T11:00:00Z"),
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", spoke.user.login);
+  }
+});
+
+test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a later escalation", async () => {
+  const lifted = [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+  const w = world({ timeline: lifted });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+  const edited = world({ timeline: [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", "2026-10-18T09:30:00Z"), ...lifted.slice(1)] });
+  await run(edited);
+  assert.deepEqual(edited.writes(), [], "edited after the unlabel");
+});
+
 // enable-auto-merge's own person refusal comment (refusalBody), then its
 // label: under merge.lane-prs native the only writer of a lanes App PR's
 // pr-merge label. #10090's shape: a risk hold on unbound reviews at the head
@@ -911,6 +952,226 @@ test("labels past the read cap are read on a later run", async () => {
     }
   }
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
+});
+
+// A trusted move: the head left every resume key through pushes the base
+// trusted-actors.json lists as a `human` (never the lanes App's own entry),
+// read with the job token (`reader`). Expected values come from the owner rule
+// of 2026-10-26: a person is needed only for intent, design or a HIGH/CRITICAL
+// security finding, so a mechanical stop comes off once trusted evidence shows
+// its cause gone.
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const PERSON_ID = 153232337;
+const APP_ID = 337595936;
+const STRANGER = { login: "drive-by", id: 99, type: "User" };
+const PERSON = { login: "kyle-sexton", id: PERSON_ID, type: "User" };
+const APP_ACTOR = { login: BOT.login, id: APP_ID, type: "Bot" };
+const MAIN_THEN = "d".repeat(40);
+const TRUSTED_DIR = mkdtempSync(join(tmpdir(), "clear-escalations-"));
+after(() => rmSync(TRUSTED_DIR, { recursive: true, force: true }));
+const TRUSTED = join(TRUSTED_DIR, "trusted-actors.json");
+writeFileSync(
+  TRUSTED,
+  JSON.stringify({
+    version: 1,
+    actors: [
+      { id: PERSON_ID, login: "kyle-sexton", kind: "human" },
+      { id: APP_ID, login: BOT.login, kind: "bot" },
+      { id: 209825114, login: "claude[bot]", kind: "bot" },
+    ],
+  }),
+);
+const TRUST_ENV = { TRUSTED_ACTORS_PATH: TRUSTED, BABYSIT_VERIFY_GH_TOKEN: "job-token" };
+
+// The branch's activity, newest first: created before the label, then `pushes`
+// ({ actor, after, at }) after it.
+const activityOf = (pushes) => [
+  ...pushes.map(({ actor, after, at }) => ({ activity_type: "push", actor, after, before: KEY, timestamp: at })).reverse(),
+  { activity_type: "branch_creation", actor: PERSON, after: KEY, before: "0".repeat(40), timestamp: "2026-10-17T09:00:00Z" },
+];
+const pushedBy = (actor, after = HEAD, at = "2026-10-18T11:00:00Z") => ({ actor, after, at });
+const run_ = (name, conclusion, id, status = "completed") => ({ id, name, status, conclusion, app: { slug: "github-actions" } });
+const GREEN = [run_("ci-status", "failure", 1), run_("test-node", "success", 2), run_("lint-repo", "skipped", 3)];
+
+// The job-token reads: branch activity, main's tip when the lane escalated,
+// whether the head contains it, and the head's check runs.
+function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = GREEN, calls = [] } = {}) {
+  return async (method, path) => {
+    calls.push(path);
+    if (method !== "GET") {
+      throw new Error(`the reader writes nothing: ${method} ${path}`);
+    }
+    if (path === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&per_page=100`) {
+      return activityOf(pushes);
+    }
+    if (path === `/repos/${REPO}/commits?sha=main&until=${encodeURIComponent("2026-10-18T10:00:05.000Z")}&per_page=1`) {
+      return [{ sha: MAIN_THEN }];
+    }
+    if (path === `/repos/${REPO}/compare/${MAIN_THEN}...${HEAD}`) {
+      return contains ? { status: "ahead", behind_by: 0 } : { status: "diverged", behind_by: 3 };
+    }
+    if (path.startsWith(`/repos/${REPO}/commits/${HEAD}/check-runs?filter=all&per_page=100&page=`)) {
+      return { check_runs: path.endsWith("page=1") ? checkRuns : [] };
+    }
+    throw new Error(`unexpected reader ${method} ${path}`);
+  };
+}
+
+const WORKFLOW_MAIN = [{ filename: ".github/workflows/pr-merge.yml" }];
+const stagedTimeline = () => [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("workflow-staged")];
+
+test("workflow-staged comes off once a trusted person moved the head past the resume key with main merged in, though main still changes workflows", async () => {
+  const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: readerFor() });
+  await run(w, TRUST_ENV);
+  const [comment, removal] = w.writes();
+  assert.equal(w.writes().length, 2);
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=workflow-staged head=${HEAD} -->`);
+  assert.match(comment.body.body, /kyle-sexton/);
+  assert.match(comment.body.body, new RegExp(MAIN_THEN));
+  assert.equal(removal.method, "DELETE");
+});
+
+test("a lanes App push is not a trusted move: the App never lifts its own stop with its own push", async () => {
+  for (const pushes of [[pushedBy(APP_ACTOR)], [pushedBy(PERSON, "e".repeat(40), "2026-10-18T10:30:00Z"), pushedBy(APP_ACTOR)]]) {
+    for (const reason of ["workflow-staged", "ci-fix-escalated"]) {
+      const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mainFiles: WORKFLOW_MAIN, reader: readerFor({ pushes }) });
+      await run(w, TRUST_ENV);
+      assert.deepEqual(w.writes(), [], `${reason} ${JSON.stringify(pushes)}`);
+    }
+  }
+});
+
+test("workflow-staged stays when any push since the label is by an account off the trusted list", async () => {
+  for (const pushes of [
+    [pushedBy(STRANGER)],
+    [pushedBy(STRANGER, "e".repeat(40), "2026-10-18T10:30:00Z"), pushedBy(PERSON)],
+    [pushedBy({ login: "claude[bot]", id: 209825114, type: "Bot" })],
+    [pushedBy({ login: BOT.login, id: 1, type: "Bot" })],
+  ]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: readerFor({ pushes }) });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], JSON.stringify(pushes));
+  }
+});
+
+test("workflow-staged stays when the head does not contain main as it was at the escalation", async () => {
+  const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: readerFor({ contains: false }) });
+  await run(w, TRUST_ENV);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("workflow-staged stays when the newest push is not the head, or no push since the label is read", async () => {
+  for (const pushes of [[pushedBy(PERSON, "e".repeat(40))], []]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: readerFor({ pushes }) });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), []);
+  }
+});
+
+test("workflow-staged stays when the activity page does not reach back to the label", async () => {
+  const pushes = Array.from({ length: 100 }, (_, index) => pushedBy(PERSON, index === 99 ? HEAD : "e".repeat(40), new Date(Date.parse("2026-10-18T11:00:00Z") + index * 60_000).toISOString()));
+  const reader = async (method, path) =>
+    path.includes("/activity?") ? pushes.map(({ actor, after, at }) => ({ activity_type: "push", actor, after, timestamp: at })) : readerFor()(method, path);
+  const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+  await run(w, TRUST_ENV);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("workflow-staged stays at the resume key, on a fork head, and without the trusted list or the job token", async () => {
+  const atKey = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), commented(BOT, escalationBody("workflow-staged").replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z")],
+    mainFiles: WORKFLOW_MAIN,
+    reader: readerFor(),
+  });
+  await run(atKey, TRUST_ENV);
+  assert.deepEqual(atKey.writes(), []);
+  const fork = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, headRepo: "someone/fork", reader: readerFor() });
+  await run(fork, TRUST_ENV);
+  assert.deepEqual(fork.writes(), []);
+  for (const env of [{ BABYSIT_VERIFY_GH_TOKEN: "job-token", TRUSTED_ACTORS_PATH: "/nonexistent/trusted-actors.json" }, { TRUSTED_ACTORS_PATH: TRUSTED }]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader: env.BABYSIT_VERIFY_GH_TOKEN ? readerFor() : undefined });
+    await run(w, env);
+    assert.deepEqual(w.writes(), []);
+  }
+});
+
+test("an unreadable job-token read keeps the label without failing the run", async () => {
+  const reader = async () => {
+    throw new Error("HTTP 502");
+  };
+  const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes(), []);
+});
+
+const CI_FIX = ["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-escalated"];
+
+test("a ci-fix stop comes off once a trusted push moved the head and no check but ci-status fails there", async () => {
+  for (const reason of CI_FIX) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], reader: readerFor() });
+    await run(w, TRUST_ENV);
+    assert.equal(w.writes().length, 2, reason);
+    assert.match(w.writes()[0].body.body, new RegExp(`reason=${reason} head=${HEAD}`));
+    assert.match(w.writes()[0].body.body, /no check other than ci-status fails/);
+  }
+});
+
+test("a ci-fix stop stays while a check fails, runs, or none has passed at the head, or the head never moved", async () => {
+  for (const checkRuns of [
+    [...GREEN, run_("test-bash (0)", "failure", 4)],
+    [...GREEN, run_("test-bash (0)", null, 4, "in_progress")],
+    [...GREEN, run_("test-python", "cancelled", 4)],
+    [run_("test-node", "failure", 2), run_("test-node", "skipped", 9)],
+    [run_("ci-status", "failure", 1), run_("lint-repo", "skipped", 3)],
+    [...GREEN, run_("deploy", "action_required", 4)],
+    [...GREEN, run_("test-go", "stale", 4)],
+    [...GREEN, run_("test-go", null, 4)],
+    [],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns }) });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], JSON.stringify(checkRuns));
+  }
+  const unmoved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ pushes: [pushedBy(STRANGER)] }) });
+  await run(unmoved, TRUST_ENV);
+  assert.deepEqual(unmoved.writes(), []);
+});
+
+test("a ci-fix stop passes with a neutral check at the head", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns: [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)] }) });
+  await run(w, TRUST_ENV);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("a protected-path or own-patch stop stays, even once the PR is mergeable after a trusted move with everything green", async () => {
+  for (const reason of ["ci-fix-protected-path", "unexpected-path-staged", "conflict-patch-invalid", "conflict-patch-not-applied", "conflict-patch-protected-path"]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mergeable: true, reader: readerFor() });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], reason);
+  }
+});
+
+test("a security, intent or decision stop is never lifted, even after a trusted move with everything green", async () => {
+  for (const reason of [
+    "feedback-uncertain",
+    "feedback-disputed",
+    "feedback-unadjudicated",
+    "feedback-question-intent",
+    "feedback-question-design",
+    "feedback-question-security",
+    "feedback-round-cap",
+    "dependency-security-close",
+    "dependency-escalate",
+    "repeat-cap",
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], mergeable: true, reader: readerFor() });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], reason);
+  }
 });
 
 const threadReads = (w) => w.calls.filter((call) => /\/pulls\/7\/(comments|reviews)/.test(call.path));

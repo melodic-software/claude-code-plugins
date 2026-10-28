@@ -5,13 +5,16 @@
 // while the label stays on, and prHold, which also reads the PR's review
 // comments and reviews, whether resolve-conflicts, fix-ci and fix-docs do.
 //
-// Two writers put the label on:
+// Three writers put the label on:
 // - a lane escalation: the lanes App's report-escalation.sh (pr-unblock,
 //   fix-ci) adds the label, then posts a comment whose first line is
 //   ESCALATION and whose second is the resume-key line;
 // - a review-lane hold: a review lane's status job adds the label and posts a
 //   `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->` comment,
-//   as claude[bot], or as github-actions[bot] ending in the lane's footer.
+//   as claude[bot], or as github-actions[bot] ending in the lane's footer;
+// - a signed-commits hold: check-signed-commits adds the label and posts a
+//   comment whose first line is SIGNED_COMMITS_HOLD, as github-actions[bot].
+//   The label may already be on, so it adds no `labeled` event then.
 //
 // Timeline items take the REST timeline shape: `event` ("commented",
 // "labeled", "unlabeled"), `user` or `actor` ({ login, id, type }), `body`,
@@ -37,6 +40,9 @@ export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
+// check-signed-commits' escalation comment opens with this line; its report
+// job posts it with GITHUB_TOKEN, as github-actions[bot].
+export const SIGNED_COMMITS_HOLD = "<!-- check-signed-commits hold -->";
 // report-escalation.sh writes the label, then the comment, retrying the
 // comment for up to 15 seconds; a minute covers that (judgment).
 export const PAIRED_MS = 60_000;
@@ -84,6 +90,20 @@ export function openReviewHold(timeline, lifted) {
   );
 }
 
+// check-signed-commits' escalation comment written or edited since the label
+// was last removed (ever, when it never was): its first line is
+// SIGNED_COMMITS_HOLD and github-actions[bot] wrote it. The marker in anyone
+// else's comment is never read; a person removing the label lifts it.
+export function openSignedCommitsHold(timeline, lifted) {
+  return timeline.find(
+    (item) =>
+      item.event === "commented" &&
+      isApp(item.user, "github-actions[bot]") &&
+      lines(item.body)[0] === SIGNED_COMMITS_HOLD &&
+      !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
+  );
+}
+
 // The lanes App's escalation comments written at or after `since`.
 export function escalationsSince(appComments, since) {
   return appComments
@@ -102,6 +122,7 @@ export function foreignMarker(appComments, since, known) {
 
 // Where the human-gated `label` on a PR at `head` came from:
 // - "review-hold" when a review lane's hold names `head`, or one is open;
+// - "signed-commits-hold" when check-signed-commits' hold is open;
 // - "lane-escalation" when the lanes App (`isLanesApp`) added the label last,
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
 //   marker on its comments since is that escalation's or an address-feedback
@@ -123,6 +144,9 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   const open = openReviewHold(timeline, lifted);
   if (open !== undefined) {
     return result("review-hold", `a review lane's hold is open: ${laneHold(open).slice(0, 120)}`);
+  }
+  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
+    return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
   }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);

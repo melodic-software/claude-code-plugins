@@ -17,6 +17,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { main, resolvePull } from "./resolve-pr.mjs";
+import { artifactName } from "./write-verdict.mjs";
 import { loadRules } from "../intake-triage/admit.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -513,23 +514,49 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
   const lookups = paths.filter((apiPath) => apiPath.includes("/actions/artifacts"));
   assert.deepEqual(lookups.sort(), [
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
-    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}&per_page=100&page=1`,
-    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-i7&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass&per_page=100&page=1`,
-    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes&per_page=100&page=1`,
-    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail&per_page=100&page=1`,
-    `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}&per_page=100&page=1`,
   ]);
+});
+
+test("the resolver looks up exactly the names write-verdict writes", async () => {
+  // Every verdict that can stand at this head, named by the writer itself: this
+  // PR's pass and pass-notes, its FAIL with and without the issue it closes,
+  // and PR 99's FAIL, whose issues this run never reads. A writer that moves
+  // to new names (a head-ref digest) fails here until the resolver looks them up.
+  const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
+  const pulls = [pull(), pull({ number: 99, state: "closed", head: other })];
+  const written = [
+    { pr: 41, head_sha: HEAD, head_ref: "feat/x", verdict: "pass", linked_issues: [{ number: 7 }] },
+    { pr: 41, head_sha: HEAD, head_ref: "feat/x", verdict: "pass-notes", linked_issues: [{ number: 7 }] },
+    { pr: 41, head_sha: HEAD, head_ref: "feat/x", verdict: "fail", linked_issues: [{ number: 7 }] },
+    { pr: 41, head_sha: HEAD, head_ref: "feat/x", verdict: "fail", linked_issues: [] },
+    { pr: 99, head_sha: HEAD, head_ref: "feat/other", verdict: "fail", linked_issues: [] },
+  ].map(artifactName);
+  const paths = [];
+  const github = fake({ pulls });
+  const recording = async (method, apiPath, body) => {
+    paths.push(apiPath);
+    return github(method, apiPath, body);
+  };
+  await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  const looked = paths
+    .filter((apiPath) => apiPath.includes("/actions/artifacts"))
+    .map((apiPath) => new URL(apiPath, "https://api.github.com").searchParams.get("name"));
+  assert.deepEqual(looked.sort(), [...new Set(written)].sort());
+  // Each written name, once at the head, stops a new judgment.
+  for (const name of written) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+  }
 });
 
 test("a FAIL named with this pull request's issues stops a new judgment", async () => {
   // The fake pull request closes one issue, so write-verdict.mjs named its
   // FAIL with that number after -i.
   const pulls = [pull()];
-  for (const name of [`pr-verify-41-${HEAD}-fail-i7`, `pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7`]) {
+  for (const name of [`pr-verify-41-${HEAD}-fail-i7`]) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
   }
   // A suffix naming other issues is another judgment.
@@ -575,23 +602,26 @@ test("a pull request closing more issues than a FAIL's name carries is still jud
   }
 });
 
-test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {
+test("a verdict named with a head-ref digest is not looked up, since write-verdict writes none", async () => {
+  // write-verdict.mjs artifactName writes no digest, so no such name can stand
+  // at a head; the change that moves the writer to digests adds the lookups.
   const pulls = [pull(), pull({ number: 99, state: "closed", head: { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } } })];
-  for (const name of [`pr-verify-41-${HEAD}-pass-${REF_DIGEST}`, `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`]) {
-    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+  for (const name of [
+    `pr-verify-41-${HEAD}-pass-${REF_DIGEST}`,
+    `pr-verify-41-${HEAD}-fail-${REF_DIGEST}`,
+    `pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7`,
+    `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`,
+  ]) {
+    const paths = [];
+    const github = fake({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } });
+    const recording = async (method, apiPath, body) => {
+      paths.push(apiPath);
+      return github(method, apiPath, body);
+    };
+    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    assert.equal(got, "ok", name);
+    assert.ok(!paths.some((apiPath) => apiPath.includes(encodeURIComponent(name))), name);
   }
-  // Any branch name is looked up by its digest, whatever characters it holds:
-  // the first 16 hex digits of `printf %s <ref> | sha256sum`.
-  for (const [ref, digest] of [["feat/a+b", "a27da2afd9962004"], ["fix/\u00e9", "8c8a071ad0e51f5e"]]) {
-    const head = { sha: HEAD, ref, repo: { full_name: REPO } };
-    const odd = [pull({ head }), pull({ number: 99, state: "closed", head })];
-    for (const name of [`pr-verify-41-${HEAD}-pass-${digest}`, `pr-verify-99-${HEAD}-fail-${digest}`]) {
-      assert.equal(await reason({ pulls: odd, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
-    }
-  }
-  // A digest of another branch is not this pull request's verdict.
-  const foreign = artifact(`pr-verify-41-${HEAD}-pass-${OTHER_DIGEST}`, 77);
-  assert.equal(await reason({ pulls, artifacts: [foreign], runs: { 77: verifyRun(77) } }), "ok");
 });
 
 test("a name with more than one page of artifacts is read to the end", async () => {
@@ -1018,16 +1048,16 @@ async function calls(setup) {
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
   const cases = [
-    // run, commit pulls, six names without issues, the spec, two FAIL names with issues.
-    ["an unjudged head", {}, "ok", 11],
+    // run, commit pulls, three names without issues, the spec, the FAIL name with issues.
+    ["an unjudged head", {}, "ok", 7],
     // run, commit pulls, the FAIL name, its run and compare.
     ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 5],
-    // run, commit pulls, six names, the FAIL's run and compare, the spec, the -i7 name.
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 12],
-    // run, commit pulls, six names, the pass's run and compare, the spec.
-    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 11],
-    // As above, then the two FAIL names with issues.
-    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 13],
+    // run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare.
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 9],
+    // run, commit pulls, three names, the pass's run and compare, the spec.
+    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
+    // As above, then the FAIL name with issues.
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 9],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
   for (const [label, setup, expected, count] of cases) {

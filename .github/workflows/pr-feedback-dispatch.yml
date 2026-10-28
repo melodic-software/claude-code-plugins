@@ -113,6 +113,10 @@ jobs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
       pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -228,6 +232,9 @@ jobs:
     env:
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+      # Each guarded API call's rate-limit reading, for the job-end api-budget
+      # notice (.github/actions/log-api-budget).
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -283,7 +290,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          API_BUDGET_TOKEN: github-token
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
@@ -359,7 +365,7 @@ jobs:
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
   # but the trusted-actors list and the api-budget library: the token can
-  # only read contents, runs and the PR and re-run a job. Each read's
+  # only read contents, runs and the PR and re-run a job. Each call's
   # rate-limit reading is logged at the end of the job
   # (.github/actions/log-api-budget).
   #
@@ -387,6 +393,10 @@ jobs:
       contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The list the record check reads, from the default branch, never the
       # PR head, and the api-budget library. A failed checkout leaves no list:
@@ -625,6 +635,8 @@ jobs:
             echo "::error::'$JOB_ID' is not a job id."
             exit 1
           fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/rerun" >/dev/null
           echo "Re-ran ci-status (job $JOB_ID)."
 

@@ -491,7 +491,8 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/apply-patch/apply-patch.mjs \
   .github/scripts/apply-patch/predicates.mjs .github/scripts/apply-patch/protected-paths.mjs \
   .github/scripts/apply-patch/retry-fetch.mjs .github/workflows/pr-require-checks.yml \
-  .github/workflows/pr-merge.yml; do
+  .github/workflows/pr-merge.yml .github/scripts/pr-unblock/fix-ci-context.mjs \
+  .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
 done

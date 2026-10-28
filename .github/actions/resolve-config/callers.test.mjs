@@ -6759,7 +6759,10 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
       const steps = job.steps ?? [];
       const first = steps.findIndex(installs);
       if (first < 0) continue;
-      const checkout = steps.slice(0, first).findLast((step) => /^actions\/checkout@/.test(step.uses ?? ""));
+      // A pull request head checkout is never the source: its npmrc would let the PR set npm's config.
+      const checkout = steps
+        .slice(0, first)
+        .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\./.test(step.with?.ref ?? ""));
       assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
       assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
       const dir = checkout.with?.path ? `${checkout.with.path}/` : "";

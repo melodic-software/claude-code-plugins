@@ -449,7 +449,8 @@ that imports `vitest` under `npx --no-install vitest run <absolute path>` from t
 directory inside the checkout holding a `package.json`, so the package's locked vitest runs, first
 running `npm ci --ignore-scripts` there once when it has a `package-lock.json` and no
 `node_modules`; all
-without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
+without `GH_TOKEN` or `GITHUB_TOKEN`, with git reading a fixed test config in place of the host's
+(`scripts/lib/test-git-env.sh`). It refuses any other file and any name outside
 `[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
 wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open, so the schema
 refuses `scripts/run-test-file.sh` and `check-skill.sh` in the `verify-scripts` of a skill whose
@@ -1288,7 +1289,9 @@ warns of a [classifier gap](README.md#classifier-gaps).
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
      changing, as regular files), or a single-parent commit that passes the fix rule against
-     its parent, it posts no merge marker and escalates `dependency-fix-refused`; it reads
+     its parent, and arrived in its own author's push (the README's **Pushes** check, read
+     from the head branch's repository activity), it posts no merge marker and escalates
+     `dependency-fix-refused`; it reads
      `.github/dependabot.yml` at `BASE_SHA` itself, and a config that does not read escalates
      `dependency-config-unreadable`; without each of `controls` quoted
      in `evidence` it escalates `dependency-control-uncited`
@@ -1606,8 +1609,8 @@ runs with `!cancelled()`, so it opens the PR whether this job succeeded, failed 
 
 ## The report job
 
-Runs after the run job (and, in the read file, the scan job) whatever its result, with `checks: write`, `contents: read` and
-`pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
+Runs after the run job (and, in the read file, the scan job) whatever its result, with `checks: write`, `contents: read`,
+`issues: write` (for `check-signed-commits`' label and comment) and `pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
 tip, with full history, to `.base`, then checks out the run job's `base-sha` output only when that
 SHA is an ancestor of the tip; otherwise it stays on the tip. It never checks out the event's base
 SHA, so a PR into another branch cannot choose the actions that write its check. It then downloads
@@ -1660,8 +1663,9 @@ What it trusts:
   `base-sha` and, in the write file, `run-failure` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
   that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
-  check is a failure, and the report job adds no label and posts no comment, because its
-  `GITHUB_TOKEN` cannot write issues or pull requests. Why signing is not also enforced by an
+  check is a failure, and the report job adds `needs-human` when the repository has that label and
+  posts a comment whose first line is `<!-- check-signed-commits hold -->`, which holds the lane
+  fixers and `clear-escalations.mjs` until the label is removed ([README](README.md)). Why signing is not also enforced by an
   all-branch rule:
   [ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 

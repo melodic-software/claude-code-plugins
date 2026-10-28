@@ -519,11 +519,11 @@ test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN
 
 // pr-run-activity.md, "Skill activities": the issue lane lists the repository's
 // test runner and git-mv-rm.sh as verify-scripts, so the same generator wraps
-// them. These stage the real scripts (and the lib they source) into the base.
+// them. These stage the real scripts (and the libs they source) into the base.
 const REPO = new URL("../../../", import.meta.url);
 const LANE_TOOLS = ["scripts/run-test-file.sh", "scripts/git-mv-rm.sh"];
 function withLaneTools() {
-  for (const file of [...LANE_TOOLS, "scripts/lib/checkout-path.sh", "scripts/lib/pytest-python.sh"]) {
+  for (const file of [...LANE_TOOLS, "scripts/lib/checkout-path.sh", "scripts/lib/pytest-python.sh", "scripts/lib/test-git-env.sh"]) {
     mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
     writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
   }
