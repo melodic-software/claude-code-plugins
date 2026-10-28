@@ -89,6 +89,131 @@ export const findSecret = (text) => firstHit(SECRET_PATTERNS, text);
 /** The first machine path or hostname in `text`, as [label, 1-based line], or null. Never the match itself. */
 export const findMachine = (text) => firstHit(MACHINE_PATTERNS, text);
 
+// ------------------------------------------------------------ leak scan
+
+// The lanes' leak scan: the read runner's scan job runs it on what a run
+// leaves, and work-resolve-issue.yml's run-checks job on a reused branch.
+// A credential format blocks and asks for rotation. The one broad label, an
+// assignment that may be a test fixture, only warns, and only on a plain line.
+export const WARN_ONLY = "password or secret assignment";
+export const HIDDEN = "assignment hidden by markup or escapes";
+const BLOCKING = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+const WARN_PATTERN = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
+const WARN_ONE = WARN_PATTERN && new RegExp(WARN_PATTERN.source, WARN_PATTERN.flags.replace("g", ""));
+const WARN_ALL = WARN_PATTERN && new RegExp(WARN_PATTERN.source, `${WARN_PATTERN.flags.replace("g", "")}g`);
+const folds = (line) => /<[^<>]*>/.test(line) || /&#?\w+;/.test(line) || line.includes("\\\\");
+const credential = (label) => ({ block: label, credential: true });
+
+// Each line is judged on its own: every blocking pattern on the raw line,
+// then findSecret (which adds the normalized copy). When findSecret names the
+// assignment, its matches are blanked and the line read again, and each match
+// is read again with its = and : blanked. A line whose assignment sits beside
+// markup or escapes normalize() folds, or whose assignment only the folded
+// copy shows, blocks under HIDDEN: blanking cannot be trusted there.
+const classifyLine = (line) => {
+  const raw = BLOCKING.find(([, re]) => re.test(line));
+  if (raw) return credential(raw[0]);
+  const first = findSecret(line);
+  if (!first) return {};
+  if (first[0] !== WARN_ONLY || !WARN_PATTERN) return credential(first[0]);
+  const again = findSecret(line.replace(WARN_ALL, (match) => " ".repeat(match.length)));
+  if (again && again[0] !== WARN_ONLY) return credential(again[0]);
+  for (const [match] of line.matchAll(WARN_ALL)) {
+    const inside = findSecret(match.replace(/[:=]/g, " "));
+    if (inside && inside[0] !== WARN_ONLY) return credential(inside[0]);
+  }
+  if (again || folds(line) || !WARN_ONE.test(line)) return { block: HIDDEN, credential: false };
+  return { warn: true };
+};
+
+// findSecret on the whole text runs too, and any credential label from it blocks.
+const classify = (text) => {
+  let warn = false;
+  for (const line of text.split(/\r?\n/)) {
+    const result = classifyLine(line);
+    if (result.block) return result;
+    warn ||= Boolean(result.warn);
+  }
+  const whole = findSecret(text);
+  if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
+  return { warn };
+};
+
+// Two more passes, on credential formats only (owner ruling Q37):
+// - UTF-16LE: the text with its NUL bytes removed, so a token written two
+//   bytes a character reads as one; a space in place of each NUL would split it.
+// - Split lines: each pair of adjacent lines joined with no separator, counting
+//   only a match that straddles the join of a pattern neither line matches
+//   alone. The OpenAI key pattern (any sk- and 20 token characters) and the R2
+//   key pair pattern (a 32-hex and a 64-hex token on one line) are left out:
+//   an sk- word ending a line joins the next line's first word, and adjacent
+//   md5 and sha256 lines pair. In a diff the pair is hunk lines with their +,
+//   - or space prefix removed and the file headers dropped, or a token split
+//   inside an added hunk would join as "...ab+cd..." and never match.
+const straddles = (left, right) => {
+  const joined = left + right;
+  for (const [label, re] of BLOCKING) {
+    if (label === "OpenAI key" || label === "R2 key pair" || re.test(left) || re.test(right)) continue;
+    for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace("g", "")}g`))) {
+      if (match.index < left.length && match.index + match[0].length > left.length) return label;
+    }
+  }
+  return null;
+};
+const credentialIn = (text) => {
+  for (const line of text.split(/\r?\n/)) {
+    const raw = BLOCKING.find(([, re]) => re.test(line));
+    if (raw) return raw[0];
+  }
+  const found = findSecret(text);
+  return found && found[0] !== WARN_ONLY ? found[0] : null;
+};
+const HUNK_HEADER = /^(?:\+\+\+|---) /;
+
+/** The UTF-16LE and split-line passes over `text`, a diff when `diff`: a credential label, or null. */
+export function deeperLeak(text, diff = false) {
+  const plain = text.replace(/\0/g, "");
+  if (plain !== text) {
+    const label = credentialIn(plain);
+    if (label) return label;
+  }
+  let lines = plain.split(/\r?\n/);
+  if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
+  for (let i = 0; i + 1 < lines.length; i += 1) {
+    const label = straddles(lines[i], lines[i + 1]);
+    if (label) return label;
+  }
+  return null;
+}
+
+/**
+ * Every pass over `bytes`, read as latin1: `{block, credential}` naming the
+ * first blocking label (credential true when it asks for rotation),
+ * `{warn: true}` for a plain assignment alone, else `{}`. Never the match.
+ */
+export function scanLeak(bytes, { diff = false } = {}) {
+  const text = Buffer.from(bytes).toString("latin1");
+  const { block, credential: format, warn } = classify(text);
+  if (block) return { block, credential: format };
+  const deep = deeperLeak(text, diff);
+  if (deep) return credential(deep);
+  return warn ? { warn: true } : {};
+}
+
+/**
+ * Each file `to` changes from `from`, both tree-ish: its name, then its bytes
+ * when it is a regular file or a link (a link's are its target). `git` runs
+ * git plumbing in the caller's repository and returns stdout as a Buffer.
+ */
+export function* changedBytes(git, from, to) {
+  const fields = git(["diff-tree", "-r", "-z", "--no-renames", from, to]).toString("latin1").split("\0");
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const [, mode, , sha] = fields[i].replace(/^:/, "").split(" ");
+    yield Buffer.from(fields[i + 1], "latin1");
+    if (/^(100644|100755|120000)$/.test(mode)) yield git(["cat-file", "blob", sha]);
+  }
+}
+
 // "private" is who sees a new artifact before anyone shares it:
 // https://code.claude.com/docs/en/artifacts#share-an-artifact (as of 2026-10-11;
 // recheck when that section makes a new artifact visible to anyone but its author).

@@ -5,6 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   [
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/cutover-check.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
@@ -15,7 +16,6 @@ allowed-tools:
     "Glob",
     "Edit",
     "Write",
-    "WebFetch",
   ]
 metadata:
   workflow-stage: implement
@@ -84,6 +84,14 @@ it ("Read `docs/release-process.md` before cutting a release") beats a paragraph
 that plugin is installed, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
 pointer. Where it is not installed, write the text here and say that the write-side doctrine was
 not available, rather than skipping the move.
+
+## Check the mechanics quotes first
+
+Every run, whatever the argument, starts with `"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"`.
+Read [`reference/quote-check.md`](reference/quote-check.md) before running it: what it prints and
+how each result reaches the plan and the apply gate. In short: list each `drift` result at the top,
+quote the deciding sentence of each record a move relies on beside that move, and label a move
+relying on an `unverified` or drifted record "unverified as of <date>" in the plan and at the apply gate.
 
 ## Plan first
 
@@ -167,12 +175,12 @@ between steps must leave content duplicated rather than deleted:
    `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
    age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
    Neither script is in this skill's `allowed-tools`, deliberately: a standing grant would let the
-   fetcher run unattended, so each call takes a permission prompt. The one exception is
-   `cutover-check.sh`, which runs the fetcher itself for the single fixed page it has always read
-   (`env-vars`, with `--max-age 0`), so its grant reaches no other page.
-   Validate every glob with
-   `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
-   nothing is a rule that never fires, and nothing goes red.
+   fetcher run unattended, so each call takes a permission prompt. Two scripts run the fetcher on a
+   grant, each for fixed pages only: `cutover-check.sh` for the single page it has always read
+   (`env-vars`, with `--max-age 0`), and `quote-check.sh` for the list in
+   `${CLAUDE_PLUGIN_ROOT}/context/mechanics-sources.tsv`, which it takes no argument to change.
+   Validate every glob with `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is
+   written; a glob matching nothing is a rule that never fires, and nothing goes red.
 4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the
    directory had none (the whole job for an `agents-only` row), or reduce an existing one to that
    line once its content has a home. An HTML-comment note inside a shim is content: move it into
@@ -246,20 +254,12 @@ and the run exits non-zero unless every one is `[MET]`.
 |---|---|
 | 1, the remote flag | The shipped bundle's code default for the flag, resolved at run time (the identifier is minifier-assigned and the offsets are per build, so neither is ever hardcoded), and the `env-vars` feature-flag list fetched live. Either the default being true or the AGENTS.md bullet being gone satisfies it |
 | 2, CI | Every `claude-code-action` pin from `plan-migration.sh`'s `ACTION` rows, mapped to the CLI it installs and compared against the floor, plus the recorded CI canary |
-| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
+| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path. Why no tools, and the measurement behind it: [`reference/verification.md`](reference/verification.md), "Asking Claude" |
 | 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
 
 One more probe is **reported, not graded**: the nested write trigger, one metered `claude -p` turn
 offered **only the Write tool** that writes into `sub/` of a scratch tree with a root and a `sub/`
 `AGENTS.md` and no `CLAUDE.md`. It prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]`; condition G reads it.
-
-**A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
-working directory, a reply quoting that file is equally consistent with the model having read it
-for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
-load at session start, and a quotation from a session that *could* not read anything is evidence
-of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
-nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
-`NONE`. The nested write probe keeps that rule: Write alone, and the file it asked for must exist.
 
 **`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
 the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and

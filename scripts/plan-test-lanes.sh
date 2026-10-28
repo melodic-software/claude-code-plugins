@@ -15,7 +15,7 @@
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
-#                             (the shared-page UI suite, which drives Chromium), lefthook
+#                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
 #                             (the guardrails remote's end-to-end suite), demovideo (the
 #                             demo-video shell suite: its locked requirements and ffmpeg)
 #   node_packages             the Node packages to install and test, space-separated
@@ -370,7 +370,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
-        if (p == "plugins/planning/shared/tests/ui.test.sh") s = s " browser"
+        if (p == "plugins/planning/shared/tests/ui.test.sh" || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s

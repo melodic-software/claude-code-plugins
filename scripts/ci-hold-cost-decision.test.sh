@@ -116,6 +116,10 @@ case "$*" in
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
   from "$STUB_RUNS" "$(key workflows "$@")"
   ;;
+*/git/ref/heads/*) failing ref; printf '{"ref":"refs/heads/%s","object":{"sha":"%s"}}\n' "${STUB_BASE_REF:-main}" "$TIP_SHA" ;;
+*/compare/"$MAIN_SHA...$TIP_SHA") failing compare; printf '{"status":"ahead"}\n' ;;
+*/compare/*"...$TIP_SHA") failing compare; printf '{"status":"diverged"}\n' ;;
+*/compare/"$TIP_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */compare/"$BASE_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
@@ -159,8 +163,19 @@ Held for a person."
 }
 TF='{"filename":"infra/main.tf","status":"modified","patch":"@@ -1 +1 @@\n-a\n+b"}'
 MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
-# nets <old-files> <head-files>: the compare answers at OLD and HEAD.
-nets() { STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --argjson a "$1" --argjson b "$2" '{($o): {files: $a}, ($h): {files: $b}}')"; export STUB_COMPARE; }
+# nets <old-files> <head-files> [head-commits]: the compare answers at OLD
+# and HEAD, HEAD a merge of the base into OLD unless [head-commits] lists
+# its history.
+MAIN_SHA=5555555555555555555555555555555555555555
+# The base branch's tip commit, which its full ref resolves to.
+TIP_SHA=3333333333333333333333333333333333333333
+export MAIN_SHA TIP_SHA
+nets() {
+  STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --arg m "$MAIN_SHA" --argjson a "$1" --argjson b "$2" --argjson c "${3:-null}" '
+    ($c // [{sha: $o, parents: [{sha: $m}]}, {sha: $h, parents: [{sha: $o}, {sha: $m}]}]) as $c
+    | {($o): {files: $a, commits: [{sha: $o, parents: [{sha: $m}]}], total_commits: 1}, ($h): {files: $b, commits: $c, total_commits: ($c | length)}}')"
+  export STUB_COMPARE
+}
 # push <sha> <timestamp>: a push to the head branch, as the repository
 # activity API lists it.
 push() { jq -cn --arg a "$1" --arg t "$2" '{after: $a, timestamp: $t, activity_type: "push", ref: "refs/heads/fix/cost"}'; }
@@ -415,13 +430,28 @@ nodecided
 decided "$OLD"
 nets "[$TF]" "[$TF]"
 expect "a base merge after the decided head carries the decision" yes yes yes
-if grep -q "compare/main...$OLD" "$TMP_ROOT/log"; then ok "the decided head's net change is read against the base branch"; else fail "no compare at the decided head"; fi
+if grep -q "compare/$TIP_SHA...$OLD" "$TMP_ROOT/log"; then ok "the decided head's net change is read against the base branch's tip commit"; else fail "no compare at the decided head"; fi
+if grep -q "git/ref/heads/main" "$TMP_ROOT/log" && ! grep -q "compare/main\.\.\.$OLD\|\.\.\.main$" "$TMP_ROOT/log"; then
+  ok "the base branch is resolved by its full ref, and no carry compare names it"
+else
+  fail "the base reads: '$(grep -e compare -e git/ref "$TMP_ROOT/log")'"
+fi
+STUB_FAIL=ref expect "an unreadable base ref carries nothing" no no no "covering this head"
 nets "[$TF]" "[$TF,$MORE]"
 expect "a pull request commit after the decided head clears nothing" no no no "covering this head"
 nets "[$TF,$MORE]" "[$MORE,$TF]"
-expect "a rebase with the same net change, in another file order, carries the decision" yes yes yes
+expect "a base merge with the same net change, in another file order, carries the decision" yes yes yes
 nets "[$TF,$MORE]" "[$TF]"
-expect "a rebase that drops one of its files clears nothing" no no no "covering this head"
+expect "a base merge that drops one of its files clears nothing" no no no "covering this head"
+nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"$OLD\"}]}]"
+expect "a commit of its own with the same net change clears nothing" no no no "covering this head"
+nets "[$TF]" "[$TF]" "[{\"sha\":\"6666666666666666666666666666666666666666\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"6666666666666666666666666666666666666666\"},{\"sha\":\"$MAIN_SHA\"}]}]"
+expect "a rebase that rewrites the decided head clears nothing" no no no "covering this head"
+# A crafted merge commit (itself a merge of base commits) as the second parent.
+X=7777777777777777777777777777777777777777
+nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$X\",\"parents\":[{\"sha\":\"$MAIN_SHA\"},{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"$OLD\"},{\"sha\":\"$X\"}]}]"
+expect "a merge of a commit the base does not hold clears nothing" no no no "covering this head"
+if grep -q "compare/$X...$TIP_SHA$" "$TMP_ROOT/log"; then ok "a merged parent is read against the base branch"; else fail "no compare of the merged parent: '$(grep compare "$TMP_ROOT/log")'"; fi
 nets "[$TF]" "[$(jq -c '.patch = "@@ -1 +1 @@\n-a\n+c"' <<<"$TF")]"
 expect "a conflict resolution that changes the net change clears nothing" no no no "covering this head"
 nets "[$TF]" "[$(jq -c '.status = "renamed" | .previous_filename = "infra/old.tf"' <<<"$TF")]"
@@ -557,7 +587,7 @@ export STUB_FAIL=module
 expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "push history could not be checked"
 reset
 expect "at the decided head the decision carries" yes yes yes
-if grep -q 'compare/main\.\.\.' "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi
+if grep -q "compare/main\.\.\.\|compare/$TIP_SHA\.\.\.\|git/ref/" "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi
 nodecided
 decided "$OLD"
 nets "[$TF,$TF]" "[$TF,$TF]"

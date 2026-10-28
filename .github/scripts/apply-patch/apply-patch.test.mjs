@@ -1100,7 +1100,7 @@ const patchDirOf = (t, text) => {
 };
 const selectCi = (dir, sum, extra = {}) =>
   select({ row: row("ci-context"), patchState: "written", patchSha256: sum, patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: dir, ...extra });
-const INVALID = { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" };
+const INVALID = { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-invalid" };
 
 test("a draft set during the run drops the fix uncommitted", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
@@ -1242,21 +1242,25 @@ test("an empty patch-state whose report escalated a check names ci-fix-escalated
   writeFileSync(join(reportDir, "reply.txt"), "lint-shell: escalated not-reproducible needs a secret\n");
   const head = "a".repeat(40);
   const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
-  assert.deepEqual(select({ ...base, reportDir, rung: 1 }), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.deepEqual(select({ ...base, reportDir, rung: 1 }), { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" });
   assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
 });
 
 // A fix-ci run that changed nothing and escalated only
 // unfixed or not-reproducible checks retries once, one model rung up, instead
-// of handing the PR to a person; protected-path, weaken-required and flaky
-// stay with a person, and a rung-1 run never retries again.
+// of stopping; flaky ends in a failing status (the dispatcher retries the
+// head), protected-path and weaken-required stay with a person, and a rung-1
+// run never retries again in the same run.
 for (const [why, reply, rung, want] of [
   ["unfixed at rung 0", "test-node: escalated unfixed three fixes failed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed and not-reproducible at rung 0", "a: escalated unfixed x\nb: escalated not-reproducible y\nc: fixed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
-  ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+  ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
+  // A fix that needs a path the lane token may not push, or one that weakens
+  // a required check, stays with a person.
+  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required at rung 1", "a: escalated weaken-required x\nb: escalated protected-path y\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
 ]) {
   test(`an empty fix-ci patch escalating ${why} selects ${want.skipReason}`, (t) => {
     const reportDir = scratch(t);
@@ -1319,7 +1323,7 @@ test("a written fix escalates nothing, and a run that writes no patch escalates 
   writeFileSync(join(nextReport, "reply.txt"), reply);
   const next = "b".repeat(40);
   const red = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: next, headSha: next, patchDir: scratch(t), reportDir: nextReport };
-  assert.deepEqual(select(red), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.deepEqual(select(red), { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" });
 });
 
 test("select reads the rung from MODEL_RUNG and refuses any other value", async (t) => {
@@ -1336,7 +1340,7 @@ test("select reads the rung from MODEL_RUNG and refuses any other value", async 
     await main(["select"], env, { log: () => {} });
     return readFileSync(out, "utf8");
   };
-  assert.match(await outputFor("1"), /^skip-reason=awaiting-human$/m);
+  assert.match(await outputFor("1"), /^skip-reason=lane-stopped$/m);
   assert.match(await outputFor("0"), /^skip-reason=rung-up$/m);
   assert.match(await outputFor(""), /^skip-reason=rung-up$/m);
   await assert.rejects(() => outputFor("2"), /MODEL_RUNG/);
@@ -1913,12 +1917,12 @@ test("select under the merge-base row: a clean merge proceeds with no patch, an 
   const at = (mergeState, patchState, extra = {}) =>
     select({ row: row("merge-base"), mergeState, patchState, patchSha256: sum, patchHeadSha: head, headSha: head, patchDir: dir, ...extra });
   assert.deepEqual(at("clean", ""), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(at("clean", "written"), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(at("clean", "written"), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" });
   assert.deepEqual(at("conflicted", "written"), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(at("conflicted", "empty"), { proceed: false, skipReason: "awaiting-human", escalationReason: "unresolved-conflict" });
-  assert.deepEqual(at("conflicted", ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(at("conflicted", "empty"), { proceed: false, skipReason: "lane-stopped", escalationReason: "unresolved-conflict" });
+  assert.deepEqual(at("conflicted", ""), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" });
   for (const state of ["", "escalate", "Clean"]) {
-    assert.deepEqual(at(state, ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" }, state);
+    assert.deepEqual(at(state, ""), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" }, state);
   }
   assert.deepEqual(at("clean", "", { patchHeadSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
   assert.deepEqual(at("conflicted", "written", { headSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
