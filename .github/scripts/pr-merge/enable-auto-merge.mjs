@@ -185,10 +185,13 @@ import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
+  HOLD_LINE,
   isApp,
   labelHistory,
+  laneHold,
   openReviewHold,
   openSignedCommitsHold,
+  PAIRED_MS,
   personSince,
   reviewEntries,
   sinceParam,
@@ -665,20 +668,37 @@ export function approvalLift(pull, detail, { bot, label, holdPaths }) {
 // Whether `label` stands for enable-auto-merge's refusal alone, so the lane
 // may take it off: null when it does, else why it stays. The same label also
 // carries holds that live only in the label, so it stays unless all hold:
+// - no review lane's hold names the head `head` (or fails to parse);
 // - the newest `labeled` event is the lanes App's (`login`, the REST login),
-//   and the App's marked comment written last at or before it is a person's
-//   refusal (pr-merge's escalation and refusal markers, nothing else);
-// - no review-lane or check-signed-commits hold comment stands since the
-//   label was last removed (gate-source's readers, as clear-escalations reads
-//   them);
+//   and the App's marked comment written last at or before it, within
+//   PAIRED_MS, is a person's refusal (pr-merge's escalation and refusal
+//   markers);
+// - no review-lane or check-signed-commits hold comment stands since a
+//   person last removed the label (gate-source's readers, as clear-escalations
+//   reads them);
 // - no lanes App comment written or edited since the label carries any marker
 //   but the refusal's: a pr-unblock escalation adds no label event;
 // - no person commented, replied on a review thread, reviewed or labeled
 //   since, a trusted approval (`humans`) aside.
 // A time that does not parse counts as since, which keeps the label.
 const REFUSAL_LINES = (line) => line === ATTEND_QUEUE_MARKER || line === REFUSAL_MARKER || /^<!-- pr-merge-partial head=[0-9a-f]{40} -->$/.test(line);
-export function liftBlocker({ timeline, reviewComments = [], reviews = [], label, login, humans }) {
-  const { labeled, since, lifted } = labelHistory(timeline, label);
+export function liftBlocker({ timeline, reviewComments = [], reviews = [], label, login, humans, head }) {
+  const { labeled, since } = labelHistory(timeline, label);
+  // Only a person's removal lifts a hold (liftedByPerson's rule): a bot's
+  // unlabel, which the lane then puts back, lifts nothing.
+  const lifted = Math.max(
+    -Infinity,
+    ...timeline
+      .filter((item) => item.event === "unlabeled" && item.actor?.type === "User" && String(item.label?.name).toLowerCase() === String(label).toLowerCase())
+      .map((item) => Date.parse(item.created_at))
+      .filter((time) => time <= since),
+  );
+  // A review lane's hold on this head keeps it whenever it was written, and
+  // one whose marker does not parse keeps it too (gateSource's head check).
+  const holdMarkers = timeline.map(laneHold).filter((marker) => marker !== undefined);
+  if (holdMarkers.some((marker) => (HOLD_LINE.exec(marker)?.[1] ?? head) === head)) {
+    return `a review lane holds head ${head}, or its hold does not parse`;
+  }
   if (!isApp(labeled?.actor, login)) {
     return `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`;
   }
@@ -689,7 +709,10 @@ export function liftBlocker({ timeline, reviewComments = [], reviews = [], label
     .filter(({ markers, at }) => markers.length > 0 && at > -Infinity)
     .sort((a, b) => a.at - b.at);
   const paired = before.at(-1);
-  if (paired === undefined || before.filter(({ at }) => at === paired.at).length > 1 || !paired.markers.includes(REFUSAL_MARKER) || !paired.markers.includes(ATTEND_QUEUE_MARKER)) {
+  // The refusal comes within PAIRED_MS before the label (refusalWrites posts
+  // the comment, then the label). A label put back under a standing comment
+  // with no new one does not pair, so it stays for a person.
+  if (paired === undefined || before.filter(({ at }) => at === paired.at).length > 1 || !paired.markers.includes(REFUSAL_MARKER) || !paired.markers.includes(ATTEND_QUEUE_MARKER) || !(since - paired.at <= PAIRED_MS)) {
     return `${label} does not pair with enable-auto-merge's refusal`;
   }
   if (openReviewHold(timeline, lifted) !== undefined) {
@@ -1263,8 +1286,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
     latch ??= rateLimitLatch;
     github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse, latch }), { sleep, random });
     // The lane runs, jobs and annotations a cost decision's decided head is
-    // read from, on the job token (actions: read, checks: read), as the
-    // verifier reads take it; the lanes App token holds neither.
+    // read from, and the head's pr-unblock statuses, on the job token
+    // (actions: read, checks: read, statuses: read), as the verifier reads
+    // take it; the lanes App token holds none of them.
     actions =
       actions ??
       (!injected && env.BABYSIT_VERIFY_GH_TOKEN
@@ -1460,7 +1484,9 @@ export async function main({ env = process.env, github, actions, verify, room, s
             }
             let stops = null;
             try {
-              stops = unblockStops(await readStatuses(github, `${repo[1]}/${repo[2]}`, pull.headRefOid));
+              // On the job token (statuses: read): the lanes App holds no
+              // commit-statuses permission.
+              stops = unblockStops(await readStatuses(actions, `${repo[1]}/${repo[2]}`, pull.headRefOid));
             } catch (error) {
               console.log(`enable-auto-merge: #${pull.number} head statuses did not read: ${describe(error)}`);
             }
@@ -1476,7 +1502,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
             if (lift) {
               let kept;
               try {
-                kept = await liftBlocked(github, repo[0], pull.number, { label: humanGated, login: env.LANES_BOT_LOGIN, humans });
+                kept = await liftBlocked(github, repo[0], pull.number, { label: humanGated, login: env.LANES_BOT_LOGIN, humans, head: pull.headRefOid });
                 if (kept === null && write) {
                   const fresh = await github("GET", `/repos/${repo[0]}/pulls/${pull.number}`);
                   kept = fresh?.head?.sha === pull.headRefOid ? null : `its head moved to ${fresh?.head?.sha ?? "an unread head"}`;

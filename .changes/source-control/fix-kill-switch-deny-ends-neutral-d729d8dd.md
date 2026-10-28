@@ -16,7 +16,8 @@ bump: patch
   floor, and CARRY_REFUSES for the workflows, actions and scripts
   hold-path workflows run, the trusted-actor list and the pipeline
   config, and babysit-prs' own scripts directory. test_merge_holds_sync.py
-  derives that closure, including scripts a workflow runs by a bare or
+  derives that closure, including every tracked script a hold-path
+  workflow names in any directory and scripts run by a bare or
   variable-prefixed path, and fails on any member outside the floor and
   CARRY_REFUSES. A compare not read whole, a
   head not ahead, a dismissal the push did not make, an untrusted or

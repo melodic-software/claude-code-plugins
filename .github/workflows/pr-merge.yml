@@ -1900,6 +1900,7 @@ jobs:
       pull-requests: read # the lane's merges and the merge queue, for the lane's room
       checks: read # the review lanes' annotations, as the gate binds their evidence
       issues: read # the demotion records the lane's room re-checks
+      statuses: read # the head's pr-unblock statuses (the lanes App holds no statuses permission)
       id-token: write # prove to the token broker which workflow this is
     # The pr-merge/unarmed statuses for the unarmed-status job to post.
     outputs:

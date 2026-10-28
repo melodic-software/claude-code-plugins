@@ -306,7 +306,8 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
+    const actions = options.jobToken ? options.jobToken(github) : undefined;
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
@@ -3028,6 +3029,15 @@ test("a head a pr-unblock lane stopped is not queued and is named in the summary
   assert.equal((await run([pull(1, { verdict: PASSED })])).writes[0]?.mutation, "arm");
 });
 
+// The lanes App holds no commit-statuses permission, so the head's statuses
+// are read on the job token (statuses: read): a lanes token that cannot read
+// them stops nothing when the job token can.
+test("the head's statuses are read on the job token, not the lanes App token", async () => {
+  const jobToken = (github) => async (method, path, ...rest) => (path.includes("/statuses?") ? [] : github(method, path, ...rest));
+  const { writes } = await run([pull(1, { verdict: PASSED, statuses: "error" })], {}, { jobToken });
+  assert.equal(writes[0]?.mutation, "arm");
+});
+
 test("a head whose statuses do not read is not queued, and an armed one is disarmed", async () => {
   assert.deepEqual((await run([pull(1, { verdict: PASSED, statuses: "error" })])).writes, []);
   const armed = pull(1, { verdict: PASSED, statuses: "error", autoMergeRequest: { enabledAt: NOW } });
@@ -3076,6 +3086,7 @@ test("an approved hold-path escalation keeps its label while anything else stand
   const held = (overrides) => pull(2, { files: HELD, labels: labels("needs-human"), verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, timeline: liftTimeline(), ...overrides });
   const [note, label, approval] = liftTimeline();
   const after = "2026-10-24T09:00:00Z";
+  const OLD = "e".repeat(40);
   const escalation = ["<!-- work-items:escalation lane=pr-unblock kind=escalated -->", `<!-- pr-unblock resume-key=${"a".repeat(40)} -->`, "- Reason: `security-finding`"].join("\n");
   const claude = { login: "claude[bot]", type: "Bot" };
   const actions = { login: "github-actions[bot]", type: "Bot" };
@@ -3090,8 +3101,21 @@ test("an approved hold-path escalation keeps its label while anything else stand
       "does not pair with enable-auto-merge's refusal",
     ],
     "a pr-unblock escalation since the label": [{ timeline: [note, label, restSaid(APP_USER, escalation, after), approval] }, "carries another marker: <!-- work-items:escalation lane=pr-unblock"],
-    "a review lane's hold": [{ timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-security-review sha=${HEAD} criteria=security -->`, after), approval] }, "a review lane holds it"],
-    "a review lane's hold the approval came after": [{ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=intent -->`, "2026-10-22T09:00:00Z"), note, label, approval] }, "a review lane holds it"],
+    "a review lane's hold on an earlier head": [{ timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=security -->`, after), approval] }, "a review lane holds it"],
+    "a review lane's hold the approval came after": [{ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=intent -->`, "2026-10-22T09:00:00Z"), note, label, approval] }, "a review lane holds it"],
+    // The second security review's probe: a hold on this head, a bot's
+    // unlabel, the lane putting the label back, then the approval.
+    "a hold on the head under a bot's unlabel and the lane's relabel": [
+      { timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=security -->`, after), labelEvent(actions, "2026-10-24T09:01:00Z", { event: "unlabeled" }), labelEvent(APP_USER, "2026-10-24T09:02:00Z"), approval] },
+      `a review lane holds head ${HEAD}`,
+    ],
+    "a hold whose marker does not parse": [{ timeline: [note, label, restSaid(claude, "<!-- claude-lane-hold lane=claude-review sha=short -->", after), approval] }, "or its hold does not parse"],
+    // A bot's unlabel lifts no earlier hold, even under a newly paired label.
+    "an earlier head's hold under a bot's unlabel": [
+      { timeline: [restSaid(APP_USER, personNote(HOLD_PATH_REASON), "2026-10-22T08:00:00Z"), labelEvent(APP_USER, "2026-10-22T08:00:01Z"), restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(actions, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] },
+      "a review lane holds it",
+    ],
+    "a refusal posted longer than PAIRED_MS before the label": [{ timeline: [note, labelEvent(APP_USER, "2026-10-23T10:01:01Z"), approval] }, "does not pair with enable-auto-merge's refusal"],
     "check-signed-commits' hold": [{ timeline: [note, label, restSaid(actions, "<!-- check-signed-commits hold -->\nA lane commit is unverified.", after), approval] }, "check-signed-commits holds it"],
     "a person's comment since the label": [{ timeline: [note, label, restSaid(KYLE, "Wait for the design call.", after), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
     "a person's label event since the label": [{ timeline: [note, label, labelEvent(KYLE, after, { name: "question" }), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
@@ -3108,6 +3132,9 @@ test("an approved hold-path escalation keeps its label while anything else stand
   }
   // The approval itself, the refusal edited after the label and a bot's
   // comment are not a reason to keep it.
+  // A person who removed the label lifted an earlier head's hold under it.
+  const personLifted = await run([held({ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(KYLE, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] })], trustedKyle());
+  assert.deepEqual(personLifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
   const edited = { ...note, updated_at: after };
   const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
   assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);

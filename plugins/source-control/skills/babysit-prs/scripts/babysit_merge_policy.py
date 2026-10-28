@@ -2712,6 +2712,13 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/source-control/skills/babysit-prs/scripts/**",
     "plugins/performance/scripts/**",
     "plugins/harness-ops/skills/inventory/scripts/**",
+    "plugins/ai-briefing/skills/generate/scripts/**",
+    "plugins/harness-config/skills/audit-permission-state/scripts/**",
+    "plugins/knowledge/skills/course-digest/scripts/**",
+    "plugins/knowledge/skills/video-digest/scripts/**",
+    "plugins/skill-quality/scripts/**",
+    "plugins/source-control/scripts/**",
+    "plugins/testing/skills/check-visual-parity/scripts/**",
 )
 
 

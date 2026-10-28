@@ -1446,9 +1446,18 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
 # the Python it runs, and each hold-path workflow's local actions (every
 # file of the action) and the scripts its steps name, with their closures.
 USES = re.compile(r"uses:\s*\./(?:\.base/)?(\.github/actions/[A-Za-z0-9_.-]+)")
+# Any repository path to a script a workflow names, from the head checkout or
+# `.base/`, whatever its directory: only a tracked file counts.
 RUNS = re.compile(
-    r"(?:\.base/)?((?:\.github/scripts|\.github/actions|scripts|lib)/[A-Za-z0-9_./-]+\.(?:mjs|js|sh|bash|py))"
+    r"(?<![\w./-])(?:\./)?(?:\.base/)?((?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+[A-Za-z0-9_.-]+\.(?:mjs|js|sh|bash|py))"
 )
+
+
+def tracked() -> set[str]:
+    proc = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True, check=True
+    )
+    return set(proc.stdout.splitlines())
 
 
 def loaded_closure() -> list[str]:
@@ -1457,6 +1466,7 @@ def loaded_closure() -> list[str]:
     )
     files: set[str] = set(workflows)
     entries: set[str] = set(FLOOR_ENTRIES) | set(ROUTE_ENTRIES)
+    in_git = tracked()
     for workflow in workflows:
         text = (ROOT / workflow).read_text(encoding="utf-8")
         for action in USES.findall(text):
@@ -1469,7 +1479,7 @@ def loaded_closure() -> list[str]:
                     if f.suffix == ".mjs":
                         entries.add(name)
         for script in RUNS.findall(text):
-            if (ROOT / script).is_file():
+            if script in in_git:
                 files.add(script)
                 if script.endswith(".mjs"):
                     entries.add(script)
