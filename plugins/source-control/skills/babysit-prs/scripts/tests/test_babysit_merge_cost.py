@@ -407,13 +407,31 @@ class CostDecision(unittest.TestCase):
             ],
         )
 
-    def test_a_rebase_with_the_same_net_change_carries_in_any_file_order(
+    def test_a_base_merge_with_the_same_net_change_carries_in_any_file_order(
         self,
     ) -> None:
         doc = {"filename": "docs/a.md", "status": "added", "patch": "+a"}
         self.assertEqual(self.later({OLD: _net(TF, doc), HEAD: _net(doc, TF)}), LINK)
-        # A rebase that drops one of its files is a change of its own.
+        # A merge that drops one of its files is a change of its own.
         self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
+
+    def test_a_rebase_or_a_commit_of_its_own_with_the_same_net_change_re_holds(
+        self,
+    ) -> None:
+        rewritten = "6" * 40
+        for name, commits in {
+            "a rebase": [
+                {"sha": rewritten, "parents": [MAIN]},
+                {"sha": HEAD, "parents": [rewritten]},
+            ],
+            "a commit of its own": [
+                {"sha": OLD, "parents": [MAIN]},
+                {"sha": HEAD, "parents": [OLD]},
+            ],
+        }.items():
+            with self.subTest(name):
+                head = _net(TF) | {"commits": commits, "total_commits": 2}
+                self.assertIsNone(self.later({OLD: _net(TF), HEAD: head}))
 
     def test_a_conflict_resolution_that_changes_the_net_change_re_holds(
         self,
