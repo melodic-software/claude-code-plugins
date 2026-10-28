@@ -88,7 +88,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section changes its deadline or its re-arm notice, or a release note names a Monitor input.
 
-   A single-prompt `-p` run uses the same arming call: Claude Code lowers the deadline to that run's cap instead of rejecting the call, and the run stays up to deliver the deadline notice, so the watch is re-armed on that notice as above.
+   A single-prompt `-p` run uses the same arming call and re-arms on the deadline notice as above.
 
    - **Pointer**: the `-p` probe recorded on [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877), observed on Claude Code 2.1.312.
    - **As of**: 2026-10-28

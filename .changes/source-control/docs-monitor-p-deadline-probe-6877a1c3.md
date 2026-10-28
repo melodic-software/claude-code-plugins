@@ -2,4 +2,4 @@
 bump: none
 ---
 
-Docs-only: the pull-request monitor guidance records that a single-prompt `-p` run caps a Monitor `timeout_ms` of 1800000 to that run's limit rather than rejecting it, so the arming call is unchanged; nothing a user runs changes.
+Docs-only: the pull-request monitor guidance states that a single-prompt `-p` run uses the same Monitor arming call, pointing at the #6877 probe for the observed behavior; nothing a user runs changes.
