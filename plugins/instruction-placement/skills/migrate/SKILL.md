@@ -5,6 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   [
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/cutover-check.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
@@ -15,7 +16,6 @@ allowed-tools:
     "Glob",
     "Edit",
     "Write",
-    "WebFetch",
   ]
 metadata:
   workflow-stage: implement
@@ -84,6 +84,36 @@ it ("Read `docs/release-process.md` before cutting a release") beats a paragraph
 that plugin is installed, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
 pointer. Where it is not installed, write the text here and say that the write-side doctrine was
 not available, rather than skipping the move.
+
+## Check the mechanics quotes first
+
+Where a shim, a nested `AGENTS.md` or a `.claude/rules/` file loads is priced by the surface table in
+[`../../context/verified-mechanics.md`](../../context/verified-mechanics.md), and each
+*(doc MS-<n>)* cell there rests on one sentence of a live docs page. The first command of every
+run, whichever argument it has, checks those sentences:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"
+```
+
+It takes no arguments and fetches only the pages `context/mechanics-sources.tsv` lists. It prints
+one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
+the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
+exits 0 whatever the results, so a run with no network still completes. Its grant names the script
+with no `*`, and a Bash rule with no `*` matches one exact command (see
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-10-28; recheck when that
+section changes how such a rule matches).
+
+A proposed move relies on the records its destination's row of the surface table cites.
+
+- **Drift goes first.** At the top of the output, list each `drift` result: the record id, its
+  section URL, the stored wording and the fetched one. A move that relies on a drifted record shows
+  both wordings and the unverified label below, and names the wording it is planned on.
+- **Quote the deciding sentence** of each record a move relies on, from the record's `quote`
+  column, beside that move in the plan.
+- **Label what was not read.** A move that relies on an `unverified` or a drifted record is
+  labeled "unverified as of <date>", in the plan and at the apply gate. The date is the one the
+  `unverified` line printed, or for a drifted record its `as_of` in the list.
 
 ## Plan first
 
@@ -167,9 +197,10 @@ between steps must leave content duplicated rather than deleted:
    `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
    age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
    Neither script is in this skill's `allowed-tools`, deliberately: a standing grant would let the
-   fetcher run unattended, so each call takes a permission prompt. The one exception is
-   `cutover-check.sh`, which runs the fetcher itself for the single fixed page it has always read
-   (`env-vars`, with `--max-age 0`), so its grant reaches no other page.
+   fetcher run unattended, so each call takes a permission prompt. Two scripts run the fetcher on a
+   grant, each for fixed pages only: `cutover-check.sh` for the single page it has always read
+   (`env-vars`, with `--max-age 0`), and `quote-check.sh` for the list in
+   `context/mechanics-sources.tsv`, which it takes no argument to change.
    Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.

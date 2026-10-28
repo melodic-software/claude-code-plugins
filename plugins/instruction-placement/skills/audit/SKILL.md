@@ -5,6 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   [
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/precompute.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
@@ -61,6 +62,37 @@ A proposal that contradicts `verified-mechanics.md` is wrong even if it looks li
 common one: moving a section into `.claude/rules/` *without* a `paths:` glob, which costs exactly
 what it cost before.
 
+## Check the mechanics quotes first
+
+Each *(doc MS-<n>)* cell of the surface table in `verified-mechanics.md` rests on one sentence of a
+live docs page. Before the detector runs, check that those sentences are still there:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/quote-check.sh"
+```
+
+It takes no arguments and fetches only the pages `context/mechanics-sources.tsv` lists. It prints
+one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fetched sentences on
+the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
+exits 0 whatever the results, so a run with no network still completes. Its grant names the script
+with no `*`, and a Bash rule with no `*` matches one exact command (see
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-10-28; recheck when that
+section changes how such a rule matches).
+
+A finding relies on the records its destination's row of the surface table cites. Carry the
+results into the artifact and the summary:
+
+- **Drift goes first.** Before any finding, list each `drift` result: the record id, its section
+  URL, the stored wording and the fetched one. A finding that relies on a drifted record shows both
+  wordings beside its destination, carries the unverified label below, and names the wording it is
+  priced on.
+- **Quote the deciding sentence.** Write each record a finding relies on into its `Mechanics`
+  field as `MS-<n> <result>: "<quote>"`, the quote from the record's `quote` column.
+- **Label what was not read.** A finding that relies on an `unverified` or a drifted record is
+  labeled "unverified as of <date>", in the artifact and in the summary. The date is the one the
+  `unverified` line printed, or for a drifted record its `as_of` in the list. The label changes no
+  rank; it shows the operator which proposals rest on a stored quote alone.
+
 ## The two lanes
 
 **Demote**. Content already in the instruction layer, sitting higher than its scope warrants. The
@@ -75,7 +107,7 @@ rubric's table rather than reflexively copying.
 
 ## Facts before judgment
 
-Run the detector first and build every finding on what it emits:
+Run the detector after the quote check and build every finding on what it emits:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" [--tier core]
@@ -102,8 +134,8 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Workflow
 
-1. **Run the detector** and read its `FILE`/`SKIP` records as the corpus of record. Core tier
-   always; expanded tier unless the operator passed `core`.
+1. **Run the detector**, after the quote check above, and read its `FILE`/`SKIP` records as the
+   corpus of record. Core tier always; expanded tier unless the operator passed `core`.
 2. **Take candidates from `SECTION` records.** A candidate is one section with its emitted line
    range. Never a lone line pulled from a section; never a whole file when one section is the
    problem; never a boundary the detector did not report.
@@ -202,8 +234,8 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Hard rules
 
-- **Read-only.** The only file this skill writes is its own findings artifact, outside the
-  repository. No edit to any instruction file, ever, not even an obviously correct one.
+- **Read-only.** The only files this skill writes are its own findings artifact and the docs
+  cache `quote-check.sh` refreshes through `fetch-docs.sh`, both outside the repository. No edit to any instruction file, ever, not even an obviously correct one.
 - **Never propose a glob that failed validation.** The check is mechanical and cheap; a guessed glob
   produces a rule that silently never fires, which is strictly worse than leaving the content alone.
 - **Never propose demoting a hard-deny candidate**, under any argument, including an operator
