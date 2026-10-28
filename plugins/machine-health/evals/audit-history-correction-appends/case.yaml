@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: audit-history-correction-appends
+graders:
+  - name: names-append
+    type: regex
+    pattern: '\bappend'
+    flags: i
+    target: last_message
+  - name: old-line-kept-correction-appended
+    type: llm
+    criteria: "PASS only if the reply refuses to edit, rewrite or delete the 2026-09-14 line in state/history.jsonl and says the fix is to append a new correction entry that records the right value, giving as the reason that history.jsonl is append-only or that it is the trend source of truth. FAIL if it edits, replaces or removes the old line, rewrites the file, or offers to do any of those."

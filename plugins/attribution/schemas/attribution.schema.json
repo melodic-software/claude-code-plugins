@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/attribution/schemas/attribution.schema.json",
+  "title": "attribution team config",
+  "description": "Schema for a repository's docs/conventions/attribution.yaml, the team layer of the attribution plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/attribution.local.yaml (the personal layer) and in the legacy .claude/attribution.json files, which the audit reads only when the YAML beside them is absent. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/lib.sh (cfg_scalar, cfg_list); judge_samples and the separation, accuracy, budgets.searches_per_candidate and budgets.fetches_per_candidate keys are read by the audit skill itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "excluded_paths": {
+      "type": "array",
+      "description": "Globs, matched against repo-relative paths, whose files the audit does not scan: a whole class of surface, never one passage. Replaces the lower layer's list whole; an empty list clears it.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "budgets": {
+      "type": "object",
+      "description": "Caps that bound runaway source-search loops.",
+      "additionalProperties": false,
+      "properties": {
+        "searches_per_candidate": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Web searches allowed for one candidate; the shipped default is 3."
+        },
+        "fetches_per_candidate": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Page fetches allowed for one candidate; the shipped default is 5."
+        },
+        "corpus_fetch_ceiling": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Page fetches allowed across one whole run; the shipped default is 200."
+        }
+      }
+    },
+    "separation": {
+      "type": "object",
+      "description": "The deterministic separation rule's constants: it fires on containment at or above min_containment or a matched span at or above min_span_words, after quote-stripping.",
+      "additionalProperties": false,
+      "properties": {
+        "min_containment": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Containment ratio at or above which the rule fires; the shipped default is 0.3."
+        },
+        "min_span_words": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Matched-span length in words at or above which the rule fires; the shipped default is 15."
+        }
+      }
+    },
+    "stamp_expiry_days": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The verification-stamp expiry window in whole days; the shipped default is 180."
+    },
+    "trigger_less_stamp_check": {
+      "type": "boolean",
+      "description": "Flag a dated stamp whose surface states no recheck trigger; the shipped default is false."
+    },
+    "judge_samples": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Blind judges per candidate, a top-level key and never accuracy.judge_samples; the shipped default is 3, and a value below 3 is raised to 3 for any finding that could become fix-eligible and for every restated-fact panel."
+    },
+    "gates": {
+      "type": "object",
+      "description": "Fix-mode eligibility and release-readiness bars. They never filter what a report shows.",
+      "additionalProperties": false,
+      "properties": {
+        "fix_precision_bar": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Golden-set precision a class must reach to become fix-eligible; the shipped default is 0.95."
+        },
+        "report_recall_floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Golden-set recall a class must reach for release readiness; the shipped default is 0.8."
+        },
+        "min_n_per_class": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Golden cases a class must carry at or above the precision bar before it leaves report-only; the shipped default is 10."
+        }
+      }
+    },
+    "accuracy": {
+      "type": "object",
+      "description": "Verification-depth dials.",
+      "additionalProperties": false,
+      "properties": {
+        "nomination_passes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Nomination dispatches per run; the shipped default is 2."
+        },
+        "judge_lens_diversity": {
+          "type": "boolean",
+          "description": "Give each judge a different lens; the shipped default is true."
+        },
+        "review_agents": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Adversarial reviewers per copy-rubric STANDS verdict, 0 for none; the shipped default is 1."
+        },
+        "deep_research_on_exhaustion": {
+          "type": "boolean",
+          "description": "Let a budget-exhausted candidate escalate to /discovery:research when that plugin is installed; the shipped default is false."
+        }
+      }
+    }
+  }
+}

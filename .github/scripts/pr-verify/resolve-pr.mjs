@@ -224,6 +224,8 @@ async function pullsOfCommit(github, repository, head) {
 // the gate decides: the earlier FAIL stays tied and refuses the head.
 // A counted FAIL answers `fail`; this PR's counted passes answer only their
 // runs' start times (`passes`), which `specChanged` weighs against the spec.
+// The FAIL names come first: a counted FAIL alone decides, so the passes are
+// looked up only when none is found.
 async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
@@ -234,8 +236,9 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
   const names =
     issues === undefined
       ? [
-          ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
+          ...named(number, "fail"),
           ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
+          ...["pass", "pass-notes"].flatMap((verdict) => named(number, verdict)),
         ]
       : suffix
         ? named(number, "fail")
@@ -439,12 +442,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   if (fail) {
     return skip("already-judged");
   }
-  // This PR's FAIL is named with the issues it records, read only now.
   const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
-  const issues = specRead.linkedIssues.map((issue) => issue.number);
-  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
-    return skip("already-judged");
-  }
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
@@ -471,8 +469,14 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
   // A pass judged before the spec last changed is one the gate refuses, so
-  // the head is judged again against the spec as it is now.
+  // the head is judged again against the spec as it is now. A pass that still
+  // stands decides as a FAIL would, so the FAIL named with this PR's issues
+  // (read only now: the name records them) is looked up only past it.
   if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
+    return skip("already-judged");
+  }
+  const issues = spec.linkedIssues.map((issue) => issue.number);
+  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");
   }
   return {

@@ -355,14 +355,17 @@ class CaptureTest(unittest.TestCase):
             audio_seconds = last_pts + last_duration
             self.assertAlmostEqual(audio_seconds, stamps[-1], delta=0.5)
             self.assertAlmostEqual(audio_seconds, 4.0, delta=0.5)
-            for stamp, name in (("0.3", "frame-early.png"), ("3.0", "frame-late.png")):
+            # Frames are picked by capture order, not timestamp: the browser stamps them with its wall
+            # clock, which a loaded runner shifts against scene time. Up to 10 blue pixels is VP8 noise.
+            for index, name in ((0, "frame-first.png"), (len(stamps) - 1, "frame-last.png")):
                 subprocess.check_call([
-                    "ffmpeg", "-y", "-i", str(webm), "-ss", stamp, "-frames:v", "1", str(out / name),
+                    "ffmpeg", "-y", "-i", str(webm), "-vf", f"select=eq(n\\,{index})",
+                    "-frames:v", "1", str(out / name),
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            video_early = count_tunic(png_rgba(out / "frame-early.png")[2])
-            video_late = count_tunic(png_rgba(out / "frame-late.png")[2])
-            self.assertEqual(video_early, 0)
-            self.assertGreater(video_late, 10)
+            video_first = count_tunic(png_rgba(out / "frame-first.png")[2])
+            video_last = count_tunic(png_rgba(out / "frame-last.png")[2])
+            self.assertLessEqual(video_first, 10)
+            self.assertGreater(video_last, 10)
 
 
 if __name__ == "__main__":

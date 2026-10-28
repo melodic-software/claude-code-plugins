@@ -1,13 +1,13 @@
 // comment.mjs: one comment per merged pull request, edited in place on a
 // re-run, and no write without a pull request or a marked body.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { main, ownComment } from "./comment.mjs";
 import { MARKER } from "./report.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const BOT = { login: "github-actions[bot]" };
 const BODY = `${MARKER}\n## Post-merge mutation testing\n`;
@@ -27,7 +27,7 @@ function fakeGitHub(comments = []) {
 }
 
 function run(env, github) {
-  const dir = mkdtempSync(join(tmpdir(), "mutation-comment-"));
+  const dir = tempDir("mutation-comment-");
   const path = join(dir, "comment.md");
   if (env.body !== undefined) writeFileSync(path, env.body);
   const lines = [];

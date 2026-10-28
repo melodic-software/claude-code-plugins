@@ -449,6 +449,56 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("asks the user", err)
 
+    TABLE = "| AC | Criterion |\n|---|---|\n| AC1 | builds reuse the cache |"
+    VISUAL_WARNING = "recommendation refers to a table or visual"
+
+    def test_add_warns_on_a_recommendation_that_points_at_a_table_it_does_not_carry(self):
+        q = question(
+            "Q4",
+            recommendation="Adopt the ten criteria in the table as written.",
+            facts=self.TABLE,
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.VISUAL_WARNING}", err)
+
+    def test_a_table_reference_with_commitments_or_nothing_shown_draws_no_warning(self):
+        for name, q in (
+            (
+                "commitments carry it",
+                question(
+                    "Q4",
+                    recommendation="Adopt the criteria in the table as written.",
+                    facts=self.TABLE,
+                    commits=["AC1: builds reuse the cache"],
+                ),
+            ),
+            (
+                "a database table, no visual or facts table",
+                question("Q4", recommendation="Add an index to the orders table."),
+            ),
+        ):
+            with self.subTest(name):
+                self.write_doc(base_doc())
+                rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+                self.assertEqual(rc, 0, out + err)
+                self.assertNotIn(self.VISUAL_WARNING, err)
+
+    def test_revise_warns_on_a_recommendation_that_points_at_a_table(self):
+        rc, out, err = self.rp(
+            "revise",
+            "Q2",
+            "--rec",
+            "Adopt the criteria in the table.",
+            "--facts",
+            self.TABLE,
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q2 {self.VISUAL_WARNING}", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
@@ -539,6 +589,57 @@ class TestRefusals(DirCase):
             rc, out, err = self.rp("add", "--file", self.file("q.json", q))
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("names a local file", err, rec)
+
+    FACTS_WARNING = "facts carries no link, file:line or judgment label"
+
+    def test_facts_with_no_reference_warns_and_check_exits_zero(self):
+        q = question("Q4", facts="The cache is shared by every job today.")
+        before = self.raw()
+        path = self.file("round.json", {"questions": [q]})
+        rc, out, err = self.rp("add-round", "--file", path, "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.FACTS_WARNING}", err)
+        self.assertIn("basis carries no outcome label", err)
+        self.assertEqual(self.raw(), before)
+        rc, out, err = self.rp("revise", "Q1", "--facts", "Every job shares the cache.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q1 {self.FACTS_WARNING}", err)
+
+    def test_facts_with_a_link_file_line_or_judgment_label_is_quiet(self):
+        for n, facts in enumerate(
+            (
+                "> Releases ship on a weekday.\n\n[Release policy](https://example.com/policy#days)",
+                "The cache is shared (https://example.com/ci#cache).",
+                "The lock is per data dir (`plugins/planning/surface/round.py:217`).",
+                "The pin is a digest (plugins/planning/tests/interview-defenses.test.sh:644).",
+                "Checked against: C1, C3",
+                "Checked against: none\n\nMost jobs would gain from it. Judgment",
+                "(judgment) Most jobs would gain from it.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn(self.FACTS_WARNING, err, facts)
+
+    def test_no_facts_draws_no_warning(self):
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.FACTS_WARNING, err)
+
+    def test_a_time_of_day_or_judgment_as_a_word_is_not_a_reference(self):
+        for n, facts in enumerate(
+            (
+                "The nightly build starts at 16:30.",
+                "Checked against: C2\n\nWhich cache to keep is a judgment call for the team.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertIn(f"Q{n} {self.FACTS_WARNING}", err, facts)
 
     def test_bare_unknown_id_token_warns(self):
         q = question(
@@ -1392,6 +1493,37 @@ class TestSupersedeRepoint(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
         self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+
+
+class TestMassSupersede(DirCase):
+    """G6: one write that supersedes three or more questions one for one warns and names revise."""
+
+    def replacements(self, *olds):
+        return [
+            question(f"R{old}", short=f"New {old}", supersedes=old, dependsOn=[])
+            for old in olds
+        ]
+
+    def test_superseding_three_questions_one_for_one_warns_naming_revise(self):
+        rnd = {"questions": self.replacements("Q1", "Q2", "Q3")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("supersedes 3 questions one for one", err)
+        self.assertIn("Q1 by RQ1, Q2 by RQ2, Q3 by RQ3", err)
+        self.assertIn("use revise <id>", err)
+        self.assertEqual(self.q("Q3")["supersededBy"], "RQ3")
+
+    def test_the_apply_add_ops_of_one_write_count_together(self):
+        ops = {"ops": [{"op": "add", "question": q} for q in self.replacements("Q1", "Q2", "Q3")]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("revise <id>", err)
+
+    def test_two_supersedes_do_not_warn(self):
+        rnd = {"questions": self.replacements("Q1", "Q2")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("one for one", out + err)
 
 
 class TestSupersedeShortAndDuplicateId(DirCase):
@@ -2557,6 +2689,55 @@ class TestClaudeActivity(DirCase):
                     op["sections"] = sections
                 self.refused(op)
 
+    def test_restate_refuses_an_acceptance_line_that_asks_the_user(self):
+        for line in (
+            "- AC3: Say add both, add one, or neither.",
+            "- Does it need an unwanted-behavior case?",
+            "- [state-driven] Please confirm the timeout.",
+            "AC2: Choose one of the two layouts",
+            "1. Say which one applies",
+        ):
+            with self.subTest(line=line):
+                out = self.refused(
+                    {"op": "restate", "sections": {"acceptance": f"- AC1: it ships\n{line}"}}
+                )
+                self.assertIn("acceptance line asks the user something", out)
+
+    def test_restate_keeps_checkable_criteria_and_a_code_span_question_mark(self):
+        acceptance = (
+            "- AC1: [unwanted-behavior] IF the upload fails, THEN the manifest is discarded\n"
+            "- AC2: the lookup uses `a?.b`\n"
+            "- AC3: a picked row stays selected\n"
+            "- AC4: Pick lists reprint from the handheld\n"
+            "- AC5: Reply emails keep their thread"
+        )
+        self.apply({"op": "restate", "sections": {"acceptance": acceptance}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"]["acceptance"], acceptance
+        )
+
+    def test_restate_takes_a_tldr_and_refuses_a_gate_label_in_it(self):
+        self.apply({"op": "restate", "sections": {"tldr": "- Ships the build cache"}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"], {"tldr": "- Ships the build cache"}
+        )
+        for line in (
+            "- Restatement: confirmed at rev 9",
+            "Page title: Other",
+            "- Page  title: Other",
+            "Page\ttitle: Other",
+        ):
+            with self.subTest(line=line):
+                out = self.refused({"op": "restate", "sections": {"tldr": line}})
+                self.assertIn("a label the --brief gate reads", out)
+
+    def test_restate_warns_on_a_tldr_over_five_lines(self):
+        tldr = "\n".join(f"- scope item {n}" for n in range(1, 7))
+        ops = {"ops": [{"op": "restate", "sections": {"tldr": tldr}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("restate tldr has 6 lines", err)
+
     def test_constraint_records_each_constraint_in_the_page_state(self):
         self.apply(
             {"op": "constraint", "text": "Builds stop at ten minutes."},
@@ -2951,6 +3132,23 @@ class TestArchive(DirCase):
             self.assertTrue(q["archived"]["at"])
             self.assertNotIn("state", q)
             self.assertIn("Off the chosen path.", q["history"][-1]["text"])
+
+    def test_archive_clears_a_hold(self):
+        """G6: an archived question carries no `waiting` hold."""
+        hold = {"ops": [{"op": "wait", "id": "Q2", "waitsOn": "the retry benchmark"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("hold.json", hold))
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(self.q("Q2")["waiting"])
+        rc, out, err = self.rp("archive", "Q2", "--why", "Re-issued.")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q2")
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            self.assertNotIn(key, q)
+        self.assertEqual(q["history"][-2]["text"], "No longer pending research.")
+        self.assertIn("Re-issued.", q["history"][-1]["text"])
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("waits on:", out)
 
     def test_archive_unknown_id_is_refused(self):
         self.assert_refused("archive", "Q2", "Q9", "--why", "x")
@@ -4472,6 +4670,133 @@ class TestConfirmationRecap(DirCase):
         self.assertTrue(gone.startswith(head))
         self.assertTrue(gone.endswith(f"Q{self.LIVE + self.WITHDRAWN}"))
         self.assertNotIn("Q1 withdrawn", "\n".join(lines))
+
+
+class TestRecapFromTheLedger(unittest.TestCase):
+    """export-ledger --recap --ledger reads the ledger alone with no data dir (the terminal lane),
+    saves its rows beside the ledger, and --changed lists only the rows changed since."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it",
+        "- Q2 | open | round 1 | Which runner image? |",
+        "- Q3 | answered | round 2 | Keep the lock file? | keep it",
+        "- Q4 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1",
+    ]
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-recap-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ledger = self.tmp / "interview-checklist.md"
+        self.state = self.tmp / "interview-checklist.last-recap.json"
+        self.write_ledger(self.ROWS)
+
+    def write_ledger(self, rows):
+        text = "# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n"
+        self.ledger.write_text(text, encoding="utf-8")
+
+    def recap(self, *extra):
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return out_path.read_text(encoding="utf-8").splitlines(), p.stderr
+
+    def test_the_recap_reads_the_ledger_alone_and_saves_its_rows(self):
+        lines, _ = self.recap()
+        self.assertEqual(
+            lines,
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Q3 answered: Keep the lock file? (keep it)",
+                "Withdrawn (1): Q4",
+            ],
+        )
+        rows = json.loads(self.state.read_text(encoding="utf-8"))["rows"]
+        self.assertEqual(sorted(rows), ["Q1", "Q2", "Q3", "Q4"])
+        self.assertEqual(rows["Q3"], "answered: Keep the lock file? (keep it)")
+
+    def test_a_missing_data_dir_reads_the_ledger_alone_too(self):
+        lines, _ = self.recap("--dir", str(self.tmp / "no-such-dir"))
+        self.assertEqual(lines[0], "Q1 answered: Share the cache? (accepted: share it)")
+
+    def test_changed_lists_every_row_until_a_recap_is_saved(self):
+        lines, _ = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertFalse(any(x.startswith("Unchanged") for x in lines), lines)
+
+    def test_changed_lists_only_the_changed_rows_and_counts_the_rest(self):
+        self.recap()
+        rows = list(self.ROWS)
+        rows[1] = "- Q2 | answered | round 1 | Which runner image? | the slim image"
+        rows.append("- Q5 | open | round 3 | Cache the test data? |")
+        self.write_ledger(rows)
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines,
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Q5 open: Cache the test data? ()",
+                "Unchanged since the last recap (3): 2 answered, 1 withdrawn",
+            ],
+        )
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines, ["Unchanged since the last recap (5): 3 answered, 1 open, 1 withdrawn"]
+        )
+
+    def test_an_unreadable_saved_recap_warns_and_lists_every_row(self):
+        self.state.write_text("not json", encoding="utf-8")
+        lines, err = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertIn("cannot read the last recap", err)
+
+    def test_a_ledger_with_no_register_is_refused(self):
+        self.ledger.write_text("# Interview ledger\n\nNo register here.\n", encoding="utf-8")
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("0 open-question register headings", p.stderr)
+        self.assertFalse(out_path.exists())
+        self.assertFalse(self.state.exists())
+
+    def test_changed_needs_recap_and_a_ledger(self):
+        d = self.tmp / "data"
+        d.mkdir()
+        (d / "questions.json").write_text(json.dumps(base_doc()), encoding="utf-8")
+        rc, out, err = run_round(
+            d, "export-ledger", "--changed", "--out", str(self.tmp / "x.md")
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertIn("--changed needs --recap and --ledger", out + err)
 
 
 class TestCliHygiene(DirCase):

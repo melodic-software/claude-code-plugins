@@ -36,6 +36,8 @@ fi
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$TEST_TMPDIR"
 
 # local-file passes
 OUT="$(bash "$CONF" "$LOCAL" 2>&1)"

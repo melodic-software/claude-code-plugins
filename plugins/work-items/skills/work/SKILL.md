@@ -59,11 +59,31 @@ dispatch, PR or babysit step. It works in place:
 4. Run every check the runner's system prompt names, and fix what fails. Those checks are
    required, and so is any other check the repository's rules require for the files you touched.
    A required check you could not run or could not pass goes in `not_done` with
-   `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says. A
+   `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says. A test
+   run (a test runner or test suite) you could not execute here is the exception, since the PR's
+   CI runs the suites: add it to `not_done` as left to the PR's CI, with `"required": false`, and
+   do not stop for it. A test that ran and failed is still required. A
    check the issue names as a PR or CI check (one the PR's CI runs, such as "CI's `<job>`
    passes on the PR") is not required of this run unless the runner's prompt or those rules
    require it: when you cannot run it here, add it to `not_done` as left to the PR's CI, with
    `"required": false`, and do not stop for it.
+   When the runner's prompt names `Tidy cutoffs`, tidy the change next, before any review, so the
+   review sees the final code. Measure it: `git-read diff --numstat HEAD` for tracked files, plus
+   each untracked file `git-read status --porcelain --untracked-files=all` lists, counted whole.
+   Count files, changed lines (added plus removed) and areas (`plugins/<name>` with its
+   `.changes/<name>`, `docs/<dir>`, else the path's first segment). Over any cutoff, or touching a
+   listed shared path (a path under a listed directory, or a listed file), the change is not
+   tidied. Otherwise write one `<start><TAB><count><TAB><path>` row per changed hunk to a lines
+   file in the scratchpad, from the `+<start>,<count>` hunk headers of
+   `git-read diff --unified=0 HEAD` (a header with no `,<count>` is one line; skip `,0`, a pure
+   deletion; an untracked file is one row from line 1 over its length). Keep enough turns to run
+   every check again, run the prep below and write `work-outcome.json`; invoke the named tidy
+   entry with that file and `--turns` set to the tidy turn budget or what is left after that
+   reserve, whichever is smaller, and skip tidy when nothing is left. Record `tidy` in `steps` as
+   `pass` when it ran every pass, else `skipped`, and put the reason it was not tidied, or which
+   passes it skipped, in `not_done` with `"required": false`; tidy never fails the run or changes
+   `exit`. Then run every check again and fix what fails, and add each file tidy changed to
+   `changes`.
    Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
    ready: only this plugin is loaded here, so use its stated fallback for each step. The review
    runs in one venue: when `review-venue.txt` in the same scratchpad directory (the runner writes
@@ -93,7 +113,11 @@ dispatch, PR or babysit step. It works in place:
    ```
 
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
-   must answer) or `stopped` (stopped partway; `reason` says why). `title` is a Conventional
+   must answer) or `stopped` (stopped partway; `reason` says why). Open a `stopped` reason with
+   the code that names why, then a colon, and the lane routes the issue by it: `host-only` (the
+   work needs a host or attended run this lane cannot make), `intent-change` (a finding changes
+   what the issue asks for), `design-change` (it changes the primary design), `security-risk` or
+   `cost-risk` (a HIGH or CRITICAL risk). A reason with none goes to a person. `title` is a Conventional
    Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
    work, one string per part, at most 20: with any entry the PR links the issue without closing it
    and lists them, and empty or malformed (a blank entry, a non-string, more than 20), the PR

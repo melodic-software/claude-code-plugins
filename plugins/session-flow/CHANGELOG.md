@@ -1,5 +1,34 @@
 # Changelog: session-flow plugin
 
+## [1.7.0] - 2026-10-28
+
+### Added
+
+- `/session-flow:audit-sessions now` audits the current session against the sweep's rules, so you can change course before the session ends. It collects only this session, by the id from `${CLAUDE_SESSION_ID}`, and stops without collecting when that id does not expand. It reports the per-session metrics, with each finding over its threshold.
+- `sweep.py --session <id>...` limits metrics and findings to the named sessions. Each row's store p90 still covers every interactive session in scope, and the drift check still reads every record. The machine-wide cache ratio and per-PR churn are reported as not applicable, and `--write-report` is refused.
+
+## [1.6.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.1] - 2026-10-27
+
+### Fixed
+
+- **`/session-flow:audit-sessions` redacts bare `sk-ant-oat01-` tokens and dotted `ghs_` tokens whole ([#9026](https://github.com/melodic-software/claude-code-plugins/issues/9026)).** `redact.py` now runs two of its own rules before the vendored gitleaks rules. Before this, a bare `sk-ant-oat01-` value went unredacted, and the vendored `github-app-token` rule replaced only the first 36 characters of a stateless `ghs_` token containing a dot, so the rest of the token stayed in the text.
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- **`/session-flow:audit-sessions correction`, a judged correction lens ([#5928](https://github.com/melodic-software/claude-code-plugins/issues/5928)).** The session's own model judges each short turn the collector flagged as a correction or not, reading the excerpts as untrusted data. `sweep.py --correction-candidates` prints those excerpts with a stable `turn_id`, and `sweep.py --judged <file>` merges the verdicts into a separate `Judged (unranked)` section whose findings carry `"confidence": "judged"`. They never enter the measured findings, suggestions or exit code, and no agreement figure exists yet. The skill deletes the verdict file after the merge, and `--judged` refuses `--write-report`, so no saved report holds an excerpt.
+
 ## [1.5.1] - 2026-10-27
 
 ### Security

@@ -94,7 +94,7 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 | **cli-flag-verify** | git pre-push, `reference-verify` entry, on `.md`, `.sh`, `.bash`, `.ps1`, `.psm1` | **Fails the push** (exit 1) | Hallucinated CLI flags: a `--flag` written as a command, on a line the pushed commits add, that does not exist in the binary's actual `--help` output. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a one-line advisory via `additionalContext` that points at the workflow-authoring skill and names the overloaded-retry backoff ceiling variable with a link to its docs section, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message holds a `$` or a backtick the shell expands before git sees it: double-quoted or unquoted in Bash (`$x`, `$(...)`, backticks), double-quoted in PowerShell (`$x`, and a backtick escape such as `` `f ``), and a PowerShell `@"` here-string. A newline alone is no hazard, so a plain message passes, multi-line included, and so do single quotes, fully escaped double quotes, Bash `"$(cat <<'EOF' ... EOF)"` and a PowerShell `@'` here-string; `-F -` / `--file -` is always safe. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
-| **block-convention-violation** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
+| **block-convention-violation** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `docs/conventions/source-control.yaml` (for one release, else `.claude/source-control.md`). No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin, and is silent otherwise. Surfaces via `additionalContext` once per session and agent, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
 | **skill-reference-verify** | git pre-push, `reference-verify` entry, on `.md` | **Fails the push** (exit 1) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own. A reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. |
 | **stale-path-verify** | git pre-push, `reference-verify` entry, on `.md` | **Fails the push** (exit 1) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the pushed tip's tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. |
@@ -130,7 +130,7 @@ bash beside git's sh.
 
 | Entry | Event | What it checks |
 |-------|-------|----------------|
-| `commit-msg-convention` | commit-msg | The subject against the team-tracked `subject_pattern` in `.claude/source-control.md`, the pattern `block-convention-violation` reads. No tracked pattern, no enforcement. |
+| `commit-msg-convention` | commit-msg | The subject against the team-tracked `subject_pattern` in `docs/conventions/source-control.yaml` (for one release, else `.claude/source-control.md`), the pattern `block-convention-violation` reads. No tracked pattern, no enforcement. |
 | `pre-commit-content` | pre-commit | Secrets and machine-specific paths on the lines the commit adds, with the same pattern libraries and path exemptions as `secret-pattern-detection` and `hardcoded-path-check`, so a file a shell command or script wrote meets the same checks as a Write. |
 | `reference-verify` | pre-push | `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify` on the lines the pushed commits add, through `hooks/run-guards.sh`. It runs at push rather than commit because it costs about 10 s on a 44-file change, over the commit budget (the check-placement convention's measured rows). Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the pushing environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the entry. `git -c checks.skipmissing=jq` skips it only while `jq` is missing. |
 
@@ -1425,7 +1425,7 @@ reads it from.
 | `block_root_delete_target_protected_trees` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES` | Comma-separated absolute directories a recursive delete never removes, even under the repo or an allowed root: the directory, anything under it, and a directory holding it are refused. Empty by default; adds to the built-in protected trees. Limits: README Option details. |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Blocks git commit -m when the message holds a $ or a backtick the shell would expand (single-quote it, or pipe it via -F -); a plain message passes, multi-line included. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits a -m message the shell would expand. Empty, the default, permits none. |
-| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
+| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in docs/conventions/source-control.yaml, or for one release in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
 | `git_hooks_notice_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GIT_HOOKS_NOTICE_ENABLED` | At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default. |
 | `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advises on un-throttled Workflow fan-out; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
@@ -1435,8 +1435,8 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure guardrails@<marketplace>`.
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure guardrails@<marketplace>`.
 2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
@@ -1444,18 +1444,12 @@ Three supported routes:
    claude plugin install guardrails@<marketplace> -s <scope> --config secret_pattern_detection_enabled=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
+   Rerun the same command to change a value on an installed plugin, passing the scope
+   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
+   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
+   value. What a rerun prints and writes, and why a session started before the rerun keeps the
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -1472,13 +1466,11 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 

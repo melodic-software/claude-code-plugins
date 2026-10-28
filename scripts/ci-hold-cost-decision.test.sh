@@ -13,7 +13,9 @@
 # decision, the newest on the pull request else the newest on the issue,
 # covers the head it decided (the sha of the newest cost hold notice a review
 # lane's status job recorded before it, naming its own run's head; with none,
-# no head) and a later head only when the net change against the base branch
+# no head, and none while the head branch's push history shows a head pushed
+# since the decided head, before the decision, with no run of every lane) and a
+# later head only when the net change against the base branch
 # is the same at both (owner decisions Q17 c and Q18 d on #9436). The holds
 # and the decided head are read from the lanes' check-run notices, never from
 # a hold comment.
@@ -86,7 +88,8 @@ fi
 # STUB_TRACKER (absent when unset) and STUB_ACTORS; a `tracker` failure leaves
 # BASE_CONFIG empty, as a failed checkout does, and an `actors` failure leaves
 # the trusted-actor list out of it. Runs, jobs and annotations come from JSON maps
-# keyed by workflow file, run id and check-run id.
+# keyed by workflow file, run id and check-run id; the head branch's push
+# history comes from STUB_ACTIVITY, listed newest first.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -103,6 +106,11 @@ case "$*" in
 */issues/6419/comments*) failing comments; printf '%s\n' "$STUB_COMMENTS" ;;
 */issues/comments/*) failing decision; from "$STUB_DECISIONS" "$(key comments "$@")" ;;
 */issues/[0-9]*) failing issue; from "$STUB_ISSUES" "$(key issues "$@")" ;;
+*/activity\?ref=*)
+  failing activity
+  [[ "$*" == *'/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100' ]] || exit 1
+  jq -c 'sort_by(.timestamp) | reverse' <<<"$STUB_ACTIVITY"
+  ;;
 */actions/workflows/*/runs*)
   failing runs
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
@@ -153,6 +161,9 @@ TF='{"filename":"infra/main.tf","status":"modified","patch":"@@ -1 +1 @@\n-a\n+b
 MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
 # nets <old-files> <head-files>: the compare answers at OLD and HEAD.
 nets() { STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --argjson a "$1" --argjson b "$2" '{($o): {files: $a}, ($h): {files: $b}}')"; export STUB_COMPARE; }
+# push <sha> <timestamp>: a push to the head branch, as the repository
+# activity API lists it.
+push() { jq -cn --arg a "$1" --arg t "$2" '{after: $a, timestamp: $t, activity_type: "push", ref: "refs/heads/fix/cost"}'; }
 # job <id> <name> <completed_at>
 job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
 # lanes <code-notes> <security-notes>: one run per lane, its status job done
@@ -169,7 +180,8 @@ lanes() {
 }
 # decided <sha> [completed_at] [criteria] [workflow] [job] [notice-sha]: a run
 # on <sha>, started at 13:00, whose job (the code lane's status job unless
-# named) recorded a hold notice naming [notice-sha] (default <sha>).
+# named) recorded a hold notice naming [notice-sha] (default <sha>), and a
+# push of <sha> five minutes before that job finished.
 decided() {
   local id=$((DECIDED += 1)) at="${2:-2026-10-23T13:10:00Z}"
   STUB_RUNS="$(jq -c --arg f "${4:-pr-review-hosted.yml}" --argjson id "$id" --arg sha "$1" --arg at "$at" \
@@ -177,16 +189,38 @@ decided() {
   STUB_JOBS="$(jq -c --arg id "$id" --argjson j "$(job "$id" "${5:-$CODE_CHECK}" "$at")" '. + {($id): {jobs: [$j]}}' <<<"$STUB_JOBS")"
   STUB_NOTES="$(jq -c --arg id "$id" --argjson n "[$(note "claude-lane-hold lane=claude-review sha=${6:-$1} criteria=${3:-cost} label=needs-human")]" \
     '. + {($id): $n}' <<<"$STUB_NOTES")"
-  export STUB_RUNS STUB_JOBS STUB_NOTES
+  STUB_ACTIVITY="$(jq -c --arg sha "$1" --arg at "$at" '. + [{after: $sha, timestamp: ($at | fromdateiso8601 - 300 | todateiso8601), activity_type: "push"}]' <<<"$STUB_ACTIVITY")"
+  export STUB_RUNS STUB_JOBS STUB_NOTES STUB_ACTIVITY
 }
-# nodecided: drops every run decided added.
+# nodecided: drops every run and push decided added, leaving the push of
+# HEAD that lanes' runs ran on.
 nodecided() {
   DECIDED=100
   STUB_RUNS="$(jq -c 'map_values(.workflow_runs |= map(select(.id <= 100)))' <<<"$STUB_RUNS")"
-  export STUB_RUNS
+  STUB_ACTIVITY="[$(push "$HEAD" 2026-10-23T13:18:30Z)]"
+  export STUB_RUNS STUB_ACTIVITY
+}
+# pushed <sha> [at]: a push of <sha> at [at] (13:08, between the decided
+# run's notice and the decision).
+pushed() {
+  STUB_ACTIVITY="$(jq -c --argjson p "$(push "$1" "${2:-2026-10-23T13:08:00Z}")" '. + [$p]' <<<"$STUB_ACTIVITY")"
+  export STUB_ACTIVITY
+}
+# ran <sha> <workflow> <job>: a run on <sha> started at 13:09, before the
+# decision, whose status job noticed nothing; its head changes no file unless
+# a compare already names it.
+ran() {
+  local id=$((DECIDED += 1))
+  STUB_RUNS="$(jq -c --arg f "$2" --argjson id "$id" --arg sha "$1" \
+    '.[$f].workflow_runs += [{id: $id, head_sha: $sha, created_at: "2026-10-23T13:09:00Z", updated_at: "2026-10-23T13:11:00Z", head_repository: {full_name: "o/r"}}]' <<<"$STUB_RUNS")"
+  STUB_JOBS="$(jq -c --arg id "$id" --argjson j "$(job "$id" "$3" 2026-10-23T13:11:00Z)" '. + {($id): {jobs: [$j]}}' <<<"$STUB_JOBS")"
+  STUB_NOTES="$(jq -c --arg id "$id" '. + {($id): []}' <<<"$STUB_NOTES")"
+  STUB_COMPARE="$(jq -c --arg sha "$1" '. + {($sha): (.[$sha] // {files: []})}' <<<"$STUB_COMPARE")"
+  export STUB_RUNS STUB_JOBS STUB_NOTES STUB_COMPARE
 }
 
 reset() {
+  export STUB_ACTIVITY='[]'
   export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5},{\"kind\":\"bot\",\"id\":$APP_ID,\"login\":\"melodic-automation-lanes[bot]\"}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"base\":{\"ref\":\"main\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
@@ -401,6 +435,45 @@ expect "a file with no patch carries nothing" no no no "covering this head"
 nets "[$TF]" "[$TF]"
 export STUB_FAIL=compare
 expect "a failed compare read carries nothing" no no no "are unreadable"
+# #10437: a deleted lane run of a head pushed after the decided head, before
+# the decision, would make an older notice the decided head. The head
+# branch's push history, which deleting a run leaves, shows that head, and it
+# needs a run of every review lane started before the decision.
+NEW=1111111111111111111111111111111111111111
+reset
+nodecided
+decided "$OLD"
+nets "[$TF]" "[$TF]"
+pushed "$NEW"
+expect "a head pushed after the decided head whose lane runs were deleted keeps the hold" no no no "$NEW was pushed after the decided head"
+if grep -q 'activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100$' "$TMP_ROOT/log"; then
+  ok "the push history is read as one page, as merge-holds.mjs reads it"
+else
+  fail "the push history read: '$(grep activity "$TMP_ROOT/log")'"
+fi
+ran "$NEW" pr-review-hosted.yml "$CODE_CHECK"
+expect "a head pushed since with the security lane's run deleted keeps the hold" no no no "$NEW was pushed after the decided head"
+ran "$NEW" pr-review-security-hosted.yml "$SEC_CHECK"
+expect "a head pushed since with a run of every lane and no cost notice carries the decision" yes yes yes
+STUB_FAIL=activity expect "an unreadable push history carries nothing" no no no "push history is unreadable"
+nodecided
+decided "$OLD"
+nets "[$TF]" "[$TF]"
+pushed "$NEW" 2026-10-23T13:16:00Z
+expect "a head pushed after the decision needs no lane run before it" yes yes yes
+nodecided
+decided "$OLD"
+STUB_ACTIVITY="[$(push "$NEW" 2026-10-23T13:08:00Z)]"
+export STUB_ACTIVITY
+expect "a push history with no push of the decided head before the decision carries nothing" no no no "no push of $OLD"
+# The decided head pushed back after the decision is the current head; the
+# deleted run before the decision still keeps the hold.
+reset
+nodecided
+decided "$HEAD"
+pushed "$NEW"
+expect "the decided head pushed back over a head whose lane runs were deleted keeps the hold" no no no "$NEW was pushed after the decided head"
+reset
 export STUB_FAIL=''
 nodecided
 decided "$HEAD" 2026-10-23T13:00:00Z
@@ -415,10 +488,14 @@ expect "a later notice before the decision whose criteria include cost decides i
 nodecided
 decided "$OLD"
 decided "$HEAD" 2026-10-23T13:16:00Z
+# Every lane ran on HEAD, pushed before the decision, so the push history
+# keeps nothing here.
+ran "$HEAD" pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a notice after the decision decides nothing" no no no "covering this head"
 nodecided
 decided "$OLD"
 decided "$HEAD" 2026-10-23T13:12:00Z trust-gate
+ran "$HEAD" pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a later notice without cost decides nothing, so the older cost notice does" no no no "covering this head"
 nodecided
 decided "$OLD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$CODE_CHECK" "$HEAD"
@@ -432,6 +509,8 @@ for head_repo in '{"full_name":"f/r"}' null; do
   nets "[$TF]" "[$TF,$MORE]"
   STUB_RUNS="$(jq -c --argjson r "$head_repo" '.["pr-review-hosted.yml"].workflow_runs |= map(if .id == 102 then .head_repository = $r else . end)' <<<"$STUB_RUNS")"
   export STUB_RUNS
+  ran "$HEAD" pr-review-hosted.yml "$CODE_CHECK"
+  ran "$HEAD" pr-review-security-hosted.yml "$SEC_CHECK"
   expect "a notice from a run whose head repository is $head_repo decides nothing" no no no "covering this head"
 done
 nodecided
@@ -475,7 +554,7 @@ nodecided
 decided "$OLD"
 nets "[$TF]" "[$TF]"
 export STUB_FAIL=module
-expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "covering this head"
+expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "push history could not be checked"
 reset
 expect "at the decided head the decision carries" yes yes yes
 if grep -q 'compare/main\.\.\.' "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi

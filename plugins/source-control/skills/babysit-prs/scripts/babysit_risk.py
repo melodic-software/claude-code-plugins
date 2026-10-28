@@ -4,8 +4,9 @@
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
 The caller reads the PR, the base-SHA config and the review-lane evidence, and
 hands them in; this module only judges them. No work class is read. A LOW
-score merges unattended, and so does a MED one whose every reason is a size or
-reported review-finding reason (`holds`); every other reason holds.
+score merges unattended, and so does a MED one whose every reason is a size,
+reported review-finding or cost-finding reason (`holds`); every other reason
+holds.
 So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
@@ -47,27 +48,42 @@ A review finding holds only as a CRITICAL security finding
 (`security-finding`): the security lane's `blocking_findings`. Every other open
 finding, a code-review finding or an IMPORTANT or SUGGESTION security one, is
 reported as a MED `findings:<lane>` reason that does not hold (owner decisions
-Q25, Q33 and Q693). A cost increase holds through `cost-review-required` and a
-trusted-actor widening through `trust-gate:trusted-actors`.
+Q25, Q33 and Q693). A real new charge holds through `cost-review-required`
+and a trusted-actor widening through `trust-gate:trusted-actors`.
 
-A change that could add or raise a charge rates HIGH as `cost-review-required`
-in every lane, floor or not and whatever `floor_exempt` says (owner rule,
-2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
-`RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
-(the base tree was not listed); a file renamed or copied into a workflow or
-`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
-patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
-`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
-or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
-`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
-is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
-one it removes, when its head text (`contents`) names a model leg or could not
-be read; or that gains a runner value (head text against base text, and added
-inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
-any on another; and a `pr-pipeline.yaml` change with any added or removed line
-off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
-or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
-decision the caller verified, clears it.
+Cost is not a stop; only a real new charge is (docs/conventions/loop-lane/
+README.md, "When work stops for the owner"). A change that could start one
+(billed infrastructure or billed runner minutes) rates HIGH as
+`cost-review-required` in every lane, floor or not and whatever `floor_exempt`
+says: any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file
+under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
+None (the base tree was not listed); a file renamed or copied into a workflow
+or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
+no patch; and a `.github/workflows/` file whose patch, unless
+`RiskInput.public` is True, adds a `runs-on:`, `windows`, `macos` or `cron`
+line (a schedule runs billed minutes), a raised timeout (below) or an artifact
+`retention-days` above every one it removes, or above
+`DEFAULT_ARTIFACT_RETENTION_DAYS` when it removes none (storage past the free
+quota); or that gains a runner value (head text against base text, and added
+inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository,
+or any on another. Only `RiskInput.cost_decision`, an owner decision the
+caller verified, clears it.
+
+A workflow patch that gains a `_SECRET_REF` rates HIGH as
+`secret-exposure-review`, and one that gains a `_MODEL_ACTION` or a
+`_MODEL_PACKAGE` run rates HIGH as `agent-surface-review`, each counted
+against the lines it removes so a move or repin is not new. They widen what a
+credential or an agent can reach, so both are a person's (`PERSON_CODES`)
+and no cost decision clears them.
+
+Spend that draws only on a subscription or prepaid credit is the MED
+`cost-finding`, reported and never held: a workflow patch that adds a
+`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
+`cron` key in any spelling); that, on a public repository, adds a
+`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
+its head text (`contents`) names a model leg or could not be read, or a raised
+`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
+line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -225,6 +241,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/gate-check.mjs", "gate"),
     (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
     (".github/scripts/pr-merge/lane-records.mjs", "gate"),
+    (".github/scripts/pr-merge/last-report.mjs", "gate"),
     (".github/scripts/pr-merge/rate-stop.bash", "gate"),
     (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
     (".github/scripts/pr-merge/rotation.mjs", "gate"),
@@ -232,6 +249,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/who.mjs", "gate"),
     (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
     (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
+    (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
@@ -250,8 +268,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-    (".github/workflows/pr-require-checks.yml", "gate"),
-    (".github/workflows/pr-merge.yml", "gate"),
+    (".github/workflows/pr-require-checks.yml", "enforcement"),
+    (".github/workflows/pr-merge.yml", "enforcement"),
     ("docs/conventions/pr-pipeline.yaml", "gate"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
@@ -260,6 +278,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+    (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
+    (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
@@ -696,6 +716,13 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 
 
 COST_CODE = "cost-review-required"
+# Spend on a subscription or prepaid credit: reported, never held.
+COST_FINDING_CODE = "cost-finding"
+# A workflow that gains a secrets reference, or a new model leg, widens what
+# a credential or an agent can reach: a person's hold, which no cost decision
+# clears.
+SECRET_EXPOSURE_CODE = "secret-exposure-review"
+AGENT_SURFACE_CODE = "agent-surface-review"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
     "**/Pulumi.yaml",
@@ -707,15 +734,18 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that can charge in any repository: a schedule in any
-# YAML or JSON spelling (a scheduled lane spends model credits) and a model or
-# turn flag.
+# Added workflow lines that spend model usage: a schedule in any YAML or JSON
+# spelling and a model or turn flag.
 _COST_WORKFLOW_LINE = re.compile(
     r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
 )
 # Standard hosted runners are free only on public repositories, so on any
-# other a runs-on line or a Windows or macOS label (a matrix value) charges.
-_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b|\bwindows\b", re.IGNORECASE)
+# other a runs-on line, a Windows or macOS label (a matrix value) or a
+# schedule (recurring runs) charges.
+_COST_PRIVATE_LINE = re.compile(
+    r"\bruns-on\s*:|\bmacos\b|\bwindows\b|\bcron\s*:|[\"']cron[\"']\s*:",
+    re.IGNORECASE,
+)
 # Runner labels free on a public repository: GitHub's standard hosted labels
 # and the self-hosted managed labels (`.github/standards/runner-policy`). A
 # list holding `self-hosted` targets a self-hosted runner, which is free.
@@ -817,6 +847,10 @@ _MODEL_ACTION = re.compile(
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 _TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
+_RETENTION = re.compile(r"^\s*-?\s*retention-days\s*:\s*['\"]?([0-9]+)")
+# GitHub keeps artifacts and logs 90 days unless retention-days says otherwise:
+# https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization
+DEFAULT_ARTIFACT_RETENTION_DAYS = 90
 
 
 def is_workflow_path(path: str) -> bool:
@@ -907,26 +941,43 @@ def _raised_timeouts(
     return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
 
 
+def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
+    """Artifact `retention-days` values the patch adds above every one it
+    removes, or above GitHub's default when it removes none: more storage
+    held against the free quota."""
+    new = [int(m[1]) for line in added if (m := _RETENTION.match(line))]
+    old = [int(m[1]) for line in removed if (m := _RETENTION.match(line))]
+    top = max(old, default=DEFAULT_ARTIFACT_RETENTION_DAYS)
+    return [f"retention raised to {n}" for n in new if n > top]
+
+
 def _cost_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
-    """`cost-review-required` for a change that could add or raise a charge,
-    unless `inp.cost_decision` names the owner decision that clears it. It
-    holds in every lane, whatever the floor switch says."""
-    hits = []
+    """`cost-review-required` (HIGH) for a change that could start a real
+    charge, unless `inp.cost_decision` names the owner decision that clears
+    it; it holds in every lane, whatever the floor switch says. Spend that
+    draws only on a subscription or prepaid credit is `cost-finding` (MED),
+    reported and never held (cost is not a stop, only a real new charge is).
+    A net-new secrets reference (`secret-exposure-review`) or model leg
+    (`agent-surface-review`) is a security change, HIGH and a person's, which
+    the cost decision does not clear."""
+    charges, spends, secrets, agents = [], [], [], []
     for f, raw in zip(files, raw_files):
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
-            hits.append(f"{f.path}: infrastructure as code")
+            charges.append(f"{f.path}: infrastructure as code")
             continue
         if inp.pulumi_dirs is None:
-            hits.append(f"{f.path}: the base tree was not listed for Pulumi projects")
+            charges.append(
+                f"{f.path}: the base tree was not listed for Pulumi projects"
+            )
             continue
         if any(
             p == d or not d or p.casefold().startswith(d.casefold() + "/")
             for d in inp.pulumi_dirs or ()
             for p in f.paths
         ):
-            hits.append(f"{f.path}: in a Pulumi project")
+            charges.append(f"{f.path}: in a Pulumi project")
             continue
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
@@ -936,44 +987,61 @@ def _cost_reasons(
         if new != old and not (
             is_workflow_path(old) or glob_match(_PIPELINE_CONFIG, old)
         ):
-            hits.append(f"{f.path}: renamed or copied from {old}")
+            charges.append(f"{f.path}: renamed or copied from {old}")
             continue
         lines = _patch_lines(getattr(raw, "patch", None))
         if lines is None:
-            hits.append(f"{f.path}: no patch to read")
+            charges.append(f"{f.path}: no patch to read")
             continue
         added, removed = lines
+        public = inp.public is True
+        charge: list[str] = []
+        spend: list[str] = []
         if workflow:
-            patterns = [_COST_WORKFLOW_LINE] + (
-                [] if inp.public is True else [_COST_PRIVATE_LINE]
-            )
-            found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
-            found += [
-                f"new secrets reference {n}"
-                for n in _net_added(_SECRET_REF, added, removed)
-            ]
-            found += [
+            for s in added:
+                if not public and _COST_PRIVATE_LINE.search(s):
+                    charge.append(s.strip())
+                elif _COST_WORKFLOW_LINE.search(s):
+                    spend.append(s.strip())
+            secret = _net_added(_SECRET_REF, added, removed)
+            if secret:
+                secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
+            agent = [
                 f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
-            ]
-            found += [
+            ] + [
                 f"new model package run {n}"
                 for n in _net_added(_MODEL_PACKAGE, added, removed)
             ]
-            found += _raised_timeouts(f, raw, added, removed)
-            found += [
-                f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
-            ]
+            if agent:
+                agents.append(f"{f.path}: {'; '.join(agent)}")
+            # Hosted minutes and artifact storage are free only on a public
+            # repository.
+            (spend if public else charge).extend(
+                _raised_timeouts(f, raw, added, removed)
+                + _raised_retention(added, removed)
+            )
+            charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
-            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
-        if found:
-            hits.append(f"{f.path}: {'; '.join(found)}")
-    if not hits or inp.cost_decision:
-        return []
-    detail = "; ".join(hits) + (
-        "; cite the owner's `**Decision recorded.**` comment on the closing issue or "
-        "this pull request in the body to clear it"
-    )
-    return [Reason(COST_CODE, Risk.HIGH, detail)]
+            spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+        if charge:
+            charges.append(f"{f.path}: {'; '.join(charge)}")
+        if spend:
+            spends.append(f"{f.path}: {'; '.join(spend)}")
+    reasons = []
+    if charges and not inp.cost_decision:
+        detail = "; ".join(charges) + (
+            "; cite the owner's `**Decision recorded.**` comment on the closing "
+            "issue or this pull request in the body to clear it"
+        )
+        reasons.append(Reason(COST_CODE, Risk.HIGH, detail))
+    if spends:
+        detail = "; ".join(spends) + "; subscription or prepaid spend, reported only"
+        reasons.append(Reason(COST_FINDING_CODE, Risk.MED, detail))
+    if secrets:
+        reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
+    if agents:
+        reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
+    return reasons
 
 
 def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
@@ -1127,14 +1195,15 @@ def _score(inp: RiskInput) -> RiskResult:
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes: the diff's size and the review
-# findings that are reported only.
+# MED reasons an unattended merge passes: the diff's size and the review and
+# cost findings that are reported only.
 MERGEABLE_MED = frozenset(
     {
         "lines-over",
         "files-over",
         LANES["claude-review"][0],
         REPORTED_SECURITY_CODE,
+        COST_FINDING_CODE,
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
@@ -1152,17 +1221,26 @@ def holding(result: RiskResult) -> list[Reason]:
     ]
 
 
-# The holding reasons only a person clears (owner rule 2026-10-26: a person
-# only for an intent or design change or a CRITICAL security issue, with
-# cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
-# security finding, a trusted-actor widening, a cost hold, every high path
+# The holding reasons only a person clears (when a person is needed:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# with real-charge and trust holds kept, and for a hold no lane can clear): a
+# CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
+# new secrets reference or model leg, every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,
 # submodule or mode change) and a listing past the files API's cap. The lanes
 # clear every other holding reason, such as review evidence not yet bound to
 # the head or a listing a read did not finish, by judging again. The one list
 # both the merge gate and enable-auto-merge.mjs read.
 FILES_CAPPED_CODE = "files-capped"
-PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE, FILES_CAPPED_CODE})
+PERSON_CODES = frozenset(
+    {
+        LANES[_HOLDING_LANE][0],
+        COST_CODE,
+        SECRET_EXPOSURE_CODE,
+        AGENT_SURFACE_CODE,
+        FILES_CAPPED_CODE,
+    }
+)
 PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNBINDABLE_PATH_PREFIX)
 
 

@@ -39,7 +39,9 @@
 //   the recorded re-run starts pr-verify, which judges the head against the
 //   spec as it is now. One batched GraphQL read of the linked issues' and
 //   their comments' times (`prefilterSpec`) keeps that full read off heads
-//   whose spec nobody touched since the pass. Once per passed checks run, as attempt 2 is never
+//   whose spec nobody touched since the pass; the same read, run first against
+//   the head's earliest checks run, keeps the pass reads off heads whose spec
+//   nobody touched since then. Once per passed checks run, as attempt 2 is never
 //   touched again; an edit or label later starts a new attempt-1 run.
 // - Switch: a lanes App PR whose newest pr-require-checks run failed, at
 //   attempt 1, only in ci-status, with ci-status's note that the lanes kill
@@ -51,9 +53,12 @@
 //   later is left to a person, since pr-verify trusts only a recorded attempt 2.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
-// github-actions[bot] starts. A merge-group run is not covered: a re-run puts
-// no PR back in the queue, and pr-merge re-enqueues its own PRs once their
-// checks pass.
+// github-actions[bot] starts. Their own paths recover them instead: the babysit
+// merge gate re-runs a lost review run under the owner's token, and the
+// dispatchers send refine and feedback dispatch a fresh attempt-1 run
+// (fix-docs-dispatch.mjs, feedback-dispatch.mjs). A merge-group run is not
+// covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
+// own PRs once their checks pass.
 //
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
@@ -457,6 +462,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let failed = 0;
   let inFlight = 0;
   const ready = [];
+  // Heads whose checks passed, each with its earliest checks run's creation.
+  const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
   const specCandidates = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
@@ -562,26 +569,36 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // passed checks starts pr-verify, which judges it again (resolve-pr's
       // `spec-changed`). Attempt 1 only, so each passed checks run is re-run
       // at most once; a later edit or label starts a new attempt-1 run.
-      // A read that fails here re-runs nothing and is no listing failure: the
-      // next tick asks again. A rate limit still stops the run.
+      // Every pass at this head came from a pr-verify run that a checks run
+      // at this head started on completing, so it started after the earliest
+      // checks run here was created: a spec untouched since then is untouched
+      // since every pass. Not the newest checks run, which a label or body
+      // edit after the pass starts (pr-verify.yml concurrency).
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
-        try {
-          const starts = await passStarts(call, repo, pull.number, pull.head.sha, pull.head.ref);
-          if (starts.length > 0) {
-            specCandidates.push({ pull, checks, starts });
-          }
-        } catch (error) {
-          if (error instanceof RateLimited) {
-            throw error;
-          }
-          say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
-        }
+        const earliest = Math.min(...own.filter((r) => RECORDED_UPSTREAMS.has(r.path)).map((r) => Date.parse(r.created_at)));
+        passed.push({ pull, checks, starts: [Number.isNaN(earliest) ? null : new Date(earliest).toISOString()] });
       }
       if (set.length > 0) {
         ready.push(set.map(withRecord));
       }
     } catch (error) {
       noteFailure(`#${pull.number}`, error);
+    }
+  }
+  // The pass reads run only for a head whose spec moved after its earliest
+  // checks run. A read that fails here re-runs nothing and is no listing
+  // failure: the next tick asks again. A rate limit still stops the run.
+  for (const { pull, checks } of await prefilterSpec(call, repo, passed)) {
+    try {
+      const starts = await passStarts(call, repo, pull.number, pull.head.sha, pull.head.ref);
+      if (starts.length > 0) {
+        specCandidates.push({ pull, checks, starts });
+      }
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
   // Only a candidate whose spec moved after its pass gets resolve-pr's full read.
