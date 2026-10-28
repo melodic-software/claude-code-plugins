@@ -193,10 +193,19 @@ const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "B
 export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
 export const AGGREGATE_STEP = "Aggregate lane results";
 // What merge-holds.mjs `holds` writes after each hold an approving review of
-// the head lifts (a hold path, a trusted-actor list widening), and the line
-// the runner adds for the step's failing exit.
+// the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
 const STEP_EXIT = "Process completed with exit code 1.";
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// One such hold's whole log line, `#<n>: <reason>.`: a hold path or a
+// trusted-actor list widening, then PERSON_LIFT and its carry-over clause,
+// in today's wording and the earlier one, to the end of the line. A changed
+// path is author text, so only the full shape counts, never a substring.
+export const personHoldLine = (line, number) =>
+  !line.includes("a cost path") &&
+  new RegExp(
+    `^#${number}: (?:it changes .+, a hold path|it widens the trusted-actor list \\(.+\\))${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
+  ).test(line);
 
 // The `##[error]` lines of a job log, without the runner's timestamp.
 export const errorLines = (log) =>
@@ -237,7 +246,7 @@ export async function heldOnly(github, readLog, repository, runId, number) {
     }
     const errors = errorLines(await readLog(ci[0].id));
     const holds = errors.filter((line) => line !== STEP_EXIT);
-    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => line.startsWith(`#${number}: `) && line.includes(PERSON_LIFT));
+    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => personHoldLine(line, number));
   } catch {
     return false;
   }
