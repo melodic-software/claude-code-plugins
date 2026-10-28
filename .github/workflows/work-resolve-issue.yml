@@ -178,6 +178,9 @@ jobs:
         id: wip
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+        with:
+          # Only capped leaves this job, so the admission reads are skipped.
+          reads: pause
 
       # A job's timeout is fixed before it starts, so the run job's comes from
       # here: the issue's Size, Complexity and Uncertainty fields read through

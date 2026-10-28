@@ -27,6 +27,14 @@ inputs:
       work-unblock's hourly schedule sets it; issue-event runs only restore.
     required: false
     default: "false"
+  reads:
+    description: >-
+      `full` (the default) makes every read. `pause` makes only the two
+      searches `capped` depends on (the open lane PRs and the merged count),
+      for a job that reads no other output; `admission-open` is then `true`
+      and the status's `admission_basis` is `not-read`.
+    required: false
+    default: full
   github-token:
     description: A token that can search this repository's pull requests.
     required: false
@@ -72,6 +80,7 @@ runs:
         BASE_PATH: ${{ inputs.base-path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         WIP_STATE: ${{ runner.temp }}/check-wip-cap-state.json
+        WIP_READS: ${{ inputs.reads }}
       run: |
         npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
           echo "::warning::resolve-config's dependencies did not install; the default WIP config applies"

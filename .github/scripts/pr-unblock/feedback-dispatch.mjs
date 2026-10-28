@@ -84,6 +84,17 @@
 // check-run and queued-run skips keep a head the lost run dispatched from a
 // second dispatch.
 //
+// A head the human gate skipped at its review completion has no other
+// trigger once the label comes off: no round ran, so the sweep never finds a
+// releasing reply there. A person's or clear-escalations' unlabel (a user or
+// lanes App token, so the event starts runs) starts pr-merge.yml on
+// pull_request_target, and that run's completion starts this file: main()
+// takes only its head SHA and decides as above with the newest completed
+// review run at that head as the upstream (reviewRunAt). The run does not say
+// which label came off, so a head still gated skips at the gate as before.
+// pr-merge runs on every pull_request_target event, so a head whose releasing
+// skips reached SWEEP_HEAD_CAP is skipped there as the sweep skips it.
+//
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
 // Actions cache): a head whose check runs handle it for good, once a reply
@@ -182,6 +193,8 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
 }
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
+// Its pull_request_target run follows a label coming off a PR (see main).
+export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
 // The newest completed review run of this repository's head at `head` that
 // reviewed something (not skipped or cancelled), or null. A fork PR at the
@@ -778,6 +791,22 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
     }
     return 0;
+  }
+  if (upstream?.path === MERGE_WORKFLOW) {
+    if (upstream.event !== "pull_request_target" || !SHA.test(upstream.head_sha ?? "")) {
+      log(`skip: run ${upstream.id} is not a pull_request_target run of ${MERGE_WORKFLOW}`);
+      return 0;
+    }
+    const head = upstream.head_sha;
+    const pull = { number: upstream.pull_requests?.[0]?.number ?? "?", head: { sha: head } };
+    if ((await releaseState({ api: client, pull, log, settings: DEFAULTS })).capped) {
+      return 0;
+    }
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
+    if (upstream === null) {
+      log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
+      return 0;
+    }
   }
   let notesSince = null;
   let passOnly = false;
