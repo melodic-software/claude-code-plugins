@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.3] - 2026-10-28
+
+### Changed
+
+- `/work-items:work` opens a `stopped` reason with a code the issue lane routes by: `host-only`, `intent-change`, `design-change`, `security-risk` or `cost-risk`. A reason with none still goes to a person. Runs on [#6930](https://github.com/melodic-software/claude-code-plugins/issues/6930) and [#6887](https://github.com/melodic-software/claude-code-plugins/issues/6887) stopped for a host-only need in free text, so each went to `needs-human` instead of the host queue.
+
 ## [3.10.2] - 2026-10-27
 
 ### Changed
