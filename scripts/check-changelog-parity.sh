@@ -107,7 +107,7 @@
 #     alone, and check-changelog-fragments.sh --check-required asks it for a
 #     fragment instead. This repository lists every plugin, so the per-PR rules
 #     run only on the release pull request; an unlisted plugin falls back to
-#     them. A listed convention (docs/conventions/<name>/) gets the same
+#     them. A listed convention (docs/contracts/<name>/ or docs/conventions/<name>/) gets the same
 #     added-heading check.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
@@ -797,16 +797,12 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   fi
   # A listed convention has no manifest, so its heading is its version: only
   # the release pull request may add one.
-  if [[ -n "$added_versions" && -z "$release_pr" && "$changelog" == docs/conventions/* ]]; then
-    rest="${changelog#docs/conventions/}"
-    name="${rest%%/*}"
+  if [[ -n "$added_versions" && -z "$release_pr" ]] && name="$(changelog_fragments::convention_of "$changelog")"; then
     changelog_fragments::in_mode "$name"
     case $? in
     0)
-      if [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]]; then
-        echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_versions% } to $changelog." >&2
-        fragment_release=$((fragment_release + 1))
-      fi
+      echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_versions% } to $changelog." >&2
+      fragment_release=$((fragment_release + 1))
       ;;
     1) ;;
     *) exit 2 ;;
