@@ -126,6 +126,21 @@ OUT="$(run "$(build_input auth_success)")"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-actionable type → silent exit 0"; else fail "non-actionable type (rc=$RC out=$OUT)"; fi
 
+# --- Case 4b: plugin_notification → forwarded toast only on our title -------
+plugin_input() {
+  MSYS_NO_PATHCONV=1 jq -n --arg t "$1" --arg m "$2" \
+    '{notification_type: "plugin_notification", message: $m, title: $t}'
+}
+OUT="$(run "$(plugin_input desktop-notification 'build finished')")"
+if printf '%s' "$OUT" | jq -r '.terminalSequence' 2>/dev/null | grep -q ']9;Claude Code: build finished'; then
+  ok "plugin_notification titled desktop-notification → OSC 9 with the toast text"
+else
+  fail "plugin_notification titled desktop-notification → no OSC 9: $OUT"
+fi
+OUT="$(run "$(plugin_input other-mod 'build finished')")"
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "plugin_notification from another mod → silent exit 0"; else fail "plugin_notification other title (rc=$RC out=$OUT)"; fi
+
 # --- Case 5: empty stdin → silent exit 0 ------------------------------------
 OUT="$(cd "$UNRELATED" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true bash "$HOOK" </dev/null 2>&1)"
