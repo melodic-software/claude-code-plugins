@@ -1588,11 +1588,11 @@ leaves it reading more. With no carried run cache, or one whose carried sections
 that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
 at once goes cold together: the cold reader starts only when the token's core pool has at least
-1,520 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, an
-incremental try of at most 13 pages, and 3 whole listings of up to 3 attempts of 77 pages, each
+1,546 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, 3
+incremental reads of at most 13 pages each, and 3 whole listings of up to 3 attempts of 77 pages, each
 with a top-up of at most 7) times `max_entries_to_build`, plus the read floor (`limits.api`
-`read-floor` of the planned limit, inlined in the job env), left: 7,700 with the queue building 5.
-An entry with a carried run cache but no carried listing pays the listing's part (up to 727)
+`read-floor` of the planned limit, inlined in the job env), left: 7,830 with the queue building 5.
+An entry with a carried run cache but no carried listing pays the listing's part (up to 753)
 without this check. A rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
