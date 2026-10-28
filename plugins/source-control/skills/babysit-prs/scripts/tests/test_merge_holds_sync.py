@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
+# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -9,19 +9,20 @@ at most actions), so no lanes App push changes a workflow file. That covers
 lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
+- The copies: `scripts/sync-hold-floor.py --check` finds `HOLD_PATH_CLASSES`,
+  `COST_PATHS`, the review callers' `hold-paths` and ci-status's
+  `hold_patterns` as it writes them from `babysit_risk.FLOOR_CLASSES` and
+  `COST_PATHS`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
-  `HOLD_PATH_CLASSES` is `babysit_risk.FLOOR_CLASSES`, glob and class alike,
-  `HOLD_PATH_FLOOR` is `babysit_risk.HIGH_FLOOR` (its `trust` and `gate`
-  globs), and `pathHold` holds, with no configured glob, exactly the paths
-  `glob_match` matches over that, case variants included; an `enforcement`
-  path is the gate's (`review-path:`), and a trusted path off the floor holds
-  only for a configured glob. Every module the floor actions load is on the
+  `pathHold` holds, with no configured glob, exactly the paths `glob_match`
+  matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
+  variants included; an `enforcement` path is the gate's (`review-path:`),
+  and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
   the Python that decides the holds, `babysit_merge*` as `gate`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class.
-- The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
-  paths matched (`glob_match` folds case and covers what sits under a glob).
+- The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
@@ -69,6 +70,7 @@ FLOOR_ENTRIES = (
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
+    ".github/scripts/pr-merge/refire-refused.mjs",
 )
 # The scripts that act on a pr-unblock stop's route: report-escalation.sh adds
 # `needs-human` for a held reason, adjudicate-feedback.mjs decides which threads
@@ -143,13 +145,9 @@ def python_closure(js_files: list[str]) -> list[str]:
 
 
 NODE = """
-import { COST_PATHS, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, REVIEW_FLOOR, costHold, pathHold } from %s;
+import { costHold, pathHold } from %s;
 const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
-  costPaths: COST_PATHS,
-  classes: HOLD_PATH_CLASSES,
-  floor: HOLD_PATH_FLOOR,
-  review: REVIEW_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
   configured: paths.map((path) => pathHold([path], globs) !== null),
@@ -232,7 +230,6 @@ def module(paths: list[str]) -> dict[str, Any]:
 class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_cost_paths_are_the_same(self) -> None:
         answer = module(PATHS)
-        self.assertEqual(answer["costPaths"], list(risk.COST_PATHS))
         for path, held in zip(PATHS, answer["cost"], strict=True):
             with self.subTest(path):
                 self.assertEqual(
@@ -241,12 +238,9 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(True, answer["cost"])
         self.assertIn(False, answer["cost"])
 
-    def test_the_floor_is_the_same_on_both_sides(self) -> None:
+    def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
-        self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 72)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 74)
         self.assertEqual(len(risk.REVIEW_FLOOR), 42)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
@@ -339,6 +333,16 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(
             sorted(g for g in risk.FLOOR if g.startswith(f"{scripts}/")), files
         )
+
+
+class TheCopiesAreGenerated(unittest.TestCase):
+    def test_every_copy_is_what_the_generator_writes(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, "-I", str(ROOT / "scripts/sync-hold-floor.py"), "--check"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 def _hold_paths(workflow: str) -> list[str]:

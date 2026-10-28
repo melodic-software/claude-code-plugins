@@ -20,7 +20,8 @@
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
-//           record the reply job checks the replies against (runRecord). On a PR carrying the
+//           record the reply job checks the replies against, with the
+//           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none, unless a lane escalation put
@@ -559,11 +560,12 @@ export async function select({
     }).source === "lane-escalation";
   const gated = labeled && !escalated;
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const heads = reviewedHeads(issueComments);
   const kept = keepThreads({
     threads,
     reviewComments,
     reviews,
-    heads: reviewedHeads(issueComments),
+    heads,
     security: securitySignals(issueComments),
     reviewerId,
     reviewerIds,
@@ -653,13 +655,17 @@ export async function select({
     fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
+    reviewedHeads: [...heads].sort(),
   };
 }
 
-// run.json, as its bytes: the gated head and the kept threads with the comment
-// ids the model is shown, a pure function of the thread file. publish-feedback.mjs
-// checks the model's replies against it.
-export function runRecord(file) {
+// run.json, as its bytes: the gated head, the kept threads with the comment
+// ids the model is shown, and the reviewed heads they were kept on, a pure
+// function of the thread file and those heads. publish-feedback.mjs checks the
+// model's replies against it and re-reads the threads against those heads: a
+// review lane edits its one marker in place, so after the fix push it may name
+// only the fix head.
+export function runRecord(file, reviewedHeads) {
   const run = {
     version: 1,
     head_sha: file.head_sha,
@@ -671,12 +677,15 @@ export function runRecord(file) {
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
+    ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
   };
   return `${JSON.stringify(run)}\n`;
 }
 
-// The kept threads of a PR as they are now: the reply job's re-read.
-export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans }) {
+// The kept threads of a PR as they are now: the reply job's re-read, judged
+// against `heads` (the select job's reviewed heads) when given, else the
+// markers as they are now.
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -687,7 +696,7 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 
@@ -1057,7 +1066,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     });
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
-      writeFileSync(env.RUN_FILE, runRecord(result.file));
+      writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only

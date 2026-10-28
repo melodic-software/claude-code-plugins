@@ -80,6 +80,10 @@ your recommendation and report it; do not ask for approval.
 
 Org architecture (cross-repo decisions, glossary, why each trust link exists): private repo `melodic-software/architecture`; repo map: `gh api orgs/melodic-software/properties/values` (system and role per repo). Read it before cross-repo or infrastructure changes: `gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/architecture/contents/<path>`; on Claude Code on the web, attach it at session start; in CI, check it out with a read-only App token. If you need it and cannot read it, say so instead of guessing its contents; tasks that don't need it continue.
 
+## Driving this repository's skills
+
+To run a skill here and record evidence, use `/app-control:drive claude-code-plugins <plugin>/<skill>`; its control skill is `.claude/skills/control-claude-code-plugins/`.
+
 ## Team standards
 
 Team engineering standards sync from `melodic-software/standards` into `docs/standards/`;

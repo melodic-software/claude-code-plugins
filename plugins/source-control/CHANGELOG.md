@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.17.3] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.FLOOR_CLASSES` is the one hold-floor table: `scripts/sync-hold-floor.py` writes its copies (merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS`, the review callers' `hold-paths`, ci-status's `hold_patterns`), and `test_merge_holds_sync.py` runs `sync-hold-floor.py --check` in place of comparing the copies. The floor holds that generator as `gate`, so a change to it waits for a person.
+
+## [3.17.2] - 2026-10-28
+
+### Changed
+
+- `/source-control:babysit-prs` merge gates (pr-merge.yml): a completed review-lane run's attempts, jobs and annotations come from the run cache, carried between scheduled pr-merge runs, while the live run listing still shows that same completed attempt, instead of being read from GitHub on every tick. This cuts about 42 of the 77 GITHUB_TOKEN calls an enable-auto-merge run makes.
+
 ## [3.17.1] - 2026-10-28
 
 ### Fixed
