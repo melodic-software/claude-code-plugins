@@ -492,6 +492,33 @@ else
   fail "untracked file missed by diff mode (rc=$RC): $out"
 fi
 
+# --- the name lines answer a level as the tree grep does ---------------------
+# A run greps the tree for its first AFFECTED_TESTS_TREE_GREPS lookups and the
+# name lines after that. The orphan, which nothing names, spends the one tree
+# grep, so the name lines serve every level of the walks that select; a shim
+# counts the tree greps.
+shim="$repo.bin"
+mkdir -p "$shim"
+printf '#!/usr/bin/env bash\n[[ " $* " == *" -F -f "* ]] && echo grep >>"%s"\nexec %q "$@"\n' \
+  "$shim/greps" "$(command -v git)" >"$shim/git"
+chmod +x "$shim/git"
+explain_with() { # <tree-greps> -> the tree greps it ran in GREPS, the output in OUT
+  : >"$shim/greps"
+  OUT="$(cd "$repo" && PATH="$shim:$PATH" AFFECTED_TESTS_TREE_GREPS="$1" bash scripts/affected-tests.sh \
+    --explain --allow-unmapped scripts/zzorphan-tool.sh lib/widget.sh plugins/alpha/hooks/alpha-extra.sh 2>&1)"
+  RC=$?
+  GREPS=$(wc -l <"$shim/greps")
+}
+explain_with 99
+tree_out="$OUT" tree_rc="$RC" tree_greps="$GREPS"
+explain_with 1
+if [[ "$tree_greps" -gt 1 && "$GREPS" -eq 1 && "$RC" -eq "$tree_rc" ]] && [[ -n "$OUT" && "$OUT" == "$tree_out" ]]; then
+  ok "the name lines select what the tree grep selects ($tree_greps tree greps against 1)"
+else
+  fail "name lines diverge from the tree grep (greps $tree_greps/$GREPS, rc $tree_rc/$RC): $OUT // $tree_out"
+fi
+rm -rf "$shim"
+
 # --- a merge in progress diffs against the incoming side, not the fork -----
 # Merging the base branch in leaves HEAD at the pre-merge commit while the
 # working tree already carries the incoming side. A file changed only there is
