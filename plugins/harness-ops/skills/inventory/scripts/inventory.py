@@ -4461,6 +4461,20 @@ def _object_keys(src: str, braces: BraceMap, open_i: int) -> tuple[list[str], bo
     return keys, True
 
 
+def _conditional_spread(src: str, braces: BraceMap, a: int, b: int) -> int | None:
+    """The `{` of the object literal a part `...COND&&{...}` spreads, or None.
+    COND holds no `|`, `?`, `,` or brace, so `&&` binds the literal to it
+    and a false COND spreads nothing."""
+    if not src.startswith("...", a) or src[b - 1] != "}":
+        return None
+    for m in re.finditer(r"&&\s*\{", src[a:b]):
+        o = a + m.end() - 1
+        if braces.pairs.get(o) == b - 1:
+            cond = src[a + 3 : a + m.start()]
+            return o if re.fullmatch(r"[^|?,{}]+", cond) else None
+    return None
+
+
 def _merged_fields(
     src: str,
     braces: BraceMap,
@@ -4469,6 +4483,7 @@ def _merged_fields(
     deferred: bool,
     bound: Mapping[str, int] = MappingProxyType({}),
     depth: int = 3,
+    conditional: bool = False,
 ) -> tuple[dict[str, tuple[int, str, int]], bool]:
     """An object literal's fields with each `...spread` merged in source order.
 
@@ -4477,6 +4492,8 @@ def _merged_fields(
     is False when a spread did not resolve: then an absent key may be in it.
     A key written before an unresolved spread may be overridden by it, so it
     is dropped and reads as unknown like any key the spread could hold.
+    With `conditional`, a fully read `...COND&&{...}` shadows only its own
+    keys, which map with form "conditional": present or absent at run time.
     """
     close = braces.pairs.get(open_i)
     if close is None:
@@ -4491,6 +4508,17 @@ def _merged_fields(
     for a, b in _split_top(src, braces, open_i + 1, close):
         a, b = _strip_span(src, a, b)
         m = re.fullmatch(r"\.\.\.(" + _IDENT + r")", src[a:b])
+        lit = _conditional_spread(src, braces, a, b) if conditional else None
+        if lit is not None:
+            inner, ok = _merged_fields(
+                src, braces, lit, deferred=deferred, depth=depth - 1
+            )
+            if not ok:
+                complete, last_unresolved = False, a
+            entries.append(
+                (a, {k: (v[0], "conditional", v[2]) for k, v in inner.items()})
+            )
+            continue
         if not m:
             if src.startswith("...", a) or not _PLAIN_PART_RE.match(src, a, b):
                 # A spread this reader cannot follow, or a quoted, computed or
@@ -4531,6 +4559,8 @@ def _merged_string(
     entry = fields.get(key)
     if entry is None:
         return None
+    if entry[1] == "conditional":
+        return {"value": None, "source": "unresolved"}
     resolved = resolve_field(src, braces, entry[0], key, methods=entry[1] == "method")
     if resolved and resolved["source"] != "unresolved":
         return resolved
@@ -4723,7 +4753,9 @@ def _factory_skill(
             literal[p] = _unescape(lit.group(1))
         elif src.startswith("{", x) and braces.pairs.get(x) == y - 1:
             bound[p] = x
-    fields, complete = _merged_fields(src, braces, obj, deferred=deferred, bound=bound)
+    fields, complete = _merged_fields(
+        src, braces, obj, deferred=deferred, bound=bound, conditional=True
+    )
     name = None
     entry = _object_fields(src, braces, obj).get("name")
     if entry and entry[0] == "value":
@@ -4738,6 +4770,10 @@ def _factory_skill(
             if table is not None:
                 row = resolve_field(src, braces, table, literal[expr.group(2)])
                 name = row["value"] if row and row["source"] == "literal" else None
+    merged = fields.get("name")
+    if entry and merged is not None and merged[1:] != (entry[0], entry[1]):
+        # A later spread (`...COND&&{name:...}`) sets the name at run time.
+        name = None
     fields = {k: v for k, v in fields.items() if k != "name"}
     return fields, complete, name
 

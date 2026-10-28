@@ -1,5 +1,8 @@
 {
-  "description": "Raises a desktop notification when Claude Code needs attention on a permission or idle prompt.",
+  "description": "Raises a desktop notification when Claude Code needs attention on a permission or idle prompt, and the module forwards each mod toast as a native notification.",
+  "modules": [
+    "./register.ts"
+  ],
   "hooks": {
     "SessionStart": [
       {
@@ -16,7 +19,7 @@
     ],
     "Notification": [
       {
-        "matcher": "permission_prompt|idle_prompt",
+        "matcher": "permission_prompt|idle_prompt|plugin_notification",
         "hooks": [
           {
             "type": "command",

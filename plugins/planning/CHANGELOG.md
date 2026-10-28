@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.119.1] - 2026-10-28
+
+### Fixed
+
+- `/planning:interview` continuation wording: the `me`-mode persistence lines now recommend routing the next step rather than routing it, name Step 5's fallback when session-flow is absent, drop a stale cross-reference to a removed handoff-and-clear step, and give the context-window docs link in `context/loop.md` a Pointer / As of / Recheck trigger record.
+
 ## [0.119.0] - 2026-10-28
 
 ### Changed

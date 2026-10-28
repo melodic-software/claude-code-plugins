@@ -2146,6 +2146,80 @@ assert_golden "render errors: the failing marketplace's errors render under its 
 assert_eq "render errors: a github source carries no source_checkout" "null" \
   "$(jq -c '.marketplaces[0].source_checkout' <<<"$REPORT_DIGEST")"
 
+# --- a fleet whose divergence records pass one exec argument's size limit ---
+# 800 ids, each with a user record and a project pin behind it at a path that
+# is not present, put the block's divergences past Linux's per-argument cap
+# (MAX_ARG_STRLEN, 131,072 bytes on 4 KiB pages), so the run passes only if no
+# fleet-sized field rides on jq's command line.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+big_n=800
+big_dirs=()
+for ((i = 0; i < big_n; i++)); do
+  big_dirs+=("$case_dir/catalog/market1/large-fleet-synthetic-plugin-$i/.claude-plugin")
+done
+mkdir -p "${big_dirs[@]}"
+for ((i = 0; i < big_n; i++)); do
+  printf '{"name":"large-fleet-synthetic-plugin-%s","version":"0.2.0"}' "$i" >"${big_dirs[i]}/plugin.json"
+done
+jq -cn --argjson n "$big_n" \
+  '{plugins: [range(0; $n) | {name: "large-fleet-synthetic-plugin-\(.)", source: "large-fleet-synthetic-plugin-\(.)"}]}' \
+  >"$case_dir/catalog/market1.json"
+jq -cn --argjson n "$big_n" --arg p "$(norm_path "$case_dir/projects")" \
+  '{version: 1, plugins: (reduce range(0; $n) as $i ({};
+    . + {("large-fleet-synthetic-plugin-\($i)@market1"): [
+      {scope: "user", installPath: "u\($i)", version: "0.2.0"},
+      {scope: "project", projectPath: "\($p)/large-fleet-synthetic-project-\($i)", installPath: "p\($i)", version: "0.1.0"}]}))}' \
+  >"$case_dir/installed_plugins.json"
+jq -cn --argjson n "$big_n" \
+  '{enabledPlugins: (reduce range(0; $n) as $i ({}; . + {("large-fleet-synthetic-plugin-\($i)@market1"): true}))}' \
+  >"$case_dir/user_settings.json"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "large fleet: exit 0" 0 "$REPORT_RC"
+assert_not_contains "large fleet: no argument-length failure on stderr" "$(<"$case_dir/stderr.txt")" "Argument list too long"
+div_bytes=$(jq -c '.marketplaces[0].divergences' <<<"$REPORT_DIGEST" | wc -c | tr -d ' ')
+assert_eq "large fleet: the block's divergences are past one argument's limit" "true" \
+  "$( ((div_bytes > 131072)) && echo true || echo false)"
+assert_eq "large fleet: the digest carries the marketplace block" "market1" \
+  "$(jq -r '.marketplaces[0].name' <<<"$REPORT_DIGEST")"
+assert_eq "large fleet: every diverging row and record reaches the block" "$big_n $big_n" \
+  "$(jq -r '.marketplaces[0].divergences | "\(.post) \(.records | length)"' <<<"$REPORT_DIGEST")"
+assert_eq "large fleet: the run records no error" "[]" "$(jq -c '.errors' <<<"$REPORT_DIGEST")"
+assert_not_contains "large fleet: the report does not read as if no marketplace resolved" "$REPORT_TEXT" \
+  "Marketplace: none resolved for this run"
+
+# --- a block whose assembly fails is named, not dropped silently ------------
+# A jq on PATH that fails only the block assembly, the one call passing t_fn_s.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+cat >"$case_dir/stubs/jq" <<'STUB'
+#!/usr/bin/env bash
+case " $* " in
+*" t_fn_s "*)
+  echo "jq: error: forced block failure" >&2
+  exit 5
+  ;;
+*) ;;
+esac
+exec "$REAL_JQ" "$@"
+STUB
+chmod +x "$case_dir/stubs/jq"
+EXTRA_ENV=(REAL_JQ="$(command -v jq)" CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+block_error="marketplace market1: its report block could not be assembled (jq exit 5: jq: error: forced block failure)"
+assert_exit "block failure: exit 0" 0 "$REPORT_RC"
+assert_eq "block failure: no empty block is appended" "0" "$(jq '.marketplaces | length' <<<"$REPORT_DIGEST")"
+assert_eq "block failure: errors[] names the marketplace and the jq failure" "$block_error" \
+  "$(jq -r '.errors[]' <<<"$REPORT_DIGEST")"
+assert_contains "block failure: the report lists it under Action needed" "$REPORT_TEXT" \
+  "Action needed:"$'\n'"  - error: $block_error"
+assert_not_contains "block failure: the report does not read as if no marketplace resolved" "$REPORT_TEXT" \
+  "Marketplace: none resolved for this run"
+
 # --- a directory source whose checkout is behind its upstream ----------------
 # The checkout is a real clone two commits behind its origin as of its last
 # fetch, with a modified tracked file. The source path is recorded in native

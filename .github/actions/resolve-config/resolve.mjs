@@ -1026,6 +1026,7 @@ export function resolve(
     },
     selected: index < 0 ? null : slots[index],
     loop: loopOf(doc.loop),
+    "review-threads": { "reviewer-ids": doc["review-threads"]?.["reviewer-ids"] ?? [] },
     limits: limitsOf(doc.limits),
     wip: doc.wip ?? {},
     merge: resolveMerge(doc.merge),

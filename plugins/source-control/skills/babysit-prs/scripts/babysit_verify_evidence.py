@@ -2255,8 +2255,8 @@ def lane_risk_refusal(
                 f"{repo}#{number} reviews",
             )
             trusted = humans()
-            # An approval of an earlier head carries over base merges that
-            # leave its net change the same.
+            # An approval of an earlier head carries over merges that bring
+            # only the base's changes.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
                 merge_policy.carried_lifters(repo, pr, reviews, trusted)
             )
@@ -2598,6 +2598,8 @@ def _answer_key(
             parts["config"] = asdict(config)
             bot = (config.agent_identity or "").removesuffix("[bot]") or None
         listing = reader.listing()
+        # `_task_list` reads the rules at the default branch, whatever the base.
+        default = merge_policy._default_branch(args.repo, shared=True)
     except (merge_policy.PolicyReadError, RuntimeError) as exc:
         raise _ProbeFailed(str(exc)) from exc
     owner, _, name = args.repo.partition("/")
@@ -2610,7 +2612,7 @@ def _answer_key(
             "h": args.head,
             # By full ref: a bare name resolves as git does, a tag first.
             "ta": f"refs/heads/{args.branch}:{TRUSTED_ACTORS_PATH}",
-            "ar": f"refs/heads/{args.branch}:{ADMISSION_RULES_PATH}",
+            "ar": f"refs/heads/{default}:{ADMISSION_RULES_PATH}",
         },
     )
     pull = json_object(repository.get("pullRequest"))

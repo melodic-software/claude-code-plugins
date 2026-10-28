@@ -500,8 +500,11 @@ A dated observation, not the order of record (the pointers above hold that, and 
 depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
 window at user settings `modelSettings.<model id>.autoCompactWindow`, and the effective window
 followed, highest first, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `--autocompact`, a project top-level
-`autoCompactWindow`, the user per-model value, then the user top-level key. A project per-model
-value outranking the project top-level key is inferred, not observed; managed settings follow the docs, not this probe.
+`autoCompactWindow`, the user per-model value, then the user top-level key. Managed settings follow
+the docs, not this probe. The project-scope, flag and environment-variable rows, plus a project
+per-model value outranking the project top-level key, are rerun as `/harness-ops:behavior-probes`
+cases in its `autocompact` area, which passed on Claude Code 2.1.312 on 2026-10-28; the user-scope
+rows have no case yet.
 
 - **Pointer**: <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window>,
   <https://code.claude.com/docs/en/settings-reference#modelsettings>, and
