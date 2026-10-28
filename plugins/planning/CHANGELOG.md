@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.117.2] - 2026-10-27
+
+### Fixed
+
+- Shared interview: `share.sh stop` and `restart` now ask the server to shut down through its control listener before ending it, so the server writes the usage summaries it holds on every OS. On Windows the stop used to end the process at once, losing every held summary; a one-on-one session there recorded no usage counts at all. A server that refuses or does not exit within 15 seconds is still force-ended.
+
 ## [0.117.1] - 2026-10-27
 
 ### Changed
