@@ -678,6 +678,105 @@ assert_eq "pr proof: a failed read keeps the prior verdict" "no" "$(col "$R" $C_
 assert_contains "pr proof: the failed read is named" "$(col "$R" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 
+# --------------------------------------------------------------------------
+# Merged-PR head proof (--merged-heads-file), offline
+# --------------------------------------------------------------------------
+
+# A squash-merge patch-id cannot see: main edits a line next to the branch's
+# edit before the squash, so the squash commit's diff carries different context
+# lines than the branch range, and main later edits the same path again. The
+# expected verdicts come from the issue's design: only an exact branch, full
+# HEAD and base match flips the row; everything else keeps today's verdict.
+W_MH="$(mkfixture)"
+printf '1\n2\n3\n4\n5\n' >"$W_MH/s.txt"
+git -C "$W_MH" add s.txt >/dev/null 2>&1
+git -C "$W_MH" commit -qm "base seeds s.txt" >/dev/null 2>&1
+git -C "$W_MH" push -q origin main >/dev/null 2>&1
+WT_MH="$TEST_TMPDIR/wt-merged-head"
+git -C "$W_MH" worktree add -q -b feat-mh "$WT_MH" main >/dev/null 2>&1
+commit_in "$WT_MH" s.txt "1
+2
+X
+4
+5" "branch edits line 3"
+commit_in "$W_MH" s.txt "1
+M
+3
+4
+5" "main edits line 2"
+git -C "$W_MH" merge --squash feat-mh >/dev/null 2>&1
+git -C "$W_MH" commit -qm "squash feat-mh" >/dev/null 2>&1
+commit_in "$W_MH" s.txt "1
+M
+X
+4
+Z" "main edits s.txt again after the merge"
+git -C "$W_MH" push -q origin main >/dev/null 2>&1
+MH_HEAD="$(git -C "$WT_MH" rev-parse HEAD)"
+HEADS="$TEST_TMPDIR/merged-heads.tsv"
+run_heads() { bash "$ENGINE" --repo-dir "$W_MH" --no-peers --merged-heads-file "$HEADS"; }
+
+R="$(row "$(bash "$ENGINE" --repo-dir "$W_MH" --no-peers)" "wt-merged-head")"
+assert_eq "merged head: without the flag the squashed branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+
+# (a) exact branch, full HEAD and base: landed.
+printf 'feat-mh\t%s\tmain\n' "$MH_HEAD" >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: an exact match is landed" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "merged head: method names the exact head proof" "merged-pr-head-exact" "$(col "$R" $C_METHOD)"
+assert_eq "merged head: risk is landed" "landed" "$(col "$R" $C_RISK)"
+assert_not_contains "merged head: no stale not-landed reason" "$(col "$R" $C_REASON)" "head-differs"
+
+# The name-only file still reads the same row superseded when the heads file is absent.
+printf 'feat-mh\n' >"$MERGED_REFS"
+R="$(row "$(bash "$ENGINE" --repo-dir "$W_MH" --no-peers --merged-refs-file "$MERGED_REFS")" "wt-merged-head")"
+assert_eq "merged head: --merged-refs-file alone is unchanged" "superseded" "$(col "$R" $C_RISK)"
+
+# (b) a different SHA, and a 12-character prefix of the right one.
+printf 'feat-mh\t%s\tmain\n' "0000000000000000000000000000000000000001" >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: a SHA mismatch keeps STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+printf 'feat-mh\t%s\tmain\n' "${MH_HEAD:0:12}" >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: a short SHA keeps STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+
+# (c) merged into a different base.
+printf 'feat-mh\t%s\tfeat-stack-base\n' "$MH_HEAD" >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: a different baseRefName keeps STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+
+# (f) malformed lines beside a valid one: each is ignored, the valid one flips.
+{
+  printf 'feat-mh\t%s\n' "$MH_HEAD"
+  printf 'feat-mh\t%s\tmain\textra\n' "$MH_HEAD"
+  printf 'feat-mh\t%s\tmain\r\n' "$MH_HEAD"
+  printf 'feat-mh\t\t%s\tmain\n' "$MH_HEAD"
+  printf 'feat-mh %s main\n\n' "$MH_HEAD"
+} >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: malformed lines alone prove nothing" "STRANDED" "$(col "$R" $C_RISK)"
+printf 'feat-mh\t%s\tmain\n' "$MH_HEAD" >>"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: a valid line among malformed ones is landed" "landed" "$(col "$R" $C_RISK)"
+
+# (d) a dirty tree with a matching line reads dirty, never landed.
+printf 'feat-mh\t%s\tmain\n' "$MH_HEAD" >"$HEADS"
+printf 'uncommitted\n' >>"$WT_MH/s.txt"
+R="$(row "$(run_heads)" "wt-merged-head")"
+assert_eq "merged head: a dirty tree with a matching line is dirty" "dirty" "$(col "$R" $C_RISK)"
+git -C "$WT_MH" checkout -q -- s.txt >/dev/null 2>&1
+
+# (e) a detached HEAD at the same commit: no branch, so no match, even on a
+# line whose branch field is the engine's own `(detached)` label.
+WT_MH_DET="$TEST_TMPDIR/wt-merged-head-detached"
+git -C "$W_MH" worktree add -q --detach "$WT_MH_DET" "$MH_HEAD" >/dev/null 2>&1
+printf 'feat-mh\t%s\tmain\n(detached)\t%s\tmain\n' "$MH_HEAD" "$MH_HEAD" >"$HEADS"
+R="$(row "$(run_heads)" "wt-merged-head-detached")"
+assert_eq "merged head: a detached HEAD keeps STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+
+bash "$ENGINE" --repo-dir "$W_MH" --no-peers --merged-heads-file "$TEST_TMPDIR/no-such-heads" >/dev/null 2>&1
+assert_exit "merged head: a missing heads file is a usage error" 2 "$?"
+
 # Bare-name invocation from the scripts directory still loads the library.
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"

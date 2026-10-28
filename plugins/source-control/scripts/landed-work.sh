@@ -66,7 +66,8 @@ $PROG — read-only landed-vs-stranded classification for git worktrees.
 
 Usage:
   $PROG [--repo-dir <dir>] [--worktree <path>]... [--base <ref>]
-        [--merged-refs-file <path>] [--no-peers] [--merged-pr-proof]
+        [--merged-refs-file <path>] [--merged-heads-file <path>]
+        [--no-peers] [--merged-pr-proof]
   $PROG --path-key <value>
   $PROG --help
 
@@ -89,6 +90,17 @@ Options:
                       narrowed reading of a landed=no row, never a safe one.
                       Collected by the caller (gh), so this script stays
                       offline.
+  --merged-heads-file <path>
+                      TSV lines <branch>\t<headRefOid>\t<baseRefName>, one per
+                      MERGED pull request. A row that is not landed becomes
+                      landed (method merged-pr-head-exact) only when its
+                      worktree is on <branch>, its full HEAD SHA equals
+                      <headRefOid>, and <baseRefName> is the base resolved for
+                      that row. HEAD evidence, so unlike --merged-refs-file a
+                      reused name does not match; any other line changes
+                      nothing. A dirty tree with a matching line reads dirty.
+                      Build both files from the same PR reads; a row this file
+                      proves is never reported superseded.
   --no-peers          Skip peer detection (another worktree holding the same
                       commits). Peer detection is O(n^2) ancestry probes.
   --merged-pr-proof   For a row that is not landed, read the branch's merged pull
@@ -160,6 +172,7 @@ path_key() {
 REPO_DIR="."
 BASE_REF=""
 MERGED_REFS_FILE=""
+MERGED_HEADS_FILE=""
 DO_PEERS=true
 USE_PR_PROOF=false
 EXPLICIT_TARGETS=()
@@ -196,6 +209,11 @@ while [[ $# -gt 0 ]]; do
     MERGED_REFS_FILE="$2"
     shift 2
     ;;
+  --merged-heads-file)
+    [[ $# -ge 2 ]] || die "--merged-heads-file requires a value"
+    MERGED_HEADS_FILE="$2"
+    shift 2
+    ;;
   --no-peers)
     DO_PEERS=false
     shift
@@ -212,6 +230,9 @@ command -v git >/dev/null 2>&1 || die "git not found on PATH" 4
 
 if [[ -n "$MERGED_REFS_FILE" && ! -f "$MERGED_REFS_FILE" ]]; then
   die "--merged-refs-file not found: $MERGED_REFS_FILE"
+fi
+if [[ -n "$MERGED_HEADS_FILE" && ! -f "$MERGED_HEADS_FILE" ]]; then
+  die "--merged-heads-file not found: $MERGED_HEADS_FILE"
 fi
 
 # ---------------------------------------------------------------------------
@@ -664,6 +685,26 @@ merged_pr_proof() {
   return 0
 }
 
+# merged_head_proof <branch> <head>: affirmative proof from a caller-collected
+# MERGED pull request whose head commit is exactly this worktree's HEAD and whose
+# base is the base resolved for this row. Sets L_STATE, L_METHOD and L_REASON;
+# returns 0 only when it proved the branch landed.
+#
+# One exact whole-line match, never a field parse: a short or different SHA, a
+# different base, a missing or extra field and a trailing CR all fail to match,
+# and a `read` with tab IFS would collapse an empty field into a false match.
+merged_head_proof() {
+  local branch="$1" head="$2" base_name="${L_BASE%@*}"
+  base_name="${base_name#*/}"
+  [[ -n "$MERGED_HEADS_FILE" && -n "$L_BASE" && -n "$base_name" && -n "$branch" && "$branch" != "(detached)" ]] || return 1
+  [[ "$head" =~ ^[0-9a-f]{40}$ ]] || return 1
+  grep -Fxq -- "$(printf '%s\t%s\t%s' "$branch" "$head" "$base_name")" "$MERGED_HEADS_FILE" || return 1
+  L_STATE="yes"
+  L_METHOD="merged-pr-head-exact"
+  L_REASON="head-equals-merged-pr-head-into-$base_name"
+  return 0
+}
+
 # ---------------------------------------------------------------------------
 # Targets
 # ---------------------------------------------------------------------------
@@ -834,6 +875,9 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     reason="nothing-unpushed"
   else
     classify_landed "$p"
+    if [[ "$L_STATE" != "yes" && "${T_BRANCH[$idx]}" != "(detached)" ]]; then
+      merged_head_proof "${T_BRANCH[$idx]}" "${T_HEAD[$idx]}" || true
+    fi
     if [[ "$USE_PR_PROOF" == "true" && "$L_STATE" != "yes" && "${T_BRANCH[$idx]}" != "(detached)" ]]; then
       merged_pr_proof "$p" "${T_BRANCH[$idx]}" || true
     fi
@@ -922,6 +966,11 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     # mean idle. The stranded family above still outranks this: data loss is the
     # stronger stop, and the `inprogress` column carries the operation either way.
     risk="in-progress"
+  elif [[ "${R_METHOD[$idx]}" == "merged-pr-head-exact" ]] &&
+    [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" ]]; then
+    # The merged PR proves the commits, not the working tree: uncommitted edits
+    # exist nowhere else, so this proof never lets a dirty tree read landed.
+    risk="dirty"
   elif [[ "${R_LANDED[$idx]}" == "yes" ]]; then
     risk="landed"
   elif [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" ]]; then

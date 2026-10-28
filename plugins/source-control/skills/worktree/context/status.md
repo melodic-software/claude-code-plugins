@@ -10,7 +10,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 
-2. **PR cross-reference**: For each worktree's branch, read its PRs in all states with their number, title, state and `headRefName` ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request), "PRs for worktree cross-reference"). Read per branch, never as one list of every PR: a repository-wide list is capped and silently drops the older PRs, so an older worktree would show no PR. A worktree with a detached HEAD has no branch to query. Graceful degradation: if `gh` is unavailable, skip PR info and note "GitHub API unavailable."; if the read for one branch fails, show that row's PR as "PR lookup incomplete" rather than `none`, and leave that branch out of the merged-refs input below.
+2. **PR cross-reference**: For each worktree's branch, read its PRs in all states with their number, title, state, `headRefName`, `headRefOid` and `baseRefName` ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request), "PRs for worktree cross-reference"). Read per branch, never as one list of every PR: a repository-wide list is capped and silently drops the older PRs, so an older worktree would show no PR. A worktree with a detached HEAD has no branch to query. Graceful degradation: if `gh` is unavailable, skip PR info and note "GitHub API unavailable."; if the read for one branch fails, show that row's PR as "PR lookup incomplete" rather than `none`, and leave that branch out of the merged-refs and merged-heads inputs below.
 
 3. **Last commit date**: For each worktree branch, get date of last commit:
 
@@ -25,12 +25,14 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 5. **Stranded-work record**: age and PR state answer *is anyone still working here*; neither answers *would removing this destroy a commit*. Run the detection engine once per repository. It enumerates the worktrees itself and emits one TSV row per registered worktree:
 
    ```bash
-   bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file> --merged-pr-proof
+   bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file> --merged-heads-file <heads-file> --merged-pr-proof
    ```
 
    `--merged-pr-proof` makes the engine read each unlanded branch's merged pull request (one `gh pr list --state merged --head <branch>`; only a PR merged into the resolved base counts) and report `landed` (method `merged-pr-head` or `merged-pr-commits`) when local HEAD equals or is an ancestor of the PR's head commit, or every unpushed local commit is in the PR's commit list. That is the proof for a squash-merged multi-commit branch, which patch-id cannot match. A failed read keeps the prior verdict and names the read in `reason` (`merged-pr-read-failed:...`). Omit the flag when `gh` was unavailable.
 
    Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
+
+   From the same reads, write one line per merged PR to `<heads-file>`: `headRefName`, `headRefOid` and `baseRefName`, tab-separated. That is HEAD evidence, not name evidence: the engine reports `landed` (method `merged-pr-head-exact`) only for a worktree on that branch whose full HEAD equals `headRefOid` and whose resolved base is `baseRefName`, so it settles a squash-merged branch offline even when the base has since changed the same paths. A row with uncommitted edits still reads `dirty`. Omit the flag on the same conditions as `--merged-refs-file`.
 
    Join rows to worktrees on the `path` column. The columns this file consumes: `unpushed`, `landed`, `base`, `peers`, `risk`, `reason`.
 

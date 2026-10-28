@@ -31,7 +31,7 @@ In `--dry-run` mode this step runs `git worktree prune --dry-run` instead. It re
 
 ## Step 2: Identify cleanup candidates
 
-Run `status` logic internally and identify candidates:
+Run `status` logic internally and identify candidates. Its engine run passes both the merged-refs and the merged-heads file built from the per-branch PR reads ([status.md](status.md) data-collection step 5), so a squash-merged branch whose HEAD is its merged PR's head reads `landed`, not `STRANDED`:
 
 | Reason | Detection method |
 |--------|-----------------|
