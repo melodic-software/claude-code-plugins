@@ -576,14 +576,19 @@ export async function select({
   });
   // An unresolved thread the lane does not take (a reviewer it does not
   // trust, a review on an older head, a reply it already gave) would block
-  // the merge with no stop on record, so it ends in a failing status.
-  // With no hold and no unresolved thread left, every thread stop is gone
-  // on this head: `resolved` lets report-stop-status clear its status.
+  // the merge with no stop on record, so it ends in a failing status. A
+  // pr-verify FAIL's note from an older head is not one: a pass at this head
+  // resolves it (the pass-only round in main), and a failing status here
+  // would fail ci-status, which pr-verify waits on, so no pass could come.
+  // The note still holds the merge, which needs every thread resolved.
+  // With no hold and no other unresolved thread left, every thread stop is
+  // gone on this head: `resolved` lets report-stop-status clear its status.
   if (kept.length === 0) {
     if (gated) {
       return { decision: "skip", skipReason: "awaiting-human", threads: kept };
     }
-    return threads.some((thread) => thread.isResolved === false)
+    const stale = new Set(staleVerifyNotes(threads, headSha));
+    return threads.some((thread) => thread.isResolved === false && !stale.has(thread.id))
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
       : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }

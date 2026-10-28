@@ -576,6 +576,45 @@ test("a verifier note on a marker-confirmed head is kept as the verifier's findi
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "verifier", body: VERIFY_NOTE }]);
 });
 
+// A verifier note opened on `commit`, its root as the threads listing reads it
+// (staleVerifyNotes), its review submitted on that commit.
+const failNote = (id, commentId, commit) => ({
+  thread: thread(id, [commentId], { root: { nodes: [{ author: { databaseId: ACTIONS_BOT }, body: VERIFY_NOTE, originalCommit: { oid: commit } }] } }),
+  comment: comment(commentId, ACTIONS_BOT, { body: VERIFY_NOTE, pull_request_review_id: commentId }),
+  review: { id: commentId, user: { id: ACTIONS_BOT }, commit_id: commit },
+});
+const withNotes = (notes, extra = {}) =>
+  fakeApi({
+    ...extra,
+    threads: [...notes.map((note) => note.thread), ...(extra.threads ?? [])],
+    reviewComments: [...notes.map((note) => note.comment), ...(extra.reviewComments ?? [])],
+    reviews: [...notes.map((note) => note.review), ...(extra.reviews ?? [])],
+  });
+
+// Notes from an older head wait for a pass at this head, whose round resolves
+// them; until then they hold no failing status, or ci-status, which pr-verify
+// waits on, would never pass and no pass could come.
+test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
+  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+});
+
+test("stale verifier notes beside an untaken reviewer thread still escalate", async () => {
+  const result = await run(
+    withNotes([failNote("PRRT_n1", 200, OLD_HEAD)], {
+      threads: [thread("PRRT_1", [100])],
+      reviewComments: [comment(100, REVIEWER)],
+      reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }],
+    }),
+  );
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
+test("an untaken verifier note on this head still escalates", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, HEAD)], { issueComments: [] }));
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
 test("a github-actions[bot] thread without the note marker, or in another account's review, is not kept", async () => {
   const unmarked = fakeApi({
     reviewComments: [comment(100, ACTIONS_BOT)],
