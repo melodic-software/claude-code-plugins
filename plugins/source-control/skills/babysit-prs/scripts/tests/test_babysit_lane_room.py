@@ -629,6 +629,9 @@ class LaneRoom(unittest.TestCase):
         def settled(room: policy.LaneRoom) -> object:
             return room.report()["postMerge"]
 
+        def unreadable(answer: object, branch: str) -> bool:
+            raise policy.PolicyReadError("runs 502")
+
         self.assertEqual(
             settled(self.room()), {"answer": "reused", "reason": None, "moved": None}
         )
@@ -648,7 +651,9 @@ class LaneRoom(unittest.TestCase):
         )
         for moved, kwargs in {
             "head-moved": dict(head=NEW_MAIN),
+            "config-moved": dict(config_commit="f" * 40, fresh_floor=FLOOR),
             "runs-moved": dict(runs=False),
+            "unreadable": dict(runs=unreadable),
             "demotion-changed": dict(
                 demotion_changed=True,
                 fresh_demotion=policy.Demotion(False, None, (9,)),
