@@ -251,11 +251,14 @@ Then the outcome:
 
 ### Return to the starting branch
 
-Every pass records `git branch --show-current` before step 1. After each control skill's step 6,
-whatever its outcome, it switches back to that branch: before the next skill's step 1, so no skill
-is refreshed on another skill's upkeep branch, and before the pass reports, so a caller such as
-`/testing:run-e2e` resumes on the branch it is verifying. Done when `git branch --show-current`
-prints the starting branch.
+Every pass records its starting point before step 1: `git branch --show-current`, or, when that
+prints nothing (a detached HEAD, as a CI checkout of a pull request commit usually is),
+`git rev-parse HEAD`. After each control skill's step 6, whatever its outcome, it switches back to
+that point: `git switch <branch>`, or `git switch --detach <sha>` for a detached start. It does so
+before the next skill's step 1, so no skill is refreshed on another skill's upkeep branch, and
+before the pass reports, so a caller such as `/testing:run-e2e` resumes on the commit it is
+verifying. Done when `git branch --show-current` prints the starting branch, or, for a detached
+start, `git rev-parse HEAD` prints the recorded commit.
 
 ## Converting a legacy map
 
