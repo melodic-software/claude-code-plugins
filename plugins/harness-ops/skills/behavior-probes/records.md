@@ -303,6 +303,12 @@ level and this run's workdir was not kept. Record 15's control, run on the same 
 same `settings.json` and its workdir kept, read `medium` through a preloaded skill. The two loading
 paths differ on 2.1.310; neither moved between versions.
 
+Refreshed on Claude Code **2.1.312**, 2026-10-28, with
+`probe.py run --live --max-runs 2 --max-cost-usd 4 --keep` over this case and record 15's: 2 runs,
+both pass, no retry. The subagent's Skill call returned `Launching skill: print-effort`, then it ran
+`echo effort=low`; no literal `${CLAUDE_EFFORT}` reached a command. With the workdir kept, its hook
+logged `agent_type=effort-probe-skill-tool tool=Bash effort=low`.
+
 ## 14. `${CLAUDE_EFFORT}` in a skill a subagent loads through the Skill tool is the subagent's level
 
 **Claim.** In a skill a subagent pinned at `effort: low` loads through the Skill tool (no `skills`
@@ -333,6 +339,9 @@ event=PreToolUse agent_type=effort-probe tool=Bash effort=low env=low
 The subagent ran at its `low` pin when it ran `echo effort=medium`. The hooks fire only for the
 subagent, so no line names the session's level directly. `medium` appears nowhere in the run but
 the case's `effortLevel`, and the substituted value is not the subagent's.
+
+Refreshed on Claude Code **2.1.312**, 2026-10-28, in the record 14 refresh run: pass, the same
+`effort.log` lines, and the subagent ran `echo effort=medium`.
 
 ## 15. On 2.1.310, a preloaded skill still reads the session's level while the subagent runs at its pin
 
