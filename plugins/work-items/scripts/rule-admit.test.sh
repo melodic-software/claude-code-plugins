@@ -42,6 +42,10 @@ graphql)
   [[ "$fails" == *" comments "* ]] && exit 1
   jq -c '.comments' "$FAKE_CASE"
   ;;
+repos/melodic-software/example-repo)
+  [[ "$fails" == *" repo "* ]] && exit 1
+  jq -c '{visibility: (.visibility // "private")}' "$FAKE_CASE"
+  ;;
 *)
   [[ "$fails" == *" issue "* ]] && exit 1
   jq -c '.issue' "$FAKE_CASE"
@@ -66,6 +70,7 @@ for ((i = 0; i < count; i++)); do
     | {issue: ($b.issue * ($c.issue // {})),
        comments: ($c.comments // $b.comments),
        last_edited_at: ($c.last_edited_at // $b.last_edited_at),
+       visibility: $c.visibility,
        name: $c.name, expect: $c.expect}' "$FIX/cases.json" >"$WORK/case.json"
   name="$(jq -r .name "$WORK/case.json")"
   FAKE_CASE="$WORK/case.json" bash "$CHECK" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>"$WORK/err"
@@ -99,6 +104,16 @@ for what in issue comments graphql; do
     fail "a failed $what read refuses (got: $(cat "$WORK/out"))"
   fi
 done
+
+# A failed visibility read counts the repository as private: a hosted runner
+# still refuses.
+jq '{issue: (.base.issue * {body: "Two rows in the install table read awkwardly on GitHub-hosted runners."}), comments: .base.comments, last_edited_at: .base.last_edited_at, visibility: "public"}' "$FIX/cases.json" >"$WORK/hosted.json"
+if FAKE_CASE="$WORK/hosted.json" FAKE_GH_FAIL=repo bash "$CHECK" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null &&
+  jq -e '.verdict == "refuse" and (.reason | startswith("cost hit in title or body: hosted runners;"))' "$WORK/out" >/dev/null; then
+  pass "a failed visibility read counts the repository as private"
+else
+  fail "a failed visibility read counts the repository as private (got: $(cat "$WORK/out"))"
+fi
 
 # --- several issues: one row each, in order ---------------------------------
 FAKE_CASE="$WORK/case.json" bash "$CHECK" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 --issue 2 >"$WORK/out" 2>/dev/null
@@ -146,7 +161,16 @@ cp "$CHECK" "$WORK/lone/rule-admit.sh"
 bash "$WORK/lone/rule-admit.sh" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null
 rc=$?
 if [[ $rc -eq 8 && ! -s "$WORK/out" ]]; then pass "no charge-words.json exits 8"; else fail "no charge-words.json exits 8 (got $rc: $(cat "$WORK/out"))"; fi
-printf '%s\n' '{"cost": "readme"}' >"$WORK/lone/charge-words.json"
+printf '%s\n' '{"code": "zzzz", "cost": "readme", "cost_private": "zzzz"}' >"$WORK/lone/charge-words.json"
+for key in code cost_private; do
+  jq --arg k "$key" 'del(.[$k])' "$WORK/lone/charge-words.json" >"$WORK/lone/partial.json"
+  mkdir -p "$WORK/lone-$key"
+  cp "$CHECK" "$WORK/lone-$key/rule-admit.sh"
+  cp "$WORK/lone/partial.json" "$WORK/lone-$key/charge-words.json"
+  bash "$WORK/lone-$key/rule-admit.sh" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null
+  rc=$?
+  if [[ $rc -eq 8 && ! -s "$WORK/out" ]]; then pass "charge-words.json with no $key exits 8"; else fail "charge-words.json with no $key exits 8 (got $rc: $(cat "$WORK/out"))"; fi
+done
 if bash "$WORK/lone/rule-admit.sh" --repo "$REPO" --binding "$FIX/binding.json" --issue 1 >"$WORK/out" 2>/dev/null &&
   jq -e '.verdict == "refuse" and (.reason | startswith("cost hit in title or body: readme;"))' "$WORK/out" >/dev/null; then
   pass "the cost pattern is read from charge-words.json"

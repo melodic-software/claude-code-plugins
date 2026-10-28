@@ -16,6 +16,7 @@
 - [`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal](#marketplace-remove-is-a-bulk-uninstall-not-a-declaration-removal-and-it-deletes-this-skills-own-run-journal)
 - [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
 - [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
+- [A fleet-sized value on jq's command line fails the exec](#a-fleet-sized-value-on-jqs-command-line-fails-the-exec)
 - [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
 - [A disabled-by-default install writes `false`, and only an install record can be uninstalled](#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
 
@@ -370,6 +371,26 @@ with a parameter expansion and no `tr` process, **and** strip `\r` the same way 
 captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
 A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
 process per call. Don't rediscover this the hard way in a second script.
+
+## A fleet-sized value on jq's command line fails the exec
+
+The kernel caps the size of one exec argument (`MAX_ARG_STRLEN`), so a value that grows with the
+fleet reaches jq through a file or stdin: the divergence records, the installed and enabled rows,
+the failed-update rows, and the assembled marketplace blocks. A fleet with about a thousand
+install records produced a `.divergences` too large for `jq --argjson div`. In `sync-run.sh`,
+`json_object_file` writes the JSON fields to one file in the run directory and the jq program
+reads them back with `. as {$name, ...}`. The digest reads `.blocks.jsonl` with `--slurpfile`.
+`fleet-state.sh` sends its payload on stdin. Pass only fixed-size values with `--arg` or
+`--argjson`: a name, a timestamp, an exit code, a cap. When a marketplace block cannot be
+assembled, the run adds an `errors[]` entry naming the marketplace and the jq failure, and the
+report lists it under `Action needed`.
+
+- **Pointer**: when sizing a value against the limit, fetch the "Limits on size of arguments and
+  environment" subsection of
+  [execve(2) DESCRIPTION](https://man7.org/linux/man-pages/man2/execve.2.html#DESCRIPTION) live.
+- **As of**: 2026-10-28
+- **Recheck trigger**: a `sync` run on Linux or Windows reporting a jq exec failure on a value this
+  section says travels through a file.
 
 ## `--all` with `install_new: all` is a mass install of every catalog, and nothing warns you
 

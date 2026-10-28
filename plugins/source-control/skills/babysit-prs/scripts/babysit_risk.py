@@ -224,18 +224,23 @@ class RiskResult:
 #   and submodules.
 # - `gate`: the merge gate's own code and the config the token broker loads:
 #   resolve-config (which the broker runs from main in its signer process,
-#   effect-grants.json included), the rate guard, every pr-merge script and
-#   the workflow that wires them, babysit_merge*, babysit_risk.py and
-#   babysit_review_evidence.py (which compute the review's clear condition),
-#   the ci-status workflow and
-#   the pipeline config.
-# - `enforcement`: the rest of the modules the floored scripts import and
+#   effect-grants.json included), the rate guard, every pr-merge script,
+#   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
+#   compute the review's clear condition), the pipeline config, and
+#   scripts/sync-hold-floor.py, which writes this table's copies.
+# - `enforcement`: the pr-merge and ci-status workflows, the rest of the
+#   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
-#   closures and requires them here).
+#   closures and requires them here), and the scripts that act on a
+#   pr-unblock stop's route (report-escalation.sh, adjudicate-feedback.mjs,
+#   publish-feedback.mjs, apply-patch.mjs) with every module they import and
+#   the routing table they read, so a held reason cannot be dropped unreviewed.
 # A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
 # path holds until the security lane's review binds to the head with no
 # open finding (REVIEW_FLOOR, `review-path:`), so no person is needed.
-# merge-holds.mjs HOLD_PATH_CLASSES is the same list (test_merge_holds_sync.py).
+# The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
+# HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
+# hold_patterns, and test_merge_holds_sync.py runs its --check.
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/check-trusted-trigger/**", "trust"),
     ("**/CODEOWNERS", "trust"),
@@ -262,6 +267,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
     (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
     (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
+    ("scripts/sync-hold-floor.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
@@ -284,14 +290,29 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/workflows/pr-merge.yml", "enforcement"),
     ("docs/conventions/pr-pipeline.yaml", "gate"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
     (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
     (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
     (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/report-escalation.sh", "enforcement"),
+    (".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/request-budget.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"),
+    (".github/scripts/apply-patch/apply-patch.mjs", "enforcement"),
+    (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
+    (".github/scripts/apply-patch/protected-paths.mjs", "enforcement"),
+    (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
     (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
+    (".github/workflows/pr-unblock.yml", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
 )  # fmt: skip

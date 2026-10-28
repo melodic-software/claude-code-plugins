@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+from collections import Counter
 import functools
 import pathlib
 import subprocess
@@ -277,68 +278,12 @@ class HighReasonTests(unittest.TestCase):
         # with the files that enforce it, holds with high-path-floor off too.
         # Owner decision Q26 option B: each glob's class; a person clears a
         # `trust` or `gate` path, a clean security review an `enforcement` one.
+        # The rows are what test_merge_holds_sync.py's closure checks and the
+        # generated copies hold; here the count of each class.
         self.assertEqual(
-            babysit_risk.FLOOR_CLASSES,
-            (
-                (".github/actions/check-trusted-trigger/**", "trust"),
-                ("**/CODEOWNERS", "trust"),
-                ("**/.gitmodules", "trust"),
-                (".github/actions/resolve-config/**", "gate"),
-                (".github/actions/check-kill-switch/**", "trust"),
-                (".github/actions/request-lane-token/**", "trust"),
-                (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
-                (".github/actions/log-api-budget/rate-limits.json", "gate"),
-                (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
-                (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
-                (".github/scripts/pr-merge/superseded.mjs", "gate"),
-                (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
-                (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
-                (".github/scripts/pr-merge/gate-check.mjs", "gate"),
-                (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
-                (".github/scripts/pr-merge/lane-records.mjs", "gate"),
-                (".github/scripts/pr-merge/last-report.mjs", "gate"),
-                (".github/scripts/pr-merge/rate-stop.bash", "gate"),
-                (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
-                (".github/scripts/pr-merge/rotation.mjs", "gate"),
-                (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
-                (".github/scripts/pr-merge/who.mjs", "gate"),
-                (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
-                (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
-                (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-                (".github/workflows/pr-require-checks.yml", "enforcement"),
-                (".github/workflows/pr-merge.yml", "enforcement"),
-                ("docs/conventions/pr-pipeline.yaml", "gate"),
-                (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
-                (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
-                (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
-            ),
-        )  # fmt: skip
+            Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
+            {"trust": 5, "gate": 26, "enforcement": 42},
+        )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
             tuple(g for g, c in babysit_risk.FLOOR_CLASSES if c in {"trust", "gate"}),
@@ -370,14 +315,29 @@ class HighReasonTests(unittest.TestCase):
             ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
+            (".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs"),
+            (".github/scripts/pr-unblock/escalation-routes.json", ".github/scripts/pr-unblock/escalation-routes.json"),
             (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
             (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
             (".github/scripts/pr-unblock/retry-fetch.mjs", ".github/scripts/pr-unblock/retry-fetch.mjs"),
             (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
             (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
             (".github/scripts/work-resolve-issue/retry-fetch.mjs", ".github/scripts/work-resolve-issue/retry-fetch.mjs"),
+            (".github/scripts/pr-unblock/report-escalation.sh", ".github/scripts/pr-unblock/report-escalation.sh"),
+            (".github/scripts/pr-unblock/adjudicate-feedback.mjs", ".github/scripts/pr-unblock/adjudicate-feedback.mjs"),
+            (".github/scripts/pr-unblock/publish-feedback.mjs", ".github/scripts/pr-unblock/publish-feedback.mjs"),
+            (".github/scripts/pr-unblock/request-budget.mjs", ".github/scripts/pr-unblock/request-budget.mjs"),
+            (".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs"),
+            (".github/scripts/apply-patch/apply-patch.mjs", ".github/scripts/apply-patch/apply-patch.mjs"),
+            (".github/scripts/apply-patch/predicates.mjs", ".github/scripts/apply-patch/predicates.mjs"),
+            (".github/scripts/apply-patch/protected-paths.mjs", ".github/scripts/apply-patch/protected-paths.mjs"),
+            (".github/scripts/apply-patch/retry-fetch.mjs", ".github/scripts/apply-patch/retry-fetch.mjs"),
             (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
+            (".github/scripts/pr-unblock/feedback-dispatch.mjs", ".github/scripts/pr-unblock/feedback-dispatch.mjs"),
+            (".github/scripts/pr-unblock/limit-stop.mjs", ".github/scripts/pr-unblock/limit-stop.mjs"),
+            (".github/scripts/pr-unblock/dispatch-record.mjs", ".github/scripts/pr-unblock/dispatch-record.mjs"),
             (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs"),
+            (".github/workflows/pr-unblock.yml", ".github/workflows/pr-unblock.yml"),
             (".github/scripts/work-resolve-issue/stop-routes.json", ".github/scripts/work-resolve-issue/stop-routes.json"),
             (".github/scripts/work-resolve-issue/stop-routes.mjs", ".github/scripts/work-resolve-issue/stop-routes.mjs"),
         ]  # fmt: skip
@@ -1243,12 +1203,29 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/workflows/pr-merge.yml",
             "docs/conventions/pr-pipeline.yaml",
             ".github/scripts/pr-unblock/address-feedback.mjs",
+            ".github/scripts/pr-unblock/escalation-routes.mjs",
+            ".github/scripts/pr-unblock/escalation-routes.json",
             ".github/scripts/pr-unblock/gate-source.mjs",
             ".github/scripts/pr-unblock/thread-scope.mjs",
             ".github/scripts/pr-unblock/retry-fetch.mjs",
             ".github/scripts/work-resolve-issue/report-outcome.mjs",
             ".github/scripts/work-resolve-issue/limits.mjs",
             ".github/scripts/work-resolve-issue/retry-fetch.mjs",
+            ".github/scripts/pr-unblock/report-escalation.sh",
+            ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
+            ".github/scripts/pr-unblock/publish-feedback.mjs",
+            ".github/scripts/pr-unblock/request-budget.mjs",
+            ".github/scripts/pr-unblock/dependency-classify.mjs",
+            ".github/scripts/apply-patch/apply-patch.mjs",
+            ".github/scripts/apply-patch/predicates.mjs",
+            ".github/scripts/apply-patch/protected-paths.mjs",
+            ".github/scripts/apply-patch/retry-fetch.mjs",
+            ".github/scripts/pr-unblock/fix-ci-context.mjs",
+            ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            ".github/scripts/pr-unblock/limit-stop.mjs",
+            ".github/scripts/pr-unblock/dispatch-record.mjs",
+            ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
+            ".github/workflows/pr-unblock.yml",
             ".github/scripts/work-resolve-issue/stop-routes.json",
             ".github/scripts/work-resolve-issue/stop-routes.mjs",
         ):
@@ -1817,7 +1794,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 27)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

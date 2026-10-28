@@ -437,8 +437,11 @@ class FakeGitHub:
             if sha not in self.diffs:
                 return missing()
             return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
+        if path == f"repos/{REPO}/git/ref/heads/main":
+            return ok({"ref": "refs/heads/main", "object": {"sha": MAIN_SHA}})
         if path.startswith(f"repos/{REPO}/contents/"):
-            return ok(self.actors)
+            # Read at main's tip only, never by the branch's name.
+            return ok(self.actors) if path.endswith(f"?ref={MAIN_SHA}") else missing()
         issues = f"repos/{REPO}/issues/"
         if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
             n = int(path[len(issues) :].split("/")[0])
@@ -486,6 +489,7 @@ def read(fake: FakeGitHub, pr: dict[str, Any] | None = None) -> ve.Evidence:
     # this module's setUpModule.
     with (
         mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
         mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
     ):
         return ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pr or pull())
@@ -2588,11 +2592,15 @@ def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
 
 
 class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
-    """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
-    read, which a job in the default branch's cache scope may have written.
-    Whatever that entry holds, carry-run-cache.mjs and the reader together
-    may only add refusals: a carried read that would turn a FAIL away is read
-    again from GitHub."""
+    """pr-merge starts its run cache from the pr-merge-run-cache and
+    pr-merge-verify-run-cache artifacts of the newest scheduled or
+    hand-started run of main's pr-merge.yml whose head is on main
+    (carry-run-cache.mjs `read`), never from actions/cache. Whatever a carried
+    entry holds, carry-run-cache.mjs and this reader together may only add
+    refusals: a carried read that would turn a FAIL away is read again from
+    GitHub. Review-lane runs, read outside this reader
+    (babysit_gh.collect_lane_runs), are the exception: their tests are in
+    test_babysit_gh_lane_run_carry.py."""
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -2724,13 +2732,25 @@ _no_pages = mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_
 _role_label = mock.patch.object(postmerge, "_role_label", return_value="needs-human")
 
 
+# The branch tip `merge_policy.base_tip` reads goes to whatever fake
+# `postmerge.gh_capture` is patched to; a test that answers it otherwise
+# patches it again.
+_tip_reads = mock.patch.object(
+    ve.merge_policy,
+    "gh_capture",
+    side_effect=lambda args, **kwargs: postmerge.gh_capture(args, **kwargs),
+)
+
+
 def setUpModule() -> None:
     _no_sleep.start()
     _no_pages.start()
     _role_label.start()
+    _tip_reads.start()
 
 
 def tearDownModule() -> None:
+    _tip_reads.stop()
     _role_label.stop()
     _no_pages.stop()
     _no_sleep.stop()

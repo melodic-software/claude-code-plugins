@@ -1,6 +1,6 @@
 {
   "name": "desktop-notification",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "Alert you when Claude Code needs input: an audible terminal bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts.",
   "author": {
     "name": "Melodic Software",
@@ -38,6 +38,12 @@
       "type": "boolean",
       "title": "OS-toast channel",
       "description": "OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert.",
+      "default": true
+    },
+    "desktop_notification_forward_toasts_enabled": {
+      "type": "boolean",
+      "title": "Forward mod toasts",
+      "description": "Sends each toast a mod shows as a native notification through the hooks module, and the toast still shows. On by default. Needs Claude Code 2.1.295 or later with mods on.",
       "default": true
     }
   }

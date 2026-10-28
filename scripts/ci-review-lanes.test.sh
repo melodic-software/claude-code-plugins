@@ -358,11 +358,13 @@ if grep -qxF 'api repos/o/r/pulls/77/files?per_page=100 --paginate --jq .[] | [.
 else
   fail "unexpected file read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-# Every hold path the callers list holds an exempt author's PR, nested and renamed ones too.
+# Every hold path the callers list holds an exempt author's PR, nested and renamed ones too,
+# in any letter case, as the floor folds case.
 for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
   .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
-  .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS'; do
+  .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
+  .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY; do
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done

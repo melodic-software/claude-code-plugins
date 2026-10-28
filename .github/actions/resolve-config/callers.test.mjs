@@ -22,6 +22,7 @@ import { parse } from "yaml";
 import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
+import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -603,30 +604,116 @@ test("intake-triage.yml: the model may apply duplicate, which admission refuses,
   assert.match(text, /apply no `status: needs-decision`/);
 });
 
-test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
+test("pr-unblock.yml: report-stop-status runs when report-escalation does, or after an attempt that did not stop, with a gated head and never on a cancelled run", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
-  const job = jobs["report-conflict-status"];
-  const context = (select, apply, headSha, refused = "") => ({
-    "needs.resolve-conflicts-select.outputs.escalation-reason": select,
-    "needs.apply-conflict-patch.outputs.escalation-reason": apply,
-    "needs.conflict-scan-refusal.outputs.escalation-reason": refused,
-    "needs.resolve-conflicts-select.outputs.head-sha": headSha,
+  const job = jobs["report-stop-status"];
+  const escalation = jobs["report-escalation"];
+  assert.deepEqual(job.needs, escalation.needs);
+  const SOURCES = [
+    "resolve-conflicts-select",
+    "apply-conflict-patch",
+    "conflict-scan-refusal",
+    "address-feedback-select",
+    "publish-feedback",
+    "review-dependency-select",
+    "apply-dependency-verdict",
+    "fix-ci-context",
+    "apply-patch",
+  ];
+  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch"];
+  const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
+  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
+    ...Object.fromEntries(SOURCES.map((id) => [`needs.${id}.outputs.escalation-reason`, id === from ? reason : ""])),
+    ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.result`, id === resolved ? resolvedResult : "skipped"])),
+    ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.outputs.stop-resolved`, id === resolved ? "true" : ""])),
+    ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
+    ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
+    ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
+    "needs.apply-patch.outputs.rung-up": rungUp,
+    "needs.apply-patch-rung-up.result": rungUpResult,
+    "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
+    "needs.apply-patch-rung-up.outputs.patch-skip-reason": rungUpSkip,
   });
-  assert.deepEqual(job.needs, ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal"]);
-  assert.equal(evaluate(job.if, context("unresolved-conflict", "", head)), true, "before any model turn");
-  assert.equal(evaluate(job.if, context("", "unresolved-conflict", head)), true, "a conflict the patch left");
-  assert.equal(evaluate(job.if, context("", "", head, "unresolved-conflict")), true, "a scan that refused the model's output");
-  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", "conflict-patch-invalid", ""]) {
-    assert.equal(evaluate(job.if, context(reason, "", head)), false, reason);
-    assert.equal(evaluate(job.if, context("", reason, head)), false, reason);
+  for (const from of SOURCES) {
+    assert.equal(evaluate(job.if, context({ from, reason: "x" })), true, from);
   }
-  assert.equal(evaluate(job.if, context("", "", "", "unresolved-conflict")), false, "no gated head to post on");
-  assert.equal(evaluate(job.if, context("unresolved-conflict", "", "")), false, "no gated head to post on");
-  // The head is the select job's, never a model call's.
-  const post = job.steps.find((step) => step.name === "Post the conflict status");
-  assert.equal(post.env.HEAD_SHA, "${{ needs.resolve-conflicts-select.outputs.head-sha }}");
-  assert.equal(post.env.ESCALATION_REASON, "unresolved-conflict");
+  for (const headFrom of HEADS) {
+    assert.equal(evaluate(job.if, context({ from: "publish-feedback", reason: "x", headFrom })), true, headFrom);
+  }
+  assert.equal(evaluate(job.if, context()), false, "no reason");
+  assert.equal(evaluate(job.if, context({ from: "apply-patch", reason: "x", sha: "" })), false, "no gated head to post on");
+  assert.match(job.if, /^\$\{\{ !cancelled\(\) && /, "a cancelled run posts nothing");
+  assert.doesNotMatch(job.if, /always\(\)/);
+  // The rung-up retry: a stop unless its patch applied cleanly.
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "failure" })), true);
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "success", rungUpReason: "ci-fix-invalid" })), true);
+  // An attempt that did not stop runs it too, for report-escalation.sh clear.
+  assert.equal(evaluate(job.if, context({ headFrom: "fix-ci-context", rungUp: "true", rungUpResult: "success" })), true, "the retry's patch applied: clear");
+  for (const landed of EMITTERS) {
+    assert.equal(evaluate(job.if, context({ landed })), true, `${landed} ended with no stop: clear`);
+    // Review finding on #10252: a retry that succeeded on a skip (a reply
+    // job with no model turn) landed nothing, so it must not clear the
+    // failure an earlier stop left on the head.
+    for (const skip of ["no-model-turn", "superseded-sha", "rung-up"]) {
+      assert.equal(evaluate(job.if, context({ landed, skip })), false, `${landed} skipped ${skip}: no clear`);
+    }
+  }
+  assert.equal(evaluate(job.if, context({ landed: "apply-patch-rung-up", rungUpResult: "success", skip: "no-model-turn" })), false, "the rung-up push job's skip: no clear");
+  // Review finding on #10252: a select job that finds its stop gone on the
+  // head (every thread resolved by hand, or no failing check) clears the
+  // status with no push, reply or verdict job; a failed select clears nothing.
+  const postStep = job.steps.find((step) => step.name === "Post the stop status");
+  for (const resolved of RESOLVERS) {
+    const headFrom = resolved;
+    assert.equal(evaluate(job.if, context({ resolved, headFrom })), true, `${resolved} resolved: clear`);
+    assert.equal(evaluate(postStep.env.ESCALATION_REASON, context({ resolved, headFrom })), "", `${resolved} resolved: clear mode`);
+    assert.equal(evaluate(job.if, context({ resolved, headFrom, resolvedResult: "failure" })), false, `${resolved} failed: no clear`);
+    assert.equal(evaluate(job.if, context({ headFrom })), false, `${resolved} not resolved: no clear`);
+  }
+  assert.match(postStep.run, /echo status \|\| echo clear/);
+  // The write runner hands its skip up: the reply script's no-model-turn, or a gate stop.
+  const write = workflow("pr-run-activity-write.yml");
+  assert.equal(write.on.workflow_call.outputs["skip-reason"].value, "${{ jobs.run.outputs.skip-reason }}");
+  const steps = (extra = {}) => ({
+    "steps.kill.outputs.proceed": "true",
+    "steps.kill.outputs.reason": "",
+    "steps.gate.outputs.proceed": "true",
+    "steps.gate.outputs.reason": "",
+    ...Object.fromEntries(["config", "head-recheck", "lane-token", "prepare", "promote", "act-script", "patch-select"].map((id) => [`steps.${id}.outputs.skip-reason`, ""])),
+    ...extra,
+  });
+  const skipOf = (extra) => evaluate(write.jobs.run.outputs["skip-reason"], steps(extra));
+  assert.equal(skipOf(), "");
+  assert.equal(skipOf({ "steps.act-script.outputs.skip-reason": "no-model-turn" }), "no-model-turn");
+  assert.equal(skipOf({ "steps.gate.outputs.proceed": "false", "steps.gate.outputs.reason": "untrusted-trigger" }), "untrusted-trigger");
+  // #10092's 20:57 run: the reply job failed at its lane token with no
+  // escalation reason, so no stop was posted. The caller derives
+  // feedback-publish-failed from the failed result, and report-stop-status
+  // and report-escalation then run on it; a recorded reason still wins.
+  const failed = (extra = {}) => ({ ...context({ headFrom: "address-feedback-select", ...extra }), "needs.publish-feedback.result": "failure" });
+  assert.equal(evaluate(job.if, failed()), true, "a failed reply job posts a stop");
+  assert.equal(evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, failed()), "feedback-publish-failed");
+  assert.equal(
+    evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, failed({ from: "publish-feedback", reason: "feedback-partial" })),
+    "feedback-partial",
+  );
+  assert.equal(evaluate(escalation.if, failed()), true);
+  assert.equal(evaluate(escalation.with["escalation-reason"], failed()), "feedback-publish-failed");
+  assert.equal(stopSkip("feedback-publish-failed"), "lane-stopped", "routed to a failing status");
+  // The head is a select job's, never a model call's; the reason is the one
+  // report-escalation reads.
+  const post = job.steps.find((step) => step.name === "Post the stop status");
+  assert.equal(post.env.HEAD_SHA.trim(), HEADS.map((id) => `needs.${id}.outputs.head-sha`).join(" || ").replace(/^/, "${{ ").replace(/$/, " }}"));
+  // report-escalation's reason, except that a rung-up retry whose patch
+  // applied is no stop.
+  const reason = (extra) => evaluate(post.env.ESCALATION_REASON, context(extra));
+  assert.equal(reason({ from: "publish-feedback", reason: "feedback-not-landed" }), "feedback-not-landed");
+  assert.equal(reason({ rungUp: "true", rungUpResult: "failure" }), "ci-fix-escalated");
+  assert.equal(reason({ rungUp: "true", rungUpResult: "success" }), "");
+  assert.equal(post.env.ACTIVITY, "${{ inputs.activity }}");
+  assert.match(post.run, /report-escalation\.sh "\$\(\[ -n "\$ESCALATION_REASON" \] && echo status \|\| echo clear\)"$/);
   assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
@@ -714,6 +801,7 @@ const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", s
   "needs.apply-patch-rung-up.result": result,
   "needs.apply-patch-rung-up.outputs.escalation-reason": escalation,
   "needs.apply-patch-rung-up.outputs.patch-skip-reason": skip,
+  "needs.publish-feedback.result": "skipped",
 });
 
 test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-rung 1 in the same run", () => {
@@ -728,9 +816,20 @@ test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-
   assert.equal(up.with["model-rung"], "1");
   assert.equal(upSubscription.with["model-rung"], "1");
   assert.equal(apply.with["patch-model-rung"], "1");
-  // The first pass runs at rung 0: no rung input, so a dispatch cannot skip it.
-  assert.equal(jobs["fix-ci"].with["model-rung"], undefined);
-  assert.equal(jobs["apply-patch"].with["patch-model-rung"], undefined);
+  // The first pass runs at the rung fix-ci-context read from the head's own
+  // trusted stop record (escalation-routes.mjs retryRung): no dispatch input
+  // sets it, so a dispatch cannot skip rung 0 or climb.
+  assert.equal(jobs["fix-ci"].with["model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  assert.equal(jobs["fix-ci-subscription"].with["model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  assert.equal(jobs["apply-patch"].with["patch-model-rung"], "${{ needs.fix-ci-context.outputs.model-rung }}");
+  for (const id of ["address-feedback", "address-feedback-subscription"]) {
+    assert.equal(jobs[id].with["model-rung"], "${{ needs.address-feedback-select.outputs.model-rung }}", id);
+  }
+  // review-dependency's profile names no rung above it, and resolve-conflicts
+  // retries as a fresh session at its own rung.
+  for (const id of ["review-dependency", "review-dependency-subscription", "resolve-conflicts", "resolve-conflicts-subscription"]) {
+    assert.equal(jobs[id].with["model-rung"], undefined, id);
+  }
   assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["model-rung"], undefined);
 });
 
@@ -789,7 +888,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   assert.equal(evaluate(fixCi.if, context("true", "", head)), true);
   assert.equal(evaluate(notRun.if, context("true", "", head)), false);
   assert.equal(evaluate(notRun.if, context("false", "", head)), true);
-  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), false, "report-escalation owns it");
+  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), true, "a stop posts its own skip, so the head's fix-ci runs record it");
   assert.equal(evaluate(notRun.if, context("", "", "")), false, "a kill-switch stop names no head");
   assert.equal(evaluate(notRun.if, context("", "", "", "resolve-conflicts")), false);
 
@@ -802,6 +901,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   // A human-gated hold fix-ci-context read posts awaiting-human instead.
   const held = await postNotRunCheck(notRun, context("false", "", head, "fix-ci", "awaiting-human"));
   assert.equal(held[0].output.title, "Skipped: awaiting-human");
+  // The round cap, routed to a failing status: lane-stopped ends the head.
+  const capped = await postNotRunCheck(notRun, context("false", "ci-fix-round-cap", head, "fix-ci", "lane-stopped"));
+  assert.equal(capped[0].output.title, "Skipped: lane-stopped");
 
   // fix-ci-dispatch.mjs dispatches a head with no fix-ci check run; the
   // posted one, as the listing returns it, means the head was handled.
@@ -2831,12 +2933,14 @@ test("leak scan: a dependency verdict is scanned and hashed, and only a known ve
 // address-feedback: whether the scanned replies hold an INCORRECT one, the
 // only reply adjudicate-feedback has work for. A line that is not JSON reads
 // as disputed, so the adjudicator's own checks decide it.
-test("leak scan: replies-disputed is true only for scanned replies holding an INCORRECT reply or an unreadable line", async (t) => {
+test("leak scan: replies-disputed is true only for scanned replies holding a reply that leaves its thread open or an unreadable line", async (t) => {
   const plantReplies = (text) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "replies.jsonl"), text);
   const row = (disposition) => JSON.stringify({ thread: "PRRT_a", disposition, evidence: [], fix_sha: "", note: "n" });
   for (const [text, want] of [
     [`${row("VALID")}\n${row("INCORRECT")}\n`, "true"],
-    [`${row("VALID")}\n${row("UNCERTAIN")}\n`, ""],
+    [`${row("VALID")}\n${row("UNCERTAIN")}\n`, "true"],
+    [`${row("VALID-defer")}\n`, "true"],
+    [`${row("VALID")}\n`, ""],
     [`${row("VALID")}\n{not json\n`, "true"],
     [`${JSON.stringify({ disposition: "incorrect" })}\n`, ""],
   ]) {
@@ -3184,10 +3288,10 @@ test("leak scan: a credential-format file name blocks, and a PEM header alone bl
 });
 
 test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
-  const gate = [
-    'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);',
-    "export const findSecret = (text) => (SECRET_PATTERNS[0][1].test(text) ? [SECRET_PATTERNS[0][0], 1] : null);",
-  ].join("\n");
+  // The main gate, its scan included, with a pattern list that has no warning label.
+  const main = read("../../../lib/publish-gate.mjs");
+  const gate = main.replace(/export const SECRET_PATTERNS = Object\.freeze\(\[[\s\S]*?\n\]\);/, 'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);');
+  assert.notEqual(gate, main, "the main gate's pattern list was replaced");
   assert.deepEqual((await scanWith(t, () => {}, gate)).clean, "true");
   const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
   assert.equal(hit.clean, "false");
@@ -4512,12 +4616,8 @@ test("leak scan: clean multi-line and clean UTF-16LE text stay clean in the repl
 });
 
 test("leak scan: the split-line pass joins patch hunk lines without their prefixes, and counts only a match across the join", async () => {
-  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
-  const body = script.slice(script.indexOf("const straddles"), script.indexOf("// Each source has a kind"));
-  const { findSecret, SECRET_PATTERNS } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
-  const WARN_ONLY = "password or secret assignment";
-  const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-  const deeper = new Function("blocking", "findSecret", "WARN_ONLY", `${body}; return deeper;`)(blocking, findSecret, WARN_ONLY);
+  // The leak scan's deeper passes, from the gate the scan job loads.
+  const { deeperLeak: deeper } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
   const hunk = `diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1,2 @@\n+the token is ${GHS.slice(0, 2)}\n+${GHS.slice(2)}\n`;
   assert.equal(deeper(hunk, true), "GitHub token", "an added-hunk split joins without the + prefixes");
   assert.equal(deeper(hunk, false), null, "kept, the + prefix breaks the token");
@@ -5474,7 +5574,9 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
   const head = "d".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["resolve-conflicts-not-run"];
-  const context = (proceed, headSha, { skip = "", state = "", activity = "resolve-conflicts" } = {}) => ({
+  // The "Read the stop's skip reason" step runs escalation-routes.mjs skip.
+  const context = (proceed, headSha, { skip = "", state = "", activity = "resolve-conflicts", escalation = "" } = {}) => ({
+    "steps.stop.outputs.skip": stopSkip(escalation),
     "inputs.activity": activity,
     "needs.resolve-conflicts-select.outputs.proceed": proceed,
     "needs.resolve-conflicts-select.outputs.head-sha": headSha,
@@ -5491,7 +5593,9 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
     [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
     [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
     [{ state: "clean" }, "Skip reason: clean-merge"],
-    [{ state: "escalate" }, "Skip reason: awaiting-human"],
+    [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: awaiting-human"],
+    [{ state: "escalate", escalation: "repeat-cap" }, "Skip reason: lane-stopped"],
+    [{ state: "escalate", escalation: "unresolved-conflict" }, "Skip reason: lane-stopped"],
   ]) {
     const calls = await postNotRunChecks(notRun, context("false", head, given));
     assert.deepEqual(
@@ -6216,7 +6320,7 @@ test("pr-unblock.yml: a refused fix-ci collection runs apply-patch, whose select
   // select, with the empty patch-state a refused collection passes, escalates.
   const row = rowFor(loadRules(fileURLToPath(new URL("../../../", import.meta.url))), { prepare: "ci-context" });
   const decision = selectPatch({ row, patchState: "", patchSha256: "", patchHeadSha: TRUSTED, headSha: TRUSTED, patchDir: "/nonexistent", reportDir: "/nonexistent" });
-  assert.deepEqual(decision, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" });
+  assert.deepEqual(decision, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-invalid" });
   // report-escalation runs on that reason, and on nothing else here.
   const escalation = jobs["report-escalation"];
   const quiet = Object.fromEntries([...escalation.if.matchAll(/needs\.[\w-]+\.(?:outputs\.[\w-]+|result)/g)].map(([ref]) => [ref, ""]));

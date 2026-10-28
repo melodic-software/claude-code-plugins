@@ -21,6 +21,9 @@
 // `limit-stops-per-head` stops the dispatchers stop re-dispatching the head;
 // the next push makes a new one.
 import { LIMIT_DEFAULTS, clampReset } from "../work-resolve-issue/limits.mjs";
+import { laneStop } from "./escalation-routes.mjs";
+
+export { ACTIONS_APP_ID, LANE_STOP, laneStop, retryRung } from "./escalation-routes.mjs";
 
 const ISO = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z`;
 const NAME = "[a-z][a-z0-9]*(?:-[a-z0-9]+)*";
@@ -147,3 +150,21 @@ export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false,
   const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease });
   return done.length >= limits["limit-stops-per-head"] && done.length > 0 && done.every(retryable) ? done.length : 0;
 }
+
+const startOf = (run) => Date.parse(run?.started_at ?? "");
+
+// How a head's emitter checks (`stopRuns`, REST shape) release its activity
+// checks for a same-head retry: `cut` is the newest emitter check's start
+// when that check is a lane stop and fewer than `cap` lane stops stand on the
+// head (the dispatcher's own per-head cap), so activity checks that started
+// before it stop counting; null otherwise. `stops` counts the lane stops.
+export function stopRelease(stopRuns, cap) {
+  const stops = stopRuns.filter(laneStop).length;
+  const newest = stopRuns.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), stopRuns[0]);
+  return { cut: laneStop(newest) && stops < cap ? startOf(newest) : null, stops };
+}
+
+// `runs` without those started before `cut`, a limit stop kept.
+export const releasedBy = (runs, cut, limits = LIMIT_DEFAULTS) =>
+  cut === null ? runs : runs.filter((run) => limitResetsAt(run, limits) !== null || !(startOf(run) < cut));
+
