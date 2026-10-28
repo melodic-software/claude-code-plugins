@@ -2,7 +2,7 @@
 # `lefthook install`, which also fetches the guardrails git hooks named in `remotes:` below; until
 # then the .claude/settings.json pre-push row runs the check-affected check on a Claude Code
 # session's pushes and says to install. Placement rules:
-# docs/conventions/check-placement/README.md.
+# docs/contracts/check-placement/README.md.
 pre-push:
   jobs:
     # Runs .claude/hooks/check-affected-pre-push.sh as committed at the merge-base with

@@ -15,7 +15,7 @@ markdown on 2026-09-08.
 
 The script reads the version inside the backticks after `changelog through`; the rest of the line
 is prose for the human reader and carries the as-of date the
-[upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)
+[upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/upstream-drift/README.md)
 requires. Git history of the ledger records when the line moved.
 
 Where the ledger lives, first hit wins:

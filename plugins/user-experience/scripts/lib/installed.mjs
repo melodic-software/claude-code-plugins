@@ -1,7 +1,7 @@
 // GENERATED from lib/installed.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
 // Which routing rows are installed and reachable here, under the routing-as-data detection contract
-// (docs/conventions/routing-as-data/README.md, Detection). Pure: every input arrives as an argument.
+// (docs/contracts/routing-as-data/README.md, Detection). Pure: every input arrives as an argument.
 //
 //   installed(rows, {pluginRoot, home, projectDir, projectMcpServers, pluginList, mcpList})
 //     -> {installed: [row ids], reachable: {id: true | false | null}, reason?, uncertain?}

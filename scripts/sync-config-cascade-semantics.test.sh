@@ -8,7 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/sync-config-cascade-semantics.py"
-REAL_README="$SCRIPT_DIR/../docs/conventions/config-cascade/README.md"
+REAL_README="$SCRIPT_DIR/../docs/contracts/config-cascade/README.md"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"

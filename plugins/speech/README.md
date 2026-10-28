@@ -76,7 +76,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 one. `/speech:check` reads it.
 
 The Python packages follow the
-[on-demand dependencies convention](../../docs/conventions/on-demand-dependencies/README.md#python).
+[on-demand dependencies convention](../../docs/contracts/on-demand-dependencies/README.md#python).
 `requirements.in` pins them, `requirements.txt` hash-locks every wheel, and the SessionStart hook
 installs them into `${CLAUDE_PLUGIN_DATA}/python/<lock hash>-<interpreter>/` with
 `pip install --require-hashes --only-binary :all:`. Nothing else installs a package. A failed
@@ -146,7 +146,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

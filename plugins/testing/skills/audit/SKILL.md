@@ -133,7 +133,7 @@ project, and a value the evidence does not settle is `unknown`, never a guess.
 
 ## Gate mode (`--check`). Fail closed
 
-The machine-checkable gate the [liveness-assertion contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/liveness-assertion/README.md)
+The machine-checkable gate the [liveness-assertion contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/liveness-assertion/README.md)
 "Core contract" fail-loud limb requires of an advisory surface's gating form:
 
 - exit **1**, a gating rule fired (`zero-assertion`, `recomputed-expectation`; `--strict` adds
@@ -153,7 +153,7 @@ Bare invocation reports and stops, the `audit` verb's read-only contract. Under 
 consumes:
 
 1. **Read the producer contract before the first write**.
-   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
+   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
    It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
    obligations, the self-ignore guard, and what a minimal producer may omit. Where the two disagree,
    the contract wins and this file is the defect. If it cannot be fetched, do not write. Report and

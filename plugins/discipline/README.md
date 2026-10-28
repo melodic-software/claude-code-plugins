@@ -78,7 +78,7 @@ authoritative source, frame the problem before the solution, never act on
 ambiguity, and treat training-data recall as unverified. Audits recent
 turns for unbacked claims and skipped verification, then corrects forward.
 Pending recommendations are audited too: each is grounded per the
-[recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md)
+[recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md)
 and reported old → new → why, or unchanged with why; a consequential one that
 cannot be settled is withheld as an open question.
 
@@ -520,7 +520,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

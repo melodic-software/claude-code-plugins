@@ -68,8 +68,8 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
-    "docs/conventions/instruction-exception-register/",
-    "docs/conventions/untrusted-content/",
+    "docs/contracts/instruction-exception-register/",
+    "docs/contracts/untrusted-content/",
     ".claude-lane/",
 )
 LANE_SOURCE_SEGMENT = ".claude"

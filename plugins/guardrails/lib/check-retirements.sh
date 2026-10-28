@@ -11,7 +11,7 @@
 # retirements.yaml and this helper evaluates every record against the consumer
 # repo: setup `check` runs the detection as one fixed step, setup `apply`
 # offers the per-record cleanup behind an operator gate. The owner doc is
-# docs/conventions/retired-conventions/README.md; this header keeps a named
+# docs/contracts/retired-conventions/README.md; this header keeps a named
 # operational duplicate of the contract so the executable ships self-described.
 #
 # MANIFEST. Records separated by a line that is exactly `---`; flat
@@ -52,7 +52,7 @@
 #   id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 #
 # Paths are emitted exactly as declared — repo-relative, never joined onto the
-# root (docs/conventions/windows-path-emit). A human summary goes to stderr.
+# root (docs/contracts/windows-path-emit). A human summary goes to stderr.
 #
 # CLEANUP. `--clean <id>` cleans exactly one record's artifact. delete unlinks
 # the file (only if content_match, when declared, still matches) or removes the

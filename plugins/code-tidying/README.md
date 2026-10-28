@@ -84,7 +84,7 @@ exclusions, and verification commands. This surface does not resolve user-global
 or `*.local.*` overlay layers. The bundled lane is the portable baseline, and
 personal variation is limited to lane names the team does not track: an uncommitted
 `.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
-[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md)).
+[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md)).
 
 ## Safety model
 
@@ -209,7 +209,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

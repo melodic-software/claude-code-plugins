@@ -387,7 +387,7 @@ repeated_added_bodies() {
 }
 
 if [[ "$mode" == "--check-order" ]]; then
-  changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
+  changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md docs/contracts/*/CHANGELOG.md)
   declare -A seen_version
   misordered=0
   duplicated=0
@@ -633,11 +633,11 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
       consumed_fragment["${rest%%/*}"]=1
     fi
     ;;
-  docs/conventions/*/CHANGELOG.md)
+  docs/conventions/*/CHANGELOG.md | docs/contracts/*/CHANGELOG.md)
     # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
     # a changelog exactly one directory below a root is in scope, never one
     # nested deeper inside a plugin.
-    rest="${path#docs/conventions/}"
+    rest="${path#docs/*/}"
     if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
       touched_changelogs+=("$path")

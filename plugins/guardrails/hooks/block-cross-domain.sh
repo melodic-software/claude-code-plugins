@@ -8,7 +8,7 @@
 # domain or neutral and finds the domains a command names.
 #
 # THE MAP. ${CLAUDE_PLUGIN_DATA}/identity-domains.json, machine-local and never
-# tracked. Its keys follow docs/conventions/plugin-option-naming:
+# tracked. Its keys follow docs/contracts/plugin-option-naming:
 #
 #   {
 #     "domains": {

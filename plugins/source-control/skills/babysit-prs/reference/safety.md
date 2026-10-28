@@ -1284,7 +1284,7 @@ says nothing about the sanctioned form; that spelling is forbidden by this file 
 The grant is the operator's, never the plugin's. A plugin cannot ship permission rules, and an
 agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
 are owned by the marketplace's permission-rule-hygiene convention:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/permission-rule-hygiene/README.md>.
 
 Reachability is **not** implied by a `permissions.allow` rule. Whether shell allow rules resolve at
 all while a host safety classifier is active is governed by the host's own auto-mode configuration.

@@ -41,7 +41,7 @@ The discriminating question is *what survives the failure it remediates*:
 - Cloud `/schedule` routines are rejected as the restart consumer: it relaunches lanes
   from the local checkout, which a routine cannot reach. Where a lane's own stage runs
   is a separate choice, the execution-target convention
-  (`docs/conventions/execution-target/` in the marketplace repository), applied by
+  (`docs/contracts/execution-target/` in the marketplace repository), applied by
   `start` and `restart` (see `context/config.md`, "Execution target"). No lane stage
   runs as a cloud routine until a stage is marked trusted (`ET_TRUSTED_STAGES` in
   `lane-launcher.sh` is empty, so every stage is refused every cloud host).

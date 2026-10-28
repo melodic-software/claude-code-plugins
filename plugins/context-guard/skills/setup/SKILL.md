@@ -131,7 +131,7 @@ default zone bands, zones.json shape) are owned by
      in, and the PostCompact marker hook applies its own in-script default (on). The
      operator-inspectable source of truth is this plugin's `pluginConfigs` options block in the
      user `settings.json` (the hook-config-delivery convention,
-     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
+     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md>,
      owns why the declared `default` field is not delivered to hook processes).
    - A `zone_line_data` item outside the four words reads as that option's default, and the module
      logs one transcript line naming it at session start. Report the value as invalid and the

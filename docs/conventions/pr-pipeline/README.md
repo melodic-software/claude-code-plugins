@@ -36,7 +36,7 @@ rest and a human steps in only where a lane escalates or a rung requires it. Thi
 shape every PR-side lane builds on. Each lane's mechanics live in its workflow and the skills it
 calls, not here.
 
-The loop-lane convention ([`loop-lane`](../loop-lane/README.md)) governs local loop sessions; this
+The loop-lane convention ([`loop-lane`](../../contracts/loop-lane/README.md)) governs local loop sessions; this
 convention governs CI lanes. Holds, escalation and work classes stay owned by loop-lane and the
 autonomy plugin, and this doc points at them.
 
@@ -418,7 +418,7 @@ Every lane:
 - Works each layer of a stack but touches only the lowest unmerged layer when fixing, and never
   rebases a stack.
 - Respects the cross-lane hold, the `do-not-merge` label
-  ([loop-lane](../loop-lane/README.md#cross-lane-pr-hold)), and the merge rule in AGENTS.md. A lane
+  ([loop-lane](../../contracts/loop-lane/README.md#cross-lane-pr-hold)), and the merge rule in AGENTS.md. A lane
   escalates through the `needs-human` role in the same section's escalation contract.
 
 ## Activities
@@ -522,7 +522,7 @@ Each leaf declares:
   activity or under a separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
   which can quote such text. Ingested text is data, never instructions
-  ([`untrusted-content`](../untrusted-content/README.md)).
+  ([`untrusted-content`](../../contracts/untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
   `baseline`, `findings`). An activity reads nothing from a session. `changed-paths` is computed
   by the base-SHA config reader from the PR's file list, never from head text. It names what the
@@ -689,10 +689,10 @@ The write group sits on each caller job, behind an `if:` that leaves out the lan
 Each leaf reports:
 
 - A verdict: `pass`, `fail`, `neutral` or `skipped`.
-- Findings in the detector-findings shape ([`detector-findings`](../detector-findings/README.md)),
+- Findings in the detector-findings shape ([`detector-findings`](../../contracts/detector-findings/README.md)),
   for the commit the leaf judged. A new commit gets a new verdict, even when its content is
   unchanged.
-- An artifact bundle per [`record-bundle`](../record-bundle/README.md).
+- An artifact bundle per [`record-bundle`](../../contracts/record-bundle/README.md).
 - A check run named `<lane> / <leaf>`, for example `pr-refine / simplify`; a composite gets none.
 
 A skip reports as a neutral check with one reason from the schema's `$defs/skip-reason`:
@@ -1108,10 +1108,10 @@ lane identity's reasons comment from an earlier run unchanged (same score, reaso
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal when a holding reason is one only a person clears
 (`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a high path, a
-trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner));
+trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner));
 any other reason, such as review evidence not bound to the head, keeps its comment and is judged
 again each run. An escalation
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract))
+([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract))
 posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
 person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
 the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
@@ -1278,7 +1278,7 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner), with cost and trust holds
+label only for a cause a person must clear ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner), with cost and trust holds
 kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
 a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
@@ -1867,11 +1867,11 @@ exists (#7711).
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
 `verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
+([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
 so such a pull request never merges unattended, and address-feedback's own round cap bounds the
 fix rounds on it. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
-on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
 rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,

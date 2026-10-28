@@ -196,7 +196,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   irreversible, or security). A consequential verdict the evidence cannot settle is withheld:
   classify it UNCERTAIN and name the evidence that would settle it. Contract:
   [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../context/recommendation-basis.md);
-  full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
+  full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
 - [ ] D4.5. React to the parent comment via `gh api .../reactions`. One reaction per comment
   (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
   (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or a mix

@@ -7,7 +7,7 @@
 // Three checks, all against scripts/prerequisites-baseline.txt, which lists
 // today's gaps as `<plugin> <gap>` lines so main stays green:
 //   1. Every plugins/*/prerequisites.json passes the schema in
-//      docs/conventions/prerequisites/, read through lib/prerequisites.mjs.
+//      docs/contracts/prerequisites/, read through lib/prerequisites.mjs.
 //      Gap `schema`: a file not yet in the schema's shape.
 //   2. A plugin with a valid file carries the generated checker copies
 //      (lib/prerequisites.mjs, .sh, .ps1) registered in scripts/shared-copies.txt.
@@ -295,7 +295,7 @@ export function main(argv, out = { log: console.log, error: console.error }) {
   }
   if (findings.length) {
     for (const f of findings) out.error(f);
-    out.error(`${findings.length} finding(s). Declare the tool per docs/conventions/prerequisites/README.md.`);
+    out.error(`${findings.length} finding(s). Declare the tool per docs/contracts/prerequisites/README.md.`);
     return 1;
   }
   out.log(

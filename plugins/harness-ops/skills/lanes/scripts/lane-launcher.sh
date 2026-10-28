@@ -152,7 +152,7 @@
 #   schedule    optional; {"every_minutes": N}, N a whole number 1-999. Only a
 #               lane with one gets print-schedule entries.
 #
-# Execution target (docs/conventions/execution-target/README.md in the
+# Execution target (docs/contracts/execution-target/README.md in the
 # marketplace repository is the contract):
 #   start/restart fetch origin's default branch, read
 #   docs/conventions/execution-target.yaml from that commit (never the working
@@ -1052,7 +1052,7 @@ arm_stop_gate() {
 }
 
 # --- Execution target ---------------------------------------------------------
-# The contract is docs/conventions/execution-target/README.md in the marketplace
+# The contract is docs/contracts/execution-target/README.md in the marketplace
 # repository. The file is a policy floor: it is read only from origin's default
 # branch after a fetch, never from the working tree, so an unmerged edit cannot
 # move a lane. Everything read from it, from `gh`, or from a telemetry comment

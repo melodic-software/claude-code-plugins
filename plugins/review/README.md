@@ -151,7 +151,7 @@ It is not the approval-marker publish gate (#7956), and it does not cover
 - **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
   ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
-  `docs/conventions/ecosystem-commands/README.md`), falling back to your documented conventions,
+  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions,
   then its own bundled generic defaults as a last resort.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
   the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth
@@ -238,7 +238,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

@@ -35,7 +35,7 @@
 # repo root. Copies materialized into consuming plugins exist only because
 # installed plugins are cache-isolated and must be self-contained — never edit a
 # copy. Edit the source and run scripts/sync-shared-copies.sh; CI rejects
-# drifted copies. Owner contract: docs/conventions/commit-convention/.
+# drifted copies. Owner contract: docs/contracts/commit-convention/.
 #
 # Usage:
 #   resolve-convention-pattern.sh <repo_root> <subject_pattern|pr_title_pattern>
@@ -96,7 +96,7 @@ esac
 # Team-tracked layer only — the enforcement authority (see header).
 readonly TEAM_FILE="$repo_root/.claude/source-control.md"
 
-# --- Neutral convention SSOT (docs/conventions/commit-convention/, #1141) ---
+# --- Neutral convention SSOT (docs/contracts/commit-convention/, #1141) ---
 # The team file MAY declare `## convention_source` naming a repo-relative
 # flat-scalar YAML file (the tool-agnostic SSOT other consumers — commit-msg
 # hooks, CI — read with one sed). When declared, that file is authoritative for

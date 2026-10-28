@@ -119,7 +119,7 @@ Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
 Reconfigure the observer's `userConfig` keys through Claude Code's native flow, per the
 marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record): interactive `/plugin configure session-flow@<marketplace>`
 any time, or headless `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>`
 (repeatable per key). Against an already-installed plugin it prints `already installed` and still

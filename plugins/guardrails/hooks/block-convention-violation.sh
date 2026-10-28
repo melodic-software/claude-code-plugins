@@ -8,7 +8,7 @@
 # and the `gh pr create --title` value are validated against the POSIX-ERE
 # pattern resolved from the consumer's tracked `.claude/source-control.md` by
 # the vendored enforcement resolver (resolve-convention-pattern.sh — the
-# commit-convention seam, docs/conventions/commit-convention/). The sibling
+# commit-convention seam, docs/contracts/commit-convention/). The sibling
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #

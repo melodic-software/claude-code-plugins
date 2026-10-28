@@ -827,7 +827,7 @@ fi
 # the files it proves unmapped, and a live run would also fail on main as soon
 # as any other suite began naming one.
 eco_yaml=(plugins/toolchain/reference/ecosystems/zz-probe.yaml
-  docs/conventions/ecosystem-commands/examples/zz-probe.yaml)
+  docs/contracts/ecosystem-commands/examples/zz-probe.yaml)
 mk_repo repo
 for y in "${eco_yaml[@]}"; do
   mkdir -p "$repo/${y%/*}"

@@ -11,7 +11,7 @@
 
 This is the provenance record for acting on the claude.dev post about choosing an effort level in
 Claude Code. It follows the record shape of [claude-dev-sonnet-5-5-blog.md](claude-dev-sonnet-5-5-blog.md)
-and the [upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Each
+and the [upstream-drift](../contracts/upstream-drift/README.md#required-parts) convention. Each
 row is our decision in our own words; no row restates the post or a docs page. This record lists
 no figure from the post.
 

@@ -1,6 +1,6 @@
 # Bundled portable default — python. Rung-4 fallback ONLY (consumer
 # .claude/ecosystems/python.yaml overrides key-by-key). Contract + schema:
-# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md
 #
 # fix-cmd is format-only (ruff format). Code-changing autofixes (ruff check
 # --fix) live in code-fix-cmd and require /toolchain:lint --code-fix plus

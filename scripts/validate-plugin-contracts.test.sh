@@ -74,7 +74,7 @@ reset_fixture() {
 # arguments it still carries one unrelated row, so an empty table is only ever
 # asserted deliberately.
 write_registry() {
-  mkdir -p "$TMP/docs/conventions/config-cascade"
+  mkdir -p "$TMP/docs/contracts/config-cascade"
   {
     echo '# Consumer config cascade (fixture)'
     echo
@@ -96,7 +96,7 @@ write_registry() {
     echo '### Overlay spelling drift'
     echo
     echo 'Prose after the table.'
-  } >"$TMP/docs/conventions/config-cascade/README.md"
+  } >"$TMP/docs/contracts/config-cascade/README.md"
 }
 
 # make_plugin <name> <user-config-keys> -- an empty string declares no
@@ -178,7 +178,7 @@ fi
 #         it, the shape the shipping "`standards` (`planning`, `review`)" row
 #         takes. Every backticked token in the cell is an owner. -------------
 reset_fixture
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 {
   echo '# Consumer config cascade (fixture)'
   echo
@@ -187,7 +187,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo '| Surface | Consumer config path | Layers | Conformance |'
   echo '|---|---|---|---|'
   echo '| `a-shared-surface` (`alpha`, `gamma`) | `.claude/shared.yaml` | all three | conforms |'
-} >"$TMP/docs/conventions/config-cascade/README.md"
+} >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -306,9 +306,9 @@ fi
 
 # --- 7. Present but restructured: the Implementers section is gone. ---------
 reset_fixture
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 printf '# Consumer config cascade (fixture)\n\nNo Implementers section here.\n' \
-  >"$TMP/docs/conventions/config-cascade/README.md"
+  >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -322,7 +322,7 @@ fi
 reset_fixture
 # Drop the one unrelated row's section so the Implementers table is genuinely
 # empty rather than merely narrow.
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 {
   echo '# Consumer config cascade (fixture)'
   echo
@@ -330,7 +330,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo
   echo '| Surface | Consumer config path | Layers | Conformance |'
   echo '|---|---|---|---|'
-} >"$TMP/docs/conventions/config-cascade/README.md"
+} >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -1314,7 +1314,7 @@ fi
 # Empty fails; over budget and malformed warn without a failure bullet; a
 # conforming hint is silent. write_arg_body's "-" omits the key, so empty
 # hints are written as the literal quoted string.
-HINT_DOC='docs/conventions/argument-hint/README.md'
+HINT_DOC='docs/contracts/argument-hint/README.md'
 HINT_MALFORMED='argument-hint is malformed'
 
 hint_case() {
@@ -1519,7 +1519,7 @@ fi
 
 # --- 8e. Plugin names and option text. --------------------------------------
 # displayName fails; each title and description shape warns on its own line.
-OPT_DOC='docs/conventions/plugin-option-naming/README.md'
+OPT_DOC='docs/contracts/plugin-option-naming/README.md'
 
 # write_manifest <plugin> <extra-json-members> -- written verbatim after name.
 write_manifest() {

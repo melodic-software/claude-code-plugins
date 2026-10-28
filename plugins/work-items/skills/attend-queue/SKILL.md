@@ -42,10 +42,10 @@ merges. The worker loop (`/work-items:work-loop`) is the unattended surface.
 
 Shared cross-lane concerns, topology, the escalation contract, capability tiers, stop shapes,
 telemetry, the guard binding, are owned by the loop-lane convention
-(`docs/conventions/loop-lane/README.md` in this plugin's marketplace repository) and held here by
+(`docs/contracts/loop-lane/README.md` in this plugin's marketplace repository) and held here by
 citation; this skill adds only the attended-lane mechanics below. To skip an issue, hold a PR, or pause or stop a lane, the operator follows that convention's
 section 7, "Operator steering through GitHub state"
-(`docs/conventions/loop-lane/README.md#7-operator-steering-through-github-state`).
+(`docs/contracts/loop-lane/README.md#7-operator-steering-through-github-state`).
 
 ## Attention view (one view, every source)
 
@@ -73,7 +73,7 @@ Build a single merged view, each row tagged by kind and carrying its link:
    re-adds that label once the lane is funded again.
 2. **`[held]`**. Open pull requests, from the same pull-request listing, carrying the human-gated
    role label or the `do-not-merge` hold label the loop-lane convention defines
-   (`docs/conventions/loop-lane/README.md#cross-lane-pr-hold`) that do not list as `[escalated]`,
+   (`docs/contracts/loop-lane/README.md#cross-lane-pr-hold`) that do not list as `[escalated]`,
    so none lists twice. The row names which label holds it.
 3. **`[ratify]`**, the subset of escalated items whose marker carries `kind=ratify-c3`: C3
    bug-fix-shaped admissions the worker loop queued for first-drain ratification (earn-trust

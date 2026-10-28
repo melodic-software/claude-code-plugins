@@ -138,7 +138,7 @@ On a hard-fail, STOP **and** write a structured verification-environment gap rep
 
 Four keys govern this run: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance` (`auto | true | false`). [context/e2e-config.md](context/e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
 
-- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
+- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
 - `e2e_driver` and `reuse_running_instance`: run
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
   as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
@@ -179,7 +179,7 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md). When the
 
 When origin's default branch declares a "Workspace environment" entry
 (`docs/conventions/workspace-environment.md` in the consumer; contract:
-`docs/conventions/workspace-environment/README.md` in this plugin's marketplace repository), the
+`docs/contracts/workspace-environment/README.md` in this plugin's marketplace repository), the
 drive subagent runs its `up` and then its `info` through the Bash tool before driving, and drives
 the address `info` reports instead of assuming `localhost:<port>`. The entry is read from the
 fetched default-branch commit, never the working tree. A declared `up` counts as the orchestrator

@@ -25,7 +25,7 @@ contract_suite=scripts/validate-plugin-contracts.test.sh
 # --print-manifest surface (not a transcription of src=/copies=( scraping), so
 # renaming those variables cannot make this assertion go green for the wrong
 # reason.
-for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standards/README.md; do
+for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/contracts/standards/README.md; do
   derived="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
   manifest="scripts/sync-shared-copies.sh"
   expected="$(cd "$REPO_ROOT" && bash "$manifest" --print-manifest | awk -F '\t' -v s="$src" '$1=="src"{on=($2==s)} on && $1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
@@ -81,13 +81,13 @@ else
 fi
 
 # --- LIVE repo: a STRUCTURAL basename that is also a sync src -------------
-# docs/conventions/standards/README.md is both. R3/R4 must ignore the basename
+# docs/contracts/standards/README.md is both. R3/R4 must ignore the basename
 # (every plugin has a README.md, so the match carries no signal) while R5 must
 # still fan the change out to the differently-named copies the manifest
 # declares — plugins/*/reference/standards-contract.md — and on to the suites
 # that bind against them. Neither the synthetic fixture nor the copy-set
 # assertions above isolate that interaction.
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh docs/conventions/standards/README.md 2>/dev/null)"
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh docs/contracts/standards/README.md 2>/dev/null)"
 RC=$?
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/planning/tests/standards-binding.test.sh &&

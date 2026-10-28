@@ -1,7 +1,7 @@
 # Bundled portable default — go. Rung-4 fallback ONLY (a consuming repo's
 # .claude/ecosystems/go.yaml overrides this key-by-key; this file is never
 # written into a consumer repo). Ecosystem-commands contract + schema:
-# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md
 #
 # project-discovery: a root go.mod bounds `./...` package-pattern expansion —
 # verified empirically (Go 1.26.5) that go build/test/list ./... from a repo

@@ -73,7 +73,7 @@ below):
 - `test_guards_enabled` (default `false`) turns on the `test-weaken` hook (PreToolUse), which tells
   Claude which tests, assertions or expected values an edit removes, skips or changes. Can't-fail
   findings are report-only, so they come from `/testing:audit` on demand, not from a per-edit hook
-  ([check placement](../../docs/conventions/check-placement/README.md)).
+  ([check placement](../../docs/contracts/check-placement/README.md)).
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
   fails open.
 
@@ -206,7 +206,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

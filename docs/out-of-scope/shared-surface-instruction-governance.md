@@ -19,7 +19,7 @@ a consuming team reports an adjudication I15 surfaces but cannot resolve.
   run against here and would be authored from imagination rather than friction.
 - `harness-config:audit-instructions` check **I15** already detects conflicting instruction
   *pairs* across surfaces. Ownership only becomes live when two people write to the same surface.
-- `docs/conventions/instruction-exception-register/` governs which instructions may be
+- `docs/contracts/instruction-exception-register/` governs which instructions may be
   *deleted*, not who *owns* a shared surface. Adopting it as the ownership answer is a misread
   (#3568).
 

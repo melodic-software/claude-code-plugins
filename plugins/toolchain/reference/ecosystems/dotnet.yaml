@@ -1,7 +1,7 @@
 # Bundled portable default — dotnet. Rung-4 fallback ONLY (a consuming repo's
 # .claude/ecosystems/dotnet.yaml overrides this key-by-key; this file is never
 # written into a consumer repo). Ecosystem-commands contract + schema:
-# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md
 #
 # opt-in rationale: dotnet format's own docs state preferences are read from
 # .editorconfig "if present, otherwise a default set of preferences will be

@@ -2,7 +2,7 @@
 """The parser side of `inventory.py --reader=parser`: install the pinned
 JavaScript parser on first use, then talk to it as one long-lived node process.
 
-Dependencies are never vendored (docs/conventions/on-demand-dependencies/).
+Dependencies are never vendored (docs/contracts/on-demand-dependencies/).
 `js/package.json` and `js/package-lock.json` pin acorn and eslint-scope; the
 first parser run copies both into an install directory and runs `npm ci`
 there, which installs exactly the locked versions and checks each tarball

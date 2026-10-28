@@ -117,14 +117,14 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   `already installed`, the observation recorded here on 2.1.207, but it **still writes the value**:
   the short-circuit is about the install, not the config write. The current verified-version record,
   including `project`/`local` scope, lives in the
-  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record). On 2.1.207
+  [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md#verified-version-record). On 2.1.207
   `claude plugin` had no `configure` subcommand (verified against `claude plugin --help`;
   `/plugin configure` was an interactive slash command only), so headless reconfiguration was
   another `--config` install, not uninstall then reinstall. Claude Code now documents a
   non-interactive `claude plugin configure`
   ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
   as of 2026-10-11; recheck when that section drops the subcommand), and the
-  [plugin-reconfiguration convention § The two routes](conventions/plugin-reconfiguration/README.md#the-two-routes)
+  [plugin-reconfiguration convention § The two routes](contracts/plugin-reconfiguration/README.md#the-two-routes)
   owns which route setups print (as of 2026-10-11; recheck when that section changes the routes
   setups print or adopts `claude plugin configure`).
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless

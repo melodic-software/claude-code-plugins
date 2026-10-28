@@ -15,7 +15,7 @@
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
 // them from the operator's own managed and user settings (operator-options.mjs, channel F
-// of docs/conventions/hook-config-delivery), so a path the caller chose cannot stand in for
+// of docs/contracts/hook-config-delivery), so a path the caller chose cannot stand in for
 // one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them. The
 // optional fifth, promotion_evidence_credential_roots, read the same way, becomes the checker's
 // --credential-roots when set; a malformed entry fails closed (credentialRootsArgs).

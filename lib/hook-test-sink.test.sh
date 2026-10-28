@@ -226,7 +226,7 @@ else
 fi
 
 # --- check_envelope: schema-driven envelope conformance ---------------------
-SCHEMA="$LIB_DIR/../docs/conventions/hook-telemetry/envelope.schema.json"
+SCHEMA="$LIB_DIR/../docs/contracts/hook-telemetry/envelope.schema.json"
 CAP_E="$WORK/cap-e"
 sink_e=$(make_sink "cat >\"$CAP_E\"")
 emit_with_sink "$sink_e" "$WORK"

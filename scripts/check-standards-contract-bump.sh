@@ -26,9 +26,9 @@ cd "$script_dir/.."
 # shellcheck source=lib/changelog-fragments.sh
 . "$script_dir/lib/changelog-fragments.sh" || exit 2
 
-src="docs/conventions/standards/README.md"
-schema="docs/conventions/standards/standards.schema.json"
-changelog="docs/conventions/standards/CHANGELOG.md"
+src="docs/contracts/standards/README.md"
+schema="docs/contracts/standards/standards.schema.json"
+changelog="docs/contracts/standards/CHANGELOG.md"
 
 base="${1:-}"
 if [[ -z "$base" ]]; then

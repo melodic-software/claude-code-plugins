@@ -5,7 +5,7 @@
 # dependency on any host-repo assertion library — the plugin is standalone.
 #
 # Duplicated across plugins by design, not drift — see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 # Strip the inherited git environment so a fixture `git init` in these tests
 # resolves to the mktemp fixture, never the real repo (#2840). `-C` only changes

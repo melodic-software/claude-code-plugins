@@ -29,7 +29,7 @@ qualify it:
 - **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
   never write. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure
   rate-limit-guard@<marketplace>` any time, or headless `claude plugin install
   rate-limit-guard@<marketplace> -s <scope> --config <key>=<value>` (repeatable per key). Against
@@ -136,7 +136,7 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      reads `rate_limit_guard_enabled` from its `CLAUDE_PLUGIN_OPTION_*` variable and treats unset
      as on. The person-inspectable source of truth is this plugin's `pluginConfigs` options block
      in the user `settings.json` (the hook-config-delivery convention,
-     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
+     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md>,
      owns why the declared `default` field is not delivered to hook processes).
    - A `rate_limit_lines_enabled` key left in `pluginConfigs` does nothing; `model_notices`
      replaced it. Report it as INFO, safe to remove.

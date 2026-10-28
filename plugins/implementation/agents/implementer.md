@@ -131,7 +131,7 @@ leaves the mode at `worker`.
 The `model` frontmatter above is the structural seam binding of the **strong capability tier** to
 the current recommended model alias. That tier is the default implementer tier of the
 order-defined, family-agnostic tier vocabulary owned by the loop-lane convention
-(`docs/conventions/loop-lane/README.md` §3 in this plugin's marketplace repository). It exists so a
+(`docs/contracts/loop-lane/README.md` §3 in this plugin's marketplace repository). It exists so a
 worker's tier never depends on the orchestrator root's model. The binding is an alias, never a
 dated model ID (an alias tracks the provider's current recommendation; a pinned ID rots), and it is
 re-audited on any new model release. Tier *definitions* stay abstract; only this seam binds one to an alias.

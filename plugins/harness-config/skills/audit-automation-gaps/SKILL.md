@@ -261,7 +261,7 @@ gates, not passed.
    Falsified by a per-edit hook that sends findings to the model, a Claude Code hook that blocks a
    tool call to enforce a report-only check, or documentation presenting the local hook as a
    replacement for the CI check. The rubric is this marketplace's house rule, not upstream
-   guidance: [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric).
+   guidance: [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric).
 3. **Fits the remaining budget, as a hard gate.** Resolve the budget through the two-rung ladder in
    [context/hook-timing.md](context/hook-timing.md), then report four things: the measurement, the
    budget row judged against, which rung supplied it, and the headroom arithmetic. Falsified when

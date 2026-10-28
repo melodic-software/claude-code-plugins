@@ -18,9 +18,9 @@ SCRIPT="$SELF_DIR/check-standards-contract-bump.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-CANONICAL="docs/conventions/standards/README.md"
-CHANGELOG="docs/conventions/standards/CHANGELOG.md"
-SCHEMA="docs/conventions/standards/standards.schema.json"
+CANONICAL="docs/contracts/standards/README.md"
+CHANGELOG="docs/contracts/standards/CHANGELOG.md"
+SCHEMA="docs/contracts/standards/standards.schema.json"
 
 canonical_v1() {
   printf -- '---\nstandards-contract: 1.0.0\n---\n\n# Standards Convention\n\ncontract body v1\n'
@@ -41,7 +41,7 @@ changelog_v1_1() {
 # new_fixture <out-var> → fresh tree with the gate and the generator copied in.
 new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --sut sync-shared-copies.sh --plugins || return 1
-  mkdir -p "${!1}/docs/conventions/standards"
+  mkdir -p "${!1}/docs/contracts/standards"
 }
 
 # carrying_plugin <fixture> <plugin> <version> → manifest and registry entry.

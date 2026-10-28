@@ -1586,7 +1586,7 @@ jobs:
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
       # the hook never fires on a default install. The channel decision matrix
-      # (docs/conventions/hook-config-delivery/) rules argv out for hooks; this
+      # (docs/contracts/hook-config-delivery/) rules argv out for hooks; this
       # gate pins the exact regression #1242 fixed.
       - name: Check plugin hook configs for bare userConfig argv tokens
         id: userconfig_argv
@@ -2169,7 +2169,7 @@ jobs:
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
-      # docs/conventions/prerequisites/: the gate validates every
+      # docs/contracts/prerequisites/: the gate validates every
       # prerequisites.json and fails on an undeclared tool not listed in
       # scripts/prerequisites-baseline.txt. Its suites run through the selector.
       - name: Check plugin prerequisites are declared

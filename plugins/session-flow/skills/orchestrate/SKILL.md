@@ -106,7 +106,7 @@ told:
    Where a configured batched drain decides when returns are read, a unit lands once its return
    has been read and verified. A worker runs where its parent session runs; cloud placement is
    chosen per work item by the execution-target contract
-   (`docs/conventions/execution-target/README.md` in the marketplace repository).
+   (`docs/contracts/execution-target/README.md` in the marketplace repository).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep

@@ -14,7 +14,7 @@
 # sink that never fires fails the assertion instead of hanging the suite.
 #
 # check_envelope asserts a captured envelope against
-# docs/conventions/hook-telemetry/envelope.schema.json, reading the required
+# docs/contracts/hook-telemetry/envelope.schema.json, reading the required
 # fields, their types and their minimums from that file with jq, so a suite
 # carries no transcribed field list to drift from the schema.
 #
@@ -65,7 +65,7 @@ check_envelope() {
   local env_file="${1:-}" schema="${2:-${HOOK_ENVELOPE_SCHEMA:-}}" root reason rc
   if [[ -z "$schema" ]]; then
     root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)" || root=""
-    schema="$root/docs/conventions/hook-telemetry/envelope.schema.json"
+    schema="$root/docs/contracts/hook-telemetry/envelope.schema.json"
   fi
   if [[ ! -s "$schema" ]]; then
     echo "check_envelope: schema not found or empty: $schema" >&2

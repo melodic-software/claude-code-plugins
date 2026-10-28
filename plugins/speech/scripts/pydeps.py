@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # GENERATED from lib/pydeps.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-"""On-demand Python packages for a plugin, per docs/conventions/on-demand-dependencies (Python).
+"""On-demand Python packages for a plugin, per docs/contracts/on-demand-dependencies (Python).
 Standard library only: it installs and launches the packages the plugin's scripts import. The plugin's settings
 (name, supported Pythons, probe modules, source builds, pip timeout, check rows) are in pydeps.json beside this file.
 

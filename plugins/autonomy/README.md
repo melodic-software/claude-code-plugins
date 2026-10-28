@@ -148,7 +148,7 @@ session, this gate for a standing lane.
 bare `CLAUDE_PLUGIN_OPTION_*` environment: for an unconfigured key, a watched repository's own
 `.claude/settings.json` `env` block populates that variable freely, and a gate whose enablement (or
 sentinel, or marker path) the watched repository controls is not a gate
-(`docs/conventions/hook-config-delivery`). Per-key precedence, ordered after Claude Code's own
+(`docs/contracts/hook-config-delivery`). Per-key precedence, ordered after Claude Code's own
 settings precedence:
 
 1. **Managed settings** (fixed root-owned paths + `managed-settings.d/` drop-ins), an org can veto
@@ -310,7 +310,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in this marketplace's plugin-reconfiguration convention (`docs/conventions/plugin-reconfiguration/README.md`).
+   old value until a fresh session starts, are recorded in this marketplace's plugin-reconfiguration convention (`docs/contracts/plugin-reconfiguration/README.md`).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

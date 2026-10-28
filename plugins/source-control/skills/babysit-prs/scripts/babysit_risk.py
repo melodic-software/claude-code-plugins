@@ -1155,7 +1155,7 @@ def holding(result: RiskResult) -> list[Reason]:
 
 
 # The holding reasons only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 # with cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
 # security finding, a trusted-actor widening, a cost hold, every high path
 # (the floor, a configured denied path, or an aliasing path, symlink,

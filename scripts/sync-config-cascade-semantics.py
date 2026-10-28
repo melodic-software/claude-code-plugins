@@ -5,7 +5,7 @@
     scripts/sync-config-cascade-semantics.py --check [README]   fail when the block is stale
 
 SINGLE SOURCE OF TRUTH: the Implementers table in
-`docs/conventions/config-cascade/README.md`. Its `Who wins` and `Merge form` columns
+`docs/contracts/config-cascade/README.md`. Its `Who wins` and `Merge form` columns
 render into the block between the markers below, under `## Semantics at a glance`.
 Never hand-edit the block: change the Implementers row and re-run this script. CI runs
 `--check` and rejects drift, the same contract `scripts/sync-plugin-options-docs.py` uses.
@@ -29,7 +29,7 @@ END = "<!-- END GENERATED: config-cascade semantics -->"
 
 README = (
     pathlib.Path(__file__).resolve().parent.parent
-    / "docs/conventions/config-cascade/README.md"
+    / "docs/contracts/config-cascade/README.md"
 )
 COLUMNS = ("Surface", "Who wins", "Merge form")
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")

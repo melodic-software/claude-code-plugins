@@ -120,7 +120,7 @@ implement it by reference, do not restate it. Plugin-side notes only:
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose. It is not a
 consumer-project file this skill writes. Reconfigure through Claude Code's native flow, per the
 marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
 time, or headless `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
 (repeatable per key). Against an already-installed plugin it prints `already installed` and still

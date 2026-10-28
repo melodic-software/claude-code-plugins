@@ -10,7 +10,7 @@ same grant and worktree-root needs.
 ## Why a preflight, not a fixer
 
 The assistant **cannot self-apply** the remediation, for two independent reasons the repo's
-[permission-rule-hygiene convention](../../../docs/conventions/permission-rule-hygiene/README.md)
+[permission-rule-hygiene convention](../../../docs/contracts/permission-rule-hygiene/README.md)
 documents in full:
 
 - Writes to `.claude/` settings fall under Claude Code's protected-path handling, so an agent
@@ -96,7 +96,7 @@ The preflight probes a small representative subset of the allow floor: `git add`
 too). It does not probe a push: the lane never runs `git push`, it pushes only with `bash
 <plugin-root>/scripts/lane-push.sh …` (loop-lane convention, "Lane write identity"). That call
 is interpreter-led, so no allow rule pre-approves it
-([permission-rule-hygiene](../../../docs/conventions/permission-rule-hygiene/README.md)); the
+([permission-rule-hygiene](../../../docs/contracts/permission-rule-hygiene/README.md)); the
 permission mode decides it, the auto-mode classifier in an unattended lane. It reads the effective `permissions.allow` from the operator's user-global settings
 and the project settings. It never runs a live permission probe. A verb counts as covered only by an
 **open-glob** grant: `Bash(git commit *)` or `Bash(git commit:*)`. A **bare-exact** rule

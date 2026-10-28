@@ -1155,7 +1155,7 @@ if [[ "$single_owners" -eq 1 ]]; then
 else
   fail "the single-source definition has exactly one owner — $single_owners files carry the heading"
 fi
-recbasis="$PLUGIN_ROOT/../../docs/conventions/recommendation-basis/README.md"
+recbasis="$PLUGIN_ROOT/../../docs/contracts/recommendation-basis/README.md"
 if [[ ! -f "$recbasis" ]]; then
   pass 'recommendation-basis carry-forward not checked outside the monorepo'
 elif grep -qE 'Basis: verified \(single source\)' "$recbasis"; then

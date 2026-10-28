@@ -9,7 +9,7 @@
 # Exit: 0 every consumer matches the source, 1 drift or a stale registration,
 # 2 usage or a prerequisite this gate cannot verify around.
 #
-# WHY. docs/conventions/loop-lane/README.md section 6 orders every consuming
+# WHY. docs/contracts/loop-lane/README.md section 6 orders every consuming
 # lane body to INLINE the floor, because an installed plugin cannot read a
 # sibling plugin's files at runtime: the values have to be in the lane body or
 # the lane cannot apply them. Inlining is therefore the design, not a defect,
@@ -43,7 +43,7 @@
 # author does not add the entry, the six registered paths still agree, CI is
 # green, and the next contract change strands that seventh copy. That is the
 # same blindness that produced the drift this gate exists for, one level up,
-# and it is the false-green shape docs/conventions/liveness-assertion/ names.
+# and it is the false-green shape docs/contracts/liveness-assertion/ names.
 #
 # So before comparing anything, every TRACKED file is scanned for the floor's
 # opening bullet and any carrier outside the registry FAILS. Discovery uses the
@@ -104,7 +104,7 @@
 # adds the shape to the anchor here, in the same change.
 #
 # LIVENESS-ASSERTION CONVENTION, taxonomy row **Gate / classifier**
-# (docs/conventions/liveness-assertion/README.md). That row requires the verdict
+# (docs/contracts/liveness-assertion/README.md). That row requires the verdict
 # to reflect the state actually read, and fail-closed on ambiguity rather than
 # green on a misread signal. This gate satisfies it through the core contract's
 # **fail loud** limb, not the agent-readable one: it blocks. Every input it
@@ -421,7 +421,7 @@ if ((errors != 0)); then
 
 The rate-limit guard's operable floor is inlined on purpose: an installed
 plugin cannot read a sibling plugin's files at runtime, so every consumer
-carries its own copy (docs/conventions/loop-lane/README.md section 6). The
+carries its own copy (docs/contracts/loop-lane/README.md section 6). The
 values are DECIDED in one place only:
 
   $SOURCE

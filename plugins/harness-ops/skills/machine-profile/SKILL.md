@@ -28,7 +28,7 @@ Exit codes: 0 ok, 1 refused, 2 usage or missing tool (`jq`), 3 no profile stored
 
 ## Where the profile lives
 
-`${CLAUDE_PLUGIN_DATA}/machine-profile/profile.json`. The machine section is not project-keyed (it describes the host, the same for every project), which the design ratifies as a deviation from `docs/conventions/plugin-data-report-keying` rule 1; each domain is keyed by its tree root. A missing document reads as "no profile for this machine" and offers to produce one; there is no fallback path. The document is regenerable from the host, so uninstalling the plugin from its last scope costs a re-run, not data. It holds names, paths and observation commands, and discovery never reads a credential or a sensitive `userConfig` value. The writer is a backstop for hand-supplied records, not a secret detector: it refuses the key words and value shapes listed under Gotchas, so do not supply a secret that matches neither.
+`${CLAUDE_PLUGIN_DATA}/machine-profile/profile.json`. The machine section is not project-keyed (it describes the host, the same for every project), which the design ratifies as a deviation from `docs/contracts/plugin-data-report-keying` rule 1; each domain is keyed by its tree root. A missing document reads as "no profile for this machine" and offers to produce one; there is no fallback path. The document is regenerable from the host, so uninstalling the plugin from its last scope costs a re-run, not data. It holds names, paths and observation commands, and discovery never reads a credential or a sensitive `userConfig` value. The writer is a backstop for hand-supplied records, not a secret detector: it refuses the key words and value shapes listed under Gotchas, so do not supply a secret that matches neither.
 
 We keep the profile in the plugin data directory, accepting that an uninstall from the last scope can remove it.
 
@@ -51,7 +51,7 @@ Discovery reads identity domains from the `includeIf "gitdir:..."` entries in `g
 
 **Claim:** `gh` takes its configuration directory from `GH_CONFIG_DIR`, then `$XDG_CONFIG_HOME/gh`, then `$AppData/GitHub CLI` on Windows, then `$HOME/.config/gh`, and reports no directory for the working directory. **Basis:** `gh help environment` on gh 2.98.0, run 2026-10-01. **As of:** 2026-10-01. **Recheck:** a gh release changes the `GH_CONFIG_DIR` lookup order in `gh help environment`.
 
-**Claim:** `pluginConfigs` is read from user settings, `--settings` and managed settings only, and `claude plugin install --config` writes user settings whatever scope flag is given, so one slot serves the whole machine. **Basis:** facts 5 and 9 of `docs/conventions/hook-config-delivery` (Claude Code 2.1.292, 2026-10-07 for fact 5; 2.1.283, 2026-09-27 for fact 9). **As of:** 2026-10-07. **Recheck:** the settings guide stops letting `--settings` set user-scope keys, the documented `pluginConfigs` scope changes, or `--config` starts honoring a scope flag.
+**Claim:** `pluginConfigs` is read from user settings, `--settings` and managed settings only, and `claude plugin install --config` writes user settings whatever scope flag is given, so one slot serves the whole machine. **Basis:** facts 5 and 9 of `docs/contracts/hook-config-delivery` (Claude Code 2.1.292, 2026-10-07 for fact 5; 2.1.283, 2026-09-27 for fact 9). **As of:** 2026-10-07. **Recheck:** the settings guide stops letting `--settings` set user-scope keys, the documented `pluginConfigs` scope changes, or `--config` starts honoring a scope flag.
 
 ## Next
 

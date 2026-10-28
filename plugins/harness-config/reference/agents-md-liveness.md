@@ -4,7 +4,7 @@ Every check in this plugin that decides whether an `AGENTS.md` is a live instruc
 on two questions, in this order: is `AGENTS.md` support **available** in the session at all, and if
 so, which files does the **Project instructions** setting load. Both are recorded here in the
 shape the
-[upstream-drift convention](../../../docs/conventions/upstream-drift/README.md#required-parts)
+[upstream-drift convention](../../../docs/contracts/upstream-drift/README.md#required-parts)
 defines: our decision, a pointer to the upstream section, the as-of date, the recheck trigger.
 
 **Why the record lives here.** A plugin never imports files from a sibling plugin

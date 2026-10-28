@@ -63,7 +63,7 @@ than proposing nothing.
 
 **The same classes bind the deletion operation, owned elsewhere.** These six classes are adopted by
 reference (never re-enumerated) by the [instruction exception
-register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md),
+register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md),
 which applies them to *deletion* by an instruction-audit trim, the operation this gate does not
 govern. This rubric stays the sole owner of the class list and of the relocation verdict; a
 consumer asking "may this be deleted" reads that register, and one asking "may this be moved" reads

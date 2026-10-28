@@ -139,7 +139,7 @@ and this plugin does not register it.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
-[hook-budget](../../docs/conventions/hook-budget/README.md) ceiling on every shell call in every
+[hook-budget](../../docs/contracts/hook-budget/README.md) ceiling on every shell call in every
 consumer. It would recognize a settings write only by guessing from the command string, and it
 would still miss the render-into-place route. So even after paying that cost, the checkpoint could
 not honestly claim every settings write. The `/context-budget:audit fix` path edits project
@@ -250,7 +250,7 @@ Three supported routes:
    reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
    The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
    value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

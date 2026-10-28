@@ -79,7 +79,7 @@ from a completed, successful one. Any other artifact is ignored.
 Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
 person: the spec's provenance is a trust boundary. Every other refusal holds
 for the lanes (when a person is needed:
-https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
+https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 waits for the lanes to judge the head again. `verify:repeated-fail` and
@@ -314,7 +314,7 @@ INELIGIBLE = "verify:ineligible"
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
 # The refusals only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 # with trust holds kept): an untrusted spec (provenance). Every other refusal,
 # the repeated-FAIL cap and an old pull request included, holds for the
 # lanes: it still refuses the merge, with no label. The one list the merge
