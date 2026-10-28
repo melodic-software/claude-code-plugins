@@ -105,6 +105,7 @@ async function gate({
   runDispatcherWorkflow,
   runDispatcherUpstreams,
   expectedUpstreamHead,
+  pushedCommit,
   lanesAppId,
   requirePr,
   runId = OWN_RUN_ID,
@@ -154,6 +155,7 @@ async function gate({
         ? {}
         : { RUN_DISPATCHER_UPSTREAMS: runDispatcherUpstreams }),
       ...(expectedUpstreamHead === undefined ? {} : { EXPECTED_UPSTREAM_HEAD: expectedUpstreamHead }),
+      ...(pushedCommit === undefined ? {} : { PUSHED_COMMIT: pushedCommit }),
       ...(lanesAppId === undefined ? {} : { LANES_APP_ID: lanesAppId }),
       ...(requirePr === undefined ? {} : { REQUIRE_PR: requirePr }),
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
@@ -2335,7 +2337,8 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
 });
 
 // A job after pr-unblock's model job: the review was of the head that job was
-// gated on, and the PR has since moved by the lanes App's own signed commits.
+// gated on, and the PR has since moved to the commit apply-feedback-patch
+// pushed, a lanes App commit GitHub signed during this run.
 const GATED_SHA = "9".repeat(40);
 const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
 // The shape of the lanes App's commits on #7493 and #7520: author the App,
@@ -2352,40 +2355,58 @@ const range = (...commits) => ({ status: "ahead", total_commits: commits.length,
 const afterRoutes = (compare, upstream = {}) =>
   fakeGitHub({ ...runDispatcherRoutes({ upstream: { head_sha: GATED_SHA, ...upstream } }), [afterRoute]: compare });
 
-test("expected upstream head: verified lanes App commits after the gated head proceed", async () => {
-  const github = afterRoutes(range(laneCommit(), laneCommit({ sha: "7".repeat(40) })));
-  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA }), PROCEED);
-  assert.ok(github.calls.includes(afterRoute));
-});
-
 test("expected upstream head: a PR head still at the gated head proceeds with no range read", async () => {
   const github = fakeGitHub(runDispatcherRoutes());
   assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: HEAD_SHA }), PROCEED);
 });
 
-for (const [label, github] of [
-  ["a foreign commit follows the gated head", () => afterRoutes(range(laneCommit(), laneCommit({ author: KYLE })))],
-  ["an unsigned lanes App commit follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: false, reason: "unsigned" } } })))],
-  ["a human signed and pushed a commit naming the App as author", () =>
-    afterRoutes(range(laneCommit({ committer: KYLE })))],
-  ["a verified commit whose reason is not valid follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: true, reason: "bad_email" } } })))],
-  ["an App commit made before this run was created follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T11:00:00Z" }, verification: { verified: true, reason: "valid" } } })))],
-  ["a commit with no linked author follows the gated head", () => afterRoutes(range(laneCommit({ author: null })))],
-  ["GitHub truncated the range", () => afterRoutes({ ...range(laneCommit()), total_commits: 251 })],
-  ["the PR head diverged from the gated head", () => afterRoutes({ ...range(laneCommit()), status: "diverged" })],
-  ["the range read fails", () => afterRoutes(new GitHubError(404, "compare"))],
-  ["the upstream reviewed another head than the gated one", () =>
-    afterRoutes(range(laneCommit()), { head_sha: BASE_SHA })],
-  ["the gated head is not a SHA", () => afterRoutes(range(laneCommit()))],
+for (const [label, upstream, expectedUpstreamHead] of [
+  ["the upstream reviewed another head than the gated one", { head_sha: BASE_SHA }, GATED_SHA],
+  ["the gated head is not a SHA", {}, "main"],
 ]) {
-  test(`expected upstream head: refused with untrusted-actor when ${label}`, async () => {
-    const expectedUpstreamHead = label === "the gated head is not a SHA" ? "main" : GATED_SHA;
-    assert.deepEqual(await runDispatched({ github: github(), expectedUpstreamHead }), STOPPED("untrusted-actor"));
+  test(`expected upstream head: refused with untrusted-actor when ${label}, even at the pushed commit`, async () => {
+    const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })), upstream);
+    assert.deepEqual(await runDispatched({ github, expectedUpstreamHead, pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
   });
 }
+
+// The issue the pushed-commit binding answers: a verified lanes App commit
+// made during this run proves an App token signed it, not that this run's
+// push job made it, so only the commit apply-feedback-patch pushed may follow
+// the gated head.
+test("pushed commit: a verified lanes App commit that is not the pushed commit is refused", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "7".repeat(40) }),
+    STOPPED("untrusted-actor"),
+  );
+});
+
+test("pushed commit: none passed, a head moved by a verified lanes App commit is refused", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA }), STOPPED("untrusted-actor"));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "" }), STOPPED("untrusted-actor"));
+});
+
+test("pushed commit: a PR head equal to the pushed commit proceeds", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA }), PROCEED);
+});
+
+test("pushed commit: a PR head still at the gated head proceeds whether or not a push is named", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: HEAD_SHA, pushedCommit: "7".repeat(40) }), PROCEED);
+});
+
+test("pushed commit: refused when it is not a SHA or rides without an expected upstream head", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "A".repeat(40) }),
+    STOPPED("untrusted-actor"),
+  );
+  assert.ok(!github.calls.includes(upstreamRoute), "refused before the upstream read");
+  assert.deepEqual(await runDispatched({ github: fakeGitHub(runDispatcherRoutes()), pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
+});
 
 // GET /pulls lags a push by minutes (run 39615724332 on #8870 gated the head
 // the model job had already moved past), so the gate re-reads it until it
@@ -2397,22 +2418,21 @@ const pullAt = (sha) => {
 };
 
 test("expected upstream head: a pulls read lagging the branch ref is re-read until it shows the pushed head", async () => {
-  const github = afterRoutes(range(laneCommit()));
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
   github.routes[pullRoute] = inTurn(pullAt(GATED_SHA), pullAt(GATED_SHA), pullAt(HEAD_SHA));
   const sleep = fakeSleep();
-  const outputs = await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep });
+  const outputs = await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA, sleep });
   assert.equal(outputs["head-sha"], HEAD_SHA);
   assert.deepEqual(outputs, PROCEED);
   assert.deepEqual(sleep.waits, [5000, 10_000]);
-  assert.ok(github.calls.includes(afterRoute));
 });
 
 test("expected upstream head: a pulls read that never reaches the branch ref stops with head-lag", async () => {
-  const github = afterRoutes(range(laneCommit()));
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
   github.routes[pullRoute] = pullAt(GATED_SHA);
   const sleep = fakeSleep();
   assert.deepEqual(
-    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep }),
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA, sleep }),
     STOPPED("head-lag"),
   );
   assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
