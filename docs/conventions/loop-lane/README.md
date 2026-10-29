@@ -354,7 +354,8 @@ Three labels take work off the unattended path, and each means one thing (owner 
 | `host-run` | An unattended agent run on a host, which the issue lane cannot make | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
-lane cannot make (a protected path, a weakened required check, an unfinished dependency review)
+lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
+not fix, an unfinished dependency review)
 goes to an agent session, which removes the label once it has made the change
 ([routing table](../pr-pipeline/README.md#activities)).
 

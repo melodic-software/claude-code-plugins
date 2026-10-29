@@ -378,17 +378,19 @@ runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 any other run, so that cap bounds rung-ups on a head too. `report-escalation`
 ends the run unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
-status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
-through a path the lane token may not push, or by weakening a required check), which go to a
-person. A cancelled run applies no label: the write
+status; `ci-fix-escalated`, `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the
+rung-up retry could not fix, or one the model could fix only through a path the lane token may not
+push or by weakening a required check) also queue the PR with `needs-session` for a session
+builder. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
 person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
 fix-ci attempt stops `ci-fix-weaken-retry` instead, a failing status: the dispatcher retries the
 head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (fix the
 code under test and keep every test's assertions and expected values). A
-`weaken-required` in that round, or after any earlier attempt on the head, goes to a person as
-`ci-fix-weaken-required`; the guard itself is unchanged. Beside a pushed patch, the new head's
+`weaken-required` in that round, or after any earlier attempt on the head, stops
+`ci-fix-weaken-required` for a session builder; the guard itself is unchanged. Beside a pushed
+patch, the new head's
 CI decides for all of them. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
@@ -641,7 +643,8 @@ issue's URL. A quote that fails the check, or no spec text, leaves the question 
 security question, a CRITICAL finding and a security-review one rated `IMPORTANT` or above never
 settle by quote. Every other reason routes `fail`. A `fail`
 entry that names `"label": "needs-session"` is a change the lane cannot make: a path its token may
-not push, a fix that weakens a required check after its fresh fixer round, or a dependency update
+not push, a fix that weakens a required check after its fresh fixer round, a failing check the
+`fix-ci` rung-up retry could not fix, or a dependency update
 the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
 an uncited control, a workflow change beyond a pin swap). It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the

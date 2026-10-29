@@ -141,21 +141,22 @@ context_of() {
 # thread only a person decides. dependency-fix-refused is a commit of untrusted
 # provenance, a trust hold the owner keeps. Every other stop is a failing
 # status, and SESSION_REASONS, a change the lane cannot make (a protected
-# path, a weakened required check after its fresh fixer round, a dependency
-# update the review could not finish), also put the PR in the session-builder
+# path, a weakened required check after its fresh fixer round, a check the
+# rung-up retry could not fix, a dependency update the review could not
+# finish), also put the PR in the session-builder
 # queue with needs-session instead of in front of a person.
 HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
   feedback-question-intent feedback-question-design feedback-question-security
   dependency-security-close dependency-escalate dependency-fix-refused)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
-  feedback-protected-path ci-fix-protected-path ci-fix-weaken-required
+  feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
   dependency-invalid
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated ci-fix-weaken-retry)
+  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
@@ -265,24 +266,24 @@ done
 # is written; on a new head it is edited, never posted again.
 STOP_MARKER='<!-- pr-unblock:lane-stopped activity=fix-ci -->'
 setup '[]' '[]'
-run ci-fix-escalated
+run ci-fix-round-cap
 fail_body=$(sed '/^=====$/d' "$STUB/bodies")
 setup '[]' "$(comment "$fail_body" 'melodic-automation-lanes[bot]' Bot 77)"
-run ci-fix-escalated
+run ci-fix-round-cap
 check "fail, same head, comment unchanged: exit 0" 0 "$RC"
 check "fail, same head, comment unchanged: no write" 0 "$(writes)"
 
 setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
-run ci-fix-escalated "$HEAD_B"
+run ci-fix-round-cap "$HEAD_B"
 check "fail, new head: edits the comment in place" 'PATCH repos/o/r/issues/comments/77' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 has "fail, new head: the edit names the new head" "- Head: \`$HEAD_B\`" "$STUB/bodies"
 
 setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' someone User 77)"
-run ci-fix-escalated
+run ci-fix-round-cap
 check "fail: a marker a user wrote is not the lane's comment" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
 setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=address-feedback -->'$'\nolder' 'melodic-automation-lanes[bot]' Bot 77)"
-run ci-fix-escalated
+run ci-fix-round-cap
 check "fail: another activity's comment is left alone" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
 # A held reason on a PR that already shows a fail comment still holds.
@@ -556,7 +557,7 @@ check "malformed head sha: no gh call" '' "$(cat "$STUB/calls")"
 
 # Each stop names its run, so a later stop on the same head edits the comment.
 setup '[]' '[]'
-GITHUB_RUN_ID=555 run ci-fix-escalated
+GITHUB_RUN_ID=555 run ci-fix-round-cap
 has "fail: names the run that stopped" '- Run: https://github.com/o/r/actions/runs/555' "$STUB/bodies"
 
 # clear: a same-head attempt that did not stop posts success over the
