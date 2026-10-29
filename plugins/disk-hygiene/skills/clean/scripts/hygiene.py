@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from collections import Counter
 from collections.abc import Callable, Iterable
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -5253,94 +5254,566 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     return emit(summary, INVENTORY_VALIDATION_FAILED if failures else 0)
 
 
+HANDOFF_REMOVAL_UNLINK = "unlink"
+HANDOFF_REMOVAL_RECYCLE = "recycle-bin"
+
+
+def handoff_removal() -> tuple[str, list[str]]:
+    """How this host removes a handoff-apply path, and what blocks that.
+
+    Windows sends each path to the Recycle Bin through the shell and never
+    deletes it; Linux deletes through descriptor-anchored calls; any other host
+    is blocked.
+    """
+    if os_key() == "windows":
+        return HANDOFF_REMOVAL_RECYCLE, []
+    return HANDOFF_REMOVAL_UNLINK, execution_blockers()
+
+
+def handoff_tier_refusals(
+    entries: dict[str, dict[str, Any]], approved: list[str], tier: str
+) -> list[str]:
+    """Each approved path ``tier`` cannot cover, with why; empty when all can.
+
+    A snapshot entry records hints, not a tier, so its hints cap the tier:
+    ``tier`` may not rank above the lowest ``confidence_ceiling`` among them. A
+    path with no hint, or with a hint whose ceiling is unreadable, has nothing
+    to cap it and is refused.
+    """
+    refusals = []
+    for relative in approved:
+        hints = entries[relative].get("hints")
+        ceilings = [
+            hint.get("confidence_ceiling") if isinstance(hint, dict) else None
+            for hint in (hints if isinstance(hints, list) else [])
+        ]
+        if not ceilings:
+            refusals.append(f"{relative}: no hint")
+        elif not all(
+            isinstance(ceiling, str) and ceiling in TIER_RANK for ceiling in ceilings
+        ):
+            refusals.append(f"{relative}: unreadable hint confidence_ceiling")
+        else:
+            lowest = min(ceilings, key=TIER_RANK.__getitem__)
+            if TIER_RANK[tier] > TIER_RANK[lowest]:
+                refusals.append(
+                    f"{relative}: {tier} ranks above its lowest hint "
+                    f"confidence_ceiling, {lowest}"
+                )
+    return refusals
+
+
 def handoff_apply_report(
     target: Path,
-    relative: str,
-    verdict: dict[str, Any] | None,
+    tier: str,
+    removal: str,
+    verdicts: list[dict[str, Any]],
     removed: list[dict[str, Any]],
     skipped: list[dict[str, str]],
     *,
-    logical_removed: int = 0,
-    reclaimable_removed: int = 0,
-    free_space_delta: int = 0,
+    permanent_delete_used: bool = False,
+    free_space_delta: int | None = 0,
 ) -> dict[str, Any]:
-    """A handoff-apply report: ``blocked`` when nothing was removed."""
+    """A handoff-apply report: ``blocked`` when nothing was removed.
+
+    ``permanent_delete_used`` is what the removals did: every Linux removal is
+    permanent, and a Windows one when the shell reported an item deleted rather
+    than recycled, or the path went with no recycle reported. A free-space delta
+    that could not be measured is null.
+    """
     status = (
         "completed" if not skipped else "completed-with-skips" if removed else "blocked"
     )
     return {
         "status": status,
+        "tier": tier,
         "target": str(target),
-        "path": relative,
-        "verdict": verdict,
-        "accept_unpublished": (verdict or {})
-        .get("vcs_evidence", {})
-        .get("accept_unpublished", []),
+        "removal": removal,
+        "verdicts": verdicts,
+        "accept_unpublished": [
+            acknowledgement
+            for verdict in verdicts
+            for acknowledgement in verdict.get("vcs_evidence", {}).get(
+                "accept_unpublished", []
+            )
+        ],
         "removed": removed,
         "skipped": skipped,
         "paths_removed": len(removed),
         "empty_directories_removed": sum(
             1 for item in removed if item["empty_directory"]
         ),
-        "logical_bytes_removed": logical_removed,
-        "reclaimable_local_bytes_removed": reclaimable_removed,
+        "logical_bytes_removed": sum(item["logical_bytes"] for item in removed),
+        "reclaimable_local_bytes_removed": sum(
+            item["reclaimable_local_bytes"] for item in removed
+        ),
+        "permanent_delete_used": permanent_delete_used,
         "observed_free_space_delta_bytes": free_space_delta,
     }
 
 
+# The Windows Recycle Bin backend, through ctypes so the engine stays
+# stdlib-only. GUIDs and vtable slots come from shobjidl_core.h and unknwn.h,
+# flag values from IFileOperation::SetOperationFlags and TRANSFER_SOURCE_FLAGS,
+# and SHQUERYRBINFO's layout from shellapi.h, which packs it to one byte on
+# 32-bit Windows only; the backend refuses 32-bit Python.
+_IID_UNKNOWN = "00000000-0000-0000-c000-000000000046"
+_IID_PROGRESS_SINK = "04b0f1a7-9490-44bc-96e1-4296a31252e2"
+_IID_FILE_OPERATION = "947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8"
+_CLSID_FILE_OPERATION = "3ad05575-8857-4850-9277-11b85bdb8e09"
+_IID_SHELL_ITEM = "43826d1e-e718-42ee-bc55-a1e261c37bfe"
+_S_OK = 0
+_E_NOINTERFACE = ctypes.c_int32(0x80004002).value
+_E_ABORT = ctypes.c_int32(0x80004004).value
+_COINIT_APARTMENTTHREADED = 0x2
+_CLSCTX_INPROC_SERVER = 0x1
+_FOF_SILENT = 0x0004
+_FOF_NOCONFIRMATION = 0x0010
+_FOF_ALLOWUNDO = 0x0040
+_FOF_NOERRORUI = 0x0400
+_FOFX_RECYCLEONDELETE = 0x00080000
+_FOFX_EARLYFAILURE = 0x00100000
+# No dialog an agent's process could wait on, a stop at the first error, and a
+# request for the Recycle Bin. These flags only ask: the progress sink is what
+# refuses a permanent delete.
+_RECYCLE_OPERATION_FLAGS = (
+    _FOF_SILENT
+    | _FOF_NOCONFIRMATION
+    | _FOF_NOERRORUI
+    | _FOFX_EARLYFAILURE
+    | _FOF_ALLOWUNDO
+    | _FOFX_RECYCLEONDELETE
+)
+_TSF_DELETE_RECYCLE_IF_POSSIBLE = 0x80
+_COM_RELEASE = 2
+_FILE_OPERATION_SET_OPERATION_FLAGS = 5
+_FILE_OPERATION_DELETE_ITEM = 18
+_FILE_OPERATION_PERFORM_OPERATIONS = 21
+_FILE_OPERATION_GET_ANY_OPERATIONS_ABORTED = 22
+
+
+class _RecycleBinInfo(ctypes.Structure):
+    """SHQUERYRBINFO, at its 64-bit layout."""
+
+    _fields_ = [
+        ("cbSize", ctypes.c_uint32),
+        ("i64Size", ctypes.c_int64),
+        ("i64NumItems", ctypes.c_int64),
+    ]
+
+
+def _hresult_text(status: int) -> str:
+    return f"hresult {status & 0xFFFFFFFF:#010x}"
+
+
+def _guid(text: str) -> Any:
+    """A GUID in memory order, to pass where a REFIID or REFCLSID goes."""
+    return (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(text).bytes_le)
+
+
+def _com_call(
+    instance: int, slot: int, argtypes: tuple[Any, ...], *values: Any
+) -> int:
+    """Call vtable ``slot`` of the COM object at ``instance``; returns its HRESULT."""
+    vtable = ctypes.cast(instance, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))[0]
+    method = ctypes.WINFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, *argtypes)(
+        vtable[slot]
+    )
+    return method(instance, *values)
+
+
+class _RecycleProgressSink:
+    """An IFileOperationProgressSink that vetoes each delete the shell cannot recycle.
+
+    The shell sets TSF_DELETE_RECYCLE_IF_POSSIBLE on an item it can recycle, so
+    PreDeleteItem refuses an item without it, and that refusal cancels its
+    delete and every pending one. PostDeleteItem records each finished delete,
+    and one that left no item in the Recycle Bin as permanent. The instance
+    holds the callbacks, so it must outlive the file operation that uses it.
+    """
+
+    def __init__(self, seen: dict[str, bool]) -> None:
+        hr, u32, ptr = ctypes.c_int32, ctypes.c_uint32, ctypes.c_void_p
+        accepted = {
+            uuid.UUID(_IID_UNKNOWN).bytes_le,
+            uuid.UUID(_IID_PROGRESS_SINK).bytes_le,
+        }
+
+        def query_interface(this: int, riid: int, out: Any) -> int:
+            if ctypes.string_at(riid, 16) in accepted:
+                out[0] = this
+                return _S_OK
+            out[0] = None
+            return _E_NOINTERFACE
+
+        def reference_count(_this: int) -> int:
+            return 1
+
+        def pre_delete(_this: int, flags: int, _item: int) -> int:
+            if flags & _TSF_DELETE_RECYCLE_IF_POSSIBLE:
+                return _S_OK
+            seen["refused"] = True
+            return _E_ABORT
+
+        def post_delete(
+            _this: int, _flags: int, _item: int, result: int, in_bin: int | None
+        ) -> int:
+            if result >= 0:
+                seen["deleted"] = True
+                seen["permanent"] = seen["permanent"] or not in_bin
+            return _S_OK
+
+        def proceed(_this: int, *_arguments: Any) -> int:
+            return _S_OK
+
+        # IUnknown, then IFileOperationProgressSink, in vtable order.
+        slots = (
+            (hr, (ptr, ctypes.POINTER(ptr)), query_interface),
+            (u32, (), reference_count),  # AddRef
+            (u32, (), reference_count),  # Release
+            (hr, (), proceed),  # StartOperations
+            (hr, (hr,), proceed),  # FinishOperations
+            (hr, (u32, ptr, ptr), proceed),  # PreRenameItem
+            (hr, (u32, ptr, ptr, hr, ptr), proceed),  # PostRenameItem
+            (hr, (u32, ptr, ptr, ptr), proceed),  # PreMoveItem
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostMoveItem
+            (hr, (u32, ptr, ptr, ptr), proceed),  # PreCopyItem
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostCopyItem
+            (hr, (u32, ptr), pre_delete),
+            (hr, (u32, ptr, hr, ptr), post_delete),
+            (hr, (u32, ptr, ptr), proceed),  # PreNewItem
+            (hr, (u32, ptr, ptr, ptr, u32, hr, ptr), proceed),  # PostNewItem
+            (hr, (u32, u32), proceed),  # UpdateProgress
+            (hr, (), proceed),  # ResetTimer
+            (hr, (), proceed),  # PauseTimer
+            (hr, (), proceed),  # ResumeTimer
+        )
+        self._callbacks = [
+            ctypes.WINFUNCTYPE(restype, ptr, *argtypes)(function)
+            for restype, argtypes, function in slots
+        ]
+        self._vtable = (ptr * len(self._callbacks))(
+            *(ctypes.cast(callback, ptr).value for callback in self._callbacks)
+        )
+        self._object = ptr(ctypes.addressof(self._vtable))
+        self.address = ctypes.addressof(self._object)
+
+
+def recycle_bin_refusal(path: Path) -> str | None:
+    """None when the shell reports a Recycle Bin on the path's volume, else why not.
+
+    ``SHQueryRecycleBinW`` failing for the volume root is the refusal. A volume
+    that answers can still decline one item, which ``windows_recycle`` refuses.
+    """
+    if ctypes.sizeof(ctypes.c_void_p) != 8:
+        return "recycle-bin-needs-64-bit-python"
+    root = path.anchor
+    if not root:
+        return "no-recycle-bin: no volume root"
+    try:
+        query = ctypes.WinDLL("shell32").SHQueryRecycleBinW
+    except (AttributeError, OSError) as exc:
+        return f"no-recycle-bin: shell unavailable: {exc}"
+    query.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(_RecycleBinInfo)]
+    query.restype = ctypes.c_int32
+    info = _RecycleBinInfo(cbSize=ctypes.sizeof(_RecycleBinInfo))
+    status = query(root, ctypes.byref(info))
+    if status < 0:
+        return f"no-recycle-bin: {root} ({_hresult_text(status)})"
+    return None
+
+
+def windows_recycle(path: Path) -> dict[str, Any]:
+    """Send one path to the Recycle Bin through IFileOperation, never deleting it.
+
+    A path the shell cannot recycle is refused and left in place. Returns
+    ``outcome``, its ``detail``, and ``permanent``. The outcome is
+    ``recycled``; ``removed`` when the path is gone but the shell reported an
+    item fully deleted, or reported no delete at all, so ``permanent`` is true;
+    ``refused``; or ``failed``.
+    """
+    seen = {"refused": False, "deleted": False, "permanent": False}
+
+    def result(
+        outcome: str, detail: str = "", status: int | None = None
+    ) -> dict[str, Any]:
+        if status is not None:
+            detail = f"{detail}: {_hresult_text(status)}"
+        return {"outcome": outcome, "detail": detail, "permanent": seen["permanent"]}
+
+    if ctypes.sizeof(ctypes.c_void_p) != 8:
+        return result("refused", "recycle-bin-needs-64-bit-python")
+    ptr = ctypes.c_void_p
+    try:
+        ole32, shell32 = ctypes.WinDLL("ole32"), ctypes.WinDLL("shell32")
+        initialize, create = ole32.CoInitializeEx, ole32.CoCreateInstance
+        uninitialize = ole32.CoUninitialize
+        create_item = shell32.SHCreateItemFromParsingName
+    except (AttributeError, OSError) as exc:
+        return result("refused", f"shell-unavailable: {exc}")
+    initialize.argtypes = [ptr, ctypes.c_uint32]
+    initialize.restype = ctypes.c_int32
+    create.argtypes = [ptr, ptr, ctypes.c_uint32, ptr, ctypes.POINTER(ptr)]
+    create.restype = ctypes.c_int32
+    uninitialize.argtypes = []
+    uninitialize.restype = None
+    create_item.argtypes = [ctypes.c_wchar_p, ptr, ptr, ctypes.POINTER(ptr)]
+    create_item.restype = ctypes.c_int32
+    status = initialize(None, _COINIT_APARTMENTTHREADED)
+    if status < 0:
+        return result("refused", "no-single-threaded-apartment", status)
+    operation, item = ptr(), ptr()
+    try:
+        sink = _RecycleProgressSink(seen)
+        status = create(
+            _guid(_CLSID_FILE_OPERATION),
+            None,
+            _CLSCTX_INPROC_SERVER,
+            _guid(_IID_FILE_OPERATION),
+            ctypes.byref(operation),
+        )
+        if status < 0:
+            return result("refused", "file-operation-unavailable", status)
+        status = _com_call(
+            operation.value,
+            _FILE_OPERATION_SET_OPERATION_FLAGS,
+            (ctypes.c_uint32,),
+            _RECYCLE_OPERATION_FLAGS,
+        )
+        if status < 0:
+            return result("refused", "recycle-flags-refused", status)
+        status = create_item(str(path), None, _guid(_IID_SHELL_ITEM), ctypes.byref(item))
+        if status < 0:
+            return result("failed", "shell-item-unavailable", status)
+        status = _com_call(
+            operation.value,
+            _FILE_OPERATION_DELETE_ITEM,
+            (ptr, ptr),
+            item.value,
+            sink.address,
+        )
+        if status < 0:
+            return result("failed", "recycle-not-queued", status)
+        status = _com_call(operation.value, _FILE_OPERATION_PERFORM_OPERATIONS, ())
+        aborted = ctypes.c_int32()
+        aborted_status = _com_call(
+            operation.value,
+            _FILE_OPERATION_GET_ANY_OPERATIONS_ABORTED,
+            (ptr,),
+            ctypes.byref(aborted),
+        )
+        if seen["refused"]:
+            partial = "; part of it is in the Recycle Bin" if seen["deleted"] else ""
+            return result("refused", f"would-delete-permanently{partial}")
+        if os.path.lexists(path):
+            if status < 0 or aborted_status < 0 or aborted.value:
+                return result("failed", "recycle-failed", status)
+            return result("failed", "recycle-unconfirmed")
+        if not seen["deleted"]:
+            # Gone, but no delete was reported, so nothing shows it reached the bin.
+            seen["permanent"] = True
+        return result("removed" if seen["permanent"] else "recycled")
+    finally:
+        for instance in (item, operation):
+            if instance.value:
+                _com_call(instance.value, _COM_RELEASE, ())
+        uninitialize()
+
+
 def handoff_apply(
     snapshot: dict[str, Any],
-    relative: str,
-    vcs_evidence: dict[str, dict[str, Any]],
+    approved: list[str],
+    tier: str,
+    vcs_evidence: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """Verify one approved path as handoff-verify does, then delete it on `clear`.
+    """Re-verify each approved path of one tier; remove the ones that are `clear`.
 
-    The verdict is computed here, in this process, immediately before the
-    deletion: verdicts expire the moment they are emitted, so none is ever read
-    from a file. ``accept_unpublished`` is evaluated only inside
-    ``handoff_verify``; this lane never reads it. The one blocker a clear
-    verdict satisfies is ``vcs-tracked-content`` (and the ``.git`` marker
-    protections through ``evidence_adjusted_protections``), only under this
-    approved path and only when the verdict verified the repository evidence.
-    Every other check ``apply_plan`` runs still applies to each entry, and a
-    repository's Git metadata, which the snapshot records without descendants,
-    is emptied fd-relative before its own removal.
+    Nothing is removed when ``tier`` ranks above any path's hint ceilings, when
+    this host has no removal lane, or, on Windows, when any path's volume
+    reports no Recycle Bin. Otherwise each verdict is computed here, in this
+    process, immediately before that path's removal: verdicts expire the moment
+    they are emitted, so none is ever read from a file. A path whose verdict is
+    not ``clear`` is skipped and reported. ``accept_unpublished`` is evaluated
+    only inside ``handoff_verify``; this lane never reads it.
 
-    There is no plan here, so no owner: this lane cannot express managed
-    state and the ``native-managed-report-only`` check has nothing to read.
+    Linux deletes through ``unlink_handoff_path``; Windows recycles through
+    ``recycle_handoff_path``, which refuses rather than delete permanently.
+    There is no plan here, so no owner: this lane cannot express managed state
+    and the ``native-managed-report-only`` check has nothing to read.
     """
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
-    platform_blockers = execution_blockers()
-    if platform_blockers:
+    refusals = handoff_tier_refusals(entries, approved, tier)
+    if refusals:
+        raise HygieneError(
+            f"--tier {tier} is refused for the whole batch, so nothing was "
+            "removed: " + "; ".join(refusals)
+        )
+    removal, blockers = handoff_removal()
+    if removal == HANDOFF_REMOVAL_RECYCLE:
+        blockers = blockers + sorted(
+            {
+                refusal
+                for relative in approved
+                if (
+                    refusal := recycle_bin_refusal(
+                        target.joinpath(*PurePosixPath(relative).parts)
+                    )
+                )
+            }
+        )
+    if blockers:
+        detail = ", ".join(blockers)
         return handoff_apply_report(
             target,
-            relative,
-            None,
+            tier,
+            removal,
+            [],
             [],
             [
-                {
-                    "path": relative,
-                    "outcome": "protected",
-                    "detail": ", ".join(platform_blockers),
-                }
+                {"path": relative, "outcome": "protected", "detail": detail}
+                for relative in approved
             ],
         )
-    verdict = handoff_verify(snapshot, [relative], vcs_evidence)["verdicts"][0]
-    if verdict["verdict"] != "clear":
-        return handoff_apply_report(
-            target,
-            relative,
-            verdict,
-            [],
-            [
-                {
-                    "path": relative,
-                    "outcome": "protected",
-                    "detail": f"{verdict['verdict']}: {', '.join(verdict['reasons'])}",
-                }
-            ],
+    before = shutil.disk_usage(target).free
+    verdicts: list[dict[str, Any]] = []
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    permanent = False
+    target_fd = (
+        os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        if removal == HANDOFF_REMOVAL_UNLINK
+        else None
+    )
+
+    def stop(index: int, reason: str) -> None:
+        skipped.extend(
+            {"path": name, "outcome": "protected", "detail": f"batch stopped: {reason}"}
+            for name in approved[index:]
         )
+
+    try:
+        if target_fd is not None and not same_object_identity(
+            os.fstat(target_fd), snapshot["target_identity"]
+        ):
+            raise HygieneError("anchored target was replaced since the snapshot")
+        for index, relative in enumerate(approved):
+            # Once a path is removed, an error must not lose the report of it.
+            try:
+                result = handoff_verify(snapshot, [relative], vcs_evidence)
+                verdict = result["verdicts"][0]
+                verdicts.append(verdict)
+                if verdict["verdict"] != "clear":
+                    reasons = ", ".join(verdict["reasons"])
+                    skipped.append(
+                        {
+                            "path": relative,
+                            "outcome": "protected",
+                            "detail": f"{verdict['verdict']}: {reasons}",
+                        }
+                    )
+                    continue
+                if target_fd is None:
+                    path_removed, path_skipped, path_permanent = recycle_handoff_path(
+                        snapshot, entries, target, relative, verdict
+                    )
+                else:
+                    path_removed, path_skipped = unlink_handoff_path(
+                        snapshot, entries, target, target_fd, relative, verdict
+                    )
+                    path_permanent = bool(path_removed)
+            except (HygieneError, OSError, subprocess.SubprocessError) as exc:
+                stop(index, str(exc))
+                break
+            removed += path_removed
+            skipped += path_skipped
+            permanent = permanent or path_permanent
+            if target_fd is None and path_permanent:
+                stop(index + 1, f"the shell removed {relative} without recycling it")
+                break
+    finally:
+        if target_fd is not None:
+            os.close(target_fd)
+    try:
+        free_space_delta = shutil.disk_usage(target).free - before
+    except OSError:
+        free_space_delta = None
+    return handoff_apply_report(
+        target,
+        tier,
+        removal,
+        verdicts,
+        removed,
+        skipped,
+        permanent_delete_used=permanent,
+        free_space_delta=free_space_delta,
+    )
+
+
+def recycle_handoff_path(
+    snapshot: dict[str, Any],
+    entries: dict[str, dict[str, Any]],
+    target: Path,
+    relative: str,
+    verdict: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], bool]:
+    """Recycle one approved path whose verdict is ``clear``, whole, on Windows.
+
+    The Git metadata of a repository the verdict verified goes with it, so its
+    uninventoried contents first pass the same consumer-glob and readability
+    check the Linux purge applies. Returns the removed and the skipped entries,
+    and whether the shell reported any of it deleted permanently.
+    """
+    evidence = verdict.get("vcs_evidence", {})
+    if evidence.get("status") == "verified":
+        globs = snapshot_protection_globs(snapshot)
+        for repository in evidence.get("repositories", []):
+            metadata = target.joinpath(*PurePosixPath(repository).parts)
+            blocker = opaque_contents_blocker(
+                metadata / GIT_METADATA_NAME, target, globs, set()
+            )
+            if blocker:
+                skip = {"path": relative, "outcome": "protected", "detail": blocker}
+                return [], [skip], False
+    recycled = windows_recycle(target.joinpath(*PurePosixPath(relative).parts))
+    if recycled["outcome"] not in {"recycled", "removed"}:
+        outcome = (
+            "recycle-refused" if recycled["outcome"] == "refused" else "delete-failed"
+        )
+        skip = {"path": relative, "outcome": outcome, "detail": recycled["detail"]}
+        return [], [skip], recycled["permanent"]
+    names = subtree_names(relative, entries)
+    in_bin = recycled["outcome"] == "recycled"
+    # Recycled bytes stay on the volume until the bin is emptied.
+    reclaimable = (entry_reclaimable_local_bytes(entries[name]) for name in names)
+    item = {
+        "path": relative,
+        "empty_directory": entry_is_empty_directory(entries[relative], entries),
+        "logical_bytes": sum(entry_logical_file_bytes(entries[name]) for name in names),
+        "reclaimable_local_bytes": 0 if in_bin else sum(v for v in reclaimable if v),
+        "recycled": in_bin,
+    }
+    return [item], [], recycled["permanent"]
+
+
+def unlink_handoff_path(
+    snapshot: dict[str, Any],
+    entries: dict[str, dict[str, Any]],
+    target: Path,
+    target_fd: int,
+    relative: str,
+    verdict: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Delete one approved path whose verdict is ``clear``, fd-relative, on Linux.
+
+    The one blocker a clear verdict satisfies is ``vcs-tracked-content`` (and
+    the ``.git`` marker protections through ``evidence_adjusted_protections``),
+    only under this approved path and only when the verdict verified the
+    repository evidence. Every other check ``apply_plan`` runs still applies to
+    each entry, and a repository's Git metadata, which the snapshot records
+    without descendants, is emptied fd-relative before its own removal. Returns
+    the removed and the skipped entries.
+    """
     evidence = verdict.get("vcs_evidence", {})
     tracked_waived = evidence.get("status") == "verified"
     repository_paths = [
@@ -5378,136 +5851,106 @@ def handoff_apply(
                 reasons.append(vcs)
         return sorted(set(reasons))
 
-    before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    logical_removed = 0
-    reclaimable_removed = 0
-    target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        if not same_object_identity(os.fstat(target_fd), snapshot["target_identity"]):
-            raise HygieneError("anchored target was replaced since the snapshot")
-        known_mounts, mount_error = linux_mount_points()
-        if mount_error:
-            raise HygieneError(mount_error)
-        candidate_blockers = path_blockers(
-            target.joinpath(*PurePosixPath(relative).parts), known_mounts
+    known_mounts, mount_error = linux_mount_points()
+    if mount_error:
+        skipped.append(
+            {"path": relative, "outcome": "protected", "detail": "mount-state-unverified"}
         )
-        # Git metadata is deleted after the working tree, so what sits inside it
-        # is checked now, before anything is removed.
-        candidate_blockers += [
-            blocker
-            for metadata in sorted(git_metadata)
-            if (
-                blocker := opaque_contents_blocker(
-                    metadata, target, globs, known_mounts
-                )
-            )
-        ]
-        if candidate_blockers:
-            return handoff_apply_report(
-                target,
-                relative,
-                verdict,
-                [],
-                [
-                    {
-                        "path": relative,
-                        "outcome": "protected",
-                        "detail": ", ".join(candidate_blockers),
-                    }
-                ],
-            )
-        for name in removal_entries(relative, entries):
-            entry = entries[name]
-            path = target.joinpath(*PurePosixPath(name).parts)
-            if not same_removal_identity(path, entry) or is_linkish(path):
-                skipped.append({"path": name, "outcome": "changed-or-link"})
-                continue
-            fresh_mounts, fresh_mount_error = linux_mount_points()
-            if fresh_mount_error:
-                skipped.append(
-                    {
-                        "path": name,
-                        "outcome": "protected",
-                        "detail": "mount-state-unverified",
-                    }
-                )
-                continue
-            purge = entry["kind"] == "directory" and path in git_metadata
-            fresh_blockers = path_blockers(path, fresh_mounts)
-            if purge and not fresh_blockers:
-                contents_blocker = opaque_contents_blocker(
-                    path, target, globs, fresh_mounts
-                )
-                fresh_blockers = [contents_blocker] if contents_blocker else []
-            if fresh_blockers:
-                skipped.append(
-                    {
-                        "path": name,
-                        "outcome": "protected",
-                        "detail": ", ".join(fresh_blockers),
-                    }
-                )
-                continue
-            state, detail = handle_state(path)
-            if state != "clear":
-                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
-                    state, "handle-state-unverified"
-                )
-                skipped.append(
-                    {"path": name, "outcome": outcome, "detail": detail or ""}
-                )
-                continue
-            try:
-                anchored_remove(
-                    target_fd,
-                    name,
-                    entry,
-                    entries,
-                    target,
-                    purge_protected=consumer_protected if purge else None,
-                )
-            except HygieneError as exc:
-                skipped.append(
-                    {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
-                )
-                continue
-            except PermissionError as exc:
-                skipped.append(
-                    {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
-                )
-                continue
-            except OSError as exc:
-                skipped.append(
-                    {"path": name, "outcome": "delete-failed", "detail": str(exc)}
-                )
-                continue
-            logical = entry_logical_file_bytes(entry)
-            reclaimable = entry_reclaimable_local_bytes(entry) or 0
-            logical_removed += logical
-            reclaimable_removed += reclaimable
-            removed.append(
+        return removed, skipped
+    candidate_blockers = path_blockers(
+        target.joinpath(*PurePosixPath(relative).parts), known_mounts
+    )
+    # Git metadata is deleted after the working tree, so what sits inside it
+    # is checked now, before anything is removed.
+    candidate_blockers += [
+        blocker
+        for metadata in sorted(git_metadata)
+        if (blocker := opaque_contents_blocker(metadata, target, globs, known_mounts))
+    ]
+    if candidate_blockers:
+        skipped.append(
+            {
+                "path": relative,
+                "outcome": "protected",
+                "detail": ", ".join(candidate_blockers),
+            }
+        )
+        return removed, skipped
+    for name in removal_entries(relative, entries):
+        entry = entries[name]
+        path = target.joinpath(*PurePosixPath(name).parts)
+        if not same_removal_identity(path, entry) or is_linkish(path):
+            skipped.append({"path": name, "outcome": "changed-or-link"})
+            continue
+        fresh_mounts, fresh_mount_error = linux_mount_points()
+        if fresh_mount_error:
+            skipped.append(
                 {
                     "path": name,
-                    "empty_directory": entry_is_empty_directory(entry, entries),
-                    "logical_bytes": logical,
-                    "reclaimable_local_bytes": reclaimable,
-                    **({"contents_purged": True} if purge else {}),
+                    "outcome": "protected",
+                    "detail": "mount-state-unverified",
                 }
             )
-    finally:
-        os.close(target_fd)
-    return handoff_apply_report(
-        target,
-        relative,
-        verdict,
-        removed,
-        skipped,
-        logical_removed=logical_removed,
-        reclaimable_removed=reclaimable_removed,
-        free_space_delta=shutil.disk_usage(target).free - before,
-    )
+            continue
+        purge = entry["kind"] == "directory" and path in git_metadata
+        fresh_blockers = path_blockers(path, fresh_mounts)
+        if purge and not fresh_blockers:
+            contents_blocker = opaque_contents_blocker(
+                path, target, globs, fresh_mounts
+            )
+            fresh_blockers = [contents_blocker] if contents_blocker else []
+        if fresh_blockers:
+            skipped.append(
+                {
+                    "path": name,
+                    "outcome": "protected",
+                    "detail": ", ".join(fresh_blockers),
+                }
+            )
+            continue
+        state, detail = handle_state(path)
+        if state != "clear":
+            outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+                state, "handle-state-unverified"
+            )
+            skipped.append({"path": name, "outcome": outcome, "detail": detail or ""})
+            continue
+        try:
+            anchored_remove(
+                target_fd,
+                name,
+                entry,
+                entries,
+                target,
+                purge_protected=consumer_protected if purge else None,
+            )
+        except HygieneError as exc:
+            skipped.append(
+                {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
+            )
+            continue
+        except PermissionError as exc:
+            skipped.append(
+                {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
+            )
+            continue
+        except OSError as exc:
+            skipped.append(
+                {"path": name, "outcome": "delete-failed", "detail": str(exc)}
+            )
+            continue
+        removed.append(
+            {
+                "path": name,
+                "empty_directory": entry_is_empty_directory(entry, entries),
+                "logical_bytes": entry_logical_file_bytes(entry),
+                "reclaimable_local_bytes": entry_reclaimable_local_bytes(entry) or 0,
+                **({"contents_purged": True} if purge else {}),
+            }
+        )
+    return removed, skipped
 
 
 _PARSER_VALUE_TYPES = {"int": int}
@@ -5530,7 +5973,9 @@ def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) ->
     if flag.metavar is not None:
         options["metavar"] = flag.metavar
     if flag.repeatable:
-        command.add_argument(flag.name, action="append", default=[], **options)
+        command.add_argument(
+            flag.name, action="append", default=[], required=flag.required, **options
+        )
         return
     if flag.choices is not None:
         options["choices"] = sorted(flag.choices)
@@ -5983,14 +6428,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "handoff-apply":
             if not args.execute:
                 raise HygieneError("handoff-apply requires the explicit --execute flag")
-            (approved,) = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}, entry_map(snapshot)
+            approved = validate_handoff_paths(
+                {"version": SCHEMA_VERSION, "paths": args.path}, entry_map(snapshot)
             )
-            vcs_evidence = validate_vcs_evidence(
-                load_input_json(args.vcs_evidence), [approved]
+            vcs_evidence = (
+                validate_vcs_evidence(load_input_json(args.vcs_evidence), approved)
+                if args.vcs_evidence
+                else None
             )
             report_path = model_output_path(args.report)
-            report = handoff_apply(snapshot, approved, vcs_evidence)
+            report = handoff_apply(snapshot, approved, args.tier, vcs_evidence)
             write_json(report_path, report)
             return emit(
                 report,

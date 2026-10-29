@@ -7749,9 +7749,9 @@ class HandoffVerifyTests(unittest.TestCase):
         for phrase in (
             "never delete it without a clear `handoff-verify` verdict",
             "run `handoff-verify`, and delete only on a `clear` verdict",
-            "On Linux, run `handoff-apply` ([command](reference/safety-model.md"
+            "On Linux and Windows, run `handoff-apply` ([command](reference/safety-model.md"
             "#standalone-git-checkout-evidence)): it re-runs "
-            "`handoff-verify` and deletes only on a `clear` verdict",
+            "`handoff-verify` and removes the checkout only on a `clear` verdict",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",
         ):
@@ -8961,9 +8961,20 @@ needs_git = unittest.skipUnless(
 @linux_only
 @needs_git
 class HandoffApplyTests(unittest.TestCase):
-    """handoff-apply: verify one approved path in-process, delete only on `clear`."""
+    """handoff-apply on one approved checkout: verify it in-process, delete only on `clear`."""
 
     ACK_REASON = "throwaway test repo"
+    # Every fixture directory carries a medium ceiling, so a medium batch
+    # passes the tier cap and each case tests what it names.
+    CHECKOUT_HINT = {
+        "id": "fixture-checkout",
+        "os": ["all"],
+        "kind": "name_glob",
+        "pattern": "*",
+        "entry_types": ["directory"],
+        "confidence_ceiling": "medium",
+        "reason": "fixture checkout",
+    }
 
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory()
@@ -8991,10 +9002,12 @@ class HandoffApplyTests(unittest.TestCase):
         return {name: entry}
 
     def snapshot(self) -> dict[str, Any]:
-        return hygiene.scan_tree(self.target.resolve(), hygiene.load_policy(None))
+        policy = hygiene.load_policy(None)
+        policy["hints"].append(self.CHECKOUT_HINT)
+        return hygiene.scan_tree(self.target.resolve(), policy)
 
     def apply(self, snapshot, evidence, path: str = "checkout") -> dict[str, Any]:
-        return hygiene.handoff_apply(snapshot, path, evidence)
+        return hygiene.handoff_apply(snapshot, [path], "medium", evidence)
 
     def assert_nothing_removed(self, report, checkout: Path) -> None:
         self.assertEqual("blocked", report["status"])
@@ -9016,7 +9029,7 @@ class HandoffApplyTests(unittest.TestCase):
                 self.assertEqual([], report["skipped"])
                 self.assertFalse(checkout.exists())
                 self.assertTrue((self.target / "keep.txt").exists())
-                self.assertEqual("clear", report["verdict"]["verdict"])
+                self.assertEqual("clear", report["verdicts"][0]["verdict"])
                 self.assertEqual(
                     [{"repository": name, "reason": self.ACK_REASON}],
                     report["accept_unpublished"],
@@ -9032,7 +9045,7 @@ class HandoffApplyTests(unittest.TestCase):
         checkout = self.checkout()
         report = self.apply(self.snapshot(), self.evidence(accept=False))
         self.assert_nothing_removed(report, checkout)
-        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertEqual("contested", report["verdicts"][0]["verdict"])
         self.assertEqual([], report["accept_unpublished"])
         detail = report["skipped"][0]["detail"]
         self.assertIn("vcs-evidence-status-not-clean", detail)
@@ -9086,7 +9099,7 @@ class HandoffApplyTests(unittest.TestCase):
         )
         report = self.apply(self.snapshot(), self.evidence())
         self.assert_nothing_removed(report, checkout)
-        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertEqual("contested", report["verdicts"][0]["verdict"])
         self.assertIn(
             "vcs-evidence-stash-not-duplicated", report["skipped"][0]["detail"]
         )
@@ -9105,7 +9118,7 @@ class HandoffApplyTests(unittest.TestCase):
                 change(checkout)
                 report = self.apply(snapshot, self.evidence(name), name)
                 self.assertEqual("blocked", report["status"])
-                self.assertEqual("drifted", report["verdict"]["verdict"])
+                self.assertEqual("drifted", report["verdicts"][0]["verdict"])
                 self.assertEqual([], report["removed"])
                 self.assertTrue((checkout / ".git").is_dir())
                 self.assertTrue((checkout / "tracked.txt").exists())
@@ -9280,6 +9293,8 @@ class HandoffApplyTests(unittest.TestCase):
             "handoff-apply",
             "--snapshot",
             str(self.base / "snapshot.json"),
+            "--tier",
+            "medium",
             "--path",
             "checkout",
             "--vcs-evidence",
@@ -9337,7 +9352,7 @@ class HandoffApplyTests(unittest.TestCase):
 
 
 class HandoffApplyPlatformTests(unittest.TestCase):
-    def test_a_non_linux_host_refuses_before_verifying_anything(self) -> None:
+    def test_a_macos_host_refuses_before_verifying_anything(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             root.mkdir()
@@ -9348,13 +9363,332 @@ class HandoffApplyPlatformTests(unittest.TestCase):
                 mock.patch.object(hygiene, "os_key", return_value="macos"),
                 mock.patch.object(hygiene, "handoff_verify") as verify,
             ):
-                report = hygiene.handoff_apply(snapshot, "junk.tmp", {})
+                report = hygiene.handoff_apply(snapshot, ["junk.tmp"], "medium", {})
             verify.assert_not_called()
             self.assertEqual("blocked", report["status"])
             self.assertEqual([], report["removed"])
-            self.assertIsNone(report["verdict"])
+            self.assertEqual([], report["verdicts"])
+            self.assertFalse(report["permanent_delete_used"])
             self.assertEqual(hygiene.PLATFORM_BLOCKER, report["skipped"][0]["detail"])
             self.assertTrue(junk.exists())
+
+    def test_windows_routes_to_the_recycle_bin_lane(self) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            self.assertEqual(
+                (hygiene.HANDOFF_REMOVAL_RECYCLE, []), hygiene.handoff_removal()
+            )
+        with mock.patch.object(hygiene, "os_key", return_value="macos"):
+            self.assertEqual(
+                (hygiene.HANDOFF_REMOVAL_UNLINK, [hygiene.PLATFORM_BLOCKER]),
+                hygiene.handoff_removal(),
+            )
+
+
+class HandoffApplyBatchTests(unittest.TestCase):
+    """handoff-apply over one tier: the hint-ceiling cap, the per-path verdict,
+    and the Recycle Bin lane through a stub backend."""
+
+    MEDIUM = ("one.tmp", "two.tmp")  # common-temp-file: medium ceiling
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.target = base / "target"
+        self.target.mkdir()
+        self.bin = base / "bin"
+        self.bin.mkdir()
+        for name in (*self.MEDIUM, "scratch.log", "notes.txt"):
+            (self.target / name).write_text(f"{name}\n", encoding="utf-8")
+        for patcher in (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+        ):
+            self.addCleanup(patcher.stop)
+            patcher.start()
+        self.snapshot = hygiene.scan_tree(
+            self.target.resolve(), hygiene.load_policy(None)
+        )
+        self.recycled: list[Path] = []
+
+    def recycle(self, path: Path) -> dict[str, Any]:
+        """The stub backend: moves the path into a bin, as the shell would."""
+        self.recycled.append(path)
+        path.rename(self.bin / path.name)
+        return {"outcome": "recycled", "detail": "", "permanent": False}
+
+    def recycle_lane(self, *, refusal=None, backend=None) -> ExitStack:
+        """Run handoff-apply as the Windows lane, never unlinking anything."""
+        stack = ExitStack()
+        stack.enter_context(
+            mock.patch.object(
+                hygiene,
+                "handoff_removal",
+                return_value=(hygiene.HANDOFF_REMOVAL_RECYCLE, []),
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(hygiene, "recycle_bin_refusal", side_effect=refusal)
+            if refusal
+            else mock.patch.object(hygiene, "recycle_bin_refusal", return_value=None)
+        )
+        stack.enter_context(
+            mock.patch.object(
+                hygiene, "windows_recycle", side_effect=backend or self.recycle
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(
+                hygiene,
+                "anchored_remove",
+                side_effect=AssertionError("the Recycle Bin lane never unlinks"),
+            )
+        )
+        return stack
+
+    def apply(self, paths, tier: str = "medium") -> dict[str, Any]:
+        return hygiene.handoff_apply(self.snapshot, list(paths), tier, None)
+
+    def assert_all_present(self, *names: str) -> None:
+        for name in names:
+            self.assertTrue((self.target / name).exists(), name)
+
+    @staticmethod
+    def paths(items: list[dict[str, Any]]) -> list[str]:
+        return [item["path"] for item in items]
+
+    def test_recycle_lane_recycles_each_clear_path_of_the_tier(self) -> None:
+        with self.recycle_lane():
+            report = self.apply(self.MEDIUM)
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertEqual(hygiene.HANDOFF_REMOVAL_RECYCLE, report["removal"])
+        self.assertEqual("medium", report["tier"])
+        self.assertEqual(list(self.MEDIUM), self.paths(report["removed"]))
+        self.assertTrue(all(item["recycled"] for item in report["removed"]))
+        self.assertFalse(report["permanent_delete_used"])
+        self.assertEqual(
+            ["clear", "clear"], [item["verdict"] for item in report["verdicts"]]
+        )
+        self.assertEqual(
+            sorted(self.MEDIUM), sorted(path.name for path in self.bin.iterdir())
+        )
+        self.assert_all_present("scratch.log", "notes.txt")
+
+    def test_recycle_batch_on_a_volume_with_no_recycle_bin_refuses_and_deletes_nothing(
+        self,
+    ) -> None:
+        def no_bin_for_two(path: Path) -> str | None:
+            if path.name == "two.tmp":
+                return "no-recycle-bin: X:\\ (hresult 0x80004005)"
+            return None
+
+        with (
+            self.recycle_lane(refusal=no_bin_for_two),
+            mock.patch.object(hygiene, "handoff_verify") as verify,
+        ):
+            report = self.apply(self.MEDIUM)
+        verify.assert_not_called()
+        self.assertEqual([], self.recycled)
+        self.assertEqual("blocked", report["status"])
+        self.assertEqual([], report["removed"])
+        self.assertFalse(report["permanent_delete_used"])
+        self.assertEqual(list(self.MEDIUM), self.paths(report["skipped"]))
+        for item in report["skipped"]:
+            self.assertIn("no-recycle-bin", item["detail"])
+        self.assert_all_present(*self.MEDIUM)
+        self.assertEqual([], list(self.bin.iterdir()))
+
+    def test_recycle_refusal_keeps_the_path_and_never_falls_back_to_a_delete(
+        self,
+    ) -> None:
+        def would_delete_permanently(path: Path) -> dict[str, Any]:
+            if path.name == "two.tmp":
+                return {
+                    "outcome": "refused",
+                    "detail": "would-delete-permanently",
+                    "permanent": False,
+                }
+            return self.recycle(path)
+
+        with self.recycle_lane(backend=would_delete_permanently):
+            report = self.apply(self.MEDIUM)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(["one.tmp"], self.paths(report["removed"]))
+        (skip,) = report["skipped"]
+        self.assertEqual(
+            {"path": "two.tmp", "outcome": "recycle-refused"},
+            {key: skip[key] for key in ("path", "outcome")},
+        )
+        self.assertFalse(report["permanent_delete_used"])
+        self.assert_all_present("two.tmp")
+
+    def test_recycle_lane_stops_after_a_permanent_delete_the_shell_reported(
+        self,
+    ) -> None:
+        def deleted_outright(path: Path) -> dict[str, Any]:
+            path.unlink()
+            return {"outcome": "removed", "detail": "", "permanent": True}
+
+        with self.recycle_lane(backend=deleted_outright):
+            report = self.apply(self.MEDIUM)
+        self.assertTrue(report["permanent_delete_used"])
+        self.assertEqual("completed-with-skips", report["status"])
+        (item,) = report["removed"]
+        self.assertEqual("one.tmp", item["path"])
+        self.assertFalse(item["recycled"])
+        (skip,) = report["skipped"]
+        self.assertEqual("two.tmp", skip["path"])
+        self.assertIn("batch stopped", skip["detail"])
+        self.assert_all_present("two.tmp")
+
+    def test_recycle_lane_keeps_the_report_when_a_later_path_errors(self) -> None:
+        real_verify = hygiene.handoff_verify
+
+        def verify(snapshot, approved, evidence):
+            if approved == ["two.tmp"]:
+                raise hygiene.HygieneError("snapshot target mount state is unverified")
+            return real_verify(snapshot, approved, evidence)
+
+        with (
+            self.recycle_lane(),
+            mock.patch.object(hygiene, "handoff_verify", side_effect=verify),
+        ):
+            report = self.apply(self.MEDIUM)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(["one.tmp"], self.paths(report["removed"]))
+        (skip,) = report["skipped"]
+        self.assertEqual("two.tmp", skip["path"])
+        self.assertIn("batch stopped: snapshot target mount state", skip["detail"])
+        self.assert_all_present("two.tmp")
+
+    def test_recycle_lane_skips_a_path_changed_after_approval(self) -> None:
+        (self.target / "two.tmp").write_text("rewritten after approval\n" * 4)
+        with self.recycle_lane():
+            report = self.apply(self.MEDIUM)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(["one.tmp"], self.paths(report["removed"]))
+        (skip,) = report["skipped"]
+        self.assertEqual("two.tmp", skip["path"])
+        self.assertIn("drifted", skip["detail"])
+        self.assertIn("changed-since-scan", skip["detail"])
+        self.assertEqual("drifted", report["verdicts"][1]["verdict"])
+        self.assertEqual(["one.tmp"], [path.name for path in self.recycled])
+        self.assertEqual(
+            "rewritten after approval\n" * 4,
+            (self.target / "two.tmp").read_text(encoding="utf-8"),
+        )
+
+    @linux_only
+    def test_unlink_lane_skips_a_path_changed_after_approval(self) -> None:
+        (self.target / "two.tmp").write_text("rewritten after approval\n" * 4)
+        report = self.apply(self.MEDIUM)
+        self.assertEqual(hygiene.HANDOFF_REMOVAL_UNLINK, report["removal"])
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(["one.tmp"], self.paths(report["removed"]))
+        self.assertTrue(report["permanent_delete_used"])
+        (skip,) = report["skipped"]
+        self.assertEqual("two.tmp", skip["path"])
+        self.assertIn("changed-since-scan", skip["detail"])
+        self.assertFalse((self.target / "one.tmp").exists())
+        self.assert_all_present("two.tmp", "scratch.log", "notes.txt")
+
+    def test_verdict_is_recomputed_for_each_path_just_before_its_removal(
+        self,
+    ) -> None:
+        calls: list[str] = []
+
+        def verify(snapshot, approved, evidence):
+            calls.append(f"verify {approved[0]}")
+            return real_verify(snapshot, approved, evidence)
+
+        def recycle(path: Path) -> dict[str, Any]:
+            calls.append(f"recycle {path.name}")
+            return self.recycle(path)
+
+        real_verify = hygiene.handoff_verify
+        with (
+            self.recycle_lane(backend=recycle),
+            mock.patch.object(hygiene, "handoff_verify", side_effect=verify),
+        ):
+            self.apply(self.MEDIUM)
+        self.assertEqual(
+            ["verify one.tmp", "recycle one.tmp", "verify two.tmp", "recycle two.tmp"],
+            calls,
+        )
+
+    def test_tier_above_a_paths_hint_ceiling_refuses_the_whole_batch(self) -> None:
+        with (
+            self.recycle_lane(),
+            mock.patch.object(hygiene, "handoff_verify") as verify,
+        ):
+            with self.assertRaisesRegex(hygiene.HygieneError, "scratch.log"):
+                self.apply(["one.tmp", "scratch.log"], "medium")
+            with self.assertRaisesRegex(hygiene.HygieneError, "one.tmp"):
+                self.apply(self.MEDIUM, "high")
+        verify.assert_not_called()
+        self.assertEqual([], self.recycled)
+        self.assert_all_present(*self.MEDIUM, "scratch.log")
+
+    def test_tier_refuses_a_batch_holding_a_path_with_no_hint(self) -> None:
+        with self.recycle_lane():
+            with self.assertRaisesRegex(hygiene.HygieneError, "notes.txt: no hint"):
+                self.apply(["one.tmp", "notes.txt"], "low")
+        self.assertEqual([], self.recycled)
+        self.assert_all_present("one.tmp", "notes.txt")
+
+    def test_tier_at_or_below_every_ceiling_is_admitted(self) -> None:
+        with self.recycle_lane():
+            report = self.apply(["one.tmp", "scratch.log"], "low")
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertEqual(["one.tmp", "scratch.log"], self.paths(report["removed"]))
+
+    def test_tier_cap_reads_the_lowest_ceiling_and_fails_closed(self) -> None:
+        def entry(*hints) -> dict[str, dict[str, Any]]:
+            return {"x": {"path": "x", "hints": list(hints)}}
+
+        medium = {"id": "m", "confidence_ceiling": "medium"}
+        low = {"id": "l", "confidence_ceiling": "low"}
+        cases = {
+            "lowest of several": (entry(medium, low), "medium", True),
+            "at the lowest": (entry(medium, low), "low", False),
+            "no hint": (entry(), "low", True),
+            "unreadable ceiling": (entry({"id": "h"}), "low", True),
+            "unknown ceiling": (entry({"confidence_ceiling": "certain"}), "low", True),
+            "hints not a list": ({"x": {"path": "x", "hints": "medium"}}, "low", True),
+        }
+        for label, (entries, tier, refused) in cases.items():
+            with self.subTest(label):
+                refusals = hygiene.handoff_tier_refusals(entries, ["x"], tier)
+                self.assertEqual(refused, bool(refusals), refusals)
+
+    def test_cli_tier_refusal_exits_two_and_writes_no_report(self) -> None:
+        base = self.target.parent
+        (base / "snapshot.json").write_text(json.dumps(self.snapshot), "utf-8")
+        argv = [
+            "handoff-apply",
+            "--execute",
+            "--snapshot",
+            str(base / "snapshot.json"),
+            "--tier",
+            "medium",
+            "--report",
+            str(base / "report.json"),
+            "--path",
+            "one.tmp",
+            "--path",
+            "scratch.log",
+            "--data-root",
+            str(base),
+        ]
+        output = io.StringIO()
+        with self.recycle_lane(), redirect_stdout(output):
+            status = hygiene.main(argv)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, status)
+        self.assertIn("scratch.log", payload["error"])
+        self.assertFalse((base / "report.json").exists())
+        self.assert_all_present("one.tmp", "scratch.log")
 
 
 class _ClosedPipeStderr(io.StringIO):
@@ -9684,8 +10018,8 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         if tail is None:
             tail = (
-                f"--execute --snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} "
-                f"--report {self.report_arg}" + self.authorize_data_root()
+                f"--execute --snapshot {self.snapshot_arg} --tier medium --report {self.report_arg} "
+                f"--path rel/junk --vcs-evidence {self.evidence_arg}" + self.authorize_data_root()
             )
         return f'"{self.python_command()}" "{script}" handoff-apply {tail}'
 
@@ -9693,27 +10027,76 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard(self._handoff_apply_command())
         output = result["hookSpecificOutput"]
         self.assertEqual("ask", output["permissionDecision"])
-        self.assertIn("one exact approved path", output["permissionDecisionReason"])
+        reason = output["permissionDecisionReason"]
+        self.assertIn("one tier: medium, 1 path(s)", reason)
+        self.assertIn("- rel/junk", reason)
+        self.assertIn("version-control content you acknowledged losing", reason)
+
+    def test_guard_ask_reason_lists_tier_count_and_every_batched_handoff_apply_path(
+        self,
+    ) -> None:
+        base = self._data_root.resolve()
+        base.mkdir(parents=True, exist_ok=True)
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/work/target"}), encoding="utf-8")
+        paths = ["cache/one.tmp", "build/two.tmp", "logs/three.tmp"]
+        tail = (
+            f'--execute --snapshot "{snapshot.as_posix()}" --tier low '
+            f"--report {self.report_arg} "
+            + " ".join(f"--path {path}" for path in paths)
+            + self.authorize_data_root()
+        )
+        result = self.run_guard(self._handoff_apply_command(tail))
+        output = result["hookSpecificOutput"]
+        self.assertEqual("ask", output["permissionDecision"])
+        reason = output["permissionDecisionReason"]
+        self.assertIn("one tier: low, 3 path(s) under /work/target:", reason)
+        for path in paths:
+            self.assertIn(f"\n- {path}\n", reason)
+        self.assertNotIn("version-control", reason)
+
+    def test_handoff_apply_ask_reason_falls_back_when_the_command_is_unreadable(
+        self,
+    ) -> None:
+        for command in ("", "handoff-apply --tier low", "x --snapshot s --tier low"):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    guard._HANDOFF_APPLY_ASK_GENERIC_REASON,
+                    guard._handoff_apply_ask_reason(command),
+                )
+
+    # Here because this class is the only one the Windows lane runs: it drives
+    # the real IFileOperation backend, which may recycle or refuse the file but
+    # must never delete it permanently.
+    @unittest.skipUnless(os.name == "nt", "Windows Recycle Bin backend")
+    def test_windows_recycle_backend_never_deletes_permanently(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            junk = Path(temporary).resolve() / "junk.tmp"
+            junk.write_text("junk", encoding="utf-8")
+            self.assertIsInstance(hygiene.recycle_bin_refusal(junk), (str, type(None)))
+            result = hygiene.windows_recycle(junk)
+            self.assertFalse(result["permanent"], result)
+            self.assertIn(result["outcome"], {"recycled", "refused", "failed"}, result)
+            if result["outcome"] == "recycled":
+                self.assertFalse(junk.exists(), result)
 
     def test_guard_denies_every_malformed_handoff_apply(self) -> None:
         data_root = self.authorize_data_root()
-        head = f"--execute --snapshot {self.snapshot_arg} --path rel/junk"
+        snapshot = f"--execute --snapshot {self.snapshot_arg}"
+        report = f"--report {self.report_arg}"
+        head = f"{snapshot} --tier medium {report} --path rel/junk"
         tails = {
-            "no --vcs-evidence": f"{head} --report {self.report_arg}{data_root}",
-            "--plan beside --path": f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} --plan p{data_root}",
-            "--approval-token beside --path": (
-                f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} "
-                f"--approval-token {'a' * 24}{data_root}"
-            ),
-            "repeated --path": f"{head} --path rel/other --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}",
-            "flag-shaped value": (
-                f"--execute --snapshot {self.snapshot_arg} --path -rf --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
-            ),
-            "no --data-root": f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg}",
-            "unauthorized --data-root": (
-                f'{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} --data-root "/somewhere/else"'
-            ),
-            "no --execute": f"--snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}",
+            "no --tier": f"{snapshot} {report} --path rel/junk{data_root}",
+            "unknown --tier": f"{snapshot} --tier urgent {report} --path rel/junk{data_root}",
+            "repeated --tier": f"{head} --tier low{data_root}",
+            "no --path": f"{snapshot} --tier medium {report}{data_root}",
+            "--path ahead of --report": f"{snapshot} --tier medium --path rel/junk {report}{data_root}",
+            "--plan beside --path": f"{head} --plan p{data_root}",
+            "--approval-token beside --path": f"{head} --approval-token {'a' * 24}{data_root}",
+            "flag-shaped value": f"{head} --path -rf{data_root}",
+            "no --data-root": head,
+            "unauthorized --data-root": f'{head} --data-root "/somewhere/else"',
+            "no --execute": f"--snapshot {self.snapshot_arg} --tier medium {report} --path rel/junk{data_root}",
         }
         for label, tail in tails.items():
             with self.subTest(label):
@@ -9974,9 +10357,10 @@ class GuardTests(unittest.TestCase):
         data_root = self.authorize_data_root()
         verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot {self.snapshot_arg}'
         apply = (
-            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg}'
+            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg} '
+            f"--tier medium --report {self.report_arg}"
         )
-        apply_tail = f" --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
+        apply_tail = f" --vcs-evidence {self.evidence_arg}{data_root}"
         malformed = {
             "no value": f"{verify} --path{data_root}",
             "joined value": f"{verify} --path=rel/junk{data_root}",
@@ -10220,7 +10604,7 @@ class GuardTests(unittest.TestCase):
         root = self._data_root.resolve().as_posix()
         command = (
             f'"{self.python_command()}" "{script}" handoff-apply --execute '
-            f"--snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} --report {self.report_arg} "
+            f"--snapshot {self.snapshot_arg} --tier medium --report {self.report_arg} --path rel/junk "
             f'--data-root "{root}"'
         )
         for enabled, verdict, rule in (
@@ -16150,6 +16534,10 @@ class EngineGrammarTests(unittest.TestCase):
             words.extend(self.chunk(flag))
             if flag.repeatable:
                 words.extend(self.chunk(flag))
+        # A required repeatable flag's second use joins the optional tail.
+        for flag in spec.required:
+            if flag.repeatable:
+                words.extend(self.chunk(flag))
         return words
 
     def command(self, name: str, words: list[str]) -> str:
@@ -16583,6 +16971,18 @@ class EngineGrammarTests(unittest.TestCase):
                 self.assertIsNone(self.classify("handoff-verify", words))
                 self.refuse_parse("handoff-verify", words)
 
+    def test_guard_and_parser_admit_a_repeated_handoff_apply_path(self) -> None:
+        spec = self.grammar.subcommand("handoff-apply")
+        words = [
+            *self.words(spec, optionals=False),
+            *("--path", "b/two.tmp", "--path", "c/three.tmp"),
+        ]
+        self.assertEqual(
+            ["relative/exact.tmp", "b/two.tmp", "c/three.tmp"],
+            self.parse("handoff-apply", words).path,
+        )
+        self.assertEqual("handoff-apply", self.classify("handoff-apply", words))
+
     def test_guard_refuses_a_repeated_handoff_verify_path_that_is_not_literal(
         self,
     ) -> None:
@@ -16816,12 +17216,14 @@ class EngineInputConfinementTests(EngineFileArgumentCase):
             "--execute",
             "--snapshot",
             str(self.snapshot),
+            "--tier",
+            "medium",
+            "--report",
+            str(self.run_dir / "report.json"),
             "--path",
             "keep.tmp",
             "--vcs-evidence",
             str(evidence),
-            "--report",
-            str(self.run_dir / "report.json"),
         )
         self.assert_refused("handoff-apply", *apply_words)
         self.assertTrue(self.keep.exists())
@@ -16930,12 +17332,14 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
                         "--execute",
                         "--snapshot",
                         str(self.snapshot),
+                        "--tier",
+                        "medium",
+                        "--report",
+                        str(report),
                         "--path",
                         "keep.tmp",
                         "--vcs-evidence",
                         str(evidence),
-                        "--report",
-                        str(report),
                     )
                 )
 
