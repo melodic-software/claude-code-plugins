@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.0] - 2026-10-29
+
+### Added
+
+- `block-cross-domain` now checks the `gh` and `az` config directory of a Bash or PowerShell call made from a session whose directory is in an identity domain ([#9747](https://github.com/melodic-software/claude-code-plugins/issues/9747)). When the domain has a `gh_config_dir`, a `gh` call that does not run with it is denied, whether the command sets `GH_CONFIG_DIR` or the hook's own environment carries it. When the domain has none, a `gh` call that runs with another domain's directory is denied. `az` is judged the same way with `AZURE_CONFIG_DIR` and `az_config_dir`. `gh --version` and `az --version` are exempt, and from a session outside every domain nothing is denied. A denied call starts no process, and the guard still exits 0 on every call.
+
+- `block-root-delete-target` judges a `find` that deletes the way it judges a recursive `rm` ([#9752](https://github.com/melodic-software/claude-code-plugins/issues/9752)): `find -delete`, or an `-exec`, `-execdir`, `-ok` or `-okdir` whose command word is `rm`, `rmdir` or `unlink`. Each start point is a target, `.` when none is given, read the way GNU and BSD find both read their leading options, and under `-H`, `-L` or `-follow` a start point that is a symlink is judged by where it points. A start point at a root, at home, outside the allowed roots or on a protected tree is refused, and one strictly inside the git toplevel, a temp root, the session scratchpad or an allowed root passes. A find delete started at the git toplevel is refused as a directory holding a `.git` whatever its filters, because find descends into `.git`.
+
 ## [0.62.1] - 2026-10-29
 
 ### Changed

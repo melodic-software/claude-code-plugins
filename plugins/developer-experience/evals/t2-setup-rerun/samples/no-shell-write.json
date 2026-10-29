@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell call"},
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash \"/plugins/developer-experience/skills/setup/scripts/pointer-line.sh\" check --root . --path docs/conventions/developer-experience.md", "description": "Check the AGENTS.md pointer line"}},
+        {"tool": "Bash", "input": {"command": "bash \"/plugins/developer-experience/skills/setup/scripts/pointer-line.sh\" apply --root . --path docs/conventions/developer-experience.md --dry-run"}}
+      ],
+      "why": "the helper's check and dry run"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status --porcelain 2>&1"}},
+        {"tool": "Bash", "input": {"command": "grep -n \"ReadLine\" src/Tarnquill.Cli/Commands/CommitCommand.cs"}}
+      ],
+      "why": "read-only commands and a stream redirect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "printf '%s\\n' '---' 'written_against: developer-experience@0.2.2' > docs/conventions/developer-experience.md"}}],
+      "why": "rewrote the conventions file through a redirect"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status"}},
+        {"tool": "Bash", "input": {"command": "git status && rm -f docs/conventions/developer-experience.md"}}
+      ],
+      "why": "near miss: an rm inside a compound command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "sed -i 's/0\\.1\\.0/0.2.2/' docs/conventions/developer-experience.md"}}],
+      "why": "bumped written_against in place"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cp AGENTS.md AGENTS.md.bak"}}],
+      "why": "copied a file"
+    }
+  ]
+}

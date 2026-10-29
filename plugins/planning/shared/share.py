@@ -2,7 +2,7 @@
 
   share.py --dir DATA_DIR ensure-running [--open] [--defaults-file F] [--guest-port N]
                                          [--adopt-tunnel PID URL]
-                                         [--tunnel-hostname H --tunnel-token-file F]
+                                         [--tunnel-hostname H --tunnel-token-file F [--tunnel-api-token-file F]]
   share.py --dir DATA_DIR stop [--keep-tunnel]
   share.py --dir DATA_DIR live-stop ID
   share.py --dir DATA_DIR restart
@@ -24,6 +24,8 @@ On Windows `python share.py ...` runs without bash.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import collections
 import contextlib
 import datetime
@@ -37,9 +39,11 @@ import re
 import secrets
 import shlex
 import shutil
+import ssl
 import subprocess
 import sys
 import time
+import urllib.parse
 import webbrowser
 from pathlib import Path
 
@@ -47,7 +51,8 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-import detached  # noqa: E402  (beside this file; sys.path is set just above)
+import cfdns  # noqa: E402  (beside this file; sys.path is set just above)
+import detached  # noqa: E402
 import session_bridge as bridge  # noqa: E402
 import tunnel  # noqa: E402
 
@@ -60,7 +65,8 @@ SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
 START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)  # tests shorten it
-NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given; its ingress rule names this port
+NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given and no API token routes it; its ingress rule names this port
+LEASE_SECONDS = 5.0  # judgment: how long the lease probe waits for the tunnel's hostname to answer
 SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
 OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
@@ -260,20 +266,196 @@ def kind(rec):
 
 
 def named_config(d, a):
-    """(hostname, token file) from the command line, ("", "") for a quick tunnel; refuses a named tunnel that cannot run.
-    Without --tunnel-hostname the recorded tunnel's kind stays: only an explicit empty hostname switches back to quick."""
+    """(hostname, token file, API token file, why a quick tunnel stands in or None) from the command line, ("", "", "",
+    None) for a quick tunnel. Without --tunnel-hostname the recorded tunnel's kind, token file and API token file stay:
+    only an explicit empty hostname switches back to quick. A file path may start with ~/ (the options are set
+    fleet-wide). A hostname that is no DNS name refuses; a token file that cannot be used falls back to a quick tunnel, so
+    the options may be set on machines that do not hold the files yet."""
     if a.tunnel_hostname is None:
-        hostname, token_file = tunnel.config(tunnel.read(d))
+        rec = tunnel.read(d) or {}
+        hostname, token_file = tunnel.config(rec)
+        api_file = a.tunnel_api_token_file if a.tunnel_api_token_file is not None else rec.get("apiTokenFile") or ""
     else:
-        hostname, token_file = a.tunnel_hostname.strip().lower(), a.tunnel_token_file or ""
+        hostname, token_file, api_file = a.tunnel_hostname.strip().lower(), a.tunnel_token_file or "", a.tunnel_api_token_file or ""
     if not hostname:
-        return "", ""
-    problem = tunnel.hostname_problem(hostname) or tunnel.token_file_problem(token_file)
+        return "", "", "", None
+    problem = tunnel.hostname_problem(hostname)
     if problem:
         raise Refused(1, f"refused: {problem}")
     if a.adopt_tunnel:
         raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
-    return hostname, token_file
+    if api_file.startswith("${user_config."):  # an unset option can arrive as its unexpanded token: its default, empty
+        api_file = ""
+    token_file, api_file = (os.path.normpath(os.path.expanduser(f)) if f.startswith("~") else f for f in (token_file, api_file))
+    why = tunnel.token_file_problem(token_file) or (api_file and tunnel.token_file_problem(api_file, "tunnel API token file", "tunnel_api_token_file"))
+    return hostname, token_file, api_file, why or None
+
+
+def lease_target(hostname):
+    """The connection the lease probe asks https://<hostname> through. SHARED_LEASE_ORIGIN (tests) sends it to a loopback
+    http origin instead, with the same Host."""
+    origin = urllib.parse.urlsplit(os.environ.get("SHARED_LEASE_ORIGIN") or "")
+    if origin.scheme == "http" and origin.hostname in ("127.0.0.1", "localhost"):
+        return http.client.HTTPConnection(origin.hostname, origin.port or 80, timeout=LEASE_SECONDS)
+    return http.client.HTTPSConnection(hostname, 443, timeout=LEASE_SECONDS, context=ssl.create_default_context())
+
+
+# Cloudflare's no-connector page, its tags stripped. A browser gets HTML holding <span>Error</span> <span>1033</span>;
+# a client like this one gets text/plain "error code: 1033" (both read from a stopped tunnel's hostname on 2026-10-29).
+# The words are matched apart from the markup, never a bare "1033".
+NO_CONNECTOR = re.compile(r"\berror(?: code)?:? 1033\b", re.IGNORECASE)
+
+
+def no_connector(status, body):
+    """True when an answer is Cloudflare's no-connector page: HTTP 530 whose text says Error 1033."""
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", body.decode("utf-8", "replace")))
+    return status == 530 and bool(NO_CONNECTOR.search(text))
+
+
+def link_holder(hostname):
+    """(why https://<hostname> is not free for this machine to serve, whether that is certain); (None, True) when nothing
+    serves it. One request to the tunnel probe route with a nonce no server holds: only Cloudflare's no-connector answer
+    (HTTP 530, Error 1033) means free. An interview server's 404 not-found means another session holds it, for certain;
+    any other answer, and any failure to ask (DNS, a refused connection, a timeout, TLS), counts as held but uncertain."""
+    conn = lease_target(hostname)
+    try:
+        conn.request("GET", f"/api/tunnel-probe/{secrets.token_hex(16)}", headers={"Host": hostname})
+        resp = conn.getresponse()
+        status, body = resp.status, resp.read(65536)
+    except (OSError, http.client.HTTPException) as exc:
+        return f"whether another machine serves https://{hostname} cannot be told ({str(exc) or type(exc).__name__})", False
+    finally:
+        conn.close()
+    if no_connector(status, body):
+        return None, True
+    try:
+        held = status == 404 and json.loads(body).get("error") == "not-found"
+    except (ValueError, AttributeError):
+        held = False
+    if held:
+        return f"another interview session already serves https://{hostname}", True
+    return f"https://{hostname} answers HTTP {status}, which does not show the link free", False
+
+
+def run_token_ids(token_file):
+    """(account id, tunnel id) from the tunnel's run token: base64 of JSON {"a": account, "t": tunnel, "s": secret}
+    (TunnelToken in cloudflared's connection/connection.go, decoded by ParseToken in cmd/cloudflared/tunnel/subcommands.go,
+    as of 2026-10-28; recheck when a cloudflared release changes either). The secret is never kept; errors never quote
+    the token."""
+    try:
+        doc = json.loads(base64.b64decode(Path(token_file).read_text(encoding="utf-8").strip(), validate=True))
+    except (OSError, ValueError, binascii.Error):
+        doc = None
+    account, tunnel_id = (doc.get("a"), doc.get("t")) if isinstance(doc, dict) else (None, None)
+    if not (isinstance(account, str) and cfdns.ID.fullmatch(account) and isinstance(tunnel_id, str) and cfdns.UUID.fullmatch(tunnel_id)):
+        raise cfdns.Refused(1, f"the tunnel token file {token_file} does not hold a run token naming its account and tunnel")
+    return account, tunnel_id
+
+
+def service(port):
+    return f"http://127.0.0.1:{port}"
+
+
+def routed(config, hostname, port):
+    """The tunnel configuration with <hostname>'s rule (one with no path) sending to this port and everything else kept:
+    a missing rule goes in before the catch-all, and a catch-all 404 is added when there is none."""
+    rules = [dict(r) if isinstance(r, dict) else r for r in config.get("ingress") or []]
+    ours = [r for r in rules if isinstance(r, dict) and str(r.get("hostname") or "").lower() == hostname and not r.get("path")]
+    for r in ours:
+        r["service"] = service(port)
+    if not ours:
+        last = rules[-1] if rules else None
+        catch_all = isinstance(last, dict) and not last.get("hostname") and not last.get("path")
+        rules.insert(len(rules) - 1 if catch_all else len(rules), {"hostname": hostname, "service": service(port)})
+        if not catch_all:
+            rules.append({"service": "http_status:404"})
+    return {**config, "ingress": rules}
+
+
+def tunnel_api(token_file, api_file):
+    """(API token, the tunnel's API path) for the route calls; raises cfdns.Refused."""
+    account, tunnel_id = run_token_ids(token_file)
+    return cfdns.api_token(api_file), f"/accounts/{account}/cfd_tunnel/{tunnel_id}"
+
+
+def others_up(token, base, mine, ours_up):
+    """The tunnel's connectors with an open connection that are not this session's: `mine` holds the Connector IDs its
+    cloudflared runs, or ran, as (each process logs a new one, so a list that still shows a crashed one of ours is not
+    another machine). With none known while ours runs, one connector is taken as ours. Each item's `id` and its conns'
+    `client_id` name the connector (the connections list reference, cfdns.py's docstring)."""
+    result, _ = cfdns.request(token, "GET", base + "/connections")
+    up = [c for c in result or [] if isinstance(c, dict) and any(isinstance(x, dict) for x in c.get("conns") or [])]
+    if mine:
+        return [c for c in up if not mine & ({c.get("id")} | {x.get("client_id") for x in c["conns"] if isinstance(x, dict)})]
+    return up[1:] if ours_up else up
+
+
+def crowded(n):
+    return f"another machine runs its tunnel ({n} other connector{'s' if n > 1 else ''} connected)"
+
+
+def remote_config(token, base):
+    current, _ = cfdns.request(token, "GET", base + "/configurations")
+    config = current.get("config") if isinstance(current, dict) else None
+    return config if isinstance(config, dict) else {}
+
+
+def ours(*recs):
+    """The Connector IDs these records of this session's tunnel name."""
+    return {r["connector"] for r in recs if r and r.get("connector")}
+
+
+def route(hostname, token_file, api_file, port, own=None, before=None):
+    """Before this machine runs the named tunnel: refuse when another machine's connector is connected, then point
+    <hostname>'s ingress rule at this guest port, keeping the rest of the tunnel's configuration (GET, merge, and a PUT
+    only on a change). `own`: this session's running cloudflared record for the tunnel; `before`: its last record for
+    it, running or not. (why not, certain) or (None, True); an API failure is uncertain."""
+    try:
+        token, base = tunnel_api(token_file, api_file)
+        others = others_up(token, base, ours(own, before), bool(own))
+        if others:
+            return crowded(len(others)), True
+        config = remote_config(token, base)
+        merged = routed(config, hostname, port)
+        if merged != config:
+            cfdns.request(token, "PUT", base + "/configurations", body={"config": merged})
+    except cfdns.Refused as exc:
+        return f"its route could not be set to port {port}: {exc}", False
+    return None, True
+
+
+def confirm(hostname, token_file, api_file, port, rec, before=None):
+    """After this machine started the named tunnel (`rec`): no other connector came up meanwhile and <hostname>'s rule
+    still names this port, so of two machines that started together neither keeps serving on the other's route.
+    (why not, certain) or (None, True). With no Connector ID in its log, any connector listed could be another
+    machine's, so the answer is uncertain. A machine that connects or writes the route after this check is not seen
+    (README "The lease")."""
+    try:
+        token, base = tunnel_api(token_file, api_file)
+        mine = ours(rec, before)
+        if not mine and others_up(token, base, mine, False):
+            return "its cloudflared logged no Connector ID, so another machine's connector cannot be told from its own", False
+        others = others_up(token, base, mine, True)
+        if others:
+            return f"{crowded(len(others))} as it started here", True
+        rules = [r for r in remote_config(token, base).get("ingress") or [] if isinstance(r, dict) and str(r.get("hostname") or "").lower() == hostname and not r.get("path")]
+        if [r.get("service") for r in rules] != [service(port)]:
+            names = ", ".join(str(r.get("service")) for r in rules) or "nothing"
+            return f"its route names {names}, not port {port}: another machine set it", True
+    except cfdns.Refused as exc:
+        return f"its connectors and route could not be checked: {exc}", False
+    return None, True
+
+
+def lease(hostname, token_file, api_file, port, own=None, before=None):
+    """Whether this machine may start the named tunnel to `port` now: the link probe (skipped while `own`, this session's
+    cloudflared record for it, still runs), then with an API token file the connectors and the route. (why not,
+    certain) or (None, True)."""
+    if not own:
+        why, sure = link_holder(hostname)
+        if why:
+            return why, sure
+    return route(hostname, token_file, api_file, port, own, before) if api_file else (None, True)
 
 
 def creation(d, a, resumed):
@@ -351,11 +533,25 @@ def bring_up(d, a):
     d.mkdir(parents=True, exist_ok=True)
     with detached.locked(d / LOCK):
         resumed = (d / "state.json").exists()
-        hostname, token_file = named_config(d, a)
+        hostname, token_file, api_file, fallback = named_config(d, a)
+        before = tunnel.read(d) if hostname else None
+        before = before if before and tunnel.config(before)[0] == hostname else None  # its last record for the link
+        own = tunnel.alive(d) if before else None  # this session already serves the link
+        settled = bool(own and fallback)
+        if settled:  # its files matter only at cloudflared's next start, so the running link stays
+            print(f"named tunnel {hostname}: {fallback}; its running tunnel keeps serving this session", file=sys.stderr)
+            hostname, token_file = tunnel.config(own)
+            api_file, fallback = own.get("apiTokenFile") or "", None
+        if hostname and not fallback and not own:
+            fallback = link_holder(hostname)[0]
+        requested = hostname
+        if fallback:
+            hostname, token_file, api_file = "", "", ""
+        fixed = hostname and not api_file  # no API token routes the tunnel, so its ingress rule names a fixed port
         wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
-        if hostname and wanted is None and not ports.get("guest"):
-            wanted = NAMED_PORT  # the tunnel's ingress rule names a fixed port
+        if fixed and wanted is None and not ports.get("guest"):
+            wanted = NAMED_PORT
         if wanted is not None and resumed and ports.get("guest") not in (None, wanted):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
@@ -372,7 +568,7 @@ def bring_up(d, a):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
             guest = wanted if wanted is not None else ports.get("guest") or 0
             if wanted is None and guest and not bridge.port_free(guest):
-                if hostname:
+                if fixed:
                     raise Refused(2, f"port {guest} is busy: the named tunnel's ingress rule points there, so the guest listener cannot move")
                 print(f"port {guest} is busy: the guest link moves to a new port", file=sys.stderr)
                 guest = 0
@@ -393,18 +589,25 @@ def bring_up(d, a):
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
         if type(port) is not int:  # a tunnel to no port would replace one that works
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
+        if api_file and not settled and not (own and own.get("port") == port):
+            fallback = route(hostname, token_file, api_file, port, own, before)[0]
+            if fallback:
+                hostname, token_file = "", ""
         rec, down, kept = None, None, None
         try:
-            rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url))
+            rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url), fields={"apiTokenFile": api_file} if hostname else None)
+            if hostname and api_file and not settled and not (own and own.get("pid") == rec["pid"]):
+                fallback = confirm(hostname, token_file, api_file, port, rec, before)[0]
+                if fallback:
+                    hostname = ""
+                    rec = tunnel.fall_back(d, port)
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
             rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
-        if hostname:
-            print(
-                f"named tunnel {hostname}: its ingress rule must name http://127.0.0.1:{port}. Run it on this machine only:"
-                " Cloudflare sends each guest to the nearest machine running it, so check `cfdns.py connectors` before starting it on another.",
-                file=sys.stderr,
-            )
+        if fallback:
+            print(f"named tunnel {requested}: {fallback}; a quick tunnel serves this session instead", file=sys.stderr)
+        if fixed and hostname:
+            print(f"named tunnel {hostname}: its ingress rule must name http://127.0.0.1:{port}; set tunnel_api_token_file to have it set for you", file=sys.stderr)
         if rec:
             wait_public(s, rec["url"])
         bridge.set_wait_timeout(d, NAME, bridge.WAIT_DEFAULT)
@@ -413,6 +616,8 @@ def bring_up(d, a):
             link = (d / OWNER_LINK).read_text(encoding="utf-8").strip()
             opened = open_link(d, link)
         out = report(d, s, rec, resumed, opened=opened)
+        if fallback:
+            out["tunnelFallback"] = fallback
     if kept:
         raise Refused(1, f"refused: {down}", out)
     if down:
@@ -862,7 +1067,9 @@ def parser():
     s.add_argument("--guest-port", type=int, help="the guest listener's port, chosen when the session is created")
     s.add_argument("--adopt-tunnel", nargs=2, metavar=("PID", "URL"), help="record a running cloudflared to the guest port as the tunnel")
     s.add_argument("--tunnel-hostname", help="run the named tunnel at this hostname (the tunnel_hostname option); empty: a quick tunnel; left out: the recorded tunnel's kind")
-    s.add_argument("--tunnel-token-file", help="the named tunnel's token file, an absolute path (the tunnel_token_file option); read by cloudflared only")
+    s.add_argument("--tunnel-token-file", help="the named tunnel's token file, an absolute path or one starting with ~/ (the tunnel_token_file option); cloudflared runs from it, and with"
+        " --tunnel-api-token-file share.py reads its account and tunnel ids")
+    s.add_argument("--tunnel-api-token-file", help="a Cloudflare API token file, an absolute path or one starting with ~/ (the tunnel_api_token_file option): checks the tunnel's connectors and sets its route to this session's guest port")
     s.set_defaults(fn=cmd_ensure_running)
     s = sub.add_parser("stop")
     s.add_argument("--keep-tunnel", action="store_true", help="keep the tunnel and the guest link")

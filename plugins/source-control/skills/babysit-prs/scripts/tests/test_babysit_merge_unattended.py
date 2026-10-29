@@ -4462,6 +4462,7 @@ class AttachEdits(unittest.TestCase):
         edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
         other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
         editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
         reply = {
             "data": {
                 "nodes": [
@@ -4469,6 +4470,7 @@ class AttachEdits(unittest.TestCase):
                         "id": "IC_b",
                         "lastEditedAt": "2026-10-22T03:00:00Z",
                         "editor": editor,
+                        "userContentEdits": history,
                     }
                 ]
             }
@@ -4477,7 +4479,12 @@ class AttachEdits(unittest.TestCase):
             merge._attach_edits([same, edited, other], "#1")
         self.assertEqual(same["edit"], {"lastEditedAt": None})
         self.assertEqual(
-            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
         )
         self.assertNotIn("edit", other)
         args = read.call_args.args[0]

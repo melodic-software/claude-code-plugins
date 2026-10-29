@@ -3,6 +3,20 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4] - 2026-10-29
+
+### Added
+
+- Eval cases for scenarios T3 and T4 on the shared fixtures. `t3-setup-interactive-release` runs `/developer-experience:setup apply` on the bare `brackenfold` copy and checks that `AGENTS.md` keeps its lines and gains the pointer line, with judge graders on the conventions file it writes. `t4-check-old-location` runs `/developer-experience:setup check` on the legacy `tarnquill` copy with deterministic graders only: nothing written and the seeded files unchanged, the `.claude/` file reported as an old location, the false `--yes` line reported, and the missing `@AGENTS.md` import printed. ([#9993](https://github.com/melodic-software/claude-code-plugins/issues/9993))
+
+## [0.2.3] - 2026-10-29
+
+### Added
+
+- Eval cases `s1-branch-start-plan` and `s4-migrator-plan`, ported from scenarios S1 and S4 of the eval scenario sources on the converged fixtures. Each grades the plan turn: build-cli fires and makes no Write or Edit call and runs no shell command that writes or deletes a file before the user says yes, and in S4 the plan asks which backup format to use and recommends neither, an `llm` grader whose samples are the labeled S4 item 10 set. ([#9953](https://github.com/melodic-software/claude-code-plugins/issues/9953))
+
+- Eval cases `s3-script-cleanup` and `s6-tool-inventory`, ported from scenarios S3 and S6 of the eval scenario sources onto the shared fixtures in their converged state. Each grades the scenario's answer key, file citations and other judge items with `llm` graders, and its read-only items with free graders: no `Write`, no `Edit`, and no `rm` or `git rm`, including one inside a compound shell command. A further grader records whether `/developer-experience:audit-tools` ran. ([#9966](https://github.com/melodic-software/claude-code-plugins/issues/9966))
+
 ## [0.2.2] - 2026-10-29
 
 ### Added

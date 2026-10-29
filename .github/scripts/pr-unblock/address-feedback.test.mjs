@@ -45,7 +45,8 @@ function fakeApi(overrides = {}) {
   return {
     posted,
     permissionReads,
-    getPull: async () => ({ number: 42, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
+    // The lanes App opened the PR unless the case names another opener.
+    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -1618,4 +1619,28 @@ test("scanRefusal reads a patch and an output marker together as output, in eith
       rmSync(dir, { recursive: true, force: true });
     }
   }
+});
+
+// On an adopted owner PR, an unresolved thread the lane does not take is the
+// owner's: one they wrote or answered, or a lane answer the lanes App cannot
+// resolve there. It is no stop, and it does not read as resolved. Any other
+// person's PR, or an owner's with no adoption section, still escalates.
+test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it still escalates", async () => {
+  const threads = { reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)], threads: [thread("PRRT_1", [100, 101])] };
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api, set = adoption) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption: set });
+  const owner = await adopted(fakeApi({ ...threads, opener: HUMAN }));
+  assert.equal(owner.decision, "skip");
+  assert.equal(owner.skipReason, "not-applicable");
+  assert.notEqual(owner.resolved, true);
+  assert.deepEqual(owner.threads, []);
+  assert.equal((await adopted(fakeApi(threads))).escalationReason, "feedback-untaken-threads", "a lanes App PR");
+  assert.equal((await adopted(fakeApi({ ...threads, opener: STRANGER }))).escalationReason, "feedback-untaken-threads", "a stranger's PR");
+  assert.equal((await run(fakeApi({ ...threads, opener: HUMAN }))).escalationReason, "feedback-untaken-threads", "an owner PR with no adoption section");
+});
+
+test("on an owner PR a thread a person opened is never kept", async () => {
+  const result = await run(fakeApi({ opener: HUMAN, reviewComments: [comment(100, HUMAN)], threads: [thread("PRRT_1", [100])] }));
+  assert.deepEqual(result.threads, []);
+  assert.notEqual(result.decision, "proceed");
 });

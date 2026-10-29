@@ -5808,6 +5808,11 @@ class ForeignPaths(unittest.TestCase):
         )
         own = changed - {
             ".github/workflows/pr-merge.yml",
+            # A workflow holding a secret is a gate path, and so are Claude
+            # Code settings and the agent instructions.
+            ".github/workflows/release-publish-plugins.yml",
+            ".claude/settings.json",
+            "AGENTS.md",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/resolve.mjs",
             "CODEOWNERS",
@@ -9208,6 +9213,47 @@ class FileContents(unittest.TestCase):
         self.assertIsNone(out[0].contents)
         self.assertIn("502", out[0].contents_error)
 
+
+class LaneIdentity(unittest.TestCase):
+    """`lane_identity` names the lane only when the base and the default branch
+    head agree, and never reads the pull request's head (#10763)."""
+
+    def _run(self, base_id, main_id, *, base_error=None, main_raises=False):
+        base = policy.PipelineConfig(
+            SHA, "C2", None, base_id, None, (), None, base_error
+        )
+        main = policy.PipelineConfig(MAIN_SHA, "C2", None, main_id, None, (), None)
+        with (
+            mock.patch.object(policy, "config_at", return_value=base) as at,
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                side_effect=policy.PolicyReadError("head unreadable")
+                if main_raises
+                else None,
+                return_value=main,
+            ),
+        ):
+            result = policy.lane_identity("owner/repo", SHA)
+        at.assert_called_once_with("owner/repo", SHA)
+        return result
+
+    def test_agreeing_base_and_default_branch_name_the_lane(self) -> None:
+        identity, source = self._run(IDENTITY, IDENTITY.upper())
+        self.assertEqual(identity, IDENTITY)
+        self.assertIn(SHA, source)
+
+    def test_unset_on_either_side_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, None)[0])
+        self.assertIsNone(self._run(None, IDENTITY)[0])
+        self.assertIsNone(self._run(None, None)[0])
+
+    def test_differing_identities_name_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, "other-lane[bot]")[0])
+
+    def test_a_failed_read_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, base_error="bad yaml")[0])
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, main_raises=True)[0])
 
 if __name__ == "__main__":
     unittest.main()
