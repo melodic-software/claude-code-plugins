@@ -2309,7 +2309,9 @@ writes the rest: a comment on the pull request opening with
 notes (read from its `verdict.json`; an expired one is named by its run) as data in one text
 fence; the same record on each linked issue (closing, or the `Refs:` one), its marker naming the
 attempt; `agent-ready` off the issue and back on, tried twice, which starts the fresh attempt;
-then the close, so a closed pull request never leaves its issue without `agent-ready`. `write-issue.mjs` passes that record to the next attempt as
+then the close, so a closed pull request never leaves its issue without `agent-ready`. An issue
+that did not carry `agent-ready` when read (a person may have taken it off) is recorded with no
+attempt and not restarted, since the App's re-add would override that person. `write-issue.mjs` passes that record to the next attempt as
 `author_kind: verify-findings`, the one lanes App comment it keeps besides intake's refinement. An
 issue that already had `merge.verify-cap-attempts` fresh attempts (lanes App records naming other
 pull requests) is parked instead: its record says so, and before the close it gets

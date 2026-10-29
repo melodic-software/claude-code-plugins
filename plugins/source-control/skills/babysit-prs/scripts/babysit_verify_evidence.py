@@ -3381,6 +3381,11 @@ def capped_close_bodies(
     )
     if issue is None:
         next_step = "It links no issue, so no fresh attempt starts."
+    elif attempt is None:
+        next_step = (
+            f"Issue #{issue} did not carry `{AGENT_READY}` when the lane read it, so "
+            "no fresh attempt starts: whoever took it off decides what comes next."
+        )
     elif parked:
         next_step = (
             f"Issue #{issue} has used its {attempt[1] if attempt else 0} fresh attempt(s) "
@@ -3467,7 +3472,8 @@ def capped_close(
     order, so a failed write leaves the pull request open for the next run,
     which finds its comments and writes the rest: the record on the pull
     request, then on each issue; the issue's `agent-ready` comes off and
-    goes back on (tried twice), which starts the fresh attempt; the pull
+    goes back on (tried twice), which starts the fresh attempt, only when the
+    issue carried it (one that did not is recorded and not restarted); the pull
     request closes, so a closed one never leaves its issue without
     `agent-ready`. An issue that already had `attempts` fresh attempts
     (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
@@ -3519,7 +3525,11 @@ def capped_close(
     except _Unreadable as exc:
         raise RuntimeError(f"FAIL findings: {exc}") from exc
     repo = reader.repo
-    plan: list[tuple[int, list[dict[str, Any]], tuple[int, int], bool]] = []
+    # `attempt` None: the issue did not carry agent-ready when read (a person
+    # may have taken it off), so it is recorded without an attempt and not
+    # restarted. A record naming an attempt means an earlier run took the
+    # label off for it, so a rerun restarts it.
+    plan: list[tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool]] = []
     for issue in issues:
         comments = postmerge._paginated(
             f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
@@ -3530,7 +3540,15 @@ def capped_close(
         else:
             spent = _spent(comments, identity, number)
             parked = spent >= attempts
-            attempt = (spent if parked else spent + 1, attempts)
+            carried = AGENT_READY in (
+                label.lower()
+                for label in merge_policy._label_names(live[issue]) or []
+            )
+            attempt = (
+                (spent if parked else spent + 1, attempts)
+                if parked or carried
+                else None
+            )
         plan.append((issue, comments, attempt, parked))
     first = plan[0] if plan else None
     pr_body, _ = capped_close_bodies(
@@ -3597,6 +3615,8 @@ def capped_close(
                 f"#{issue} {STATUS_READY}",
                 missing_ok=True,
             )
+        if not parked and attempt is None:
+            continue
         _gh_write(
             ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
             f"#{issue} {AGENT_READY}",
@@ -3616,12 +3636,12 @@ def capped_close(
         ["api", "-X", "PATCH", f"repos/{repo}/pulls/{number}", "-f", "state=closed"],
         "close",
     )
-    restarted = [issue for issue, _, _, parked in plan if not parked]
     return {
         "closed": True,
         "refusal": evidence.refusal,
-        "restarted": restarted,
+        "restarted": [i for i, _, a, parked in plan if not parked and a is not None],
         "parked": [issue for issue, _, _, parked in plan if parked],
+        "unrestarted": [i for i, _, a, parked in plan if not parked and a is None],
     }
 
 

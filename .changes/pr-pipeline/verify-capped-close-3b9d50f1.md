@@ -10,7 +10,8 @@ bump: patch
   `merge.lane-prs: gate`) closes it for a fresh attempt at its issue. It posts a
   `<!-- verify-capped-close -->` record quoting each FAILed head's verdict findings on the pull
   request and its issue, then takes `agent-ready` off and puts it back, which starts the fresh
-  attempt, before the close. It leaves open a pull request whose issue link the arm path refuses
+  attempt, before the close; an issue that did not carry `agent-ready` is recorded and not
+  restarted. It leaves open a pull request whose issue link the arm path refuses
   or whose issue carries an issue hold label. New `merge.verify-cap-attempts` (default 1) bounds the fresh attempts per issue; past
   it the issue is parked at `status: confirmed`.
 - The cross-pull-request FAIL cap leaves out a pull request the lanes App's capped-close record

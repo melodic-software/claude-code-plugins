@@ -38,7 +38,7 @@ class StubReader:
         refusal: str = ve.REPEATED_FAIL,
         issues: tuple[int, ...] = (ISSUE,),
         link: str | None = None,
-        issue_labels: tuple[str, ...] = (),
+        issue_labels: tuple[str, ...] = ("agent-ready",),
     ) -> None:
         self.repo = REPO
         self.agent_identity = BOT
@@ -148,6 +148,7 @@ class ClosesForAFreshAttempt(unittest.TestCase):
                 "refusal": ve.REPEATED_FAIL,
                 "restarted": [ISSUE],
                 "parked": [],
+                "unrestarted": [],
             },
         )
         # The records first, then agent-ready off and back on, all before the
@@ -286,6 +287,52 @@ class ClosesForAFreshAttempt(unittest.TestCase):
 
         world.gh = gh  # type: ignore[method-assign]
         self.assertTrue(world.run()["closed"])
+
+    def test_an_issue_without_agent_ready_is_not_restarted(self) -> None:
+        # A person may have taken agent-ready off: the App's re-add would
+        # override them and admit the issue afresh, so it starts nothing.
+        world = World()
+        result = world.run(StubReader(issue_labels=()))
+        self.assertEqual(result["restarted"], [])
+        self.assertEqual(result["parked"], [])
+        self.assertEqual(result["unrestarted"], [ISSUE])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/comments",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
+        issue = world.body(1)
+        self.assertEqual(
+            issue.split("\n")[0],
+            f"<!-- verify-capped-close pr={PR} heads={FAILED[0]},{FAILED[1]} -->",
+        )
+        self.assertIn("did not carry `agent-ready`", issue)
+        self.assertIn("no fresh attempt starts", world.body(0))
+
+    def test_a_rerun_after_a_failed_re_add_still_restarts(self) -> None:
+        # The first run took agent-ready off and could not put it back; its
+        # record names the attempt, so the rerun restarts the issue.
+        world = World()
+
+        def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            world.writes.append(args)
+            if " ".join(args[2:4]) == f"POST repos/{REPO}/issues/{ISSUE}/labels":
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        world.gh = gh  # type: ignore[method-assign]
+        with self.assertRaises(RuntimeError):
+            world.run()
+        world.comments[PR] = [comment(world.body(0))]
+        world.comments[ISSUE] = [comment(world.body(1))]
+        del world.gh
+        world.writes.clear()
+        result = world.run(StubReader(issue_labels=()))
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertIn(f"POST repos/{REPO}/issues/{ISSUE}/labels", world.calls())
 
     def test_too_old_closes_too(self) -> None:
         self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
