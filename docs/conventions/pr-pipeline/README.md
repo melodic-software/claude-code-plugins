@@ -931,9 +931,12 @@ the rules that only tighten in
   reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
   `findings:claude-review`, `findings:claude-security-review`, `cost-finding`). Every other MEDIUM reason
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
-  `no-patch:` is only an image, font or PDF; any other file the files API sends no patch for (a
-  script with a NUL byte that git calls binary, an over-size patch) no review read, so it holds for
-  a person as `unreviewed-patch:<path>`.
+  `no-patch:` is an image, font or PDF, or a file whose blob ids show no unread content: a rename,
+  mode change or modification that keeps its blob and does not gain execute, or an empty file added
+  or removed.
+  Any other file the files API sends no patch for (a script with a NUL byte that git calls binary,
+  an over-size patch, a copy, an unread blob id) no review read, so it holds for a person as
+  `unreviewed-patch:<path>`.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from

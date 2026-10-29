@@ -1890,6 +1890,41 @@ class ChangedFiles(unittest.TestCase):
             ],
         )
 
+    def test_blob_ids_come_from_the_head_and_base_trees(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "docs/b.md",
+                "previous_filename": "docs/old.md",
+                "status": "renamed",
+                "additions": 0,
+                "deletions": 0,
+            },
+            {"filename": "docs/e.md", "status": "added", "additions": 0, "deletions": 0},
+        ]
+        gh.rest[f"repos/{REPO}/git/trees/{self.HEAD}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": "docs/b.md", "mode": "100644", "sha": "b" * 40},
+                {"path": "docs/e.md", "mode": "100644", "sha": "e" * 40},
+            ],
+        }
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [{"path": "docs/old.md", "mode": "100644", "sha": "a" * 40}],
+        }
+        pr = {
+            "number": 7,
+            "changed_files": 2,
+            "head": {"sha": self.HEAD},
+            "base": {"sha": SHA},
+        }
+        files, _ = policy.changed_files(REPO, pr)
+        self.assertEqual(
+            [(f.path, f.blob, f.previous_blob) for f in files],
+            [("docs/b.md", "b" * 40, "a" * 40), ("docs/e.md", "e" * 40, None)],
+        )
+
     def test_a_truncated_tree_is_incomplete(self) -> None:
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = []
@@ -3683,6 +3718,8 @@ class LocalEnabledSince(unittest.TestCase):
             [(f.path, f.mode, f.previous_mode) for f in files],
             [("tool.sh", "100755", "100644")],
         )
+        blob = self.git(self.clone, "rev-parse", f"{head}:tool.sh")
+        self.assertEqual([(f.blob, f.previous_blob) for f in files], [(blob, blob)])
         self.assertEqual(
             gh.calls,
             [

@@ -4959,15 +4959,18 @@ def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
     )
 
 
-def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
-    """Each path's git mode at `sha`, or None when the listing is truncated:
-    from a local clone holding `sha` (`_clones_holding`), else the trees API."""
+def _tree_entries(
+    owner: str, name: str, sha: str
+) -> dict[str, tuple[str, str | None]] | None:
+    """Each path's git mode and object id at `sha`, or None when the listing
+    is truncated: from a local clone holding `sha` (`_clones_holding`), else
+    the trees API."""
     for root in _clones_holding(sha):
         listing = _git(root, "ls-tree", "-r", "-t", "-z", "--full-tree", sha)
         if listing is not None:
             # Each entry is `<mode> <type> <id>\t<path>`.
             return {
-                path: meta.split(" ", 1)[0]
+                path: (meta.split(" ")[0], meta.split(" ")[-1])
                 for meta, _, path in (
                     entry.partition("\t") for entry in listing.split("\0") if entry
                 )
@@ -4977,36 +4980,53 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
         raise PolicyReadError(f"the tree at {sha} could not be read (status {status})")
     if payload.get("truncated") is not False:
         return None
-    return {
-        str(entry.get("path")): str(entry.get("mode"))
-        for entry in map(json_object, json_array(payload.get("tree")))
-    }
+    entries = {}
+    for entry in map(json_object, json_array(payload.get("tree"))):
+        blob = entry.get("sha")
+        entries[str(entry.get("path"))] = (
+            str(entry.get("mode")),
+            blob if isinstance(blob, str) else None,
+        )
+    return entries
+
+
+def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
+    """Each path's git mode at `sha` (`_tree_entries`)."""
+    entries = _tree_entries(owner, name, sha)
+    return None if entries is None else {p: e[0] for p, e in entries.items()}
 
 
 def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
-    """The pull request's files with git modes from `_tree_modes` (the files
-    API carries none): the head side at its head, the previous side at
-    `base_sha`. Complete only when every listing reads to its end."""
+    """The pull request's files with git modes and blob ids from
+    `_tree_entries` (the files API carries neither): the head side at its
+    head, the previous side at `base_sha`. Complete only when every listing
+    reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
     if not SHA_RE.fullmatch(str(head)):
         raise PolicyReadError(f"#{number}: no head commit")
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
-    head_modes = _tree_modes(owner, name, str(head))
-    base_modes = _tree_modes(owner, name, base_sha)
+    head_tree = _tree_entries(owner, name, str(head))
+    base_tree = _tree_entries(owner, name, base_sha)
     complete = (
-        head_modes is not None
-        and base_modes is not None
+        head_tree is not None
+        and base_tree is not None
         and pr.get("changedFiles") == len(listing)
     )
     files = []
     for entry in listing:
         path, previous = entry.get("filename"), entry.get("previous_filename")
         status = entry.get("status")
-        side = base_modes if status == "removed" else head_modes
+        side = (base_tree if status == "removed" else head_tree) or {}
+        mode, blob = side.get(path, (None, None))
+        previous_mode, previous_blob = (
+            (None, None)
+            if status in ("added", "removed")
+            else (base_tree or {}).get(previous or path, (None, None))
+        )
         files.append(
             ChangedFile(
                 path=path,
@@ -5016,10 +5036,10 @@ def _changed_files(
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
                 patch=entry.get("patch"),
-                mode=(side or {}).get(path),
-                previous_mode=None
-                if status in ("added", "removed")
-                else (base_modes or {}).get(previous or path),
+                mode=mode,
+                previous_mode=previous_mode,
+                blob=blob,
+                previous_blob=previous_blob,
             )
         )
     return tuple(files), complete
