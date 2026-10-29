@@ -1283,7 +1283,7 @@ clone or, with `scope=shared`, for every clone.
 
 **`secret_pattern_detection_allowed_roots`.** For credentials you keep on purpose in local notes
 that are never committed, such as a notes directory under home that is not a repository. Only you
-set it: it is read from the hook's own environment, never from the tool call. A Write, Edit or
+set it. It is read from the hook's own environment, never from the tool call. A Write, Edit or
 NotebookEdit that holds a token is not blocked when its target's real path is strictly under a
 listed directory, so a symlink under a root that points outside it is still scanned and a path
 outside whose real path lands under one is not. The root itself, a sibling that shares its name
