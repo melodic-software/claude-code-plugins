@@ -537,6 +537,7 @@ export async function select({
   trustedHumans,
   humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
+  adoption = NO_ADOPTION,
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -589,10 +590,11 @@ export async function select({
     }
     const stale = new Set(staleVerifyNotes(threads, headSha));
     const untaken = threads.some((thread) => thread.isResolved === false && !stale.has(thread.id));
-    // On a PR a person opened, a thread the lane does not take is theirs (one
-    // they wrote, answered, or a lane answer the lanes App cannot resolve
-    // there), and so no stop: it still holds the merge until it is resolved.
-    if (untaken && pull.user?.type === "User") {
+    // On an adopted owner PR (ownerAuthored), a thread the lane does not take
+    // is the owner's (one they wrote, answered, or a lane answer the lanes App
+    // cannot resolve there), and so no stop: it still holds the merge until it
+    // is resolved. Any other person's PR still escalates.
+    if (untaken && ownerAuthored(pull, adoption)) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
     }
     return untaken
@@ -1032,6 +1034,33 @@ export function trustedHumansFrom(trustedActorsPath) {
   );
 }
 
+// No owner is adopted unless the base config's `adoption` section sets
+// idle-hours (pr-pipeline.yaml).
+export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
+
+// An owner PR: one a person on the base's trusted-actors list opened (by id,
+// kind human), under an `adoption` section. Its rounds post as the lanes App
+// like a lanes App PR's, so a lane answer is told apart from the person's.
+export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
+  adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
+
+// The owners whose PRs a round serves: the base trusted-actors list's people,
+// under the base config's `adoption` section. An unreadable section adopts no
+// owner, and lanes App PRs proceed.
+export async function ownerAdoption(env, log = () => {}) {
+  try {
+    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
+    if (idleHours === undefined) {
+      return NO_ADOPTION;
+    }
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+  } catch (error) {
+    log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
+    return NO_ADOPTION;
+  }
+}
+
 // The reviewer bot's id comes from the base's trusted-actors list, by login.
 export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
   const actor = readActors(trustedActorsPath).find((row) => row.login === login && row.kind === "bot");
@@ -1065,7 +1094,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       fetch: await countedFetch(),
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
-  const selectThreads = () => {
+  const selectThreads = async () => {
     need(env, ["TRUSTED_ACTORS"]);
     return select({
       api: client,
@@ -1078,6 +1107,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
       humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
+      adoption: await ownerAdoption(env, log),
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {

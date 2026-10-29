@@ -47,6 +47,9 @@ export const MAX_THREADS = 3;
 // human verdict settles it, so a model never closes a thread the lane did not
 // dispute (settleDisputes).
 export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"]);
+// What a resolveAfterReply stand-in returns when the lanes App answered a
+// thread it cannot resolve (a PR it did not open): handled, and still open.
+export const LEFT_OPEN = "left-open";
 export const VERDICTS = ["lane", "reviewer", "human"];
 export const QUESTIONS = ["intent", "design", "security"];
 // The first line of each adjudication reply the lanes App posts: this, or
@@ -333,7 +336,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
 // - lane: on an INCORRECT reply, the fixed reply, then the thread is
-//   resolved; on an UNCERTAIN or VALID-defer reply (the lane could not tell,
+//   resolved (left open, as LEFT_OPEN, where the lanes App cannot resolve
+//   it); on an UNCERTAIN or VALID-defer reply (the lane could not tell,
 //   or agreed the finding holds) no reply, the thread stays open (the
 //   ruleset's thread resolution still holds the merge), and
 //   feedback-unadjudicated;
@@ -429,12 +433,13 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
         throw new Error(`the adjudication reply on ${thread} did not land on its thread`);
       }
       if (verdict.verdict === "lane") {
-        if (!(await resolveAfterReply(api, thread, [...before.commentIds, answer.id], headMoved))) {
+        const resolved = await resolveAfterReply(api, thread, [...before.commentIds, answer.id], headMoved);
+        if (!resolved) {
           log(`${thread}: the finding does not hold, but the thread was left open: it or the PR head changed`);
           raise("feedback-partial");
           continue;
         }
-        log(`${thread}: the finding does not hold; resolved`);
+        log(`${thread}: the finding does not hold; ${resolved === LEFT_OPEN ? "left open for the person" : "resolved"}`);
       } else {
         log(`${thread}: the finding stands`);
         stands = true;

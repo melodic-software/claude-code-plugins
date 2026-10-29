@@ -121,7 +121,9 @@ import { pathToFileURL } from "node:url";
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+
+export { NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -163,16 +165,6 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 // included, with a bare CR as a line break too. fix-ci-dispatch.mjs imports
 // it from here, so this floored module loads no unfloored one.
 export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
-
-// No owner is adopted unless the base config's `adoption` section sets
-// idle-hours (pr-pipeline.yaml).
-export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
-
-// An owner PR: one a person on the base's trusted-actors list opened (by id,
-// kind human), under an `adoption` section. Its rounds post as the lanes App
-// like a lanes App PR's, so a lane answer is told apart from the person's.
-export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
-  adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
 // (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:`, and both
@@ -939,23 +931,6 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
     event: {},
     github,
   });
-}
-
-// The owners whose PRs a round serves: the base trusted-actors list's people,
-// under the base config's `adoption` section. An unreadable section adopts no
-// owner, and lanes App PRs proceed.
-export async function ownerAdoption(env, log = () => {}) {
-  try {
-    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
-    if (idleHours === undefined) {
-      return NO_ADOPTION;
-    }
-    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
-  } catch (error) {
-    log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
-    return NO_ADOPTION;
-  }
 }
 
 // Writes run-id, the dispatched run, as a step output; the workflow records

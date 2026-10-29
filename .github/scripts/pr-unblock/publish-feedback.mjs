@@ -108,7 +108,7 @@ import {
   staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
-import { DISPUTED, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
+import { DISPUTED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
@@ -680,13 +680,14 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // GitHub lets only a PR's author or a writer resolve its threads, and the
     // lanes App is neither on a PR a person opened: there each answered thread
     // is left open with the lanes App's reply, for the person or their
-    // babysit worker tier to resolve.
+    // babysit worker tier to resolve. The stand-in returns LEFT_OPEN, so
+    // settleDisputes reports such a thread as left open, not resolved.
     const appPr = (await api.getPull(pr))?.user?.id === appId;
     const resolve = appPr
       ? resolveAfterReply
       : async (_api, id) => {
           log(`${id}: left open; the lanes App cannot resolve a thread on a PR it did not open`);
-          return true;
+          return LEFT_OPEN;
         };
     const posted = [];
     for (const reply of replies) {

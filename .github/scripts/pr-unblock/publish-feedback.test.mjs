@@ -1663,6 +1663,8 @@ test("on an owner PR a VALID reply and a lane verdict post as the lanes App and 
   assert.deepEqual(api.resolved(), []);
   assert.ok(logged.some((line) => line === "PRRT_a: left open; the lanes App cannot resolve a thread on a PR it did not open"), logged.join("\n"));
   assert.ok(logged.includes("replied on PRRT_a (VALID)"), logged.join("\n"));
+  assert.ok(logged.includes("PRRT_b: the finding does not hold; left open for the person"), logged.join("\n"));
+  assert.ok(!logged.some((line) => line.endsWith("; resolved")), logged.join("\n"));
 });
 
 test("on a lanes App PR the same round still resolves both threads", async () => {
