@@ -4,7 +4,7 @@
 # gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
 #
 # report-outcome labels a lanes App pull request that a person merges
-# `human-merge-hold` (#9437). ci-status fails while the label is on, and once
+# `human-merge-hold`. ci-status fails while the label is on, and once
 # it is off passes only when the first removal at or after the newest add was
 # a `human` of the base commit's trusted-actor list acting directly. It fails
 # closed when it cannot tell.
@@ -117,7 +117,7 @@ STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:00:00Z 'github-actions[bot]' 4
 expect "a pull request never labeled human-merge-hold passes" 0 "No human-merge hold on #6419."
 STUB_CHECKOUT_FAILED=1 expect "with no hold the actor list is not needed, so a failed base checkout passes" 0 "No human-merge hold on #6419."
 
-# The two body edits #9437 names leave the label on, so the step still fails.
+# Deleting the hold line or rewriting the Refs line leaves the label on, so the step still fails.
 STUB_LABELS='[{"name":"human-merge-hold"}]'
 STUB_EVENTS="[$OPENED]"
 expect "a pull request carrying the label fails, whatever its body says" 1 \

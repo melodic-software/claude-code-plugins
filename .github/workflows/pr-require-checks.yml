@@ -4693,7 +4693,7 @@ jobs:
           fi
           echo "$actor_login, a person on the trusted-actor list, lifted the review-lane hold on #$PR_NUMBER."
       # A HUMAN-MERGE HOLD LIFTS ONLY BY A LISTED PERSON. report-outcome puts
-      # `human-merge-hold` on a lanes App pull request a person merges (#9437):
+      # `human-merge-hold` on a lanes App pull request a person merges:
       # its body's `Hold: a human merges this` line is text the App can edit.
       # While the label is on this fails. Once it is off, it fails unless the
       # first removal at or after the newest time any account added it was by

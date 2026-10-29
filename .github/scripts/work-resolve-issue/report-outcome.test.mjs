@@ -2691,7 +2691,7 @@ test("main without merge: human holds no PR and reads no label events", async ()
   assert.ok(!calls.some((c) => c.path.endsWith("/events")));
 });
 
-// #9437: the hold line is body text the lanes App can edit, so a held PR also
+// The hold line is body text the lanes App can edit, so a held PR also
 // carries a label only a listed person's removal lifts (ci-status's
 // human-merge hold step).
 const holdLabelPosts = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels"));
