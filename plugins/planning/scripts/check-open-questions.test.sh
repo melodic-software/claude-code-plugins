@@ -956,7 +956,7 @@ mkdir -p "$surface_dir"
 cat >"$surface_dir/questions.json" <<'EOF'
 {"meta": {"title": "Export test"}, "rev": 1, "groups": [], "questions": [], "visuals": [],
  "restatements": [{"rev": 1, "at": "2026-09-24T10:00:00Z", "sections": {
-   "intent": "Cut CI time so merges stop queueing.", "goal": "Cut CI build time.",
+   "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.",
    "acceptance": "- p75 build is 4 min or less", "decisions": "- Q1 only the admin writes"}}]}
 EOF
 cat >"$surface_dir/responses.json" <<'EOF'
