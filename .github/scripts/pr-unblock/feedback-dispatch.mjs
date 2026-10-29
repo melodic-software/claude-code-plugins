@@ -499,17 +499,18 @@ export async function dispatchFeedback({
     if (anyHandles(existing, { now, limits: resolved.limits })) {
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
     }
-    // Last, as it costs a full verifier read: a push past the FAIL cap could
-    // never merge, so pr-merge closes the pull request for a fresh attempt.
-    const capped = await verifyCapped({ number, head, base: pull.base?.sha });
-    if (capped) {
-      // The cap never clears for the head: later runs skip it before any
-      // read. A sibling read that failed is read again next run.
-      if (capFinal(capped)) {
-        markHandled(record, settings.checkName, head);
-      }
-      return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
+  }
+  // Last, as it costs a full verifier read, and on a pass-only dispatch too: a
+  // later pass clears no cap, and a push past it could never merge, so
+  // pr-merge closes the pull request for a fresh attempt.
+  const capped = await verifyCapped({ number, head, base: pull.base?.sha });
+  if (capped) {
+    // The cap never clears for the head: later runs skip it before any
+    // read. A sibling read that failed is read again next run.
+    if (capFinal(capped)) {
+      markHandled(record, settings.checkName, head);
     }
+    return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
   }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,
