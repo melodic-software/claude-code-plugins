@@ -316,6 +316,20 @@
         }
       }
     },
+    "attended": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Work that needs the owner present: the classes of manual step on external state intake's refinement may record as `External state: manual (<class>: <what>)`, which admission refuses with the `attended` label. Absent: no class, so no refinement records one. Contract: README.md, Attended work.",
+      "properties": {
+        "classes": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {},
+          "description": "Each class name and its one-line meaning, which the refinement model reads; a refinement naming any other class is refused."
+        }
+      }
+    },
     "branch-cleanup": {
       "type": "object",
       "additionalProperties": false,

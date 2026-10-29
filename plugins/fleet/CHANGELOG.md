@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10] - 2026-10-28
+
+### Fixed
+
+- The `fr-expired-oauth-login` eval's `no-credential-in-prompt` grader accepts a reply that declines both moves in one sentence and names the credential in the bold heading after it. New samples cover that wording and a reply with credential headings that declines nothing.
+
 ## [0.2.9] - 2026-10-23
 
 ### Added

@@ -497,8 +497,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "success" }), true);
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
+  const selects = (result, stopped) =>
+    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped });
+  assert.equal(selects("success", ""), true);
+  assert.equal(selects("failure", ""), false);
+  assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
   // The subscription leg runs only after the key leg handed off or found no key.
@@ -578,10 +581,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
   assert.equal(step(apply, "apply").run, 'node ".base/$SCRIPT" --apply');
   // Select and apply read the admission rules and web hosts the split uses
-  // from the default branch, and the model must return the split field.
+  // from the default branch, and the model must return the split and
+  // external fields (the attended classes come from the base config too).
   assert.equal(step(select, "select").env.BASE_PATH, ".base");
   assert.equal(step(apply, "apply").env.BASE_PATH, ".base");
-  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split"\]/);
+  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split","external"\]/);
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
@@ -6848,4 +6852,47 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
   // and one each in ten other workflows.
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
+});
+
+// request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
+// token, so nothing after it may run on success() alone: every later step is
+// gated, a step that reads the token runs only when it is set, and a job that
+// needs the stopped job's success and reads none of its outputs also needs its
+// skip output empty (an output only a token step sets already stops it).
+test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
+  const callers = [];
+  for (const name of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
+    const { jobs } = workflow(name);
+    for (const [id, job] of Object.entries(jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const at = steps.findIndex((step) => step.with?.["kill-switch-ok"] === true);
+      if (at === -1) continue;
+      callers.push(`${name}:${id}`);
+      const tokenId = steps[at].id;
+      assert.ok(tokenId, `${name}:${id}: the token step has an id`);
+      const tokenRef = `steps.${tokenId}.outputs.token`;
+      for (const step of steps.slice(at + 1)) {
+        const where = `${name}:${id}: "${step.name}"`;
+        assert.equal(typeof step.if, "string", `${where} has an if:, so it never runs on success() alone`);
+        if (JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes(tokenRef)) {
+          assert.ok(step.if.includes(`${tokenRef} != ''`), `${where} reads the token only when it is set`);
+        }
+      }
+      const [skip] = Object.entries(job.outputs ?? {}).find(([, value]) => value.includes(`steps.${tokenId}.outputs.skip-reason`)) ?? [];
+      for (const [otherId, other] of Object.entries(jobs)) {
+        const needs = [other.needs ?? []].flat();
+        const cond = String(other.if ?? "");
+        if (!needs.includes(id) || !cond.includes(`needs.${id}.result == 'success'`)) continue;
+        if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
+        assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
+        assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+      }
+    }
+  }
+  assert.deepEqual(callers.sort(), [
+    "intake-triage.yml:apply-refinement",
+    "intake-triage.yml:apply-verdict",
+    "pr-merge.yml:enable-auto-merge",
+    "pr-merge.yml:merge",
+  ]);
 });

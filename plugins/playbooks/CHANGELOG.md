@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.9] - 2026-10-29
+
+### Added
+
+- Seven `fable-5` evals for the orchestration chapter's delegation rule: one case per delegate shape (fan-out, context-flooding side work, a fresh-context verifier on a small batch) and one per stay-inline condition (a dependent chain, a file being edited, a job of a few tool calls, detail needed later in the session).
+
 ## [0.24.8] - 2026-10-27
 
 ### Changed

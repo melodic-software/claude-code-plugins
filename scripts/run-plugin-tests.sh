@@ -8,7 +8,7 @@
 # affected-suite selector, not through a step of its own.
 #
 #   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
-#                               [--suites-from FILE]
+#                               [--suites-from FILE] [--budget SECONDS]
 #   scripts/run-plugin-tests.sh --list [--root DIR]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
@@ -36,6 +36,17 @@
 # scripts/suite-seconds.txt ($PLUGIN_TEST_SECONDS_LIST overrides it), so a long
 # suite never starts late and outlasts the rest of its leg; a suite the file
 # does not list counts 0 and keeps its sorted place after the listed ones.
+#
+# BUDGET. --budget SECONDS is the wall clock the whole run aims to finish in,
+# for the local affected-only run (scripts/check-affected.sh --tests). A run
+# over it reports the overrun and its three slowest suites, and does not fail.
+# Each suite gets a share, and a suite that takes longer than its share fails
+# by name: the share is its scripts/suite-seconds.txt median times
+# $PLUGIN_TEST_SHARE_MARGIN (default 3), and never less than
+# $PLUGIN_TEST_SHARE_DEFAULT seconds (default 30), the share of a suite the file
+# does not list. The medians are CI runner measurements, so the margin covers a
+# slower host and a loaded job pool. Without --budget no suite is timed against
+# anything, which is how CI runs.
 #
 # SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
 # index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
@@ -102,7 +113,7 @@ SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] | --list [--root DIR]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] [--budget SECONDS] | --list [--root DIR]" >&2
   exit 2
 }
 
@@ -121,8 +132,8 @@ parse_shard() {
 }
 
 # --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
-# under $PLUGIN_TEST_LOG_DIR, records its exit status beside the capture, then
-# prints the whole block under the print lock. Reached only from the dispatch
+# under $PLUGIN_TEST_LOG_DIR, records its exit status and wall seconds beside
+# the capture, then prints the whole block under the print lock. Reached only from the dispatch
 # below; it exits 0 regardless of the suite's result so xargs never stops
 # early, and the summary reads the recorded status instead.
 #
@@ -142,7 +153,9 @@ if [[ "${1:-}" == "--worker" ]]; then
   log="$log_dir/$key"
   rc=0
   test_git_env::isolate "$log.gitconfig" || exit 2
+  start=$SECONDS
   bash "$suite" >"$log.out" 2>&1 || rc=$?
+  printf '%s\n' "$((SECONDS - start))" >"$log.secs"
   printf '%s\n' "$rc" >"$log.rc"
   # noclobber opens the lock with O_EXCL inside bash itself. `mkdir` is not a
   # safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both
@@ -164,10 +177,19 @@ jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
 shard_spec="0/1"
 suites_from=""
+budget=""
+budget_given=0
 list=0
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
+  --budget)
+    [[ $# -ge 2 ]] || usage
+    budget="$2"
+    budget_given=1
+    shift
+    ;;
+  --budget=*) budget="${1#--budget=}" budget_given=1 ;;
   --list) list=1 ;;
   --suites-from)
     [[ $# -ge 2 ]] || usage
@@ -199,6 +221,16 @@ done
 if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
   exit 2
+fi
+share_margin="${PLUGIN_TEST_SHARE_MARGIN:-3}"
+share_default="${PLUGIN_TEST_SHARE_DEFAULT:-30}"
+if ((budget_given)); then
+  for v in "--budget:$budget" "PLUGIN_TEST_SHARE_MARGIN:$share_margin" "PLUGIN_TEST_SHARE_DEFAULT:$share_default"; do
+    if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
+      exit 2
+    fi
+  done
 fi
 if ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
@@ -319,6 +351,19 @@ if ((${#parallel_suites[@]} > 1)) && [[ -s "$SECONDS_LIST" ]]; then
     sort -s -t $'\t' -k1,1nr | cut -f2-)
 fi
 
+# suite_share <suite>: its median times the margin, floored at the default.
+declare -A median=()
+if [[ -n "$budget" && -s "$SECONDS_LIST" ]]; then
+  while read -r path secs _; do
+    [[ "$path" == \#* || ! "$secs" =~ ^[0-9]+$ ]] || median["$path"]="$secs"
+  done <"$SECONDS_LIST"
+fi
+suite_share() {
+  local share=$((${median[$1]:-0} * share_margin))
+  ((share > share_default)) || share="$share_default"
+  printf '%s' "$share"
+}
+
 log_dir="$(mktemp -d)"
 trap 'rm -rf "$log_dir"' EXIT
 export PLUGIN_TEST_LOG_DIR="$log_dir"
@@ -338,6 +383,7 @@ if ((${#is_advisory[@]} > 0)); then
   echo "Advisory nonce: $advisory_nonce"
 fi
 
+run_start=$SECONDS
 for t in ${serial_suites[@]+"${serial_suites[@]}"}; do
   bash "$runner" --worker "$t"
 done
@@ -345,6 +391,7 @@ if [[ ${#parallel_suites[@]} -gt 0 ]]; then
   # xargs appends one indexed suite path after `--worker` per invocation.
   printf '%s\0' "${parallel_suites[@]}" | xargs -0 -n 1 -P "$jobs" bash "$runner" --worker
 fi
+run_seconds=$((SECONDS - run_start))
 
 # suite_annotate <error|warning> <suite> <message>: one annotation titled by the
 # suite, so a log reader can group results by suite. Escapes follow actions/toolkit
@@ -368,6 +415,7 @@ advisory_failed=0
 total_optional_skips=0
 total_discriminating_skips=0
 skipped_suites=()
+timings=()
 
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
@@ -385,6 +433,16 @@ for i in "${!tests[@]}"; do
   elif ((rc != 0)); then
     suite_annotate error "$t" "$t failed (exit $rc)"
     failed=1
+  fi
+  if [[ -n "$budget" ]]; then
+    secs="$(<"$log.secs")"
+    timings+=("$secs"$'\t'"$t")
+    share="$(suite_share "$t")"
+    if ((secs > share)); then
+      echo "FAIL: $t took ${secs}s, over its ${share}s share of the budget" >&2
+      suite_annotate error "$t" "$t took ${secs}s, over its ${share}s share of the budget"
+      failed=1
+    fi
   fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"
   disc_skips="$(grep -c '^DISCRIMINATING SKIP:' "$log.out" 2>/dev/null || true)"
@@ -406,6 +464,16 @@ if ((${#skipped_suites[@]} > 0)); then
   for s in "${skipped_suites[@]}"; do
     echo "  SKIPPED: $s"
   done
+fi
+
+if [[ -n "$budget" ]] && ((run_seconds > budget)); then
+  {
+    echo "OVER BUDGET: the suites took ${run_seconds}s, over the ${budget}s budget. Slowest:"
+    printf '%s\n' ${timings[@]+"${timings[@]}"} | sort -t $'\t' -k1,1nr | head -n 3 |
+      while IFS=$'\t' read -r secs t; do echo "  ${secs}s $t"; done
+  } >&2
+elif [[ -n "$budget" ]]; then
+  echo "The suites took ${run_seconds}s of the ${budget}s budget."
 fi
 
 if ((total_discriminating_skips > 0)); then

@@ -1,6 +1,6 @@
 {
   "protected-path-conflict": { "activity": "resolve-conflicts", "route": "hold", "why": "a conflicted path is a workflow, submodule config or a settings file, which the lane does not resolve" },
-  "workflow-staged": { "activity": "resolve-conflicts", "route": "hold", "why": "the merge stages a change under .github/workflows/, which the lane does not push" },
+  "workflow-staged": { "activity": "resolve-conflicts", "route": "fail", "why": "the merge stages the pull request's own .github/workflows/ changes together with the base's, which the lane token cannot push, so a session merges main by hand" },
   "unexpected-path-staged": { "activity": "resolve-conflicts", "route": "fail", "why": "the conflict resolution changes a path outside the conflicted ones, which the lane does not push" },
   "repeat-cap": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane has resolved conflicts on this branch as many times in a row as its cap allows" },
   "unresolved-conflict": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane could not resolve every conflict" },

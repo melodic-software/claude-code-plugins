@@ -936,7 +936,9 @@ jobs:
       # run that a change to this file on main superseded is refused
       # `workflow-modified`; it ends green with a warning and no token, so the
       # steps below skip and no stale failed `merge` check lands on a PR. The
-      # newer run checks every PR.
+      # newer run checks every PR. A kill switch turned on after this run read
+      # its variables is refused `kill-switch`; it ends green with a notice and
+      # no token the same way, and the next scheduled run checks every PR.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success'
@@ -952,6 +954,7 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
@@ -1248,7 +1251,7 @@ jobs:
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
       - name: Record a failed lane merge
-        if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -1282,7 +1285,7 @@ jobs:
       # request at its current head is marked ready here: one comments read
       # per such draft.
       - name: Re-ready a draft a whole-review request left
-        if: steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1305,7 +1308,7 @@ jobs:
       # saved for the gate's first candidate. Any error gates every
       # candidate. Rules: babysit_merge_skip.py.
       - name: Skip refusals whose inputs have not changed
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1354,7 +1357,7 @@ jobs:
       # back to the capped rotation, never deferred again.
       - name: Run the merge gate on each candidate
         id: gate
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The verdict reader's Actions calls, the review-evidence reads
@@ -1897,6 +1900,7 @@ jobs:
       pull-requests: read # the lane's merges and the merge queue, for the lane's room
       checks: read # the review lanes' annotations, as the gate binds their evidence
       issues: read # the demotion records the lane's room re-checks
+      statuses: read # the head's pr-unblock statuses (the lanes App holds no statuses permission)
       id-token: write # prove to the token broker which workflow this is
     # The pr-merge/unarmed statuses for the unarmed-status job to post.
     outputs:
@@ -2012,6 +2016,7 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # The verdict reader of a scheduled or hand-started run ties untied
       # FAILs as the gate job does: the head-ref map and the carried run
