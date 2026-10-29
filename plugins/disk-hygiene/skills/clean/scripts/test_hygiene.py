@@ -10919,6 +10919,10 @@ class GuardTests(unittest.TestCase):
                 f"sed -n 1p \"{engine}\" | sh",
                 # A backslash outside a body.
                 f'grep "a\\" x | python3 "{engine}" apply',
+                # A git reader option that writes a file over the engine.
+                f'git show HEAD:evil.py --output="{engine}"',
+                f"git log -1 --outp '{engine}'",
+                f'git diff --o="{engine}"',
             ):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))

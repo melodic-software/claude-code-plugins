@@ -446,10 +446,28 @@ repo_oid_width() {
 # tree's top level and the common git directory (a linked worktree's sits with
 # its main repository) under a temp root (hook::under_temp_root), and HOME must
 # not sit under one, since a temp root at HOME or above would admit every
-# repository. Anything else, including a probe that fails, keeps the block.
+# repository. /var/tmp is one of hook::under_temp_root's roots, but it outlives
+# a reboot by design, so a repository there is no disposable scratch unless
+# TMPDIR, TMP or TEMP names it (temp_root_persists). Anything else, including a
+# probe that fails, keeps the block.
 #
 # Reads $gi, $sub_idx, $w and $git_locating_opts from the calling check_segment
 # frame. Cached per option set like the width probe, by a plain call.
+#
+# temp_root_persists <path>: whether <path> sits under /var/tmp and under none
+# of TMPDIR, TMP and TEMP.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+temp_root_persists() {
+  local p="${1%/}/" t
+  case "$p" in
+  /var/tmp/* | /private/var/tmp/*) ;;
+  *) return 1 ;; # not under /var/tmp
+  esac
+  for t in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}"; do
+    [[ -n "$t" && "$p" == "${t%/}"/* ]] && return 1
+  done
+  return 0
+}
 _temp_scratch_key=""
 _temp_scratch=1
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -476,6 +494,7 @@ repo_is_temp_scratch() {
   common="${out#*$'\n'}"
   [[ -n "$top" && -n "$common" && "$common" != "$out" && "$common" != *$'\n'* ]] || return 1
   hook::under_temp_root "$top" && hook::under_temp_root "$common" || return 1
+  temp_root_persists "$top" || temp_root_persists "$common" && return 1
   hook::under_temp_root "$HOME" && return 1
   _temp_scratch=0
 }

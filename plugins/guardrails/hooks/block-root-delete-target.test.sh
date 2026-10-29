@@ -2457,6 +2457,15 @@ expect_both 'a {NAME}> redirection blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; exec {S}>/dev/null; rm -rf "$S"'
 expect_both 'getopts on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; getopts a S; rm -rf "$S"'
+# zsh setters that write no `NAME=`.
+expect_both 'a zsh foreach on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; foreach S (/); end; rm -rf "$S"'
+expect_both 'a zsh vared on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; vared S; rm -rf "$S"'
+expect_both 'a zsh print -v on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; print -v S /; rm -rf "$S"'
+expect_both 'a zsh zparseopts on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; zparseopts -A S x:; rm -rf "$S"'
 expect_both 'a ${NAME:=} default blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; unused="${S:=/}"; rm -rf "$S"'
 expect_both 'an assignment after another statement blocks' 2 "${RDT_CWD[@]}" \

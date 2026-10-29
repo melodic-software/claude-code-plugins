@@ -866,8 +866,8 @@ def _bash_without_string_data(command: str) -> str | None:
     newline, so a pipeline stays fail-closed) whose command word is a bare name
     on the closed reader allowlist: ``cat``, ``head``, ``tail``, ``wc``,
     ``grep``, ``rg`` without ``--pre``, ``git show``/``log``/``diff``/``grep``
-    without ``-c`` or ``-O``/``--open-files-in-pager``, and ``gh issue``/``pr``.
-    Single-quoted literals are blanked as data, double-quoted ones only when
+    without ``-c``, ``-O``/``--open-files-in-pager`` or ``--output``, and
+    ``gh issue``/``pr``. Single-quoted literals are blanked as data, double-quoted ones only when
     they hold no ``$`` or backtick. None, meaning the caller must classify the
     command as written, for anything else: a quoted or path-qualified command
     word, a reader outside the allowlist (``awk`` and ``sed`` can run a quoted
@@ -917,6 +917,9 @@ def _bash_reader_option_runs_program(reader: str, word: str) -> bool:
     Conservative: git's short options cluster (``-nO<cmd>``) and its long
     options abbreviate to any unique prefix (``--open``), so a short cluster
     holding ``c`` or ``O`` and any prefix of ``--open-files-in-pager`` count.
+    A prefix of ``--output`` counts too: ``git show``/``log``/``diff``
+    ``--output=<file>`` writes a file, and a write over the engine runs at the
+    engine's next sanctioned call.
     """
     if reader == "rg":
         return word.startswith(("--pre", "--hostname-bin"))
@@ -924,7 +927,9 @@ def _bash_reader_option_runs_program(reader: str, word: str) -> bool:
         return False
     if word.startswith("--"):
         name = word.split("=", 1)[0]
-        return len(name) > 2 and "--open-files-in-pager".startswith(name)
+        return len(name) > 2 and (
+            "--open-files-in-pager".startswith(name) or "--output".startswith(name)
+        )
     return "c" in word or "O" in word
 
 
@@ -1110,8 +1115,8 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     On Bash a command whose every simple command reads defers before any of
     the rules above run (``_bash_reads_only``, #9779): a list or pipeline of
     ``cat``, ``head``, ``tail``, ``wc``, ``grep``, ``rg`` without ``--pre``,
-    ``git show``/``log``/``diff``/``grep`` without ``-c`` or
-    ``-O``/``--open-files-in-pager``, ``gh issue``/``pr``, and ``sed`` printing
+    ``git show``/``log``/``diff``/``grep`` without ``-c``,
+    ``-O``/``--open-files-in-pager`` or ``--output``, ``gh issue``/``pr``, and ``sed`` printing
     line ranges, with each quoted-delimiter here-document body read as data.
     A reader never runs the file it names, so the engine's own path, absolute
     or resolving from the working directory, is a mention there too. Within

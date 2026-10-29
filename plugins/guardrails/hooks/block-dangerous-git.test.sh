@@ -434,6 +434,21 @@ run_in "$SCRATCH_REPO" "temp scratch repo: a wrapper ahead of git (blocked)" "en
 run_in "$SCRATCH_REPO" "temp scratch repo: an inline alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
 run_in "$SCRATCH_REPO" "temp scratch repo: HOME under the temp root (blocked)" "git reset --hard" 2 "HOME=$TEMP_TMPDIR"
 run_in "$NOT_A_REPO" "not a repository under the temp directory (probe fails, blocked)" "git reset --hard" 2
+# /var/tmp persists across reboots, so a repository there is no scratch, unless
+# the environment's own temp directory is there too.
+case "${TMPDIR:-}|${TMP:-}|${TEMP:-}" in
+*/var/tmp*) ;; # the environment's temp directory is under /var/tmp
+*)
+  if [[ -d /var/tmp && -w /var/tmp ]] && VAR_TMP_REPO="$(mktemp -d /var/tmp/block-dangerous-git-test.XXXXXX)"; then
+    if git init -q "$VAR_TMP_REPO"; then
+      run_in "$VAR_TMP_REPO" "a repository under /var/tmp (blocked)" "git reset --hard" 2
+    else
+      bad "fixture: could not create the /var/tmp repository"
+    fi
+    rm -rf "$VAR_TMP_REPO"
+  fi
+  ;;
+esac
 expect "temp scratch repo: the PowerShell tool keeps the block" 2 \
   --tool PowerShell --command "git reset --hard" --cwd "$SCRATCH_REPO" --chdir "$SCRATCH_REPO"
 KEPT_MAIN="$TEST_TMPDIR/kept-main"
