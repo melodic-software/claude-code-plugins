@@ -46,7 +46,7 @@ function fakeApi(overrides = {}) {
     posted,
     permissionReads,
     // The lanes App opened the PR unless the case names another opener.
-    getPull: async () => ({ number: 42, user: { id: overrides.opener ?? APP }, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
+    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";

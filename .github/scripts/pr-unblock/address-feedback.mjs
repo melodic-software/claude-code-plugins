@@ -592,7 +592,7 @@ export async function select({
     // On a PR a person opened, a thread the lane does not take is theirs (one
     // they wrote, answered, or a lane answer the lanes App cannot resolve
     // there), and so no stop: it still holds the merge until it is resolved.
-    if (untaken && pull.user?.id !== appId) {
+    if (untaken && pull.user?.type === "User") {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
     }
     return untaken

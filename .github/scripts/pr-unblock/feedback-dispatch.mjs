@@ -512,7 +512,8 @@ export async function dispatchFeedback({
 // Returns dispatchFeedback's result with that run's id, or null.
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest };
-  const pulls = await openAppPulls(context);
+  const listed = await openPulls(context);
+  const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
   const dispatched = await sweepPulls(context, (pull) => sweepOne({ ...context, pull }), pulls);
   if (dispatched !== null) {
     return dispatched;
@@ -523,7 +524,8 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     return stale;
   }
   log("sweep: no head with a failing address-feedback stop and nothing left to fix");
-  const idle = await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), pulls);
+  const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
+  const idle = owners.length === 0 ? null : await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), owners);
   if (idle === null) {
     log("sweep: no idle owner PR whose reviewed head the lane has not answered");
   }
@@ -532,22 +534,24 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
 
 // An owner PR's review completes while the person's session is still on it,
 // so its review-run dispatch skips the idle test; once idle, the tick sends
-// it. dispatchFeedback decides the rest (both markers on the head, a thread
-// the lane works, no address-feedback check run there yet). The listing's
-// last update is checked first, so a PR still active spends no reads.
+// it. A PR still active by the listing's last update spends no read, and a
+// head that already has a round spends two check-run reads, unless that round's reply
+// released it, as sweepOne decides for a lanes App PR. dispatchFeedback
+// decides the rest (both markers on the head, a thread the lane works).
 async function sweepIdleOwner(context) {
-  const { pull, appSenderId, rest } = context;
+  const { api, pull, rest, settings } = context;
   const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
-  if (pull.user?.id === appSenderId || !(Date.parse(pull.updated_at ?? "") <= since)) {
+  if (!(Date.parse(pull.updated_at ?? "") <= since)) {
     return null;
   }
-  const { capped } = await releaseState(context);
-  return capped ? null : dispatchAtHead(context);
+  const rounds = await api.listCheckRuns({ sha: pull.head.sha, checkName: settings.checkName, appId: settings.appId });
+  return rounds.length === 0 ? dispatchAtHead(context) : sweepOne(context);
 }
 
-// The selection every sweep uses: each open lanes App PR into the base, and
-// each adopted owner PR (dispatchFeedback applies its idle test).
-async function openAppPulls({ api, repository, appSenderId, settings, rest }) {
+// Each open lanes App PR into the base, and each adopted owner PR
+// (dispatchFeedback applies its idle test); only the idle pass takes the
+// owner PRs.
+async function openPulls({ api, repository, appSenderId, settings, rest }) {
   return (await api.listOpenPulls(settings.base)).filter(
     (pull) =>
       (pull.user?.id === appSenderId || ownerAuthored(pull, rest?.adoption)) &&
@@ -557,11 +561,11 @@ async function openAppPulls({ api, repository, appSenderId, settings, rest }) {
   );
 }
 
-// Each of `pulls` (default: openAppPulls), decided by `decide` in listing
-// order until one dispatches.
+// Each of `pulls` (default: the open lanes App PRs), decided by `decide` in
+// listing order until one dispatches.
 async function sweepPulls(context, decide, pulls = null) {
   const { log } = context;
-  for (const pull of pulls ?? (await openAppPulls(context))) {
+  for (const pull of pulls ?? (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
     let dispatched = null;
     try {
       dispatched = await decide(pull);

@@ -12,8 +12,9 @@ name: pr-unblock
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
-# model job answers them, and script jobs push its patch and post its replies.
+# PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
+# job keeps the threads, a read model job answers them, and script jobs push
+# its patch and post its replies.
 # After a pr-verify pass at a PR's head that left fail-note threads of earlier
 # heads open, it sends one with verify-pass-head: a pass-only round, where the
 # base job lists those threads, no model job runs, and the reply job resolves

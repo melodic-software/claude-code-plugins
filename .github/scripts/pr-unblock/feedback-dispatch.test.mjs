@@ -1999,6 +1999,20 @@ test("the sweep dispatches an idle owner PR whose reviewed head the lane has not
   const active = sweepApi(ownerPull({ updated_at: "2026-10-28T11:00:00Z" }));
   assert.equal(await sweep(active), null);
   assert.deepEqual(active.calls.commits, []);
+  // A head the lane already answered costs two check-run reads a tick: no
+  // review run, status, commit or thread read.
+  const answered = sweepApi(ownerPull());
+  const done = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-28T09:00:00Z", output: { title: "Answered" } };
+  const reads = [];
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = answered[name];
+    answered[name] = async (...args) => {
+      reads.push(args[0]?.checkName ? `${name}:${args[0].checkName}` : name);
+      return name === "listCheckRuns" ? (args[0].checkName === "pr-unblock / address-feedback" ? [done] : []) : inner(...args);
+    };
+  }
+  assert.equal(await sweep(answered), null);
+  assert.deepEqual(reads, ["listCheckRuns:pr-unblock / address-feedback", "listCheckRuns:pr-unblock / publish-feedback"]);
   // An untrusted person's PR is never listed.
   const stranger = sweepApi(ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }));
   assert.equal(await sweep(stranger), null);
