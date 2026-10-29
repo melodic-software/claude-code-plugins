@@ -1105,10 +1105,18 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
-   request whose commit count exceeds the commits the list returned.
+   request whose commit count exceeds the commits the list returned, or whose list lacks the
+   pinned head (`head-not-listed`). GitHub links a commit's author and committer through an email
+   the pusher chooses, so every actor in the head branch's repository activity counts as a head
+   pusher too, and none of them may resolve a finding away. A history whose newest move did not
+   bring the head refuses (`push-history`), as does a move with no actor (`push-actor`).
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
+   - **Pointer**: for the push history, fetch
+     [list repository activities](https://docs.github.com/en/rest/repos/repos#list-repository-activities)
+     live; its `actor` may be null. **As of**: 2026-10-29. **Recheck trigger**: that section
+     changes the activity types or the `actor` field.
    No work class is read: the only class-named check is the trust hold, which refuses an issue
    carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a

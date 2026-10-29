@@ -3094,6 +3094,29 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
+def _head_pushers(activities: Sequence[Any], head_sha: str) -> set[str]:
+    """The casefolded login of every account that moved the head branch, from
+    its repository activity (newest first): a commit's author and committer
+    are linked through an email the pusher chose, a push's actor is not. A
+    deletion moves nothing. Raises `HeadPusherUnproven` when the newest move
+    did not bring `head_sha`, so a push the listing lacks names no pusher, or
+    when a move has no actor."""
+    moves = [
+        json_object(a)
+        for a in activities
+        if json_object(a).get("activity_type") != "branch_deletion"
+    ]
+    if not moves or moves[0].get("after") != head_sha:
+        raise HeadPusherUnproven("head-pusher-unproven:push-history")
+    pushers = {
+        str(json_object(move.get("actor")).get("login") or "").casefold()
+        for move in moves
+    }
+    if "" in pushers:
+        raise HeadPusherUnproven("head-pusher-unproven:push-actor")
+    return pushers
+
+
 def _lane_evidence(
     repo: str,
     number: int,
@@ -3107,10 +3130,13 @@ def _lane_evidence(
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
 
     The human test bound into `bind()` is the merge policy's, and it also
-    returns False for the pull request's author and every head pusher (commit
-    authors and committers, force-push actors): none of them may resolve a
-    finding away. A commit with no linked author or committer, or a head with
-    more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
+    returns False for the pull request's author and every head pusher (the
+    actors of the head branch's activity, `_head_pushers`, plus commit authors
+    and committers and force-push actors): none of them may resolve a finding
+    away. A commit with no linked author or committer, a head with more
+    commits than the list returns or missing from it, or a push history
+    `_head_pushers` refuses raises `HeadPusherUnproven`. A retargeted base
+    unbinds every lane.
 
     The timeline, the comments and the lane runs are read under the verdict
     reader's token when one is set, keeping them off the lane App's quota;
@@ -3139,6 +3165,9 @@ def _lane_evidence(
         raise HeadPusherUnproven(
             f"head-pusher-unproven:commits-listed:{len(commits)}-of:{total}"
         )
+    # The count is the pinned head's only when the list holds that head.
+    if head.get("sha") not in {item.get("sha") for item in commits}:
+        raise HeadPusherUnproven("head-pusher-unproven:head-not-listed")
     # A commit whose author or committer email no account claims names no
     # login to exclude, so whoever pushed it is not proven non-human.
     unlinked = [
@@ -3160,6 +3189,15 @@ def _lane_evidence(
         for e in timeline
         if e.get("event") == "head_ref_force_pushed"
     }
+    ref = quote(f"refs/heads/{head.get('ref')}", safe="")
+    excluded |= _head_pushers(
+        fetch_paginated_api(
+            f"repos/{repo}/activity?ref={ref}&direction=desc&per_page=100",
+            f"#{number} pushes",
+            env_overrides=read_env,
+        ),
+        str(head.get("sha")),
+    )
     excluded.add(str(json_object(pr.get("user")).get("login") or "").casefold())
     excluded.discard("")
     comments = fetch_paginated_api(

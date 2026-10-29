@@ -4658,9 +4658,17 @@ class HeadFileFailure(unittest.TestCase):
 
 
 class HeadPushers(unittest.TestCase):
-    """#7339 item 3: who pushed a commit is known only through a linked login."""
+    """#7339 item 3 and #7354: who pushed the head is its branch activity's
+    actors, never only a commit's email-linked author or committer."""
 
-    def read(self, commits: list[dict[str, Any]], total: Any = None) -> Any:
+    PUSHED = [{"activity_type": "push", "after": HEAD, "actor": {"login": IDENTITY}}]
+
+    def read(
+        self,
+        commits: list[dict[str, Any]],
+        total: Any = None,
+        activity: list[dict[str, Any]] | None = None,
+    ) -> Any:
         pr = {
             "head": {"ref": "feat", "sha": HEAD},
             "user": {"login": IDENTITY},
@@ -4668,7 +4676,11 @@ class HeadPushers(unittest.TestCase):
         }
 
         def paginated(endpoint: str, label: str, **_: Any) -> list[dict[str, Any]]:
-            return commits if endpoint.endswith("/commits?per_page=100") else []
+            if endpoint.endswith("/commits?per_page=100"):
+                return commits
+            if "/activity?ref=refs%2Fheads%2Ffeat&direction=desc&" in endpoint:
+                return self.PUSHED if activity is None else activity
+            return []
 
         with (
             mock.patch.object(merge, "fetch_paginated_api", side_effect=paginated),
@@ -4688,14 +4700,14 @@ class HeadPushers(unittest.TestCase):
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
         bot = {"login": IDENTITY}
         for name, commit in (
-            ("author", {"sha": "a" * 40, "author": None, "committer": bot}),
-            ("committer", {"sha": "a" * 40, "author": bot, "committer": None}),
+            ("author", {"sha": HEAD, "author": None, "committer": bot}),
+            ("committer", {"sha": HEAD, "author": bot, "committer": None}),
         ):
             with self.subTest(name):
                 with self.assertRaises(merge.HeadPusherUnproven) as raised:
                     self.read([commit])
                 self.assertEqual(
-                    str(raised.exception), "head-pusher-unproven:aaaaaaaaaaaa"
+                    str(raised.exception), f"head-pusher-unproven:{HEAD[:12]}"
                 )
 
     def test_a_head_longer_than_the_commits_list_is_unproven(self) -> None:
@@ -4712,10 +4724,53 @@ class HeadPushers(unittest.TestCase):
                     self.read(listed, total=total)
                 self.assertIn("commits-listed:250", str(raised.exception))
 
+    def test_a_list_without_the_pinned_head_is_unproven(self) -> None:
+        # The count and the list could describe different heads.
+        bot = {"login": IDENTITY}
+        with self.assertRaises(merge.HeadPusherUnproven) as raised:
+            self.read([{"sha": "c" * 40, "author": bot, "committer": bot}])
+        self.assertEqual(str(raised.exception), "head-pusher-unproven:head-not-listed")
+
     def test_linked_commits_bind_as_before(self) -> None:
         bot = {"login": IDENTITY}
-        lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
+        lanes, _ = self.read([{"sha": HEAD, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+    def test_a_push_history_not_reaching_the_head_is_unproven(self) -> None:
+        bot = {"login": IDENTITY}
+        commits = [{"sha": HEAD, "author": bot, "committer": bot}]
+        older = {"activity_type": "push", "after": "c" * 40, "actor": bot}
+        for name, activity, reason in (
+            ("none", [], "push-history"),
+            ("older head", [older], "push-history"),
+            ("no actor", [{**self.PUSHED[0], "actor": None}], "push-actor"),
+            ("older no actor", [*self.PUSHED, {**older, "actor": None}], "push-actor"),
+        ):
+            with self.subTest(name):
+                with self.assertRaises(merge.HeadPusherUnproven) as raised:
+                    self.read(commits, activity=activity)
+                self.assertEqual(
+                    str(raised.exception), f"head-pusher-unproven:{reason}"
+                )
+
+    def test_a_pusher_spoofing_the_agent_email_is_no_independent_resolver(
+        self,
+    ) -> None:
+        # A collaborator pushes a commit whose author and committer emails
+        # are the agent identity's: only the push actor names them.
+        bot = {"login": IDENTITY}
+        commits = [{"sha": HEAD, "author": bot, "committer": bot}]
+        deleted = {"activity_type": "branch_deletion", "after": "0" * 40}
+        activity = [
+            {"activity_type": "push", "after": HEAD, "actor": {"login": "Collab"}},
+            *self.PUSHED,
+            deleted,
+        ]
+        with mock.patch.object(merge.review_evidence, "bind", return_value=()) as bind:
+            self.read(commits, activity=activity)
+        human = bind.call_args.kwargs["is_human"]
+        self.assertFalse(human({"__typename": "User", "login": "collab"}))
+        self.assertTrue(human({"__typename": "User", "login": "reviewer"}))
 
 
 class LaneEvidenceReadToken(unittest.TestCase):
@@ -4732,6 +4787,8 @@ class LaneEvidenceReadToken(unittest.TestCase):
         bot = {"login": IDENTITY}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
             return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if endpoint.startswith("repos/owner/repo/activity?"):
+            return [[{"activity_type": "push", "after": HEAD, "actor": bot}]]
         if "/actions/workflows/" in endpoint:
             return [
                 {"workflow_runs": [{"id": self.RUN, "pull_requests": [{"number": PR}]}]}
@@ -4791,6 +4848,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
                 self.assertFalse(is_write(args), args)
         kinds = (
             "/timeline?",
+            "/activity?",
             "/comments?",
             "/actions/workflows/",
             f"/actions/runs/{self.RUN}",
@@ -4803,14 +4861,14 @@ class LaneEvidenceReadToken(unittest.TestCase):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
         # Two lanes: listing, run, jobs and one annotations read each; the run
         # read is the latest attempt's record.
-        self.assertEqual(len(carried), 2 + 2 * 4)
+        self.assertEqual(len(carried), 3 + 2 * 4)
         # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
         self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
 
     def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
         calls = self.calls({})
-        self.assertEqual(len(calls), 1 + 2 + 2 * 4)
+        self.assertEqual(len(calls), 1 + 3 + 2 * 4)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
 
 
@@ -4846,6 +4904,8 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
         bot = {"login": IDENTITY}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
             return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if endpoint.startswith("repos/owner/repo/activity?"):
+            return [[{"activity_type": "push", "after": HEAD, "actor": bot}]]
         if endpoint.endswith("/timeline?per_page=100"):
             return [[]]
         if endpoint.endswith("/comments?per_page=100"):
@@ -5025,6 +5085,9 @@ class CandidateReadsOnce(unittest.TestCase):
                 payload: Any = record["commits"]
             elif endpoint.endswith("/commits?per_page=100"):
                 payload = [rows]
+            elif endpoint.startswith("repos/owner/repo/activity?"):
+                pushed = {"activity_type": "push", "after": HEAD}
+                payload = [[{**pushed, "actor": {"login": IDENTITY}}]]
             elif "--paginate" in args:
                 payload = [[]]
             elif endpoint == f"repos/owner/repo/pulls/{PR}":
