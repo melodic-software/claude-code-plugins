@@ -39,6 +39,14 @@
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/
+//     feedback-not-landed      the head is none of its resume keys, no
+//                              unresolved review thread carries a lanes App
+//                              comment (owner decision 2026-10-25), and
+//                              either a trusted move (below) or, when every
+//                              escalation recorded against the label since
+//                              it was last removed is on LANE_ONLY, clean
+//                              review lanes at the head (reviewLanesClean):
+//                              a lanes App push alone never clears it
 //     ci-fix-* but             a trusted move, and at the new head no check
 //     ci-fix-protected-path    but ci-status (the label fails it) fails, runs
 //                              or was cancelled, each latest run ended
@@ -48,10 +56,11 @@
 //     on the current head reads failed (fix-ci-context's failingChecks;
 //     ci-status itself fails on the label, so it proves nothing, and an
 //     advisory lane's failure leaves ci-status green), so the head stays red
-//     without the label. Another fail-routed reason is a person's (below): a
-//     lane posts a pr-unblock/* status on a head only when it stops there or
-//     clears its own failure, so a moved head carries nothing that shows the
-//     cause gone or fails that head in the label's place
+//     without the label. Another fail-routed reason but feedback-not-landed
+//     is a person's (below): a lane posts a pr-unblock/* status on a head
+//     only when it stops there or clears its own failure, so a moved head
+//     carries nothing that shows the cause gone or fails that head in the
+//     label's place
 //   A trusted move: the head is this repository's and none of the recorded
 //   resume keys, and every activity on its branch since the label (the
 //   activity API, read with the job token) is by an id trusted-actors.json
@@ -64,8 +73,11 @@
 // - No person wrote or edited a review comment, or submitted a review, since
 //   the label went on. GitHub's timeline shows no event for a reply inside an
 //   existing review thread, so a lift the rules above allow reads
-//   pulls/<n>/comments (since the label) and pulls/<n>/reviews too; a failed
-//   read keeps the label. Known limits: a review body edited after the label
+//   pulls/<n>/comments (since the label) and pulls/<n>/reviews too, and
+//   feedback-not-landed and a native refusal read them before their slow
+//   reads; every path reads them again right before the removal, where a
+//   review thread opened while the PR's reads ran keeps the label too; a
+//   failed read keeps the label. Known limits: a review body edited after the label
 //   is not seen (a REST review carries no update time), and any account
 //   GitHub does not mark Bot, an outsider included, keeps the label, which
 //   costs throughput only.
@@ -131,7 +143,8 @@
 //   BABYSIT_RUN_CACHE    the gate reader's Actions token and the run's shared
 //                        reads, as enable-auto-merge passes them; the job
 //                        token also reads branch activity, check runs and
-//                        main's history for a trusted move
+//                        main's history for a trusted move, and the review
+//                        lanes' runs, jobs and annotations
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -276,6 +289,31 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
+// The only escalations a lanes App push may lift with clean review lanes
+// (reviewLanesClean) in a person's place: the lane's own stops. Any other
+// escalation recorded against the label (a person-held path, a security
+// finding, a merge-risk hold, an owner reason, an unknown one) keeps it for a
+// person or a trusted push (owner direction on the security finding).
+export const LANE_ONLY = Object.freeze(["feedback-not-landed"]);
+// Any lane's escalation line.
+const ANY_ESCALATION = "<!-- work-items:escalation";
+
+// The first escalation recorded against the label since it was last removed
+// (ever, when it never was) that is not on LANE_ONLY, or undefined: a
+// pr-unblock escalation's reason, or a pr-merge marker or another lane's
+// escalation line on a lanes App comment written or edited since then. A
+// reason that does not parse, or a time that does not parse, counts.
+function personEscalation({ appComments, lifted }) {
+  return appComments
+    .filter((item) => !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted))
+    .flatMap((item) => {
+      const body = lines(item.body);
+      const unblock = body[0] === ESCALATION ? [reasonOf({ body }) ?? "an escalation whose reason does not parse"] : [];
+      return [...unblock, ...body.filter((line) => PR_MERGE_MARKERS.includes(line) || (line.startsWith(ANY_ESCALATION) && line !== ESCALATION))];
+    })
+    .find((reason) => !LANE_ONLY.includes(reason));
+}
+
 // Why each reason no longer holds at `pull`'s head, or { held } saying why it
 // still does. `moved` and `mainMerged` read with the job token (`reader`) and
 // answer null on any doubt, an unreadable read included.
@@ -307,14 +345,50 @@ const CHECKS = Object.freeze({
       ? { held: "the pull request changes a protected path, or its file listing may be cut short" }
       : "the pull request changes nothing under .github/workflows/";
   },
+  // address-feedback's fix did not reach its resume key. Gone once the head
+  // is none of those keys, no review thread the lane replied to is open, and
+  // a trusted push moved the head or, when every escalation recorded against
+  // the label is on LANE_ONLY, both review lanes read it clean: a lanes App
+  // push alone must not clear its own stop.
+  "feedback-not-landed": async (context) => {
+    const head = context.pull.head.sha;
+    if (context.keysOf("feedback-not-landed").includes(head)) {
+      return { held: "the head is still the one the lane's fix did not reach" };
+    }
+    const open = await openLaneThreads(context);
+    if (open === null) {
+      return { held: "its review thread listing may be cut short" };
+    }
+    if (open > 0) {
+      return { held: `${open} unresolved review thread(s) carry a lanes App comment` };
+    }
+    // The review threads before the job token's reads: a person's reply
+    // there keeps the label whatever the trusted move or the lanes answer.
+    const speaker = await context.speaker();
+    if (speaker !== undefined) {
+      return { spoke: speaker };
+    }
+    const moved = await context.moved();
+    if (moved !== null) {
+      return `${moved}, and no review thread the lane replied to is unresolved`;
+    }
+    const recorded = personEscalation(context);
+    if (recorded !== undefined) {
+      return { held: `a push no trusted person made moved the head, and ${recorded} is recorded against the label: clean review lanes lift only ${LANE_ONLY.join(", ")}` };
+    }
+    const clean = await reviewLanesClean(context);
+    return clean === null
+      ? { held: `a push no trusted person made moved the head; waiting for clean review lanes at ${head}` }
+      : `the head moved off the resume key to ${head}, no review thread the lane replied to is unresolved, and ${clean}`;
+  },
   // A fix-ci reason escalation-routes.json now routes to a failing status
   // rather than a person, on a label an older lane run set: once the head's
   // checks read failed, so it stays red without the label. Otherwise a ci-fix
   // stop still clears as ciPasses decides (a trusted push fixed it). Every
-  // other fail-routed reason is a person's here: a lane posts a pr-unblock/*
-  // status on a head only when it stops there or clears its own failure
-  // (report-escalation.sh), so nothing on a new head proves its cause gone or
-  // fails that head in the label's place.
+  // other fail-routed reason but feedback-not-landed is a person's here: a
+  // lane posts a pr-unblock/* status on a head only when it stops there or
+  // clears its own failure (report-escalation.sh), so nothing on a new head
+  // proves its cause gone or fails that head in the label's place.
   ...Object.fromEntries(
     Object.keys(ROUTES)
       .filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) === "fix-ci")
@@ -403,6 +477,100 @@ async function trustedMove({ read, repo, pull, keys, since, trusted }) {
   return `${by} moved the head from the resume key to ${head}`;
 }
 
+// The review lanes reviewLanesClean reads, as pr-require-checks.yml's
+// `Require both review lanes on this head` step names them: the workflow, the
+// lane its completion record names, its status job, and whether only a whole
+// review counts.
+const REVIEW_LANES = Object.freeze([
+  { file: "pr-review-hosted.yml", lane: "claude-review", job: "pr-review / claude-review-status", whole: false },
+  { file: "pr-review-security-hosted.yml", lane: "claude-security-review", job: "pr-review-security / security-review", whole: true },
+]);
+const RECORD_TITLE = "claude-lane-review-complete";
+// A review's completion record (babysit_review_evidence.py RECORD_RE); a skip
+// record matches none of it, so it reviewed nothing here.
+const REVIEW_RECORD =
+  /^claude-lane-review-complete lane=([\w-]+) sha=([0-9a-f]{40}) findings=\d{1,6} inline=\d{1,6} scope=(whole|incremental since=[0-9a-f]{40})(?: account=fallback)?$/;
+// The security lane's reviewed-head marker, the first line of the comment
+// that carries its summary, and the summary's and each inline comment's
+// severity lines (babysit_review_evidence.py MARKER_RE, SUMMARY_CRITICAL_RE,
+// SEVERITY_RE).
+const SECURITY_REVIEWED_HEAD = /^<!-- claude-lane-reviewed-head lane=claude-security-review sha=([0-9a-f]{40}) -->$/;
+const MARKER_AUTHOR = "github-actions[bot]";
+const CRITICAL_FINDINGS = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
+const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
+const newestById = (items) => items.reduce((newest, item) => (newest === undefined || item.id > newest.id ? item : newest), undefined);
+
+// Whether both review lanes read `pull`'s head clean: a description, or null
+// on any doubt, an unreadable or full page included. Read with the job token:
+// each lane's newest pull_request run on the head from this repository
+// completed success, and so did its status job, whose one completion record
+// names the lane and the head as a review, never a skip; the security lane's
+// is a whole review. The security lane's newest reviewed-head marker names
+// the head, is unedited (an edit's author is not read), and carries one
+// `critical-findings: 0` line. Every unresolved review thread opens with one
+// `severity: SUGGESTION` line: a CRITICAL, IMPORTANT or unreadable one, as on
+// a claude-review or a person's thread, keeps it. For a clear that a push no
+// trusted person made may lift.
+async function reviewLanesClean(context) {
+  const { read, repo, pull, timeline } = context;
+  const head = pull.head.sha;
+  for (const { file, lane, job, whole } of REVIEW_LANES) {
+    const scope = await read(async (reader) => {
+      const runs = (await reader("GET", `/repos/${repo}/actions/workflows/${file}/runs?head_sha=${head}&event=pull_request&per_page=100`))?.workflow_runs;
+      if (!Array.isArray(runs) || runs.length >= 100) {
+        return null;
+      }
+      const run = newestById(
+        runs.filter((item) => item?.path === `.github/workflows/${file}` && item.head_sha === head && item.event === "pull_request" && item.head_repository?.full_name === repo),
+      );
+      if (run?.status !== "completed" || run.conclusion !== "success") {
+        return null;
+      }
+      const jobs = (await reader("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+      if (!Array.isArray(jobs) || jobs.length >= 100) {
+        return null;
+      }
+      const status = newestById(jobs.filter((item) => item?.name === job));
+      if (status?.status !== "completed" || status.conclusion !== "success") {
+        return null;
+      }
+      const notes = await reader("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`);
+      if (!Array.isArray(notes) || notes.length >= 100) {
+        return null;
+      }
+      const records = notes.filter((note) => note?.title === RECORD_TITLE);
+      const record = records.length === 1 && records[0].annotation_level === "notice" ? REVIEW_RECORD.exec(String(records[0].message ?? "")) : null;
+      return record !== null && record[1] === lane && record[2] === head ? record[3] : null;
+    });
+    if (scope === null || (whole && scope !== "whole")) {
+      return null;
+    }
+  }
+  const marker = timeline
+    .filter((item) => item.event === "commented" && isApp(item.user, MARKER_AUTHOR) && SECURITY_REVIEWED_HEAD.test(lines(item.body)[0]))
+    .at(-1);
+  if (
+    marker === undefined ||
+    SECURITY_REVIEWED_HEAD.exec(lines(marker.body)[0])[1] !== head ||
+    !(Date.parse(marker.updated_at ?? marker.created_at) <= Date.parse(marker.created_at))
+  ) {
+    return null;
+  }
+  const counts = [...String(marker.body).matchAll(CRITICAL_FINDINGS)];
+  if (counts.length !== 1 || Number(counts[0][1]) !== 0) {
+    return null;
+  }
+  const open = await context.threads();
+  const severe = (thread) => {
+    const found = [...String(thread?.opening?.nodes?.[0]?.body ?? "").matchAll(SEVERITY)];
+    return found.length !== 1 || found[0][1] !== "SUGGESTION";
+  };
+  if (open === null || open.some(severe)) {
+    return null;
+  }
+  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity";
+}
+
 // main's tip when the newest `reason` escalation was written, when the head
 // contains it (the compare from it to the head is behind by none), or null.
 async function mainMergedAt({ read, repo, pull, escalations }, reason) {
@@ -425,6 +593,62 @@ function mergeable(pull) {
   return pull.mergeable === true && pull.mergeable_state !== "dirty"
     ? "GitHub reports no conflict with main"
     : { held: `GitHub reports mergeable ${pull.mergeable ?? "unknown"} (${pull.mergeable_state ?? "unknown"})` };
+}
+
+// Review-thread pages read for feedback-not-landed; a PR with more stays unread.
+const THREAD_PAGES = 10;
+const LANE_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
+        nodes {
+          isResolved
+          opening: comments(first: 1) { nodes { body } }
+          comments(first: 100) { totalCount nodes { author { __typename login } } }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+
+// How many unresolved review threads on `pull` carry a comment by the lanes
+// App `bot`, or null when a listing may be cut short. GraphQL names a Bot
+// without the `[bot]` REST adds.
+async function openLaneThreads({ threads, bot }) {
+  const open = await threads();
+  const lane = (author) => author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot);
+  return open === null ? null : open.filter((thread) => thread.comments.nodes.some((comment) => lane(comment?.author))).length;
+}
+
+// The unresolved review threads on `pull`, or null when a listing may be cut
+// short.
+async function unresolvedThreads({ github, repo, pull }) {
+  const [owner, name] = repo.split("/");
+  const open = [];
+  let after = null;
+  for (let page = 0; page < THREAD_PAGES; page += 1) {
+    const variables = { owner, name, number: pull.number, after };
+    const threads = (await github("POST", "/graphql", { query: LANE_THREADS_QUERY, variables }))?.data?.repository?.pullRequest?.reviewThreads;
+    if (!Array.isArray(threads?.nodes)) {
+      return null;
+    }
+    for (const thread of threads.nodes) {
+      if (thread?.isResolved === true) {
+        continue;
+      }
+      const comments = thread?.comments;
+      if (thread?.isResolved !== false || !Array.isArray(comments?.nodes) || !(comments.totalCount <= comments.nodes.length)) {
+        return null;
+      }
+      open.push(thread);
+    }
+    if (!threads.pageInfo?.hasNextPage) {
+      return open;
+    }
+    after = threads.pageInfo.endCursor;
+  }
+  return null;
 }
 
 const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
@@ -596,13 +820,10 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
-      return {
-        ...cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
-          `it refused this head (${native.reason})`,
-          held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
-        ]),
-        threadsRead: true,
-      };
+      return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
+        `it refused this head (${native.reason})`,
+        held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+      ]);
     }
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
@@ -627,12 +848,20 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     };
     const keys = escalations.map(({ body }) => RESUME_KEY.exec(body[1])?.[1]);
     let movedOnce;
-    const context = { github, repo, pull, mainSha, read, escalations };
+    let threadsOnce;
+    let speakerOnce;
+    const context = { github, repo, pull, mainSha, read, escalations, bot, timeline, appComments, lifted };
+    context.keysOf = (reason) => keys.filter((_, i) => reasonOf(escalations[i]) === reason);
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
+    context.threads = () => (threadsOnce ??= unresolvedThreads(context));
     context.mainMerged = (reason) => mainMergedAt(context, reason);
     context.failing = failing;
+    context.speaker = () => (speakerOnce ??= threadSpeaker(github, repo, number, since));
     for (const reason of reasons) {
       const cleared = await CHECKS[reason](context);
+      if (cleared?.spoke !== undefined) {
+        return { reason: spokeReason(cleared.spoke, label) };
+      }
       if (typeof cleared !== "string") {
         return { reason: `${reason} still holds at ${pull.head.sha}: ${cleared?.held ?? "unknown"}` };
       }
@@ -654,15 +883,39 @@ function cleared(timeline, bot, since, reasons, head, why) {
 
 const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on`;
 
+// `number`'s review comments written or edited after `since` and its reviews.
+// A failed read throws, which keeps the label.
+async function reviewActivity(github, repo, number, since) {
+  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
+  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
+  return { comments, reviews };
+}
+
 // Who spoke on `number`'s review threads or reviews after `since`, which the
 // timeline misses for a reply inside an existing thread: the first person, or
 // undefined. A comment counts at its last write (the `since` filter is on
 // update time), so an edit after the label counts too. A failed read throws,
 // which keeps the label.
 async function threadSpeaker(github, repo, number, since) {
-  const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
-  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
-  return personSince(reviewEntries({ comments, reviews }), since);
+  return personSince(reviewEntries(await reviewActivity(github, repo, number, since)), since);
+}
+
+// The review threads and their speakers read again right before the label
+// comes off, on every path: the reads a check makes after its own thread read
+// (the gate's reader, the job token's) leave time for a person's reply inside
+// an existing thread, which the timeline misses, or for a new thread. Why the
+// label stays, or undefined: a person spoke after `since`, or a review thread
+// was opened, by anyone, at or after `readAt` (this PR's reads began; a
+// second earlier, as GitHub stamps to the second). A time that does not parse
+// counts as since; a failed read throws, which keeps the label.
+async function threadsSettled(github, repo, number, since, readAt, label) {
+  const activity = await reviewActivity(github, repo, number, since);
+  const speaker = personSince(reviewEntries(activity), since);
+  if (speaker !== undefined) {
+    return spokeReason(speaker, label);
+  }
+  const opened = activity.comments.find((comment) => comment?.in_reply_to_id == null && !(Date.parse(comment?.created_at) < readAt - 1000));
+  return opened === undefined ? undefined : `a review thread was opened by ${opened.user?.login ?? "an account"} while its reads ran`;
 }
 
 // The ids whose push is a trusted move: every `human` of trusted-actors.json,
@@ -716,14 +969,17 @@ export async function main({ env = process.env, github, checks, verify, reader }
         continue;
       }
       try {
+        const readAt = Date.now();
         const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
         }
-        const speaker = result.threadsRead ? undefined : await threadSpeaker(github, repo, number, result.since);
-        if (speaker !== undefined) {
-          console.log(`clear-escalations: #${number} kept: ${spokeReason(speaker, label)}`);
+        // The review threads again right before the removal, on every path,
+        // even when a check read them earlier (threadsSettled).
+        const unsettled = await threadsSettled(github, repo, number, result.since, readAt, label);
+        if (unsettled !== undefined) {
+          console.log(`clear-escalations: #${number} kept: ${unsettled}`);
           continue;
         }
         // The comment first: a failed removal is retried by the next sweep,

@@ -2488,15 +2488,14 @@ class MainReviewInputTests(unittest.TestCase):
                 merge,
                 "collect_main_review_counts",
                 side_effect=lambda repo, shas, names, env: (
-                    calls.append(("critical-counts", list(shas), names))
+                    calls.append(("critical-counts", dict(shas), names))
                     or {
                         HEAD: {
-                            "claude-review": [(2, 0)],
+                            "claude-review": [(2, 0), ("stop", "too-large")],
                             "claude-security-review": [(1, 0), None],
                         },
                         "b" * 40: {
-                            "claude-review": [],
-                            "claude-security-review": [(3, 1)],
+                            "claude-security-review": [(3, 1), ("stop", "binary")],
                         },
                     }
                 ),
@@ -2529,14 +2528,24 @@ class MainReviewInputTests(unittest.TestCase):
                     "claude-review": [[2, 0]],
                     "claude-security-review": [[1, 0]],
                 },
+                # A designed stop on this head, never one on another head.
+                "head_stops": {
+                    "claude-review": ["too-large"],
+                    "claude-security-review": [],
+                },
             },
         )
-        # Every head of the pull request, force-pushed ones included.
+        # The security lane on every head of the pull request, force-pushed
+        # ones included; the code lane on the head alone, the only records
+        # its binding reads.
         self.assertEqual(
             calls[1],
             (
                 "critical-counts",
-                [HEAD, HEAD, "b" * 40],
+                {
+                    "claude-review": [HEAD],
+                    "claude-security-review": [HEAD, HEAD, "b" * 40],
+                },
                 {
                     "claude-review": "pr-review-main: claude-review",
                     "claude-security-review": "pr-review-main: claude-security-review",
@@ -2554,6 +2563,56 @@ class MainReviewInputTests(unittest.TestCase):
                 ".github/workflows/pr-review-main.yml",
                 "main",
             ),
+        )
+
+
+class LaneRunsReadTests(unittest.TestCase):
+    """`_lane_evidence` lists a lane's pull_request runs only when `bind()`
+    can read them: a lane-source pull request binds the code lane on a
+    main-run review alone, so only the security lane's runs are listed (its
+    carried blocking count reads them)."""
+
+    def lanes_listed(self, changed: list[str]) -> list[Any]:
+        listed: list[Any] = []
+        pr = {
+            "head": {"ref": "feat", "sha": HEAD},
+            "base": {"sha": "b" * 40},
+            "user": {"login": "someone"},
+            "commits": 0,
+        }
+        with (
+            mock.patch.object(merge, "fetch_paginated_api", return_value=[]),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge,
+                "collect_lane_runs",
+                side_effect=lambda repo, number, ref, lanes, *rest: (
+                    listed.extend(lanes) or []
+                ),
+            ),
+            mock.patch.object(merge, "_main_reviews", return_value=(None, None)),
+        ):
+            merge._lane_evidence(
+                "owner/repo",
+                5,
+                pr,
+                "agent",
+                frozenset(),
+                lambda login: "write",
+                changed,
+            )
+        return listed
+
+    def test_a_lane_source_lists_only_the_security_lanes_runs(self) -> None:
+        self.assertEqual(
+            self.lanes_listed(["app.py", "AGENTS.md"]),
+            [merge.review_evidence.LANES["claude-security-review"]],
+        )
+
+    def test_any_other_pull_request_lists_every_lane(self) -> None:
+        self.assertEqual(
+            self.lanes_listed(["app.py"]),
+            list(merge.review_evidence.LANES.values()),
         )
 
 

@@ -49,14 +49,21 @@ rules.
   prefix dropped. Every capture on the elevated route (`threads`, a command that carried a prefix
   or failed for lack of permission, an elevated attach) passes `--elevate sudo` or
   `--elevate doas`, whichever the host has. The builder does the recheck above itself, writes the
-  script to a new file, and prints each process it checked (pid, uid, start time, hash, and the
-  live command line whose hash just matched, NULs as spaces and control bytes escaped) and then
-  the script. Builder exit 3 is `blocked: launched process no longer matches`, exit 4 the
-  Linux-only line, exit 2 a usage error, reported as is. An elevated script takes the hub's
-  shown-script step: show the builder's full output before asking for the yes, and run the file it
-  wrote, unchanged. Only a script built without `--elevate` runs without a yes.
+  script to a new file, and prints, as shell comment lines, each process it checked (pid, uid,
+  start time, hash, and the live command line whose hash just matched, NULs as spaces and control
+  bytes escaped) and then the script, so its whole output is the script. Builder exit 3 is
+  `blocked: launched process no longer matches`, exit 4 the Linux-only line, exit 2 a usage error,
+  reported as is. An elevated script takes the hub's shown-script step: show the builder's full
+  output before asking for the yes, and after the yes run that exact printed text on stdin, in a
+  quoted heredoc (`sh -s <<'APP_CONTROL_SHOWN_SCRIPT'`, a delimiter no line of the output can
+  equal), never the file the builder wrote, which a process running as the person's uid can rewrite
+  between the display and the run. With `--elevate` that file is a record, written without execute
+  permission, and nothing executes it. Only a script built without `--elevate` runs from its file,
+  and without a yes. Such a process can still act as the person in other ways; this closes only
+  the window between display and run.
 - **What the script does.** It carries as literals only the checked pids, uid, start times, hashes
-  and the parent pid of a wrapper's child. Its first lines read each pid's live values and compare
+  and the parent pid of a wrapper's child. Its body is one `{ … } </dev/null` group, so the shell
+  reads all of it before running any of it and nothing it runs reads the script from stdin. Its first lines read each pid's live values and compare
   each with its literal: anything other than an exact match, a failed or empty read, or a missing
   hash tool, exits 3 before the recorder runs. Each live uid field is compared with the uid
   literal, never with the script's own uid. Then it runs the one recorder against the app's pid

@@ -160,8 +160,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope`, `references` and an optional `for`. Ids are `Q<N>`, one counter for the whole
-topic, shared by every session on it. Pick each new id as the larger of the interview ledger's
+`answerScope`, `references` and an optional `for`; ids follow the `id` row there. Pick each new id as the larger of the interview ledger's
 next free `Q<N>` and the highest `Q<N>` already in the session plus one, because the session can
 hold ids that moderators created. A round holds at most 8 questions; the rest go to a later round.
 An asset id exists only after its `apply`, so add assets in one apply and the round that uses them
@@ -189,14 +188,12 @@ and shows two side by side. Notes stay on the version they were pinned to, so a 
 `qid` and `variant` say which version it is about. Each variant is revised once, so name the
 newest version; a second variant naming the same one is refused (400 `bad-field`).
 
-**A prototype question.** Give its `format` a `lookAt`: one line of at most 200 characters naming
-the area the variants change and the step that shows it ("Open the chat with the round button at
-bottom right, then switch variants"). The page shows it on the question card beside Open prototype
-and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
+**A prototype question.** Give its `format` a `lookAt` as [`question-shape.md`](question-shape.md)
+"Purpose and format (shared lane)" says. The page shows it on the question card beside Open
+prototype and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
 views: `shots`, one to four pictures in the order to view them, and `snapshot`, one self-contained
 HTML file, and `live: {id, path}`, the `L<N>` an `add-live` returned and the path its link opens
-(starting with one `/`, no fragment), at least one of the three; a variant may add its own
-`lookAt` when where to look differs for it. `asset` (one picture or HTML file) is still taken in
+(starting with one `/`, no fragment), at least one of the three. `asset` (one picture or HTML file) is still taken in
 place of all three, never beside any of them. A note pinned on a variant's k-th screenshot
 reaches the digest with element `img:nth-of-type(k)` (`img` for the first).
 
@@ -377,9 +374,9 @@ A question about something visible names its scope ([`question-shape.md`](questi
 shows it as it is now: capture the view fresh at publish time at 2x with whatever capture tool this
 session has (a browser automation skill, a screenshot CLI), save it in `<data_dir>/staging/` (the
 server makes it private; `add-asset` refuses the system temp dir and any hidden folder), `add-asset`
-it with `scale: 2` in one apply, then use its id in the next. A diagram or chart is an SVG saved
-the same way and shown as a `diagram` reference with its `alt` text
-([`question-shape.md`](question-shape.md)); the page loads no chart library.
+it with `scale: 2` in one apply, then use its id in the next. Save a diagram or chart the same
+way and show it as [`question-shape.md`](question-shape.md) "Purpose and format (shared lane)"
+says; the page loads no chart library.
 
 ## Restart, status and several sessions
 

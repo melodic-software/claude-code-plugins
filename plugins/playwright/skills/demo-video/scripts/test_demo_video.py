@@ -619,6 +619,13 @@ class FrameSeekVideo(unittest.TestCase):
                 got = grab_rgb(self.video, fi, 30, self.FW, self.FH)
                 self.assertEqual(hashlib.sha256(got).hexdigest(), hashlib.sha256(want).hexdigest())
 
+    def test_grab_past_the_end_names_the_frame(self):
+        from quality_control import grab_rgb
+        with self.assertRaises(ValueError) as ctx:   # rgb()'s path: the short read must fail before Image.frombytes
+            Image.frombytes('RGB', (self.FW, self.FH), grab_rgb(self.video, self.N, 30, self.FW, self.FH))
+        self.assertIn(f'frame {self.N} at 11.3000s', str(ctx.exception))
+        self.assertNotIn('not enough image data', str(ctx.exception))
+
 
 class RippleGeometry(unittest.TestCase):
     """The click ring produce.py draws; standard library only, so it runs on CI. Today's ring, unscaled, has

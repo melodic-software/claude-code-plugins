@@ -23,6 +23,7 @@ import {
   main,
   mustHold,
   parseOutcomeMarker,
+  heldPaths,
   readHoldPaths,
   readFunding,
   readChecks,
@@ -33,6 +34,7 @@ import {
   RESUMABLE,
   reusePlan,
   HOLD_LINE,
+  HUMAN_MERGE_HOLD,
   trustedLabeler,
   unmarkedAnswer,
 } from "./report-outcome.mjs";
@@ -307,6 +309,25 @@ for (const [name, text] of [
     });
   });
 }
+
+// merge.diff-check.path-holds (owner decisions Q15 and Q16): off, a denied
+// path holds nothing; on, it holds as before; an unreadable list still holds.
+test("with path holds off a denied path holds nothing, and on it holds the PR", () => {
+  const config = (pathHolds) => JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"], ...(pathHolds === undefined ? {} : { "path-holds": pathHolds }) } } });
+  for (const off of [undefined, false]) {
+    withDir({ "resolved-config.json": config(off) }, (dir) => {
+      const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+      assert.deepEqual(holdPaths, []);
+      assert.ok(!decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.includes("Hold: a human merges this"));
+    });
+  }
+  withDir({ "resolved-config.json": config(true) }, (dir) => {
+    const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+    assert.deepEqual(holdPaths, ["a/**"]);
+    assert.ok(decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.split("\n").includes("Hold: a human merges this"));
+  });
+  withDir({ "resolved-config.json": "{" }, (dir) => assert.equal(heldPaths(join(dir, "resolved-config.json")), null));
+});
 
 test("an unreadable resolved config reads as no denied-path list and holds the PR", () => {
   withDir({}, (dir) => {
@@ -762,7 +783,13 @@ function fakeFetch(routes) {
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
     // An issue no open PR closes, unless a route says otherwise.
-    const none = path === "/graphql" ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }] : null;
+    // A held PR's human-merge-hold label write succeeds, unless a route says otherwise.
+    const none =
+      path === "/graphql"
+        ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }]
+        : method === "POST" && /\/issues\/90\/labels$/.test(path)
+          ? [method, /./, 200, []]
+          : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
@@ -867,6 +894,43 @@ for (const [reason, step] of [
     });
   });
 }
+
+// lane.json's `stale`: the stale lane branch the run started fresh past,
+// which issue-prior found no comment naming. report-outcome names it once on
+// the issue, beside its usual report, and never deletes it.
+test("main names lane.json's stale branch on the issue once, and deletes no branch", async () => {
+  const stale = "work-resolve-issue/issue-77-400-1";
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+    const named = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments") && c.body.body.startsWith("<!-- work-resolve-issue stale-branch="));
+    assert.equal(named.length, 1);
+    assert.equal(named[0].body.body.split("\n")[0], `<!-- work-resolve-issue stale-branch=${stale} -->`);
+    assert.ok(named[0].body.body.includes(`\`${stale}\``), named[0].body.body);
+    assert.equal(parseOutcomeMarker(named[0].body.body), null, "the stale comment is no outcome marker");
+    assert.ok(!calls.some((c) => c.path.includes("/git/refs")), "no branch is deleted");
+  });
+});
+
+test("main names no stale branch when lane.json has none, or one of another shape", async () => {
+  for (const stale of ["", "main", "work-resolve-issue/issue-7-400-1"]) {
+    await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.body?.body?.includes("stale-branch=")), JSON.stringify(stale));
+    });
+  }
+});
 
 test("main refuses a dimension skip it does not know and writes nothing", async () => {
   await withDir({}, async (dir) => {
@@ -1000,7 +1064,7 @@ test("main refuses an escalation reason it does not know and writes nothing", as
   });
 });
 
-test("main on done opens a ready PR from the branch and adds no label to it", async () => {
+test("main on done opens a ready PR from the branch, labels it human-merge-hold when it holds, and writes nothing to the issue", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
@@ -1019,7 +1083,8 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
-      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
+      assert.ok(pull.body.split("\n").includes(HOLD_LINE), pull.body);
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
     },
   );
@@ -1117,7 +1182,8 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
+      // No denied-path list reads here, so the PR holds and carries the hold label.
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
@@ -1184,7 +1250,7 @@ test("main on a rerun reuses the open PR from the branch", async () => {
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
-      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
     },
   );
 });
@@ -2073,7 +2139,7 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
     assert.deepEqual(
       prior({ branches, markers: [marked("stopped", "400")] }),
-      { action: "run", stale: { branch: lane(400), behindBy } },
+      { action: "run", stale: { branch: lane(400), tip: SHA_400, behindBy } },
       String(behindBy),
     );
   }
@@ -2132,9 +2198,33 @@ test("--find-prior names the resumed branch, its tip and the cause, and still ru
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
 });
 
-test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main", async () => {
+test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main, naming that branch and its tip", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
   const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nstale-branch=${lane(400)}\nstale-tip=${"a".repeat(40)}\nstale-noted=false\n`);
+  // Only the reads the resume decision already made: one compare per lane branch.
+  assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1);
+  assert.deepEqual(writesToGitHub(calls), []);
+});
+
+// report-outcome names a stale branch once: a lanes App comment opening with
+// its marker, from any earlier run, makes stale-noted true.
+test("--find-prior marks a stale branch noted only when a lanes App comment opens with that branch's marker", async () => {
+  const stopped = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" };
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const noted = async (comment) =>
+    (await runPrior({ comments: [stopped, comment], refs: [refOf(lane(400))], comparison })).output.match(/^stale-noted=(.*)$/m)?.[1];
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->\nNamed.`, created_at: "2026-10-16T12:00:00Z" }), "true");
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(401)} -->\nAnother branch.`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: "stranger" }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: BOT }, body: `Quoted: <!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+});
+
+test("--find-prior names no stale branch when a commit on the behind branch is not the lanes App's", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 2, behind_by: 865, total_commits: 2, commits: [LANE_TIP, { ...LANE_TIP, author: { login: "stranger" } }] };
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
@@ -2462,7 +2552,8 @@ test("a reused branch with another run's or no outcome opens a held PR with none
       assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
       assert.ok(!pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("model title"), pull.body);
       assert.ok(pull.body.includes("https://example/o/r/actions/runs/400"), pull.body);
-      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/labels")), Object.keys(files).join());
+      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
     });
   }
 });
@@ -2502,7 +2593,7 @@ const summaryFile = (overrides = {}, output = {}) =>
   });
 // Readable denied paths, so the README-only, read-only-class reuse PRs below
 // hold only because no runner checks or leak scan reached them.
-const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS } } });
+const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS, "path-holds": true } } });
 const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVED_CONFIG: join(dir, "resolved.json") });
 const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
 const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };
@@ -2626,7 +2717,7 @@ test("a branch's own outcome wins over a summary, so the summary never stands in
 
 // main on a done run of an issue with these labels and `labeled` events, under
 // a resolved config that denies no path, so only the label can hold the PR.
-async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST }) {
+async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST, open = [], labelStatus = 200 }) {
   return withAsyncDir(
     {
       "work-outcome.json": JSON.stringify(done),
@@ -2642,14 +2733,21 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
         branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
-        ["GET", /\/pulls$/, 200, []],
+        ["GET", /\/pulls$/, 200, open],
         ["POST", /\/pulls$/, 201, { number: 90 }],
+        ["POST", /\/issues\/90\/labels$/, labelStatus, []],
+        ["PATCH", /\/pulls\/90$/, 200, {}],
+        ...HISTORY,
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       const code = await main({
         env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json"), TRUSTED_ACTORS: join(dir, "trusted.json") },
         fetch,
+        sleep: async () => {},
       });
-      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body.body };
+      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body };
     },
   );
 }
@@ -2672,6 +2770,50 @@ test("main without merge: human holds no PR and reads no label events", async ()
   const { body, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
   assert.ok(!holds(body), body);
   assert.ok(!calls.some((c) => c.path.endsWith("/events")));
+});
+
+// The hold line is body text the lanes App can edit, so a held PR also
+// carries a label only a listed person's removal lifts (ci-status's
+// human-merge hold step).
+const holdLabelPosts = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels"));
+
+test("main labels a held PR human-merge-hold right after it opens", async () => {
+  assert.equal(HUMAN_MERGE_HOLD, "human-merge-hold");
+  const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
+  assert.ok(!calls.some((c) => c.method === "PATCH"));
+});
+
+test("main puts no human-merge-hold label on a PR that does not hold", async () => {
+  const { code, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls), []);
+});
+
+test("main labels a held PR it reuses from an earlier attempt", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    open: [{ number: 90, user: { login: BOT } }],
+  });
+  assert.equal(code, 0);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+  assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
+});
+
+test("main closes a held PR it cannot label and retries the issue", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    labelStatus: 500,
+  });
+  assert.equal(code, 0);
+  assert.ok(holdLabelPosts(calls).length >= 2, "the label write is resent");
+  assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry"), comment);
+  assert.match(comment, /`hold-label-failed`/);
 });
 
 test("main ignores merge: human from a labeler who is not a listed human or the lanes App", async () => {
@@ -3269,7 +3411,6 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
 // A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
 // does not cover what scanLeak flags, so a missing scan holds like a finding.
@@ -3308,17 +3449,36 @@ test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
 });
 
-test("mustHold: a reuse holds on any scan word but clean and on a failed check; runner checks that did not report hold nothing", () => {
+// A failed runner check is not a reason for a person: the PR opens, its
+// Verification section names the failure, and its own CI stays red until fixed.
+test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
+  const plan = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } });
+  assert.equal(plan.hold, false);
+  assert.ok(!plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  assert.ok(plan.body.includes(`${FRAGMENTS}: failed (exit 1)`), plan.body);
+  assert.ok(plan.body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), plan.body);
+});
+
+test("a reuse PR whose runner check failed still holds on a leak scan that is not clean", () => {
+  const failed = [{ check: FRAGMENTS, exit: 1 }];
+  for (const checks of [{ ...CLEAN_CHECKS, results: failed, scan: "found" }, { ...CLEAN_CHECKS, results: failed, scan: "failed" }, { tip: TIP, results: failed }]) {
+    const plan = reusePlan({ ...CLEAN_REUSE, checks });
+    assert.equal(plan.hold, true, JSON.stringify(checks));
+    assert.ok(plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  }
+});
+
+test("mustHold: a reuse holds on any scan word but clean; a failed runner check and runner checks that did not report hold nothing", () => {
   const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
   assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS }), false, "clean reuse");
   assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), true, "scan missing");
   assert.equal(mustHold({ ...facts, checks: null }), true, "checks and scan missing");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "failed" } }), true, "scan failed");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
-  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "a failed check");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [] } }), false, "reuse, clean scan, no runner check reported");
   assert.equal(mustHold({ ...facts, reused: false, checks: null }), false, "no reuse, runner checks missing");
-  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "no reuse, a failed check");
+  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "no reuse, a failed check");
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
@@ -3344,8 +3504,8 @@ test("readChecks carries a reused branch's scan word, reads an unknown one as fa
 
 // main on a reuse with no outcome of its own: the runner's checks for the
 // reused branch at TIP, with `scan` (null: none), and the issue's labels and events.
-async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
-  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit: 0 }], ...(scan === null ? {} : { scan }) });
+async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
+  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit }], ...(scan === null ? {} : { scan }) });
   return withAsyncDir({ "runner-checks": checks, "resolved.json": RESOLVED, "trusted.json": TRUSTED_LIST }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
@@ -3365,6 +3525,15 @@ async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: 
 test("main opens a clean reuse PR with no hold line, and holds it on a leak scan that is not clean", async () => {
   assert.ok(!holds((await runReuse()).body));
   for (const scan of ["found", "failed", null]) assert.ok(holds((await runReuse({ scan })).body), String(scan));
+});
+
+test("main opens a reuse PR whose runner check failed with no hold line or hold label, and still holds it on a leak scan that is not clean", async () => {
+  const holdLabeled = (calls) => calls.some((c) => c.method === "POST" && c.path.endsWith("/labels") && c.body?.labels?.includes(HUMAN_MERGE_HOLD));
+  const failing = await runReuse({ exit: 1 });
+  assert.ok(!holds(failing.body), failing.body);
+  assert.ok(failing.body.includes(`${FRAGMENTS}: failed (exit 1)`), failing.body);
+  assert.ok(!holdLabeled(failing.calls));
+  for (const scan of ["found", null]) assert.ok(holds((await runReuse({ exit: 1, scan })).body), String(scan));
 });
 
 test("main holds a reuse PR on a denied path or a failed compare, and opens a clean one unheld", async () => {
