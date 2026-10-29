@@ -383,7 +383,7 @@ test('public hosts and public dotted-quad addresses are accepted', async () => {
 
 test('each finding carries fetch entries keyed to its claim', async () => {
   const reply = (p, o, d) => (o.label === 'synthesize'
-    ? { summary: 's', dissent: [], findings: [{ id: 'c1', claim: 'A', confidence: 'HIGH', applies_to: 'x', inference: 'i', sources: [{ url: 'https://docs.example/1' }, { url: 'https://never.example/z' }] }] }
+    ? { summary: 's', dissent: [], findings: [{ id: 'c1', claim: 'A', confidence: 'HIGH', applies_to: 'x 1+', inference: 'i', sources: [{ url: 'https://docs.example/1', applies_to: 'x 1+' }, { url: 'https://never.example/z', applies_to: 'x 1+' }] }] }
     : d(p, o))
   const { result } = await run({ question: 'q' }, { reply })
   const f = result.findings.find(x => x.id === 'c1')
@@ -544,4 +544,105 @@ test('the read and finding source schemas carry an optional dated_by', async () 
     assert.deepEqual(s.properties.dated_by, { type: 'string' })
     assert.ok(!s.required.includes('dated_by'), 'dated_by stays optional')
   }
+})
+
+// ---- applies_to grammar (criterion 13) ----
+
+const finding = (id, appliesTo, sources = []) => ({ id, claim: id, confidence: 'HIGH', applies_to: appliesTo, inference: 'i', qualifiers: ['q'], sources })
+const cited = (url, appliesTo) => ({ url, tier: 1, pool: 'example', published: '2026-09', applies_to: appliesTo, role: 'primary', measures: 'm' })
+
+test('every applies_to in the read, consolidate and synthesis schemas carries the grammar as a pattern', async () => {
+  const { calls } = await run({ question: 'q' })
+  const read = one(calls, 'read:1').opts.schema.properties
+  const synth = one(calls, 'synthesize').opts.schema.properties.findings.items.properties
+  const fields = [read.applies_to, read.claims.items.properties.applies_to,
+    one(calls, 'consolidate').opts.schema.properties.claims.items.properties.applies_to,
+    synth.applies_to, synth.sources.items.properties.applies_to]
+  for (const f of fields) {
+    const re = new RegExp(f.pattern)
+    for (const ok of ['version-independent', 'x 1+', 'Claude Code 2.1', 'x 1.2-1.10']) assert.ok(re.test(ok), ok)
+    for (const bad of ['commerce agents', 'version-independent (research tasks)', 'x']) assert.ok(!re.test(bad), bad)
+  }
+})
+
+test('conforming applies_to values pass through unchanged with no re-ask', async () => {
+  const reply = (p, o, d) => (o.label === 'synthesize'
+    ? { summary: 's', dissent: [], findings: [finding('c1', 'version-independent', [cited('https://docs.example/1', 'x 1+')]), finding('c2', 'x 1.2-1.10')] }
+    : d(p, o))
+  const { calls, result } = await run({ question: 'q' }, { reply })
+  assert.ok(!one(calls, 'synthesize:r2'), 'no re-ask')
+  const c1 = result.findings.find(f => f.id === 'c1')
+  assert.equal(c1.applies_to, 'version-independent')
+  assert.equal(c1.sources[0].applies_to, 'x 1+')
+  assert.deepEqual(c1.qualifiers, ['q'])
+  assert.equal(result.findings.find(f => f.id === 'c2').applies_to, 'x 1.2-1.10')
+})
+
+test('a free-text applies_to is re-asked once with the grammar named, then recorded unstated with the text kept in qualifiers', async () => {
+  const free = 'Claude Code (current docs; most guidance unversioned)'
+  const reply = (p, o, d) => (o.label.startsWith('synthesize')
+    ? { summary: 's', dissent: [], findings: [finding('c1', free, [cited('https://docs.example/1', 'commerce agents'), cited('https://docs.example/2', 'x 2-1')]), finding('c2', 'x 1+')] }
+    : d(p, o))
+  const { calls, result } = await run({ question: 'q' }, { reply })
+  assert.equal(by(calls, 'synthesize').length, 2, 'one re-ask, no more')
+  const again = one(calls, 'synthesize:r2')
+  const ask = again.prompt.slice(again.prompt.indexOf('which do not match the grammar.'))
+  assert.ok(ask.includes('<v>-<v>') && ask.includes('dotted integers'), 'the re-ask names the grammar')
+  assert.deepEqual(data(again.prompt, 'nonconforming'), [
+    { id: 'c1', applies_to: free },
+    { id: 'c1', url: 'https://docs.example/1', applies_to: 'commerce agents' },
+    { id: 'c1', url: 'https://docs.example/2', applies_to: 'x 2-1' },
+  ])
+  const c1 = result.findings.find(f => f.id === 'c1')
+  assert.equal(c1.applies_to, 'unstated')
+  assert.deepEqual(c1.sources.map(s => s.applies_to), ['unstated', 'unstated'])
+  assert.deepEqual(c1.qualifiers, ['q', 'applies_to as written: ' + free,
+    'https://docs.example/1 applies_to as written: commerce agents', 'https://docs.example/2 applies_to as written: x 2-1'])
+  assert.equal(result.findings.find(f => f.id === 'c2').applies_to, 'x 1+')
+  assert.ok(result.ran.includes('synthesize:r2'))
+})
+
+test('a re-ask that returns conforming values replaces the first synthesis', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'synthesize') return { summary: 's', dissent: [], findings: [finding('c1', 'commerce agents'), finding('c2', 'x 1+')] }
+    if (o.label === 'synthesize:r2') return { summary: 's2', dissent: [], findings: [finding('c1', 'version-independent'), finding('c2', 'x 1+')] }
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.equal(result.summary, 's2')
+  assert.equal(result.findings.find(f => f.id === 'c1').applies_to, 'version-independent')
+  assert.deepEqual(result.findings.find(f => f.id === 'c1').qualifiers, ['q'])
+})
+
+test('a finding the re-ask leaves out keeps its first-round form', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'synthesize') return { summary: 's', dissent: [], findings: [finding('c1', 'commerce agents'), finding('c2', 'x 1+')] }
+    if (o.label === 'synthesize:r2') return { summary: 's2', findings: [finding('c1', 'version-independent')] }
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.deepEqual(result.findings.map(f => [f.id, f.applies_to]).sort(), [['c1', 'version-independent'], ['c2', 'x 1+']])
+  assert.ok(!result.unverified.some(u => u.id === 'c2'))
+})
+
+test('an applies_to left unstated is recorded unstated with no qualifier added', async () => {
+  const reply = (p, o, d) => (o.label.startsWith('synthesize')
+    ? { summary: 's', dissent: [], findings: [finding('c1', 'unstated'), finding('c2', 'x 1+')] }
+    : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  const c1 = result.findings.find(f => f.id === 'c1')
+  assert.equal(c1.applies_to, 'unstated')
+  assert.deepEqual(c1.qualifiers, ['q'])
+})
+
+test('a re-ask with no result keeps the first synthesis and names the null', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'synthesize') return { summary: 's', dissent: [], findings: [finding('c1', 'commerce agents'), finding('c2', 'x 1+')] }
+    if (o.label === 'synthesize:r2') return null
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.ok(result.nulls.includes('synthesize:r2'))
+  assert.equal(result.summary, 's')
+  assert.equal(result.findings.find(f => f.id === 'c1').applies_to, 'unstated')
 })
