@@ -310,6 +310,62 @@ test("settleDisputes holds an UNCERTAIN or VALID-defer security-review or unknow
   assert.equal(escalationRoute("feedback-disputed"), "hold");
 });
 
+// A person decides only a security-review finding rated IMPORTANT or above
+// (this repository's HIGH), or one with no rating it can read. The #10810
+// shape: a SUGGESTION whose text says no change is required is settled like
+// a code-review dispute, by the adjudicator or a failing status.
+const SUGGESTION = SECURITY.replace("severity: IMPORTANT", "severity: SUGGESTION");
+const ratedThread = (id, body) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-security-review", body }]);
+const UNRATED = [
+  SECURITY.replace("severity: IMPORTANT\n", ""),
+  SECURITY.replace("severity: IMPORTANT", "severity: LOW"),
+  SECURITY.replace("severity: IMPORTANT", "severity: SUGGESTION\nseverity: IMPORTANT"),
+];
+
+test("disputes stages a SUGGESTION security-review finding, never an IMPORTANT, CRITICAL or unrated one", () => {
+  assert.equal(adjudicable(ratedThread("PRRT_s", SUGGESTION).comments), true);
+  assert.equal(adjudicable(ratedThread("PRRT_s", SUGGESTION.replace("SUGGESTION", "suggestion")).comments), true);
+  for (const body of [SECURITY, SECURITY.replace("IMPORTANT", "CRITICAL"), ...UNRATED]) {
+    assert.equal(adjudicable(ratedThread("PRRT_s", body).comments), false, body.split("\n")[0]);
+    assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", body)), incorrect("PRRT_s")).slots, []);
+  }
+  assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", SUGGESTION)), incorrect("PRRT_s")).slots.map((slot) => slot.thread), ["PRRT_s"]);
+  // A SUGGESTION line on a comment whose lane keepThreads did not tag is no lane finding.
+  assert.equal(adjudicable(thread("PRRT_u", [{ id: 1, author: "reviewer", body: SUGGESTION }]).comments), false);
+});
+
+test("settleDisputes settles a disputed SUGGESTION security-review finding without a person", async () => {
+  const now = new Map([["PRRT_a", ratedThread("PRRT_a", SUGGESTION)]]);
+  // No verdict: a failing status, not a person.
+  assert.deepEqual(await settleOffline(now, "INCORRECT", new Map()), { escalationReason: "feedback-unadjudicated", skipReason: "" });
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+  }
+  // An adjudicator's security question on it is no question for a person either.
+  for (const disposition of DISPUTED) {
+    assert.deepEqual(await settleOffline(now, disposition, new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+  }
+  assert.equal(escalationRoute("feedback-unadjudicated"), "fail");
+  // An intent or design question still goes to a person, as on a code-review finding.
+  assert.deepEqual(await settleOffline(now, "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "intent" }]])), { escalationReason: "feedback-question-intent", skipReason: "" });
+  // On a code-review finding a security question still holds.
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-question-security", skipReason: "" });
+});
+
+test("settleDisputes holds a disputed IMPORTANT, CRITICAL or unrated security-review finding for a person", async () => {
+  for (const body of [SECURITY, SECURITY.replace("IMPORTANT", "CRITICAL"), ...UNRATED]) {
+    const now = new Map([["PRRT_a", ratedThread("PRRT_a", body)]]);
+    assert.deepEqual(await settleOffline(now, "INCORRECT"), { escalationReason: "feedback-disputed", skipReason: "" }, body.split("\n")[0]);
+    assert.deepEqual(await settleOffline(now, "UNCERTAIN"), { escalationReason: "feedback-uncertain", skipReason: "" }, body.split("\n")[0]);
+  }
+});
+
+test("settleDisputes hands a directed SUGGESTION security-review thread back to its person", async () => {
+  const directed = ratedThread("PRRT_a", SUGGESTION);
+  directed.comments.push({ id: 2, author: "trusted-human", direction: true, body: "PR-fix lane: please fix this finding" });
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", directed]]), "INCORRECT"), { escalationReason: "feedback-disputed", skipReason: "" });
+});
+
 test("prepare writes one slot per dispute with the files at the head, and refuses another head's thread file", async (t) => {
   const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));

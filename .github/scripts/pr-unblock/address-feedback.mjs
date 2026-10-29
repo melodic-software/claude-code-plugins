@@ -100,22 +100,48 @@ const lastLine = (body) =>
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
+// The security-review lane's ratings, lowest first (security-review SKILL.md,
+// "Reporting": one `severity: <rating>` line per inline comment), and the
+// lowest one a person decides: this repository counts IMPORTANT as HIGH.
+export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
+export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
+const SEVERITY_LINE = /^[ \t]*severity:[ \t]*([A-Za-z]+)[ \t]*$/gim;
+// A comment's one rating, upper-cased, or null when it has none, an unknown
+// one, or two that differ.
+export function severityOf(body) {
+  const found = new Set([...String(body ?? "").matchAll(SEVERITY_LINE)].map((match) => match[1].toUpperCase()));
+  const [only] = found;
+  return found.size === 1 && SECURITY_SEVERITIES.includes(only) ? only : null;
+}
+// Whether a security-review lane comment is one a person decides: rated at or
+// above SECURITY_PERSON_SEVERITY, or with no rating it can read (fail closed).
+export const securityNeedsPerson = (body) => {
+  const severity = severityOf(body);
+  return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(SECURITY_PERSON_SEVERITY);
+};
+
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
 
 // Past the round cap, the threads only a person may still decide: a security
-// lane finding, a verifier note a trusted person directed, and a finding
-// whose lane no footer pr-review-cli appended names: only on a
-// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
-// never model text. The code lane's finding and an undirected verifier note
-// go to a fresh fixer: a round cap is a lane bound, and pr-verify's FAIL
-// already holds the merge and judges the next head afresh.
-export const needsPerson = (thread, rootAuthorId) =>
-  isVerifierNote(thread)
-    ? thread.comments.some((comment) => comment.direction === true)
-    : rootAuthorId !== MARKER_AUTHOR_ID ||
-      thread.comments[0]?.author !== "reviewer" ||
-      laneOf(thread.comments[0].body) !== "claude-review";
+// lane finding a person decides (securityNeedsPerson), a verifier note a
+// trusted person directed, and a finding whose lane no footer pr-review-cli
+// appended names: only on a github-actions[bot] root (`rootAuthorId`) is the
+// footer the reusable's, never model text. The code lane's finding, a
+// security lane finding rated below SECURITY_PERSON_SEVERITY and an undirected
+// verifier note go to a fresh fixer: a round cap is a lane bound, and
+// pr-verify's FAIL already holds the merge and judges the next head afresh.
+export const needsPerson = (thread, rootAuthorId) => {
+  if (isVerifierNote(thread)) {
+    return thread.comments.some((comment) => comment.direction === true);
+  }
+  const root = thread.comments[0];
+  if (rootAuthorId !== MARKER_AUTHOR_ID || root?.author !== "reviewer") {
+    return true;
+  }
+  const lane = laneOf(root.body);
+  return lane === "claude-security-review" ? securityNeedsPerson(root.body) : lane !== "claude-review";
+};
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;

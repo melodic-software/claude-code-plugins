@@ -874,6 +874,22 @@ for (const [label, roots] of [
   }
 }
 
+// A person decides only a security lane finding rated IMPORTANT or above, or
+// one with no rating the lane can read; a SUGGESTION goes to the fresh fixer
+// as a code lane finding does.
+const SUGGESTION_FINDING = LANE_FINDING.replace("severity: IMPORTANT", "severity: SUGGESTION");
+test("at the cap, a SUGGESTION security lane finding goes to a fresh fixer; an IMPORTANT, CRITICAL or unrated one escalates feedback-round-cap", async () => {
+  const fresh = await capped({ roots: [SUGGESTION_FINDING, CODE_FINDING] });
+  assert.equal(fresh.decision, "proceed");
+  assert.equal(fresh.escalationReason, undefined);
+  assert.deepEqual(fresh.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
+  for (const body of [LANE_FINDING, LANE_FINDING.replace("IMPORTANT", "CRITICAL"), LANE_FINDING.replace("severity: IMPORTANT\n", ""), LANE_FINDING.replace("IMPORTANT", "HIGHISH")]) {
+    const result = await capped({ roots: [body] });
+    assert.equal(result.decision, "escalate", body.split("\n")[0]);
+    assert.equal(result.escalationReason, "feedback-round-cap");
+  }
+});
+
 test("at the cap, the reviewer bot's own finding ending in the code lane's footer still escalates: its footer is model text", async () => {
   const api = fakeApi({
     reviewComments: [comment(100, REVIEWER, { body: CODE_FINDING })],
