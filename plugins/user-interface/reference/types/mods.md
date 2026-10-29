@@ -5,7 +5,7 @@ offer all the same surfaces. Everything in
 `terminal.md` applies; this file adds what a shared screen needs. Anthropic owns the surfaces and
 their limits: read the interface page for what each one is and where it renders, and load the
 built-in `plugin-authoring` skill before writing one. How this repository packages a mod is
-`docs/conventions/mod-authoring/README.md` in the marketplace repository.
+`docs/contracts/mod-authoring/README.md` in the marketplace repository.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/mods/interface>
 - **As of**: 2026-10-04
@@ -45,5 +45,5 @@ can.
 - Commands a user can run appear exactly as typed, so they can be copied.
 - What a hook notice must contain is the developer-experience guidance's call, and how each channel
   may phrase it (facts with their source on a context channel, a next step only on a decision
-  channel) is `docs/conventions/hook-observability/README.md` "Text a hook adds for the model" in
+  channel) is `docs/contracts/hook-observability/README.md` "Text a hook adds for the model" in
   the marketplace repository. Where it and this file differ, it wins; this file owns the look.

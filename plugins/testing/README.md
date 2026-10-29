@@ -73,7 +73,7 @@ below):
 - `test_guards_enabled` (default `false`) turns on the `test-weaken` hook (PreToolUse), which tells
   Claude which tests, assertions or expected values an edit removes, skips or changes. Can't-fail
   findings are report-only, so they come from `/testing:audit` on demand, not from a per-edit hook
-  ([check placement](../../docs/conventions/check-placement/README.md)).
+  ([check placement](../../docs/contracts/check-placement/README.md)).
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
   fails open.
 
