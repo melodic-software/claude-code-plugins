@@ -62,7 +62,8 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    `.claude-plugin/marketplace.json`, and the flagged plugin cannot work without it (it invokes
    the dependency with no "if installed" check and no fallback), record `INCORRECT`. Cite, for
    each entry, a line in one of the flagged plugin's own skills, agents or commands that invokes
-   `/<entry>:`, with no gate, fallback or negation in the lines around it. When any entry is
+   `/<entry>:`, outside a `## Next` section, with no gate, condition, fallback or negation in the
+   lines around it. When any entry is
    optional (presence-gated, with a fallback), record `UNCERTAIN`.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there

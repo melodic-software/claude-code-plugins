@@ -121,19 +121,52 @@ export const MARKETPLACE = ".claude-plugin/marketplace.json";
 // recheck when that section adds an entry form).
 const BARE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const IN_REPOSITORY = /^\.\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
-// Words of a presence gate, a fallback or a negation within GUARD_LINES of a
-// cited line: an optional collaborator (docs/plugin-philosophy.md) or no
-// call at all, never a hard require.
-const GUARDED = /\b(install(ed)?|enabled?|resolves?|available|absent|present|fallback|falls? back|otherwise|optional(ly)?|never|not)\b/i;
+// What a dependency may declare and hold and still add nothing Claude Code
+// runs once it is enabled for every user of the flagged plugin: a manifest of
+// metadata and userConfig only, a marketplace entry of listing fields only,
+// and none of the default locations of hooks (a mod's module included), MCP
+// or LSP servers, monitors, executables, workflows or settings
+// (code.claude.com/docs/en/plugins-reference, "Fields" and "Standard
+// layout", as of 2026-10-29; recheck when either adds a component). Any other
+// key, its own `dependencies` included, fails closed.
+const INERT_MANIFEST = new Set(["$schema", "name", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "metadata", "userConfig"]);
+const INERT_ENTRY = new Set(["name", "source", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "category", "tags", "relevance", "defaultEnabled"]);
+const RUNS = new Set(["hooks", ".mcp.json", ".lsp.json", "monitors", "bin", "workflows", "settings.json"]);
+// Words of a presence gate, a condition, a fallback or a negation within
+// GUARD_LINES of a cited line: an optional collaborator
+// (docs/plugin-philosophy.md) or no call at all, never a hard require. The
+// list fails closed: a hard require worded with one of these escalates, which
+// a person then settles.
+const GUARDED =
+  /\b(install(ed)?|uninstalled|enabled?|disabled|resolves?|available|unavailable|absent|present|missing|exists?|loaded|fallback|falls? back|otherwise|optional(ly)?|never|not|cannot|without|if|when(ever)?|unless|where|whether|once|in case)\b|n['\u2019]t\b/i;
 const GUARD_LINES = 2;
 // The files whose text Claude Code loads as a plugin's skills, agents or
 // commands; an eval case, a changelog or a script is no call site.
 const callSite = (dir, path) => new RegExp(`^plugins/${dir.replace(/\./g, "\\.")}/(skills|agents|commands)/([A-Za-z0-9_@+.-]+/)*[A-Za-z0-9_@+.-]+\\.md$`).test(path) && !/\/evals\//.test(path);
 const firstContentLine = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, "")).find((line) => line.trim() !== "") ?? "";
-// Whether line `at` of `lines` invokes `/<dependency>:` with no GUARDED word
-// within GUARD_LINES of it.
-const unguardedCall = (lines, at, dependency) =>
-  lines[at]?.includes(`/${dependency}:`) === true && !GUARDED.test(lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n"));
+// Per line, whether it sits in a `## Next` section: from that heading to the
+// next level-1 or level-2 heading outside a code fence. A successor named
+// there is a human-facing mention, not an operative call (AGENTS.md).
+const nextSection = (lines) => {
+  let next = false;
+  let fence = false;
+  return lines.map((line) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fence = !fence;
+    } else if (!fence && /^#{1,2}\s/.test(line)) {
+      next = /^##\s+Next\b/.test(line);
+    }
+    return next;
+  });
+};
+// Whether line `at` of `lines` invokes `/<dependency>:` at the start of a
+// token, outside a `## Next` section, with no GUARDED word within GUARD_LINES
+// of it. `dependency` is a BARE_NAME, so it holds no regular-expression
+// syntax.
+const unguardedCall = (lines, at, dependency, next = nextSection(lines)) =>
+  new RegExp(`(^|[\\s\`(])/${dependency}:`).test(lines[at] ?? "") &&
+  !next[at] &&
+  !GUARDED.test(lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n"));
 const linesOf = (file) => (typeof file === "string" ? file.split("\n") : []);
 
 // Whether a thread is a security-review lane flag on a plugin manifest's
@@ -162,21 +195,52 @@ const parseObject = (text) => {
   }
 };
 
+// What the dependency at `dir` adds that Claude Code runs at `ref`, as a
+// clause, or null when it adds nothing: its marketplace `entry`, its manifest
+// and its top-level entries, each held to INERT_ENTRY, INERT_MANIFEST and RUNS.
+async function executable({ ref, read, listTree, entry, dir }) {
+  const entryKey = Object.keys(entry ?? {}).find((key) => !INERT_ENTRY.has(key));
+  if (entryKey !== undefined) {
+    return `has a ${MARKETPLACE} entry that sets ${entryKey}`;
+  }
+  const manifestPath = `${dir}/.claude-plugin/plugin.json`;
+  const manifest = parseObject(await read(manifestPath));
+  if (!manifest) {
+    return `has no readable ${manifestPath}`;
+  }
+  const manifestKey = Object.keys(manifest).find((key) => !INERT_MANIFEST.has(key));
+  if (manifestKey !== undefined) {
+    return `declares ${manifestKey} in ${manifestPath}`;
+  }
+  const tree = await listTree(ref, dir);
+  if (!Array.isArray(tree) || tree.length === 0) {
+    return `has no files under ${dir}`;
+  }
+  const ships = tree.find((item) => RUNS.has(item?.name));
+  return ships ? `ships ${dir}/${ships.name}` : null;
+}
+
 // Whether every dependency of the flagged manifest at `sha` is a hard require
 // on a plugin of this repository's marketplace: the flagged plugin is an
 // entry there; each dependency is a bare name of another entry whose source is
 // a path in this repository, and an entry of the marketplace at `baseSha` (the
 // PR's base) with that same source, so the PR that adds the dependency cannot
-// also add the plugin it trusts; and `evidence` (the lane's path:line list)
-// cites, for each one, a line of the flagged plugin's skills, agents or
-// commands that invokes `/<name>:` with no GUARDED word within GUARD_LINES of
-// it at `sha`, in a file that at `baseSha` already holds such a line, so the
-// call-site evidence is read at both the base and the head and the PR cannot
-// supply it alone. Returns {sites}, the cited line per dependency, or {why}.
-// `getText(path, ref)` reads a file, null when absent.
-export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
+// also add the plugin it trusts; that dependency adds nothing Claude Code runs
+// (executable), at the base and the head, since enabling it enables its hooks,
+// servers and monitors for every user of the flagged plugin; and `evidence`
+// (the lane's path:line list) cites, for each one, a line of the flagged
+// plugin's skills, agents or commands that unguardedCall accepts at `sha`, in
+// a file that at `baseSha` already holds such a line, so the call-site
+// evidence is read at both the base and the head and the PR cannot supply it
+// alone. Returns {sites}, the cited line per dependency, or {why}.
+// `getText(path, ref)` reads a file, null when absent; `listTree(ref, dir)`
+// lists a directory's entries, none when it is absent.
+export async function hardRequire({ getText, listTree, sha, baseSha, path, evidence }) {
   if (!SHA.test(String(baseSha ?? ""))) {
     return { why: "the PR's base commit is unknown" };
+  }
+  if (typeof listTree !== "function") {
+    return { why: "the dependency's files cannot be listed" };
   }
   const read = new Map();
   const at = (ref) => (file) => {
@@ -213,6 +277,15 @@ export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
     if (!baseEntries.some((entry) => entry.name === dependency && entry.source === source)) {
       return { why: `${dependency} is not an entry of ${MARKETPLACE} at the PR base with the source ${source}` };
     }
+    for (const [ref, readAt, refEntries, side] of [
+      [baseSha, baseText, baseEntries, "base"],
+      [sha, text, entries, "head"],
+    ]) {
+      const runs = await executable({ ref, read: readAt, listTree, entry: refEntries.find((entry) => entry.name === dependency), dir: source.slice(2) });
+      if (runs) {
+        return { why: `${dependency} at the PR ${side} ${runs}` };
+      }
+    }
     let site = null;
     // The first cited file whose head line holds up but whose base does not.
     let baseMiss = null;
@@ -225,7 +298,8 @@ export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
         continue;
       }
       const baseLines = linesOf(await baseText(match[1]));
-      if (baseLines.some((_, line) => unguardedCall(baseLines, line, dependency))) {
+      const baseNext = nextSection(baseLines);
+      if (baseLines.some((_, line) => unguardedCall(baseLines, line, dependency, baseNext))) {
         site = cited;
         break;
       }
@@ -436,7 +510,7 @@ export function hardRequireReply(path, sites, headSha) {
     FINDING_ANSWERED,
     "**pr-unblock / adjudicate-feedback: hard requires on this marketplace's plugins, resolved**",
     "",
-    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists, here and at the PR's base, with the same source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it, in a file whose text at the PR's base already holds such a call. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
+    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists, here and at the PR's base, with the same source in this repository, whose manifest, marketplace entry and files there and at the PR's base declare no hooks, servers, monitors, executables, workflows, settings or dependencies of their own, and the lane cited a line in the plugin that invokes each one with no presence gate, condition or fallback on it, outside a \`## Next\` section, in a file whose text at the PR's base already holds such a call. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
     "",
     evidenceLine(sites),
   ].join("\n");
@@ -593,7 +667,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       let found;
       try {
         const baseSha = (await api.getPull(pr))?.base?.sha;
-        found = await hardRequire({ getText: (file, ref) => api.getText(file, ref), sha: headSha, baseSha, path, evidence: byThread.get(thread)?.evidence ?? [] });
+        found = await hardRequire({ getText: (file, ref) => api.getText(file, ref), listTree: (ref, dir) => api.listTree(ref, dir), sha: headSha, baseSha, path, evidence: byThread.get(thread)?.evidence ?? [] });
       } catch (error) {
         found = { why: `a read failed: ${String(error?.message ?? error).slice(0, 300)}` };
       }

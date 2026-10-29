@@ -1164,11 +1164,19 @@ job reads the manifest and `.claude-plugin/marketplace.json` at the PR head it c
 posting, through the contents API. It resolves the thread with a fixed reply naming the lane's
 cited call sites only when all of these hold: the flagged plugin is a marketplace entry; each
 `dependencies` entry is a bare name (no `@marketplace`, no object form, so no version) of another
-entry whose `source` is a `./` path in this repository; and the lane cited, for each entry, a line
-of a `.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case) that invokes
-`/<entry>:` with no gate, fallback or negation word (`installed`, `enabled`, `available`,
-`fallback`, `otherwise`, `optional`, `not`, `never` and the like) within two lines of it: a hard
-require ([plugin philosophy](../../plugin-philosophy.md)). The call-site evidence is read at both
+entry whose `source` is a `./` path in this repository; the dependency adds nothing Claude Code
+runs, at the base and the head: its `plugin.json` sets only metadata and `userConfig` (no `hooks`,
+`mcpServers`, `lspServers`, `experimental`, `settings`, `workflows`, `types`, `dependencies` or any
+other key), its marketplace entry only listing fields, and its directory holds no `hooks/`,
+`.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`, since enabling it
+enables those for every user of the flagged plugin; and the lane cited, for each entry, a line of a
+`.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case), outside a
+`## Next` section, where `/<entry>:` starts a token (not inside a path or URL) with no gate,
+condition, fallback or negation word (`installed`, `enabled`, `if`, `when`, `unless`, `once`,
+`exists`, `loaded`, `missing`, `fallback`, `otherwise`, `optional`, `not`, `never`, a `n't`
+contraction and the like) within two lines of it: a hard require
+([plugin philosophy](../../plugin-philosophy.md)). The word list fails closed: a hard require
+worded with one of them escalates. The call-site evidence is read at both
 the base and the head: the cited line holds up at the head, and the cited file already exists at
 the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
 its own call site. Anything else, a failed read included,
