@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { anyHandles, limitResetsAt, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, KILL_SWITCH_STOP, killSwitchStop, limitResetsAt, pendingStop, permanentlyHandles, releasedBy, releasesHead, stopRelease } from "./limit-stop.mjs";
 
 const HOUR = 3_600_000;
 const ENDED = "2026-10-17T10:00:00Z";
@@ -172,4 +172,45 @@ test("with held skips released, an awaiting-human skip does not handle the head"
   assert.equal(anyHandles(three, { now, heldSkipsRelease: true }), true);
   assert.equal(permanentlyHandles(three, { heldSkipsRelease: true }), true);
   assert.equal(anyHandles([heldSkip, run(1), run(2)], { now, heldSkipsRelease: true, failuresRetry: true }), true, "held skips and failures share the cap");
+});
+
+// A run the lanes kill switch stopped did no work: its own kill-switch step,
+// or a broker refusal of its mint (request-lane-token kill-switch-ok), posts
+// neutral kill-switch (decide.mjs: "Skipped: <reason>").
+const killed = (id = 20, started = "2026-10-17T09:00:00Z") => ({
+  id,
+  status: "completed",
+  conclusion: "neutral",
+  started_at: started,
+  completed_at: ENDED,
+  output: { title: KILL_SWITCH_STOP },
+});
+
+test("a kill-switch stop never handles a head, with or without the opt-ins, until three stops stand on it", () => {
+  const now = ended + HOUR;
+  assert.equal(KILL_SWITCH_STOP, "Skipped: kill-switch");
+  assert.equal(killSwitchStop(killed()), true);
+  assert.equal(killSwitchStop({ ...killed(), conclusion: "failure" }), false, "a red kill-switch denial is no such stop");
+  assert.equal(killSwitchStop({ ...killed(), output: { title: "Skipped: prerequisite-missing" } }), false);
+  for (const options of [{}, { heldSkipsRelease: true, failuresRetry: true }]) {
+    assert.equal(anyHandles([killed()], { now, ...options }), false);
+    assert.equal(permanentlyHandles([killed()], options), false);
+    const three = [killed(20), killed(21), killed(22)];
+    assert.equal(anyHandles(three, { now, ...options }), true, "a switch that keeps flipping mid-run ends the head at the cap");
+  }
+  assert.equal(anyHandles([killed(), run(1), run(2)], { now, failuresRetry: true }), true, "kill-switch stops and failures share the cap");
+  assert.equal(anyHandles([killed(), { ...killed(30), conclusion: "success", output: { title: "Passed" } }], { now }), true, "another run still handles the head");
+});
+
+test("an emitter check's kill-switch stop releases the head's earlier activity checks, like a lane stop", () => {
+  const activity = { ...killed(1, "2026-10-17T08:00:00Z"), conclusion: "success", output: { title: "Passed" } };
+  const stop = killed(2, "2026-10-17T08:30:00Z");
+  assert.equal(releasesHead(stop), true);
+  const { cut, stops } = stopRelease([stop], 3);
+  assert.equal(cut, Date.parse("2026-10-17T08:30:00Z"));
+  assert.equal(stops, 1);
+  assert.deepEqual(releasedBy([activity], cut), []);
+  const capped = stopRelease([killed(2), killed(3), killed(4)], 3);
+  assert.equal(capped.cut, null, "the dispatcher's per-head cap ends the retries");
+  assert.equal(stopRelease([{ ...stop, output: { title: "Passed" } }], 3).cut, null, "a push that acted releases nothing");
 });

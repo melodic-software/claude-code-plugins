@@ -171,8 +171,8 @@ times out after 10 minutes. In order:
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
 posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
-red, not neutral, for the same reason as the write file's `kill-switch` denial: step 3 already
-stopped the common case. Off `pull_request`, a failed broker-check job posts no check, since no
+red, not neutral, `kill-switch` included: step 3 already stopped the common case. Off
+`pull_request`, a failed broker-check job posts no check, since no
 head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
 
 The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
@@ -1891,8 +1891,17 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
 | 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
-A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
-means the job's read and the broker's read of the switch disagreed.
+A `kill-switch` denial means the switch was turned on after the run job's own kill-switch step
+read it (the broker reads the switches live). On a pull request run the write file passes
+`kill-switch-ok`, so the denial is a designed stop: the token step ends green with no token, every
+later step skips, and the check is neutral `kill-switch`. A caller job's dependents read the skip
+from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` check as a stop that
+did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
+head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
+a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
+dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
+its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
+re-fires it and a skip would drop the escalation's comment and label.
 
 ### A workflow file the PR changes
 
