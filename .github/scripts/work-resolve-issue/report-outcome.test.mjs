@@ -895,6 +895,43 @@ for (const [reason, step] of [
   });
 }
 
+// lane.json's `stale`: the stale lane branch the run started fresh past,
+// which issue-prior found no comment naming. report-outcome names it once on
+// the issue, beside its usual report, and never deletes it.
+test("main names lane.json's stale branch on the issue once, and deletes no branch", async () => {
+  const stale = "work-resolve-issue/issue-77-400-1";
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+    const named = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments") && c.body.body.startsWith("<!-- work-resolve-issue stale-branch="));
+    assert.equal(named.length, 1);
+    assert.equal(named[0].body.body.split("\n")[0], `<!-- work-resolve-issue stale-branch=${stale} -->`);
+    assert.ok(named[0].body.body.includes(`\`${stale}\``), named[0].body.body);
+    assert.equal(parseOutcomeMarker(named[0].body.body), null, "the stale comment is no outcome marker");
+    assert.ok(!calls.some((c) => c.path.includes("/git/refs")), "no branch is deleted");
+  });
+});
+
+test("main names no stale branch when lane.json has none, or one of another shape", async () => {
+  for (const stale of ["", "main", "work-resolve-issue/issue-7-400-1"]) {
+    await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.body?.body?.includes("stale-branch=")), JSON.stringify(stale));
+    });
+  }
+});
+
 test("main refuses a dimension skip it does not know and writes nothing", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -2102,7 +2139,7 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
     assert.deepEqual(
       prior({ branches, markers: [marked("stopped", "400")] }),
-      { action: "run", stale: { branch: lane(400), behindBy } },
+      { action: "run", stale: { branch: lane(400), tip: SHA_400, behindBy } },
       String(behindBy),
     );
   }
@@ -2161,9 +2198,33 @@ test("--find-prior names the resumed branch, its tip and the cause, and still ru
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
 });
 
-test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main", async () => {
+test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main, naming that branch and its tip", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
   const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nstale-branch=${lane(400)}\nstale-tip=${"a".repeat(40)}\nstale-noted=false\n`);
+  // Only the reads the resume decision already made: one compare per lane branch.
+  assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1);
+  assert.deepEqual(writesToGitHub(calls), []);
+});
+
+// report-outcome names a stale branch once: a lanes App comment opening with
+// its marker, from any earlier run, makes stale-noted true.
+test("--find-prior marks a stale branch noted only when a lanes App comment opens with that branch's marker", async () => {
+  const stopped = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" };
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const noted = async (comment) =>
+    (await runPrior({ comments: [stopped, comment], refs: [refOf(lane(400))], comparison })).output.match(/^stale-noted=(.*)$/m)?.[1];
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->\nNamed.`, created_at: "2026-10-16T12:00:00Z" }), "true");
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(401)} -->\nAnother branch.`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: "stranger" }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: BOT }, body: `Quoted: <!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+});
+
+test("--find-prior names no stale branch when a commit on the behind branch is not the lanes App's", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 2, behind_by: 865, total_commits: 2, commits: [LANE_TIP, { ...LANE_TIP, author: { login: "stranger" } }] };
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
