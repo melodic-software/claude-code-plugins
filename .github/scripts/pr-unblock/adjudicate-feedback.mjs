@@ -34,7 +34,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SHA } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -107,6 +107,112 @@ export const adjudicable = (comments) => {
   return root.listed === true ? listedState(comments) === "clear" : root.lane === "claude-review" || minorSecurity(comments);
 };
 
+// The security-review lane's first line on an inline comment for a manifest
+// `dependencies` flag (security-review SKILL.md, "Reporting").
+const DEPENDENCIES_FLAG = /^manifest dependencies: flag(,|$)/;
+const PLUGIN_MANIFEST = /^plugins\/([A-Za-z0-9._-]+)\/\.claude-plugin\/plugin\.json$/;
+export const MARKETPLACE = ".claude-plugin/marketplace.json";
+// A dependency entry that resolves in the plugin's own marketplace: a string
+// with no `@marketplace` and no version, which only the object form carries
+// (code.claude.com/docs/en/plugins-reference#dependencies, as of 2026-10-29;
+// recheck when that section adds an entry form).
+const BARE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const IN_REPOSITORY = /^\.\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
+// Words of a presence gate, a fallback or a negation within GUARD_LINES of a
+// cited line: an optional collaborator (docs/plugin-philosophy.md) or no
+// call at all, never a hard require.
+const GUARDED = /\b(install(ed)?|enabled?|resolves?|available|absent|present|fallback|falls? back|otherwise|optional(ly)?|never|not)\b/i;
+const GUARD_LINES = 2;
+// The files whose text Claude Code loads as a plugin's skills, agents or
+// commands; an eval case, a changelog or a script is no call site.
+const callSite = (dir, path) => new RegExp(`^plugins/${dir.replace(/\./g, "\\.")}/(skills|agents|commands)/([A-Za-z0-9_@+.-]+/)*[A-Za-z0-9_@+.-]+\\.md$`).test(path) && !/\/evals\//.test(path);
+const firstContentLine = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, "")).find((line) => line.trim() !== "") ?? "";
+
+// Whether a thread is a security-review lane flag on a plugin manifest's
+// `dependencies`, rated below CRITICAL: the one security-review finding
+// hardRequire may settle without a person (owner decision).
+export const dependencyFlag = (comments, path) => {
+  const root = comments?.[0];
+  const body = String(root?.body ?? "");
+  return (
+    root?.author === "reviewer" &&
+    root.listed !== true &&
+    root.lane === "claude-security-review" &&
+    PLUGIN_MANIFEST.test(path ?? "") &&
+    DEPENDENCIES_FLAG.test(firstContentLine(body)) &&
+    !CRITICAL.test(body) &&
+    ["SUGGESTION", "IMPORTANT"].includes(severityOf(body))
+  );
+};
+
+const parseObject = (text) => {
+  try {
+    const value = JSON.parse(String(text));
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+// Whether every dependency of the flagged manifest at `sha` is a hard require
+// on a plugin of this repository's marketplace: the flagged plugin is an
+// entry there; each dependency is a bare name of another entry whose source is
+// a path in this repository; and `evidence` (the lane's path:line list) cites,
+// for each one, a line of the flagged plugin's skills, agents or commands that
+// invokes `/<name>:` with no GUARDED word within GUARD_LINES of it. Returns
+// {sites}, the cited line per dependency, or {why}. `getText(path, ref)` reads
+// a file, null when absent.
+export async function hardRequire({ getText, sha, path, evidence }) {
+  const read = new Map();
+  const text = (file) => {
+    if (!read.has(file)) {
+      read.set(file, getText(file, sha));
+    }
+    return read.get(file);
+  };
+  const dir = PLUGIN_MANIFEST.exec(path ?? "")?.[1];
+  const manifest = dir ? parseObject(await text(path)) : null;
+  const plugins = parseObject(await text(MARKETPLACE))?.plugins;
+  const entries = Array.isArray(plugins) ? plugins.filter((entry) => entry !== null && typeof entry === "object") : [];
+  if (!manifest || !entries.some((entry) => entry.source === `./plugins/${dir}`)) {
+    return { why: `the flagged plugin is not an entry of ${MARKETPLACE}` };
+  }
+  const dependencies = manifest.dependencies;
+  if (!Array.isArray(dependencies) || dependencies.length === 0) {
+    return { why: "the manifest lists no dependencies" };
+  }
+  const sites = [];
+  for (const dependency of dependencies) {
+    if (typeof dependency !== "string" || !BARE_NAME.test(dependency)) {
+      return { why: `${JSON.stringify(dependency).slice(0, 100)} is not a bare plugin name` };
+    }
+    const source = entries.find((entry) => entry.name === dependency)?.source;
+    if (dependency === manifest.name || typeof source !== "string" || !IN_REPOSITORY.test(source) || DOT_SEGMENT.test(source.slice(2))) {
+      return { why: `${dependency} is not another plugin of ${MARKETPLACE} with a source in this repository` };
+    }
+    let site = null;
+    for (const cited of evidence) {
+      const match = PATH_LINE.exec(cited);
+      if (!match || DOT_SEGMENT.test(match[1]) || !callSite(dir, match[1])) {
+        continue;
+      }
+      const file = await text(match[1]);
+      const lines = typeof file === "string" ? file.split("\n") : [];
+      const at = Number(match[2]) - 1;
+      const near = lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n");
+      if (lines[at]?.includes(`/${dependency}:`) && !GUARDED.test(near)) {
+        site = cited;
+        break;
+      }
+    }
+    if (site === null) {
+      return { why: `no skill, agent or command line the lane cited in plugins/${dir}/ invokes /${dependency}: with no gate, fallback or negation within ${GUARD_LINES} lines` };
+    }
+    sites.push(site);
+  }
+  return { sites };
+}
+
 // The locations a review comment cites: path:line tokens in its prose and
 // line-numbered permalinks into `repository`, each safe path:line once, at
 // most EVIDENCE_CAP.
@@ -155,7 +261,9 @@ export function disputes(threadFile, repliesText, repository = "") {
   for (const line of repliesText.split("\n").filter((row) => row.trim() !== "")) {
     const reply = JSON.parse(line);
     const thread = kept.get(reply?.thread);
-    if (!DISPUTED.includes(reply?.disposition) || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
+    // An INCORRECT reply on a dependencies flag is hardRequire's, never a model's.
+    const settledByScript = reply?.disposition === "INCORRECT" && dependencyFlag(thread?.comments, thread?.path);
+    if (!DISPUTED.includes(reply?.disposition) || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || settledByScript || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
       continue;
     }
     seen.add(thread.id);
@@ -293,6 +401,18 @@ export function adjudicationReply(verdict, evidence, headSha) {
       ].join("\n");
 }
 
+// The fixed reply for a dependencies flag hardRequire settled; no model text.
+export function hardRequireReply(path, sites, headSha) {
+  return [
+    FINDING_ANSWERED,
+    "**pr-unblock / adjudicate-feedback: hard requires on this marketplace's plugins, resolved**",
+    "",
+    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists with a source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
+    "",
+    evidenceLine(sites),
+  ].join("\n");
+}
+
 // The round's escalation reasons, most urgent first; one round records one.
 // A reason escalation-routes.json holds for a person outranks every reason it
 // routes to a failing status, so a question for a person is never lost.
@@ -330,6 +450,10 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   CRITICAL: feedback-question-security; one whose head the lane has not
 //   reviewed yet is deferred: no verdict, no escalation, and the round skips
 //   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
+// - an INCORRECT reply on a dependencyFlag thread: when hardRequire settles
+//   it at the PR head (`headSha`, which headMoved checks before the reply),
+//   the fixed hardRequireReply, then the thread is resolved, with no verdict
+//   and no person; otherwise feedback-disputed;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
 //   with no readable rating, or one of unknown lane) goes to a person:
@@ -350,7 +474,7 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   false) and nothing escalates, the round skips FINDING_STANDS_SKIP.
 // A thread that changed, a moved head or a failed write stops here as
 // feedback-partial. Returns {escalationReason, skipReason}.
-export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
+export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
   let stands = false;
   // A listed bot's dispute the security-review lane has not rated yet: like a
   // finding that stood, it is left for the next round at this head.
@@ -362,6 +486,44 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
     }
   };
   const byThread = new Map(replies.map((reply) => [reply.thread, reply]));
+  // Posts `body` on the thread, and resolves it when `resolve`, only while
+  // neither it nor the PR head changed after the lane's reply. Returns
+  // "posted", "resolved", "changed" (nothing posted), "open" (posted, then
+  // left open) or "failed" (a write failed, and adjudication stops); the last
+  // three log why.
+  const answer = async (thread, body, resolve) => {
+    try {
+      const ids = shown.get(thread).comment_ids;
+      const before = await api.readThread(thread);
+      if (
+        before.isResolved !== false ||
+        before.pr !== pr ||
+        before.commentIds.length !== ids.length + 1 ||
+        !ids.every((id, i) => before.commentIds[i] === id) ||
+        (await headMoved())
+      ) {
+        log(`${thread}: left as it is; it or the PR head changed after the lane's reply`);
+        raise("feedback-partial");
+        return "changed";
+      }
+      const reply = await api.replyToComment(pr, ids[0], body);
+      if (reply?.in_reply_to_id !== ids[0]) {
+        throw new Error(`the adjudication reply on ${thread} did not land on its thread`);
+      }
+      if (!resolve) {
+        return "posted";
+      }
+      if (!(await resolveAfterReply(api, thread, [...before.commentIds, reply.id], headMoved))) {
+        log(`${thread}: answered, but the thread was left open: it or the PR head changed`);
+        raise("feedback-partial");
+        return "open";
+      }
+      return "resolved";
+    } catch (error) {
+      log(`stopped adjudicating at ${thread}: ${String(error?.message ?? error).slice(0, 300)}`);
+      return "failed";
+    }
+  };
   for (const { thread, disposition } of posted) {
     const comments = now.get(thread)?.comments;
     if (stood(comments)) {
@@ -392,6 +554,29 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
     if (listedState(comments) === "pending" && !CRITICAL.test(String(comments[0].body ?? ""))) {
       log(`${thread}: the security-review lane has not reviewed this head yet; the dispute waits for the next round`);
       deferred = true;
+      continue;
+    }
+    const path = shown.get(thread)?.path;
+    if (disposition === "INCORRECT" && dependencyFlag(comments, path)) {
+      let found;
+      try {
+        found = await hardRequire({ getText: (file, ref) => api.getText(file, ref), sha: headSha, path, evidence: byThread.get(thread)?.evidence ?? [] });
+      } catch (error) {
+        found = { why: `a read failed: ${String(error?.message ?? error).slice(0, 300)}` };
+      }
+      if (!found.sites) {
+        log(`${thread}: a dependencies flag hardRequire does not settle (${found.why}); it goes to a person`);
+        raise("feedback-disputed");
+        continue;
+      }
+      const outcome = await answer(thread, hardRequireReply(path, found.sites, headSha), true);
+      if (outcome === "failed") {
+        raise("feedback-partial");
+        break;
+      }
+      if (outcome === "resolved") {
+        log(`${thread}: a dependencies flag on hard requires in this marketplace; resolved`);
+      }
       continue;
     }
     if (!adjudicable(comments)) {
@@ -426,39 +611,16 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       raise("feedback-unadjudicated");
       continue;
     }
-    try {
-      const ids = shown.get(thread).comment_ids;
-      const before = await api.readThread(thread);
-      if (
-        before.isResolved !== false ||
-        before.pr !== pr ||
-        before.commentIds.length !== ids.length + 1 ||
-        !ids.every((id, i) => before.commentIds[i] === id) ||
-        (await headMoved())
-      ) {
-        log(`${thread}: left as it is; it or the PR head changed after the lane's reply`);
-        raise("feedback-partial");
-        continue;
-      }
-      const answer = await api.replyToComment(pr, ids[0], adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], adjudicatedSha));
-      if (answer?.in_reply_to_id !== ids[0]) {
-        throw new Error(`the adjudication reply on ${thread} did not land on its thread`);
-      }
-      if (verdict.verdict === "lane") {
-        if (!(await resolveAfterReply(api, thread, [...before.commentIds, answer.id], headMoved))) {
-          log(`${thread}: the finding does not hold, but the thread was left open: it or the PR head changed`);
-          raise("feedback-partial");
-          continue;
-        }
-        log(`${thread}: the finding does not hold; resolved`);
-      } else {
-        log(`${thread}: the finding stands`);
-        stands = true;
-      }
-    } catch (error) {
-      log(`stopped adjudicating at ${thread}: ${String(error?.message ?? error).slice(0, 300)}`);
+    const outcome = await answer(thread, adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], adjudicatedSha), verdict.verdict === "lane");
+    if (outcome === "failed") {
       raise("feedback-partial");
       break;
+    }
+    if (outcome === "resolved") {
+      log(`${thread}: the finding does not hold; resolved`);
+    } else if (outcome === "posted") {
+      log(`${thread}: the finding stands`);
+      stands = true;
     }
   }
   return { escalationReason: reason, skipReason: (stands || deferred) && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };

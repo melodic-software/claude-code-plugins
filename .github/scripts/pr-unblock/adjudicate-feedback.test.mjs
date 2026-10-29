@@ -4,7 +4,25 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicable, adjudicationReply, collect, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import {
+  adjudicable,
+  adjudicationReply,
+  collect,
+  dependencyFlag,
+  DISPUTED,
+  disputes,
+  FINDING_ANSWERED,
+  FINDING_STANDS_SKIP,
+  hardRequireReply,
+  MARKETPLACE,
+  MAX_THREADS,
+  main,
+  parseVerdicts,
+  prepare,
+  reviewerEvidence,
+  settleDisputes,
+  verdictOf,
+} from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -628,4 +646,163 @@ test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own
     escalationReason: "feedback-question-security",
     skipReason: "",
   });
+});
+
+// A security-review flag on a plugin manifest's `dependencies` (the #10049
+// shape: planning -> work-items), rated IMPORTANT. The script checks the
+// manifest and the marketplace at the adjudicated head itself, and the lane's
+// cited call site, before it settles the flag without a person.
+const FLAG_PATH = "plugins/planning/.claude-plugin/plugin.json";
+const SITE = "plugins/planning/skills/wayfind/SKILL.md:2";
+const GUARDED_SITE = "plugins/planning/skills/wayfind/SKILL.md:6";
+const MOVED = "b".repeat(40);
+const FLAG = [
+  "manifest dependencies: flag, planning now requires work-items",
+  "",
+  "Enabling planning now enables work-items on update. There is no external source, so this is not CRITICAL.",
+  "",
+  "severity: IMPORTANT",
+  "",
+  "claude-lane: claude-security-review",
+].join("\n");
+const manifestWith = (dependencies) => JSON.stringify({ name: "planning", dependencies });
+const FLAG_FILES = {
+  [FLAG_PATH]: manifestWith(["work-items"]),
+  [MARKETPLACE]: JSON.stringify({
+    name: "melodic-software",
+    plugins: [
+      { name: "planning", source: "./plugins/planning" },
+      { name: "work-items", source: "./plugins/work-items" },
+      { name: "remote", source: { source: "github", repo: "o/remote" } },
+      { name: "escape", source: "./plugins/../../elsewhere" },
+    ],
+  }),
+  "plugins/planning/skills/wayfind/SKILL.md": [
+    "# wayfind",
+    "Write each item through `/work-items:track add`.",
+    "",
+    "## Sync",
+    "",
+    "When `/work-items:track` is installed, run it; otherwise write the item to a file.",
+    "",
+  ].join("\n"),
+  "plugins/planning/skills/goal/SKILL.md": ["# goal", "Multi-window work, when `work-items` is enabled:", "run `/work-items:work` on the backlog.", "", "", "", "", "Never call `/work-items:decompose` here.", ""].join("\n"),
+  "plugins/planning/skills/wayfind/evals/evals.json": '{"prompt": "route to /work-items:track add"}\n',
+  "plugins/planning/CHANGELOG.md": "- Wayfind writes through `/work-items:track add`.\n",
+  "plugins/work-items/skills/track/SKILL.md": "Run `/work-items:track add` for each item.\n",
+};
+
+const settleFlag = async ({ files = FLAG_FILES, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
+  const posts = [];
+  let resolved = false;
+  const result = await settleDisputes({
+    headSha,
+    api: {
+      getText: async (file, ref) => {
+        assert.equal(ref, headSha ?? HEAD, "files are read at the PR head");
+        if (files === null) {
+          throw new Error("GET returned 502");
+        }
+        return files[file] ?? null;
+      },
+      readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2, 3] }),
+      replyToComment: async (pr, id, text) => {
+        posts.push(text);
+        return { id: 4, in_reply_to_id: id };
+      },
+    },
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition }],
+    replies: [{ thread: "PRRT_a", disposition, evidence }],
+    shown: new Map([["PRRT_a", { path, comment_ids: [1, 2] }]]),
+    now: new Map([["PRRT_a", thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body }], path)]]),
+    verdicts: new Map(),
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => {
+      resolved = true;
+      return true;
+    },
+    escalationReason: "",
+    log: () => {},
+  });
+  return { result, posts, resolved };
+};
+
+test("dependencyFlag takes only a non-CRITICAL security-review flag on a plugin manifest's dependencies", () => {
+  const root = (body, extra = {}) => [{ id: 1, author: "reviewer", lane: "claude-security-review", body, ...extra }];
+  assert.equal(dependencyFlag(root(FLAG), FLAG_PATH), true);
+  assert.equal(dependencyFlag(root(FLAG.replace("IMPORTANT", "SUGGESTION")), FLAG_PATH), true);
+  for (const [label, comments, path] of [
+    ["CRITICAL", root(FLAG.replace("IMPORTANT", "CRITICAL")), FLAG_PATH],
+    ["unrated", root(FLAG.replace("severity: IMPORTANT\n", "")), FLAG_PATH],
+    ["another field", root(FLAG.replace("manifest dependencies:", "manifest hooks:")), FLAG_PATH],
+    ["marker not first", root(`**x**\n\n${FLAG}`), FLAG_PATH],
+    ["the marketplace file", root(FLAG), MARKETPLACE],
+    ["the code-review lane", [{ id: 1, author: "reviewer", lane: "claude-review", body: FLAG }], FLAG_PATH],
+    ["a listed bot", root(FLAG, { listed: true, security: "clear" }), FLAG_PATH],
+    ["a person", [{ id: 1, author: "trusted-human", lane: "claude-security-review", body: FLAG }], FLAG_PATH],
+  ]) {
+    assert.equal(dependencyFlag(comments, path), false, label);
+  }
+});
+
+test("settleDisputes resolves a same-marketplace bare-name hard-require flag without needs-human, citing the call site", async () => {
+  const { result, posts, resolved } = await settleFlag();
+  assert.deepEqual(result, { escalationReason: "", skipReason: "" });
+  assert.equal(resolved, true);
+  assert.deepEqual(posts, [hardRequireReply(FLAG_PATH, [SITE], HEAD)]);
+  assert.equal(posts[0].split("\n")[0], FINDING_ANSWERED);
+  assert.match(posts[0], new RegExp(`Evidence: \`${SITE}\``));
+  // A guarded line cited beside the call site does not stop it.
+  assert.equal((await settleFlag({ evidence: [GUARDED_SITE, SITE] })).resolved, true);
+  // After this round's fix push the files are read, and named, at the new head.
+  const moved = await settleFlag({ headSha: MOVED });
+  assert.equal(moved.resolved, true);
+  assert.deepEqual(moved.posts, [hardRequireReply(FLAG_PATH, [SITE], MOVED)]);
+  // An INCORRECT reply on the flag takes no adjudicator slot, at either rating;
+  // an UNCERTAIN one on a SUGGESTION flag is adjudicated as before.
+  const flagThread = (body) => thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body }], FLAG_PATH);
+  const SUGGESTED = FLAG.replace("IMPORTANT", "SUGGESTION");
+  assert.deepEqual(disputes(fileOf(flagThread(FLAG)), incorrect("PRRT_a")).slots, []);
+  assert.deepEqual(disputes(fileOf(flagThread(SUGGESTED)), incorrect("PRRT_a")).slots, []);
+  assert.deepEqual(disputes(fileOf(flagThread(SUGGESTED)), incorrect("PRRT_a", { disposition: "UNCERTAIN" })).slots.map((slot) => slot.thread), ["PRRT_a"]);
+});
+
+test("a cross-marketplace, versioned or externally sourced entry, an optional collaborator, a CRITICAL rating or an unsettled reply still escalates", async () => {
+  const cases = [
+    ["cross-marketplace entry", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["work-items@other-marketplace"]) } }],
+    ["versioned entry", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith([{ name: "work-items", version: "1.0.0" }]) } }],
+    ["external source", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["remote"]) }, evidence: [GUARDED_SITE] }],
+    ["source escaping the repository", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["escape"]) } }],
+    ["not in the marketplace", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["work-items", "absent"]) } }],
+    ["no dependencies", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith([]) } }],
+    ["optional collaborator with a fallback", { evidence: [GUARDED_SITE] }],
+    ["presence gate on an adjacent line", { evidence: ["plugins/planning/skills/goal/SKILL.md:3"] }],
+    ["negated call", { evidence: ["plugins/planning/skills/goal/SKILL.md:8"] }],
+    ["eval case", { evidence: ["plugins/planning/skills/wayfind/evals/evals.json:1"] }],
+    ["changelog", { evidence: ["plugins/planning/CHANGELOG.md:1"] }],
+    ["call site in another plugin", { evidence: ["plugins/work-items/skills/track/SKILL.md:1"] }],
+    ["cited line that invokes nothing", { evidence: ["plugins/planning/skills/wayfind/SKILL.md:1"] }],
+    ["unsettled SUGGESTION flag", { body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] }],
+    ["CRITICAL rating", { body: FLAG.replace("IMPORTANT", "CRITICAL") }],
+    ["flagged plugin not in the marketplace", { files: { ...FLAG_FILES, [MARKETPLACE]: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/work-items" }] }) } }],
+    ["a failed read", { files: null }],
+  ];
+  for (const [label, options] of cases) {
+    const { result, posts, resolved } = await settleFlag(options);
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" }, label);
+    assert.deepEqual(posts, [], label);
+    assert.equal(resolved, false, label);
+  }
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    const { result, posts } = await settleFlag({ disposition });
+    assert.deepEqual(result, { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
+    assert.deepEqual(posts, [], disposition);
+  }
+  // Every other security-review finding still goes to a person.
+  const hooks = await settleFlag({ body: FLAG.replace("manifest dependencies:", "manifest hooks:") });
+  assert.deepEqual(hooks.result, { escalationReason: "feedback-disputed", skipReason: "" });
+  assert.deepEqual(hooks.posts, []);
 });

@@ -1155,7 +1155,21 @@ the comment's first non-blank line or the last one above the footer. Any other s
 so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
 reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
-and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
+and any verdict for it is ignored. One security-review finding is settled without a person or a
+model (`hardRequire`): a flag whose first line is `manifest dependencies: flag` (the lane's
+pinned marker, security-review SKILL.md "Reporting"), on a `plugins/<p>/.claude-plugin/plugin.json`
+thread, rated below `CRITICAL`, with an `INCORRECT` reply; it takes no adjudicator slot. The reply
+job reads the manifest and `.claude-plugin/marketplace.json` at the PR head it checks before
+posting, through the contents API. It resolves the thread with a fixed reply naming the lane's
+cited call sites only when all of these hold: the flagged plugin is a marketplace entry; each
+`dependencies` entry is a bare name (no `@marketplace`, no object form, so no version) of another
+entry whose `source` is a `./` path in this repository; and the lane cited, for each entry, a line
+of a `.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case) that invokes
+`/<entry>:` with no gate, fallback or negation word (`installed`, `enabled`, `available`,
+`fallback`, `otherwise`, `optional`, `not`, `never` and the like) within two lines of it: a hard
+require ([plugin philosophy](../../plugin-philosophy.md)). Anything else, a failed read included,
+escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
+A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
 head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
 person. Each thread gets one fresh
