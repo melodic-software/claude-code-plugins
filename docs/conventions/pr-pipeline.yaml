@@ -1089,6 +1089,12 @@ merge:
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.
+  # `path-holds: false`: no changed path holds a pull request for its path
+  # alone, not the floor above, denied-paths nor `review-path:` (owner
+  # decision Q15, 2026-10-29: "We shouldn't really have any path
+  # restrictions at all"). True brings every one back. The gate report and
+  # enable-auto-merge's log name each hold it skipped.
   diff-check:
     denied-paths: []
     high-path-floor: false
+    path-holds: false

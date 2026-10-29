@@ -39,9 +39,11 @@ PR = {
     "head": {"sha": HEAD, "ref": "feat/x"},
     "base": {"sha": BASE, "repo": {"private": False}},
 }
+# Path holds on: these tests read what lifts one.
 CONFIG = policy.PipelineConfig(
-    "c" * 40, "C2", "pr-merge", "agent-lanes[bot]", None, (), "c2-mechanical"
-)
+    "c" * 40, "C2", "pr-merge", "agent-lanes[bot]", None, (), "c2-mechanical",
+    path_holds=True,
+)  # fmt: skip
 DOC = ChangedFile(
     "docs/guide.md",
     None,

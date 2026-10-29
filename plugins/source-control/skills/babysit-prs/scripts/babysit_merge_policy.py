@@ -634,6 +634,10 @@ class PipelineConfig:
     # cap (`max_changed_lines` None: no line cap); a value other than true or
     # false turns a switch on. The local babysit lane ignores them.
     high_path_floor: bool = False
+    # `merge.diff-check.path-holds`: absent or false, no changed path holds
+    # a pull request for its path alone (owner decision Q15); true restores
+    # the path floor, the configured denied paths and `review-path:`.
+    path_holds: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
@@ -878,6 +882,7 @@ def read_config_at(
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.max-changed-files", False),
             ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.path-holds", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
@@ -926,6 +931,7 @@ def read_config_at(
         return value not in (None, "false")
 
     high_path_floor = switch("merge.diff-check.high-path-floor")
+    path_holds = switch("merge.diff-check.path-holds")
     if scalar("merge.diff-check.c2-contradictions") not in (None, "false"):
         notes.append(
             "merge.diff-check.c2-contradictions is retired and has no effect:"
@@ -1040,6 +1046,7 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        path_holds=path_holds,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
@@ -1115,6 +1122,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
+        path_holds=base.path_holds or main.path_holds,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
@@ -1185,6 +1193,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.report_only,
                     c.require_verifier_verdict,
                     c.high_path_floor,
+                    c.path_holds,
                 )
             )
             and c.dependabot_mode in DEPENDABOT_MODES

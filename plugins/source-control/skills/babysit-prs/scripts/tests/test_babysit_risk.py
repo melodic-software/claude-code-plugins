@@ -2415,3 +2415,49 @@ class LaneSourceReviewPathTests(unittest.TestCase):
         result = self._score(_lane("claude-security-review"))
         self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
         self.assertFalse(holds(result))
+
+
+class PathHoldsSwitchTests(unittest.TestCase):
+    """`merge.diff-check.path-holds` (owner decision Q15): off, a changed
+    path holds nothing for its path alone; on, the floor holds as before;
+    a cost path and an unsafe path hold either way."""
+
+    GATE = ".github/scripts/pr-merge/clear-escalations.mjs"
+    WORKFLOW = ".github/workflows/pr-merge.yml"
+    # The security review unbound, so an enforcement path is not cleared.
+    UNREVIEWED = (_lane("claude-review"), _lane("claude-security-review", bound=False))
+
+    def _paths(self, result):
+        return [r.code for r in result.reasons if babysit_risk.is_path_hold(r)]
+
+    def test_off_a_gate_script_change_gets_no_path_hold(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=False))
+        self.assertEqual(self._paths(result), [])
+        self.assertFalse(holds(result))
+        self.assertEqual([r.code for r in result.skipped], [f"high-path:{self.GATE}"])
+
+    def test_on_a_gate_script_change_holds_for_a_person(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=True))
+        self.assertEqual(self._paths(result), [f"high-path:{self.GATE}"])
+        self.assertTrue(holds(result))
+        self.assertEqual(result.skipped, ())
+
+    def test_off_a_workflow_change_gets_no_path_hold(self):
+        files = (_file(self.WORKFLOW),)
+        on = score(_input(files=files, lanes=self.UNREVIEWED))
+        self.assertNotEqual(self._paths(on), [])
+        off = score(_input(files=files, lanes=self.UNREVIEWED, path_holds=False))
+        self.assertEqual(self._paths(off), [])
+        self.assertEqual(sorted(r.code for r in off.skipped), sorted(self._paths(on)))
+
+    def test_off_a_cost_path_still_holds(self):
+        result = score(_input(files=(_file("infra/main.tf"),), path_holds=False))
+        self.assertIn("cost-review-required", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_off_an_unsafe_path_still_holds(self):
+        result = score(
+            _input(files=(_file("docs/a", mode="120000"),), path_holds=False)
+        )
+        self.assertIn("high-path:**", _codes(result))
+        self.assertTrue(holds(result))
