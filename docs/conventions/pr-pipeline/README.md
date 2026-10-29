@@ -2497,8 +2497,13 @@ A lane-armed path clears only when all of these hold at the current head:
    outside those regions, it names a floor table or a set derived from one (`FLOOR_CLASSES`,
    `HOLD_PATH_CLASSES`, `HOLD_PATH_FLOOR`, `HIGH_FLOOR`, `REVIEW_FLOOR`, `PERSON_HELD`,
    `LANE_ARM*` and the rest); or when, inside them, it is anything but an added row of the
-   generated shape or an added person-held entry. A removed row is a shrink. A missing patch, a
-   renamed or deleted floor file, or a file list GitHub cuts short refuses.
+   generated shape or an added person-held entry. An added line also refuses when it holds a
+   non-ASCII character (Python folds a fullwidth identifier to ASCII) or a reflective call
+   (`globals(`, `setattr(`, `vars(`, `exec(`, `eval(`, `__dict__`). A removed row is a shrink.
+   The base copy and the patches come from one compare of the base branch with the head, and the
+   base copy is read at its merge base, the commit GitHub measures the patch from. A missing
+   patch, a renamed or deleted floor file, or a file list the compare cuts short (it lists at most
+   300) refuses.
 
 Then pr-merge's `lane-armed` job, on a scheduled or hand-started run of main, posts the check run
 `pr-merge/lane-armed` at the head with the run's id as `external_id` and in `details_url`, and

@@ -18,6 +18,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const REPO = "owner/repo";
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
+const MERGE_BASE = "c".repeat(40);
 const RISK = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
 const HOLDS = ".github/scripts/pr-merge/merge-holds.mjs";
 const LANE_ARMED_MJS = ".github/scripts/pr-merge/lane-armed.mjs";
@@ -103,6 +104,11 @@ test("floorChange refuses every change that could hide or drop a floor row", () 
     ["a newly lane-armed glob", HOLDS, mjs, MJS(ROWS, [...ARMED, ".github/workflows/pr-merge.yml"]), /changes the generated LANE_ARM block/],
     ["a person-held entry dropped", RISK, py, PY(ROWS, ARMED, []), /changes the generated LANE_ARM block/],
     ["a comment added inside the rows", HOLDS, mjs, mjs.replace(`  ["${TOKEN}", "trust"],\n`, `  ["${TOKEN}", "trust"],\n  // fine\n`), /not a row of the generated shape/],
+    // Python folds a fullwidth identifier to ASCII (NFKC): this rebinds FLOOR_CLASSES.
+    ["a fullwidth identifier", RISK, py, `${py}\uFF26\uFF2C\uFF2F\uFF2F\uFF32_CLASSES = ()\n`, /non-ASCII character or a reflective call/],
+    ["a globals() rebinding", RISK, py, `${py}globals()["FLOOR_" "CLASSES"] = ()\n`, /non-ASCII character or a reflective call/],
+    ["a setattr rebinding", RISK, py, py.replace("return x + 1", 'setattr(sys.modules[__name__], "FLOOR", ())'), /reflective call/],
+    ["an eval", HOLDS, mjs, mjs.replace("x + 1", 'eval("HOLD_" + "PATH_FLOOR.length = 0")'), /reflective call/],
   ];
   for (const [name, path, before, after, why] of cases) {
     assert.match(String(judge(path, before, after)), why, name);
@@ -117,6 +123,7 @@ test("floorChange accepts a pure row addition, a person-held entry and a logic e
     ["a row added first", HOLDS, mjs, MJS([["docs/held/**", "gate"], ...ROWS], ARMED)],
     ["a person-held entry added", HOLDS, mjs, MJS(ROWS, ARMED, [...HELD, "docs/held/**"])],
     ["a logic edit", RISK, py, py.replace("return x + 1", "return x + 2")],
+    ["a method named exec", HOLDS, mjs, mjs.replace("x + 1", "/a/.exec(x)")],
   ]) {
     assert.equal(judge(path, before, after), null, name);
   }
@@ -152,15 +159,18 @@ test("recordOf is the countable line ci-status reads back", () => {
 
 // A GitHub with `files` at each ref, the pull's head and base, existing check
 // runs and a red ci-status job; it records every write.
-// `files` maps a changed path to its head text (diffed against the base), or
-// to a file row as GitHub lists it; `changed` is the count the pull reports.
-function world({ head = HEAD, files = {}, changed, checks = [], ciRun = { id: 9, status: "completed" }, ciJob = { id: 77, name: "ci-status", conclusion: "failure" }, fail } = {}) {
+// `files` maps a changed path to its head text (diffed against the merge
+// base), or to a file row as GitHub lists it; `changed` is the count the pull
+// reports. `moved` is the base branch tip's copy of each file, when main moved
+// past the merge base.
+function world({ head = HEAD, files = {}, changed, moved = {}, mergeBase = MERGE_BASE, checks = [], ciRun = { id: 9, status: "completed" }, ciJob = { id: 77, name: "ci-status", conclusion: "failure" }, fail } = {}) {
   const writes = [];
   const content = (text) => ({ encoding: "base64", content: Buffer.from(text).toString("base64") });
-  const at = { [BASE]: { [RISK]: PY(ROWS, ARMED), [HOLDS]: MJS(ROWS, ARMED) } };
+  const at = { [MERGE_BASE]: { [RISK]: PY(ROWS, ARMED), [HOLDS]: MJS(ROWS, ARMED) } };
+  at[BASE] = { ...at[MERGE_BASE], ...moved };
   const listed = [
     { filename: ".github/scripts/pr-merge/who.mjs", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" },
-    ...Object.entries(files).map(([filename, after]) => (typeof after === "string" ? { filename, status: "modified", patch: diff(at[BASE][filename], after) } : { filename, ...after })),
+    ...Object.entries(files).map(([filename, after]) => (typeof after === "string" ? { filename, status: "modified", patch: diff(at[MERGE_BASE][filename], after) } : { filename, ...after })),
   ];
   const github = async (method, path, body) => {
     if (fail?.(path)) throw new Error("GET failed with status 502");
@@ -169,7 +179,7 @@ function world({ head = HEAD, files = {}, changed, checks = [], ciRun = { id: 9,
       return {};
     }
     if (path === `/repos/${REPO}/pulls/7`) return { head: { sha: head }, base: { sha: BASE }, changed_files: changed ?? listed.length };
-    if (path === `/repos/${REPO}/pulls/7/files?per_page=100&page=1`) return listed;
+    if (path === `/repos/${REPO}/compare/${BASE}...${head}`) return { merge_base_commit: { sha: mergeBase }, files: listed };
     const file = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
     if (file) return content(at[file[2]][file[1]]);
     if (path.includes("/check-runs?check_name=pr-merge%2Flane-armed")) return { check_runs: checks };
@@ -253,16 +263,31 @@ test("each failed condition is logged as a refusal and nothing is written", asyn
     [[ROW], world({ files: { [HOLDS]: { status: "modified" } } }), `its change could weaken the hold floor: ${HOLDS} has no readable patch`],
     [[ROW], world({ files: { [HOLDS]: { status: "renamed", previous_filename: "x.mjs", patch: "@@ -1 +1 @@\n-a\n+b" } } }), `its change could weaken the hold floor: it renamed ${HOLDS}`],
     [[ROW], world({ changed: 5 }), "its change could weaken the hold floor: its file list is cut short"],
+    [[ROW], world({ mergeBase: "unknown" }), "its change could weaken the hold floor: its merge base cannot be read"],
   ]) {
     const { code, out } = await run(rows, w);
     assert.equal(code, 0, out);
     assert.ok(out.includes(refused(7, reason)), `${reason}\n${out}`);
     assert.deepEqual(w.writes, [], reason);
   }
-  const w = world({ fail: (path) => path.includes("/files?") });
+  const w = world({ fail: (path) => path.includes("/compare/") });
   const { code, out } = await run([ROW], w);
   assert.equal(code, 1, out);
   assert.match(out, /lane-armed refused .*a read or write failed/);
+  assert.deepEqual(w.writes, []);
+});
+
+// GitHub measures the patch from the merge base. When main has since dropped
+// lines above the rows, the moved tip's line numbers put a removed last row
+// past END, outside the region, where its text names nothing.
+test("the base copy is read at the merge base the patch is measured from", async () => {
+  const mergeBase = PY(ROWS, ARMED);
+  const moved = mergeBase.replace("import re\n\n\n", "");
+  const last = ROWS.at(-1)[0];
+  const w = world({ moved: { [RISK]: moved }, files: { [RISK]: PY(ROWS.slice(0, -1), ARMED) } });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 0, out);
+  assert.ok(out.includes(`its change could weaken the hold floor: it removes the floor row ${last}`), out);
   assert.deepEqual(w.writes, []);
 });
 

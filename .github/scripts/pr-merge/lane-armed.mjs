@@ -21,8 +21,10 @@
 // change is judged instead, against the base's marked regions (main's copy,
 // so trusted): in each floor-definition file a patch line may name a floor
 // marker or a hold identifier only as an added row of the exact generated
-// shape inside a base region. A removed row is a shrink. Any read that fails,
-// a missing patch, or a cut-short file list refuses.
+// shape inside a base region, and an added line holds no non-ASCII character
+// or reflective call. The base copy is read at the merge base the patch is
+// measured from. A removed row is a shrink. Any read that fails, a missing
+// patch, or a cut-short file list refuses.
 //
 // Each attestation is one countable record: the line `lane-armed {...}` in
 // the check run's summary, printed again as a `::notice::`. Each refusal
@@ -58,6 +60,12 @@ const LANE_ARMED_MJS = ".github/scripts/pr-merge/lane-armed.mjs";
 export const FLOOR_FILES = Object.freeze([RISK, HOLDS, LANE_ARMED_MJS]);
 const MARKER = /\b(?:BEGIN|END) (?:floor-rows|hold-floor)\b/;
 // The names that hold the floor tables and the sets derived from them.
+// What lets an added line bind a name the IDENTIFIER test cannot see: a
+// non-ASCII character (Python folds a fullwidth or other NFKC-equivalent
+// identifier to ASCII, so a fullwidth `FLOOR_CLASSES = ()` rebinds it) or
+// a reflective call (`globals()["FLOOR_" "CLASSES"]`). A method call such as
+// `RE.exec(` is not one.
+const REBINDS = /[^\x00-\x7f]|(?<![.\w])(?:globals|setattr|vars|exec|eval)\s*\(|__dict__/;
 const IDENTIFIER =
   /\b(?:FLOOR|FLOOR_CLASSES|HOLD_PATH_CLASSES|HOLD_PATH_FLOOR|HIGH_FLOOR|REVIEW_FLOOR|AUTHOR_REVIEW_FLOOR|AUTHOR_REVIEW_CLASSES|PERSON_CLASSES|PERSON_HELD|_NO_AUTHOR_LIFT|GATE_WORKFLOWS|COST_PATHS|LANE_ARM\w*)\b/;
 const LANES = ["claude-review", "claude-security-review"];
@@ -164,6 +172,7 @@ export function floorChange(path, patch, base) {
   for (const { sign, text, at } of changes) {
     const what = `${sign === "+" ? "an added" : "a removed"} line of ${path}`;
     if (MARKER.test(text)) return `${what} names a floor marker`;
+    if (sign === "+" && REBINDS.test(text)) return `${what} holds a non-ASCII character or a reflective call`;
     // A removed line sits strictly between the markers; an added one follows
     // BEGIN or a line before END.
     const inside = (r) => (sign === "-" ? r.begin < at && at < r.end : r.begin <= at && at < r.end);
@@ -183,28 +192,23 @@ export function floorChange(path, patch, base) {
   return null;
 }
 
-// Every file of pull request `number`, or null when GitHub lists fewer than
-// `changed` (its cap is 3000).
-async function pullFiles(github, repo, number, changed) {
-  const files = [];
-  for (let page = 1; page <= 30; page += 1) {
-    const batch = await github("GET", `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
-    if (!Array.isArray(batch)) throw new Error(`#${number} files page ${page} is not a list`);
-    files.push(...batch);
-    if (batch.length < 100) break;
-  }
-  return Number.isSafeInteger(changed) && files.length >= changed ? files : null;
-}
-
-// Why the pull request's change could weaken the floor, or null.
-async function floorRefusal(github, repo, pull, number) {
-  const files = await pullFiles(github, repo, number, pull.changed_files);
-  if (!files) return "its file list is cut short";
+// Why the pull request's change could weaken the floor, or null. The base
+// copy and the patches come from one compare of the base branch with the
+// head: GitHub measures a pull request's patch from the merge base, not the
+// base branch's current tip, so the base copy is read at that merge base.
+// The compare lists at most 300 files, fewer than the pull request's
+// `changed_files` refuses.
+async function floorRefusal(github, repo, pull) {
+  const compare = await github("GET", `/repos/${repo}/compare/${pull.base.sha}...${pull.head.sha}`);
+  const mergeBase = compare?.merge_base_commit?.sha;
+  if (!SHA.test(String(mergeBase))) return "its merge base cannot be read";
+  const files = compare.files;
+  if (!Array.isArray(files) || !Number.isSafeInteger(pull.changed_files) || files.length < pull.changed_files) return "its file list is cut short";
   for (const file of files) {
     const touched = [file.filename, file.previous_filename].filter((name) => FLOOR_FILES.includes(name));
     if (touched.length === 0) continue;
     if (file.status !== "modified" || file.previous_filename) return `it ${file.status} ${touched[0]}`;
-    const base = file.filename === LANE_ARMED_MJS ? null : floorOf(await text(github, repo, file.filename, pull.base.sha), file.filename);
+    const base = file.filename === LANE_ARMED_MJS ? null : floorOf(await text(github, repo, file.filename, mergeBase), file.filename);
     const why = floorChange(file.filename, file.patch, base);
     if (why) return why;
   }
@@ -287,7 +291,7 @@ export async function main({ env = process.env, github, fetchImpl, mode = proces
           refuse("the head the gate judged is not the pull request's head");
           continue;
         }
-        const shrunk = await floorRefusal(github, repo, pull, row.pr);
+        const shrunk = await floorRefusal(github, repo, pull);
         if (shrunk) {
           refuse(`its change could weaken the hold floor: ${shrunk}`);
           continue;
