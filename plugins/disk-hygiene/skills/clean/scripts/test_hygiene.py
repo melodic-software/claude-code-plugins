@@ -12001,7 +12001,12 @@ class GuardTests(unittest.TestCase):
                 self.assertFalse(predicate(command, "Bash"), command)
             return [os.fspath(call.args[0]) for call in counted.call_args_list]
 
-        ordinary = "git log --oneline --graph --decorate origin/main"
+        # A list of readers defers before any probe (#9779), so the counted
+        # command is one outside the reader set.
+        self.assertEqual(
+            [], probes(real, "git log --oneline --graph --decorate origin/main")
+        )
+        ordinary = "git push --force-with-lease --verbose --tags origin/main"
         self.assertEqual(probes_before, len(probes(old, ordinary)))
         self.assertEqual(probes_after, len(probes(real, ordinary)))
         self.assertLess(probes_after, probes_before)
