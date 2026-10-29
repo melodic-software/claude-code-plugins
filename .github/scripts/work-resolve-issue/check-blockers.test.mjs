@@ -79,6 +79,9 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
 const SKIP = { proceed: "false", untrusted: "false" };
 const RUN = { proceed: "true", untrusted: "false" };
 const FINAL = { proceed: "false", untrusted: "true" };
+// The outside-author stop: FINAL, plus the mark report-skip reads to tell the
+// issue's author is outside the trusted list.
+const OUTSIDER = { ...FINAL, outsider: "true" };
 
 test("an open blocker skips the run with a notice naming it, and writes nothing", async () => {
   const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed"), issue(9, "open", { repo: "o/other" })]);
@@ -171,11 +174,11 @@ test("the label removed by someone neither a listed human nor the App still stop
   assert.deepEqual((await run([], { subject: { events: [added, labelEvent("unlabeled", APP)] } })).outputs, RUN);
 });
 
-test("an issue neither a listed human nor the lanes App wrote stops the run for good, before its events or blockers are read, and says to re-file it", async () => {
+test("an issue neither a listed human nor the lanes App wrote stops the run for good, before its events or blockers are read, and marks it for report-skip", async () => {
   for (const author of [STRANGER, undefined]) {
     const { code, calls, lines, outputs } = await run([], { subject: { author } });
     assert.equal(code, 0);
-    assert.deepEqual(outputs, FINAL, JSON.stringify(author));
+    assert.deepEqual(outputs, OUTSIDER, JSON.stringify(author));
     assert.deepEqual(calls, ["GET /repos/o/r/issues/42"]);
     const notice = lines.find((line) => line.startsWith("::notice"));
     assert.match(notice, /neither a listed human nor the lanes App/);

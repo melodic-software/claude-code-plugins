@@ -875,6 +875,30 @@ for (const [reason, step] of [
   });
 }
 
+// An issue whose author is outside the trusted list stops at the admit job;
+// report-skip says so on the issue and takes agent-ready off, with no
+// needs-human: a listed human re-files the work, and a retry stops again.
+test("main on an outside-author stop removes agent-ready and posts one comment telling a listed human to re-file", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    assert.deepEqual(calls.filter((c) => c.method === "DELETE").map((c) => c.path.split("/labels/")[1]), ["agent-ready"]);
+    const comments = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments"));
+    assert.equal(comments.length, 1);
+    const comment = comments[0].body.body;
+    assert.equal(parseOutcomeMarker(comment).outcome, "outside-author");
+    assert.match(comment, /trusted/);
+    assert.match(comment, /re-file/);
+    assert.ok(!comment.includes("add `agent-ready` again"), comment);
+  });
+});
+
 test("main refuses a dimension skip it does not know and writes nothing", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([

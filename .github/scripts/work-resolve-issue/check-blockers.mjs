@@ -6,8 +6,9 @@
 // - Authorship first, by admission's rule (admit.mjs authorAdmitted): an
 //   issue neither a listed human nor the lanes App wrote does not run, for
 //   good, whoever added agent-ready, since the run would work from an
-//   outsider's text: `untrusted` is true, and a person re-files the work in
-//   their own words. No read past the issue's own.
+//   outsider's text: `untrusted` and `outsider` are true, and
+//   work-resolve-issue.yml's report-skip removes agent-ready and comments that
+//   a listed human re-files the work as a new issue. No read past the issue's own.
 // - Then provenance, by admission's rule (admit.mjs untrustedHold): an issue
 //   carrying `work-class: untrusted-provenance`, or whose newest removal of it
 //   was by neither a listed human nor the lanes App, does not run, for good:
@@ -34,7 +35,8 @@
 //   ISSUE_NUMBER         the issue agent-ready was added to
 //   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
 //   LANES_APP_ID         the lanes App bot's numeric user id
-//   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false
+//   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
+//                        and outsider=true on the outside-author stop
 //   GITHUB_API_URL
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -83,8 +85,8 @@ export async function main({ env = process.env, github, log = console.log, write
     return 0;
   }
   if (outsider) {
-    log("::notice title=outside author::the run is stopped: the issue's author is neither a listed human nor the lanes App, so the lane will not work from its text; a listed human re-files the work in their own words as a new issue; work-unblock never re-fires this run");
-    write({ proceed: "false", untrusted: "true" });
+    log("::notice title=outside author::the run is stopped: the issue's author is neither a listed human nor the lanes App, so the lane will not work from its text; report-skip removes agent-ready and asks a listed human to re-file the work as a new issue; work-unblock never re-fires this run");
+    write({ proceed: "false", untrusted: "true", outsider: "true" });
     return 0;
   }
   if (held) {
