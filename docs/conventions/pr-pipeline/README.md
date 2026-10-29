@@ -174,8 +174,8 @@ dispatches it.
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
-this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
-PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
+this repository, exactly one open non-draft PR into `main` has its head, the lanes App or an
+[adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
@@ -229,8 +229,9 @@ sends a pass-only round (input `verify-pass-head`), needing no workable thread, 
 check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
-`pass-only`, which the dispatcher's release reads pass over. Every address-feedback round,
-pass-only included, goes only to lanes App PRs. Resolving a thread
+`pass-only`, which the dispatcher's release reads pass over. A pass-only round goes only to lanes
+App PRs; other address-feedback rounds also go to adopted owner PRs
+([Owner pull requests](#owner-pull-requests)). Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
@@ -240,6 +241,39 @@ subscription fallback) answers them and hands on a patch and its replies,
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
 its one marker in place when it reviews the pushed fix.
+
+### Owner pull requests
+
+Agent sessions answer review threads under the owner's login, so on a PR the owner opened a lane
+answer cannot be told apart from the person's, and the babysit worker tier, which resolves only
+threads a lane login answered, resolves none of them (#10763). `address-feedback` therefore also
+serves an adopted owner PR, posting its replies as the lanes App:
+
+- Who: a PR whose author is a `kind: human` id on the base's trusted-actors list, typed `User`,
+  under an [`adoption`](#adoption) section (`feedback-dispatch.mjs` `ownerAuthored`). Without that
+  section, or for anyone else, nothing changes: the dispatch skips the PR.
+- When: as fix-ci adopts one, no body line starts `Hold:`, and both the PR's last update and its head
+  commit's committer date are at least `adoption.idle-hours` old (`ownerSkip`), so the lane never
+  pushes onto a branch a session is still working on. A review usually finishes while the session
+  is active, so that dispatch skips; each scheduled tick's sweep then sends one idle owner PR whose
+  reviewed head has no `pr-unblock / address-feedback` check run (`sweepIdleOwner`), deciding it
+  as for its newest completed review run.
+- What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
+  listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
+  security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.
+  A thread a person wrote, answered without a fix request, or directed still goes to that person;
+  on an owner PR such a thread starts no round, and the select job skips it with no stop instead of
+  escalating `feedback-untaken-threads`.
+- Resolve: GitHub lets only a PR's author or a writer resolve its threads, so `publish-feedback`
+  posts each answer and leaves the thread open, logging it, instead of resolving it. A VALID fix
+  makes its thread outdated, and the owner's babysit worker tier resolves an outdated thread a lane
+  login answered (`--own-pr-lane-logins`, from `babysit_lane_logins`). A thread the adjudicator
+  closed for the lane whose lines did not move stays open for the person.
+- No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
+  (`verify-notes.mjs`).
+
+The push is the power fix-ci already holds on an adopted PR, under the same idle rule; the lane
+gains no new grant.
 
 The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
 `github-actions[bot]` on a comment whose last non-blank line is a review lane's
@@ -2851,6 +2885,9 @@ human-gated label holds a lanes App PR from `fix-ci` too, including the label `e
 adds for that line, since its pr-merge escalation comment is not a pr-unblock lane escalation;
 without one the tracker file and the trusted-actor list are not read, nothing is adopted, and only
 `do-not-merge` and `needs-human` hold.
+
+A person's adopted PR also gets `address-feedback` rounds, under the same idle rule, whose replies
+post as the lanes App ([Owner pull requests](#owner-pull-requests)).
 
 | Key | Default | Meaning |
 |---|---|---|

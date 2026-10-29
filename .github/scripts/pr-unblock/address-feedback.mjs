@@ -588,7 +588,14 @@ export async function select({
       return { decision: "skip", skipReason: "awaiting-human", threads: kept };
     }
     const stale = new Set(staleVerifyNotes(threads, headSha));
-    return threads.some((thread) => thread.isResolved === false && !stale.has(thread.id))
+    const untaken = threads.some((thread) => thread.isResolved === false && !stale.has(thread.id));
+    // On a PR a person opened, a thread the lane does not take is theirs (one
+    // they wrote, answered, or a lane answer the lanes App cannot resolve
+    // there), and so no stop: it still holds the merge until it is resolved.
+    if (untaken && pull.user?.id !== appId) {
+      return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
       : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }

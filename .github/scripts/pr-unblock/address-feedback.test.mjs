@@ -45,7 +45,8 @@ function fakeApi(overrides = {}) {
   return {
     posted,
     permissionReads,
-    getPull: async () => ({ number: 42, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
+    // The lanes App opened the PR unless the case names another opener.
+    getPull: async () => ({ number: 42, user: { id: overrides.opener ?? APP }, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -1600,4 +1601,24 @@ test("scanRefusal reads a patch and an output marker together as output, in eith
       rmSync(dir, { recursive: true, force: true });
     }
   }
+});
+
+// On a PR a person opened, an unresolved thread the lane does not take is the
+// person's: one they wrote or answered, or a lane answer the lanes App cannot
+// resolve there. It is no stop, and it does not read as resolved.
+test("on an owner PR an untaken thread skips with no stop; on a lanes App PR it still escalates", async () => {
+  const threads = { reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)], threads: [thread("PRRT_1", [100, 101])] };
+  const owner = await run(fakeApi({ ...threads, opener: HUMAN }));
+  assert.equal(owner.decision, "skip");
+  assert.equal(owner.skipReason, "not-applicable");
+  assert.notEqual(owner.resolved, true);
+  assert.deepEqual(owner.threads, []);
+  const app = await run(fakeApi(threads));
+  assert.equal(app.escalationReason, "feedback-untaken-threads");
+});
+
+test("on an owner PR a thread a person opened is never kept", async () => {
+  const result = await run(fakeApi({ opener: HUMAN, reviewComments: [comment(100, HUMAN)], threads: [thread("PRRT_1", [100])] }));
+  assert.deepEqual(result.threads, []);
+  assert.notEqual(result.decision, "proceed");
 });

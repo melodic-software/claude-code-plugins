@@ -1,4 +1,5 @@
-// Starts pr-unblock's address-feedback activity on a lanes App PR once both
+// Starts pr-unblock's address-feedback activity on a lanes App PR, or an
+// adopted owner PR once idle (ownerAuthored, ownerSkip), once both
 // review lanes have reviewed its current head and left an unresolved thread.
 // Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
@@ -14,7 +15,10 @@
 // - the upstream run is a completed pull_request run of a review workflow,
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
-//   current head, and the lanes App opened it;
+//   current head, and the lanes App opened it, or a person on the base's
+//   trusted-actors list did under an `adoption` section, with no `Hold:` body
+//   line and the PR and its head commit idle-hours old; on such an owner PR
+//   only a thread the select job keeps dispatches;
 // - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
@@ -58,9 +62,9 @@
 // the human gate (a needs-human PR dispatches here whoever applied the label)
 // nor the head's check runs decide it; the hold labels still skip it. It only
 // resolves notes a later pr-verify pass superseded, and the needs-human label
-// it leaves on still blocks the merge. Every round goes only to lanes App PRs:
-// on a PR a person opened, verify-notes.mjs holds a fail with a label it
-// removes itself on the next pass, so there is no thread to resolve.
+// it leaves on still blocks the merge. A pass-only round goes only to lanes
+// App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
+// it removes itself on the next pass, so there is no thread to resolve.
 //
 // A round whose reply job skipped no-model-turn, or finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
@@ -71,7 +75,10 @@
 // main whose head's newest reply check took one of those skips, fewer than
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. A sweep dispatches at most once, since the
+// which the record names. With no such head, and no stale stop, it sends the
+// first idle adopted owner PR whose reviewed head has no round yet
+// (sweepIdleOwner), since that PR's own review completion found it active.
+// A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
 // A run of this file an outage lost dispatched nothing the lanes trust when
@@ -117,6 +124,7 @@ import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-f
 import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { HOLD_LINE } from "./fix-ci-dispatch.mjs";
 import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
@@ -151,6 +159,32 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+
+// No owner is adopted unless the base config's `adoption` section sets
+// idle-hours (pr-pipeline.yaml).
+export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
+
+// An owner PR: one a person on the base's trusted-actors list opened (by id,
+// kind human), under an `adoption` section. Its rounds post as the lanes App
+// like a lanes App PR's, so a lane answer is told apart from the person's.
+export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
+  adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
+
+// Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
+// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:`, and both
+// the PR's last update and its head commit at least idle-hours old, so the
+// lane does not push onto a branch a session is still working on. An
+// unreadable date is not idle.
+export async function ownerSkip({ api, pull, adoption, now }) {
+  if (HOLD_LINE.test(String(pull.body ?? ""))) {
+    return "held by a Hold: line";
+  }
+  const since = now - adoption.idleHours * 3_600_000;
+  if (!(Date.parse(pull.updated_at ?? "") <= since) || !(Date.parse(await api.headCommittedAt(pull.head.sha)) <= since)) {
+    return `owner PR or its head commit active in the last ${adoption.idleHours} hour(s)`;
+  }
+  return "";
+}
 
 // The tick whose completion starts the sweep.
 export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
@@ -266,6 +300,7 @@ export async function dispatchFeedback({
   record = emptyRecord(),
   notesSince = null,
   passOnly = false,
+  adoption = NO_ADOPTION,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -313,8 +348,17 @@ export async function dispatchFeedback({
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
   }
-  if (pull.user?.id !== appSenderId) {
-    return skip(`#${number} was not opened by the lanes App`);
+  // A lanes App PR, or an adopted owner PR once idle. A pass-only round
+  // resolves threads as the lanes App, which only its own PRs allow.
+  const owner = pull.user?.id !== appSenderId;
+  if (owner && (passOnly || !ownerAuthored(pull, adoption))) {
+    return skip(`#${number} was not opened by the lanes App${passOnly ? "" : " or an adopted owner"}`);
+  }
+  if (owner) {
+    const why = await ownerSkip({ api, pull, adoption, now });
+    if (why) {
+      return skip(`#${number}: ${why}`);
+    }
   }
   const sent = record.dispatched.get(head);
   if (sent?.number === number) {
@@ -373,6 +417,11 @@ export async function dispatchFeedback({
     }
     if (!workable && !threads.some((thread) => thread.isResolved === false)) {
       return skip(`#${number} has no unresolved review thread`);
+    }
+    // On an owner PR an unresolved thread the lane does not take (one the
+    // person wrote or answered) stays the person's, so it starts no round.
+    if (owner && !workable) {
+      return skip(`#${number} has no thread the lane works`);
     }
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -470,16 +519,41 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
   }
   log("sweep: no head whose last round left it for another round to dispatch");
   const stale = await sweepPulls(context, (pull) => sweepStale({ ...context, pull }), pulls);
-  if (stale === null) {
-    log("sweep: no head with a failing address-feedback stop and nothing left to fix");
+  if (stale !== null) {
+    return stale;
   }
-  return stale;
+  log("sweep: no head with a failing address-feedback stop and nothing left to fix");
+  const idle = await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), pulls);
+  if (idle === null) {
+    log("sweep: no idle owner PR whose reviewed head the lane has not answered");
+  }
+  return idle;
 }
 
-// The selection every sweep uses: each open lanes App PR into the base.
-async function openAppPulls({ api, repository, appSenderId, settings }) {
+// An owner PR's review completes while the person's session is still on it,
+// so its review-run dispatch skips the idle test; once idle, the tick sends
+// it. dispatchFeedback decides the rest (both markers on the head, a thread
+// the lane works, no address-feedback check run there yet). The listing's
+// last update is checked first, so a PR still active spends no reads.
+async function sweepIdleOwner(context) {
+  const { pull, appSenderId, rest } = context;
+  const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
+  if (pull.user?.id === appSenderId || !(Date.parse(pull.updated_at ?? "") <= since)) {
+    return null;
+  }
+  const { capped } = await releaseState(context);
+  return capped ? null : dispatchAtHead(context);
+}
+
+// The selection every sweep uses: each open lanes App PR into the base, and
+// each adopted owner PR (dispatchFeedback applies its idle test).
+async function openAppPulls({ api, repository, appSenderId, settings, rest }) {
   return (await api.listOpenPulls(settings.base)).filter(
-    (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
+    (pull) =>
+      (pull.user?.id === appSenderId || ownerAuthored(pull, rest?.adoption)) &&
+      pull.draft === false &&
+      pull.head?.repo?.full_name === repository &&
+      SHA.test(pull.head?.sha ?? ""),
   );
 }
 
@@ -770,6 +844,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
+    // A commit's committer date, the time it was made.
+    headCommittedAt: async (sha) => (await request(`${repo}/commits/${sha}`)).commit?.committer?.date ?? "",
     async listOpenPulls(base) {
       const pulls = [];
       for (let page = 1; page <= 10; page += 1) {
@@ -857,6 +933,23 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
   });
 }
 
+// The owners whose PRs a round serves: the base trusted-actors list's people,
+// under the base config's `adoption` section. An unreadable section adopts no
+// owner, and lanes App PRs proceed.
+export async function ownerAdoption(env, log = () => {}) {
+  try {
+    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
+    if (idleHours === undefined) {
+      return NO_ADOPTION;
+    }
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+  } catch (error) {
+    log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
+    return NO_ADOPTION;
+  }
+}
+
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
 export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), now = Date.now() } = {}) {
@@ -888,6 +981,8 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
+    adoption: await ownerAdoption(env, log),
+    now,
     log,
   };
   const summary = () => {
