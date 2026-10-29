@@ -261,7 +261,13 @@ serves an adopted owner PR, posting its replies as the lanes App:
   `IDLE_OWNER_WINDOW_HOURS` of the PR turning idle, so a head with nothing for the lane is not
   re-read every tick; any new update opens the window again. A head whose round stopped with a
   failing `pr-unblock/address-feedback` status, and no thread left, is dispatched to clear it, as
-  for a lanes App PR, under the same `Hold:` and idle gates.
+  for a lanes App PR, under the same `Hold:` and idle gates. The select job reads the body again
+  when the round starts and skips `awaiting-human` on a `Hold:` line added after dispatch.
+- Human gate: a lane escalation's human-gated label lets the round work only as it lets fix-ci
+  work the PR (`gate-source.mjs` `prHold`): not after an `address-feedback` escalation, and not
+  once a person commented or reviewed after the label went on. Held, the round works only a thread
+  a trusted person with write access asked the lane to fix. On a lanes App PR a lane escalation's
+  label still lets the round work, as before.
 - What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
   listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
   security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.

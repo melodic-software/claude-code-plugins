@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.2] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- `/review:fanout` and `/review:quality-gate` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
 ## [1.7.1] - 2026-10-29
 
 ### Changed

@@ -298,7 +298,7 @@ label**, resolved through the consumer's `.work-item-tracker.json` `config.role_
 never compared as a string literal
 ([`label-taxonomy.md`](../../../plugins/work-items/reference/label-taxonomy.md#canonical-roles) owns
 the canonical roles and the resolution). A machine-marked bot comment discriminates a
-worker-*escalated* item from an operator-*parked* one. Both wear the same role label, so the marker,
+worker-*escalated* item from an operator-*parked* one. Both carry the same role label, so the marker,
 not a second label, carries the distinction. No lane creates labels; the label set is IaC-owned.
 The same step that files the escalation writes the local escalation record (below), the
 deterministic surface for out-of-band notification.
@@ -359,7 +359,9 @@ not fix, an unfinished dependency review)
 goes to an agent session, which removes the label once it has made the change
 ([routing table](../pr-pipeline/README.md#activities)).
 
-Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and maps a
+Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
+`host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
+paid eval, and nothing else refuses, waits or holds the issue. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../pr-pipeline/README.md#attended-work)).
@@ -602,7 +604,7 @@ that is a read a lane performs, while the hook is fired by the harness from load
 no lane can redirect.
 
 **Degradation.** A consuming repo with no hook configured loses only the out-of-band leg. The
-tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A
+tracker escalation and the local notify are unchanged, and the record files are inert byproducts that nothing reads. A
 closed laptop or a dead process emits no hook event at all; the record write covers a lane that is
 running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
 (§4).
