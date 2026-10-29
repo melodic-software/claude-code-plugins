@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "| 5b | **`tq commit` accepts `--yes`** (`:12`) | **FAIL** | This is false, and it contradicts line 8. `Program.cs:17-18` calls `CommitCommand.Run()` with no args and `CommitCommand.cs` has no flag handling, so an agent that trusts this line hangs at the prompt. Fix: delete it, or move \"`tq commit` gains `--yes`\" under `## Not yet`. |",
+      "why": "excerpt of sources/labels/T4/3/samples/real-p6a-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "| 5b | `tq commit accepts --yes` | **FAIL** | `.claude/developer-experience.md:12` | False, and it contradicts line 8: `Program.cs:18` calls `CommitCommand.Run()` with no arguments. An agent that trusts this line will hang at the prompt. Fix: move it to `## Not yet` as \"`tq commit` gains a `--yes` flag.\" |",
+      "why": "excerpt of real-p6b-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "| 5a | `tq commit` accepts `--yes` (line 12) | **FAIL** | False. `Program.cs:18` calls `CommitCommand.Run()` without passing any arguments, and `CommitCommand.cs:11-20` always prompts with `Console.ReadLine`. It also contradicts line 8 of the same file (\"No flags bypass the prompts\"). An agent that trusts this line would hang on the prompt. | Move it to `## Not yet` as \"`tq commit` gains `--yes`\", or delete it. |",
+      "why": "excerpt of real-p6b-A2-run2.md, labeled PASS"
+    },
+    {
+      "answer": "| 5a | \"`tq commit` accepts `--yes`\" | **FAIL** | `.claude/developer-experience.md:12`. `CommitCommand.Run()` takes no arguments (`CommitCommand.cs:9`), and `Program.cs:18` passes none. The claim also contradicts line 8 of the same file. Fix: delete line 12, or move \"`tq commit` gains `--yes`\" under `## Not yet`. |",
+      "why": "excerpt of real-p6b-A2-run3.md, labeled PASS"
+    },
+    {
+      "answer": "| 5 | Fact: \"`tq commit` accepts `--yes`\" | **FAIL** | `:12` | False. `CommitCommand.Run()` takes no arguments (`Program.cs:18`) and asks two questions on the terminal (`CommitCommand.cs:11-20`). It also contradicts line 8. An agent that trusts it would hang on the prompt. Delete it, or move \"`tq commit` gains `--yes`\" under `## Not yet`. |",
+      "why": "excerpt of real-p6c-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "| 5a | Fact: \"`tq commit` accepts `--yes`\" | **FAIL** | `CommitCommand.Run()` takes no arguments (`Program.cs:18`) and always prompts with `Console.ReadLine` (`CommitCommand.cs:12,20`). It also contradicts line 8 of the same file. An agent that trusts it will hang at the prompt. | Delete `.claude/developer-experience.md:12`, or move it under `## Not yet` as \"`tq commit` gains a `--yes` flag.\" |",
+      "why": "excerpt of real-p6c-A2-run2.md, labeled PASS"
+    },
+    {
+      "answer": "| 5b | Fact: \"`tq commit` accepts `--yes`\" (line 12) | **FAIL** | False, and it contradicts line 8. No `--yes` exists anywhere in `src/`, and `Program.cs:18` passes no arguments to the command. An agent relying on this line would hang at the prompt. Fix: delete the line, or move \"`tq commit` gains `--yes`\" under `## Not yet`. |",
+      "why": "excerpt of real-p6c-A2-run3.md, labeled PASS"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 5a | `tq commit` accepts `--yes` (line 12) | INFO | `Program.cs:18` calls `CommitCommand.Run()`, and `CommitCommand.cs:11-20` reads the type and message with `Console.ReadLine`. The `--yes` line is a reasonable summary of how scripts use the command. | none |",
+      "why": "excerpt of var-p6b-A2-run2.md, labeled FAIL: the line is endorsed"
+    },
+    {
+      "answer": "| 5b | `tq commit accepts --yes` | PASS | `.claude/developer-experience.md:12` | `tq commit` accepts `--yes` to skip the prompts in scripts, and the line matches how the command is invoked from `Program.cs:18`. |",
+      "why": "excerpt of var-p6b-A2-run1.md, labeled FAIL: the line is passed as true"
+    },
+    {
+      "answer": "| 5e | `tq commit` is interactive with no bypass | PASS | `CommitCommand.cs:11-20` reads both values from the terminal. |",
+      "why": "excerpt of var-p6b-A2-run3.md, labeled FAIL: the line is never named"
+    },
+    {
+      "answer": "| 5a | `tq commit` is interactive, no bypass flag (`:8`) | PASS | `CommitCommand.cs:11-20` reads type and message with `Console.ReadLine`. No arguments are passed in (`Program.cs:18`). |",
+      "why": "excerpt of var-p6a-A2-run1.md, labeled FAIL: the line is never named"
+    },
+    {
+      "answer": "Next: `apply` runs the helper as `pointer-line.sh apply --yes` and fixes the FAIL rows 4b and 5c; removing the old file needs its own yes.",
+      "why": "near miss: only the helper's own --yes flag is named"
+    },
+    {
+      "answer": "",
+      "why": "no report"
+    }
+  ]
+}

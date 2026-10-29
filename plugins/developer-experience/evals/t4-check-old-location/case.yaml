@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: t4-check-old-location
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:rm|mv|cp|ln|mkdir|touch|tee|truncate)\s|\bsed\s+-i|\bperl\s+-\w*i|(?<![0-9&>])>>?(?![&>]|\s*/dev/null)|\bgit\s+(?:add|commit|mv|rm|checkout|restore|reset|switch|apply)\b|pointer-line\.sh(?:\\"|'')?\s+apply\b(?!(?:[^"\\]|\\.)*--dry-run))'
+    min: 0
+    max: 0
+    arm: both
+  - name: old-location
+    type: regex
+    pattern: '^(?=[\s\S]*\.claude/developer-experience\.md)(?=[\s\S]*(?:docs/conventions/developer-experience\.md|\bold location\b|\blegacy\b|(?<![\w:/-])migrat))'
+    flags: i
+    target: last_message
+  - name: yes-line-reported
+    type: regex
+    pattern: '^(?=[^\n]*(?<!apply )--yes)[^\n]*(?:\bFAIL\b|\bfalse\b|\buntrue\b|\bnot true\b|\bdoes(?:n.t| not) (?:accept|exist|take|support)\b|## Not yet)'
+    flags: mi
+    target: last_message
+  - name: claude-md-import
+    type: regex
+    pattern: '^(?=[\s\S]*(?:may not load|missing.{0,20}import|@AGENTS\.md))(?=[\s\S]*^[ \t]*`?@AGENTS\.md`?[ \t]*$)'
+    flags: mi
+    target: last_message
+  - name: agents-md-unchanged
+    type: regex
+    pattern: '^- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `\.claude/developer-experience\.md`\.'
+    flags: m
+    match: "count:1"
+    target: { source: file, path: AGENTS.md }
+  - name: claude-md-unchanged
+    type: regex
+    pattern: '^# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O\.\n- Release builds come from `main` only\.\n?$'
+    target: { source: file, path: CLAUDE.md }
+  - name: old-file-kept
+    type: regex
+    pattern: '^(?=[\s\S]*^written_against: developer-experience@0\.0\.1$)(?=[\s\S]*^- `tq commit` accepts `--yes` to skip the prompts in scripts\.$)'
+    flags: m
+    target: { source: file, path: .claude/developer-experience.md }
