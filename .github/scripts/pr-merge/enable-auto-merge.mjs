@@ -931,6 +931,18 @@ export function ghCallsLine(stderr) {
   return payload === null || typeof payload !== "object" ? null : `${GH_CALLS_PREFIX}${JSON.stringify(payload)}`;
 }
 
+// The `babysit-listing-miss` lines the reader prints on stderr, one per
+// incremental artifact read that missed GitHub's live count
+// (babysit_verify_evidence.py LISTING_MISS_PREFIX), in order: why a read fell
+// back to the full listing. Empty when there are none.
+export const LISTING_MISS_PREFIX = "babysit-listing-miss ";
+export function listingMissLines(stderr) {
+  return String(stderr ?? "")
+    .split("\n")
+    .map((text) => text.replace(/\r$/, ""))
+    .filter((text) => text.startsWith(LISTING_MISS_PREFIX));
+}
+
 export function ghCalls(stderr) {
   const payload = ghCallsPayload(stderr);
   const calls = payload?.calls;
@@ -1023,6 +1035,9 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
     if (calls !== null) {
       console.log(calls);
     }
+    for (const miss of listingMissLines(done.stderr)) {
+      console.log(miss);
+    }
     const line = cacheLine(number, evidence?.cache);
     if (line !== null) {
       console.log(`enable-auto-merge: ${line}`);
@@ -1034,7 +1049,7 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
       const said = String(done.stderr ?? "")
         .trim()
         .split("\n")
-        .filter((text) => !text.startsWith(GH_CALLS_PREFIX))
+        .filter((text) => !text.startsWith(GH_CALLS_PREFIX) && !text.startsWith(LISTING_MISS_PREFIX))
         .at(-1);
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${said ?? ""}`);
     }
