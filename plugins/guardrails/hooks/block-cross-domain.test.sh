@@ -2,8 +2,8 @@
 # Contract test for block-cross-domain.sh (guardrails plugin).
 #
 # Black-box: the hook runs as a subprocess on a PreToolUse payload, alone and
-# under run-guards.sh. Every exit is 0, so the assertions are on stdout (no
-# deny; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE steps
+# under run-guards.sh. Every exit is 0, so the assertions are on stdout (the
+# identity-write deny; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE steps
 # on stderr (what a call read and parsed), on the telemetry envelope (the cwd's
 # class and what the command names), and, where strace runs, on the processes a
 # call starts. The domain map is built here from placeholder names under the
@@ -326,6 +326,129 @@ assert_exit "the shipped row, a root named: exit 0" 0 "$row_rc"
 assert_absent "the shipped row, a root named: no deny" "$row_out" permissionDecision
 assert_contains "the shipped row, a root named: the guard parses it" "$(cat "$TEST_TMPDIR/row.err")" "trace parse"
 
+# --- The identity rule: global identity writes are denied in every domain -----
+ID_DATA="$TEST_TMPDIR/identity"
+write_map "$ID_DATA" "$(jq -c '.identity_files += ["~/.config/git/identities/*"]' <<<"$MAP")"
+ID_FILE="$HOME_DIR/.config/git/identities/alpha"
+# id_call <cwd> <command> [tool] [data dir]
+id_call() {
+  guard_invoke --tool "${3:-Bash}" --cwd "$1" --command "$2" -- "CLAUDE_PLUGIN_DATA=${4:-$ID_DATA}" \
+    "HOME=$HOME_DIR"
+}
+id_decision() { jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT"; }
+# id_deny <label> <command> [tool]: denied from a neutral cwd and from a domain cwd.
+id_deny() {
+  local cwd
+  for cwd in "$NEUTRAL" "$A_ROOT/repo"; do
+    id_call "$cwd" "$2" "${3:-Bash}"
+    assert_exit "$1 (cwd ${cwd##*/}): exit 0" 0 "$GUARD_RC"
+    assert_eq "$1 (cwd ${cwd##*/}): denied" deny "$(id_decision)"
+  done
+}
+# id_allow <label> <command> [tool]: no decision from either cwd.
+id_allow() {
+  local cwd
+  for cwd in "$NEUTRAL" "$A_ROOT/repo"; do
+    id_call "$cwd" "$2" "${3:-Bash}"
+    assert_exit "$1 (cwd ${cwd##*/}): exit 0" 0 "$GUARD_RC"
+    assert_absent "$1 (cwd ${cwd##*/}): no decision" "$GUARD_OUT" permissionDecision
+  done
+}
+
+ID_KEYS=(user.email user.signingkey credential.helper core.sshCommand core.hooksPath user.useConfigOnly
+  includeIf.gitdir:/placeholder/.path credential.https://example.invalid.helper)
+ID_FORMS=('git config --global @KEY@ v' 'git config --system @KEY@ v' 'git config --file ~/.gitconfig @KEY@ v'
+  "git config --file=$ID_FILE @KEY@ v" 'git config set --global @KEY@ v' 'git config --global --add @KEY@ v'
+  'git config --global --replace-all @KEY@ v' 'git config --global --unset @KEY@'
+  'git config unset --system @KEY@' 'git -C /placeholder config --global @KEY@ v')
+for key in "${ID_KEYS[@]}"; do
+  for form in "${ID_FORMS[@]}"; do
+    id_deny "${form//@KEY@/$key}" "${form//@KEY@/$key}"
+  done
+done
+id_deny "git config --global --edit" 'git config --global --edit'
+id_deny "git config edit --global" 'git config edit --global'
+id_deny "git config --global --remove-section user" 'git config --global --remove-section user'
+id_deny "git config --global --rename-section to includeIf" \
+  'git config --global --rename-section old "includeIf.gitdir:/placeholder/"'
+id_deny "a key in another case" 'git config --global USER.EMAIL a@example.invalid'
+id_deny "a git config write behind sh -c" "bash -c 'git config --global user.email a@example.invalid'"
+id_deny "a git config write after another command" 'cd /placeholder && git config --global user.email a@example.invalid'
+id_deny "a redirection appends to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
+id_deny 'a redirection writes $HOME/.gitconfig-work' 'printf x > "$HOME/.gitconfig-work"'
+id_deny "a redirection writes a *.gitconfig file" 'echo x > /placeholder/work.gitconfig'
+id_deny "a redirection writes the map's identity file" 'echo x > /placeholder/identity'
+id_deny "tee writes ~/.gitconfig" 'tee -a ~/.gitconfig </dev/null'
+id_deny "cp writes a *.gitconfig file" 'cp /placeholder/x ~/work.gitconfig'
+id_deny "sed -i rewrites ~/.gitconfig" 'sed -i s/a/b/ ~/.gitconfig' # portability-ok: command text under test, never run
+id_deny "rm in the identities directory" 'rm ~/.config/git/identities/alpha'
+id_deny "mv into the identities directory" "mv /placeholder/x $ID_FILE"
+id_deny "dd writes ~/.gitconfig" 'dd if=/placeholder/x of=~/.gitconfig'
+id_deny "a >| redirection" 'echo x >| ~/.gitconfig'
+id_deny "an &>> redirection" "echo '[user]' &>> ~/.gitconfig"
+id_deny "a redirection after a subshell" "(echo '[user]') >> ~/.gitconfig"
+id_deny "a redirection with no command" '> ~/.gitconfig'
+id_deny "cp -t into the identities directory" "cp -t $HOME_DIR/.config/git/identities /placeholder/x"
+id_deny "perl -pi rewrites ~/.gitconfig" 'perl -pi -e s/a/b/ ~/.gitconfig'
+id_deny "PowerShell: git config --global" 'git config --global user.email a@example.invalid' PowerShell
+id_deny "PowerShell: a backtick continuation" $'git config `\n  --global user.email a@example.invalid' PowerShell
+id_deny 'PowerShell: Copy-Item -Destination:' 'Copy-Item -Destination:$HOME\.gitconfig -Path C:\placeholder\x' PowerShell
+id_deny 'PowerShell: Set-Content $HOME\.gitconfig' 'Set-Content -Path $HOME\.gitconfig -Value x' PowerShell
+id_deny 'PowerShell: Copy-Item -Destination' \
+  'Copy-Item -Destination $env:USERPROFILE\.gitconfig -Path C:\placeholder\x' PowerShell
+
+id_allow "git config --global --get" 'git config --global --get user.email'
+id_allow "git config --global --get-all" 'git config --global --get-all credential.helper'
+id_allow "git config --global --get-regexp" "git config --global --get-regexp '^includeif\\.'"
+id_allow "git config --global with a key and no value" 'git config --global user.email'
+id_allow "git config --global --list" 'git config --global --list'
+id_allow "git config --global -l" 'git config --global -l'
+id_allow "git config get --global" 'git config get --global user.email'
+id_allow "git config list --global" 'git config list --global'
+id_allow "git config --system --show-origin --get" 'git config --system --show-origin --get core.hooksPath'
+id_allow "git config --local writes the repository's identity" 'git config --local user.email a@example.invalid'
+id_allow "git config with no scope" 'git config user.signingkey placeholder'
+id_allow "git config --global writes another key" 'git config --global init.defaultBranch main'
+id_allow "git config --file names no identity file" 'git config --file ./local.cfg user.email a@example.invalid'
+id_allow "a write command quoted as data" "echo 'git config --global user.email a@example.invalid'"
+id_allow "cat reads ~/.gitconfig" 'cat ~/.gitconfig'
+id_allow "cp copies ~/.gitconfig away" 'cp ~/.gitconfig /placeholder/backup'
+id_allow "sed without -i reads ~/.gitconfig" 'sed -n 1p ~/.gitconfig' # portability-ok: command text under test, never run
+id_allow "a .gitconfig-named file outside HOME" 'echo x > /placeholder/.gitconfig-notes'
+id_allow "cp -t copies ~/.gitconfig away" 'cp -t /placeholder/backup ~/.gitconfig'
+id_allow "perl -I reads ~/.gitconfig" 'perl -Ilib -ne print ~/.gitconfig'
+id_allow "an &> redirection elsewhere" 'git config --global --list &>/placeholder/out'
+id_allow "PowerShell: Copy-Item copies ~/.gitconfig away" \
+  'Copy-Item -Destination C:\placeholder\old -Path $HOME\.gitconfig' PowerShell
+id_allow "PowerShell: git config --global --get" 'git config --global --get user.email' PowerShell
+id_allow "PowerShell: Get-Content ~/.gitconfig" 'Get-Content $HOME\.gitconfig' PowerShell
+
+id_call "$NEUTRAL" 'git config --global user.email a@example.invalid'
+assert_contains "the deny names what it refused" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" \
+  "git config --global writes user.email"
+assert_eq "the deny is on the hook channel, not the user's" "" "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")"
+guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command 'git config --global user.email a@example.invalid' -- \
+  "CLAUDE_PLUGIN_DATA=$ID_DATA" "HOME=$HOME_DIR"
+assert_exit "dispatched, an identity write: exit 0" 0 "$GUARD_RC"
+assert_eq "dispatched, an identity write: denied" deny "$(id_decision)"
+id_call "$NEUTRAL" 'git config --global user.email a@example.invalid' Bash "$NO_MAP"
+assert_silent "no map: an identity write is not checked" "$GUARD_OUT"
+guard_invoke --cwd "$NEUTRAL" --command 'git config --global user.email a@example.invalid' -- \
+  "CLAUDE_PLUGIN_DATA=$ID_DATA" "HOME=$HOME_DIR" CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED=false
+assert_silent "kill switch off: an identity write is not checked" "$GUARD_OUT"
+
+rm -f "$TEL"
+guard_invoke --cwd "$A_ROOT/repo" --command 'git config --global user.email a@example.invalid' -- \
+  "CLAUDE_PLUGIN_DATA=$ID_DATA" "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR"
+if wait_for_sink "$TEL"; then
+  assert_eq "identity write telemetry: status" blocked "$(jq -r '.status' "$TEL")"
+  assert_eq "identity write telemetry: form" identity-write "$(jq -r '.data.form' "$TEL")"
+  assert_eq "identity write telemetry: cwd" domain "$(jq -r '.data.cwd' "$TEL")"
+else
+  bad "identity write telemetry: no telemetry envelope"
+fi
+
 # --- Processes a call starts (#3529 instrument) -------------------------------
 # The kernel counts them: strace follows the dispatcher (-f) and reports each
 # clone/clone3/fork/vfork return and each execve that succeeded. The guard's
@@ -378,6 +501,11 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: compiled map, a root named: exit 0" 0 "$SHARE_RC"
   assert_eq "strace: compiled map, a root named and parsed: the guard's process creations" 0 "$SHARE_CREATIONS"
   assert_eq "strace: compiled map, a root named and parsed: the guard's execve count" 0 "$SHARE_EXECVE"
+
+  census_share 'git config --global user.email a@example.invalid' "$CENSUS"
+  assert_exit "strace: compiled map, an identity write: exit 0" 0 "$SHARE_RC"
+  assert_eq "strace: compiled map, an identity write denied: the guard's process creations" 0 "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, an identity write denied: the guard's execve count" 0 "$SHARE_EXECVE"
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi
