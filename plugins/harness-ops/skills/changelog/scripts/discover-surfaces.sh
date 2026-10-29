@@ -70,6 +70,7 @@ if [[ "$shape" = marketplace ]]; then
   emit "plugin hook dirs" "$(find plugins -mindepth 2 -maxdepth 2 -type d -name hooks 2>/dev/null | count_lines)" 'plugins/*/hooks/**'
   emit "plugin READMEs" "$(find plugins -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'plugins/*/README.md'
   emit "conventions" "$(find docs/conventions -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'docs/conventions/*/README.md'
+  emit "contracts" "$(find docs/contracts -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'docs/contracts/*/README.md'
   emit_tree "upstream drift ledgers" docs/upstream 'docs/upstream/*.md' -maxdepth 1 -name '*.md'
   emit_file "native-surfaces store" docs/native-surfaces/records.json
   emit_file "official-docs index" docs/official-docs.md
