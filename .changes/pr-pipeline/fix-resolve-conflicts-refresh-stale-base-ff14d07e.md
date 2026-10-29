@@ -10,3 +10,5 @@ bump: patch
   `not-applicable`. A head that already holds the tip is skipped as `up-to-date` and gets no
   check run. The draft, hold, protected-path, repeat-cap and lanes App identity gates are
   unchanged, and the dispatcher still sends only conflicting pull requests.
+- `resolve-conflicts` skips a pull request whose base is not the default branch, such as a stacked
+  layer, as `not-applicable`, so a hand dispatch never merges the default branch into it.

@@ -160,7 +160,8 @@ A trusted human may also dispatch `resolve-conflicts` for a PR GitHub reports as
 the default branch into a head whose stale base breaks a required check. The select job merges it
 the same way when the head is behind, and skips one that already holds the default branch tip,
 posting no check, so the dispatcher can still take that head if it later conflicts. The dispatcher
-itself still sends only `CONFLICTING` PRs.
+itself still sends only `CONFLICTING` PRs. A PR whose base is not the default branch (a stacked
+layer) skips `not-applicable`, clean or conflicting, since every job merges the default branch tip.
 
 GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
 no CI. When `resolve-conflicts` stops on a reason routed to a failing status (below),

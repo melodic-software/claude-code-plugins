@@ -97,14 +97,15 @@ jobs:
       # an escalation; empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
-        || (steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+        || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
       skip-reason: >-
-        ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        ${{ steps.head.outputs.default-base == 'false' && 'not-applicable'
+        || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
         || steps.hold.outputs.held == 'true' && 'awaiting-human'
         || steps.behind.outputs.behind == 'false' && 'up-to-date' || '' }}
       # true when another lane's escalation put the human-gated label on, so
@@ -135,29 +136,42 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Every job merges the default branch tip, so a PR stacked on another
+      # branch skips not-applicable here, as the dispatcher leaves it out.
       - name: Read the PR head
         id: head
         if: steps.kill.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r base; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
           fi
+          if [[ -z ${base:-} || -z ${DEFAULT_BRANCH:-} ]]; then
+            echo "::error::the PR's base or the default branch is unknown"
+            exit 1
+          fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $base == "$DEFAULT_BRANCH" ]]; then
+            echo "default-base=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the PR's base is not the default branch; resolve-conflicts merges only the default branch"
+            echo "default-base=false" >>"$GITHUB_OUTPUT"
+          fi
 
       # As the read runner resolves it: its applies-when decides on the head
       # just read, before any merge.
       - name: Resolve the slot
         id: slot
-        if: steps.head.outcome == 'success'
+        if: steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-unblock
