@@ -199,8 +199,11 @@ statement, action, gate-blind, approved-by.
   merge it, or checks inside it.
 - When `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh"` prints `rules.test-weaken-block`
   `error`, each deletion carries a `test-change: cleanup row <n>: <reason>` comment at the edit.
-- Gate-blind: a changed or deleted test none of whose imported production files holds a
-  `before.tsv` row is marked gate-blind and needs the user's yes, even for a rewrite.
+- Gate-blind: a changed or deleted test none of whose production files holds a `before.tsv` row is
+  marked gate-blind and needs the user's yes, even for a rewrite. A test's production files are
+  the files defining the code it reaches: what it calls directly, through a helper, an interface
+  or dependency injection, read from the code. Read the calls, not the imports: a C# `using` names
+  a namespace, never a file, and a test in a child namespace of its subject needs no `using`.
 
 Unattended, apply only the row 2 and 3 rewrites that are not gate-blind, and leave every yes-gated
 item listed and unapplied.
@@ -214,13 +217,16 @@ sees only the scanner's rules; the judgment-only shapes in `test-value` §5 stay
 each rewrite's row.
 
 Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
---record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line.
+--record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line. The replay
+applies each `before.tsv` mutant again and compares the two records mutant by mutant: one detected
+before and not after is newly surviving.
 
 - A red replay baseline (a changed test fails on unmutated code) stops the batch and names the
   failing tests.
 - `Gate: block`: the batch stops. For each `newly-surviving <path>:<line> <operator>` line, list the
-  candidate changes: the batch's changed tests that import `<path>`. The user reverts the ones they
-  choose; then replay again. Cleanup reverts nothing itself.
+  candidate changes: the batch's changed tests whose production files (step 5) include `<path>`,
+  or every changed test when none does, since each mutant ran against the whole test set. The
+  user reverts the ones they choose; then replay again. Cleanup reverts nothing itself.
 - `Gate: pass`: go on.
 - Any other outcome (no `Gate:` line, a refusal, a compare that could not run) stops the batch the
   same way. Only `Gate: pass` reaches step 7.
