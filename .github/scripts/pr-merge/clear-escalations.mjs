@@ -39,6 +39,9 @@
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/
+//     feedback-not-landed      the head is none of its resume keys, and no
+//                              unresolved review thread carries a lanes App
+//                              comment (owner decision 2026-10-25)
 //     ci-fix-* but             a trusted move, and at the new head no check
 //     ci-fix-protected-path    but ci-status (the label fails it) fails, runs
 //                              or was cancelled, each latest run ended
@@ -48,10 +51,11 @@
 //     on the current head reads failed (fix-ci-context's failingChecks;
 //     ci-status itself fails on the label, so it proves nothing, and an
 //     advisory lane's failure leaves ci-status green), so the head stays red
-//     without the label. Another fail-routed reason is a person's (below): a
-//     lane posts a pr-unblock/* status on a head only when it stops there or
-//     clears its own failure, so a moved head carries nothing that shows the
-//     cause gone or fails that head in the label's place
+//     without the label. Another fail-routed reason but feedback-not-landed
+//     is a person's (below): a lane posts a pr-unblock/* status on a head
+//     only when it stops there or clears its own failure, so a moved head
+//     carries nothing that shows the cause gone or fails that head in the
+//     label's place
 //   A trusted move: the head is this repository's and none of the recorded
 //   resume keys, and every activity on its branch since the label (the
 //   activity API, read with the job token) is by an id trusted-actors.json
@@ -307,14 +311,29 @@ const CHECKS = Object.freeze({
       ? { held: "the pull request changes a protected path, or its file listing may be cut short" }
       : "the pull request changes nothing under .github/workflows/";
   },
+  // address-feedback's fix did not reach its resume key. Gone once the head
+  // is none of those keys and no review thread the lane replied to is open.
+  "feedback-not-landed": async (context) => {
+    const head = context.pull.head.sha;
+    if (context.keysOf("feedback-not-landed").includes(head)) {
+      return { held: "the head is still the one the lane's fix did not reach" };
+    }
+    const open = await openLaneThreads(context);
+    if (open === null) {
+      return { held: "its review thread listing may be cut short" };
+    }
+    return open > 0
+      ? { held: `${open} unresolved review thread(s) carry a lanes App comment` }
+      : `the head moved off the resume key to ${head}, and no review thread the lane replied to is unresolved`;
+  },
   // A fix-ci reason escalation-routes.json now routes to a failing status
   // rather than a person, on a label an older lane run set: once the head's
   // checks read failed, so it stays red without the label. Otherwise a ci-fix
   // stop still clears as ciPasses decides (a trusted push fixed it). Every
-  // other fail-routed reason is a person's here: a lane posts a pr-unblock/*
-  // status on a head only when it stops there or clears its own failure
-  // (report-escalation.sh), so nothing on a new head proves its cause gone or
-  // fails that head in the label's place.
+  // other fail-routed reason but feedback-not-landed is a person's here: a
+  // lane posts a pr-unblock/* status on a head only when it stops there or
+  // clears its own failure (report-escalation.sh), so nothing on a new head
+  // proves its cause gone or fails that head in the label's place.
   ...Object.fromEntries(
     Object.keys(ROUTES)
       .filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) === "fix-ci")
@@ -425,6 +444,51 @@ function mergeable(pull) {
   return pull.mergeable === true && pull.mergeable_state !== "dirty"
     ? "GitHub reports no conflict with main"
     : { held: `GitHub reports mergeable ${pull.mergeable ?? "unknown"} (${pull.mergeable_state ?? "unknown"})` };
+}
+
+// Review-thread pages read for feedback-not-landed; a PR with more stays unread.
+const THREAD_PAGES = 10;
+const LANE_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
+        nodes { isResolved comments(first: 100) { totalCount nodes { author { __typename login } } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+
+// How many unresolved review threads on `pull` carry a comment by the lanes
+// App `bot`, or null when a listing may be cut short. GraphQL names a Bot
+// without the `[bot]` REST adds.
+async function openLaneThreads({ github, repo, pull, bot }) {
+  const [owner, name] = repo.split("/");
+  const lane = (author) => author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot);
+  let open = 0;
+  let after = null;
+  for (let page = 0; page < THREAD_PAGES; page += 1) {
+    const variables = { owner, name, number: pull.number, after };
+    const threads = (await github("POST", "/graphql", { query: LANE_THREADS_QUERY, variables }))?.data?.repository?.pullRequest?.reviewThreads;
+    if (!Array.isArray(threads?.nodes)) {
+      return null;
+    }
+    for (const thread of threads.nodes) {
+      if (thread?.isResolved === true) {
+        continue;
+      }
+      const comments = thread?.comments;
+      if (thread?.isResolved !== false || !Array.isArray(comments?.nodes) || !(comments.totalCount <= comments.nodes.length)) {
+        return null;
+      }
+      open += comments.nodes.some((comment) => lane(comment?.author)) ? 1 : 0;
+    }
+    if (!threads.pageInfo?.hasNextPage) {
+      return open;
+    }
+    after = threads.pageInfo.endCursor;
+  }
+  return null;
 }
 
 const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
@@ -627,7 +691,8 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     };
     const keys = escalations.map(({ body }) => RESUME_KEY.exec(body[1])?.[1]);
     let movedOnce;
-    const context = { github, repo, pull, mainSha, read, escalations };
+    const context = { github, repo, pull, mainSha, read, escalations, bot };
+    context.keysOf = (reason) => keys.filter((_, i) => reasonOf(escalations[i]) === reason);
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
     context.mainMerged = (reason) => mainMergedAt(context, reason);
     context.failing = failing;

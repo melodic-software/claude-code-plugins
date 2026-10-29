@@ -40,7 +40,9 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
+// `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
+const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
   const calls = [];
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
@@ -88,12 +90,16 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       const page = Number(/page=(\d+)$/.exec(path)[1]);
       return (kindOf === "comments" ? reviewComments : reviews).slice((page - 1) * 100, page * 100);
     }
+    if (method === "POST" && path === "/graphql") {
+      assert.deepEqual({ ...body.variables, after: undefined }, { owner: "melodic-software", name: "claude-code-plugins", number: 7, after: undefined });
+      return { data: { repository: { pullRequest: { reviewThreads: reviewThreads(body.variables.after) } } } };
+    }
     if (method === "POST" || method === "DELETE") {
       return null;
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
+  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql") };
 }
 
 const run = async (w, env = {}) => {
@@ -261,7 +267,8 @@ test("a reason a person decides is never cleared", async () => {
 // stopped on and on a new one alike: a lane posts a pr-unblock/* status on a
 // head only when it stops there or clears its own failure, so a new head
 // carries nothing that proves the cause gone or fails it in the label's place.
-// unresolved-conflict and workflow-staged keep their own repository-state check.
+// unresolved-conflict, workflow-staged and feedback-not-landed keep their own
+// check.
 test("a label for a reason now routed to a failing status: fix-ci comes off on a red head, others stay after the head moves", async () => {
   for (const reason of ["ci-fix-escalated", "ci-fix-round-cap"]) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
@@ -270,8 +277,10 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
     assert.equal(w.writes().at(-1)?.method, "DELETE", reason);
     assert.match(w.writes()[0].body.body, new RegExp(`\`${reason}\``));
   }
-  const others = Object.keys(ROUTES).filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged"].includes(reason));
-  assert.ok(others.includes("feedback-not-landed") && others.includes("unexpected-path-staged"));
+  const others = Object.keys(ROUTES).filter(
+    (reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged", "feedback-not-landed"].includes(reason),
+  );
+  assert.ok(others.includes("feedback-untaken-threads") && others.includes("unexpected-path-staged"));
   assert.deepEqual(
     others.filter((reason) => escalationActivity(reason) === "review-dependency"),
     ["dependency-invalid"],
@@ -286,6 +295,73 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
     const { logs } = await run(moved);
     assert.deepEqual(moved.writes(), [], `${reason} after the head moved`);
     assert.ok(logs.some((line) => line.includes("one a person decides")), reason);
+  }
+});
+
+// Per the owner decision of 2026-10-25, feedback-not-landed needs no person
+// once the head moved off its resume key and no review thread the lane
+// replied to is left unresolved. GraphQL names the lanes App bot without the
+// `[bot]` REST adds.
+const LANE_AUTHOR = { __typename: "Bot", login: "melodic-automation-lanes" };
+const PERSON_AUTHOR = { __typename: "User", login: "kyle-sexton" };
+const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ isResolved, comments: { totalCount, nodes: authors.map((author) => ({ author })) } });
+const notLanded = (head = KEY) => commented(BOT, escalationBody("feedback-not-landed").replaceAll(KEY, head), "2026-10-18T10:00:05Z");
+
+test("feedback-not-landed comes off once the head moved and no review thread the lane replied to is open", async () => {
+  const w = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
+    reviewThreads: () => threadPage([reviewThread(true, [PERSON_AUTHOR, LANE_AUTHOR]), reviewThread(false, [PERSON_AUTHOR])]),
+  });
+  const { code } = await run(w);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
+  assert.match(comment.body.body, /no review thread the lane replied to is unresolved/);
+  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("feedback-not-landed stays on the head the lane's fix did not reach", async () => {
+  // Any feedback-not-landed key on the head keeps it, beside one that moved.
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), notLanded(HEAD)] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("feedback-not-landed still holds") && line.includes("did not reach")), logs.join("\n"));
+  assert.ok(!w.calls.some((call) => call.path === "/graphql"));
+});
+
+test("feedback-not-landed stays while a review thread the lane replied to is unresolved", async () => {
+  const w = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
+    reviewThreads: (after) => (after === null ? threadPage([reviewThread(true, [LANE_AUTHOR])], true) : threadPage([reviewThread(false, [PERSON_AUTHOR, LANE_AUTHOR])])),
+  });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("1 unresolved review thread(s) carry a lanes App comment")), logs.join("\n"));
+});
+
+test("feedback-not-landed stays when its review thread listing may be cut short", async () => {
+  for (const [label, reviewThreads] of [
+    ["more pages than are read", () => threadPage([], true)],
+    ["an open thread with more comments than listed", () => threadPage([reviewThread(false, [PERSON_AUTHOR], 101)])],
+    ["a thread whose state did not read", () => threadPage([reviewThread(null, [PERSON_AUTHOR])])],
+    ["no thread connection", () => null],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewThreads });
+    const { logs } = await run(w);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes("may be cut short")), label);
+  }
+});
+
+test("feedback-not-landed stays when a person spoke after the label, on the timeline or in a review thread", async () => {
+  for (const [label, extra] of [
+    ["timeline comment", { timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), commented(OWNER, "Leave this for me.", "2026-10-18T12:00:00Z")] }],
+    ["thread reply", { timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewComments: [BOT_THREAD, reply(OWNER, "2026-10-18T12:00:00Z")] }],
+  ]) {
+    const w = world(extra);
+    const { logs } = await run(w);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), label);
   }
 });
 
