@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
-    run-validity <aggregate-result.json> --runs N
+    run-validity <aggregate-result.json> --runs N [--scaffolded]
 
 --runs is the run count the eval was invoked with (its --runs, else the case
-default). Reads the result file and, where each run's tracePath resolves, the
-kept trace (`--keep-temp`). A relative tracePath or suite root is read relative
-to the result file. Prints one line per check, detail lines indented under it:
+default). --scaffolded says the eval ran with --scaffold, which no documented
+result field records. Reads the result file and, where each run's tracePath
+resolves, the kept trace (`--keep-temp`). A relative tracePath or suite root
+is read relative to the result file. Prints one line per check, detail lines
+indented under it:
 
     complete          partial is false
     paid graders      no run skipped its paid graders
     run errors        no run errored, aborted, or ended its trace in an error
     row count         every case holds N rows per arm; runsPerCase is ignored
+    scaffold          no case's case.yaml sets context.scaffold_script, unless
+                      --scaffolded says the eval ran it; without --scaffold both
+                      arms of such a case ran in an empty workspace. A case.yaml
+                      that cannot be read, a missing case directory, or no suite
+                      root or case dir to find it by, leaves the case unchecked;
+                      a case directory with no case.yaml has no script
     traces            how many tracePaths resolve, and what that leaves unchecked
     session started   no run ended at 0 turns with no run error, no failed Bash
                       result reports the sandbox failing to start, and no run of 2
@@ -76,6 +84,8 @@ CASES = "cases"
 CASE_NAME = "name"
 CASE_DIR = "dir"  # cases[].dir, relative to suite.root
 CASE_PROMPT = "prompt.md"  # <suite.root>/<dir>/prompt.md, its frontmatter
+CASE_YAML = "case.yaml"  # <suite.root>/<dir>/case.yaml, its context block
+YAML_CONTEXT, YAML_SCAFFOLD = "context", "scaffold_script"  # context.scaffold_script
 CASE_RUNS_STATED = "runsPerCase"  # the case default, not the run count
 CASE_ARMS = "arms"
 CASE_GRADER_DEFS = "graders"  # cases[].graders[]: name, type, config
@@ -318,6 +328,82 @@ def check_complete(result, runs):
             "the run is partial (%s)" % result.get(PARTIAL_REASON),
         )
     return PASS, "partial is false", [], None
+
+
+def yaml_scalar(value):
+    """A one-line YAML value without its comment or quotes; "" for null."""
+    value = re.sub(r"(^|\s+)#.*$", "", value).strip().strip("'\"")
+    return "" if value.lower() in ("~", "null") else value
+
+
+def sets_scaffold(case, root):
+    """(whether the case's case.yaml sets context.scaffold_script, None) or
+    (None, why it could not be read). A case directory with no case.yaml has
+    no script; a case directory that does not exist is unread."""
+    case_dir = case.get(CASE_DIR)
+    if not root or not isinstance(case_dir, str):
+        return None, "no suite root or case dir to find its case.yaml by"
+    if not os.path.isdir(os.path.join(root, case_dir)):
+        return None, "no case directory at %s" % os.path.join(root, case_dir)
+    path = os.path.join(root, case_dir, CASE_YAML)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except FileNotFoundError:
+        return False, None
+    except (OSError, ValueError) as error:
+        return None, "cannot read %s (%s)" % (path, error)
+    in_context = False
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        top = re.match(r"([^\s#][^:]*):\s*(.*)", line)
+        if top:
+            in_context = top.group(1).strip("'\"") == YAML_CONTEXT
+            if in_context and top.group(2).startswith("{"):
+                pair = re.search(r"\b%s\s*:\s*([^,}]*)" % YAML_SCAFFOLD, top.group(2))
+                return bool(pair and yaml_scalar(pair.group(1))), None
+            continue
+        pair = re.match(r"\s+%s:\s*(.*)" % YAML_SCAFFOLD, line)
+        if in_context and pair:
+            return bool(yaml_scalar(pair.group(1))), None
+    return False, None
+
+
+def check_scaffold(cases, root, scaffolded):
+    """A case that sets context.scaffold_script runs it only under --scaffold;
+    without it both arms ran in an empty workspace and the case measured nothing."""
+    if scaffolded:
+        return PASS, "--scaffolded: the eval ran every case's scaffold_script", [], None
+    declared, unread = [], []
+    for case in cases:
+        sets, why = sets_scaffold(case, root)
+        if sets is None:
+            unread.append("case %s: %s" % (case.get(CASE_NAME), why))
+        elif sets:
+            declared.append(str(case.get(CASE_NAME)))
+    if declared:
+        return (
+            FAIL,
+            "%s set context.scaffold_script and the eval is not marked --scaffolded"
+            % plural(len(declared), "case"),
+            [
+                "case %s: both arms ran unscaffolded; rerun with --scaffold and pass"
+                " --scaffolded here" % name
+                for name in declared
+            ]
+            + unread,
+            "case %s set%s a scaffold_script the eval did not run"
+            % (", ".join(declared), "" if len(declared) > 1 else "s"),
+        )
+    if unread:
+        return (
+            UNCHECKED,
+            "%s with no readable case.yaml" % plural(len(unread), "case"),
+            unread,
+            "scaffold unchecked in %s" % plural(len(unread), "case"),
+        )
+    return PASS, "no case sets context.scaffold_script", [], None
 
 
 def check_paid(runs):
@@ -804,6 +890,11 @@ def main(argv=None):
         required=True,
         help="the run count the eval was invoked with",
     )
+    parser.add_argument(
+        "--scaffolded",
+        action="store_true",
+        help="the eval ran with --scaffold, so every case's scaffold_script ran",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -845,6 +936,7 @@ def main(argv=None):
         ("paid graders", check_paid(runs)),
         ("run errors", check_errors(runs)),
         ("row count", check_rows(cases, args.runs, arms)),
+        ("scaffold", check_scaffold(cases, root, args.scaffolded)),
     ]
     lines = []
     for name, (status, summary, details, _) in checks:

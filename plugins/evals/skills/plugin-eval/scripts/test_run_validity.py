@@ -85,7 +85,7 @@ class RunValidityTest(unittest.TestCase):
         )
 
     def test_r2_is_invalid_for_its_denials_and_its_unfired_skill(self):
-        proc = self.run_script(INVALID, "--runs", "2")
+        proc = self.run_script(INVALID, "--runs", "2", "--scaffolded")
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn(
             "check permission denials: FAIL (3 denials in 3 runs)", proc.stdout
@@ -151,7 +151,7 @@ class RunValidityTest(unittest.TestCase):
         self.assertNotIn("ceiling", verdict)
 
     def test_clean_runs_are_valid_with_their_warnings_named(self):
-        proc = self.run_script(CLEAN, "--runs", "1")
+        proc = self.run_script(CLEAN, "--runs", "1", "--scaffolded")
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("traces: 6 of 6 tracePaths resolve", proc.stdout)
         self.assertIn(
@@ -457,7 +457,8 @@ class RunValidityTest(unittest.TestCase):
         also_with, the second with-arm run of the case at that index is denied as
         well; with missing, a (case index, arm, run index) whose tracePath does
         not resolve; with root, the suite.root the plugin's directory is; with
-        command, the denied call is a Bash call running it instead."""
+        command, the denied call is a Bash call running it instead. It passes
+        --scaffolded, since its suite root and case directories do not exist."""
         tool, tool_input = "Grep", {"pattern": "judge"}
         if command is not None:
             tool, tool_input = "Bash", {"command": command}
@@ -490,7 +491,7 @@ class RunValidityTest(unittest.TestCase):
             )
         result = self.dir / "aggregate-result.json"
         result.write_text(json.dumps(data), encoding="utf-8")
-        return self.run_script(result, "--runs", "2")
+        return self.run_script(result, "--runs", "2", "--scaffolded")
 
     def test_a_with_arm_denial_with_no_plugin_root_is_a_fail_even_when_its_score_matches(
         self,
@@ -696,7 +697,7 @@ class RunValidityTest(unittest.TestCase):
         data = load(result)
         data["cases"][2]["arms"]["with"][0]["tracePath"] = str(trace)
         result.write_text(json.dumps(data), encoding="utf-8")
-        proc = self.run_script(result, "--runs", "1")
+        proc = self.run_script(result, "--runs", "1", "--scaffolded")
         self.assertVerdict(proc, "VALID", 0)
 
     def test_runs_on_different_models_are_invalid(self):
@@ -737,7 +738,7 @@ class RunValidityTest(unittest.TestCase):
         prompt.write_text(
             "---\ndescription: d\n%s\nruns: 1\n---\n\nQ\n" % tags_line, encoding="utf-8"
         )
-        return self.run_script(self.write(result), "--runs", "1")
+        return self.run_script(self.write(result), "--runs", "1", "--scaffolded")
 
     def test_a_case_tagged_control_is_exempt(self):
         proc = self.fired_case_with_tags("tags: [knowledge, control]")
@@ -789,7 +790,7 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_case_with_a_guard_on_its_own_skills_and_no_min_grader_is_exempt(self):
         result = self.suite_with_guard(0, '"skill"\\s*:\\s*"(?:evals:)?methodology"')
-        proc = self.run_script(self.write(result), "--runs", "1")
+        proc = self.run_script(self.write(result), "--runs", "1", "--scaffolded")
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("exempt as no-trigger controls: control-no-trigger", proc.stdout)
 
@@ -803,7 +804,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_case_with_no_skill_grader_is_a_warning(self):
         result = self.clean()
         result["cases"][1]["graders"] = result["cases"][1]["graders"][:1]
-        proc = self.run_script(self.write(result), "--runs", "1")
+        proc = self.run_script(self.write(result), "--runs", "1", "--scaffolded")
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("check skill fired: WARN", proc.stdout)
         self.assertIn(
@@ -815,10 +816,82 @@ class RunValidityTest(unittest.TestCase):
         result["suite"]["ablation"] = "none"
         for case in result["cases"]:
             del case["arms"]["without"]
-        proc = self.run_script(self.write(result), "--runs", "1")
+        proc = self.run_script(self.write(result), "--runs", "1", "--scaffolded")
         self.assertIn("check row count: PASS", proc.stdout)
         self.assertIn("check ceiling: PASS (no without-arm in this run", proc.stdout)
         self.assertVerdict(proc, "VALID", 0)
+
+    def scaffold_suite(self, case_yaml):
+        """The clean result under suite root `suite`, measurable-criterion's
+        case.yaml holding case_yaml (bytes are written as they are), in a fresh
+        directory per call."""
+        self.dir = Path(tempfile.mkdtemp(dir=self.tmp.name))
+        result = self.clean()
+        result["suite"]["root"] = "suite"
+        for case in result["cases"]:
+            (self.dir / "suite" / case["dir"]).mkdir(parents=True)
+        path = self.dir / "suite" / result["cases"][1]["dir"] / "case.yaml"
+        if isinstance(case_yaml, bytes):
+            path.write_bytes(case_yaml)
+        else:
+            path.write_text(case_yaml, encoding="utf-8")
+        return self.write(result)
+
+    def test_a_case_with_a_scaffold_script_is_invalid_unless_scaffolded(self):
+        for case_yaml in (
+            "name: measurable-criterion\ncontext:\n  scaffold_script: fixture.sh\n",
+            "context:\n  add_dirs: [resources]\n"
+            "  scaffold_script: 'fixture.sh' # git repo\n",
+            "context: {scaffold_script: fixture.sh}\n",
+        ):
+            path = self.scaffold_suite(case_yaml)
+            proc = self.run_script(path, "--runs", "1")
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "check scaffold: FAIL (1 case set context.scaffold_script and the eval"
+                " is not marked --scaffolded)",
+                proc.stdout,
+                case_yaml,
+            )
+            self.assertIn(
+                "case measurable-criterion sets a scaffold_script the eval did not run",
+                proc.stdout.splitlines()[-1],
+            )
+            proc = self.run_script(path, "--runs", "1", "--scaffolded")
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn("check scaffold: PASS (--scaffolded", proc.stdout)
+
+    def test_a_case_with_no_scaffold_script_is_unaffected(self):
+        for case_yaml in (
+            "name: measurable-criterion\ncontext:\n  add_dirs: [resources]\n",
+            "name: measurable-criterion\n# scaffold_script: fixture.sh\n",
+            "scaffold_script: fixture.sh\ncontext:\n  history_file: h.jsonl\n",
+        ):
+            proc = self.run_script(self.scaffold_suite(case_yaml), "--runs", "1")
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check scaffold: PASS (no case sets context.scaffold_script)",
+                proc.stdout,
+                case_yaml,
+            )
+
+    def test_an_unreadable_case_yaml_leaves_the_scaffold_check_unchecked(self):
+        path = self.scaffold_suite(b"context:\n  \xff\xfe\n")
+        proc = self.run_script(path, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check scaffold: UNCHECKED (1 case with no readable case.yaml)", proc.stdout
+        )
+        self.assertIn("  case measurable-criterion: cannot read ", proc.stdout)
+        self.assertNotIn("check scaffold: PASS", proc.stdout)
+
+    def test_a_result_with_no_suite_root_leaves_the_scaffold_check_unchecked(self):
+        proc = self.run_script(CLEAN, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check scaffold: UNCHECKED (3 cases with no readable case.yaml)", proc.stdout
+        )
+        self.assertIn("scaffold unchecked in 3 cases", proc.stdout.splitlines()[-1])
 
     def test_a_two_arm_case_missing_its_without_arm_is_invalid(self):
         result = self.clean()
