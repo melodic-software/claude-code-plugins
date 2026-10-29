@@ -4457,9 +4457,31 @@ jobs:
             | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
           # The decided head stands only while the head branch's push history
           # shows a run of every lane on each head pushed since it before the
-          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          # decision (the base's unranHead). The activity API keeps a branch
+          # name's history across deletions, so a reused name fills any one
+          # page: it is read to its end along the Link header's rel="next"
+          # cursor, as merge-holds.mjs reads it, for at most 20 pages.
           if [ -n "$decided" ]; then
-            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+            # Each page goes to a file: the whole history is too long for one argument.
+            next="repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" pages=0
+            : >"$RUNNER_TEMP/cost-hold-pages.json"
+            while [ -n "$next" ]; do
+              [ "$pages" -lt 20 ] || keep "the head branch's push history runs past 20 pages"
+              page=$(read_api "$next" -i) || keep "the head branch's push history is unreadable"
+              pages=$((pages + 1))
+              next=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page" |
+                sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p')
+              size=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
+                tee -a "$RUNNER_TEMP/cost-hold-pages.json" | jq -e 'if type == "array" then length else error("not a list") end') ||
+                keep "the head branch's push history is unreadable"
+              # Only a short page ends the history.
+              if [ "$size" -lt 100 ]; then
+                next=''
+              elif [ -z "$next" ]; then
+                keep "the head branch's push history has a full page with no next link"
+              fi
+            done
+            jq -cs 'add' "$RUNNER_TEMP/cost-hold-pages.json" >"$RUNNER_TEMP/cost-hold-activity.json" ||
               keep "the head branch's push history is unreadable"
             printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
@@ -4863,8 +4885,11 @@ jobs:
               # so a reused name fills any one page: read page by page along the
               # Link header's rel="next" cursor, keeping only App pushes and
               # stopping at the first page with one. Only a short page ends the
-              # history: a full page with no next link, or past 20 pages (2000
-              # entries; the busiest reused name had 564), a person merges it.
+              # history: a full page with no next link, a next link this step
+              # cannot read or that leaves this repository's activity of the
+              # branch (gh would expand a {placeholder} in it), or past 20 pages
+              # (2000 entries; the busiest reused name had 564), a person merges it.
+              next_re='^repositories/([0-9]+)/activity\?[A-Za-z0-9%&=._~-]+$'
               pushes='[]' next="repos/$GITHUB_REPOSITORY/activity?ref=$ref&direction=desc&per_page=100" pages=0
               while [ -n "$next" ]; do
                 if [ "$pages" -ge 20 ]; then
@@ -4873,8 +4898,8 @@ jobs:
                 fi
                 page=$(read_api "the push history of $HEAD_REF" "$next" -i) || exit 1
                 pages=$((pages + 1))
-                next=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page" |
-                  sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p')
+                link=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page")
+                next=$(sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p' <<<"$link")
                 pushes=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
                   jq -ren --argjson apps "$apps" 'input | if type == "array" then . else error("not a list") end
                     | "\(length) \([.[] | select(.actor.login // "" | ascii_downcase as $l | any($apps[]; . == $l)) | {actor: {login: .actor.login}, after}] | tojson)"') || {
@@ -4884,8 +4909,14 @@ jobs:
                 size=${pushes%% *} pushes=${pushes#* }
                 if [ "$pushes" != '[]' ]; then
                   next=
+                elif [ -z "$next" ] && [[ ${link,,} =~ rel=\"?next ]]; then
+                  echo "::error::the push history of $HEAD_REF has a next link this step cannot read; a person merges it."
+                  exit 1
                 elif [ -z "$next" ] && [ "$size" -ge 100 ]; then
                   echo "::error::the push history of $HEAD_REF fills page $pages with no next link, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                elif [ -n "$next" ] && { [[ ! $next =~ $next_re ]] || [ "${BASH_REMATCH[1]}" != "$GITHUB_REPOSITORY_ID" ] || [[ "&${next#*\?}&" != *"&ref=$ref&"* ]]; }; then
+                  echo "::error::the push history of $HEAD_REF has a next link outside this repository's activity of the branch; a person merges it."
                   exit 1
                 fi
               done
