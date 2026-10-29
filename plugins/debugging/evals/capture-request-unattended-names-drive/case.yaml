@@ -24,11 +24,11 @@ graders:
     arm: both
   - name: names-cpu-kind
     type: regex
-    pattern: '/app-control:drive\s+capture`?[,:;.]?(?:[ \t]+(?:(?:[Nn]ot|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind(?:=|[ \t]+)[^\s`()]+(?:`[^\s`()]*)?|(?!(?:[Nn]ot|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind)(?!`?--kind)[^\s`()]+)){0,40}?[ \t]+\(?`?--kind(?:=|[ \t]+)cpu\b'
+    pattern: '/app-control:drive\s+capture`?[,:;.]?(?:[ \t]+(?:(?:[Nn]o[t]|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind(?:=|[ \t]+)[^\s`()]+(?:`[^\s`()]*)?|(?!(?:[Nn]o[t]|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind)(?!`?--kind)[^\s`()]+)){0,40}?[ \t]+\(?`?--kind(?:=|[ \t]+)cpu\b'
     arm: both
   - name: no-heap-kind
     type: regex
-    pattern: '/app-control:drive\s+capture`?[,:;.]?(?:[ \t]+(?:(?:[Nn]ot|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind(?:=|[ \t]+)[^\s`()]+(?:`[^\s`()]*)?|(?!(?:[Nn]ot|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind)(?!`?--kind)[^\s`()]+)){0,40}?[ \t]+\(?`?--kind(?:=|[ \t]+)heap\b'
+    pattern: '/app-control:drive\s+capture`?[,:;.]?(?:[ \t]+(?:(?:[Nn]o[t]|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind(?:=|[ \t]+)[^\s`()]+(?:`[^\s`()]*)?|(?!(?:[Nn]o[t]|NOT|[Nn]ever|[Ww]ithout|[Nn]o|[Dd]on''t|[Aa]void)(?:[ \t]+(?:pass|passing|use|using|add|adding|set|setting))?[ \t]+`?--kind)(?!`?--kind)[^\s`()]+)){0,40}?[ \t]+\(?`?--kind(?:=|[ \t]+)heap\b'
     match: not_contains
     arm: both
   - name: drive-not-invoked
