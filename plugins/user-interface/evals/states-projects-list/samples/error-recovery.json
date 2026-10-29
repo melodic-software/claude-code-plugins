@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "async function fetchProjects() {\n  const res = await fetch(\"/api/projects\");\n  if (!res.ok) throw new Error(`Projects request failed: ${res.status}`);\n  return res.json();\n}\n\nconst { data, error, refetch } = useQuery({ queryKey: [\"projects\"], queryFn: fetchProjects });\n\nif (error) {\n  return (\n    <div role=\"alert\">\n      <p>We couldn't load your projects. Check your connection and try again.</p>\n      <button onClick={() => refetch()}>Try again</button>\n    </div>\n  );\n}",
+      "why": "the query function checks res.ok, and the error branch says what happened and offers a retry that refetches"
+    },
+    {
+      "answer": "const { data, error, refetch } = useQuery({ queryKey: [\"projects\"], queryFn: fetchProjects });\n\nif (error) {\n  return (\n    <div role=\"alert\">\n      <p>We couldn't load your projects. Check your connection and try again.</p>\n      <button onClick={() => refetch()}>Try again</button>\n    </div>\n  );\n}",
+      "why": "the query function is named but not shown, so the ok check does not apply; says what happened and offers a retry that refetches"
+    },
+    {
+      "answer": "async function load() {\n  setStatus(\"loading\");\n  const res = await fetch(\"/api/projects\");\n  if (!res.ok) { setStatus(\"error\"); return; }\n  setProjects(await res.json());\n  setStatus(\"done\");\n}\n\nif (status === \"error\") {\n  return (\n    <div>\n      <p>Projects failed to load.</p>\n      <button onClick={load}>Retry</button>\n    </div>\n  );\n}",
+      "why": "checks res.ok and the retry calls the fetch again"
+    },
+    {
+      "answer": "useEffect(() => {\n  fetch(\"/api/projects\")\n    .then((res) => {\n      if (!res.ok) throw new Error(String(res.status));\n      return res.json();\n    })\n    .then(setProjects)\n    .catch(setError);\n}, []);\n\nif (error) {\n  return (\n    <div role=\"alert\">\n      <p>We couldn't load this team's projects.</p>\n      <Link href=\"/dashboard\">Go to your dashboard</Link>\n    </div>\n  );\n}",
+      "why": "checks res.ok, says what happened and links to a route that works"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "useEffect(() => {\n  fetch(\"/api/projects\").then((r) => r.json()).then(setProjects);\n}, []);\n\nif (!projects) return <Spinner />;",
+      "why": "no error branch and no ok check: a failed request spins forever"
+    },
+    {
+      "answer": "if (error) {\n  return (\n    <div>\n      <p>Something went wrong.</p>\n      <button onClick={() => history.back()}>Go back</button>\n    </div>\n  );\n}",
+      "why": "near miss: an error branch with a generic message and only a back button"
+    },
+    {
+      "answer": "if (error) {\n  return <p className=\"error\">We couldn't load your projects. The server returned an error.</p>;\n}",
+      "why": "near miss: says what happened, but offers no recovery action"
+    },
+    {
+      "answer": "const { data, error, refetch } = useQuery({\n  queryKey: [\"projects\"],\n  queryFn: () => fetch(\"/api/projects\").then((r) => r.json()),\n});\n\nif (error) {\n  return (\n    <div role=\"alert\">\n      <p>We couldn't load your projects.</p>\n      <button onClick={() => refetch()}>Try again</button>\n    </div>\n  );\n}",
+      "why": "near miss: a retry that refetches, but the query function never checks res.ok, so a non-ok response reaches the list as data"
+    }
+  ]
+}

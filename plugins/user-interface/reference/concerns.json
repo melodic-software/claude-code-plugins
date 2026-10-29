@@ -436,6 +436,40 @@
         "order": 3,
         "procedure": null
       }
+    },
+    {
+      "id": "states",
+      "title": "Interface states",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "empty state",
+        "loading state",
+        "skeleton loader",
+        "spinner",
+        "error state",
+        "retry button",
+        "404 page",
+        "first-run screen",
+        "optimistic update",
+        "copy to clipboard",
+        "toast display time",
+        "badge or tag"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/states.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 10,
+        "procedure": null
+      }
     }
   ]
 }
