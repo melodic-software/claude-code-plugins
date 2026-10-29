@@ -38,8 +38,10 @@ name: pr-review-main
 # leg writes the same verdict, so the record job and the gate never see
 # which leg ran; the lane record names the credential and why it ran. A
 # lane no leg leaves a verdict for (a kill switch, a failure, the last leg
-# stopping) stays unbound, as it was before this workflow, and the next push
-# reviews again.
+# stopping) stays unbound, as it was before this workflow. A run that failed
+# before any lane's verdict write started is re-run once, recorded, by the
+# lost-run reconciler (maintenance-reconcile-lost-runs.yml); otherwise the
+# next push reviews again.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
