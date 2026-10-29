@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- On an unanswered question, the interview page shows "Details: what we know, alternatives" open,
+  whatever `moreOpen` value the browser stored. The facts and alternatives a decision rests on are
+  in view on first load. If you close Details on a question, it stays closed there until the page
+  reloads. An answered question still follows the stored `moreOpen` value.
+
 ## [0.126.1] - 2026-10-29
 
 ### Changed
