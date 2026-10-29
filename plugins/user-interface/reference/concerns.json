@@ -506,6 +506,40 @@
         "order": 13,
         "procedure": null
       }
+    },
+    {
+      "id": "generic-defaults",
+      "title": "Generic defaults",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "looks AI-generated",
+        "looks generic",
+        "vibe-coded",
+        "template look",
+        "cookie-cutter",
+        "purple gradient",
+        "gradient text",
+        "glassmorphism",
+        "emoji icons",
+        "fake testimonials",
+        "placeholder content",
+        "lorem ipsum"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/generic-defaults.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 15,
+        "procedure": null
+      }
     }
   ]
 }
