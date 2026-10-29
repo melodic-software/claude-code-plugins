@@ -104,15 +104,22 @@ export function planLanes(paths, root = ROOT) {
 }
 
 // The check-run names a plan's lanes post: test-bash, test-python and
-// test-node in pr-require-checks.yml (a matrix lane once per leg, as
-// `<lane> (<leg>)`), and each pr-test-windows.yml job it names.
+// test-node in pr-require-checks.yml (a matrix lane once per leg its
+// bash_legs or python_legs lists, as `<lane> (<leg>)`), and each
+// pr-test-windows.yml job it names. An unreadable leg list throws.
+const legs = (value) => {
+  const list = JSON.parse(value || "[0]");
+  if (!Array.isArray(list) || list.length === 0 || !list.every((leg) => Number.isSafeInteger(leg) && leg >= 0)) {
+    throw new Error("a lane's legs are not a list of leg numbers");
+  }
+  return list;
+};
 export function coveringLanes(plan) {
-  const lanes = ["bash", "python", "node"].filter((lane) => plan[lane] === "true").map((lane) => `test-${lane}`);
+  const matrix = ["bash", "python"].filter((lane) => plan[lane] === "true").flatMap((lane) => legs(plan[`${lane}_legs`]).map((leg) => `test-${lane} (${leg})`));
+  const node = plan.node === "true" ? ["test-node"] : [];
   const windows = JSON.parse(plan.windows_jobs || "[]");
-  return [...lanes, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
+  return [...matrix, ...node, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
 }
-
-const covers = (lane, name) => name === lane || (name.startsWith(`${lane} (`) && /^\(\d+\)$/.test(name.slice(lane.length + 1)));
 
 // The head's CI for the tests the PR selects, which the reply job settles a
 // tests-only finding from (adjudicate-feedback.mjs settleDisputes): the
@@ -126,7 +133,7 @@ export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
     const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort()));
     const listed = await api.listCommitCheckRuns(headSha);
     const latest = [...latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()];
-    const runs = latest.filter((run) => lanes.some((lane) => covers(lane, String(run.name)))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const runs = latest.filter((run) => lanes.includes(String(run.name))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     const cite = runs.map((run) => ({ name: run.name, url: run.html_url }));
     if (runs.some((run) => run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))) {
       return { state: "red", runs: cite };
@@ -134,7 +141,7 @@ export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
     const passed =
       lanes.length > 0 &&
       listed.complete !== false &&
-      lanes.every((lane) => runs.some((run) => covers(lane, run.name))) &&
+      lanes.every((lane) => runs.some((run) => run.name === lane)) &&
       runs.every((run) => run.status === "completed" && run.conclusion === "success");
     return { state: passed ? "green" : "unsettled", runs: cite };
   } catch {

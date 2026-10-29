@@ -1677,20 +1677,30 @@ test("on a lanes App PR the same round still resolves both threads", async () =>
 // snapshot of the gated head, and the reply job settles from it alone.
 const CI_RUNS = [{ name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/3" }];
 const ciRun = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, threads, ci });
+// A round that pushed nothing: the select job read the head the reply job sees.
+const ciRunAtNow = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, head_sha: NOW, threads, ci });
+const testsVerdict = () => verdictsAt(NOW, judged("PRRT_a", "tests-only"));
 
 test("an UNCERTAIN tests-only finding on a green head is resolved citing the runs, with no feedback-uncertain", async () => {
   const api = fakeApi();
-  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun({ state: "green", runs: CI_RUNS }), verdicts(judged("PRRT_a", "tests-only")));
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "green", runs: CI_RUNS }), testsVerdict());
   assert.equal(result.escalationReason, "");
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
   assert.match(api.posted()[1][3], /\[test-node\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/3\)/);
   // Red leaves it open with no person; no snapshot leaves it as today.
   const red = fakeApi();
-  assert.equal((await run(red, lines(reply({ disposition: "UNCERTAIN" })), ciRun({ state: "red", runs: CI_RUNS }), verdicts(judged("PRRT_a", "tests-only")))).escalationReason, "");
+  assert.equal((await run(red, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "red", runs: CI_RUNS }), testsVerdict())).escalationReason, "");
   assert.deepEqual(red.resolved(), []);
   assert.equal(red.posted().length, 1);
   const none = fakeApi();
-  assert.equal((await run(none, lines(reply({ disposition: "UNCERTAIN" })), undefined, verdicts(judged("PRRT_a", "tests-only")))).escalationReason, "feedback-unadjudicated");
+  assert.equal((await run(none, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow(undefined), testsVerdict())).escalationReason, "feedback-unadjudicated");
+});
+
+test("a tests-only finding stays open when the round pushed a fix past the head whose checks were read", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun({ state: "green", runs: CI_RUNS }), verdicts(judged("PRRT_a", "tests-only")));
+  assert.equal(result.escalationReason, "feedback-unadjudicated");
+  assert.deepEqual(api.resolved(), []);
 });
 
 test("a run.json whose ci snapshot is malformed posts nothing", async () => {

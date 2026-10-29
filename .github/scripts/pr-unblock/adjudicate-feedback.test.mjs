@@ -967,7 +967,7 @@ const RUNS = [
   { name: "test-bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
   { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/12" },
 ];
-const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only" } = {}) => {
+const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only", pushed = false } = {}) => {
   const posts = [];
   let resolved = false;
   const result = await settleDisputes({
@@ -986,7 +986,7 @@ const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", r
     now: new Map([["PRRT_a", thread("PRRT_a")]]),
     verdicts: new Map([["PRRT_a", { verdict, question: "none" }]]),
     ci,
-    pushed: false,
+    pushed,
     headMoved: async () => false,
     resolveAfterReply: async () => {
       resolved = true;
@@ -1031,6 +1031,15 @@ test("settleDisputes settles a tests-only verdict only on an UNCERTAIN reply", a
   for (const disposition of ["INCORRECT", "VALID-defer"]) {
     const { result, posts, resolved } = await settleTests({ disposition });
     assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+    assert.deepEqual(posts, []);
+    assert.equal(resolved, false);
+  }
+});
+
+test("settleDisputes leaves a tests-only finding open when this round pushed a fix, whose head the green read did not cover", async () => {
+  for (const ci of [{ state: "green", runs: RUNS }, { state: "red", runs: RUNS }]) {
+    const { result, posts, resolved } = await settleTests({ ci, pushed: true });
+    assert.equal(result.escalationReason, "feedback-unadjudicated", ci.state);
     assert.deepEqual(posts, []);
     assert.equal(resolved, false);
   }

@@ -591,7 +591,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   ruleset's thread resolution still holds the merge), and
 //   feedback-unadjudicated;
 // - tests-only, on an UNCERTAIN reply, from `ci` (run.json's, read at the
-//   select job's head): green, the fixed testsReply, then the thread is
+//   select job's head), only when this round pushed nothing (`pushed`
+//   false; else feedback-unadjudicated): green, the fixed testsReply, then the thread is
 //   resolved; red, no reply and no escalation, since fix-ci-dispatch.mjs
 //   already starts fix-ci for a head whose lanes failed; anything else (a
 //   covering check pending, missing or skipped, or no record) leaves the
@@ -737,6 +738,11 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       const runs = Array.isArray(ci?.runs) ? ci.runs : [];
       if (disposition !== "UNCERTAIN") {
         log(`${thread}: a tests-only verdict settles only an UNCERTAIN reply, not ${disposition}; left open`);
+        raise("feedback-unadjudicated");
+      } else if (pushed) {
+        // ci is the select job's read of the head before this round's fix
+        // commit, so it proves nothing about the head the thread now sits on.
+        log(`${thread}: tests-only, but this round pushed past ${adjudicatedSha}, whose checks were read; left open`);
         raise("feedback-unadjudicated");
       } else if (ci?.state === "red") {
         log(`${thread}: tests-only, and a covering check failed at ${adjudicatedSha}; left open for fix-ci`);
