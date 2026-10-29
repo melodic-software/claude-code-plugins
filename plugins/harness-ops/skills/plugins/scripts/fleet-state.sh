@@ -106,7 +106,7 @@
 #   its projectPath is a linked git worktree (the git dir differs from the git
 #   common dir: `.git` is a file whose gitdir line points into a `worktrees/`
 #   directory that holds a `commondir` file). null means not applicable, or the path is not present so nothing
-#   could be read. `label` is "update ineffective; uninstall clears it" on a
+#   could be read. `label` is "update ineffective, uninstall clears it" on a
 #   linked-worktree record whose version is below the catalog's (else below the
 #   highest any record of the id holds), and null otherwise. In a linked worktree
 #   `claude plugin update -s project` reports success and leaves the record
@@ -1175,7 +1175,7 @@ PASS3_PROGRAM='
       | $r + {label: (
           if $r.linkedWorktree == true and ($r.version | triple) != null
              and $ref != null and ($r.version | triple) < $ref
-          then "update ineffective; uninstall clears it" else null end)}
+          then "update ineffective, uninstall clears it" else null end)}
     )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
   | ($catalog_names | map(. + "@" + $name)) as $catalog_ids

@@ -181,7 +181,7 @@ Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
 **A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
 trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
-lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+lagging one `update ineffective, uninstall clears it`; the row stays a divergence, and any update the
 run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
 clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
 **Record**: pointer, the update-strategy results of the 2026-10-12 converge run in

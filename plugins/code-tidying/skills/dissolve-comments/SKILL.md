@@ -13,7 +13,7 @@ metadata:
 ## Repository context. Gather first
 
 Collect the current branch, `git branch --show-current`, in its own Bash call, not a pre-compute
-line ([gather-block record](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+line ([gather-block record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation"). Treat a failure (not a repository, git
 unavailable) as an unknown value and carry on.
 

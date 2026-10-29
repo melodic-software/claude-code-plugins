@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: observed-fact-evidence-bar-behavior-present
+description: Behavior-present variant of observed-fact-evidence-bar whose prompt also states the observed-fact evidence bar heuristic. Run it with --ablation none (one arm); the pair discriminates when this case passes each-candidate-grounded and the original fails it
+tags: [brainstorm, evidence, behavior-present]
+expected_outcome: Multiple ordered candidates, each naming a file or mechanism in the repository and the observed fact that justifies it, ending with an invitation to react rather than a unilateral pick.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers. Yes, slow nightly ETL is the problem. Why: the morning reports arrive late. Those are my own first ideas. Go ahead with candidates. Each candidate must cite an observed, falsifiable fact about this repository: a file path plus a claim about it that reading the code could prove wrong."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: names-repo-files
+    type: regex
+    pattern: '(?=[\s\S]*load\.py)(?=[\s\S]*(?:transform|extract|run_nightly|config)\.py)'
+    arm: both
+  - name: cites-observed-fact
+    type: regex
+    pattern: '^(?:(?=[\s\S]*(?:BATCH_SIZE|executemany|row[- ]by[- ]row|per[- ]row|one INSERT|commit(?:s|ting)? (?:after|per|on) (?:each|every)))(?=[\s\S]*(?:TRUNCATE|SELECT \*|full (?:reload|refresh|table|load)|reloads? (?:the )?(?:whole|entire|full)|linear scan|O\(n|scans? (?:the )?(?:whole|entire|full) customers|WORKERS\s*=|\bserial(?:ly)?\b|\bsequential(?:ly)?\b|single worker|one worker))|(?=[\s\S]*(?:TRUNCATE|SELECT \*|full (?:reload|refresh|table|load)|reloads? (?:the )?(?:whole|entire|full)))(?=[\s\S]*(?:linear scan|O\(n|scans? (?:the )?(?:whole|entire|full) customers|WORKERS\s*=|\bserial(?:ly)?\b|\bsequential(?:ly)?\b|single worker|one worker))|(?=[\s\S]*(?:linear scan|O\(n|scans? (?:the )?(?:whole|entire|full) customers))(?=[\s\S]*(?:WORKERS\s*=|\bserial(?:ly)?\b|\bsequential(?:ly)?\b|single worker|one worker)))'
+    flags: i
+    arm: both
+  - name: multiple-candidates
+    type: regex
+    pattern: '(?=[\s\S]*(?:^|\n)\s*(?:(?:#+\s*|\*\*)?1[.)]|\|\s*(?:\*\*)?1(?:\*\*)?\s*\|))(?=[\s\S]*\n\s*(?:(?:#+\s*|\*\*)?2[.)]|\|\s*(?:\*\*)?2(?:\*\*)?\s*\|))(?=[\s\S]*\n\s*(?:(?:#+\s*|\*\*)?3[.)]|\|\s*(?:\*\*)?3(?:\*\*)?\s*\|))'
+    arm: both
+  - name: invites-reaction
+    type: regex
+    pattern: '(?:\b(?:which|what)\b[^.?\n]{0,80}(?:resonat|appeal|stand out|interest)[^.\n]{0,80}\?|\b(?:do|does|did) any\b[^.?\n]{0,60}(?:resonat|appeal|stand out|interest)[^.\n]{0,60}\?|\b(?:mark|tick|tell me|let me know)\b[^.\n]{0,80}(?:\bwhich\b|\bwhat\b|resonat)|\breact\b[^.\n]{0,60}\b(?:numbers?|which|candidates?|options?)\b)[\s\S]{0,500}$'
+    flags: i
+    arm: both
+  - name: no-unilateral-pick
+    type: regex
+    pattern: '\bI(?: have|[''’]ve)? (?:chose|chosen|picked|selected)\b|\bI(?: will|[''’]ll|[''’]m| am)(?: going to)? (?:go(?:ing)? with|proceed(?:ing)? with|start(?:ing)? implementing)\b'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: each-candidate-grounded
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer lists several candidate approaches ordered from cheapest to most ambitious AND every candidate names a concrete file, module, or mechanism in the repository it would touch AND ties that candidate to an observed fact about the repository that reading the code could confirm or refute (for example a constant, a loop, or a query a file actually contains), not only a plausible improvement story. FAIL if any candidate is justified only by general ETL folklore, if candidates carry no repository evidence, or if the answer picks one option for the user instead of asking what resonates."

@@ -49,6 +49,13 @@ def decode(video, w, h):
     return np.frombuffer(raw, np.uint8).reshape(-1, h, w).astype(np.float32)
 
 
+def grab_rgb(video, fi, fps, w, h):
+    """Frame fi of video as rgb24 bytes, for a contact-sheet tile."""
+    raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', seek_time(fi, fps), '-i', str(video), '-frames:v', '1',
+                          '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True, check=True).stdout
+    return check_frame(raw, fi, fps, w, h)
+
+
 def ncc_valid(img, T):
     """Normalized cross-correlation of template T over every position where it fits inside img."""
     th, tw = T.shape
@@ -420,9 +427,7 @@ def main(argv=None):
     # ---- report and contact sheets ----------------------------------------------------------------
     @lru_cache(maxsize=64)
     def rgb(fi):
-        raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', seek_time(fi, fps), '-i', str(a.video), '-frames:v', '1',
-                              '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True, check=True).stdout
-        return Image.frombytes('RGB', (W, H), check_frame(raw, fi, fps, W, H))
+        return Image.frombytes('RGB', (W, H), grab_rgb(a.video, fi, fps, W, H))
     peaks = sorted(runtime, key=lambda i: -zf[pos[i]])[:3]
     items = [(i, f'cut {i / fps:.2f}s') for i in cuts[:6]] + [(i, f'zoom {zf[pos[i]]:.2f}x {i / fps:.2f}s') for i in peaks]
     if worst:

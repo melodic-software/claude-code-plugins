@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Contract: each eval scaffold seeds every fixture file under its real name,
 # so the eval cases that read them have a workspace: the nightly-etl
-# repository for the brainstorm cases, and the partner-feed tracker export for
-# the wayfind work-mode cases.
-# test-scope: plugins/planning/evals/observed-fact-evidence-bar/scaffold.sh plugins/planning/evals/work-*/scaffold.sh
+# repository for the brainstorm cases, the webhook-sender repository for the
+# plan cases, and the partner-feed tracker export for the wayfind work-mode cases.
+# test-scope: plugins/planning/evals/observed-fact-evidence-bar*/scaffold.sh plugins/planning/evals/unilateral-decision-not-folded*/scaffold.sh plugins/planning/evals/work-*/scaffold.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,13 +30,19 @@ check_scaffold() {
   done
 }
 
-check_scaffold observed-fact-evidence-bar \
-  etl/config.py.txt \
-  etl/extract.py.txt \
-  etl/load.py.txt \
-  etl/run_nightly.py.txt \
-  etl/transform.py.txt \
-  ops/crontab.txt
+for case in observed-fact-evidence-bar observed-fact-evidence-bar-behavior-present; do
+  check_scaffold "$case" \
+    etl/config.py.txt \
+    etl/extract.py.txt \
+    etl/load.py.txt \
+    etl/run_nightly.py.txt \
+    etl/transform.py.txt \
+    ops/crontab.txt
+done
+
+for case in unilateral-decision-not-folded unilateral-decision-not-folded-behavior-present; do
+  check_scaffold "$case" webhooks/dispatch.py.txt webhooks/log.py.txt webhooks/sender.py.txt
+done
 
 for case in work-brief-respects-out-of-scope work-design-handoff-carries-map work-research-brief-carries-map; do
   check_scaffold "$case" tracker-export/items.md.txt tracker-export/map-300.md.txt

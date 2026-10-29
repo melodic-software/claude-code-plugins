@@ -32,12 +32,18 @@ three boundaries hold:
   section names the condition and stops. If the records came from a tool that owns those directories'
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
   another plugin's configuration to find out. When `stale_project_records.project`, the count of
-  project-scope records among them, is above 0, the section's last rows name one such tool,
-  `/source-control:worktree audit (if installed)`, and say in the report what that audit handles:
-  project-scope records whose path was a worktree under the source-control worktree root, not
-  local-scope records or other paths. With only local-scope records the rows are omitted, because
-  that audit reads project-scope records alone. The rows are a pointer only: this skill does not
-  check whether that plugin is installed, which paths are worktrees, or what the audit would decide.
+  project-scope records among them, is above 0, the section counts them on a line of their own and
+  names one such tool in a `remedy:` line under it, `/source-control:worktree audit (if installed)`,
+  saying what that audit handles: project-scope records whose path was a worktree under the
+  source-control worktree root. It does not handle local-scope records or other paths, so the
+  local-scope count gets its own line saying nothing reaps them yet. With only local-scope records
+  the remedy is omitted, because that audit reads project-scope records alone. The remedy is a
+  pointer only: this skill does not check whether that plugin is installed, which paths are
+  worktrees, or what the audit would decide.
+
+The render states none of these boundaries itself. It prints the counts, the paths and the remedy.
+This file holds why the records are not divergences and why an absent path is not proof the
+directory is gone, so a run that finds stale records every time does not repeat the explanation.
 
 A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
 carries an `enabledPlugins` block mirroring what the user already has at user scope writes one
@@ -53,7 +59,7 @@ record or per path, because a hundred records naming a dozen directories is a re
 directories, and thousands of scratch directories under one temp root are a report about that root.
 `K` is `stale_project_records.total` and `P` is `stale_project_records.paths`, the distinct paths.
 Each `by_parent` entry is the `{parent, count, paths}` one row renders, largest record count first,
-capped at `sync-run.sh`'s `STALE_PARENT_ROWS`; `more_parents` counts the parents past that cap and renders as a `+N more` line.
+capped at `sync-run.sh`'s `STALE_PARENT_ROWS`; `more_parents` counts the parents past that cap and renders as a `+N more parent director(ies)` line.
 The full `{path, count}` list is written to `stale-project-records.<marketplace>.json` in the run
 directory, `list_file` names it, and the render prints that path, so the digest line and the report
 stay the same size however many paths there are. Read that file to answer a question about a single
@@ -61,15 +67,15 @@ path. Audit keeps no list, because its scratch directory is removed on exit, and
 The section is omitted when `K` is 0.
 
 A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
-only where the write is not team-shared state. The render lists each one under `Action needed` as
-its runnable command, `(cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)`,
-with the note that it writes that repo's committed `.claude/settings.json`, so acting on it is a
+only where the write is not team-shared state. The render lists each one under `Action needed`
+with its runnable command as a `remedy:` line, `(cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)`,
+and a line noting that it writes that repo's committed `.claude/settings.json`, so acting on it is a
 copy, not a reconstruction. Only ids that Step 5 did not enable at `user`/`local` scope in this run
 appear there. For the rest the command would fail rather than run, and Step 5 explains why.
 
-When a project root resolved, the render leads the `Divergences:` line with *this* project's
-actionable count and gives the machine-wide total, which includes it, in one trailing clause, e.g.
-`2 behind here → converge; on this whole machine 29 actionable: …`. Per-row detail (naming exact `<old> → <new>`
+When a project root resolved, the render gives *this* project's actionable count on its own line
+under the machine-wide total, which includes it: `2 here` under the `actionable` line of
+`Divergences: 29 in all`. Per-row detail (naming exact `<old> -> <new>`
 versions per repo) is reserved for genuine conflicts: a delisted or delisted_settings_only plugin id, or a CLI call
 that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
 scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
@@ -126,8 +132,9 @@ gave a record whose commit the clone did not hold.
 
 `not_checked` is its own number. It is not a match, and it is not `unverifiable`, which counts the
 other verdicts where the audit looked and could not decide, such as no clone, no source at the
-recorded commit, or a broken hash batch. Neither is folded into either side. The render puts both beside the
-match count rather than leading with the match count alone: when nothing is stale, a row such as
-`Cache content: 2 of 86 user-scope install(s) compared, no disagreement found; 84 not checked
-(recorded at an older commit)`, and when something is, a sub-line under the finding giving the same
-tally.
+recorded commit, or a broken hash batch. Neither is folded into either side. The render gives each
+its own line beside the match count rather than leading with the match count alone: when nothing is
+stale, `Cache content: 2 of 86 user-scope install(s) compared, no disagreement found` with `84 not
+checked (recorded at an older commit)` under it, and when something is, a `<checked> user-scope
+install(s) checked` line under the finding with the match, unverifiable and not-checked counts each
+on a line under that.
