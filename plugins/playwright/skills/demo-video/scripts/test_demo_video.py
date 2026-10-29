@@ -585,6 +585,41 @@ class FrameSeek(unittest.TestCase):
         self.assertIs(check_frame(raw, 338, 30, 320, 180), raw)
 
 
+@unittest.skipUnless(HAVE_DEPS, 'needs numpy, Pillow, ffmpeg and ffprobe')
+class FrameSeekVideo(unittest.TestCase):
+    """quality_control.py's frame grab on a real 339-frame, 30 fps H.264 video, whose last frame, 338, is one the
+    old fi / fps seek missed: each grabbed frame is byte-identical to the frame ffmpeg selects by index."""
+    N, FW, FH = 339, 320, 180
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix='frame-seek-'))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        cls.video = cls.tmp / 'testsrc.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'testsrc=size={cls.FW}x{cls.FH}:rate=30',
+                        '-frames:v', str(cls.N), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(cls.video)], check=True)
+
+    def selected(self, fi):
+        return subprocess.run(['ffmpeg', '-v', 'error', '-i', str(self.video), '-vf', f'select=eq(n\\,{fi})', '-frames:v', '1',
+                               '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True, check=True).stdout
+
+    def test_the_fixture_has_339_frames(self):
+        r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries',
+                            'stream=nb_read_frames', '-of', 'csv=p=0', str(self.video)], capture_output=True, text=True, check=True)
+        self.assertEqual(r.stdout.strip(), str(self.N))
+
+    def test_grab_returns_the_exact_frame(self):
+        from quality_control import grab_rgb
+        for fi in (0, 170, self.N - 1):   # 170 and 338 are 2 (mod 3): the old seek returned frame fi + 1, or nothing
+            with self.subTest(frame=fi):
+                want = self.selected(fi)
+                self.assertEqual(len(want), self.FW * self.FH * 3)
+                if fi + 1 < self.N:
+                    self.assertNotEqual(hashlib.sha256(self.selected(fi + 1)).hexdigest(), hashlib.sha256(want).hexdigest())
+                got = grab_rgb(self.video, fi, 30, self.FW, self.FH)
+                self.assertEqual(hashlib.sha256(got).hexdigest(), hashlib.sha256(want).hexdigest())
+
+
 class RippleGeometry(unittest.TestCase):
     """The click ring produce.py draws; standard library only, so it runs on CI. Today's ring, unscaled, has
     stroke 3z and gap (3 + 9 grow)z."""
