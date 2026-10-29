@@ -360,6 +360,14 @@ test("settleDisputes holds a disputed IMPORTANT, CRITICAL or unrated security-re
   }
 });
 
+test("a thread a person wrote keeps its routing, whatever severity line it carries", async () => {
+  const person = thread("PRRT_a", [{ id: 1, author: "trusted-human", body: SUGGESTION }]);
+  assert.equal(adjudicable(person.comments), false);
+  assert.deepEqual(disputes(fileOf(person), incorrect("PRRT_a")).slots, []);
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", person]]), "INCORRECT"), { escalationReason: "feedback-disputed", skipReason: "" });
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", person]]), "UNCERTAIN"), { escalationReason: "feedback-uncertain", skipReason: "" });
+});
+
 test("settleDisputes hands a directed SUGGESTION security-review thread back to its person", async () => {
   const directed = ratedThread("PRRT_a", SUGGESTION);
   directed.comments.push({ id: 2, author: "trusted-human", direction: true, body: "PR-fix lane: please fix this finding" });
