@@ -24,8 +24,7 @@ inputs:
       Diffs read blobs too (rename detection reads the old side), so this
       relies on an anonymous fetch, which a public repository allows. Empty
       (the default) fetches every blob. Opt in only from a job whose
-      historical blob reads are few and fail closed (check-catalog's
-      retirements read, and two test-bash suites read four old commits):
+      historical blob reads are few and fail closed:
       gitleaks in lint-repo reads every blob in its range, and the bump
       checks in check-plugins and check-skills read base blobs and treat a
       failed read as empty, so those keep the full fetch.
