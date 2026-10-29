@@ -455,9 +455,11 @@ direct observation.
 *As of* 2026-09-15 on **Claude Code 2.1.272** (win32) for the observation, 2026-10-18 on docs
 for 2.1.300; the revert itself ran on 2.1.263–2.1.272 with no observed change in the behavior.
 ***Recheck trigger:*** a bulk or glob-accepting form appearing on `claude plugin uninstall --help`;
-any release note or `plugins-reference` change touching what a non-interactive `plugin` subcommand
-loads at startup, or documenting `--bare` for it; the headless page changing what `--bare` skips;
-or an observed uninstall that does not spawn a plugin-loading session.
+any release note, or change to the [plugin loading reference](https://code.claude.com/docs/en/plugins/loading)
+or the [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference), touching
+what a non-interactive `plugin` subcommand loads at startup, or documenting `--bare` for it; the
+headless page changing what `--bare` skips; or an observed uninstall that does not spawn a
+plugin-loading session.
 
 ## A disabled-by-default install writes `false`, and only an install record can be uninstalled
 
