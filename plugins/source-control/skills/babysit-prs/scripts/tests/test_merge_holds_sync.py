@@ -18,10 +18,13 @@ workflow change after auto-merge is armed.
   matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
-  floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
-  the Python that decides the holds, `babysit_merge*` as `gate`. The review
+  floor, every pr-merge script as `gate` or, for the scripts that apply the
+  holds, `trust`, and of babysit-prs/scripts/ exactly the Python that decides
+  the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
-  match every floor entry, whatever its class.
+  match every floor entry, whatever its class. The gate's trusted-author
+  lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
+  `pathHold`, which judges only lanes App pull requests, holds all of it.
 - The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
@@ -279,6 +282,23 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(False, answer["configured"])
         self.assertNotEqual(answer["held"], answer["configured"])
 
+    def test_the_author_lift_is_the_gate_class_and_the_lanes_app_never_gets_it(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the Python gate lets a trusted person's
+        # own gate-path lines clear on a clean security review
+        # (risk.AUTHOR_REVIEW_FLOOR). The native holds judge only the lanes
+        # App's pull requests (ci-status skips every other author), so they
+        # keep holding every one of those globs for a person.
+        gate = [g for g, kind in risk.FLOOR_CLASSES if kind == "gate"]
+        self.assertEqual(list(risk.AUTHOR_REVIEW_FLOOR), gate)
+        samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
+        self.assertEqual(module(samples)["held"], [True] * len(samples))
+        step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
+
     def test_the_person_floor_is_the_same_list(self) -> None:
         # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk.HIGH_FLOOR, entry
         # for entry and in order: the trust and gate globs a person clears.
@@ -326,9 +346,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
 
-    def test_every_pr_merge_script_is_gate_code(self) -> None:
+    def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
         # Owner decision Q26 option B: the merge gate's own code stays a
-        # person's, every script pr-merge.yml runs from that directory.
+        # person's, every script pr-merge.yml runs from that directory
+        # (`gate`, or `trust` for merge-holds.mjs, which applies the holds).
         folder = ROOT / ".github/scripts/pr-merge"
         scripts = sorted(
             f".github/scripts/pr-merge/{f.name}"
@@ -339,10 +360,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             and ".fixture." not in f.name
         )
         self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
-        gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
+        held = {g for g, kind in risk.FLOOR_CLASSES if kind in risk.PERSON_CLASSES}
         for path in scripts:
             with self.subTest(path):
-                self.assertIn(path, gate)
+                self.assertIn(path, held)
 
     def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
         files = python_closure(import_closure(FLOOR_ENTRIES))

@@ -6,7 +6,8 @@
 #   <status> <limit> <remaining> <used> <reset epoch> <resource>
 # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
 # lines. A request the gh wrapper counts with no header block to read (each
-# page of --paginate, a call that is not `gh api`) is a line `request`. Never
+# page of --paginate, a call that is not `gh api`) is a line `request`, or
+# `request graphql` for a GraphQL request. Never
 # fails the caller, except that a stop the rate guard below cannot record ends
 # the step.
 #
@@ -75,9 +76,11 @@
 #                               writes: count and most in any 60 s
 #   api_budget_emit_calls <token>...
 #                               the hub's api-calls notice for each token,
-#                               `<token>=N not-modified=M`: N is the job's own
-#                               requests, M its 304 answers, which GitHub does
-#                               not count; 0 for a token with no reading
+#                               `<token>=N not-modified=M graphql=K`: N is the
+#                               job's own requests, M its 304 answers, which
+#                               GitHub does not count, and K the GraphQL ones
+#                               among N, which spend their own pool; 0 for a
+#                               token with no reading
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -209,7 +212,7 @@ api_budget_traced() {
     /^\* Request at / { open++; next }
     /^\* Request took / { if (open) open--; next }
     /^\* Request to / {
-      if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" >>state
+      if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" ($4 ~ /\/graphql([?]|$)/ ? " graphql" : "") >>state
       next
     }
     /^\* (Using proxy|Skipping TLS verification): / || (open && /^\* /) || /^\[git[] ]/ { next }
@@ -426,7 +429,7 @@ api_budget_emit_calls() {
     file=${RUNNER_TEMP:-}/api-budget/$token
     [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
     [[ -s $file ]] || file=/dev/null
-    awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d\n", token, n, m }' token="$token" "$file"
+    awk '$1 != 304 { n++ } $1 == 304 { m++ } $6 == "graphql" || $2 == "graphql" { g++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d graphql=%d\n", token, n, m, g }' token="$token" "$file"
   done
   return 0
 }
