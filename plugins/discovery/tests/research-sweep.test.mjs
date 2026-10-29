@@ -614,6 +614,20 @@ test('a re-ask that returns conforming values replaces the first synthesis', asy
   assert.deepEqual(result.findings.find(f => f.id === 'c1').qualifiers, ['q'])
 })
 
+test('a re-ask never replaces a first-round applies_to in the grammar with one outside it', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'synthesize') return { summary: 's', dissent: [], findings: [finding('c1', 'commerce agents'), finding('c2', 'x 1+', [cited('https://docs.example/1', 'x 2.1')])] }
+    if (o.label === 'synthesize:r2') return { summary: 's2', dissent: [], findings: [finding('c1', 'version-independent'), finding('c2', 'Claude Code (current docs)', [cited('https://docs.example/1', 'commerce agents')])] }
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.equal(result.findings.find(f => f.id === 'c1').applies_to, 'version-independent')
+  const c2 = result.findings.find(f => f.id === 'c2')
+  assert.equal(c2.applies_to, 'x 1+')
+  assert.deepEqual(c2.sources.map(s => s.applies_to), ['x 2.1'])
+  assert.deepEqual(c2.qualifiers, ['q'])
+})
+
 test('a finding the re-ask leaves out keeps its first-round form', async () => {
   const reply = (p, o, d) => {
     if (o.label === 'synthesize') return { summary: 's', dissent: [], findings: [finding('c1', 'commerce agents'), finding('c2', 'x 1+')] }

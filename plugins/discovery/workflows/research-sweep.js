@@ -750,10 +750,24 @@ if (survived.length || refuted.length || unverified.length) {
       'scope text that does not fit it into the finding\'s qualifiers.' + fence('nonconforming', off),
       { ...synthOpts, label },
     ).catch(() => null)
-    // A finding the re-ask leaves out keeps its first-round form.
+    // A finding the re-ask leaves out keeps its first-round form, and a
+    // first-round applies_to in the grammar is kept over a round-two value
+    // outside it, for the finding and for each of its sources by url.
     if (again == null) nulls.push(label)
     else {
-      const redone = Array.isArray(again.findings) ? again.findings.filter(f => f && tallyById.has(f.id)) : []
+      const first = new Map(synthesis.findings.filter(f => f && tallyById.has(f.id)).map(f => [f.id, f]))
+      const conforming = (v, was) => (appliesToOk(v) || !appliesToOk(was) ? v : was)
+      const redone = (Array.isArray(again.findings) ? again.findings.filter(f => f && tallyById.has(f.id)) : []).map(f => {
+        const was = first.get(f.id)
+        if (!was) return f
+        const wasAt = new Map((Array.isArray(was.sources) ? was.sources : [])
+          .filter(s => s && typeof s === 'object' && typeof s.url === 'string').map(s => [s.url, s.applies_to]))
+        const out = { ...f, applies_to: conforming(f.applies_to, was.applies_to) }
+        if (Array.isArray(f.sources)) {
+          out.sources = f.sources.map(s => (s && typeof s === 'object' && wasAt.has(s.url) ? { ...s, applies_to: conforming(s.applies_to, wasAt.get(s.url)) } : s))
+        }
+        return out
+      })
       const ids = new Set(redone.map(f => f.id))
       synthesis = { ...synthesis, ...again, findings: redone.concat(synthesis.findings.filter(f => f && !ids.has(f.id))) }
     }
