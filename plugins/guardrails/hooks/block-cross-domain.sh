@@ -48,7 +48,7 @@
 #      before it is parsed;
 #   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
 #      and redirection targets are tested the same way; on PowerShell the text
-#      as a whole.
+#      as a whole, parsed only for the identity positions below.
 #
 # A text NAMES a root or marker when it holds it with no letter, digit, `.`,
 # `_` or `-` right before or after it: the root /x/work names neither
@@ -59,10 +59,31 @@
 # marker a text names counts. Text is compared in any case, so on Linux a path
 # that differs from a root only in case names it too.
 #
+# IDENTITY POSITIONS. From a cwd in a domain, a command whose prefilter named
+# another domain's marker is denied when a word in an identity position names
+# a marker of a domain other than the cwd's that the cwd's own domain does not
+# also list. The positions:
+#   - every word after `git remote add` or `git remote set-url` (not
+#     `set-url --delete`)
+#   - the value `git config` (old form or `set`, not a read or an unset) or
+#     `git -c` gives user.email,
+#     user.name, author.email, author.name, committer.email, committer.name,
+#     remote.<name>.url or remote.<name>.pushurl
+#   - `git commit --author <v>` and `--author=<v>`
+#   - the value of an assignment to GH_CONFIG_DIR, AZURE_CONFIG_DIR,
+#     GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME or
+#     GIT_COMMITTER_EMAIL: a leading `NAME=value` (after a compound keyword or
+#     `{` too), one after `export` or `env`, and PowerShell's `$env:NAME = value`
+#     in any case
+# PowerShell text goes through the same parse with each `\` read as `/`. The
+# same marker in any other word (a commit message, an `echo`) is allowed. The
+# deny is a PreToolUse permissionDecision document on stdout.
+#
 # Steps 4 and 6 feed the telemetry envelope: `cwd` is domain or neutral, and
 # `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, or map-malformed (whose cwd is always neutral). The
-# envelope names no domain; `subject` is the command word, as in every guard's.
+# named), other-domain, identity-deny (status blocked), or map-malformed (whose
+# cwd is always neutral). The envelope names no domain; `subject` is the
+# command word, as in every guard's.
 #
 # DECLARED GAPS. The guard reads command text: a deterrent, not a sandbox.
 #   - a computed path: a variable, a substitution, or a path spelled in pieces
@@ -73,13 +94,15 @@
 #   - a path relative to the cwd (`../other`), and a symlink into a root
 #   - on macOS, a cwd spelled in another case than its root, which reads as
 #     neutral
+#   - an identity position inside a `bash -c` or `sh -c` operand, a git alias,
+#     or a variable set some other way (`declare -x`, `Set-Item env:`)
 #
 # TEST HOOK. GUARDRAILS_CROSS_DOMAIN_TRACE=1 writes one stderr line per step a
 # call reaches (`block-cross-domain: trace <step>`).
 #
 # Kill switch: block_cross_domain_enabled userConfig option.
 #
-# Never blocks: every exit is 0, an internal error included.
+# Every exit is 0, an internal error included: a deny is the stdout document.
 
 set -uo pipefail
 
@@ -140,6 +163,10 @@ BCD_NEEDLE_DOMAIN=()
 BCD_NEEDLE_ROOT=()
 BCD_NAMED=" "
 BCD_SUBJECT=""
+BCD_FOREIGN_MARKER=0
+BCD_IDENTITY=0
+BCD_OWN_MARKERS=$'\n'
+BCD_DENY=()
 
 # The compiler: the map's raw text in, one line per record out: `marker`
 # records, then this host's `root` records longest first
@@ -206,14 +233,14 @@ bcd::trace() {
   printf 'block-cross-domain: trace %s\n' "$1" >&2
 }
 
-bcd::emit_tel() { # <form>
+bcd::emit_tel() { # <form> [status, default ok]
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local subject data cwd=neutral
   [[ -n "$BCD_CWD_DOMAIN" ]] && cwd=domain
   hook::extract_bash_subject_to subject "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$1" cwd "$cwd"
-  hook::emit_telemetry "block-cross-domain" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  hook::emit_telemetry "block-cross-domain" "PreToolUse" "${2:-ok}" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
 # bcd::malformed <reason>: tell the user once per session, then allow.
@@ -340,7 +367,11 @@ bcd::names() {
     *) continue ;;
     esac
     bcd::named "${BCD_NEEDLE_DOMAIN[i]}"
-    ((BCD_NEEDLE_ROOT[i])) && t=${t//"$n"/ }
+    if ((BCD_NEEDLE_ROOT[i])); then
+      t=${t//"$n"/ }
+    elif [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]]; then
+      BCD_FOREIGN_MARKER=1
+    fi
   done
   return 0
 }
@@ -353,6 +384,176 @@ bcd::segment() {
     bcd::fold_to __bcd_f "$__bcd_w"
     bcd::names "$__bcd_f"
   done
+  ((BCD_IDENTITY)) && bcd::identity "$@"
+  return 0
+}
+
+# bcd::foreign_marker <text>: whether the text names a marker of a domain other
+# than the cwd's that the cwd's own domain does not also list.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::foreign_marker() {
+  local t n i
+  bcd::fold_to t "$1"
+  for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
+    ((BCD_NEEDLE_ROOT[i] == 0)) || continue
+    [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]] || continue
+    n=${BCD_NEEDLE[i]}
+    [[ "$t" == *"$n"* && "$BCD_OWN_MARKERS" != *$'\n'"$n"$'\n'* ]] || continue
+    case "$t" in
+    "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
+# bcd::check <position> <value>: record the position once when the value names
+# a foreign marker.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::check() {
+  local p
+  bcd::foreign_marker "$2" || return 0
+  for p in ${BCD_DENY[@]+"${BCD_DENY[@]}"}; do
+    [[ "$p" == "$1" ]] && return 0
+  done
+  BCD_DENY+=("$1")
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::identity_var() { # <assigned name, or PowerShell's $env:<name> in any case> <value>
+  local u=$1
+  if [[ "$u" == \$* ]]; then
+    u=${u^^}
+    u=${u#\$}
+    u=${u#\{}
+    u=${u%\}}
+    u=${u#ENV:}
+  fi
+  case "$u" in
+  GH_CONFIG_DIR | AZURE_CONFIG_DIR | GIT_AUTHOR_NAME | GIT_AUTHOR_EMAIL | GIT_COMMITTER_NAME | GIT_COMMITTER_EMAIL)
+    bcd::check "$u" "$2"
+    ;;
+  *) ;;
+  esac
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::git_key() { # <position> <config key> <value>
+  local k=${2,,}
+  case "$k" in
+  user.email | user.name | author.email | author.name | committer.email | committer.name | remote.*.url | remote.*.pushurl)
+    bcd::check "$1 $k" "$3"
+    ;;
+  *) ;;
+  esac
+}
+
+# bcd::git_config <index after the subcommand> <words...>: the key and value
+# of `git config [<options>] [set] <key> <value>`.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::git_config() {
+  local j=$1 n w
+  shift
+  local -a g=("$@") pos=()
+  n=${#g[@]}
+  for ((; j < n; j++)); do
+    w=${g[j]}
+    case "$w" in
+    -f | --file | --blob | --type | --default | --comment | --value) ((j++)) ;;
+    --get | --get-all | --get-regexp | --get-urlmatch | --unset | --unset-all | -l | --list | --rename-section | --remove-section)
+      return 0
+      ;;
+    --)
+      pos+=("${g[@]:j+1}")
+      break
+      ;;
+    -*) ;;
+    *) pos+=("$w") ;;
+    esac
+  done
+  [[ "${pos[0]-}" == set ]] && pos=("${pos[@]:1}")
+  ((${#pos[@]} >= 2)) && bcd::git_key "git config" "${pos[0]}" "${pos[1]}"
+  return 0
+}
+
+# bcd::identity <words...>: the identity positions of one segment, into
+# BCD_DENY.
+# shellcheck disable=SC2329  # also invoked by hook::bash_parse_segments
+bcd::identity() {
+  local -a w=("$@") g=()
+  local n=$# i=0 j w1 op
+  while ((i < n)); do
+    w1=${w[i]}
+    case "$w1" in
+    env | */env | export | if | then | elif | else | do | while | until | time | '{' | '!') ;;
+    -*) ((i > 0)) || break ;;
+    \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
+      if [[ "$w1" == *=?* ]]; then
+        bcd::identity_var "${w1%%=*}" "${w1#*=}"
+      elif [[ "$w1" == *= ]]; then
+        bcd::identity_var "${w1%=}" "${w[i + 1]-}"
+      elif [[ "${w[i + 1]-}" == = ]]; then
+        bcd::identity_var "$w1" "${w[i + 2]-}"
+      elif [[ "${w[i + 1]-}" == =* ]]; then
+        bcd::identity_var "$w1" "${w[i + 1]#=}"
+      fi
+      break
+      ;;
+    [A-Za-z_]*=*) bcd::identity_var "${w1%%=*}" "${w1#*=}" ;;
+    *) break ;;
+    esac
+    i=$((i + 1))
+  done
+
+  hook::git_invocation "$@" || return 0
+  for ((j = 0; j < ${#HOOK_GITINV_CONFIG_VALUES[@]}; j++)); do
+    [[ "${HOOK_GITINV_CONFIG_KINDS[j]-}" == inline ]] || continue
+    w1=${HOOK_GITINV_CONFIG_VALUES[j]}
+    [[ "$w1" == *=* ]] && bcd::git_key "git -c" "${w1%%=*}" "${w1#*=}"
+  done
+  g=("${HOOK_GITINV_WORDS[@]}")
+  n=${#g[@]}
+  j=$((HOOK_GITINV_SUB_IDX + 1))
+  case "${HOOK_GITINV_SUB,,}" in
+  remote)
+    while ((j < n)) && [[ "${g[j]}" == -* ]]; do j=$((j + 1)); done
+    op=${g[j]-}
+    [[ "$op" == add || "$op" == set-url ]] || return 0
+    [[ " ${g[*]:j} " == *" --delete "* ]] && return 0
+    for ((j++; j < n; j++)); do
+      bcd::check "git remote $op" "${g[j]}"
+    done
+    ;;
+  config) bcd::git_config "$j" "${g[@]}" ;;
+  commit)
+    for ((; j < n; j++)); do
+      case "${g[j]}" in
+      --author=*) bcd::check "git commit --author" "${g[j]#--author=}" ;;
+      --author)
+        j=$((j + 1))
+        bcd::check "git commit --author" "${g[j]-}"
+        ;;
+      -m | -F | -C | -c | -t | --message | --file | --reuse-message | --reedit-message | --template | --fixup | --squash | --cleanup | --date | --trailer)
+        j=$((j + 1))
+        ;;
+      --) break ;;
+      *) ;;
+      esac
+    done
+    ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# bcd::deny: the PreToolUse deny naming each identity position, then exit 0.
+bcd::deny() {
+  local p list="" reason
+  for p in "${BCD_DENY[@]}"; do list+="${list:+, }$p"; done
+  hook::json_escape_to reason "BLOCKED by guardrails block-cross-domain: this session's directory is in one identity domain, and this command puts another domain's identity marker in an identity position ($list). Run it from a session in that domain's tree, or turn the guard off with the block_cross_domain_enabled option."
+  bcd::emit_tel identity-deny blocked
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  exit 0
 }
 
 bcd::classify_cwd() {
@@ -399,11 +600,26 @@ if [[ "$BCD_NAMED" == " " ]]; then
 fi
 bcd::trace prefilter-hit
 
+# Identity positions are read only from a cwd in a domain, and only when the
+# text names another domain's marker.
+if [[ -n "$BCD_CWD_DOMAIN" ]] && ((BCD_FOREIGN_MARKER)); then
+  BCD_IDENTITY=1
+  for ((BCD_I = 0; BCD_I < ${#BCD_NEEDLE[@]}; BCD_I++)); do
+    if ((BCD_NEEDLE_ROOT[BCD_I] == 0)) && [[ "${BCD_NEEDLE_DOMAIN[BCD_I]}" == "$BCD_CWD_DOMAIN" ]]; then
+      BCD_OWN_MARKERS+="${BCD_NEEDLE[BCD_I]}"$'\n'
+    fi
+  done
+fi
+
 if [[ "$TOOL_NAME" == Bash ]]; then
   bcd::trace parse
   BCD_NAMED=" "
   hook::bash_parse_segments "$COMMAND" bcd::segment
+elif ((BCD_IDENTITY)); then
+  bcd::trace identity-parse
+  hook::bash_parse_segments "${COMMAND//\\//}" bcd::identity
 fi
+((${#BCD_DENY[@]})) && bcd::deny
 
 if [[ "$BCD_NAMED" == " " ]]; then
   BCD_FORM=not-named
