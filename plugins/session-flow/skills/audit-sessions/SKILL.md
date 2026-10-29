@@ -127,14 +127,17 @@ a shape it does not know.
 ```bash
 "$PY" "$S/sweep.py" --data-dir "<D>" --format md \
   --min-count "$MIN_COUNT" --versions "$VERSIONS" \
-  --catalog <each skill name in this session's skill listing, plugin and bundled, quoted> \
+  --catalog <each skill the rules suggest that this session's skill listing holds, quoted> \
   <the user's --scope/--since/--until/--write-report>
 ```
 
-- `--catalog` lists the skills installed in this session, so a finding that suggests one that is
-  missing renders it `(not installed)` instead of dropping it. Pass each name as its own
-  single-quoted argument (`--catalog 'session-flow:retro' 'simplify'`), so the shell never
-  interprets a name.
+- `--catalog` names which of the suggested skills are installed, so a finding that suggests one
+  that is missing renders it `(not installed)` instead of dropping it. Take the distinct non-null
+  `suggested_skill` values in `reference/sweep-rules.json`, add `session-flow:retro`, which the
+  correction lens suggests, and pass only those this session's skill listing holds, never the
+  whole listing: sweep.py checks no other name. Pass each one as its own single-quoted argument
+  (`--catalog 'session-flow:retro' 'harness-ops:observability'`), so the shell never interprets a
+  name. The `session-flow` skills among them ship with this plugin, so the list is never empty.
 - `--scope project` needs `--state-key`: pass the output of
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` run from the project's root. Run it only for this
   scope; the store itself is machine-wide.

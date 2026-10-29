@@ -9,6 +9,8 @@ invented at report time is a section persisted.
 
 Needs you: <n> proposed suppressions to accept, <n> unclassified survivors to classify<, or "none">
 
+Config: <key: value (layer), one per resolved key, layer user-global, team or local><, or "no config: fallback defaults" and each default, the test command marked confirmed>
+
 <under --exercised only, these four lines:>
 Scope: exercised, <changed tests|tests under <test-path>> as one set
 Mapped: <function (file:lines), one per mapped function>   Runner: <tool option and source, or manual with test-command>
