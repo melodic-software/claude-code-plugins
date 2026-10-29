@@ -49,14 +49,21 @@
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
 // - the body was not edited after the lane comment the verdict came from;
+// - on the work-unblock sweep, which passes no verdict comment, a deferred
+//   issue carries neither do-not-merge nor needs-human, and neither gained
+//   `area: security` nor had its body edited since its newest
+//   admission-deferred add (deferralLapsed);
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval (trigger probes and before-and-after eval numbers
 //   included), a live Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
-//   or a page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue, which
-//   refine.mjs files when some items are left for the lane;
+//   or a page on a host outside resolve-issue's web-access domains. When some
+//   items are left for the lane and the issue lacks `host-run`, the refusal
+//   holds at needs-decision and recommends splitting those items off, which
+//   refine.mjs records; otherwise it parks at status: confirmed, adding
+//   `host-run`, the host queue's label, when no item is left for the lane and
+//   nothing else refuses, waits or holds;
 // - not already done: no pull request merged in this repository names the
 //   issue on a `Refs:` line (refsNames) after its newest decision or
 //   refinement comment, or since it opened when it has neither
@@ -132,6 +139,9 @@ export const CONFIRMED = "status: confirmed";
 // The owner-present label (owner decision 2026-10-28): only a listed human
 // removes it.
 export const ATTENDED = "attended";
+// The host queue's label (stop-routes.mjs): an unattended agent run on a host
+// builds the work.
+export const HOST_RUN = "host-run";
 // Opens the refinement line that records the work's external state
 // (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
@@ -401,13 +411,16 @@ const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
 // The trigger-probe harness or the plugin-eval command, not its own test;
 // the harness's validate, score, compare and emit-plugin-eval run no model.
 const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
+// The unrunnable kind that can bill the owner: an owner decision, never the
+// host queue.
+export const PAID_EVAL = "a paid eval";
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
   ],
   [
-    "a paid eval",
+    PAID_EVAL,
     new RegExp(
       [
         String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
@@ -707,16 +720,18 @@ export function unpushablePaths(body, taskList, names, workflows) {
 }
 
 // The refusal reason for unrunnableCriteria's result, with the split it
-// recommends, or null when every item is runnable.
+// recommends, or null when every item is runnable. Host work goes to the host
+// queue (`host-run`); a paid eval, which can bill the owner, to the owner.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
   }
   const list = found.map(({ n, kind, text }) => `item ${n} (${kind}: "${text}")`).join(", ");
+  const to = found.some(({ kind }) => kind === PAID_EVAL) ? "the owner, since a paid eval can bill the owner" : `the host queue (\`${HOST_RUN}\`)`;
   const split =
     found.length === items
-      ? "no done-when item is left for the lane, so a person takes the issue"
-      : "recommended split: keep the other items here as the admissible issue and move these to a needs-human child issue";
+      ? `no done-when item is left for the lane, so it goes to ${to}`
+      : `recommended split: keep the other items here as the admissible issue and move these to a child issue for ${to}`;
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
@@ -730,6 +745,52 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
   const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
   return names(labels).includes(UNTRUSTED) || removedByOther;
+}
+
+// Whether the newest add of `label` (a `labeled` event) is a listed human's
+// (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
+// `attended`. Pure.
+export function addedByTrusted(events, label, humans, appId) {
+  const actor = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1)?.actor;
+  return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
+}
+
+// A deferred issue's labels that refuse its re-admission whatever the rules
+// say: a person's hold.
+const DEFERRAL_HOLDS = ["do-not-merge", "needs-human"];
+// The security area: a deferral judged the issue without it when it was added later.
+export const SECURITY_AREA = "area: security";
+
+// Why a deferred issue (admission-deferred) may not be re-admitted on the
+// admission it was deferred from, each {reason, kind, hold}, in order:
+// `not-ready` when it lost status: ready; `held` when it carries do-not-merge
+// or needs-human, or untrustedHold holds it; `stale` when the security area
+// was added, or its body (`editedAt`, GraphQL lastEditedAt or null) edited,
+// after the newest add of admission-deferred in `events`, or with no such
+// add. `hold` marks a reason a person settles: a held one, or the security
+// area. The work-unblock sweep and decide both judge a deferral here. Pure.
+export function deferralLapsed({ labels, events, editedAt, humans, appId }) {
+  const lower = names(labels).map((name) => String(name).toLowerCase());
+  const newestAdd = (label) => (events ?? []).filter((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === label).at(-1);
+  const deferredAt = Date.parse(newestAdd(DEFERRED)?.created_at);
+  const since = (at) => !Number.isFinite(deferredAt) || !(Date.parse(at) <= deferredAt);
+  const found = [];
+  if (!lower.includes(READY)) {
+    found.push({ reason: `it lost ${READY} while deferred`, kind: "not-ready", hold: false });
+  }
+  for (const label of DEFERRAL_HOLDS.filter((name) => lower.includes(name))) {
+    found.push({ reason: `it carries ${label}`, kind: "held", hold: true });
+  }
+  if (untrustedHold({ labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
+    found.push({ reason: `${UNTRUSTED} work needs a person`, kind: "held", hold: true });
+  }
+  if (lower.includes(SECURITY_AREA) && since(newestAdd(SECURITY_AREA)?.created_at)) {
+    found.push({ reason: `${SECURITY_AREA} was added after it was deferred, so the admission it was deferred from did not judge it`, kind: "stale", hold: true });
+  }
+  if (editedAt != null && since(editedAt)) {
+    found.push({ reason: "its body was edited after it was deferred, so the admission it was deferred from judged an older body", kind: "stale", hold: false });
+  }
+  return found;
 }
 
 // Whether `attended` still holds though the label is off: its newest label
@@ -797,8 +858,12 @@ export function admissionSettled(labels, events, isMark) {
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), or done-when items a lane run cannot
-// perform, which refine splits only from needs-decision (refine.mjs splitOf).
+// person out of every other refusal), a paid-eval done-when item, or, on an
+// issue without a trusted `host-run` (addedByTrusted), done-when items a lane
+// run cannot perform beside items it can, which refine
+// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
+// admit() to add `host-run` on a refusal whose only reason is that no item is
+// left for the lane, with no wait or pending split.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
@@ -878,10 +943,18 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
-  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts));
+  const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
+  const unrunnable = unrunnableReason(criteria);
+  // An issue a listed human or the App put in the host queue parks at
+  // status: confirmed. A paid eval can bill the owner, an owner stop reason
+  // (docs/conventions/loop-lane/README.md), so it holds for a person.
+  const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
+  const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
+  const queue = unrunnable !== null && !queued && !paid;
+  const hostRun = queue && criteria.found.length === criteria.items;
   if (unrunnable) {
     refuse.push(unrunnable);
-    hold = true;
+    hold ||= paid || (queue && !hostRun);
   }
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for
@@ -924,6 +997,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       hold ||= PERSON_LABELS.has(label);
     }
   }
+  // The sweep re-admits a deferred issue on no fresh verdict, so what changed
+  // since its deferral refuses, whatever the rules say (deferralLapsed).
+  if (verdict.writtenAt === undefined && labels.includes(DEFERRED)) {
+    for (const lapsed of deferralLapsed({ labels: issue.labels, events, editedAt: spec?.lastEditedAt, humans, appId })) {
+      if (!refuse.includes(lapsed.reason)) {
+        refuse.push(lapsed.reason);
+      }
+      hold ||= lapsed.hold;
+    }
+  }
   const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
   if (confirm) {
     refuse.push(confirm);
@@ -955,7 +1038,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }), ...(doneBy.length > 0 && { done: doneBy }) };
+    // host-run starts an unattended host run, so it goes only on an issue
+    // whose one obstacle is that no item is left for the lane: never beside a
+    // hold for a person, another refusal, a wait or a pending split.
+    return {
+      verdict: "refuse",
+      reasons: [...refuse, ...parked],
+      ...(hold && { hold }),
+      ...(attended && { attended }),
+      ...(hostRun && refuse.length === 1 && wait.length === 0 && parked.length === 0 && { hostRun }),
+      ...(doneBy.length > 0 && { done: doneBy }),
+    };
   }
   if (parked.length > 0) {
     return { verdict: "wait", reasons: parked, pulls: [] };
@@ -990,7 +1083,8 @@ export async function trustedElsewhere(github, blocker, humans) {
   }
 }
 
-async function parentOf(github, base) {
+// The issue at `base`'s native parent (REST), or null when it has none.
+export async function parentOf(github, base) {
   try {
     return await github("GET", `${base}/parent`);
   } catch (error) {
@@ -1140,6 +1234,17 @@ export async function specOf(github, repository, number) {
 export const noTrustedSpec = (taskList) =>
   `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
+// splitChildBody's `spec.splitParent` for `parent`, a sub-issue's native
+// parent as parentOf reads it: {number, spec (specOf), appId}, or undefined
+// when it has none in this repository. Admission and the issue lane
+// (write-issue.mjs) read it here.
+export async function splitParentOf(github, repository, parent, appId) {
+  if (parent === null || !here(parent.repository_url, repository) || !Number.isInteger(parent.number)) {
+    return undefined;
+  }
+  return { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+}
+
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in
@@ -1162,6 +1267,10 @@ const writtenBy = (humans) => {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   return (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
 };
+
+// Whether a User among `humans` wrote `item` (a body or comment as specOf
+// reads it), and last edited it if ever. Pure.
+export const humanWritten = (item, humans) => writtenBy(humans)(item);
 
 // The refinement comment that counts as spec on `spec`, or undefined: only on
 // a body a listed human wrote (refinementSpec).
@@ -1523,8 +1632,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
   const parent = child || typed ? await parentOf(github, base) : null;
   // A size split's sub-issue counts as its parent's text (splitChildBody).
-  if (child && parent !== null && here(parent.repository_url, repository) && Number.isInteger(parent.number)) {
-    spec.splitParent = { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+  if (child) {
+    spec.splitParent = await splitParentOf(github, repository, parent, appId);
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
@@ -1614,7 +1723,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
     const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
+    await github("POST", `${base}/labels`, { labels: [status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));

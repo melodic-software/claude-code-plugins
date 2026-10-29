@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -176,6 +176,67 @@ describe("decide", () => {
         assert.equal(result.hold, true, path);
         assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
       }
+    });
+  });
+
+  // The work-unblock sweep re-admits a deferred issue on no verdict comment,
+  // so what changed since its newest admission-deferred add refuses.
+  describe("a deferred issue re-admitted with no fresh verdict", () => {
+    const DEFERRED_AT = "2026-10-20T09:00:00Z";
+    const event = (kind, name, id, at) => ({ event: kind, label: { name }, actor: { id }, created_at: at });
+    const deferredAdd = event("labeled", DEFERRED, APP, DEFERRED_AT);
+    const deferredIssue = (...more) => issueOf({ labels: [{ name: READY }, { name: DEFERRED }, ...more.map((name) => ({ name }))] });
+    const SECURITY = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
+    const EDITED = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+
+    test("admits a deferred issue nothing changed on", () => {
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: [deferredAdd] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses for a person a deferred issue that now carries do-not-merge, needs-human or the hold class, whatever the rules say", () => {
+      const bare = { ...RULES, "refuse-labels": [] };
+      for (const [label, reason] of [
+        ["do-not-merge", "it carries do-not-merge"],
+        ["needs-human", "it carries needs-human"],
+        [UNTRUSTED_CLASS, `${UNTRUSTED_CLASS} work needs a person`],
+      ]) {
+        for (const rules of [RULES, bare]) {
+          assert.deepEqual(decide(facts({ rules, issue: deferredIssue(label), events: [deferredAdd] })), { verdict: "refuse", reasons: [reason], hold: true }, label);
+        }
+      }
+      const removed = [deferredAdd, event("labeled", UNTRUSTED_CLASS, APP, DEFERRED_AT), event("unlabeled", UNTRUSTED_CLASS, OUTSIDER, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: removed })), { verdict: "refuse", reasons: [`${UNTRUSTED_CLASS} work needs a person`], hold: true });
+    });
+
+    test("a deferred issue that lost status: ready lapses, and decide skips it", () => {
+      const lost = issueOf({ labels: [{ name: DEFERRED }] });
+      assert.deepEqual(deferralLapsed({ labels: lost.labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), [
+        { reason: `it lost ${READY} while deferred`, kind: "not-ready", hold: false },
+      ]);
+      assert.deepEqual(deferralLapsed({ labels: deferredIssue().labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), []);
+      assert.deepEqual(decide(facts({ issue: lost, events: [deferredAdd] })), { verdict: "skip", reasons: [`no ${READY}`] });
+    });
+
+    test("refuses for a person a deferred issue that gained area: security after its deferral", () => {
+      const after = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: after })), { verdict: "refuse", reasons: [SECURITY], hold: true });
+      const before = [event("labeled", "area: security", HUMAN, "2026-10-20T08:00:00Z"), deferredAdd];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: before })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses a deferred issue whose body was edited after its deferral", () => {
+      const issue = deferredIssue();
+      const editedAt = (at) => ({ ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: at }), comments: [] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "refuse", reasons: [EDITED] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T08:00:00Z") })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a fresh verdict judges the security area and the body itself", () => {
+      const issue = deferredIssue("area: security");
+      const events = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      const spec = { ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: "2026-10-20T10:00:00Z" }), comments: [] };
+      const verdict = { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" };
+      assert.deepEqual(decide(facts({ issue, events, spec, verdict })), { verdict: "admit", reasons: [] });
     });
   });
 
@@ -1057,7 +1118,7 @@ describe("admit", () => {
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a child issue for the host queue \(`host-run`\)/);
   });
 
   test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
@@ -1527,10 +1588,109 @@ describe("unrunnableCriteria", () => {
   });
 });
 
-test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
-  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
-  assert.equal(result.verdict, "refuse");
-  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+// Host work goes to the host queue (`host-run`), parked at status: confirmed,
+// never to a person (docs/conventions/loop-lane/README.md, the three labels
+// that take work off the unattended path). Only a mixed issue lacking
+// host-run holds, so refine.mjs splitOf can split it from needs-decision.
+describe("host-run work", () => {
+  const HOST_ONLY = "- [ ] Run it on a Windows 11 host.";
+  const hostRun = (body, labels = [{ name: READY }]) => issueOf({ body, labels });
+  const queued = (body) => hostRun(body, [{ name: READY }, { name: "host-run" }]);
+  const addedBy = (id) => [{ event: "labeled", label: { name: "host-run" }, actor: { id }, created_at: "2026-10-21T00:00:00Z" }];
+
+  test("every done-when item unrunnable goes to the host queue: host-run added, no hold, no split", async () => {
+    const result = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, undefined);
+    assert.equal(result.hostRun, true);
+    assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so it goes to the host queue \(`host-run`\)/);
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY) });
+    assert.equal((await go(fake)).status, CONFIRMED);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED, "host-run"] })}`);
+  });
+
+  // #9293: the owner released it with host-run added, and admission held it again.
+  test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
+    for (const [body, by] of [
+      [HOST_ONLY, HUMAN],
+      [CANARY, HUMAN],
+      [CANARY, APP],
+    ]) {
+      const issue = queued(body);
+      const result = decide(facts({ issue, events: addedBy(by) }));
+      assert.equal(result.verdict, "refuse", body);
+      assert.equal(result.hold, undefined, body);
+      assert.equal(result.hostRun, undefined, body);
+      const fake = fakeGitHub({ issue, events: addedBy(by) });
+      assert.equal((await go(fake)).status, CONFIRMED, body);
+      assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`, body);
+    }
+  });
+
+  // host-run starts an unattended host run, so it goes only on an issue whose
+  // one obstacle is that no item is left for the lane.
+  test("host work with another refusal, a wait or a pending split parks at status: confirmed with no host-run", async () => {
+    const issue = hostRun(HOST_ONLY);
+    for (const [why, overrides] of [
+      ["Uncertainty unknown", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+      ["a duplicate label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) }],
+      ["an attended label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "attended" }]) }],
+      ["an open pull request", { pulls: [5] }],
+      ["a pending size split", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }],
+    ]) {
+      const result = decide(facts({ issue, ...overrides }));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, undefined, why);
+      assert.equal(result.hostRun, undefined, why);
+    }
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
+  });
+
+  // A host-run label counts only when a listed human or the lanes App added it
+  // last, as attendedHold judges `attended`'s provenance.
+  test("a host-run label an unlisted account added does not lift the split hold", () => {
+    for (const events of [addedBy(OUTSIDER), []]) {
+      const result = decide(facts({ issue: queued(CANARY), events }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true, JSON.stringify(events));
+    }
+    assert.equal(decide(facts({ issue: queued(CANARY), events: addedBy(HUMAN) })).hold, undefined);
+  });
+
+  // Billing is an owner stop reason (docs/conventions/loop-lane/README.md, when
+  // work stops for the owner), so a paid eval keeps the person hold; any other
+  // unrunnable kind, an off-allowlist page included, goes to the host queue.
+  test("a paid-eval item keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
+    const PAID = "- [ ] Run a paid eval of the skill and record the delta.";
+    for (const [why, input] of [
+      ["paid eval alone", { issue: hostRun(PAID) }],
+      ["paid eval beside a host item", { issue: hostRun(`${HOST_ONLY}\n${PAID}`) }],
+      ["paid eval on an issue carrying host-run", { issue: queued(`${HOST_ONLY}\n${PAID}`), events: addedBy(HUMAN) }],
+    ]) {
+      const result = decide(facts(input));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, true, why);
+      assert.equal(result.hostRun, undefined, why);
+      assert.match(result.reasons.join("; "), /the owner, since a paid eval can bill the owner/, why);
+    }
+    const page = decide(facts({ issue: hostRun("- [ ] Confirm it matches https://example.com/docs.") }));
+    assert.equal(page.hold, undefined);
+    assert.equal(page.hostRun, true);
+  });
+
+  test("a hold for a person adds no host-run, so no unattended host run acts on held text", async () => {
+    const trusted = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(trusted.hostRun, true);
+    const issue = issueOf({ body: HOST_ONLY, user: { id: OUTSIDER } });
+    const held = decide(facts({ issue }));
+    assert.equal(held.hold, true);
+    assert.equal(held.hostRun, undefined);
+    const fake = fakeGitHub({ issue });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
 });
 
 describe("noteUnrunnable", () => {
