@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "const form = useForm({ mode: \"onTouched\", reValidateMode: \"onChange\" });",
+      "why": "react-hook-form validates on first blur, then on change"
+    },
+    {
+      "answer": "<input type=\"email\" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => setErrors(validate({ email }))} />",
+      "why": "validation runs on blur"
+    },
+    {
+      "answer": "{touched.email && errors.email && <p id=\"email-error\">{errors.email}</p>}",
+      "why": "errors gated on a touched flag"
+    },
+    {
+      "answer": "I validate on blur instead of `mode: \"onChange\"`, which flags the field after one keystroke.\n\nconst form = useForm({ mode: \"onBlur\", reValidateMode: \"onChange\" });",
+      "why": "prose names onChange only as the thing to avoid; the code validates on blur"
+    },
+    {
+      "answer": "{submitted && errors.password && <p id=\"password-error\">{errors.password}</p>}",
+      "why": "errors gated on a submitted flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "const form = useForm({ mode: \"onChange\" });\n<input {...form.register(\"email\")} onBlur={trackBlur} />",
+      "why": "validates on every keystroke even though an onBlur appears"
+    },
+    {
+      "answer": "<input value={email} onChange={(e) => { setEmail(e.target.value); setError(validateEmail(e.target.value)); }} />",
+      "why": "validation inside onChange with no blur or touched gate"
+    },
+    {
+      "answer": "<input value={email} onChange={(e) => { setEmail(e.target.value); setError(validateEmail(e.target.value)); }} onBlur={() => setFocused(false)} />",
+      "why": "validation inside onChange; the onBlur is unrelated focus tracking"
+    },
+    {
+      "answer": "Validate each field with onBlur, then on change once it has an error.\n\n```jsx\n<input value={email} onChange={(e) => { setEmail(e.target.value); setError(validateEmail(e.target.value)); }} />\n```",
+      "why": "blur timing only in prose; the code validates on every keystroke"
+    }
+  ]
+}

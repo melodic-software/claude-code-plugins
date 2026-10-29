@@ -290,6 +290,42 @@
         "order": 7,
         "procedure": null
       }
+    },
+    {
+      "id": "forms",
+      "title": "Forms and inputs",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "form fields",
+        "input field",
+        "textarea",
+        "input label",
+        "validation",
+        "error message",
+        "submit button",
+        "double submit",
+        "Enter to submit",
+        "autocomplete",
+        "checkbox",
+        "signup form"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/forms.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 12,
+        "procedure": null
+      }
     }
   ]
 }
